@@ -1,0 +1,29 @@
+{
+  "checks": {
+    "api_probe_ok": true,
+    "auto_server_recovery_and_fallback": true,
+    "batch_order_and_isolation": true,
+    "declaration_extraction_golden": true,
+    "explicit_allow_sorry": true,
+    "import_boundary_guard": true,
+    "infotree_smoke": true,
+    "memory_product_reporting": true,
+    "one_vs_multiworker_equivalence": true,
+    "plan_8_4_a5_parity": true,
+    "raw_persistence_and_cache_keys": true,
+    "status_normalization_all_states": true
+  },
+  "date": "2026-07-10",
+  "decision": "pass",
+  "deviations": [
+    "context-grouped incremental workloads deferred to Phase 2 (LF-012)",
+    "golden upgrade diffs run at first dependency upgrade (\u00a727.4)"
+  ],
+  "evidence": "reports/milestones/phase_1_leaninteract.md",
+  "gate": "gate_1",
+  "inputs": {
+    "doctor_report": "587fd3dae6c251c31244deb429d437dc241b94a8695ddb9b0485df7240dca706",
+    "golden_command_declaration": "435656d329c3351089f012ca5348a790d881007c1828065fb119f27e39ed1a08",
+    "leaninteract_api_report": "abc464517712492f3aede7e5c626c9ce5ab18adfe26ec482b3030f0c3ef7a777"
+  }
+}
