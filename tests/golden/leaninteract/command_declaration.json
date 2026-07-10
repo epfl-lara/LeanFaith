@@ -1,0 +1,9 @@
+{
+  "name": "it_decl",
+  "full_name": "it_decl",
+  "kind": "theorem",
+  "signature_pp": "(n : Nat) : n = n",
+  "binder_ids": [
+    "n"
+  ]
+}

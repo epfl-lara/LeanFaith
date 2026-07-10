@@ -221,3 +221,7 @@ __marimo__/
 data/
 artifacts/
 runs/
+
+# Lean build outputs and LeanInteract project locks
+.lake/
+tests/lean_fixtures.lock

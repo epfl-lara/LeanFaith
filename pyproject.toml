@@ -49,6 +49,9 @@ packages = ["leanfaith"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q"
+markers = [
+    "lean: requires the Lean toolchain and the built fixture REPL (PR-Lean CI tier)",
+]
 
 [[tool.mypy.overrides]]
 # The Appendix A.5 canonical block uses bare `dict`/`tuple[dict, ...]`;

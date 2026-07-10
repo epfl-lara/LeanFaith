@@ -1,0 +1,6 @@
+name = "LeanFaithFixtures"
+version = "0.1.0"
+defaultTargets = ["LeanFaithFixtures"]
+
+[[lean_lib]]
+name = "LeanFaithFixtures"
