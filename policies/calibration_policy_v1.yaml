@@ -5,7 +5,7 @@
 # Where PLAN.md leaves a parameter open, this file decides it and marks the
 # line with "decision:".
 policy_version: calibration_policy_v1
-status: approved for development; deployment-threshold sections activate when calibration_gold exists
+status: authored_pending_gate_0_review
 source_of_truth: "PLAN.md sections 19.6, 20.6, 21.10, 23.9, 23.10, 23.11, 30.5, 31.5"
 
 scope:
@@ -27,7 +27,6 @@ roles:
     purpose: method comparison during development only
     permitted_uses:
       - comparing the method menu below on development data
-      - narrowing the menu before the calibration_gold K-fold protocol
       - development-only diagnostics and ablation tables
     forbidden_uses:
       - fitting or adjusting any deployment threshold
@@ -41,9 +40,10 @@ roles:
     purpose: select the final calibration method and fit/freeze deployment thresholds
     unresolved: >
       realized item and ancestry-group counts are not yet known; unblocked by
-      real-output collection and the 200-300-item prevalence study, after
-      which the target count is power-derived and frozen in the split
-      manifest (PLAN.md 19.6). Until then every section below that reads
+      real-output collection. The power-derived-after-prevalence-study count
+      rule belongs to real_output_test (PLAN.md 19.6); calibration_gold's
+      size is a Phase 7b design decision recorded in its split manifest
+      (PLAN.md 18.2). Until then every section below that reads
       calibration_gold is specified but not executable.
 
 # ---------------------------------------------------------------------------
@@ -175,7 +175,10 @@ prohibitions:
 # ---------------------------------------------------------------------------
 failure_fallbacks:
   trigger: Gate 10 ECE or coverage criterion fails
-  options_in_order_of_preference:
+  selection: >
+    the three PLAN.md 30.5 fallbacks below are disjunctive options, not a
+    fixed preference order; which one applies is a recorded Gate-10 decision.
+  options:
     - id: review_heavy_policy
       description: deploy with tightened ACCEPT threshold and a REVIEW-heavy decision policy; report the realized (lower) coverage honestly
     - id: recalibrate_real_output

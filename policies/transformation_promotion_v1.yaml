@@ -7,6 +7,9 @@
 # section 18.7); changing this policy requires a new policy_version.
 policy_version: transformation_promotion_v1
 plan_sections: ["15", "18.7", "phase-4 gates 4G/4A/4B"]
+# Gate 0 approval is recorded in reports/milestones/phase_0_contract.md,
+# not inside policy files.
+status: authored_pending_gate_0_review
 
 # Vocabulary is fixed by the PLAN.md section 11.1 enums. No other values
 # are legal; the strict loader and schema validation reject unknowns.
@@ -101,10 +104,11 @@ active_families:
     status: experimental
     rule_scope: >-
       Literal, bound, index, or argument-order mutation (section 15.6).
-      decision: argument-order swaps default to E12 for oriented
-      relations and E30 (rationale required) otherwise.
+      decision: literal/bound/index mutations default to E16/E17;
+      argument-order swaps of oriented relations use E12 and other
+      argument-order swaps use E30 (rationale required).
     intended_relation: near_miss
-    intended_error_types: [E16, E17]
+    intended_error_types: [E16, E17, E12, E30]
   n10_nearby_theorem:
     polarity: negative
     status: experimental
@@ -216,12 +220,13 @@ promotion_reopening:
   # invalidate prior family promotion.
   rule_version_change_reopens_promotion: true
   effects:
-    - "prior family promotion status does not transfer to a new rule_version"
-    - "the new rule_version re-enters at status=experimental"
     - >-
-      items already promoted under the old rule_version keep their tier
-      but record the promoting rule_version; new items require a new
-      audit under the new version
+      Rule changes create new versions and reopen promotion (15.8); any
+      rule-version change invalidates prior FAMILY promotion (18.7).
+    - >-
+      decision: items individually certified under the old version keep
+      their item-level certificates, but the family tier resets to
+      experimental and new items require a fresh audit.
     - "audit statistics are immutable and recomputable (section 15.9)"
   registry_change_control: >-
     Registry entries record family/version/polarity/profile/status,

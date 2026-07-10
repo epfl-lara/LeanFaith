@@ -1,13 +1,17 @@
 # ADR-0004: Encoder and tokenizer selection
 
-**Status:** Proposed (finalizes at the LF-028 tokenizer audit; see Decision)
+**Status:** authored_pending_gate_0_review (Gate 0 approval is recorded in
+`reports/milestones/phase_0_contract.md`, not here; finalizes at the LF-028
+tokenizer audit; see Decision)
 **Date:** 2026-07-10
-**Source of truth:** PLAN.md section 6.4 (lines 362-364), section 13.7, section 21.2.
+**Source of truth:** PLAN.md section 6.4 (lines 362-364), section 13.7,
+sections 21.1-21.3.
 
 ## Context
 
-The M1-M3 models need a pretrained encoder whose tokenizer handles Lean statement text
-well. Lean text is dense in Unicode mathematical symbols, dotted namespaces,
+The model family of PLAN.md sections 21.1-21.3 (M0 dual encoder through M4, plus the
+M5 graph extension) needs a pretrained encoder whose tokenizer handles Lean statement
+text well. Lean text is dense in Unicode mathematical symbols, dotted namespaces,
 subscripted identifiers, and long elaborated signatures; a tokenizer that fragments
 these inflates sequence length, forces truncation, and degrades exactly the
 near-miss-sensitive comparisons the project targets.
@@ -22,7 +26,9 @@ max lengths, and truncation before any non-smoke training (section 21.2).
 ## Decision
 
 decision: **Default candidate is ModernBERT-large.** It is the presumptive encoder for
-M1-M3 unless the fixed-pilot comparison overturns it.
+the whole model family (M0 dual encoder through M4, and the M5 graph extension,
+PLAN.md sections 21.1-21.3) unless the fixed-pilot comparison overturns it; the
+section 13.7 decision recorded here governs all non-smoke training.
 
 decision: The comparison protocol is fixed as follows and executed at **LF-028**:
 

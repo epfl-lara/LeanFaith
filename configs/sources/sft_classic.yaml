@@ -3,12 +3,15 @@
 # project HF token is expected to load it. Nothing about license, schema, or
 # counts is verified until the Gate 0 authenticated probe runs.
 source_config_version: 1
-source_name: sft_classic
+source: sft_classic
 kind: huggingface_dataset
-requested_id: formalmathatepfl/sft_classic
+requested_id: formalmathatepfl/sft_classic  # documentation; dataset_id below is the key LF-011 binds
+dataset_id: formalmathatepfl/sft_classic
 access_status: private_requires_hf_auth
 auth:
   hf_token_env: HF_TOKEN  # secret referenced by name only; the token value is never stored in configs or manifests (§9.2)
+token:
+  env: HF_TOKEN  # SecretRef shape consumed by HFProbeConfig; name only, resolved at call time
 required_probe:  # Gate 0 fails without the archived probe artifact (§9.2)
   - resolved_id
   - revision

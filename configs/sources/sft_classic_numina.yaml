@@ -3,7 +3,7 @@
 # NL-source fallback order. Schema and counts below are expectations to be
 # rechecked at the pinned revision, not verified facts.
 source_config_version: 1
-source_name: sft_classic_numina
+source: sft_classic_numina
 kind: huggingface_dataset
 dataset_id: formalmathatepfl/sft_classic_numina
 expected_columns: [uuid, question, answer, lean_code]

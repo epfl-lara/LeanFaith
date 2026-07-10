@@ -1,11 +1,12 @@
 # Split policy v1 (PLAN.md sections 19.5-19.9, 22.4-22.5, Appendix B.4).
 # Serialized records store only split names and group IDs; the rules that
 # produce and protect them live here. Changing any rule in this file requires
-# a new policy version and a rebuild of affected manifests (section 18.6
-# versioning discipline applies to splits as to labels).
+# a new policy version and a rebuild of affected manifests; manifests are
+# frozen once built and change only by versioned additive appends (PLAN.md
+# sections 19.4, 19.8).
 policy_version: split_policy_v1
 source_of_truth: "PLAN.md sections 19.5-19.9, 22.4-22.5, Appendix B.4"
-status: approved_for_pilot_builds
+status: authored_pending_gate_0_review
 
 # ---------------------------------------------------------------------------
 # 1. Connected-component grouping (PLAN.md section 19.5)
@@ -27,7 +28,7 @@ connected_component_rule:
     # Every record in a component receives the SAME primary split. This is
     # what makes multi-parent, N10, multiple-reference, and multiple-candidate
     # cases safe: relatives can never straddle a train/test boundary.
-  handles_cases: [multi_parent, n10_transform_chains, multiple_reference, multiple_candidate]
+  handles_cases: [multi_parent, n10_nearby_theorem_substitution, multiple_reference, multiple_candidate]
   near_duplicate_source: "data/benchmarks/frozen_ids.json plus the end-of-Phase-3 additive signature append (PLAN.md section 19.4); appends are versioned, never rewrites"
 
 # ---------------------------------------------------------------------------
@@ -49,13 +50,14 @@ naming:
 primary_vs_reporting:
   primary_split_assignments_per_record: 1
   purpose_of_primary_split: training_access_control
-  reporting_subset_field: reporting_subsets   # list-valued, stored SEPARATELY
+  reporting_subset_field: reporting_subsets   # list-valued, declared in split manifests
   rule: >
     A record has exactly one primary split assignment. It may additionally
     belong to explicitly declared reporting subsets (for example
     heldout_generator_test as a subset of real_output_test as a subset of
-    human_test). Reporting-subset membership is stored in the
-    reporting_subsets field and never in the primary split field; no code
+    human_test). Reporting-subset membership is declared in split manifests
+    in the separate list-valued reporting_subsets field; per-record
+    serialized rows carry only the primary split (PLAN.md 19.6). No code
     may infer training access from reporting-subset membership.
   decision: >
     Phase 0 decision: reporting subsets are declared only in split manifests
@@ -213,7 +215,7 @@ hard_aborts:
     detail: "A union-find component contains records assigned to more than one split where any member split is protected."
   - id: HA02
     condition: duplicate_policy_violation
-    detail: "Exact, headless, alpha, or near duplicates violate the duplicate policy across a protected boundary."
+    detail: "Exact, headless, alpha, or near duplicates violate the duplicate policy."
   - id: HA03
     condition: denylisted_or_prohibited_overlap_in_supervision
     detail: "A denylisted (section 19.7 registry) or otherwise prohibited record enters any supervision set."

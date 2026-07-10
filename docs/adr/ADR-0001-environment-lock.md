@@ -1,6 +1,7 @@
 # ADR-0001: Environment lock (Lean toolchain, mathlib pin, LeanInteract versions)
 
-**Status:** Accepted
+**Status:** authored_pending_gate_0_review (Gate 0 approval is recorded in
+`reports/milestones/phase_0_contract.md`, not here)
 **Date:** 2026-07-10
 **Source of truth:** PLAN.md sections 6.1, 6.2, 8.1, 8.2, Appendix B.1. This ADR records
 the Phase 0 toolchain-mode choice that PLAN.md section 6.2 requires; the executable lock
@@ -60,18 +61,20 @@ and any use of mathlib on `v4.32.0-rc1`.
    explicit cache/schema migration decision, and Gate 1 testing of the exception. Until
    then the doctor treats `v4.31.0` as out of range.
 2. **cslib.** HEAD `c0120dddfe75d4ab913691c0c184fc436927b19d` is on `v4.32.0-rc1`,
-   outside this lock, and cannot be extracted under it. Phase 11 preparation (LF-030)
-   must pin the last in-range revision `2f677bfc8ef7` (`v4.31.0-rc1`, 2026-05-29) in
-   `configs/projects/cslib.yaml`, or reopen this ADR. The Phase 2 probe records this
-   revision/toolchain evidence.
+   outside this lock, and cannot be extracted under it. The executable pin is set now
+   (no placeholder): `configs/projects/cslib.yaml` pins the last in-range revision
+   `2f677bfc8ef76fa7a27feafc597c1e4a7eda3e42` (`v4.31.0-rc1`, 2026-05-29). Phase 11
+   preparation (LF-030) revalidates this pin (freshness/coverage) and may reopen this
+   ADR, e.g. if a future lock change admits the `v4.32.0-rc1` HEAD. The Phase 2 probe
+   records this revision/toolchain evidence.
 3. **physlib.** No recent in-range revision exists: HEAD `b0070e4bfd04` is on stable
    `v4.31.0` (outside the advertised range) and the older revision `f5242c99d796` is on
-   `v4.30.0` (in range but older content).
-   unresolved: physlib pin is deferred to Phase 11 preparation (LF-030) and recorded
-   here as an open consequence. It is unblocked by either (a) pinning `f5242c99d796`
-   (`v4.30.0`) in `configs/projects/physlib.yaml`, accepting older content, or
-   (b) reopening this ADR for a stable-`v4.31.0` exception after the complete
-   section 8.2 probe. Until resolved, physlib remains probe-only
+   `v4.30.0` (in range but older content). The executable pin is set now (no
+   placeholder): `configs/projects/physlib.yaml` pins
+   `f5242c99d796b59a390d26cd7d1a8057e04c46b5` (`v4.30.0`), accepting older content.
+   Phase 11 preparation (LF-030) revalidates this pin (freshness/coverage) and may
+   reopen this ADR for a stable-`v4.31.0` exception after the complete section 8.2
+   probe. Until Phase 11 builds the adapter, physlib remains probe-only
    (`role: probe_now_adapter_at_ood`) and emits no extraction records.
 4. **Upgrades.** Any change to `lean-interact`, the accepted Lean, or the mathlib pin is
    a lock change under section 8.2 and reopens this ADR; there is no in-place bump.

@@ -2,7 +2,7 @@
 # Machine-generated/synthetic NL-Lean pairs; weak supervision and problem
 # diversity only. Second entry in the fixed NL-source fallback order.
 source_config_version: 1
-source_name: lean_workbook
+source: lean_workbook
 kind: huggingface_dataset
 dataset_id: internlm/Lean-Workbook
 expected_scale_rows: 57000  # approximate; machine-generated NL-Lean pairs (§9.1)

@@ -10,10 +10,11 @@ mirror_of: policies/benchmark_denylist_v1.yaml
 
 # decision: registry keys are lowercase snake_case and stable across registry
 # versions; display names carry the exact published spelling.
-# decision: identities marked resolve_at_freeze are resolved by the Phase 2
-# benchmark-freeze step (LF-013) with exact source, revision, and hashes;
-# that resolution is scheduled Phase 2 work, not an open Phase 0 blocker.
-# Only PAug/ProofNetVerif is identity-verified today (PLAN.md Appendix J.2).
+# decision: known benchmark identities are registered now (Phase 0). Entries
+# marked identity_unresolved carry lookup evidence + a resolution plan and are
+# flagged in the unresolved list at the bottom; their hashes are frozen at the
+# Phase 2 freeze per PLAN.md 19.4 (LF-013). Only PAug/ProofNetVerif is
+# identity-verified today (PLAN.md Appendix J.2).
 
 usage_rule: >-
   usage is evaluation_only for every entry. No benchmark test label may
@@ -65,10 +66,10 @@ benchmarks:
   proofnet_sharp:
     registry_key: proofnet_sharp
     display_name: "ProofNet#"
-    identity: resolve_at_freeze
-    identity_kind: resolve_at_freeze
+    identity: identity_unresolved
+    identity_kind: identity_unresolved
     revision: resolve_at_freeze
-    citation: "Liu et al., Rethinking and Improving Autoformalization, ICLR 2025"
+    citation: resolve_at_freeze
     usage: evaluation_only
     freeze_artifacts:
       ids: pending_phase_2
@@ -76,15 +77,16 @@ benchmarks:
       raw_hashes: pending_phase_2
       representation_signatures: append_end_of_phase_3
     notes: >-
-      Cleaned/repaired ProofNet variant from the BEq line. Distinct from
-      ProofNetVerif and from other ProofNet derivatives; the freeze records
-      which distribution was used.
+      Named in the PLAN.md section 19.7 minimum denylist. Distinct from
+      ProofNetVerif and from other ProofNet derivatives; lookup evidence and
+      a resolution plan are recorded, and the Phase 2 freeze records the
+      exact distribution, citation, and revision used.
 
   rlm25:
     registry_key: rlm25
     display_name: RLM25
-    identity: resolve_at_freeze
-    identity_kind: resolve_at_freeze
+    identity: identity_unresolved
+    identity_kind: identity_unresolved
     revision: resolve_at_freeze
     citation: resolve_at_freeze
     usage: evaluation_only
@@ -101,8 +103,8 @@ benchmarks:
   con_nf:
     registry_key: con_nf
     display_name: Con-NF
-    identity: resolve_at_freeze
-    identity_kind: resolve_at_freeze
+    identity: identity_unresolved
+    identity_kind: identity_unresolved
     revision: resolve_at_freeze
     citation: "Liu et al., Rethinking and Improving Autoformalization, ICLR 2025 (BEq)"
     usage: evaluation_only
@@ -120,8 +122,8 @@ benchmarks:
   epla:
     registry_key: epla
     display_name: EPLA
-    identity: resolve_at_freeze
-    identity_kind: resolve_at_freeze
+    identity: identity_unresolved
+    identity_kind: identity_unresolved
     revision: resolve_at_freeze
     citation: "ASSESS/TransTED and EPLA; arXiv:2509.22246"
     usage: evaluation_only
@@ -138,8 +140,8 @@ benchmarks:
   criticleanbench:
     registry_key: criticleanbench
     display_name: CriticLeanBench
-    identity: resolve_at_freeze
-    identity_kind: resolve_at_freeze
+    identity: identity_unresolved
+    identity_kind: identity_unresolved
     revision: resolve_at_freeze
     citation: "CriticLean/CriticLeanGPT/CriticLeanBench; arXiv:2507.06181"
     usage: evaluation_only
@@ -152,11 +154,11 @@ benchmarks:
       Benchmark for the closest learned NL-to-Lean faithfulness critic line;
       CriticLean models are also named baselines (section 20.3).
 
-  consistencycheck:
-    registry_key: consistencycheck
+  consistency_check:
+    registry_key: consistency_check
     display_name: ConsistencyCheck
-    identity: resolve_at_freeze
-    identity_kind: resolve_at_freeze
+    identity: identity_unresolved
+    identity_kind: identity_unresolved
     revision: resolve_at_freeze
     citation: "ReForm; arXiv:2510.24592 (859 expert-annotated validation items)"
     usage: evaluation_only
@@ -176,8 +178,8 @@ benchmarks:
   gaokao_formal:
     registry_key: gaokao_formal
     display_name: Gaokao-Formal
-    identity: resolve_at_freeze
-    identity_kind: resolve_at_freeze
+    identity: identity_unresolved
+    identity_kind: identity_unresolved
     revision: resolve_at_freeze
     citation: "Mathesis/LeanScorer; arXiv:2506.07047"
     usage: evaluation_only
@@ -193,8 +195,8 @@ benchmarks:
   driftbench:
     registry_key: driftbench
     display_name: DriftBench
-    identity: resolve_at_freeze
-    identity_kind: resolve_at_freeze
+    identity: identity_unresolved
+    identity_kind: identity_unresolved
     revision: resolve_at_freeze
     citation: "The Faithfulness Gap; arXiv:2606.16541"
     usage: evaluation_only
@@ -210,7 +212,7 @@ benchmarks:
   minif2f_variants:
     registry_key: minif2f_variants
     display_name: "miniF2F variants"
-    identity: resolve_at_freeze
+    identity: identity_unresolved
     identity_kind: umbrella_enumerate_at_freeze
     revision: resolve_at_freeze
     citation: resolve_at_freeze
@@ -227,3 +229,18 @@ benchmarks:
       enumerated variants inherit this entry's denylist and evaluation_only
       status. No result may cite "miniF2F" without naming the exact variant
       and revision used.
+
+# ---------------------------------------------------------------------------
+# Unresolved identities (identity_unresolved: lookup evidence + resolution
+# plan recorded; hashes frozen at Phase 2 freeze per 19.4)
+# ---------------------------------------------------------------------------
+unresolved:
+  - proofnet_sharp
+  - rlm25
+  - con_nf
+  - epla
+  - criticleanbench
+  - consistency_check
+  - gaokao_formal
+  - driftbench
+  - minif2f_variants

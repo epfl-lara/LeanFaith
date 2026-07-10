@@ -1,6 +1,7 @@
 # ADR-0003: Data versioning (content-hash manifests first, DVC as pointers)
 
-**Status:** Accepted
+**Status:** authored_pending_gate_0_review (Gate 0 approval is recorded in
+`reports/milestones/phase_0_contract.md`, not here)
 **Date:** 2026-07-10
 **Source of truth:** PLAN.md section 6.1 (line 332) and section 28.5; repository layout
 section 7 (`dvc.yaml` / `dvc.lock` marked "research_v1 onward").
@@ -34,10 +35,14 @@ Phase 0 onward, permanently.** Concretely:
    DVC metadata never replaces, overrides, or shortcuts a manifest; any
    manifest-vs-DVC disagreement is resolved by the manifest and treated as a storage
    defect.
-4. decision: **Bulk bytes live under `/storage/milikic`** (approved local bulk
-   storage): large binary artifacts, dataset caches, source checkouts, raw response
-   stores, and checkpoints. The git repository keeps manifests and hashes only; no
-   large binary is committed. The DVC remote/cache added at `research_v1` points into
+4. Operational environment note (not a plan mandate): on the current host, bulk
+   bytes (large binary artifacts, dataset caches, source checkouts, raw response
+   stores, and checkpoints) live under `/storage/milikic`, operator-provided bulk
+   storage outside the repository tree. The PLAN.md section 7 `data/` and
+   `artifacts/` paths remain the authoritative pipeline locations; the in-repo
+   manifests/hashes track every artifact regardless of where the bulk bytes live.
+   The git repository keeps manifests and hashes only; no large binary is
+   committed. The DVC remote/cache added at `research_v1` points into
    `/storage/milikic`.
 5. Secrets (including `HF_TOKEN`) are referenced by environment name only and never
    appear in manifests, DVC files, or storage paths (PLAN.md section 6.1). Manifests

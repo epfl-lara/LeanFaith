@@ -4,20 +4,25 @@
 # full adapter, extraction, labeling, and heldout_project_test manifest are
 # built during Phase 11 preparation (backlog LF-030).
 source_config_version: 1
-source_name: physlib
+source: physlib
 kind: git
-repo: https://github.com/leanprover-community/physlib
+repo_url: https://github.com/leanprover-community/physlib
+revision: f5242c99d796b59a390d26cd7d1a8057e04c46b5  # executable pin; mirrors configs/projects/physlib.yaml
+expected_toolchain: v4.30.0
 probed_head:
-  revision: b0070e4bfd04
+  revision: b0070e4bfd04ca62150bdb5ad7bdc110d6d69624
   toolchain: v4.31.0  # stable release, outside the advertised range's maximum v4.31.0-rc1; usable only under a stable-exception ADR (§6.2 mode 2)
+  probe_date: "2026-07-10"  # full 40-char SHA verified against the remote on this date
 older_in_range_candidate:
-  revision: f5242c99d796
+  revision: f5242c99d796b59a390d26cd7d1a8057e04c46b5
   toolchain: v4.30.0  # inside the advertised range v4.8.0-rc1..v4.31.0-rc1
 root_module: Physlib
 globs: ["Physlib/**/*.lean"]
 role: probe_now_adapter_at_ood
 decision: >-
-  Extraction revision is deferred to Phase 11 preparation (LF-030); see
-  ADR-0001 (docs/adr/ADR-0001-environment-lock.md). Candidates: the probed
-  HEAD b0070e4bfd04 only if ADR-0001 records a Gate 1 tested stable-v4.31.0
-  exception, otherwise the older in-range revision f5242c99d796 on v4.30.0.
+  The executable extraction pin is set now in configs/projects/physlib.yaml:
+  the older in-range revision f5242c99d796b59a390d26cd7d1a8057e04c46b5
+  (v4.30.0); see ADR-0001 (docs/adr/ADR-0001-environment-lock.md). Phase 11
+  preparation (LF-030) revalidates the pin (freshness/coverage) and may
+  reopen ADR-0001 with a Gate 1 tested stable-v4.31.0 exception admitting
+  the probed HEAD b0070e4bfd04ca62150bdb5ad7bdc110d6d69624.

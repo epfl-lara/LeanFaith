@@ -3,7 +3,7 @@
 # training only if the source manifest explicitly designates trainable rows
 # (fixed fallback order entry 3, §9.1).
 source_config_version: 1
-source_name: proofnetverif
+source: proofnetverif
 kind: huggingface_dataset
 dataset_id: PAug/ProofNetVerif
 expected_rows: 3752

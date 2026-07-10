@@ -7,7 +7,7 @@
 # (PLAN.md 14.1). Enum spellings are defined once in the section 7.1 schema
 # modules; this file references them and never redefines them.
 policy_version: label_resolution_v1
-status: "approved Phase 0 decision set; binding for the Phase 8 resolver"
+status: authored_pending_gate_0_review
 source_of_truth: "PLAN.md sections 3.5, 11.8, 14.1-14.7, 15.7, 16.3-16.8"
 companion_policies:
   semantic_policy: semantic_policy_v1
@@ -76,7 +76,7 @@ conflict_policy:
   on_conflict:
     - write_conflict_record
     - route_target_to_unresolved_review   # field contract in section 5
-    - quarantine_conflicting_evidence_for_replay_recheck   # PLAN.md 16.7
+    - quarantine_conflicting_evidence_for_replay_recheck   # decision: Phase 0
   conflict_record_fields:
     - conflict_id
     - target_kind
@@ -87,15 +87,18 @@ conflict_policy:
     - policy_version
     - notes
   no_destructive_overwrite: >-
-    ResolvedLabel records are never mutated in place. Re-resolution writes a
-    new label whose metadata carries a supersedes pointer to the old
-    label_id; superseded labels and all conflict records are retained
-    append-only for audit.
+    ResolvedLabel records are never mutated in place. ResolvedLabel has a
+    closed field list with no metadata or supersedes field (PLAN.md 11.8);
+    re-resolution writes a new label, and the supersedes pointer to the old
+    label_id lives in the conflict-record artifact and in the
+    adjudication_notes of the new label. Superseded labels and all conflict
+    records are retained append-only for audit.
   exit: >-
     A conflicted target leaves the review route only through rank-1 human
-    adjudication, or through a versioned frozen-benchmark errata decision
-    for benchmark-defined items. The closing adjudication_notes must
-    reference the conflict_id.
+    adjudication, or, for benchmark-defined items, through the PLAN.md 29.1
+    incident procedure with its versioned decision record under
+    reports/decisions/. The closing adjudication_notes must reference the
+    conflict_id.
   human_vs_kernel_certificate: >-
     If human adjudication contradicts an accepted kernel-checked
     certificate, neither side is silently preferred: the mandatory
@@ -146,8 +149,12 @@ negative_promotion:
     - route_id: N4
       name: independent_consensus_audited
       requires: >-
-        promoted independent consensus plus audited precision meeting the
-        PLAN.md 15.8 thresholds
+        independent consensus meeting the PLAN.md 17.8 silver promotion
+        policy plus the PLAN.md 17.9 capped stratified audit, with base
+        sample min(ceil(0.20 x promoted_silver_count), 1000) and
+        preregistered per-stratum minima allocated inside it; the PLAN.md
+        15.8 thresholds apply only to positive family gold promotion, not
+        to this route
       resulting_tier: silver_consensus
   never_qualifies:
     - high_confidence_mutation_intention   # no shortcut from intended labels
@@ -185,9 +192,17 @@ resolution_methods:
     - method: independent_consensus_audited
       route: N4
       tier: silver_consensus
-    - method_pattern: "{family_id}_alpha_certificate"   # example p01_alpha_certificate
+    - method: p01_alpha_certificate   # concrete spelling; smoke_alpha_certificate below
       route: positive_conservative_family_promotion     # PLAN.md 15.8
       tier: gold_conservative_transform
+    - method_pattern: "{family_id}_certificate"   # reserved pattern, not itself a method
+      route: positive_conservative_family_promotion     # PLAN.md 15.8
+      tier: gold_conservative_transform
+      note: >-
+        reserved naming pattern for future positive families; each family's
+        concrete method name is registered here by a policy revision at
+        promotion time. The only registered concrete spellings are
+        p01_alpha_certificate and smoke_alpha_certificate.
     - method: benchmark_import   # decision: canonical spelling for frozen benchmark labels
       route: frozen_benchmark_policy
       tier: benchmark
@@ -196,7 +211,7 @@ resolution_methods:
       tier: provisional
       note: >-
         artifact_class=smoke only; can never enter release, selection,
-        calibration, or scientific tables (PLAN.md 20).
+        calibration, or scientific tables (PLAN.md 22.7, 5.1).
   unresolved_route_method: null   # the review route carries no method
 
 # ---------------------------------------------------------------------------
@@ -244,7 +259,10 @@ f_derivation:
     - mutual closed provability never directly assigns F1/same_claim true
     - a closed implication never directly assigns A_stronger or B_stronger
     - F2 true or false never lifts or lowers F1 (semantic_policy_v1 2.1, 2.8)
-    - vacuity/ex-falso proofs are rejected as directional or truth evidence
+    - vacuity/ex-falso proofs are rejected as claim-level (directional
+      relation) evidence per PLAN.md 16.3 mode 2 and 16.4; closed-truth-mode
+      proofs still populate F2 even when the proof exploits vacuity, with
+      the claim relation kept unknown or human-resolved (PLAN.md 16.3)
     - a checked separator may set a truth direction false and support
       F1=false under policy, but never alone sets a directional relation
   impossible_combinations:
@@ -295,7 +313,7 @@ field_contracts:
       resolution_outcome: ambiguous
       relation: ambiguous
       F1_same_claim: null
-      quality_tier: gold_human_or_benchmark   # benchmark only when source-defined
+      quality_tier: [gold_human, benchmark]   # benchmark only when source-defined
       requires_adjudication: false
     eligibility:
       binary_training_target: false           # masked from binary BCE
@@ -358,9 +376,10 @@ interface_mappings:
       (PLAN.md 11.11), and is counted in proposer-format monitoring; it
       never invents an enum value.
   judge_to_resolution_candidate:
-    # Judge outputs are resolution candidates entering precedence at the
-    # rank of the judge's evidence class (normally rank 4 via consensus, or
-    # rank 5); a judge answer alone never directly writes a ResolvedLabel.
+    # Judge answers enter resolution only after aggregation into rank-4
+    # promoted independent consensus; a lone judge answer never enters
+    # resolution by itself - it remains evidence and routes to review
+    # (PLAN.md 14.6, Appendix E: no single vote creates gold).
     table:
       - answer: same_claim
         candidate:

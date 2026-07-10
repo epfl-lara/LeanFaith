@@ -4,19 +4,20 @@
 # Changing any semantic rule in this file requires a new policy version;
 # cached evidence produced under the old version keeps its old cache keys.
 policy_version: evidence_policy_v1
-status: "approved for implementation (Phase 0); operational restatement of PLAN.md, which prevails on any conflict"
+status: authored_pending_gate_0_review
 
 # ---------------------------------------------------------------- 16.1
 sampling_scope:
   mandatory_when_applicable:
     - evaluation_and_calibration_pairs
+  mandatory:
     - gold_promotion_candidates
     - gold_counterexample_candidates
     - preregistered_stratified_training_sample
   never: "exhaustive execution over all training pairs"
   decision: >-
     The stratified training sample is preregistered in
-    configs/evidence/training_sample_prereg_v1.yaml (strata definitions and
+    configs/evidence/sampling_v1.yaml (strata definitions and
     selection seed recorded before any evidence job runs on training data);
     evidence results never move a pair into or out of the registered sample.
 
@@ -36,7 +37,7 @@ evidence_kinds:
     description: "definitional equality check between the two proposition types"
     semantic_values: [equal, not_equal]
     may_inform: [F0]
-  closed_proof:
+  proof:
     description: "closed whole-proposition proof of A->B or B->A"
     semantic_values: [proved, not_proved]
     may_inform: [F2]   # F2 only; never a directional claim relation by itself
@@ -97,9 +98,9 @@ proof_portfolio:
     and conclusion maps and reject vacuity/ex-falso shortcuts
   acceptance: "only replayed admission-free certificates are accepted"
   decision: >-
-    portfolio_v1.yaml is a separate Phase 0/1 deliverable; no evidence job may
-    run before it exists, and this policy intentionally does not duplicate its
-    contents.
+    configs/evidence/portfolio_v1.yaml must exist before any evidence job runs
+    (LF-020; used in Phases 4-6) and is authoritative; this policy
+    intentionally does not duplicate its contents.
 
 # ---------------------------------------------------------------- 16.5
 bounded_counterexamples:
@@ -139,7 +140,7 @@ certificate_acceptance:
 evidence_to_label:
   informs:
     defeq: "informs F0"
-    closed_proof: "informs F2"
+    proof: "informs F2"
     claim_alignment: "may support a directional claim relation (A_stronger/B_stronger)"
     counterexample: "may set a truth direction false and support F1=false under policy"
   hard_rules:

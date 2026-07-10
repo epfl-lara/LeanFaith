@@ -6,9 +6,7 @@
 # this policy defines what that registry must contain and when it is written.
 # Loaded by the strict YAML loader: root mapping, no duplicate keys, no tabs.
 policy_version: benchmark_denylist_v1
-status: approved for Phase 2 freeze; identities marked resolve_at_freeze are
-  pinned by the Phase 2 registry probe before data/benchmarks/frozen_ids.json
-  is written.
+status: authored_pending_gate_0_review
 
 # ---------------------------------------------------------------------------
 # Global rules (PLAN.md 19.7, 23.6)
@@ -65,9 +63,10 @@ freeze_timing:
 
 # ---------------------------------------------------------------------------
 # Protected benchmarks (PLAN.md 19.7, 23.6, J.2)
-# Every entry: usage is evaluation_only; identity is the HF dataset id or
-# repository when PLAN.md pins one, else resolve_at_freeze (pinned by the
-# Phase 2 probe; see unresolved note at the bottom).
+# Every entry: usage is evaluation_only; known identities are registered now
+# (Phase 0). identity_unresolved: lookup evidence + resolution plan recorded;
+# hashes frozen at Phase 2 freeze per 19.4 (entries flagged in the unresolved
+# list at the bottom).
 # ---------------------------------------------------------------------------
 benchmarks:
   proofnetverif:
@@ -76,9 +75,9 @@ benchmarks:
     identity_kind: huggingface_dataset
     revision: resolve_at_freeze
     role: >-
-      Primary external faithfulness benchmark; BEq+ protocol source
-      (Poiroux et al., EMNLP 2025; arXiv:2406.07222). 3,752 rows with columns
-      id, nl_statement, lean4_src_header, lean4_formalization,
+      Frozen external benchmark; MVP adapter source (9.6); BEq+ protocol
+      source (Poiroux et al., EMNLP 2025; arXiv:2406.07222). 3,752 rows
+      with columns id, nl_statement, lean4_src_header, lean4_formalization,
       lean4_prediction, correct (PLAN.md 9.1); verify at pin.
     usage: evaluation_only
     special: >-
@@ -89,7 +88,7 @@ benchmarks:
 
   proofnet_sharp:
     display_name: "ProofNet#"
-    identity: resolve_at_freeze
+    identity: identity_unresolved
     role: >-
       External autoformalization evaluation benchmark named in the frozen
       registry list (PLAN.md 19.7, 23.6); exact distribution pinned at
@@ -98,7 +97,7 @@ benchmarks:
 
   rlm25:
     display_name: RLM25
-    identity: resolve_at_freeze
+    identity: identity_unresolved
     role: >-
       External evaluation benchmark named in the frozen registry list
       (PLAN.md 19.7, 23.6); exact distribution pinned at freeze.
@@ -106,7 +105,7 @@ benchmarks:
 
   con_nf:
     display_name: Con-NF
-    identity: resolve_at_freeze
+    identity: identity_unresolved
     role: >-
       BEq benchmark of Liu et al., Rethinking and Improving Autoformalization
       (ICLR 2025) (PLAN.md 4.1, J.3); original-BEq protocol source, never
@@ -115,7 +114,7 @@ benchmarks:
 
   epla:
     display_name: EPLA
-    identity: resolve_at_freeze
+    identity: identity_unresolved
     role: >-
       Evaluation set of the ASSESS/TransTED/EPLA line (arXiv:2509.22246;
       PLAN.md 4.1, J.3).
@@ -123,16 +122,16 @@ benchmarks:
 
   criticleanbench:
     display_name: CriticLeanBench
-    identity: resolve_at_freeze
+    identity: identity_unresolved
     role: >-
       Benchmark of the CriticLean/CriticLeanGPT learned-critic line
       (arXiv:2507.06181; PLAN.md 4.1, J.3), the closest learned NL-to-Lean
       faithfulness critic comparison.
     usage: evaluation_only
 
-  reform_consistencycheck:
+  consistency_check:
     display_name: ReForm ConsistencyCheck
-    identity: resolve_at_freeze
+    identity: identity_unresolved
     role: >-
       ReForm semantic-validation set, 859 expert-annotated items
       (arXiv:2510.24592; PLAN.md 4.1, J.3).
@@ -146,7 +145,7 @@ benchmarks:
 
   gaokao_formal:
     display_name: Gaokao-Formal
-    identity: resolve_at_freeze
+    identity: identity_unresolved
     role: >-
       Benchmark of the Mathesis/LeanScorer line (arXiv:2506.07047;
       PLAN.md 4.1, J.3).
@@ -154,7 +153,7 @@ benchmarks:
 
   driftbench:
     display_name: DriftBench
-    identity: resolve_at_freeze
+    identity: identity_unresolved
     role: >-
       Benchmark of The Faithfulness Gap (arXiv:2606.16541; PLAN.md 4.1,
       J.3).
@@ -162,7 +161,7 @@ benchmarks:
 
   minif2f_variants:
     display_name: miniF2F variants
-    identity: resolve_at_freeze
+    identity: identity_unresolved
     role: >-
       All compatible miniF2F variants (PLAN.md 23.6). Each variant actually
       used is pinned as a separate registry entry with its own immutable
@@ -202,9 +201,10 @@ special_rules:
 decisions:
   - "decision: the serialized usage value is exactly evaluation_only; no
     second spelling is allowed in code or manifests."
-  - "decision: the frozen registry lives at data/benchmarks/frozen_ids.json
-    (PLAN.md 19.4) and is the only machine-readable denylist; this policy
-    file is its human-readable contract and is never consulted for matching."
+  - "decision: data/benchmarks/frozen_ids.json (PLAN.md 19.4) is the sole
+    matching denylist used by code; configs/benchmarks/registry.yaml is the
+    identity/usage registry (a Phase 0 deliverable); this policy file is the
+    human-readable contract and is never consulted for matching."
   - "decision: an entry whose identity cannot be resolved at the Phase 2
     freeze is recorded as unavailable in the registry with the failed lookup
     evidence (PLAN.md J.6); the freeze still completes for the remaining
@@ -214,10 +214,12 @@ decisions:
     variants get their own registry entries at freeze, but pool exclusion
     applies to the union of all variants' problems."
 unresolved:
-  - "unresolved: exact HF dataset ids/revisions for every entry marked
-    resolve_at_freeze (ProofNet#, RLM25, Con-NF, EPLA, CriticLeanBench,
-    ReForm ConsistencyCheck, Gaokao-Formal, DriftBench, miniF2F variants) and
-    the pinned revision of PAug/ProofNetVerif. Unblocked by the Phase 2
-    network probe of public benchmark distributions (a data-collection step;
-    it does not require the private sft_classic token, whose authenticated
-    probe is a separate pending approval)."
+  - "unresolved: entries marked identity_unresolved (ProofNet#, RLM25,
+    Con-NF, EPLA, CriticLeanBench, ReForm ConsistencyCheck, Gaokao-Formal,
+    DriftBench, miniF2F variants): lookup evidence + resolution plan
+    recorded; hashes frozen at Phase 2 freeze per 19.4. The pinned revision
+    of PAug/ProofNetVerif is likewise frozen at Phase 2 by the network probe
+    of public benchmark distributions (a data-collection step; it does not
+    require the private sft_classic token, and the authenticated sft_classic
+    probe is a Phase 0 task executed at the operator's data-collection
+    go-ahead)."

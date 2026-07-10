@@ -4,22 +4,27 @@
 # during Phase 11 preparation (backlog LF-030). Report absolute counts, never
 # bare percentages (§9.6).
 source_config_version: 1
-source_name: cslib
+source: cslib
 kind: git
-repo: https://github.com/leanprover/cslib
+repo_url: https://github.com/leanprover/cslib
+revision: 2f677bfc8ef76fa7a27feafc597c1e4a7eda3e42  # executable pin; mirrors configs/projects/cslib.yaml
+expected_toolchain: v4.31.0-rc1
 probed_head:
   revision: c0120dddfe75d4ab913691c0c184fc436927b19d
   toolchain: v4.32.0-rc1  # OUTSIDE the LeanInteract 0.11.4 advertised range v4.8.0-rc1..v4.31.0-rc1
+  probe_date: "2026-07-10"  # full 40-char SHA verified against the remote on this date
 last_in_range_revision:
-  revision: 2f677bfc8ef7
+  revision: 2f677bfc8ef76fa7a27feafc597c1e4a7eda3e42
   toolchain: v4.31.0-rc1
   date: "2026-05-29"
 root_module: Cslib
 globs: ["Cslib/**/*.lean"]
 role: probe_now_adapter_at_ood
 decision: >-
-  Extraction revision is deferred to Phase 11 preparation (LF-030); see
-  ADR-0001 (docs/adr/ADR-0001-environment-lock.md). Candidates: the last
-  in-range revision 2f677bfc8ef7 under the current lock, or the probed HEAD
-  if a future lock change admits v4.32.0-rc1. HEAD must not be extracted
-  under the current lock without a dedicated lock-change per §6.2.
+  The executable extraction pin is set now in configs/projects/cslib.yaml:
+  the last in-range revision 2f677bfc8ef76fa7a27feafc597c1e4a7eda3e42
+  (v4.31.0-rc1); see ADR-0001 (docs/adr/ADR-0001-environment-lock.md).
+  Phase 11 preparation (LF-030) revalidates the pin (freshness/coverage) and
+  may reopen ADR-0001, e.g. if a future lock change admits the v4.32.0-rc1
+  HEAD. HEAD must not be extracted under the current lock without a
+  dedicated lock-change per §6.2.

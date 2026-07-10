@@ -6,7 +6,7 @@
 # in force. See amendment_rule for the only permitted way to change anything
 # below.
 preregistration_version: preregistration_v1
-status: "Phase 0 decision: sealed as written; changes only via amendment_rule"
+status: authored_pending_gate_0_review
 
 # ---------------------------------------------------------------------------
 # 1. Primary hypotheses (statements from PLAN.md section 2; primary
@@ -22,8 +22,9 @@ hypotheses:
       labels outperforms edit-based and proof-search-only metrics on the
       held-out human-labeled test set.
     primary_comparison: >-
-      M2/M3 vs the best fixed non-LLM structural/symbolic baseline
-      (B0/S0/T0/T1 family) on both the human-labeled and the real-output
+      M2/M3 vs the best fixed non-LLM structural/symbolic baseline (per
+      PLAN.md 31.7 H1 row: S0/T0/T1; B0 is a simple learned comparator
+      reported alongside) on both the human-labeled and the real-output
       test sets.
     success_threshold: >-
       At least 0.03 absolute macro-F1 or AUPRC gain on both sets; the
@@ -62,17 +63,18 @@ hypotheses:
       high-precision acceptance thresholds and an uncertainty band that
       routes difficult cases to review.
     primary_comparison: >-
-      Calibration of the selected model on calibration_gold, evaluated on
-      the sealed test operating points.
+      Calibration of the selected model on calibration_gold, evaluated by
+      K-fold within calibration_gold without final-test access (PLAN.md
+      Gate 10).
     success_threshold: >-
       ECE at most 0.05, and ACCEPT coverage of at least 40% at a
       point-estimate precision of at least 95%, with the interval reported.
     experiment: "PLAN.md section 31.5 (calibration ladder)"
   H5:
     statement: >-
-      LeanFaith reranking improves faithful@1 over first-compiling-candidate
-      selection and baseline judges at lower marginal cost than repeatedly
-      invoking frontier judges.
+      LeanFaith reranking improves faithful@1 over first-compiling-candidate,
+      typecheck-only, edit-based, BEq+-style, and LLM-judge baselines at
+      lower marginal cost than repeatedly invoking frontier judges.
     primary_comparison: >-
       Frozen reranker vs first-compiling selection and vs the strongest
       clean baseline (clean per the judge_supervision_matrix block).
@@ -96,8 +98,9 @@ hypotheses:
 
 # ---------------------------------------------------------------------------
 # 2. Preregistered gates tied to evaluation validity (PLAN.md section 23.11).
-#    Gate failure always means: revise the upstream artifact and repeat the
-#    gate. Thresholds are never lowered (see amendment_rule.gates).
+#    Gate failure means: revise the upstream artifact and repeat the gate.
+#    Any pre-unseal change to a gate criterion requires an ADR and a new
+#    preregistration version (see amendment_rule.gates; PLAN.md 23.11).
 # ---------------------------------------------------------------------------
 gates:
   Gate6:
@@ -106,17 +109,18 @@ gates:
       Swapped-order agreement of at least 90% after direction remap.
     on_failure: >-
       The silver channel does not activate (or is deactivated); fix the
-      prompt/protocol and repeat the audit. The 90% threshold is fixed.
+      prompt/protocol and repeat the audit. Any pre-unseal change to this
+      criterion requires an ADR and a new preregistration version (PLAN.md
+      section 23.11).
   Gate7:
     scope: "human annotation pilot (PLAN.md section 23.11)"
     criterion: >-
       Cohen kappa of at least 0.60 AND raw agreement of at least 80% on the
       pilot. Both conditions must hold.
     on_failure: >-
-      Revise the annotation guidelines and/or the semantic policy (new
-      policy version) and repeat the pilot with the revised materials.
-      Neither threshold is ever lowered, and pilot rounds are never pooled
-      to reach the bar.
+      Failure triggers revision of the annotation guidelines and/or the
+      semantic policy (new policy version) and a new blinded pilot with the
+      revised materials, never threshold lowering (PLAN.md section 18.6).
 
 # ---------------------------------------------------------------------------
 # 3. Statistics policy (PLAN.md section 23.9). Applies to every confirmatory
@@ -165,7 +169,7 @@ h2_data_mixtures:
   D3: "all permitted weak supervision"
   D4: "D3 plus development_gold"
   d1_contingency: >-
-    decision: if the silver channel is inactive (Gate6 not passed or channel
+    If the silver channel is inactive (Gate6 not passed or the channel
     switched off), D1 is reported as not run and H2 is evaluated on the
     remaining mixtures; D1 is never silently merged into another mixture or
     replaced by a substitute source.
@@ -175,13 +179,12 @@ h2_data_mixtures:
 # ---------------------------------------------------------------------------
 h3_representation_conditions:
   conditions:
-    - raw_lean_text
+    - raw_proof_stripped
     - headless
-    - elaborated_signature
-    - explicit_form
-    - text_plus_atoms
-    - scalar_features
-    - m5_expression_graph
+    - signature_pp
+    - signature_explicit
+    - text_plus_atoms_scalars
+    - m5_text_plus_graph
   confirmation_rule: >-
     H3 is confirmed only by the success_threshold gains on the
     hard-near-miss, heldout-transform, and heldout-project slices. An
@@ -220,14 +223,18 @@ amendment_rule:
     version (preregistration_v2, ...). Records and results cite the version
     in force when they were produced.
   after_test_unseal: >-
-    After test unseal no amendment is permitted; the sealed version governs
-    all confirmatory claims for that test set.
+    Post-unseal changes are protocol deviations that must be reported in
+    reports/evaluation_final.md and cannot alter frozen predictions or
+    thresholds (PLAN.md section 22.5, Gate 11).
   underpowered_hypotheses: >-
     Hypotheses or settings that turn out underpowered or deferred are
     reported as unsupported or not-run under their preregistered
     definitions. They are never redefined, re-thresholded, or reclassified
     as exploratory after the fact.
   gates: >-
-    Gate thresholds (Gate6, Gate7, and the H4/Gate10 criteria) are never
-    lowered. The only permitted response to a gate failure is to revise the
-    upstream artifact and repeat the gate.
+    Any pre-unseal change to a gate criterion (Gate6, Gate7, or the
+    H4/Gate10 criteria) requires an ADR and a new preregistration version
+    (PLAN.md section 23.11). Gate failure is handled by revising the
+    upstream artifact and repeating the gate; Gate7 failure specifically
+    triggers revision and a new blinded pilot, never threshold lowering
+    (PLAN.md section 18.6).

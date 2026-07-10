@@ -38,11 +38,13 @@ rules:
     derived manifests reference secrets by environment-variable name only;
     secret values never appear in configs, logs, or run manifests.
   heldout_generator_reservation: >-
-    One generator family from the resolved 3-4 materially distinct successful
-    families may be reserved for heldout_generator_test; none of its outputs
-    or judgments enters supervision (PLAN.md sections 17.3 and 17.7). The
-    reservation is recorded in the judge x supervision cross matrix, which is
-    frozen before any label is produced.
+    Gate 5's hard floor is three materially distinct successful generator
+    families; 3-4 families is the target range (PLAN.md section 17.3). One
+    successful family may be reserved for heldout_generator_test; none of
+    its outputs or judgments enters supervision (PLAN.md sections 17.3 and
+    17.7). The reservation is recorded in configs/splits/v0.yaml (PLAN.md
+    section 19.8); the judge x supervision cross matrix covers judge
+    families versus supervision, not this reservation.
 
 # decision: environment-variable naming convention for resolved slots is
 # LEANFAITH_API_KEY_<PROVIDER>, uppercased provider short name. The api_key_env
@@ -106,7 +108,8 @@ slots:
   open_diversity:
     role: >-
       Open-weight diversity model contributing materially distinct generation
-      behavior toward the 3-4 family floor for Gate 5 (PLAN.md section 17.3).
+      behavior toward the Gate 5 hard floor of three successful families,
+      with 3-4 families as the target range (PLAN.md section 17.3).
     family_constraint: >-
       Open-weight model runnable under project control. Candidate families
       per PLAN.md section 17.3 and Appendix J.4: Kimina-Autoformalizer-7B,
