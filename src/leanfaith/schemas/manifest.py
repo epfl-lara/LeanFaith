@@ -31,10 +31,14 @@ class ManifestError(ValueError):
     """Raised when a manifest cannot be read, parsed, or validated."""
 
 
-def _require_utc(value: datetime.datetime) -> datetime.datetime:
+def require_utc(value: datetime.datetime) -> datetime.datetime:
+    """Validate that a timestamp is timezone-aware UTC (shared across schemas)."""
     if value.tzinfo is None or value.utcoffset() != datetime.timedelta(0):
         raise ValueError("timestamps must be timezone-aware UTC")
     return value
+
+
+_require_utc = require_utc
 
 
 class CodeState(StrictModel):

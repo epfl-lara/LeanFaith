@@ -18,6 +18,31 @@ from leanfaith.config.hashing import CanonicalizationError, hash_canonical, to_c
 _PREFIX_PATTERN = re.compile(r"^[a-z][a-z0-9_]*$")
 _ID_PATTERN = re.compile(r"^(?P<prefix>[a-z][a-z0-9_]*):(?P<digest>[0-9a-f]{64})$")
 
+HEX64_PATTERN = r"^[0-9a-f]{64}$"
+
+#: Canonical ID prefixes by record kind. §8.11 fixes ``ctx``; §12.6 fixes
+#: ``anc``; §20.6 fixes ``pair``/``nllean``; the rest are fixed here once.
+CONTEXT_PREFIX = "ctx"
+THEOREM_PREFIX = "thm"
+ANCESTRY_PREFIX = "anc"
+REPRESENTATION_PREFIX = "repr"
+VARIANT_PREFIX = "var"
+PAIR_PREFIX = "pair"
+EVIDENCE_PREFIX = "ev"
+LABEL_PREFIX = "lbl"
+NL_LEAN_PREFIX = "nllean"
+DRAFT_PREFIX = "draft"
+AUDIT_PREFIX = "audit"
+LLM_CALL_PREFIX = "call"
+ANNOTATION_PREFIX = "ann"
+
+
+def id_pattern(prefix: str) -> str:
+    """Regex (for ``Field(pattern=...)``) matching IDs with the given prefix."""
+    if not _PREFIX_PATTERN.match(prefix):
+        raise InvalidIdError(f"invalid ID prefix {prefix!r}")
+    return rf"^{prefix}:[0-9a-f]{{64}}$"
+
 
 class InvalidIdError(ValueError):
     """Raised for malformed IDs or forbidden ID payloads."""
