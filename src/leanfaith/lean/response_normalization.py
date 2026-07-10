@@ -19,7 +19,9 @@ from typing import Any
 
 from leanfaith.lean.protocol import LeanRequest, LeanResult, LeanStatus
 
-_SORRY_DIAGNOSTIC = "declaration uses `sorry`"
+#: Both diagnostic spellings observed across Lean releases (backtick and
+#: single-quote); matching either avoids misclassifying a real admission.
+_SORRY_DIAGNOSTICS = ("declaration uses `sorry`", "declaration uses 'sorry'")
 
 #: Exception types raised by the pinned LeanServer.run/run_dict (§8.5, verified
 #: in the LF-006 probe environment) and their canonical §8.6 statuses.
@@ -40,9 +42,10 @@ def _has_error(messages: tuple[dict[str, Any], ...]) -> bool:
 
 def _has_sorry_diagnostic(messages: tuple[dict[str, Any], ...]) -> bool:
     return any(
-        _SORRY_DIAGNOSTIC in str(message.get("data", ""))
+        diagnostic in str(message.get("data", ""))
         for message in messages
         if message.get("severity") in ("warning", "error")
+        for diagnostic in _SORRY_DIAGNOSTICS
     )
 
 
@@ -74,11 +77,14 @@ def normalize_response(
 
     root_goals: tuple[str, ...] = ()
     if request.root_goals:
-        # 0.11.4 reports root goals through the sorries channel (see module doc).
+        # 0.11.4 reports root goals through the sorries channel (see module
+        # doc). Entries are admissions only when a sorry diagnostic exists —
+        # regardless of overall status — so INVALID responses with clean
+        # proofs never gain phantom admissions.
         root_goals = tuple(
             str(entry.get("goal", "")) for entry in sorries if entry.get("goal") is not None
         )
-        if status == LeanStatus.VALID:
+        if not _has_sorry_diagnostic(messages):
             sorries = ()
 
     declarations = tuple(dict(entry) for entry in raw.get("declarations") or ())

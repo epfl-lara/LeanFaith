@@ -46,6 +46,31 @@ def _construct_mapping(loader: _StrictLoader, node: yaml.MappingNode) -> dict[An
 _StrictLoader.add_constructor(yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG, _construct_mapping)
 
 
+def _check_node_types(value: object, path: Path, location: str) -> None:
+    """Recursively restrict loaded YAML to JSON-shaped nodes.
+
+    SafeLoader can produce sets (``!!set``), dates/datetimes, and bytes
+    (``!!binary``); all are rejected so configs stay deterministic and
+    canonical-JSON hashable. Dates must be written as quoted strings.
+    """
+    if value is None or isinstance(value, bool | int | float | str):
+        return
+    if isinstance(value, list):
+        for index, item in enumerate(value):
+            _check_node_types(item, path, f"{location}[{index}]")
+        return
+    if isinstance(value, dict):
+        for key, item in value.items():
+            if not isinstance(key, str):
+                raise ConfigError(f"non-string key {key!r} at {location} in {path}")
+            _check_node_types(item, path, f"{location}.{key}")
+        return
+    raise ConfigError(
+        f"unsupported YAML node type {type(value).__name__} at {location} in {path}; "
+        "only null/bool/int/float/string/list/mapping are allowed (quote dates)"
+    )
+
+
 def load_yaml_mapping(path: Path) -> dict[str, Any]:
     """Load a YAML file that must contain a single mapping document."""
     try:
@@ -60,9 +85,7 @@ def load_yaml_mapping(path: Path) -> dict[str, Any]:
         raise ConfigError(f"invalid YAML in {path}: {exc}") from exc
     if not isinstance(document, dict):
         raise ConfigError(f"config root must be a mapping in {path}, got {type(document).__name__}")
-    for key in document:
-        if not isinstance(key, str):
-            raise ConfigError(f"non-string top-level key {key!r} in {path}")
+    _check_node_types(document, path, "$")
     return document
 
 
@@ -87,6 +110,12 @@ def load_config[ModelT: StrictModel](path: Path, model_type: type[ModelT]) -> Lo
     try:
         config = model_type.model_validate(raw)
     except ValidationError as exc:
-        raise ConfigError(f"invalid config {path}:\n{exc}") from exc
+        # Never echo raw input values: a mistyped secret literal must not
+        # leak into logs or persisted doctor reports (§6.1).
+        details = "; ".join(
+            f"{'.'.join(str(loc) for loc in error['loc'])}: {error['msg']}"
+            for error in exc.errors(include_input=False, include_url=False)
+        )
+        raise ConfigError(f"invalid config {path}: {details}") from exc
     config_hash = hash_canonical(config.model_dump(mode="json"))
     return LoadedConfig(config=config, path=path, raw=raw, config_hash=config_hash)

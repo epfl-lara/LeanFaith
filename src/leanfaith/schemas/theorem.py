@@ -161,4 +161,10 @@ class RepresentationRecord(StrictModel):
                 raise ValueError(f"view {view!r} is null but marked ok (§11.4)")
             if value is not None and status != ViewStatus.OK:
                 raise ValueError(f"view {view!r} is present but marked {status} (§11.4)")
+        for view in REQUIRED_V0_VIEWS:
+            if self.view_status[view] == ViewStatus.NOT_ATTEMPTED:
+                raise ValueError(
+                    f"required v0 view {view!r} must be attempted (ok or an explicit "
+                    "failure), never not_attempted (§13.2)"
+                )
         return self

@@ -31,7 +31,8 @@ def to_canonical(value: object, *, _path: str = "$") -> JsonValue:
     if isinstance(value, float):
         if not math.isfinite(value):
             raise CanonicalizationError(f"non-finite float at {_path}: {value!r}")
-        return value
+        # Normalize the sign of zero: -0.0 == 0.0 but serializes differently.
+        return 0.0 if value == 0.0 else value
     if isinstance(value, Mapping):
         result: dict[str, JsonValue] = {}
         for key, item in value.items():

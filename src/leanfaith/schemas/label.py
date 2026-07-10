@@ -149,6 +149,12 @@ class ResolvedLabel(StrictModel):
             raise ValueError(
                 f"F2_truth_equivalent={f2} inconsistent with directional truths {truths} (§14.7)"
             )
+        if self.same_claim is True and expected_f2 is False:
+            raise ValueError(
+                "same_claim=true contradicts an accepted refuted truth direction; "
+                "conflicting strong evidence routes to review, never into a positive "
+                "label (§14.6, §16.8)"
+            )
 
         # eligibility vs tier (§14.5)
         if self.quality_tier == QualityTier.UNKNOWN and self.train_eligibility:

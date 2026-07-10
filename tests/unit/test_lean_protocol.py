@@ -149,7 +149,6 @@ def test_request_hash_ignores_request_id_and_metadata() -> None:
         {"infotree": "substantive"},
         {"declarations": True},
         {"root_goals": True},
-        {"context_id": "ctx:" + "1" * 64},
     ],
 )
 def test_request_hash_covers_request_fields(override: dict[str, object]) -> None:
@@ -159,13 +158,37 @@ def test_request_hash_covers_request_fields(override: dict[str, object]) -> None
 @pytest.mark.parametrize(
     "override",
     [
-        {"context_fingerprint": "1" * 64},
         {"environment_schema_version": 2},
         {"method_version": "backend_v2"},
     ],
 )
 def test_request_hash_covers_environment_fields(override: dict[str, object]) -> None:
     assert _hash(_request(), **override) != _hash(_request())
+
+
+def test_request_hash_covers_context() -> None:
+    base = _hash(_request())
+    other_context = _hash(_request(context_id="ctx:" + "1" * 64), context_fingerprint="1" * 64)
+    assert other_context != base
+
+
+def test_request_hash_binds_context_id_to_fingerprint() -> None:
+    # §8.11: a result can never be labeled with a context it did not run in.
+    with pytest.raises(RequestValidationError, match="context fingerprint"):
+        _hash(_request(context_id="ctx:" + "1" * 64))
+
+
+def test_file_requests_require_content_hash() -> None:
+    file_request = _request(code=None, file_path=Path("Fixtures/Basic.lean"))
+    with pytest.raises(RequestValidationError, match="file_content_hash"):
+        _hash(file_request)
+    hashed = _hash(file_request, file_content_hash="a" * 64)
+    assert hashed != _hash(file_request, file_content_hash="b" * 64)
+
+
+def test_code_requests_reject_content_hash() -> None:
+    with pytest.raises(RequestValidationError, match="file_content_hash"):
+        _hash(_request(), file_content_hash="a" * 64)
 
 
 def test_request_hash_validates_first() -> None:

@@ -10,6 +10,7 @@ explicit guard so payloads must use repo-relative paths.
 
 from __future__ import annotations
 
+import contextlib
 import re
 from pathlib import Path
 
@@ -48,27 +49,44 @@ class InvalidIdError(ValueError):
     """Raised for malformed IDs or forbidden ID payloads."""
 
 
+#: Full-string absolute-path shapes. Segments must be whitespace-free so Lean
+#: code (which starts with "/-" comments or contains "/" operators but always
+#: has spaces) is never misclassified.
+_POSIX_PATH_PATTERN = re.compile(r"^(?:/[^/\s]+)+/?$")
+_WINDOWS_PATH_PATTERN = re.compile(r"^[A-Za-z]:[\\/][^\s]*$")
+
+
 def _machine_local_roots() -> tuple[str, ...]:
-    roots = ["/tmp/"]
-    for candidate in (Path.home(), Path.cwd()):
-        try:
-            roots.append(str(candidate.resolve()) + "/")
-        except OSError:  # pragma: no cover - resolution failure is environment-specific
-            continue
+    """Deterministic per-machine roots; the process CWD is deliberately
+    excluded so ID acceptance can never depend on where a command ran."""
+    roots = ["/tmp/", "/var/tmp/", "/storage/"]
+    # Resolution failure is environment-specific; the static roots remain.
+    with contextlib.suppress(OSError):
+        roots.append(str(Path.home().resolve()) + "/")
     return tuple(roots)
+
+
+def _check_string(value: str, roots: tuple[str, ...], path: str) -> None:
+    for root in roots:
+        if value.startswith(root):
+            raise InvalidIdError(
+                f"machine-local absolute path in ID payload at {path}: {value!r}; "
+                "use repo-relative paths in semantic IDs"
+            )
+    if _POSIX_PATH_PATTERN.match(value) or _WINDOWS_PATH_PATTERN.match(value):
+        raise InvalidIdError(
+            f"absolute path-shaped string in ID payload at {path}: {value!r}; "
+            "semantic IDs must use repo-relative paths (§11.12)"
+        )
 
 
 def _forbid_machine_local_strings(value: object, roots: tuple[str, ...], path: str) -> None:
     if isinstance(value, str):
-        for root in roots:
-            if value.startswith(root) or value.startswith(root.rstrip("/") + "\n"):
-                raise InvalidIdError(
-                    f"machine-local absolute path in ID payload at {path}: {value!r}; "
-                    "use repo-relative paths in semantic IDs"
-                )
+        _check_string(value, roots, path)
         return
     if isinstance(value, dict):
         for key, item in value.items():
+            _check_string(key, roots, f"{path}.<key>")
             _forbid_machine_local_strings(item, roots, f"{path}.{key}")
         return
     if isinstance(value, list):

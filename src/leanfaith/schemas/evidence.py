@@ -169,20 +169,20 @@ class EvidenceRecord(StrictModel):
                 f"target_id {self.target_id!r} does not match target_kind "
                 f"{self.target_kind} pattern {pattern}"
             )
-        if self.status == EvidenceExecutionStatus.SUCCESS:
-            if self.value is None:
-                raise ValueError("successful evidence must carry a value (§11.7)")
+        if self.status == EvidenceExecutionStatus.SUCCESS and self.value is None:
+            raise ValueError("successful evidence must carry a value (§11.7)")
+        if self.status == EvidenceExecutionStatus.NOT_RUN and self.value is not None:
+            raise ValueError("not_run evidence cannot carry a value")
+        if self.value is not None:
             expected = _KIND_TO_VALUE_TYPE[self.kind]
             if not isinstance(self.value, expected):
                 raise ValueError(
                     f"evidence kind {self.kind} requires value type {expected.__name__}, "
                     f"got {type(self.value).__name__}"
                 )
-        elif self.status == EvidenceExecutionStatus.NOT_RUN and self.value is not None:
-            raise ValueError("not_run evidence cannot carry a value")
-        if (
-            self.kind in _PAIR_ONLY_KINDS
-            and self.target_kind == EvidenceTargetKind.TRANSFORMATION_FAMILY
-        ):
-            raise ValueError(f"evidence kind {self.kind} cannot target a transformation family")
+        if self.kind in _PAIR_ONLY_KINDS and self.target_kind != EvidenceTargetKind.LEAN_PAIR:
+            raise ValueError(
+                f"evidence kind {self.kind} compares two sides and requires a lean_pair "
+                f"target, got {self.target_kind}"
+            )
         return self

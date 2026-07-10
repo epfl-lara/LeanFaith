@@ -43,12 +43,18 @@ class LeanVersion:
         return base if not self.is_release_candidate else f"{base}-rc{self.rc_rank}"
 
 
+#: RC numbers must stay far below the stable sentinel so ordering is total.
+_MAX_RC = 100_000
+
+
 def parse_lean_version(text: str) -> LeanVersion:
     """Parse ``v4.31.0``, ``v4.31.0-rc1``, or ``leanprover/lean4:v4.31.0-rc1``."""
     match = _VERSION_PATTERN.match(text.strip())
     if match is None:
         raise LeanVersionError(f"unparsable Lean version {text!r}")
     rc = match.group("rc")
+    if rc is not None and int(rc) >= _MAX_RC:
+        raise LeanVersionError(f"implausible release-candidate number in {text!r}")
     return LeanVersion(
         major=int(match.group("major")),
         minor=int(match.group("minor")),

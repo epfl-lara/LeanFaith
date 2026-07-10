@@ -32,6 +32,7 @@ from lean_interact import (
 )
 from lean_interact.interface import LeanError
 
+from leanfaith.config.hashing import hash_file, sha256_hex
 from leanfaith.lean.protocol import (
     LeanRequest,
     LeanResult,
@@ -156,16 +157,47 @@ class LeanInteractBackend:
         }
         directory = self._settings.raw_response_dir
         directory.mkdir(parents=True, exist_ok=True)
-        # Retries append lineage rather than overwrite raw failures (§28.4):
-        # the attempt counter is metadata (excluded from the hash) but keys
-        # the raw artifact filename.
+        # Raw responses are append-only (§8.4): the filename keys on the
+        # request hash PLUS a submission digest, so identical resubmissions
+        # never overwrite each other; retries additionally carry the attempt
+        # counter (metadata, excluded from the hash) per §28.4.
         attempt = str(request.metadata.get("attempt", "0"))
         suffix = f".attempt{attempt}" if attempt != "0" else ""
-        path = directory / f"{request_hash}{suffix}.json"
+        submission = sha256_hex(request.request_id.encode("utf-8"))[:8]
+        path = directory / f"{request_hash}.{submission}{suffix}.json"
         path.write_text(json.dumps(record, ensure_ascii=False, sort_keys=True), encoding="utf-8")
         return str(path)
 
     # -- request execution -----------------------------------------------------
+
+    def _resolve_file_path(self, request: LeanRequest) -> Path | None:
+        if request.file_path is None:
+            return None
+        file_path = request.file_path
+        if not file_path.is_absolute():
+            file_path = self._settings.project_dir / file_path
+        return file_path
+
+    def _file_content_hash(self, request: LeanRequest) -> str | None:
+        """Digest of the resolved file so edited files never hit stale cache
+        entries (§8.4). Unreadable files get a distinct sentinel digest; the
+        Lean run itself will surface the real error."""
+        resolved = self._resolve_file_path(request)
+        if resolved is None:
+            return None
+        try:
+            return hash_file(resolved)
+        except OSError:
+            return sha256_hex(b"__unreadable__:" + str(request.file_path).encode("utf-8"))
+
+    def _request_hash(self, request: LeanRequest) -> str:
+        return compute_request_hash(
+            request,
+            context_fingerprint=self._settings.context_fingerprint,
+            environment_schema_version=self._settings.environment_schema_version,
+            method_version=self._settings.method_version,
+            file_content_hash=self._file_content_hash(request),
+        )
 
     def _build_repl_request(self, request: LeanRequest) -> Command | FileCommand:
         infotree = None if request.infotree == "none" else request.infotree
@@ -176,12 +208,10 @@ class LeanInteractBackend:
                 root_goals=request.root_goals,
                 infotree=infotree,
             )
-        assert request.file_path is not None  # validate_request guarantees this
-        file_path = request.file_path
-        if not file_path.is_absolute():
-            file_path = self._settings.project_dir / file_path
+        resolved = self._resolve_file_path(request)
+        assert resolved is not None  # validate_request guarantees this
         return FileCommand(
-            path=str(file_path),
+            path=str(resolved),
             declarations=request.declarations,
             root_goals=request.root_goals,
             infotree=infotree,
@@ -189,12 +219,7 @@ class LeanInteractBackend:
 
     def run(self, request: LeanRequest) -> LeanResult:
         validate_request(request)
-        request_hash = compute_request_hash(
-            request,
-            context_fingerprint=self._settings.context_fingerprint,
-            environment_schema_version=self._settings.environment_schema_version,
-            method_version=self._settings.method_version,
-        )
+        request_hash = self._request_hash(request)
         started = time.monotonic()
 
         try:
@@ -217,7 +242,7 @@ class LeanInteractBackend:
             response = server.run(
                 self._build_repl_request(request), timeout=request.timeout_seconds
             )
-        except BaseException as exc:
+        except Exception as exc:  # KeyboardInterrupt/SystemExit must propagate
             elapsed_ms = int((time.monotonic() - started) * 1000)
             raw_path = self._persist_raw(
                 request, request_hash, None, f"{type(exc).__name__}: {exc}"
@@ -268,86 +293,118 @@ class LeanInteractBackend:
             return [self.run(request) for request in requests]
         return self._run_batch_pooled(requests)
 
+    def _setup_error_result(
+        self, request: LeanRequest, request_hash: str, exc: Exception, elapsed_ms: int
+    ) -> LeanResult:
+        raw_path = self._persist_raw(request, request_hash, None, f"setup: {exc}")
+        return LeanResult(
+            request_id=request.request_id,
+            request_hash=request_hash,
+            context_id=request.context_id,
+            context_fingerprint=self._settings.context_fingerprint,
+            status=LeanStatus.SETUP_ERROR,
+            elapsed_ms=elapsed_ms,
+            raw_response_path=raw_path,
+            infrastructure_error=f"{type(exc).__name__}: {exc}"[:2000],
+        )
+
+    def _normalize_pool_item(
+        self,
+        request: LeanRequest,
+        request_hash: str,
+        item: object,
+        elapsed_ms: int,
+    ) -> LeanResult:
+        if isinstance(item, LeanError):
+            raw_path = self._persist_raw(
+                request, request_hash, {"message": item.message}, "LeanError"
+            )
+            return normalize_repl_error(
+                request,
+                item.message,
+                request_hash=request_hash,
+                context_fingerprint=self._settings.context_fingerprint,
+                elapsed_ms=elapsed_ms,
+                raw_response_path=raw_path,
+            )
+        if isinstance(item, BaseException):
+            raw_path = self._persist_raw(
+                request, request_hash, None, f"{type(item).__name__}: {item}"
+            )
+            return normalize_exception(
+                request,
+                item,
+                request_hash=request_hash,
+                context_fingerprint=self._settings.context_fingerprint,
+                elapsed_ms=elapsed_ms,
+                raw_response_path=raw_path,
+            )
+        raw = item.model_dump(mode="json")  # type: ignore[attr-defined]
+        raw_path = self._persist_raw(request, request_hash, raw, None)
+        return normalize_response(
+            request,
+            raw,
+            request_hash=request_hash,
+            context_fingerprint=self._settings.context_fingerprint,
+            elapsed_ms=elapsed_ms,
+            raw_response_path=raw_path,
+        )
+
     def _run_batch_pooled(self, requests: Sequence[LeanRequest]) -> list[LeanResult]:
         hashes: list[str] = []
         for request in requests:
             validate_request(request)
-            hashes.append(
-                compute_request_hash(
-                    request,
-                    context_fingerprint=self._settings.context_fingerprint,
-                    environment_schema_version=self._settings.environment_schema_version,
-                    method_version=self._settings.method_version,
-                )
-            )
+            hashes.append(self._request_hash(request))
         started = time.monotonic()
+
+        # Pool construction failure is a SETUP_ERROR for the whole batch
+        # (§8.3), never CRASH/INTERNAL_ERROR.
         try:
             pool = self._ensure_pool()
-            raw_results = pool.run_batch(
-                [self._build_repl_request(request) for request in requests],
-                timeout_per_cmd=max(request.timeout_seconds for request in requests),
-            )
-        except Exception as exc:  # pool-level failure: normalize per item
+        except Exception as exc:
             elapsed_ms = int((time.monotonic() - started) * 1000)
-            results = []
-            for request, request_hash in zip(requests, hashes, strict=True):
-                raw_path = self._persist_raw(
-                    request, request_hash, None, f"pool: {type(exc).__name__}: {exc}"
-                )
-                results.append(
-                    normalize_exception(
-                        request,
-                        exc,
-                        request_hash=request_hash,
-                        context_fingerprint=self._settings.context_fingerprint,
-                        elapsed_ms=elapsed_ms,
-                        raw_response_path=raw_path,
-                    )
-                )
-            return results
+            return [
+                self._setup_error_result(request, request_hash, exc, elapsed_ms)
+                for request, request_hash in zip(requests, hashes, strict=True)
+            ]
 
-        elapsed_ms = int((time.monotonic() - started) * 1000)
-        results = []
-        for request, request_hash, item in zip(requests, hashes, raw_results, strict=True):
-            if isinstance(item, LeanError):
-                raw_path = self._persist_raw(
-                    request, request_hash, {"message": item.message}, "LeanError"
+        # Per-request timeouts: LeanServerPool.run_batch takes one
+        # timeout_per_cmd, so requests are grouped by timeout and each group
+        # is submitted separately; results reassemble in input order. Group
+        # order is deterministic (ascending timeout).
+        groups: dict[float, list[int]] = {}
+        for index, request in enumerate(requests):
+            groups.setdefault(request.timeout_seconds, []).append(index)
+
+        results: list[LeanResult | None] = [None] * len(requests)
+        for timeout_seconds in sorted(groups):
+            indices = groups[timeout_seconds]
+            group_started = time.monotonic()
+            try:
+                raw_results = pool.run_batch(
+                    [self._build_repl_request(requests[i]) for i in indices],
+                    timeout_per_cmd=timeout_seconds,
                 )
-                results.append(
-                    normalize_repl_error(
-                        request,
-                        item.message,
-                        request_hash=request_hash,
+            except Exception as exc:  # group-level failure: normalize per item
+                group_elapsed = int((time.monotonic() - group_started) * 1000)
+                for i in indices:
+                    raw_path = self._persist_raw(
+                        requests[i], hashes[i], None, f"pool: {type(exc).__name__}: {exc}"
+                    )
+                    results[i] = normalize_exception(
+                        requests[i],
+                        exc,
+                        request_hash=hashes[i],
                         context_fingerprint=self._settings.context_fingerprint,
-                        elapsed_ms=elapsed_ms,
+                        elapsed_ms=group_elapsed,
                         raw_response_path=raw_path,
                     )
-                )
-            elif isinstance(item, BaseException):
-                raw_path = self._persist_raw(
-                    request, request_hash, None, f"{type(item).__name__}: {item}"
-                )
-                results.append(
-                    normalize_exception(
-                        request,
-                        item,
-                        request_hash=request_hash,
-                        context_fingerprint=self._settings.context_fingerprint,
-                        elapsed_ms=elapsed_ms,
-                        raw_response_path=raw_path,
-                    )
-                )
-            else:
-                raw = item.model_dump(mode="json")
-                raw_path = self._persist_raw(request, request_hash, raw, None)
-                results.append(
-                    normalize_response(
-                        request,
-                        raw,
-                        request_hash=request_hash,
-                        context_fingerprint=self._settings.context_fingerprint,
-                        elapsed_ms=elapsed_ms,
-                        raw_response_path=raw_path,
-                    )
-                )
-        return results
+                continue
+            # Per-item wall time is unavailable from the pool; each item
+            # records its group's elapsed time (documented limitation).
+            group_elapsed = int((time.monotonic() - group_started) * 1000)
+            for i, item in zip(indices, raw_results, strict=True):
+                results[i] = self._normalize_pool_item(requests[i], hashes[i], item, group_elapsed)
+        final = [result for result in results if result is not None]
+        assert len(final) == len(requests)  # every index filled exactly once
+        return final

@@ -200,15 +200,46 @@ def test_evidence_family_target_accepts_registry_key() -> None:
     assert record.target_id == "p01_alpha"
 
 
-def test_evidence_family_target_rejects_pair_kind() -> None:
-    with pytest.raises(ValueError, match="cannot target a transformation family"):
+def test_evidence_pair_only_kinds_require_pair_target() -> None:
+    # defeq/directional-proof/claim-alignment/counterexample compare two
+    # sides; a theorem, NL record, or family target cannot identify A and B.
+    for target_kind, target_id in (
+        (EvidenceTargetKind.TRANSFORMATION_FAMILY, "p01_alpha"),
+        (EvidenceTargetKind.THEOREM, THM_A),
+    ):
+        with pytest.raises(ValueError, match="requires a lean_pair target"):
+            evidence_record(
+                target_kind=target_kind,
+                target_id=target_id,
+                kind=EvidenceKind.DEFEQ,
+                status=EvidenceExecutionStatus.NOT_RUN,
+                value=None,
+            )
+
+
+def test_evidence_value_type_checked_even_on_failure_statuses() -> None:
+    with pytest.raises(ValueError, match="requires value type"):
         evidence_record(
-            target_kind=EvidenceTargetKind.TRANSFORMATION_FAMILY,
-            target_id="p01_alpha",
+            target_kind=EvidenceTargetKind.LEAN_PAIR,
+            target_id=PAIR_ID,
             kind=EvidenceKind.DEFEQ,
-            status=EvidenceExecutionStatus.NOT_RUN,
-            value=None,
+            status=EvidenceExecutionStatus.ERROR,
+            value=TypecheckValue(outcome="valid"),
         )
+
+
+def test_required_views_must_be_attempted() -> None:
+    status = dict(representation_record().view_status)
+    status["headless"] = ViewStatus.NOT_ATTEMPTED
+    with pytest.raises(ValueError, match="must be attempted"):
+        representation_record(headless=None, view_status=status)
+
+
+def test_required_view_may_fail_explicitly() -> None:
+    status = dict(representation_record().view_status)
+    status["headless"] = ViewStatus.FAILED
+    record = representation_record(headless=None, view_status=status)
+    assert record.view_status["headless"] is ViewStatus.FAILED
 
 
 def test_ids_are_deterministic_for_records() -> None:

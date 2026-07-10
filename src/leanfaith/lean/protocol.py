@@ -99,18 +99,33 @@ def compute_request_hash(
     context_fingerprint: str,
     environment_schema_version: int,
     method_version: str,
+    file_content_hash: str | None = None,
 ) -> str:
     """§8.4 request hash: payload, context, timeout, allow_sorry, InfoTree
     level, method version, and environment schema version.
 
     ``request_id`` and ``metadata`` are deliberately excluded: they identify
     the submission, not the semantic computation, and must not fragment the
-    cache (§16.9 discipline).
+    cache (§16.9 discipline). File requests must supply the resolved file's
+    content digest so an edited file can never produce a stale cache hit,
+    and the request's ``context_id`` must be the canonical ``ctx:`` form of
+    the supplied fingerprint (§8.11) so results cannot be mislabeled.
     """
     validate_request(request)
+    if request.context_id != f"ctx:{context_fingerprint}":
+        raise RequestValidationError(
+            f"request {request.request_id}: context_id {request.context_id!r} does not "
+            f"equal 'ctx:' + supplied context fingerprint (§8.11)"
+        )
+    if (request.file_path is not None) != (file_content_hash is not None):
+        raise RequestValidationError(
+            f"request {request.request_id}: file requests require file_content_hash and "
+            "code requests must not supply one (§8.4 stale-cache guard)"
+        )
     payload = {
         "code": request.code,
         "file_path": str(request.file_path) if request.file_path is not None else None,
+        "file_content_hash": file_content_hash,
         "declarations": request.declarations,
         "root_goals": request.root_goals,
         "infotree": request.infotree,

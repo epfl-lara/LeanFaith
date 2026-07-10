@@ -24,7 +24,14 @@ class MissingSecretError(RuntimeError):
 
 
 class StrictModel(BaseModel):
-    """Immutable base model: unknown keys are rejected, defaults are validated."""
+    """Immutable base model: unknown keys are rejected, defaults are validated.
+
+    Known limitation: ``frozen=True`` prevents attribute reassignment but not
+    in-place mutation of nested containers (dicts/lists). Records are treated
+    as immutable by contract (§5.1/§25); mutating a validated record's
+    containers bypasses validators and is a hard violation, not a supported
+    operation. Persisted artifacts are always re-validated on read.
+    """
 
     model_config = ConfigDict(extra="forbid", frozen=True, validate_default=True)
 
