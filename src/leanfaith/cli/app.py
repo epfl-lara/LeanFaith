@@ -28,6 +28,33 @@ def version() -> None:
     typer.echo(__version__)
 
 
+@app.command()
+def doctor(
+    root_dir: Annotated[
+        Path | None,
+        typer.Option(
+            "--root",
+            help="Repository root override (defaults to discovery from the cwd).",
+        ),
+    ] = None,
+) -> None:
+    """Check Python/LeanInteract/toolchain environment against the lock (LF-007)."""
+    from leanfaith.cli.doctor import doctor_report_path, run_doctor
+    from leanfaith.config.paths import RepoPaths
+    from leanfaith.schemas import write_manifest
+
+    paths = RepoPaths.discover(root_dir) if root_dir is None else RepoPaths(root=root_dir)
+    report = run_doctor(paths)
+    write_manifest(report, doctor_report_path(paths))
+    for check in report.checks:
+        marker = "ok " if check.passed else "FAIL"
+        typer.echo(f"[{marker}] {check.name}: {check.detail}")
+    for warning in report.warnings:
+        typer.echo(f"[warn] {warning}")
+    if not report.ok:
+        raise typer.Exit(code=1)
+
+
 @app.command("probe-api")
 def probe_api(
     root_dir: Annotated[
