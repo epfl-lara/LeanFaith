@@ -49,3 +49,9 @@ packages = ["leanfaith"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q"
+
+[[tool.mypy.overrides]]
+# The Appendix A.5 canonical block uses bare `dict`/`tuple[dict, ...]`;
+# the block is reproduced verbatim (LF-005), so relax generics here only.
+module = "leanfaith.lean.protocol"
+disallow_any_generics = false
