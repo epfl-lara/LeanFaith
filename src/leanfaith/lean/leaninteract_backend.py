@@ -22,10 +22,12 @@ from pathlib import Path
 from typing import Any
 
 from lean_interact import (
+    AutoLeanServer,
     Command,
     FileCommand,
     LeanREPLConfig,
     LeanServer,
+    LeanServerPool,
     LocalProject,
 )
 from lean_interact.interface import LeanError
@@ -42,6 +44,7 @@ from leanfaith.lean.response_normalization import (
     normalize_repl_error,
     normalize_response,
 )
+from leanfaith.lean.session_policy import ServerMode
 
 METHOD_VERSION = "leaninteract_backend_v1"
 
@@ -54,30 +57,62 @@ class BackendSettings:
     context_fingerprint: str
     environment_schema_version: int
     raw_response_dir: Path
+    server_mode: ServerMode = ServerMode.STABLE
+    workers: int | None = None
     memory_hard_limit_mb: int | None = None
     method_version: str = METHOD_VERSION
     verbose: bool = False
 
 
 class LeanInteractBackend:
-    """Stable-server implementation of the A.5 ``LeanBackend`` protocol."""
+    """Implementation of the A.5 ``LeanBackend`` protocol over LeanInteract.
+
+    Modes (§8.7): ``stable`` uses one ``LeanServer``; ``auto`` uses the
+    experimental ``AutoLeanServer`` with a tested stable fallback; ``pool``
+    additionally routes ``run_batch`` through ``LeanServerPool`` for
+    independent requests. One-worker and multiworker runs yield identical
+    semantic (request_hash, status) results after normalization.
+    """
 
     def __init__(self, settings: BackendSettings) -> None:
         self._settings = settings
         self._server: LeanServer | None = None
-        self._setup_error: str | None = None
+        self._pool: LeanServerPool | None = None
+        self._auto_fallback_active = False
 
     # -- lifecycle -----------------------------------------------------------
 
+    @property
+    def auto_fallback_active(self) -> bool:
+        """True when experimental AUTO mode fell back to the stable server."""
+        return self._auto_fallback_active
+
+    def _repl_config(self) -> LeanREPLConfig:
+        return LeanREPLConfig(
+            project=LocalProject(directory=self._settings.project_dir),
+            memory_hard_limit_mb=self._settings.memory_hard_limit_mb,
+            verbose=self._settings.verbose,
+        )
+
     def _ensure_server(self) -> LeanServer:
         if self._server is None:
-            config = LeanREPLConfig(
-                project=LocalProject(directory=self._settings.project_dir),
-                memory_hard_limit_mb=self._settings.memory_hard_limit_mb,
-                verbose=self._settings.verbose,
-            )
-            self._server = LeanServer(config)
+            config = self._repl_config()
+            if self._settings.server_mode == ServerMode.AUTO:
+                try:
+                    self._server = AutoLeanServer(config)
+                except Exception:  # pragma: no cover - depends on auto-server failure
+                    # §8.5: AutoLeanServer is experimental; fall back to the
+                    # tested stable server rather than failing the request.
+                    self._server = LeanServer(config)
+                    self._auto_fallback_active = True
+            else:
+                self._server = LeanServer(config)
         return self._server
+
+    def _ensure_pool(self) -> LeanServerPool:
+        if self._pool is None:
+            self._pool = LeanServerPool(self._repl_config(), num_workers=self._settings.workers)
+        return self._pool
 
     def _drop_server(self) -> None:
         if self._server is not None:
@@ -88,6 +123,10 @@ class LeanInteractBackend:
 
     def close(self) -> None:
         self._drop_server()
+        if self._pool is not None:
+            with contextlib.suppress(Exception):
+                self._pool.close()
+            self._pool = None
 
     # -- raw persistence (§8.4: save before normalization) --------------------
 
@@ -117,7 +156,12 @@ class LeanInteractBackend:
         }
         directory = self._settings.raw_response_dir
         directory.mkdir(parents=True, exist_ok=True)
-        path = directory / f"{request_hash}.json"
+        # Retries append lineage rather than overwrite raw failures (§28.4):
+        # the attempt counter is metadata (excluded from the hash) but keys
+        # the raw artifact filename.
+        attempt = str(request.metadata.get("attempt", "0"))
+        suffix = f".attempt{attempt}" if attempt != "0" else ""
+        path = directory / f"{request_hash}{suffix}.json"
         path.write_text(json.dumps(record, ensure_ascii=False, sort_keys=True), encoding="utf-8")
         return str(path)
 
@@ -214,9 +258,96 @@ class LeanInteractBackend:
         )
 
     def run_batch(self, requests: Sequence[LeanRequest]) -> list[LeanResult]:
-        """Sequential batch: one terminal result per request, in input order.
+        """One terminal result per request, in input order (§8.4).
 
-        Parallel pool execution with order restoration is LF-009 scope; the
-        contract (per-item isolation, order preservation) is identical.
+        POOL mode fans independent requests over ``LeanServerPool`` and
+        normalizes each returned response/``LeanError``/``Exception``
+        independently (§8.5); other modes execute sequentially.
         """
-        return [self.run(request) for request in requests]
+        if self._settings.server_mode != ServerMode.POOL or not requests:
+            return [self.run(request) for request in requests]
+        return self._run_batch_pooled(requests)
+
+    def _run_batch_pooled(self, requests: Sequence[LeanRequest]) -> list[LeanResult]:
+        hashes: list[str] = []
+        for request in requests:
+            validate_request(request)
+            hashes.append(
+                compute_request_hash(
+                    request,
+                    context_fingerprint=self._settings.context_fingerprint,
+                    environment_schema_version=self._settings.environment_schema_version,
+                    method_version=self._settings.method_version,
+                )
+            )
+        started = time.monotonic()
+        try:
+            pool = self._ensure_pool()
+            raw_results = pool.run_batch(
+                [self._build_repl_request(request) for request in requests],
+                timeout_per_cmd=max(request.timeout_seconds for request in requests),
+            )
+        except Exception as exc:  # pool-level failure: normalize per item
+            elapsed_ms = int((time.monotonic() - started) * 1000)
+            results = []
+            for request, request_hash in zip(requests, hashes, strict=True):
+                raw_path = self._persist_raw(
+                    request, request_hash, None, f"pool: {type(exc).__name__}: {exc}"
+                )
+                results.append(
+                    normalize_exception(
+                        request,
+                        exc,
+                        request_hash=request_hash,
+                        context_fingerprint=self._settings.context_fingerprint,
+                        elapsed_ms=elapsed_ms,
+                        raw_response_path=raw_path,
+                    )
+                )
+            return results
+
+        elapsed_ms = int((time.monotonic() - started) * 1000)
+        results = []
+        for request, request_hash, item in zip(requests, hashes, raw_results, strict=True):
+            if isinstance(item, LeanError):
+                raw_path = self._persist_raw(
+                    request, request_hash, {"message": item.message}, "LeanError"
+                )
+                results.append(
+                    normalize_repl_error(
+                        request,
+                        item.message,
+                        request_hash=request_hash,
+                        context_fingerprint=self._settings.context_fingerprint,
+                        elapsed_ms=elapsed_ms,
+                        raw_response_path=raw_path,
+                    )
+                )
+            elif isinstance(item, BaseException):
+                raw_path = self._persist_raw(
+                    request, request_hash, None, f"{type(item).__name__}: {item}"
+                )
+                results.append(
+                    normalize_exception(
+                        request,
+                        item,
+                        request_hash=request_hash,
+                        context_fingerprint=self._settings.context_fingerprint,
+                        elapsed_ms=elapsed_ms,
+                        raw_response_path=raw_path,
+                    )
+                )
+            else:
+                raw = item.model_dump(mode="json")
+                raw_path = self._persist_raw(request, request_hash, raw, None)
+                results.append(
+                    normalize_response(
+                        request,
+                        raw,
+                        request_hash=request_hash,
+                        context_fingerprint=self._settings.context_fingerprint,
+                        elapsed_ms=elapsed_ms,
+                        raw_response_path=raw_path,
+                    )
+                )
+        return results
