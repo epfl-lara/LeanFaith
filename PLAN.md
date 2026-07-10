@@ -2,14 +2,33 @@
 
 **Working title:** *Learning a Calibrated Faithfulness Metric for Lean 4 Autoformalization*  
 **Document purpose:** implementation specification for a coding agent and research roadmap for the project team  
-**Status:** coding-agent ready after project-lead approval of the semantic policy examples  
-**Revision:** 3.0  
+**Status:** coding-agent ready after Gate 0 policy/source/environment lock  
+**Revision:** 4.0  
 **Last revised:** 2026-07-10  
+**Canonical filename:** `PLAN.md`  
 **Primary Python–Lean interface:** [LeanInteract](https://github.com/augustepoiroux/LeanInteract)  
 **Initial LeanInteract pin:** `lean-interact==0.11.4`  
 
----
+### Revision 4.0 changes
 
+1. Reconciles backend requests/results/statuses into one canonical Appendix A.5 contract.
+2. Regenerates the repository tree, config inventory, phase deliverables, and command map as one path authority.
+3. Makes LeanInteract's advertised Lean range a binding constraint on the Lean/mathlib lock.
+4. Corrects LeanInteract imports, permissive `allow_sorry` default, batch error semantics, experimental server status, REPL fork, and Linux per-process memory caveat.
+5. Corrects the public identities and schemas of ProofNetVerif, `sft_classic_numina`, Lean Workbook, ReForm, CSLib, and Physlib; records private `sft_classic` as token-gated with schema unverified until probed.
+6. Adds CriticLean, Con-NF/BEq, LeanScorer, ConsistencyCheck, DriftBench, COVCAL, EPLA/TransTED, GTED, and FormalAlign to related work and evaluation.
+7. Defines F0/F1/F2, terminal ambiguity, operational review routing, canonical relation labels, and E01–E30 mappings without aliases.
+8. Adds versioned `RepresentationRecord`, canonical split-group connected components, and reference-normalized NL–Lean records.
+9. Fixes audit gates with mechanically satisfiable sample/interval rules and separates generation from promotion.
+10. Adds `development_gold`, `calibration_gold`, a sealed final human set, and a real-output prevalence study.
+11. Adds design/deployment weighting, group bootstrap, multiple-testing control, calibration restrictions, and numeric H1–H6 targets.
+12. Refreshes generator families and enforces proposer/judge/primary-baseline family separation.
+13. Selects ModernBERT-large as the default candidate subject to a tokenizer audit and recorded pilot comparison.
+14. Scopes v1 sources and transformation families while retaining explicit deferred stubs.
+15. Retains the no-staffing/no-calendar/no-dollar-budget/no-hardware-envelope decision.
+16. Applies final review amendments: private-source access and external-API approval rules, backlog reordering, restored incident procedure and replacement table, and data-path disambiguation.
+
+---
 ## 0. How this document must be used
 
 This document is the source of truth for the first implementation. A coding agent should not silently replace its core choices with alternatives.
@@ -106,277 +125,264 @@ The project is not complete after reporting pair-classification metrics. It must
 
 ### RQ6 — Does the model generalize across generators and Lean projects?
 
-**Hypothesis H6:** Training with source-project, mutation-family, and generator diversity will improve transfer to held-out autoformalizers and held-out libraries such as CSLib or PhysLib.
+**Hypothesis H6:** Training with source-project, mutation-family, and generator diversity will improve transfer to held-out autoformalizers and held-out libraries such as CSLib or Physlib.
 
 ---
 
 ## 3. Exact semantic target
 
-### 3.1 The core label: same mathematical claim
+### 3.1 Primary target: autoformalization claim faithfulness
 
-The primary binary target is:
+The primary Lean–Lean target is whether two statements express the **same intended mathematical claim**, not merely whether both are true or mutually provable in a rich library.
+
+Persisted resolution fields are:
 
 ```text
-same_claim(A, B) ∈ {yes, no, ambiguous}
+same_claim: true | false | null
+resolution_outcome: same_claim | not_same_claim | ambiguous | unresolved
+relation: equivalent | A_stronger | B_stronger |
+          incomparable_near_miss | unrelated | ambiguous | unknown
 ```
 
-`same_claim(A, B) = yes` means that, under the adopted annotation policy, the statements encode the same intended mathematical assertion while allowing non-substantive representational differences.
+`null` never means false. It means either a terminal expert decision of genuine ambiguity or an unresolved process route, distinguished by `resolution_outcome`.
 
-Allowed differences normally include:
+A same-claim positive may differ in theorem/binder names, formatting, harmless grouping, explicitly presented implicit arguments, approved notation wrappers, or another policy-listed reversible interface presentation. It may not change substantive domains, dependencies, hypotheses, quantifiers, operators, constants, bounds, casts, typeclasses, or conclusion strength.
 
-- theorem and binder names;
-- comments and whitespace;
-- harmless binder grouping;
-- explicit versus implicit presentation when elaboration yields the same content;
-- standard notation versus its direct elaborated form;
-- reordering of independent binders or hypotheses;
-- logically transparent interface changes such as currying and uncurrying;
-- selected local, reversible reformulations judged to preserve the claim.
+### 3.2 F0, F1, and F2 are related but distinct
 
-Disallowed differences include:
+LeanFaith stores three levels:
 
-- changing a quantifier;
-- changing quantifier order when dependencies or meaning change;
-- changing a domain, codomain, structure, coercion, or typeclass assumption;
-- dropping or adding a substantive hypothesis;
-- making a theorem vacuous;
-- changing strict versus non-strict inequality;
-- changing a constant, predicate, set operation, bound, index, or numerical value;
-- proving only a special case or an overgeneralization;
-- replacing the requested assertion by a theorem that is merely also true.
-
-### 3.2 Five notions that must never be conflated
-
-| Notion | Meaning | Use |
+| Level | Meaning | Role |
 |---|---|---|
-| `well_typed` | the statement elaborates in its intended environment | gate and feature |
-| `defeq` | Lean considers the elaborated types definitionally equal | high-precision evidence/baseline |
-| `truth_entails` | Lean proves one proposition from the other under a specified proof policy | directional auxiliary signal |
-| `truth_equiv` | Lean proves both directions | auxiliary signal; not the target |
-| `same_claim` / `faithful` | the statements represent the same intended assertion | primary target |
+| **F0** | definitional/representation equivalence under a pinned environment | high-precision auxiliary evidence |
+| **F1** | same intended mathematical claim | primary training/evaluation target |
+| **F2** | truth-level relation such as both directional implications | auxiliary logical analysis only |
 
-A theorem statement can be provable and still be an unfaithful translation. For example, both
+F0 may often imply F1 under an approved policy, but the resolver—not the checker alone—makes that promotion. F2 does **not** imply F1: two propositions can both be true, mutually derivable using powerful context, or collapse to tautologies while expressing different claims.
 
-```lean
-theorem a (n : Nat) : n < n + 1 := by sorry
-```
+### 3.3 Directional relations
 
-and
+When `same_claim=false`, label the best-supported **claim-level** relation:
 
-```lean
-theorem b (n : Nat) : n ≤ n + 1 := by sorry
-```
+- `A_stronger`: after aligning corresponding binders, hypotheses, and mathematical roles, A makes a strictly stronger claim than B;
+- `B_stronger`: the reverse;
+- `incomparable_near_miss`: materially related but neither is an accepted faithful restatement or one-way strengthening;
+- `unrelated`: no substantive claim match;
+- `unknown`: evidence is insufficient;
+- `ambiguous`: terminal expert/policy ambiguity.
 
-are true, but the second does not faithfully translate an informal statement that explicitly requires strict inequality.
+Do not define this field by mutual provability of the two closed theorem types. Closed propositions can collapse through theorem truth, vacuity, inconsistent assumptions, or ex falso. Whole-proposition directional proof search populates F2 only. A symbolic claim-strength certificate must use an explicit binder/hypothesis alignment and a policy-approved local comparison; otherwise relation is supplied by trusted annotation/resolution. Failed search is never evidence of nonimplication.
 
-### 3.3 Faithfulness policy levels
+### 3.4 Natural-language–Lean faithfulness
 
-Store three policy levels, even if the first model predicts only the middle one:
+For NL statement `N` and Lean candidate `C`, faithfulness requires that C captures the intended objects, domains, quantifiers, hypotheses, dependencies, conclusion, and expected answer without adding/removing substantive content. A reference Lean statement `R` is evidence, not infallible ground truth; suspected reference defects are explicitly labeled and adjudicated.
 
-```text
-F0 representation-equivalent
-   alpha-renaming, formatting, direct elaboration/notation variants
+### 3.5 Operational review versus terminal ambiguity
 
-F1 same-claim equivalent                     ← primary target
-   non-substantive, local, reversible reformulations accepted by policy
-
-F2 truth-level equivalent
-   mutually derivable propositions, possibly with substantial semantic erasure
-```
-
-The model’s main `p_same_claim` targets F1. `defeq` and proof-search features provide evidence about F0/F2 but do not define F1.
-
-### 3.4 Conservative treatment of simplification
-
-Do **not** automatically label broad `simp`, `ring`, `linarith`, theorem lookup, or normalization outputs as same-claim positives. A transformation can turn a meaningful assertion into a tautology while preserving truth. Examples produced by broad semantic simplification belong in an audited `semantic_rewrite_candidate` pool.
-
-Automatically admitted positive transformations must be local, invertible or round-trip checkable, and preserve a defined inventory of semantic atoms unless a rule explicitly specifies an accepted atom mapping.
-
-### 3.5 Directional relation labels
-
-Every non-ambiguous Lean–Lean pair should additionally receive one of:
+Operational review route:
 
 ```text
-equivalent
-A_stronger
-B_stronger
-incomparable_near_miss
-unrelated
+same_claim = null
+resolution_outcome = unresolved
+quality_tier = unknown
+requires_adjudication = true
 ```
 
-The relation is about the mathematical claim under the annotation policy. Proof-search directional results are stored separately.
-
-### 3.6 Natural-language faithfulness
-
-For a natural-language statement `N` and Lean candidate `C`:
+Terminal ambiguity:
 
 ```text
-faithful(N, C) = yes
+same_claim = null
+resolution_outcome = ambiguous
+quality_tier = gold_human | benchmark
+requires_adjudication = false
 ```
 
-only when the candidate preserves the intended objects, domains, assumptions, quantifiers, side conditions, and conclusion. A reference Lean statement is useful but not infallible. The data model must permit:
+Terminal ambiguous items are masked from binary loss/metrics, evaluated in a three-class and abstention analysis, and retained in released audit data.
 
-- `reference_trusted = true | false | uncertain`;
-- human disagreement with a reference;
-- faithful candidates that differ from a flawed or overly specific reference.
+### 3.6 Policy edge cases that must be decided before labeling
+
+The versioned semantic policy must include accepted/rejected examples for:
+
+- extra unused universally quantified variables;
+- redundant but mathematically meaningful hypotheses;
+- vacuous implication and inconsistent assumptions;
+- subtype/set/typeclass reformulations;
+- coercions and domain embeddings;
+- theorem-interface generalization/specialization;
+- answer-only versus full theorem statements;
+- simplification to reflexivity or `True`;
+- notation expansion versus abstraction change;
+- reference defects and genuinely ambiguous NL.
+
+No coding agent or annotator may invent these decisions ad hoc.
 
 ---
 
-## 4. Expected scientific contribution
+## 4. Expected scientific contribution and novelty position
 
-The strong paper version should make four contributions:
+### 4.1 Closest work and mandatory comparisons
 
-1. **Data:** a large Lean 4 statement-pair corpus combining conservative certified positives, typed near misses, real autoformalization outputs, model-proposed variants, and expert labels.
-2. **Method:** a calibrated symmetric multi-task cross-attention model for same-claim equivalence, directional relation, and error classification.
-3. **Evaluation:** leakage-resistant splits and comparison with string, structural, proof-based, learned, and LLM-judge baselines on real and human-labeled data.
-4. **Application:** improved autoformalization reranking and actionable mismatch diagnostics.
+The project must be positioned against:
 
-The project’s novelty should be framed around the **data construction and evidence discipline**, not simply “a classifier for two Lean strings.”
+- **BEq** from Liu et al., *Rethinking and Improving Autoformalization* (ICLR 2025) and its Con-NF benchmark;
+- **BEq+** from Poiroux et al., *Reliable Evaluation and Benchmarks for Statement Autoformalization* (EMNLP 2025) and ProofNetVerif;
+- **FormalAlign** (ICLR 2025), a learned alignment/evaluation method;
+- **CriticLean/CriticLeanGPT/CriticLeanBench** (arXiv:2507.06181), the closest learned NL→Lean faithfulness critic line;
+- **GTED** (arXiv:2507.07399);
+- **ASSESS/TransTED and EPLA** (arXiv:2509.22246);
+- **Mathesis/LeanScorer/Gaokao-Formal** (arXiv:2506.07047);
+- **ReForm's ConsistencyCheck**, an 859-item expert-annotated semantic-validation set;
+- **The Faithfulness Gap/DriftBench** (arXiv:2606.16541);
+- **COVCAL** (arXiv:2605.28365) for calibrated/risk-controlled Lean judging.
+
+Typed generation is informed by Semantic Fusion (PLDI 2020), OpFuzz/type-aware operator mutation (OOPSLA 2020), TypeFuzz/generative type-aware mutation (OOPSLA 2021), and *Validating SMT Solvers for Correctness and Performance via Grammar-based Enumeration* (OOPSLA 2024; DOI `10.1145/3689795`). These motivate generation methodology, not same-claim labels.
+
+### 4.2 Defensible novelty claim
+
+The core contribution is not “another LLM judge.” It is the joint system:
+
+1. a versioned benchmark/data pipeline combining conservative certified transformations, hard type-aware mutations, realistic autoformalizer outputs, multi-model weak supervision, and expert labels;
+2. a calibrated Lean–Lean same-claim/relation model over raw and elaborated representations;
+3. explicit evidence/label separation, abstention, and error diagnosis;
+4. leakage-safe tests over unseen generators, projects, transformations, adversarial minimal pairs, and post-cutoff novel items;
+5. a frozen downstream autoformalization reranking demonstration.
+
+### 4.3 Originality risk
+
+The work is weak if it trains a binary classifier on LLM-produced labels and evaluates on the same synthetic family. It becomes publishable when the data-generation contribution is independently audited, the closest learned critics are compared fairly, calibration is distribution-specific, and real-output reranking improves under a sealed protocol.
 
 ---
 
 ## 5. System architecture
 
 ```text
-Source datasets and Lean projects
-  ├── formalmathatepfl/sft_classic or local variant
-  ├── mathlib4
-  ├── CSLib / PhysLib / other Lean projects
-  ├── ProofNetVerif and other external benchmarks
-  └── LLM-generated autoformalization candidates
-          │
-          ▼
-Ingestion and context reconstruction
-  ├── source adapter
-  ├── imports / opens / namespace / options
-  ├── raw declaration and NL statement
-  └── immutable source manifest
-          │
-          ▼
-LeanInteract elaboration layer
-  ├── Command / FileCommand
-  ├── declaration extraction
-  ├── typechecking
-  ├── InfoTree and root-goal extraction when needed
-  ├── incremental elaboration
-  └── parallel AutoLeanServer / LeanServerPool execution
-          │
-          ▼
-Multi-view representation
-  ├── raw proof-stripped Lean
-  ├── headless Lean
-  ├── elaborated signature
-  ├── explicit/canonical pretty-print
-  ├── structural JSON / expression graph
-  ├── constants, binders, scope, and context fingerprint
-  └── semantic-atom inventory
-          │
-          ▼
-Pair and candidate generation
-  ├── conservative deterministic positives
-  ├── typed deterministic near misses
-  ├── nearby-theorem pairs
-  ├── LLM-proposed variants
-  └── real NL→Lean samples from multiple generators
-          │
-          ▼
+Pinned sources/projects/providers
+        │
+        ▼
+LeanInteract-backed extraction and validation
+        │
+        ├── ContextRecord / TheoremRecord
+        └── RepresentationRecord (versioned multi-view)
+        │
+        ▼
+Candidate generation
+  ├── scoped conservative positives
+  ├── typed provisional mutations
+  ├── fresh multi-generator autoformalizations
+  └── LLM controlled variants/repairs
+        │
+        ▼
+Lean validation + deduplication + ancestry grouping
+        │
+        ▼
 Evidence collection
-  ├── elaboration status
-  ├── defeq attempt
-  ├── directional proof-search attempts
-  ├── counterexample search in supported fragments
-  ├── multi-model blinded judging
-  └── human annotation
-          │
-          ▼
-Label resolution and quality tiers
-  ├── gold certified/reviewed
-  ├── gold human/benchmark
-  ├── silver consensus
-  ├── provisional mutation intention
-  └── unknown/abstain
-          │
-          ▼
-Leakage-safe datasets
-  ├── training
-  ├── model-selection validation
-  ├── calibration
-  ├── human test
-  ├── benchmark test
-  └── OOD and held-out-family tests
-          │
-          ▼
-Models and baselines
-  ├── symbolic and edit baselines
-  ├── raw/normalized cross-encoder
-  ├── shared encoder + bidirectional cross-attention
-  ├── hybrid symbolic model
-  ├── NL–Lean transfer model
-  └── optional graph encoder
-          │
-          ▼
-Applications
-  ├── candidate reranking
-  ├── candidate clustering
-  ├── confidence-based acceptance/abstention
-  ├── repair hints
-  └── active data acquisition
+  ├── typecheck / defeq
+  ├── directional proof attempts
+  ├── bounded counterexample certificates
+  ├── transformation audits
+  ├── blinded LLM judgments
+  └── human annotations/adjudication
+        │
+        ▼
+Resolved labels and quality tiers
+        │
+        ▼
+Connected-component split freeze
+        │
+        ▼
+Baselines and models
+  ├── symbolic / edit / structural / learned critics
+  ├── M0 dual encoder
+  ├── M1 pair cross-encoder
+  ├── M2 bidirectional cross-attention
+  ├── M3 symbolic hybrid
+  ├── M4 NL–Lean model
+  └── M5 optional Expr-graph extension
+        │
+        ▼
+Calibration, selective decisions, sealed evaluation
+        │
+        ▼
+Candidate reranking and optional repair
 ```
+
+### 5.1 Artifact-boundary rules
+
+- Every arrow is an immutable artifact boundary.
+- Raw provider/Lean responses are preserved before parsing.
+- A downstream stage references upstream IDs and never rewrites upstream records.
+- Evidence records do not mutate labels; the resolver creates a new label artifact.
+- Smoke artifacts carry `artifact_class=smoke` and are barred from releases/model selection.
+- Test manifests are mounted read-only and never exposed to training, prompt development, or active learning.
 
 ---
 
 ## 6. Mandatory technology choices
 
-### 6.1 Python
+### 6.1 Python and engineering stack
 
-- Use Python `3.12.x` as the initial reference runtime and encode it as `>=3.12,<3.13` in `pyproject.toml`. LeanInteract itself supports older Python versions, but the project should use one frozen minor version for reproducibility.
-- `uv` for environment and lockfile management.
-- Pydantic v2 for persistent schemas.
-- Typer or Click for CLIs.
-- PyTorch and Hugging Face Transformers for models.
-- PyArrow/Parquet for analytical tables; JSONL for transparent streaming interchange.
-- Pytest, Ruff, mypy or Pyright, and pre-commit.
+- Reference Python: `3.12.x`; project constraint `>=3.12,<3.13`.
+- Dependency manager/lock: `uv` and `uv.lock`.
+- Schemas: Pydantic v2, `extra="forbid"`.
+- CLI: Typer.
+- ML: PyTorch and Hugging Face Transformers.
+- Tables: PyArrow/Parquet; compressed JSONL for streaming/raw interchange.
+- Quality: Pytest, Ruff, pre-commit, mypy. Mypy is strict on core schemas, Lean boundary, transformations, labeling, splits, and model interfaces.
+- Tracking: Weights & Biases by default, with offline/export mode.
+- Data versioning: content-hash manifests through pilot; add DVC at `research_v1` without replacing manifests.
+- Secrets (including `HF_TOKEN` for private Hugging Face sources) live in the environment or a secret manager, referenced by name from configs; `.env.example` documents required names without values.
 
-### 6.2 Lean and mathlib
+### 6.2 Lean/mathlib lock constrained by LeanInteract
 
-- Pin an exact Lean toolchain and exact mathlib commit.
-- Record the toolchain and project commit in every generated artifact.
-- Use a local Lean project containing project-specific meta helpers.
-- Never silently update mathlib in an existing experiment run.
+Pin `lean-interact==0.11.4` (MIT; package requirement Python ≥3.10, while this project standardizes on Python 3.12). It advertises support for Lean `v4.8.0-rc1` through `v4.31.0-rc1`; this is a binding compatibility constraint. As of this revision, stable Lean is `v4.31.0`, while mathlib development has moved to a `v4.32.0-rc1` toolchain, which is outside the advertised range.
 
-### 6.3 LeanInteract
+Phase 0 must choose exactly one coherent toolchain mode:
 
-LeanInteract is the mandatory Python–Lean boundary. Initial implementation must pin `lean-interact==0.11.4`; a later upgrade requires a compatibility test and an explicit lockfile change.
+1. **advertised-range mode (default):** pin an explicitly supported Lean release, preferably `v4.31.0-rc1`, and an exact mathlib commit/tag whose checked-in `lean-toolchain` matches it; or
+2. **stable exception mode:** pin Lean `v4.31.0` and a matching exact mathlib commit/tag only after the complete compatibility probe passes and ADR-0001 records that stable `v4.31.0` is outside LeanInteract 0.11.4's advertised maximum.
 
-Use LeanInteract for:
+Do not silently override a project's checked-in `lean-toolchain`, do not mix stable `v4.31.0` with an RC-pinned mathlib environment without an explicit tested migration, and never use mathlib master while it requires `v4.32.0-rc1`. Pin exact revisions for every external Lean project and never use a floating branch in a research run.
 
-- Lean project setup through `LocalProject`, `GitProject`, `TempRequireProject`, or `TemporaryProject`;
-- snippet execution with `Command`;
-- source-file execution with `FileCommand`;
-- typechecking using `CommandResponse.lean_code_is_valid`;
-- declaration extraction with `declarations=True`;
-- root goals and InfoTrees when needed;
-- long-running batch robustness through `AutoLeanServer`;
-- independent batch execution through `LeanServerPool` or the documented one-server-per-worker pattern;
-- incremental elaboration of commands sharing an import/header prefix.
+### 6.3 Mandatory LeanInteract boundary
 
-A direct shell invocation of Lean is allowed only in a quarantined diagnostic script or CI sanity check, never as the normal production backend.
+All production Python→Lean interaction uses LeanInteract. It wraps the `augustepoiroux/repl` fork. Do not build a parallel `lake env lean`, LSP, or raw JSON REPL backend.
 
-### 6.4 Experiment tracking and data versioning
+Required LeanInteract capabilities:
 
-- Use immutable run manifests and content hashes as the minimum.
-- Use Weights & Biases, MLflow, or an equivalent tracker for model runs.
-- Use DVC, lakeFS, object-store manifests, or another versioned data mechanism once the corpus exceeds local-development size.
-- Store exact prompt templates and model identifiers for every LLM call.
+- `Command` and `FileCommand`;
+- declarations and root goals;
+- explicit `allow_sorry` on every validation call;
+- optional InfoTree escalation;
+- `LeanServerPool` or one server per worker;
+- tested `LeanServer` path and optional experimental `AutoLeanServer` mode;
+- project abstractions such as `LocalProject`.
+
+A direct shell command is allowed only in a quarantined doctor/CI diagnostic and may not create semantic records or labels.
+
+### 6.4 Encoder/tokenizer decision
+
+Default candidate: **ModernBERT-large**. Compare against CodeT5+ encoder and DeBERTa-v3-large on a fixed pilot. Before non-smoke training, audit Unicode/token fragmentation for `∀ ∃ → ↔ ≤ ≥ ⊆ ∈ ∉ ⟨ ⟩`, namespaces, subscripts, common constants, and explicit signatures. Special-token additions require measured benefit and ADR-0004.
+
+### 6.5 Annotation tooling
+
+Use Argilla or Label Studio with a Lean-pair template. A thin Streamlit fallback is permitted only after a bounded integration spike documents that both existing tools fail required blinding/schema/export behavior.
+
+### 6.6 Deliberately excluded planning content
+
+This plan contains no staffing assignments, calendar estimates, annotator compensation, dollar caps, or hardware-envelope mandates. Runtime, memory, tokens, API calls, and provider-reported costs are measured outcomes rather than resource prescriptions.
 
 ---
+## 7. Repository layout — single path authority
 
-## 7. Repository layout
+This tree is authoritative. A phase or backlog item may reference only a declared path or a child of a declared directory. Adding an alias requires updating this section and the path-consistency test first.
 
 ```text
 leanfaith/
+  PLAN.md
   README.md
-  PROJECT_PLAN.md
+  LICENSE
+  CITATION.cff
+  DATA_SOURCES.md
   pyproject.toml
   uv.lock
   lean-toolchain
@@ -385,4527 +391,514 @@ leanfaith/
   .env.example
   .gitignore
   .pre-commit-config.yaml
+  dvc.yaml                         # research_v1 onward
+  dvc.lock                         # research_v1 onward
+
+  policies/
+    semantic_policy_v1.md
+    error_ontology_v1.yaml
+    label_resolution_v1.yaml
+    transformation_promotion_v1.yaml
+    benchmark_denylist_v1.yaml
+    evidence_policy_v1.yaml
+    split_policy_v1.yaml
+    calibration_policy_v1.yaml
+    preregistration_v1.yaml
+
+  examples/
+    semantic_contract_v1.jsonl
+    backend_requests/
+    transformation_cases/
+    annotation_traps/
+
+  prompts/
+    proposers/
+    autoformalizers/
+    judges/
+    schemas/
+
+  annotation/
+    guidelines_v1.md
+    codebook_v1.yaml
+    templates/
+    assignments/
+    exports/
+    adjudication/
+
+  configs/
+    environment.lock.yaml
+    projects/
+      fixtures.yaml
+      mathlib.yaml
+      cslib.yaml
+      physlib.yaml
+    sources/
+      sft_classic.yaml
+      sft_classic_numina.yaml
+      lean_workbook.yaml
+      mathlib.yaml
+      proofnetverif.yaml
+      cslib.yaml
+      physlib.yaml
+    generation/
+      providers.yaml
+      problem_pool.yaml
+      real_outputs.yaml
+      llm_variants.yaml
+    judges/
+      weak_supervision.yaml
+      primary_eval.yaml
+    transformations/
+      registry.yaml
+      v1.yaml
+      replacement_table_v1.yaml
+      p01_alpha.yaml
+      p02_binders.yaml
+      p04_notation_lite.yaml
+      n01_operator.yaml
+      n02_quantifier.yaml
+      n03_drop_hypothesis.yaml
+      n07_literal_bound.yaml
+      n10_nearby_theorem.yaml
+    evidence/
+      portfolio_v1.yaml
+      counterexample_v1.yaml
+      sampling_v1.yaml
+    annotation/
+      tool.yaml
+      pilot.yaml
+      main.yaml
+    splits/
+      v0.yaml
+    benchmarks/
+      registry.yaml
+    baselines/
+      lexical.yaml
+      beq.yaml
+      beq_plus.yaml
+      gted.yaml
+      transted.yaml
+      formalalign.yaml
+      criticlean.yaml
+      leanscorer.yaml
+      covcal.yaml
+      llm_judges.yaml
+    models/
+      m0.yaml
+      m1.yaml
+      m2.yaml
+      m3.yaml
+      m4.yaml
+      m5.yaml
+    evaluation/
+      primary.yaml
+      external.yaml
+      reranking.yaml
 
   LeanFaith/
     Main.lean
     Meta/
+      Extract.lean
       Canonicalize.lean
       DefEq.lean
       ExprJson.lean
+      Fingerprint.lean
       SemanticAtoms.lean
       ProofChecks.lean
       Counterexamples.lean
+      AxiomAudit.lean
+    Fixtures/
+      Basic.lean
+      Contexts.lean
+      Invalid.lean
 
   src/leanfaith/
     __init__.py
-    cli.py
-
+    py.typed
+    cli/
+      __init__.py
+      app.py
+      doctor.py
+      probe.py
+      extract.py
+      represent.py
+      freeze_benchmarks.py
+      generate_deterministic.py
+      collect_real_outputs.py
+      generate_llm_variants.py
+      collect_evidence.py
+      export_annotation.py
+      import_annotation.py
+      resolve_labels.py
+      build_splits.py
+      freeze_release.py
+      run_baselines.py
+      train.py
+      calibrate.py
+      evaluate.py
+      rerank.py
     config/
-      models.py
       loading.py
+      models.py
       paths.py
       logging.py
-
+      hashing.py
     schemas/
+      __init__.py
       enums.py
+      ids.py
       source.py
       theorem.py
+      variant.py
       pair.py
       evidence.py
+      label.py
+      nl_lean.py
       llm.py
       annotation.py
       manifest.py
-
+      prediction.py
     lean/
-      backend.py
+      __init__.py
+      protocol.py
       leaninteract_backend.py
-      projects.py
-      sessions.py
+      project_registry.py
+      response_normalization.py
       commands.py
-      responses.py
+      session_policy.py
       extraction.py
-      normalization.py
       typecheck.py
       proof_search.py
       counterexample.py
+      axiom_audit.py
       cache.py
-
-    data_sources/
+    sources/
+      __init__.py
       base.py
+      probe.py
       hf_sft_classic.py
-      mathlib.py
-      proofnetverif.py
+      hf_sft_classic_numina.py
       lean_workbook.py
+      proofnetverif.py
+      repository.py
+      mathlib.py
       cslib.py
       physlib.py
       llm_candidates.py
-
+    representations/
+      __init__.py
+      pipeline.py
+      raw.py
+      headless.py
+      pretty.py
+      explicit.py
+      structural.py
+      semantic_atoms.py
+      operator_tree.py
+      fingerprints.py
     transforms/
-      base.py
+      __init__.py
+      protocol.py
       registry.py
+      promotion.py
       invariants.py
+      diff.py
       positive/
-        alpha.py
-        binders.py
-        interface.py
-        notation.py
-        propositional.py
       negative/
-        operator.py
-        hypothesis.py
-        quantifier.py
-        domain.py
-        conclusion.py
-        coercion.py
-        nearby.py
-
     generation/
+      __init__.py
       providers.py
-      prompts.py
-      variants.py
+      problem_pool.py
+      parser.py
       autoformalization.py
+      variants.py
       retries.py
-      budgets.py
-
+      token_accounting.py
+    evidence/
+      __init__.py
+      sampling.py
+      pipeline.py
+      defeq.py
+      proof_search.py
+      counterexample.py
+      certificates.py
     labeling/
-      evidence_pipeline.py
+      __init__.py
       llm_judges.py
       aggregation.py
+      resolution.py
       quality.py
-      human_export.py
+      conflicts.py
+    annotation_support/
+      __init__.py
+      export.py
+      import_.py
+      blinding.py
       adjudication.py
-
+      agreement.py
     datasets/
+      __init__.py
       build.py
+      ancestry.py
+      connected_components.py
       deduplicate.py
+      denylist.py
       splits.py
       sampling.py
       freeze.py
-
-    features/
-      lexical.py
-      structural.py
-      symbolic.py
-      graph.py
-
+      cards.py
     baselines/
-      string.py
-      edit.py
-      gted.py
-      beq_plus_leaninteract.py
-      llm_judge.py
-      learned.py
-
     models/
-      tokenization.py
-      data.py
-      cross_encoder.py
-      dual_cross_attention.py
+      m0_dual_encoder.py
+      m1_cross_encoder.py
+      m2_bidirectional_cross_attention.py
+      m3_hybrid.py
+      m4_nl_lean.py
+      m5_graph.py
       heads.py
       losses.py
       calibration.py
-      graph_encoder.py
-      nl_lean.py
       train.py
       inference.py
-
     evaluation/
-      metrics.py
-      slices.py
-      calibration.py
-      robustness.py
-      reranking.py
-      statistics.py
-      reports.py
-
     applications/
-      score_pair.py
-      score_nl_lean.py
-      cluster.py
-      rerank.py
-      repair.py
-      api.py
-
-  configs/
-    projects/
-    sources/
-    transforms/
-    generation/
-    labeling/
-    datasets/
-    models/
-    evaluation/
 
   scripts/
     00_doctor.py
-    01_probe_source.py
-    02_extract.py
-    03_normalize.py
-    04_generate_deterministic.py
-    05_generate_llm.py
-    06_collect_evidence.py
-    07_export_human_annotation.py
-    08_resolve_labels.py
-    09_build_splits.py
-    10_run_baselines.py
-    11_train.py
-    12_calibrate.py
-    13_evaluate.py
-    14_rerank.py
+    01_probe_sources.py
+    02_extract_statements.py
+    03_build_representations.py
+    04_freeze_benchmark_denylist.py
+    05_generate_deterministic.py
+    06_collect_real_outputs.py
+    07_generate_llm_variants.py
+    08_collect_symbolic_evidence.py
+    09_export_annotation.py
+    10_import_annotation.py
+    11_resolve_labels.py
+    12_build_splits.py
+    13_freeze_dataset.py
+    14_run_baselines.py
+    15_train.py
+    16_calibrate.py
+    17_evaluate.py
+    18_rerank.py
+    19_release_smoke.py
 
   tests/
     unit/
-    integration/
-    lean_fixtures/
+    integration/leaninteract/
+    integration/sources/
+    integration/transformations/
+    property/
     golden/
+    end_to_end/
+    lean_fixtures/
 
-  data/                 # ignored except tiny fixtures
-    manifests/
+  data/
+    source_manifests/
+    benchmarks/
+      frozen_ids.json
+      source_registry.yaml
+      manifests/
     raw/
+      sources/
+      real_outputs/
+      judgments/
+    parsed/
+      sources/
+      real_outputs/
     extracted/
-    normalized/
+      theorems/
+      failures/
+    representations/
     generated/
+      deterministic/
+      llm/
+    real_outputs/
+      validated/
     evidence/
-    labeled/
-    splits/
-    frozen/
-    reports/
+    labels/
+      provisional/
+      silver/
+      resolved/
+    human/
+      pilot_raw/
+      pilot_adjudicated/
+      development_gold/
+      calibration_gold/
+      final_test_frozen/
+    split_manifests/
+      train.json
+      validation.json
+      calibration.json
+      internal_test.json
+      human_test.json
+      benchmark_test.json
+      real_output_test.json
+      heldout_transform_test.json
+      heldout_project_test.json
+      heldout_generator_test.json
+      adversarial_test.json
+    releases/
+      v0/
+        train.parquet
+        validation.parquet
+        calibration.parquet
+        internal_test.parquet
+        manifests/
+        DATA_CARD.md
+      research_v1/
+
+  artifacts/
+    compatibility/
+    golden/leaninteract/
+    raw_lean_responses/
+    evidence/
+    predictions/
+      baselines/
+      final/
+      reranking/
+    checkpoints/
+      m0/
+      m1/
+      m2/
+      m3/
+      m4/
+      m5/
+    calibration/
+    release/
+    figures/
+    tables/
+
+  reports/
+    gates/
+    milestones/
+      phase_0_contract.md
+      phase_1_leaninteract.md
+      phase_2_extraction.md
+      phase_3_representations.md
+      phase_4_transforms.md
+      phase_5_real_outputs.md
+      phase_6_llm_data.md
+      phase_7_human_pilot.md
+      phase_7b_main_annotation.md
+      phase_8_dataset_v0.md
+      phase_9_baselines.md
+      phase_10_lean_lean_models.md
+      phase_11_final_evaluation.md
+      phase_12_nl_lean_reranking.md
+      phase_13_graph.md
+      phase_14_release.md
+    compatibility/
+      leaninteract_api.json
+    source_probes/
+    transformation_audits/
+    label_audits/
+    decisions/
+    representation_collisions_mvp.md
+    generation_coverage.md
+    faithful_prevalence_design.md
+    judge_calibration.md
+    human_pilot.md
+    annotation_main.md
+    contamination_v0.md
+    baselines.md
+    tokenizer_audit.md
+    model_selection.md
+    evaluation_final.md
+    external_benchmarks.md
+    statistics_primary.md
+    reranking.md
+    repair_application.md
+    graph_extension.md
+    release_validation.md
+
+  docs/
+    adr/
+      ADR-0001-environment-lock.md
+      ADR-0002-annotation-platform.md
+      ADR-0003-data-versioning.md
+      ADR-0004-encoder-tokenizer.md
+    schemas/
+    leaninteract.md
+    operations.md
+    reproducibility.md
+    limitations.md
+
+  runs/
+    .gitkeep
 ```
 
-The old idea of a generic custom `LeanRunner` should be removed. `LeanInteractBackend` is the single production implementation of the backend contract.
+### 7.1 Canonical schema homes
 
+| Record | Definition module |
+|---|---|
+| `ContextRecord`, `TheoremRecord`, `RepresentationRecord` | `src/leanfaith/schemas/theorem.py` |
+| `VariantRecord`, transformation support records | `src/leanfaith/schemas/variant.py` |
+| `PairRecord` | `src/leanfaith/schemas/pair.py` |
+| `EvidenceRecord` and kind-specific values | `src/leanfaith/schemas/evidence.py` |
+| `ResolvedLabel` | `src/leanfaith/schemas/label.py` |
+| `NLPLeanRecord` | `src/leanfaith/schemas/nl_lean.py` |
+| shared enums | `src/leanfaith/schemas/enums.py` |
+
+Definitions are never duplicated; `schemas/__init__.py` may re-export them.
+
+### 7.2 Phase-to-command map
+
+| Phase | Typer command | Script |
+|---|---|---|
+| 0–1 | `leanfaith doctor` | `00_doctor.py` |
+| 2 | `probe`, `extract`, `freeze-benchmarks` | `01`, `02`, `04` |
+| 3 | `represent` | `03_build_representations.py` |
+| 4 | `generate-deterministic` | `05_generate_deterministic.py` |
+| 5 | `collect-real-outputs` | `06_collect_real_outputs.py` |
+| 6 | `generate-llm-variants` | `07_generate_llm_variants.py` |
+| 4–6 | `collect-evidence` | `08_collect_symbolic_evidence.py` |
+| 7/7b | `export-annotation`, `import-annotation` | `09`, `10` |
+| 8 | `resolve-labels`, `build-splits`, `freeze-release` | `11`, `12`, `13` |
+| 9 | `run-baselines` | `14_run_baselines.py` |
+| 10/12/13 | `train` | `15_train.py` |
+| 10–12 | `calibrate`, `evaluate`, `rerank` | `16`, `17`, `18` |
+| 14 | `release-smoke` | `19_release_smoke.py` |
+
+A CI test extracts phase deliverable paths from §24 and verifies that each is declared above or is a child of a declared directory.
 
 ---
-
 ## 8. LeanInteract integration specification
 
-### 8.1 Why LeanInteract is the default
+### 8.1 Mandatory boundary and REPL identity
 
-LeanInteract already provides the capabilities this project needs:
+All production Python interaction with Lean uses [LeanInteract](https://github.com/augustepoiroux/LeanInteract), which uses its maintained `augustepoiroux/repl` fork. Code must not assume the upstream REPL API/wire format is interchangeable.
 
-- Python access to the Lean REPL;
-- `Command` and `FileCommand` requests;
-- structured declarations, messages, sorries, tactics, and InfoTrees;
-- project abstractions for local, Git, and temporary Lean projects;
-- incremental elaboration for repeated prefixes;
-- `AutoLeanServer` recovery behavior;
-- `LeanServerPool` and documented parallelization patterns;
-- an existing BEq+ example and scalable mathlib declaration-extraction example.
+Only `src/leanfaith/lean/leaninteract_backend.py` imports LeanInteract directly. Higher layers use the protocol in Appendix A.5.
 
-Reimplementing these layers would create unnecessary correctness, caching, timeout, and compatibility risk.
-
-### 8.2 Version policy
-
-Initial pins:
+### 8.2 Binding version policy
 
 ```toml
 [project]
 requires-python = ">=3.12,<3.13"
-dependencies = [
-  "lean-interact==0.11.4",
-  # remaining dependencies pinned through uv.lock
-]
+dependencies = ["lean-interact==0.11.4"]
 ```
 
-Also record:
+The package advertises Lean `v4.8.0-rc1` through `v4.31.0-rc1`. The doctor rejects project toolchains outside the verified range unless ADR-0001 records and Gate 1 tests a stable-`v4.31.0` exception. An upgrade requires a dedicated lock change, API-shape diff, golden-response diff, 1,000-record extraction/evidence comparison, and explicit cache/schema migration decision.
 
-```text
-lean_interact_version
-lean_version
-mathlib_commit
-project_git_commit
-leanfaith_git_commit
-```
+### 8.3 Project abstractions
 
-in every run manifest and every persisted Lean response record.
-
-Upgrade procedure:
-
-1. create an upgrade branch;
-2. change only the LeanInteract pin and lockfile initially;
-3. run the full Lean integration test suite;
-4. compare golden declaration and typecheck payloads;
-5. run a 1,000-record extraction and evidence smoke benchmark;
-6. document payload or performance changes;
-7. merge only after deterministic equivalence of required fields or an intentional schema migration.
-
-### 8.3 Project types
-
-Use the correct LeanInteract project abstraction for each setting:
-
-| Setting | LeanInteract project | Policy |
+| Situation | LeanInteract abstraction | Policy |
 |---|---|---|
-| Main LeanFaith repository | `LocalProject` | primary development and custom meta helpers |
-| Fixed external Lean repository | `GitProject` | pin exact commit/tag; never use a floating branch in experiments |
-| Isolated benchmark or smoke test | `TempRequireProject` | pin Lean version and dependency revisions |
-| Fine-grained generated Lake project | `TemporaryProject` | use only when dependency graph cannot be expressed otherwise |
+| checked-out pinned project | `LocalProject` | exact path/revision recorded |
+| pinned external repository | `GitProject` when supported by pinned API | exact commit/tag |
+| isolated dependency project | `TempRequireProject` | exact Lean/dependency revisions |
+| generated Lake project | `TemporaryProject` | only when prior forms cannot express context |
 
-The main production runs should use a previously built local project. Before constructing a server, CI and the doctor command must verify that `lake build` succeeds.
+Project setup/build failure aborts the batch as `SETUP_ERROR`; it does not emit semantic labels.
 
-### 8.4 Backend abstraction
+### 8.4 Canonical backend protocol mirror
 
-Only the backend module may import LeanInteract directly. Higher-level code depends on a narrow protocol:
-
-```python
-from dataclasses import dataclass
-from pathlib import Path
-from typing import Protocol, Sequence
-
-@dataclass(frozen=True)
-class LeanCheckRequest:
-    context_id: str
-    code: str
-    allow_sorry: bool
-    timeout_s: float
-    request_declarations: bool = False
-    request_root_goals: bool = False
-    request_infotree: str | None = None
-
-@dataclass(frozen=True)
-class LeanCheckResult:
-    request_hash: str
-    valid: bool
-    timed_out: bool
-    crashed: bool
-    messages: tuple[dict, ...]
-    sorries: tuple[dict, ...]
-    declarations: tuple[dict, ...]
-    root_goals: tuple[str, ...]
-    infotree: tuple[dict, ...]
-    elapsed_ms: int
-    environment_fingerprint: str
-    raw_response_path: str
-
-class LeanBackend(Protocol):
-    def check(self, request: LeanCheckRequest) -> LeanCheckResult: ...
-    def check_many(self, requests: Sequence[LeanCheckRequest]) -> list[LeanCheckResult]: ...
-    def extract_file(self, path: Path, context_id: str) -> list[dict]: ...
-    def close(self) -> None: ...
-```
-
-`LeanInteractBackend` implements this protocol. A fake backend is used for pure unit tests. Do not create a second real backend during the MVP.
-
-### 8.5 Server choice
-
-Use:
-
-- `AutoLeanServer` for long-running extraction, typechecking, proof attempts, and generation validation;
-- `LeanServer` only for short deterministic cases where automatic recovery is unnecessary and the simpler lifecycle is useful;
-- `LeanServerPool` for batches of independent requests when its scheduling model fits;
-- one `AutoLeanServer` per worker for custom grouped scheduling.
-
-### 8.6 Session and prefix-reuse policy
-
-Incremental elaboration is most useful when many commands share a header. Therefore:
-
-1. derive a `context_fingerprint` from Lean version, project revision, imports, namespace/open declarations, options, and local notation;
-2. group requests by `context_fingerprint`;
-3. send full commands, including the common header, to the same server;
-4. allow LeanInteract to reuse the common prefix;
-5. do not manually micromanage environment IDs unless a feature specifically requires it;
-6. restart a server whenever imported project files change, because cached imports may otherwise remain stale;
-7. treat project directories as immutable during production runs.
-
-For generated variants sharing a source theorem context, process the source and all its variants in one group. This both improves speed and reduces context inconsistency.
-
-### 8.7 Parallel execution policy
-
-Preferred order:
-
-1. `LeanServerPool` for simple independent batches;
-2. threaded or asynchronous workers when Python mainly waits on REPL subprocesses;
-3. multiprocessing with `spawn` when isolation or CPU-side postprocessing requires it.
-
-Rules:
-
-- instantiate `LeanREPLConfig` once before creating workers;
-- each worker owns its own server instance;
-- never share a mutable `LeanServer` instance across processes;
-- set a conservative global worker count based on measured memory, not only CPU count;
-- configure per-request timeout and per-server memory limits where supported;
-- save partial results continuously;
-- retry infrastructure failures, not deterministic Lean errors;
-- cap retries and preserve all failed attempts.
-
-### 8.8 Typechecking
-
-For candidate statements, submit the full source header plus a proof-stripped declaration ending in `:= by sorry` or the dataset’s equivalent incomplete form.
-
-A candidate is considered statement-well-typed when:
+**Appendix A.5 is the source of truth.** This section mirrors the contract for readability; LF-005 tests that both copies remain byte-equivalent at the code-block level.
 
 ```python
-isinstance(response, CommandResponse)
-and response.lean_code_is_valid(allow_sorry=True)
-```
-
-The result must distinguish:
-
-```text
-valid_with_sorry
-valid_without_sorry
-lean_error
-repl_error
-timeout
-server_crash
-context_setup_error
-```
-
-Do not collapse these into a single boolean in persistent data.
-
-### 8.9 Declaration extraction
-
-Use:
-
-```python
-FileCommand(path=relative_path, declarations=True)
-```
-
-for source repositories and:
-
-```python
-Command(cmd=code, declarations=True)
-```
-
-for generated snippets.
-
-Persist the relevant `DeclarationInfo` fields:
-
-```text
-pp
-range
-scope
-name
-full_name
-kind
-modifiers
-signature.pp
-signature.constants
-signature.range
-binders
-optional type
-optional value
-```
-
-Use `range` to recover the exact source substring when needed. Do not use regex as the primary declaration parser for repository files. Regex may be used only to recover simple dataset headers before Lean elaboration confirms the declaration.
-
-### 8.10 InfoTrees and custom structural extraction
-
-LeanInteract can return InfoTrees, but the project should use them only where they add information not already present in declarations.
-
-Default extraction request:
-
-```text
-declarations=True
-root_goals=False
-infotree=None
-```
-
-Escalate to `InfoTreeOptions.full` or `substantive` only for:
-
-- debugging parser/elaboration edge cases;
-- deriving structural features unavailable from declarations;
-- validating source spans;
-- studying tactic/proof metadata in a separate analysis.
-
-For a canonical Lean `Expr` representation, implement small Lean-side meta helpers in `LeanFaith/Meta/` and invoke them through LeanInteract `Command` or `FileCommand`. Do not bypass LeanInteract to run these helpers.
-
-### 8.11 Proof-search attempts
-
-Proof-search requests are ordinary LeanInteract commands with strict policies:
-
-- construct proposition types from statement signatures;
-- never grant the proof of both compared theorems as ambient constants;
-- prohibit source/candidate theorem constants in a certificate;
-- run each direction separately;
-- capture success, failure, timeout, exact proof text where available, and used constants when possible;
-- save the tactic portfolio and timeout in the evidence record.
-
-The LeanInteract BEq+ example may be adapted as a baseline, with attribution and a pinned source commit. Because it is example code rather than a guaranteed stable package API, place the adaptation under `baselines/`, preserve the MIT notice, and cover it with golden tests.
-
-### 8.12 Error handling
-
-Classify errors before retrying:
-
-| Error | Retry? | Action |
-|---|---:|---|
-| Lean syntax/type error | no | persist diagnostic; mark candidate invalid |
-| deterministic tactic failure | no | persist as failed search |
-| timeout | once or policy-based | restart/recover server; then persist timeout |
-| server crash/connection abort | yes, bounded | use `AutoLeanServer`; preserve both attempts |
-| JSON/protocol error | yes, bounded | restart server and preserve raw payload |
-| project setup/build error | no batch retry | fail the run before processing data |
-| out of memory | bounded after reducing load | lower workers or memory-heavy request size |
-
-No exception may silently turn into an empty success list. Every attempted record receives a terminal status.
-
-### 8.13 LeanInteract integration tests
-
-Required tests:
-
-1. typecheck a valid theorem with `sorry`;
-2. reject an ill-typed theorem;
-3. distinguish `allow_sorry=True` and `False`;
-4. extract a declaration and verify its full name, kind, signature, constants, binders, and source range;
-5. process a file through `FileCommand`;
-6. validate incremental reuse does not change semantic results;
-7. recover from a forced timeout or server restart;
-8. run a four-request batch through the chosen parallel mechanism;
-9. pin and report LeanInteract/Lean/mathlib versions;
-10. compare a stored golden response after dependency upgrades.
-
-The Lean layer milestone is not complete until all ten pass in CI and locally.
-
----
-
-## 9. Data sources and source manifests
-
-### 9.1 Primary sources
-
-| Source | Main role | Priority |
-|---|---|---:|
-| `formalmathatepfl/sft_classic` or the user’s local/private variant | large source of theorem statements, proofs, and possibly NL–Lean pairs | 1 |
-| mathlib4 | broad and high-quality formal statement source | 1 |
-| ProofNetVerif | external real-output evaluation and benchmark adapter | 1 |
-| Real outputs from ReForm-style and frontier autoformalizers | deployment-distribution training and evaluation | 1 |
-| Lean Workbook or similar NL–Lean datasets | additional NL–Lean pairs | 2 |
-| CSLib | computer-science OOD source | 2 |
-| PhysLib and related projects | physics OOD source | 2 |
-| Additional Lean projects | later robustness studies | 3 |
-
-### 9.2 Source adapter contract
-
-```python
-class SourceAdapter(Protocol):
-    source_name: str
-
-    def probe(self) -> SourceProbe: ...
-    def iter_examples(self, split: str | None = None) -> Iterable[RawSourceExample]: ...
-    def source_manifest(self) -> SourceManifest: ...
-```
-
-`probe()` must inspect and report:
-
-- available columns or file layout;
-- row count if available;
-- likely NL field;
-- Lean code/formalization field;
-- source header/import field;
-- proof field;
-- example identifiers;
-- license or access restriction metadata;
-- sample parse and typecheck rate.
-
-Do not write the full adapter until the probe output is saved and reviewed.
-
-### 9.3 `sft_classic` adapter
-
-The exact schema may differ between a public dataset and the user’s copy. The adapter must therefore use an explicit mapping configuration rather than guessing silently.
-
-Example:
-
-```yaml
-source: formalmathatepfl/sft_classic
-fields:
-  id: id
-  nl_statement: problem
-  lean_header: lean4_src_header
-  lean_code: lean4_formalization
-  proof: lean4_proof
-on_missing:
-  nl_statement: null
-  proof: infer_from_lean_code
-```
-
-Probe procedure:
-
-1. load only metadata and a small sample;
-2. print columns and types;
-3. save 100 untouched examples;
-4. test configured field mappings;
-5. typecheck 100 proof-stripped statements;
-6. report exact success/failure counts;
-7. block full extraction if the success rate is unexpectedly low.
-
-### 9.4 Repository-source adapter
-
-For mathlib, CSLib, and PhysLib:
-
-1. pin the exact Git commit;
-2. instantiate a LeanInteract `GitProject` or use a checked-out `LocalProject`;
-3. enumerate `.lean` files excluding build/cache directories;
-4. call `FileCommand(..., declarations=True)` per file;
-5. filter declaration kinds to theorem-like `Prop` declarations;
-6. preserve file path, range, namespace, scope, signature, constants, and project revision;
-7. write file-level failure records rather than silently dropping failed files.
-
-### 9.5 Source manifest
-
-Every source ingest produces an immutable manifest:
-
-```json
-{
-  "source_name": "mathlib4",
-  "source_version": "<commit>",
-  "adapter_version": "<git commit or semantic version>",
-  "lean_version": "...",
-  "lean_interact_version": "0.11.4",
-  "retrieved_at": "...",
-  "license": "...",
-  "configured_splits": ["..."],
-  "raw_count": 0,
-  "parsed_count": 0,
-  "elaborated_count": 0,
-  "failure_counts": {},
-  "sample_hash": "...",
-  "config_hash": "..."
-}
-```
-
-### 9.6 Licensing and release discipline
-
-Before releasing a combined dataset:
-
-- record each source license and redistribution constraints;
-- separate releasable derived metadata from non-releasable source text where required;
-- provide scripts to reconstruct data from original sources when direct redistribution is not allowed;
-- do not send private dataset contents to external LLM APIs without permission.
-
----
-
-## 10. Data lifecycle and immutable stages
-
-Every record moves through explicit stages:
-
-```text
-RAW
-  → PARSED
-  → ELABORATED
-  → NORMALIZED
-  → GENERATED
-  → VALIDATED
-  → EVIDENCE_COLLECTED
-  → LABELED
-  → SPLIT
-  → FROZEN
-```
-
-Rules:
-
-1. A stage reads an immutable prior stage and writes a new output partition.
-2. No stage edits prior artifacts in place.
-3. Every output partition has a manifest, configuration hash, code commit, input manifest hash, row count, and checksum.
-4. Commands are idempotent: rerunning with the same inputs/configuration either reuses the exact output or fails on a checksum mismatch.
-5. Partial shards are resumable.
-6. Corrupt or failed records remain visible in a failure partition.
-7. Frozen test data are write-protected by convention and CI checks.
-
-Recommended artifact key:
-
-```text
-{stage}/{source}/{source_version}/{config_hash}/{shard_id}.{jsonl|parquet}
-```
-
----
-
-## 11. Persistent schemas
-
-Use Pydantic models with schema versions. Store large structured fields in Parquet or compressed JSONL. The examples below omit some convenience fields but include all conceptual requirements.
-
-### 11.1 `ContextRecord`
-
-```json
-{
-  "schema_version": 1,
-  "context_id": "ctx:sha256...",
-  "project_kind": "local | git | temporary",
-  "project_uri": "...",
-  "project_revision": "...",
-  "lean_version": "...",
-  "lean_interact_version": "0.11.4",
-  "imports": ["Mathlib"],
-  "open_declarations": ["open Set"],
-  "namespace_stack": ["..."],
-  "options": {},
-  "local_notation": [],
-  "header_text": "...",
-  "header_hash": "..."
-}
-```
-
-### 11.2 `TheoremRecord`
-
-```json
-{
-  "schema_version": 1,
-  "theorem_id": "theorem:sha256...",
-  "source_name": "...",
-  "source_example_id": "...",
-  "source_split": "...",
-  "source_project_revision": "...",
-  "source_file": "...",
-  "source_range": {"start": [1, 0], "end": [3, 10]},
-  "context_id": "ctx:...",
-  "declaration_kind": "theorem",
-  "name": "foo",
-  "full_name": "Namespace.foo",
-  "raw_declaration": "...",
-  "proof_stripped_declaration": "... := by sorry",
-  "headless_statement": "...",
-  "signature_pp": "...",
-  "signature_constants": ["..."],
-  "binders": {},
-  "scope": {},
-  "explicit_signature_pp": "...",
-  "structural_json_path": "...",
-  "semantic_atoms": ["..."],
-  "nl_statement": "... or null",
-  "reference_trusted": "true | false | uncertain | not_applicable",
-  "elaboration_status": "valid_with_sorry",
-  "diagnostics": [],
-  "normalization_version": "...",
-  "content_hash": "...",
-  "metadata": {}
-}
-```
-
-### 11.3 `VariantRecord`
-
-```json
-{
-  "schema_version": 1,
-  "variant_id": "variant:sha256...",
-  "source_theorem_id": "...",
-  "generator_kind": "deterministic | llm_variant | autoformalizer | nearby_theorem",
-  "generator_id": "positive.alpha.v1 | model/provider/version",
-  "generation_config_hash": "...",
-  "seed": 17,
-  "prompt_hash": "... or null",
-  "raw_output": "...",
-  "extracted_statement": "...",
-  "intended_relation": "equivalent | A_stronger | B_stronger | near_miss | unknown",
-  "intended_error_types": [],
-  "transformation_trace": [],
-  "inverse_trace": [],
-  "validation_status": "...",
-  "theorem_record_id": "... after elaboration",
-  "metadata": {}
-}
-```
-
-### 11.4 `PairRecord`
-
-The pair record references labels and evidence; it does not merge them into one overloaded field.
-
-```json
-{
-  "schema_version": 1,
-  "pair_id": "pair:sha256...",
-  "a_theorem_id": "...",
-  "b_theorem_id": "...",
-  "pair_source": "deterministic | llm | real_output | benchmark | human_curated",
-  "source_group_id": "original theorem or NL problem id",
-  "generator_group_id": "...",
-  "intended_relation": "... or null",
-  "resolved_label_id": "label:... or null",
-  "evidence_ids": ["evidence:..."],
-  "lexical_stats": {},
-  "structural_stats": {},
-  "split_eligibility": {},
-  "metadata": {}
-}
-```
-
-### 11.5 `EvidenceRecord`
-
-```json
-{
-  "schema_version": 1,
-  "evidence_id": "evidence:sha256...",
-  "pair_id": "...",
-  "kind": "typecheck | defeq | proof_A_to_B | proof_B_to_A | counterexample | llm_judgment | human_annotation | transformation_certificate",
-  "status": "success | failure | timeout | error | abstain",
-  "value": {},
-  "method_version": "...",
-  "config_hash": "...",
-  "raw_artifact_path": "...",
-  "created_at": "..."
-}
-```
-
-### 11.6 `ResolvedLabel`
-
-```json
-{
-  "schema_version": 1,
-  "label_id": "label:sha256...",
-  "pair_id": "...",
-  "same_claim": "yes | no | ambiguous",
-  "relation": "equivalent | A_stronger | B_stronger | incomparable_near_miss | unrelated | ambiguous",
-  "truth_A_implies_B": "yes | no | unknown",
-  "truth_B_implies_A": "yes | no | unknown",
-  "error_types": [],
-  "quality_tier": "gold_human | gold_conservative_transform | gold_counterexample | benchmark | silver_consensus | provisional | unknown",
-  "resolution_method": "...",
-  "adjudication_notes": "...",
-  "eligible_for_training": true,
-  "eligible_for_final_evaluation": false
-}
-```
-
-### 11.7 `NLPLeanRecord`
-
-```json
-{
-  "schema_version": 1,
-  "nl_pair_id": "nlpair:sha256...",
-  "problem_id": "...",
-  "source_name": "...",
-  "nl_statement": "...",
-  "reference_theorem_ids": ["..."],
-  "candidate_theorem_id": "...",
-  "candidate_generator": "...",
-  "faithful": "yes | no | ambiguous | unlabeled",
-  "relation_to_reference": "...",
-  "error_types": [],
-  "label_quality": "...",
-  "evidence_ids": [],
-  "split_group_id": "problem:..."
-}
-```
-
-### 11.8 LLM call records
-
-Store every call with:
-
-```text
-provider
-model ID and version/date if available
-role: proposer | autoformalizer | judge
-prompt template ID and hash
-fully rendered prompt hash
-sampling parameters
-response text or secure artifact pointer
-parsed output
-parse status
-retry lineage
-input record IDs
-cost/token counts
-request timestamp
-```
-
-This is required for reproducibility and for studying judge/model-family leakage.
-
----
-
-## 12. Theorem extraction and context reconstruction
-
-### 12.1 Extraction outputs
-
-For each theorem-like declaration, produce:
-
-1. source text and source range;
-2. proof-stripped declaration;
-3. headless theorem statement;
-4. LeanInteract `DeclarationInfo` payload;
-5. elaborated signature and constants;
-6. binder and scope information;
-7. optional explicit/canonical representation;
-8. optional structural JSON;
-9. exact context fingerprint;
-10. typecheck diagnostics;
-11. source and version metadata;
-12. natural-language statement when available.
-
-### 12.2 Repository extraction
-
-For each source file:
-
-1. run `FileCommand(path=..., declarations=True)` through LeanInteract;
-2. persist the complete response before filtering;
-3. iterate declarations;
-4. select `theorem`, `lemma`, and other proposition-valued declaration kinds approved by configuration;
-5. use the declaration range to recover raw text;
-6. reconstruct proof-stripped text using source range plus Lean-aware boundaries;
-7. verify the reconstructed declaration separately with `Command`;
-8. store any discrepancy as an extraction failure.
-
-Do not assume every `DeclarationInfo.value` is available or suitable for proof stripping. Raw source and signature are separate views.
-
-### 12.3 Dataset-string extraction
-
-Dataset rows may contain imports, namespaces, multiple declarations, code fences, explanatory text, or proofs. Use this sequence:
-
-1. sanitize Markdown fences without modifying Lean tokens inside the code;
-2. obtain the configured header and formalization fields;
-3. run the entire snippet with `declarations=True`;
-4. select the intended theorem by configured rule, usually the last theorem-like declaration or a named declaration;
-5. use returned declaration metadata and source range;
-6. produce proof-stripped code;
-7. rerun proof-stripped code and require valid elaboration with `allow_sorry=True`;
-8. mark ambiguous multi-declaration rows for manual adapter rules rather than guessing.
-
-Regex is permitted only as a preliminary helper. LeanInteract elaboration is the authority.
-
-### 12.4 Proof stripping
-
-Proof stripping must handle:
-
-- `:= by ...`;
-- `:= term`;
-- `where` blocks;
-- `termination_by` and unrelated declaration syntax;
-- declarations already ending in `:= by sorry`;
-- examples and declarations without a name;
-- attributes and modifiers;
-- nested `by` tokens inside statement syntax.
-
-Use declaration ranges and, where necessary, InfoTree/syntax information. Build a golden fixture suite of at least 100 difficult declarations from diverse projects.
-
-### 12.5 Context fingerprint
-
-The same Lean text can mean something different under another environment. Compute:
-
-```text
-context_fingerprint = SHA256(
-  lean_version
-  + project_revision
-  + ordered_imports
-  + namespace/open declarations
-  + local notation
-  + relevant options
-)
-```
-
-Pairs may be compared across contexts, but the model and evidence pipeline must know the difference. For typechecking generated variants, default to the source theorem’s exact context.
-
-### 12.6 Filtering
-
-For the MVP, keep only declarations whose elaborated result is a proposition. Exclude or flag:
-
-- definitions returning data;
-- syntax/macro declarations;
-- generated auxiliary declarations;
-- declarations with unresolved metavariables;
-- statements requiring unavailable private context;
-- statements exceeding configured size limits;
-- duplicates under canonical hash.
-
-Do not discard them silently; record counts and reasons.
-
-
----
-
-## 13. Statement representations and normalization
-
-### 13.1 No single canonical string is sufficient
-
-The project should not search for one aggressively expanded theorem string. Expansion can expose hidden assumptions but can also explode size, erase useful abstractions, and create version-sensitive output. Instead, store multiple synchronized views.
-
-### 13.2 Required views
-
-| View | Description | Default model use |
-|---|---|---:|
-| `raw_proof_stripped` | original declaration with proof replaced | yes, ablation/input |
-| `headless` | theorem name and proof removed; cosmetic whitespace normalized | yes |
-| `signature_pp` | LeanInteract elaborated signature | yes |
-| `signature_explicit` | custom meta pretty-print with explicit binders/universes/coercions according to pinned options | yes after stable |
-| `alpha_structural` | binder-ID/de Bruijn normalized structural JSON | features/graph |
-| `notation_light` | only whitelisted notation/definition expansions | optional |
-| `semantic_atoms` | substantive constants/operators/types extracted from structure | invariants/features |
-| `operator_tree` | compact tree for GTED-style baseline | baseline/feature |
-
-### 13.3 Normalization levels
-
-```text
-N0 raw proof-stripped declaration
-N1 theorem name/comments/whitespace normalized
-N2 elaborated signature from LeanInteract
-N3 explicit signature from Lean-side helper
-N4 alpha-normalized structural form
-N5 whitelisted local desugaring/unfolding
-```
-
-Every level must be derivable from the original theorem record and tagged with a normalization version.
-
-### 13.4 Required normalization invariants
-
-- deterministic output under a pinned environment;
-- alpha-renaming does not alter `alpha_structural` hash;
-- theorem-name changes do not alter headless or structural hash;
-- context fingerprint remains attached;
-- no proof body leaks into model inputs;
-- no unrestricted `simp` or arbitrary theorem-based rewriting;
-- normalization errors never replace the raw source record.
-
-### 13.5 Explicit representation
-
-Use a Lean-side helper invoked through LeanInteract to emit an explicit theorem type with a controlled option profile. Evaluate options such as:
-
-```lean
-set_option pp.explicit true
-set_option pp.universes true
-set_option pp.proofs false
-set_option pp.fullNames true
-```
-
-The exact option set must be tested under the pinned Lean version. Do not assume an option exists without a smoke test. Store the option profile in the normalization manifest.
-
-### 13.6 Structural representation
-
-The structural JSON should encode at least:
-
-```text
-node kind
-constant full name
-literal value
-binder information
-child order
-application function/arguments
-universe information when relevant
-source range when available
-inferred type summary when affordable
-```
-
-For v0, the Lean-side helper may emit a compact recursive tree. Graph edges and richer type links can be added later.
-
-### 13.7 Semantic atoms
-
-Define a semantic atom as a substantive element whose accidental removal or substitution often changes the claim:
-
-- quantifiers and binder types;
-- typeclass/structure assumptions;
-- predicates and named mathematical constants;
-- relation operators;
-- set/function constructors;
-- numerical literals;
-- casts and coercion targets;
-- conclusion head and hypothesis heads.
-
-Ignore or downweight:
-
-- theorem names;
-- binder names;
-- source positions;
-- formatting tokens;
-- direct notation wrappers approved by a mapping table.
-
-Store an ordered atom trace and a multiset signature. Transformation admission checks use these to detect semantic erasure.
-
-### 13.8 Representation experiments
-
-The first paper-quality ablation should compare:
-
-1. raw only;
-2. headless only;
-3. elaborated signature only;
-4. headless + elaborated signature;
-5. explicit signature;
-6. text plus structural scalar features;
-7. text plus structural graph.
-
-Do not assume the most expanded form is best.
-
----
-
-## 14. Pair-label taxonomy and error ontology
-
-### 14.1 Core labels
-
-```text
-same_claim: yes | no | ambiguous
-relation: equivalent | A_stronger | B_stronger | incomparable_near_miss | unrelated | ambiguous
-```
-
-### 14.2 Evidence-only logical fields
-
-```text
-defeq: success | failure | timeout | error | not_run
-proof_A_to_B: success | failure | timeout | error | not_run
-proof_B_to_A: success | failure | timeout | error | not_run
-counterexample_A_not_B: found | not_found | unsupported | timeout | error
-counterexample_B_not_A: found | not_found | unsupported | timeout | error
-```
-
-`not_found` is not a proof of implication or equivalence.
-
-### 14.3 Error ontology
-
-Use multi-label tags with stable IDs:
-
-```text
-E01 missing_hypothesis
-E02 extra_hypothesis
-E03 vacuous_or_inconsistent_hypothesis
-E04 wrong_quantifier
-E05 wrong_quantifier_order
-E06 wrong_domain_or_type
-E07 wrong_codomain
-E08 wrong_typeclass_or_structure
-E09 wrong_constant_or_predicate
-E10 wrong_operator
-E11 wrong_inequality_strictness
-E12 wrong_equality_or_iff_direction
-E13 wrong_set_operation
-E14 wrong_function_direction_image_preimage_map_comap
-E15 wrong_cast_or_coercion
-E16 wrong_index_or_bound
-E17 wrong_numerical_constant
-E18 wrong_answer_value
-E19 special_case_only
-E20 overgeneralization
-E21 irrelevant_or_unbound_variable
-E22 omitted_dependency_between_binders
-E23 namespace_import_or_notation_mismatch
-E24 malformed_or_non_elaborating_statement
-E25 semantic_erasure_or_tautologization
-E26 formalizes_related_but_different_claim
-E27 reference_suspected_incorrect
-E28 ambiguous_natural_language
-E29 cosmetic_only
-E30 other
-```
-
-The ontology should be versioned. Changing tag semantics requires a migration.
-
-### 14.4 Label-quality tiers
-
-| Tier | Definition | Training | Final evaluation |
-|---|---|---:|---:|
-| `gold_human` | expert double annotation plus adjudication | yes | yes |
-| `gold_conservative_transform` | deterministic rule passes all positive gates | yes | diagnostic only unless human sampled |
-| `gold_counterexample` | Lean-checkable separating instance or proof of non-equivalence in supported fragment | yes | yes/diagnostic |
-| `benchmark` | accepted external benchmark label | optionally train only if designated | yes |
-| `silver_consensus` | stringent independent judge consensus and validation | yes, weighted | no sole final claim |
-| `provisional` | intended mutation/generation label | pretraining or mining only | no |
-| `unknown` | insufficient evidence | no supervised target | no |
-
-### 14.5 Label resolution precedence
-
-Default precedence:
-
-```text
-human adjudication
-  > benchmark gold policy
-  > conservative transformation certificate / checked counterexample
-  > high-quality multi-model consensus
-  > intended generation label
-```
-
-Conflicts are not silently resolved. Create a conflict record and route it to review.
-
----
-
-## 15. Deterministic transformation framework
-
-### 15.1 Purpose
-
-Deterministic transformations provide scale, controlled error categories, and exact provenance. They are not expected to reproduce the full real error distribution, so they must be combined with real autoformalization outputs.
-
-### 15.2 Transformation API
-
-```python
-@dataclass(frozen=True)
-class TransformCandidate:
-    source_theorem_id: str
-    rule_id: str
-    rule_version: str
-    seed: int
-    candidate_code: str
-    intended_relation: str
-    intended_error_types: tuple[str, ...]
-    trace: tuple[dict, ...]
-    inverse_trace: tuple[dict, ...] | None
-    expected_atom_mapping: dict[str, str]
-
-class TransformRule(Protocol):
-    rule_id: str
-    family: str
-    polarity: str
-
-    def applicable(self, theorem: TheoremRecord) -> bool: ...
-    def generate(self, theorem: TheoremRecord, seed: int) -> list[TransformCandidate]: ...
-    def validate_trace(self, source: TheoremRecord, candidate: TheoremRecord) -> bool: ...
-```
-
-Rules operate on Lean-aware syntax or structural representations. Raw string replacement is forbidden except for formatting-only transformations.
-
-### 15.3 Universal validation gates
-
-Every generated candidate must pass:
-
-1. source theorem is valid;
-2. generated text parses and elaborates in the source context through LeanInteract;
-3. generated declaration is proposition-valued;
-4. no unresolved metavariables;
-5. candidate differs from source under the relevant non-cosmetic hash;
-6. exact transformation trace is present;
-7. candidate is not a duplicate already generated for the source;
-8. output length and complexity remain within configured bounds;
-9. all LeanInteract diagnostics and versions are persisted.
-
-### 15.4 Positive admission gates
-
-A deterministic positive receives `gold_conservative_transform` only if all applicable gates pass:
-
-1. the rule is on an explicit positive allowlist;
-2. the rule is local and reversible, or has a checked round trip;
-3. the structural diff matches the rule’s declared pattern exactly;
-4. semantic atoms are preserved under the rule’s approved mapping;
-5. no substantive hypothesis, binder type, quantifier, literal, or conclusion atom is removed;
-6. a generic proof template or definitional equality check succeeds when required;
-7. the certificate does not use source/candidate theorem constants;
-8. certificate dependencies remain within a rule-specific allowlist when feasible;
-9. source-to-candidate and candidate-to-source transformations both validate;
-10. random human audit of the rule family meets a predeclared precision threshold.
-
-If any gate is unavailable or fails, the example becomes `provisional_positive`, not gold.
-
-### 15.5 Conservative positive families
-
-#### P00 — Cosmetic formatting
-
-- comments;
-- whitespace;
-- line breaks;
-- theorem name changes.
-
-Use mainly for invariance tests, not to dominate training.
-
-#### P01 — Alpha-renaming
-
-- binder and hypothesis renaming;
-- capture-avoiding substitution;
-- exact structural hash equality after alpha normalization.
-
-#### P02 — Binder grouping and interface presentation
-
-Examples:
-
-```lean
-(x y : α)
-```
-
-versus
-
-```lean
-(x : α) (y : α)
-```
-
-and carefully validated theorem-level currying/uncurrying.
-
-#### P03 — Independent binder/hypothesis permutation
-
-Only when dependency analysis proves the swap safe. Update all references by structure, not text.
-
-#### P04 — Direct notation/desugaring variants
-
-Examples on a strict allowlist:
-
-```text
-x ∈ {y | P y}       ↔ P x
-s ⊆ t               ↔ ∀ x, x ∈ s → x ∈ t
-Function.comp f g x ↔ f (g x)
-```
-
-Use exact environment constants and rule-specific certificates.
-
-#### P05 — Local propositional interface equivalences
-
-Examples:
-
-```text
-P ∧ Q ↔ Q ∧ P
-(P ∧ Q) ∧ R ↔ P ∧ (Q ∧ R)
-P ∨ Q ↔ Q ∨ P
-(P ∧ Q → R) ↔ (P → Q → R)
-```
-
-Only use constructively valid forms under the current logic, unless a rule explicitly requires and records classical assumptions.
-
-#### P06 — Definitional/reducible presentation variants
-
-Use only when Lean’s definitional equality or a whitelisted reducible unfolding verifies the transformation and semantic atoms are preserved.
-
-### 15.6 Transformations not automatically admitted as positives
-
-The following are research candidates requiring stronger review:
-
-- unrestricted `simp` normal forms;
-- arithmetic normalization that removes the central operation;
-- proof by a domain theorem unrelated to a local reversible rewrite;
-- replacing a theorem by any other mutually provable theorem;
-- broad `ring_nf`, `linarith`, `omega`, or `aesop` output as the sole justification;
-- simplification to `True`, reflexivity, or another tautological form;
-- semantic fusion/equisatisfiable transformations that do not preserve the same claim.
-
-Store these under `semantic_rewrite_candidate` and use them for human policy studies, not automatic gold positives.
-
-### 15.7 Negative mutation families
-
-#### N01 — Relation/operator mutation
-
-Examples:
-
-```text
-< ↔ ≤
-≤ ↔ =
-= ↔ ≠
-∈ ↔ ∉
-⊆ ↔ =
-∧ ↔ ∨
-```
-
-Replacement must be type-compatible in the local context.
-
-#### N02 — Quantifier mutation
-
-- `∀` to `∃`;
-- `∃` to `∀`;
-- quantifier order changes;
-- implicit dependence loss.
-
-#### N03 — Hypothesis deletion
-
-Remove one substantive hypothesis while repairing binder references if possible. The relation may be stronger, weaker, or malformed; do not hard-code direction without analysis.
-
-#### N04 — Hypothesis insertion
-
-Add:
-
-- a plausible but unnecessary assumption;
-- a stronger assumption;
-- a contradictory or vacuous assumption;
-- a wrong side condition.
-
-Tag vacuity separately.
-
-#### N05 — Domain/type/structure mutation
-
-Examples:
-
-```text
-Nat ↔ Int
-Rat ↔ Real
-Set α ↔ Finset α
-Group ↔ CommGroup
-Continuous ↔ Measurable context
-```
-
-Only retain candidates that elaborate naturally or with a local generated cast. Track all inserted coercions.
-
-#### N06 — Conclusion-head mutation
-
-Change:
-
-- requested relation;
-- predicate;
-- set operation;
-- image/preimage direction;
-- greatest/least;
-- irreducible/prime-like predicates where type compatible.
-
-#### N07 — Literal, bound, or index mutation
-
-- `0` to `1`;
-- `n` to `n + 1`;
-- `< k` to `< k + 1`;
-- off-by-one indices;
-- swapped tuple or function arguments.
-
-#### N08 — Cast/coercion mutation
-
-- remove a needed cast;
-- cast to the wrong target;
-- move a cast across an operation when meaning changes;
-- replace subtype coercion with ambient type.
-
-#### N09 — Specialization/generalization
-
-- fix a variable to a constant;
-- replace a universal theorem by one case;
-- generalize a concrete domain without preserving assumptions;
-- remove a bound.
-
-#### N10 — Nearby theorem substitution
-
-Retrieve statements with high constant overlap from the same file/namespace/domain, then compare or mix selected components. This creates realistic negatives not tied to one token mutation.
-
-### 15.8 Negative quality gates
-
-A typed mutation is initially `provisional`. Promote it only through one of:
-
-- a Lean-checkable counterexample;
-- a proof of one direction plus a counterexample to the other;
-- expert human adjudication;
-- stringent multi-model consensus plus audited family precision.
-
-For each mutation family, estimate accidental-equivalence rate by human sampling before large-scale training.
-
-### 15.9 Type-aware replacement index
-
-Build in two stages.
-
-**Stage A — Curated table:** manually specified high-value replacements with preconditions and expected error types.
-
-**Stage B — Environment-derived candidates:**
-
-1. collect constants and signatures from LeanInteract declarations;
-2. index constants by normalized type skeleton and arity;
-3. propose replacements whose types can plausibly unify;
-4. attempt replacement structurally;
-5. let Lean elaboration validate actual compatibility;
-6. rank by semantic proximity, namespace, name embedding, and usage context;
-7. retain diverse, type-correct candidates.
-
-Do not treat shared type as evidence of semantic mismatch or equivalence; it is only a proposal mechanism.
-
----
-
-## 16. Counterexample and symbolic evidence pipeline
-
-### 16.1 Goals
-
-Symbolic evidence should increase precision, supply interpretable certificates, and define benchmark slices. It should not force unsupported binary labels.
-
-### 16.2 Definitional equality
-
-Implement a Lean-side meta command called through LeanInteract that attempts definitional equality between elaborated proposition types. Persist:
-
-```text
-success/failure/error/timeout
-reduction settings
-elapsed time
-Lean versions
-```
-
-A success is strong evidence for representation equivalence. A failure is not evidence of mismatch.
-
-### 16.3 Directional proof search
-
-For each pair, generate separate goals:
-
-```lean
-example : A → B := by
-  -- configured portfolio
-
-example : B → A := by
-  -- configured portfolio
-```
-
-Policy:
-
-- compare proposition types, not imported theorem proof constants;
-- explicitly prevent trivial use of globally available source/candidate theorem declarations;
-- use bounded tactics and timeouts;
-- store exact proof and dependency trace where available;
-- run a sanity check that the target is not independently provable by the same portfolio before crediting a proof that relies on the source theorem;
-- report `success` as logical evidence, not same-claim ground truth.
-
-### 16.4 Tactic portfolio
-
-Start with a conservative configurable portfolio inspired by BEq+ and domain solvers:
-
-```text
-exact?/apply?
-simp_all or selected simp rules
-tauto
-omega
-linarith/nlinarith
-ring/noncomm_ring
-convert with bounded tolerance
-aesop with strict limits
-```
-
-The exact tactic set must be tested on the pinned environment. Save per-tactic outcomes and wall-clock time.
-
-### 16.5 Counterexample search
-
-Prioritize supported decidable fragments:
-
-- finite types;
-- bounded naturals and integers;
-- booleans;
-- small finite sets/lists;
-- decidable propositional structures;
-- arithmetic statements reducible to small exhaustive domains.
-
-For an open theorem type, generate finite bounded instantiations only when the transformation preserves enough structure to map variables. A found separating assignment should be converted into a Lean-checkable certificate, for example with `native_decide` where appropriate.
-
-A counterexample record includes:
-
-```json
-{
-  "direction": "A_true_B_false",
-  "assignments": {},
-  "bounded_domain": {},
-  "lean_certificate": "...",
-  "checker_status": "success",
-  "search_method": "..."
-}
-```
-
-No counterexample found means `not_found`, never `equivalent`.
-
-### 16.6 Certificate hygiene
-
-For automatic positive certificates, record:
-
-- generated proof text;
-- tactic trace;
-- constants used;
-- forbidden-constant check;
-- rule allowlist version;
-- whether the proof works in a leakage-safe context;
-- whether source and target round-trip structurally.
-
-A certificate that succeeds only because both propositions are separately known theorems is not a same-claim certificate.
-
----
-
-## 17. LLM data generation with a very large token budget
-
-### 17.1 Principle
-
-Use LLMs to generate **coverage and realistic error distributions**, not to manufacture unquestioned ground truth. Frontier models are proposers and independent weak judges. Humans and Lean evidence remain the final authority for the gold set.
-
-### 17.2 Four LLM jobs
-
-1. **Autoformalization sampling:** translate NL statements into many Lean candidates.
-2. **Equivalent-variant proposing:** reformulate trusted Lean statements without changing the claim.
-3. **Near-miss proposing:** create subtle, type-correct semantic errors with specified categories.
-4. **Blinded judging:** assess Lean–Lean or NL–Lean faithfulness using structured output.
-
-### 17.3 Model-role separation
-
-Use different model families where possible:
-
-| Role | Examples of suitable model class |
-|---|---|
-| specialized generator | ReForm-style Lean autoformalizer |
-| broad generator | strong general frontier model or strong open model |
-| judge A | frontier family distinct from generator |
-| judge B | second independent frontier family |
-| diversity generator | additional open model such as a GLM-family model |
-| final adjudicator | expert human |
-
-Exact names are configuration, not hard-coded logic. Record provider, model version, date, and parameters.
-
-### 17.4 Real autoformalization corpus
-
-Begin collecting real outputs as soon as ingestion works; do not wait for the deterministic transformation pipeline to be perfect.
-
-For each trusted NL problem:
-
-1. sample `K` candidate statements from each generator;
-2. vary temperature, reasoning budget, prompt style, and availability of library context according to a controlled design;
-3. require statement-only output or robustly extract the statement;
-4. typecheck every candidate through LeanInteract;
-5. retain invalid candidates in an analysis partition but train semantic models primarily on valid statements;
-6. deduplicate candidates by structural hash;
-7. store generator provenance;
-8. pair valid candidates with the reference and with one another;
-9. judge and human-sample them.
-
-Pilot scale:
-
-```text
-2,000 NL problems
-2–4 generator families
-4–8 candidates per generator/problem
-≈ 16,000–64,000 raw candidates
-```
-
-Scale only after typecheck, duplication, and label-quality reports are acceptable.
-
-### 17.5 Targeted variant generation
-
-Prompts should request balanced categories rather than generic “different statements.” Example categories:
-
-```text
-same claim with different binder interface
-same claim using direct notation expansion
-missing side condition
-wrong quantifier
-wrong domain
-strict/non-strict relation change
-wrong image/preimage direction
-plausible special case
-plausible overgeneralization
-wrong numerical value
-vacuous extra assumption
-```
-
-Every generated variant returns structured JSON with:
-
-```text
-variant_statement
-intended_relation
-intended_error_types
-short rationale
-claimed_typecheck_status
-modified_span description
-```
-
-The claimed status is not trusted; LeanInteract validates it.
-
-### 17.6 Prompt and parsing contract
-
-- version every prompt template;
-- demand JSON schema output;
-- validate with Pydantic;
-- retry only parse/infrastructure failures with bounded attempts;
-- never silently repair a Lean statement and keep the original label without recording the repair;
-- save raw output, parsed output, and all retries;
-- hash the rendered prompt;
-- redact secrets and provider metadata that should not enter the dataset.
-
-### 17.7 Blinded judge protocol
-
-Judges must not see:
-
-- which statement is the reference;
-- whether a pair came from a positive or negative generator;
-- transformation rule ID;
-- another judge’s answer;
-- model training labels.
-
-For Lean–Lean judging:
-
-1. show raw proof-stripped statements;
-2. optionally show elaborated signatures in a second condition;
-3. ask for same-claim, directional relation, error tags, and confidence;
-4. run an order-swapped copy on a subset or all high-value examples;
-5. reject internally inconsistent judgments;
-6. compare judge accuracy to human gold before assigning weights.
-
-For NL–Lean judging:
-
-1. show the NL statement and candidate;
-2. optionally show a trusted reference as a separate experimental condition;
-3. require a concrete mismatch description when labeling unfaithful;
-4. allow `ambiguous` and `reference_suspected_incorrect`.
-
-### 17.8 Silver-label promotion policy
-
-A pair may become `silver_consensus` only if:
-
-- all statements typecheck;
-- at least two independent judge families agree on `same_claim`;
-- confidence exceeds a calibrated threshold;
-- order-swapped judgment is consistent when run;
-- error tags/rationales are not mutually contradictory;
-- no high-confidence symbolic evidence conflicts;
-- the relevant judge slice has passed a human-audit precision threshold.
-
-Suggested initial threshold for automatic silver promotion: estimated precision at least 95% on a representative human-audited sample. Until measured, all LLM labels remain provisional.
-
-### 17.9 Disagreement and active-learning pool
-
-Prioritize for human review:
-
-- judge disagreement;
-- model–judge disagreement;
-- symbolic–judge disagreement;
-- very small edit distance with predicted mismatch;
-- high model confidence on a provisional opposite label;
-- underrepresented domains/error types;
-- examples from held-out generator families;
-- suspected reference errors;
-- semantic-erasure cases.
-
-### 17.10 Avoiding circular evaluation
-
-- Do not train on labels generated by the exact judge used as the main test baseline without reporting this dependency.
-- Hold out at least one generator family and one judge family from training-time weak supervision.
-- Never use external benchmark test labels to select models or thresholds.
-- Maintain a human-only final test set that no training prompt or active-learning policy can inspect after freezing.
-
-### 17.11 Efficient use of billions of tokens
-
-Spend tokens in stages:
-
-1. broad candidate generation;
-2. cheap deterministic/typecheck filtering;
-3. one-pass diverse judging;
-4. model training;
-5. uncertainty/disagreement mining;
-6. expensive repeated judging only on high-value examples;
-7. human labeling of the most informative residual cases.
-
-More repeated votes on easy examples are less valuable than broader theorem domains, generators, and error categories.
-
-
----
-
-## 18. Human annotation and adjudication
-
-### 18.1 Human sets
-
-Create four distinct expert-reviewed sets:
-
-| Set | Purpose | Access policy |
-|---|---|---|
-| `policy_pilot` | refine same-claim definition and examples | may influence guidelines, not final metrics |
-| `development_gold` | error analysis and active learning | may be used for training after version freeze |
-| `calibration_gold` | probability calibration and thresholds | never used for model weight training |
-| `final_human_test` | final paper claims | sealed until final evaluation |
-
-### 18.2 Suggested scale
-
-Pilot:
-
-```text
-200–400 Lean–Lean pairs
-100–200 NL–Lean pairs
-```
-
-Development target:
-
-```text
-1,000–2,000 Lean–Lean pairs
-1,000–2,000 NL–Lean pairs
-```
-
-Final test target, subject to expert availability:
-
-```text
-at least 500 examples per main task,
-with enough positives and negatives for meaningful confidence intervals
-```
-
-Quality matters more than raw size. Report the exact construction process.
-
-### 18.3 Sampling strata
-
-Balance across:
-
-- real autoformalizer outputs;
-- deterministic hard negatives;
-- LLM-proposed positives and negatives;
-- source projects/domains;
-- generator families;
-- statement lengths and binder counts;
-- proof-search success/failure;
-- lexical similarity buckets;
-- model confidence buckets;
-- error categories;
-- suspected reference problems.
-
-The final test must not be dominated by easy alpha-renaming or obvious operator substitutions.
-
-### 18.4 Annotation UI
-
-Lean–Lean view:
-
-- raw proof-stripped A and B;
-- elaborated signatures;
-- imports/context summary;
-- typecheck status;
-- optional rendered structural diff;
-- no provenance or intended label.
-
-NL–Lean view:
-
-- full natural-language statement;
-- candidate Lean statement and elaborated signature;
-- optional trusted reference in a separately marked panel;
-- typecheck status;
-- no generator/judge provenance.
-
-### 18.5 Required annotation fields
-
-```text
-same_claim or faithful: yes | no | ambiguous
-relation: equivalent | A_stronger | B_stronger | incomparable | unrelated | ambiguous
-error tags: multi-label
-confidence: 1–5
-short rationale: required for no/ambiguous
-reference issue: none | suspected | definite
-```
-
-### 18.6 Annotation protocol
-
-1. two independent expert annotations per item;
-2. no discussion before initial labels;
-3. disagreements sent to a third adjudicator;
-4. retain all individual labels and rationales;
-5. freeze adjudicated label with guideline version;
-6. compute raw agreement, Cohen’s kappa or suitable multi-class statistic, and per-category agreement;
-7. revise guidelines only between annotation rounds, never midway without versioning.
-
-### 18.7 Human-policy audit of transformation families
-
-Before promoting a deterministic or LLM family at scale:
-
-1. sample at least 50–100 examples across domains and difficulties;
-2. blind annotators to family identity;
-3. estimate precision and confidence interval;
-4. promote only families meeting the required precision;
-5. downgrade or split noisy families;
-6. repeat after rule changes.
-
-### 18.8 Annotation guideline edge cases
-
-The guideline must explicitly address:
-
-- equivalent notation versus changed abstraction;
-- simplification that removes the central claim;
-- vacuous truth;
-- implicit typeclass differences;
-- universes and subtype coercions;
-- redundant but satisfiable hypotheses;
-- stronger/weaker formulations;
-- answer-only formalizations;
-- references that appear incorrect;
-- informal statements with genuine ambiguity.
-
-Maintain an example bank containing accepted and rejected cases for each.
-
----
-
-## 19. Dataset construction, balancing, and contamination control
-
-### 19.1 Build profiles
-
-Use staged scale rather than immediately processing everything.
-
-#### Profile `smoke`
-
-```text
-100 source theorems
-≤1,000 pairs
-single Lean project
-no paid LLM calls
-```
-
-Purpose: CI and local debugging.
-
-#### Profile `pilot`
-
-```text
-10,000 source theorems
-100,000–500,000 deterministic pairs
-2,000 NL problems
-16,000–64,000 model-generated candidates
-small human policy set
-```
-
-Purpose: validate distributions, labels, throughput, and v0 modeling.
-
-#### Profile `research_v1`
-
-```text
-100,000+ source theorems
-1–10 million high-quality pairs after filtering
-10,000–50,000 NL problems
-100,000–500,000 real candidate statements
-full development/calibration/human test sets
-```
-
-Scale beyond this only if learning curves justify it.
-
-### 19.2 Balance policy
-
-Do not simply sample equal positives and negatives globally. Preserve realistic evaluation prevalence while controlling training batches.
-
-Training sampler should balance:
-
-- label;
-- relation direction;
-- quality tier;
-- transformation/error family;
-- source domain;
-- real versus synthetic provenance;
-- generator family;
-- difficulty bucket.
-
-Evaluation sets should report both their natural prevalence and balanced metrics.
-
-### 19.3 Difficulty measures
-
-Precompute:
-
-```text
-token edit similarity
-character edit similarity
-constant Jaccard
-semantic-atom overlap
-binder-count difference
-structural tree distance
-statement-length ratio
-proof-search outcome
-source-domain match
-model-generation provenance
-```
-
-Use these for stratified sampling and error analysis, not as semantic labels.
-
-### 19.4 Deduplication hierarchy
-
-Deduplicate by:
-
-1. exact source ID;
-2. normalized text hash;
-3. alpha-structural hash;
-4. pair hash invariant to A/B order for equivalence tasks;
-5. NL problem ID;
-6. near-duplicate retrieval using token/atom MinHash or embedding similarity;
-7. known benchmark identifiers.
-
-Potential near duplicates across splits must be listed in a contamination report.
-
-### 19.5 Split groups
-
-Minimum grouping keys:
-
-```text
-source theorem family
-NL problem ID
-reference theorem ID
-all variants of a source
-all outputs for one NL problem
-near-duplicate cluster
-```
-
-No group may cross split boundaries.
-
-### 19.6 Required splits
-
-| Split | Purpose |
-|---|---|
-| `train` | model fitting |
-| `validation` | architecture/hyperparameter selection |
-| `calibration` | temperature/isotonic/conformal threshold fitting |
-| `human_test` | primary human-grounded claim |
-| `benchmark_test` | external benchmark comparison |
-| `real_output_test` | only real model-generated candidates |
-| `heldout_transform_test` | unseen deterministic rule families |
-| `heldout_project_test` | CSLib/PhysLib or another unseen project |
-| `heldout_generator_test` | unseen autoformalizer family |
-| `adversarial_test` | hand-designed minimal pairs and semantic erasure |
-
-### 19.7 Benchmark isolation
-
-ProofNetVerif and other designated external tests must be registered in a denylist before data generation. Check:
-
-- problem IDs;
-- normalized NL hashes;
-- reference Lean hashes;
-- theorem constants/near duplicates;
-- source overlap.
-
-No benchmark test label is used for active learning, model selection, or calibration.
-
-### 19.8 Frozen split manifest
-
-A frozen split manifest records every record ID, group ID, source version, and hash. Any later data correction creates a new dataset version; it never edits the frozen version in place.
-
----
-
-## 20. Baselines
-
-### 20.1 Simple baselines
-
-- exact string equality;
-- headless normalized equality;
-- token and character edit distance;
-- constant/semantic-atom overlap;
-- generic text/code embeddings with cosine similarity;
-- logistic regression or gradient-boosted model over scalar features.
-
-### 20.2 Lean-aware symbolic baselines
-
-- typecheck-only;
-- definitional equality;
-- directional proof-search portfolio;
-- BEq/BEq+ adapted through LeanInteract;
-- a high-precision certificate-or-abstain policy.
-
-### 20.3 Structural baselines
-
-- AST/operator-tree edit distance;
-- GTED implementation or released code if compatible;
-- TransTED/ASSESS-style score if implementation and licensing permit;
-- tree/graph kernel baseline.
-
-### 20.4 LLM judge baselines
-
-- one strong judge;
-- two-model majority/consensus;
-- judge with raw Lean only;
-- judge with elaborated signatures;
-- reference-aware NL–Lean judge;
-- repeated self-consistency on a fixed cost budget.
-
-All LLM baselines must use frozen prompts and record cost/latency.
-
-### 20.5 Learned baselines
-
-- bi-encoder cosine model;
-- concatenated pair cross-encoder;
-- generic code model without Lean normalization;
-- FormalAlign-style or related learned alignment model when reproducible;
-- scalar-feature boosted tree.
-
-### 20.6 Baseline output contract
-
-Every baseline writes:
-
-```json
-{
-  "record_id": "...",
-  "method": "...",
-  "method_version": "...",
-  "score_same_claim": 0.0,
-  "predicted_label": "yes | no | abstain",
-  "relation_scores": {},
-  "elapsed_ms": 0,
-  "cost": {},
-  "evidence": {},
-  "config_hash": "..."
-}
-```
-
-This allows one evaluation program to compare all methods.
-
----
-
-## 21. Model design
-
-### 21.1 Model progression
-
-Implement in this order:
-
-```text
-M0 scalar-feature classifier
-M1 concatenated Lean pair cross-encoder
-M2 shared Lean encoders + bidirectional cross-attention
-M3 M2 + symbolic/structural features
-M4 NL–Lean model initialized from Lean encoder
-M5 optional text + Expr graph model
-```
-
-Do not begin M5 until M2/M3 and the data pipeline are stable.
-
-### 21.2 M1: concatenated cross-encoder
-
-Input:
-
-```text
-<A_RAW>
-...
-</A_RAW>
-<A_SIGNATURE>
-...
-</A_SIGNATURE>
-<B_RAW>
-...
-</B_RAW>
-<B_SIGNATURE>
-...
-</B_SIGNATURE>
-```
-
-A code-capable pretrained Transformer encodes the concatenated sequence. Classification heads predict:
-
-- `p_same_claim`;
-- directional implications as auxiliary targets where labels exist;
-- relation class;
-- error tags;
-- uncertainty/abstention score.
-
-### 21.3 M2: shared encoders plus bidirectional cross-attention
-
-This corresponds to the user’s intended “decoder-like” cross-attention idea without requiring generative decoding.
-
-Architecture:
-
-1. tokenize A and B separately;
-2. pass each through a shared pretrained Lean/code encoder;
-3. apply `L` bidirectional cross-attention blocks:
-   - A queries B;
-   - B queries A;
-4. pool `[CLS]`, attention-pooled, and token-difference features;
-5. apply symmetric and directional heads.
-
-Required symmetry behavior:
-
-```text
-p_same_claim(A, B) ≈ p_same_claim(B, A)
-relation(A_stronger; A,B) ≈ relation(B_stronger; B,A)
-```
-
-Enforce using:
-
-- swapped-pair augmentation;
-- consistency loss;
-- symmetric pooling for equivalence head;
-- directional head swapping tests.
-
-### 21.4 M3: hybrid features
-
-Candidate scalar features:
-
-```text
-defeq success
-proof A→B / B→A outcomes and timeouts
-counterexample flags
-GTED/tree distance
-constant and semantic-atom overlap
-binder/typeclass differences
-length/edit statistics
-context compatibility
-```
-
-Fusion options to compare:
-
-1. concatenate with pooled neural representation;
-2. separate calibrated gradient-boosted meta-model;
-3. high-precision symbolic overrides followed by neural fallback.
-
-Recommended production policy:
-
-```text
-if conservative same-claim certificate:
-    return certified equivalent
-elif checked separating counterexample:
-    return certified mismatch
-else:
-    return calibrated learned prediction or abstain
-```
-
-Do not let proof-search failure override the model as a negative.
-
-### 21.5 Prediction heads
-
-```text
-same_claim: binary with ambiguous masked or modeled separately
-relation: 6-way classification
-A_implies_B: binary/unknown-masked auxiliary
-B_implies_A: binary/unknown-masked auxiliary
-error_types: multi-label
-quality/uncertainty: optional auxiliary
-```
-
-### 21.6 Loss
-
-Initial multi-task objective:
-
-```text
-L = λeq * weighted_BCE(same_claim)
-  + λrel * CE(relation)
-  + λab * masked_BCE(A_implies_B)
-  + λba * masked_BCE(B_implies_A)
-  + λerr * weighted_BCE(error_types)
-  + λsym * symmetry_consistency
-  + λrank * optional pairwise_ranking
-```
-
-Tune λ values on validation only. Low-quality labels receive sample weights; unknown fields are masked.
-
-### 21.7 Quality-aware training
-
-Suggested starting weights, subject to validation:
-
-```text
-gold_human                  1.00
-gold_counterexample          1.00
-gold_conservative_transform  0.90–1.00
-benchmark designated train   0.90
-silver_consensus             0.40–0.70
-provisional                  0.00–0.25 or pretraining only
-```
-
-Track performance with and without provisional data.
-
-### 21.8 Curriculum
-
-1. invariance and conservative positives;
-2. curated typed minimal negatives;
-3. diverse deterministic families;
-4. LLM-proposed variants;
-5. real autoformalization outputs;
-6. gold human fine-tuning;
-7. separate calibration.
-
-Interleave real outputs early enough to prevent a synthetic-only representation.
-
-### 21.9 Hard-negative mining
-
-After each major model:
-
-1. score provisional and unlabeled pools;
-2. select high-confidence likely false positives;
-3. include close lexical/atom neighbors;
-4. seek judge/counterexample/human evidence;
-5. add confirmed cases to the next dataset version;
-6. keep the final test sealed.
-
-### 21.10 Calibration and abstention
-
-Fit calibration after model selection using the calibration split only.
-
-Compare:
-
-- temperature scaling;
-- vector scaling;
-- isotonic regression;
-- beta calibration;
-- optional conformal risk-control/coverage methods.
-
-Expose three operating regions:
-
-```text
-ACCEPT: estimated high precision for faithful/equivalent
-REVIEW: uncertainty or conflicting evidence
-REJECT: estimated high precision for mismatch
-```
-
-Thresholds are versioned and tied to a target risk, not chosen by intuition.
-
-### 21.11 NL–Lean model
-
-Architecture:
-
-```text
-NL encoder
-Lean encoder initialized from M2/M3
-bidirectional cross-attention or a joint cross-encoder
-optional trusted-reference Lean branch
-multi-task faithfulness/error heads
-```
-
-Train on:
-
-- trusted NL/reference pairs;
-- conservative positive variants of references;
-- verified hard negatives;
-- real autoformalization candidates;
-- benchmark and human labels according to split policy.
-
-Run two modes:
-
-1. **reference-free:** `N + C`;
-2. **reference-aware:** `N + R + C`, or combine `NL–Lean(N,C)` with `Lean–Lean(R,C)`.
-
-The downstream deployment result should emphasize reference-free reranking; reference-aware mode is useful for benchmark evaluation and dataset quality control.
-
-### 21.12 Graph extension
-
-Graph nodes may represent:
-
-```text
-forallE, lam, letE, app, const, fvar, bvar, sort, lit, proj
-```
-
-Edges may represent:
-
-```text
-parent/child
-application function/argument
-binder type/body
-bound-variable reference
-type-of
-same constant across statements
-```
-
-Compare:
-
-- graph-only;
-- text-only;
-- late fusion;
-- cross-modal attention.
-
-The graph extension earns its complexity only if it improves held-out-family, OOD, or hard-near-miss performance significantly.
-
----
-
-## 22. Training and experiment discipline
-
-### 22.1 Configuration
-
-Every run is fully configuration driven. No hidden constants in scripts. A run configuration includes:
-
-```text
-dataset version and split manifest
-model checkpoint/tokenizer
-input views
-maximum lengths/truncation policy
-quality weights
-sampler
-optimizer/scheduler
-seed
-hardware precision
-loss weights
-calibration method
-evaluation slices
-```
-
-### 22.2 Determinism
-
-- seed Python, NumPy, PyTorch, dataset shuffling, and transformation RNGs;
-- record nondeterministic CUDA settings;
-- use deterministic evaluation;
-- never regenerate a frozen split inside a training script;
-- save exact record IDs used in every run.
-
-### 22.3 Truncation
-
-Long theorem statements cannot be naively truncated from one end. Evaluate:
-
-- head+tail truncation;
-- separate binder/hypothesis/conclusion budgets;
-- structural atom-preserving truncation;
-- long-context models.
-
-Always report the percentage of examples truncated and by how much.
-
-### 22.4 Data leakage checks before training
-
-The training command must fail if:
-
-- any theorem/problem group occurs in multiple protected splits;
-- an exact or alpha-structural hash crosses protected splits;
-- a benchmark denylisted ID appears in training;
-- a final-test record is referenced by an active-learning artifact;
-- dataset and model manifests do not agree on schema versions.
-
-### 22.5 Checkpoints and selection
-
-- choose architecture/hyperparameters on validation metrics only;
-- choose calibration method on calibration metrics only;
-- evaluate final test only for frozen candidate models;
-- retain all model-selection decisions in a decision log.
-
-### 22.6 Learning curves
-
-Train at multiple data scales and source mixtures:
-
-```text
-synthetic only
-synthetic + LLM variants
-synthetic + real outputs
-all weak data
-all weak data + human gold
-```
-
-This is essential to establish what data actually contributes.
-
----
-
-## 23. Evaluation plan
-
-### 23.1 Primary Lean–Lean metrics
-
-Report:
-
-```text
-AUROC
-AUPRC
-accuracy and macro-F1
-precision/recall/F1 for same-claim
-recall at 95%, 97%, and 99% precision
-risk–coverage / accuracy–coverage curve
-Brier score
-ECE and reliability diagram
-```
-
-Because prevalence affects accuracy and precision, report class prevalence and balanced metrics.
-
-### 23.2 Relation and error metrics
-
-- macro-F1 for relation classes;
-- A→B and B→A auxiliary accuracy on known labels;
-- per-error-tag precision/recall/F1;
-- exact-match and micro/macro metrics for multi-label errors;
-- confusion between equivalent/stronger/weaker/near-miss.
-
-### 23.3 Robustness tests
-
-Every model must be tested for:
-
-1. A/B order swap;
-2. theorem-name randomization;
-3. binder alpha-renaming;
-4. whitespace/comment perturbation;
-5. harmless binder regrouping;
-6. unseen transformation families;
-7. held-out projects;
-8. held-out autoformalizer family;
-9. long statements;
-10. low constant overlap but same claim;
-11. high constant overlap but wrong claim;
-12. semantic-erasure/tautologization traps;
-13. context/import differences;
-14. reference errors or ambiguous NL.
-
-### 23.4 Slice analysis
-
-Report by:
-
-```text
-source project/domain
-pair provenance
-label quality
-real vs synthetic
-statement length
-binder and typeclass count
-edit similarity
-semantic-atom overlap
-proof-search outcome
-generator family
-error type
-calibration confidence
-```
-
-### 23.5 Human agreement
-
-Compare methods against adjudicated labels and report:
-
-- method accuracy/F1;
-- human–human agreement;
-- method–human agreement;
-- performance on human-disagreement cases;
-- calibration by annotator confidence.
-
-### 23.6 External benchmarks
-
-Run ProofNetVerif and other compatible benchmarks exactly according to their released protocol where possible. Document any adaptation, Lean/mathlib version mismatch, or excluded example. Do not silently change benchmark imports or labels.
-
-### 23.7 Downstream reranking
-
-For each NL problem:
-
-```text
-generate K candidates
-→ validate with LeanInteract
-→ score valid candidates
-→ optionally cluster near-equivalent candidates
-→ choose top candidate or abstain
-→ compare to human/reference label
-```
-
-Baselines:
-
-- first candidate;
-- first compiling candidate;
-- random compiling candidate;
-- generator self-score;
-- LLM judge;
-- symbolic/reference-aware metric when a reference exists;
-- ensemble policies.
-
-Metrics:
-
-```text
-faithful@1
-faithful@k
-MRR or nDCG over graded human labels
-coverage at target precision
-cost per problem
-latency per candidate
-percentage with no compiling candidates
-percentage abstained
-```
-
-### 23.8 Repair loop
-
-Optional but strong application:
-
-1. choose a high-scoring but rejected/uncertain candidate;
-2. provide predicted error tags and minimal mismatch explanation to a generator;
-3. generate a repaired statement;
-4. typecheck and rescore;
-5. evaluate improvement and false-repair rate.
-
-### 23.9 Statistical testing
-
-Use paired bootstrap confidence intervals or suitable paired randomization tests for method differences. Correct for multiple comparisons where many variants are tested. Report effect sizes, not only p-values.
-
-### 23.10 Success criteria
-
-Minimum scientific success:
-
-- learned model clearly beats simple lexical/structural baselines on human real-output test;
-- calibration supports a useful high-precision operating point;
-- real-output data improves over synthetic-only training;
-- reranking improves faithful@1 over first-compiling-candidate.
-
-Strong success:
-
-- learned/hybrid model exceeds BEq+/GTED and approaches or exceeds frontier LLM-judge accuracy at substantially lower inference cost;
-- gains hold on held-out generators and projects;
-- error predictions improve repair success;
-- graph/structural augmentation provides interpretable OOD gains.
-
-
----
-
-## 24. Implementation roadmap with hard stage gates
-
-The implementation is intentionally sequential. Later stages may be prototyped in notebooks, but no later-stage output may be treated as a project artifact until all earlier stage gates pass.
-
-Each milestone must produce:
-
-1. versioned code;
-2. automated tests;
-3. a machine-readable run manifest;
-4. a short Markdown report under `reports/milestones/`;
-5. exact commands to reproduce the report;
-6. a clear pass/fail decision against the milestone gate.
-
-### Phase 0 — Freeze the semantic and engineering contract
-
-**Goal:** make ambiguity expensive before implementation, not after data generation.
-
-#### Tasks
-
-1. Convert Sections 3, 14, and 15 into versioned policy files:
-
-   ```text
-   policies/
-     semantic_target_v1.md
-     relation_labels_v1.yaml
-     error_ontology_v1.yaml
-     evidence_policy_v1.yaml
-     automatic_promotion_policy_v1.yaml
-   ```
-
-2. Write at least 40 hand-constructed examples covering:
-   - clearly faithful paraphrases;
-   - clearly unfaithful near-misses;
-   - truth-equivalent but claim-unfaithful pairs;
-   - stronger/weaker pairs;
-   - redundant-binder cases;
-   - ambiguous cases;
-   - examples where the reference statement itself is suspicious.
-3. Have at least two project members independently label the examples.
-4. Adjudicate disagreements and revise the policy once.
-5. Freeze policy version `v1`; all future labels carry this version.
-6. Choose and record the initial Lean version, mathlib revision, Python version, and `lean-interact` version.
-7. Create the project license, data-license matrix, citation file, and model-card skeleton.
-
-#### Deliverables
-
-```text
-policies/*_v1.*
-examples/semantic_contract_v1.jsonl
-reports/milestones/phase_0_contract.md
-configs/environment.lock.yaml
-LICENSE
-CITATION.cff
-DATA_SOURCES.md
-```
-
-#### Gate 0
-
-Pass only when:
-
-- all label values have operational definitions;
-- at least 90% raw agreement is reached on the 40 examples after one policy review, or all persistent disagreements are assigned an explicit `UNCERTAIN` route;
-- every automatic-positive rule states why it preserves the claim rather than merely truth;
-- the full toolchain is pinned;
-- no unresolved question can change the meaning of the primary target label.
-
-If Gate 0 fails, do not generate training data.
-
-### Phase 1 — LeanInteract integration spike
-
-**Goal:** prove that the entire required Lean workflow is possible through one tested Python abstraction built on LeanInteract.
-
-#### Tasks
-
-1. Implement `LeanInteractBackend` behind the `LeanBackend` protocol.
-2. Implement project adapters for:
-   - a local LeanFaith fixture project;
-   - a pinned local mathlib checkout;
-   - one `GitProject` smoke test;
-   - one temporary mathlib environment for benchmark snippets.
-3. Implement:
-   - command execution;
-   - file execution;
-   - declaration extraction;
-   - statement validation with and without `sorry`;
-   - environment-state reuse;
-   - timeout handling and automatic server recovery;
-   - structured conversion of messages, errors, sorries, declarations, and timing information.
-4. Add a pool-backed batch path using one `AutoLeanServer` per process.
-5. Add a deterministic `leanfaith doctor` command.
-6. Add fixture theorems for all relevant syntax categories:
-   - implicit and explicit binders;
-   - typeclass binders;
-   - local notation;
-   - namespaces and sections;
-   - attributes;
-   - `where` clauses;
-   - Unicode identifiers;
-   - theorem, lemma, example, and def declarations;
-   - intentionally invalid declarations;
-   - declarations containing `sorry`.
-7. Record the exact raw LeanInteract responses as scrubbed golden fixtures where stable.
-8. Add a compatibility smoke test that fails loudly when the pinned LeanInteract API changes.
-
-#### Deliverables
-
-```text
-src/leanfaith/lean/protocol.py
-src/leanfaith/lean/leaninteract_backend.py
-src/leanfaith/lean/project_registry.py
-src/leanfaith/lean/response_normalization.py
-src/leanfaith/cli/doctor.py
-tests/integration/leaninteract/
-reports/milestones/phase_1_leaninteract_spike.md
-```
-
-#### Gate 1
-
-Pass only when:
-
-- every Lean invocation in the test suite is routed through `LeanInteractBackend`;
-- declaration signatures extracted by LeanInteract exactly match checked golden expectations for all fixtures;
-- a killed or timed-out server is recovered without corrupting the next request;
-- 1,000 mixed valid/invalid fixture requests complete with zero silently dropped records;
-- a request can be reproduced from its stored context fingerprint and source text;
-- no project code invokes `lake env lean`, the Lean REPL binary, or the Lean LSP directly.
-
-### Phase 2 — Source probing and theorem extraction
-
-**Goal:** create reliable adapters before assuming any source schema.
-
-#### Tasks
-
-1. Implement source probes that inspect, but do not yet ingest, each candidate source:
-   - `formalmathatepfl/sft_classic` or the exact available variant;
-   - mathlib;
-   - CSLib;
-   - PhysLib;
-   - ProofNetVerif;
-   - any private/local corpora.
-2. For each source, produce:
-   - source revision or dataset fingerprint;
-   - licensing information;
-   - columns/file structure;
-   - 100 representative examples;
-   - estimated theorem count;
-   - percentage that can be reconstructed and elaborated;
-   - duplicate estimate;
-   - language/domain distribution;
-   - proof/statement separation quality;
-   - import/context requirements.
-3. Implement schema-adaptive but strict adapters:
-   - accepted schema variants are explicit and unit-tested;
-   - unknown schemas fail with a diagnostic rather than guessing;
-   - raw records are retained byte-for-byte or as source snapshots where licensing permits.
-4. Extract theorem declarations from repository files with `FileCommand(..., declarations=True)`.
-5. Reconstruct dataset snippets inside pinned contexts and use `Command(..., declarations=True)` where appropriate.
-6. Store both successful and failed extraction attempts.
-7. Generate stable theorem IDs from source identity, context fingerprint, and source span/content.
-8. Deduplicate exact and near-exact theorem statements without deleting source provenance.
-
-#### Deliverables
-
-```text
-src/leanfaith/sources/
-data/source_manifests/
-data/raw_index/
-data/extracted/theorems/
-reports/source_probes/*.md
-reports/milestones/phase_2_extraction.md
-```
-
-#### Gate 2
-
-Pass only when:
-
-- each enabled source has a source manifest and license decision;
-- at least 99.5% of successfully parsed records can be deterministically reloaded;
-- every failed record has a nonempty machine-readable failure category;
-- extraction from a 1,000-file mathlib sample is restartable and produces identical IDs on rerun;
-- no theorem is accepted without its import/context fingerprint;
-- duplicate clusters preserve all source memberships.
-
-### Phase 3 — Statement views and semantic fingerprints
-
-**Goal:** produce multiple useful representations without pretending that one printed string is canonical semantics.
-
-#### Tasks
-
-1. Implement the views specified in Section 13:
-   - raw declaration;
-   - headless theorem signature;
-   - Lean-pretty-printed signature;
-   - explicit-binder view;
-   - structural expression view;
-   - semantic-atom inventory;
-   - constant multiset;
-   - binder/dependency graph summary;
-   - operator tree.
-2. Implement custom Lean meta helpers only for information not exposed reliably by LeanInteract.
-3. Test views under:
-   - alpha-renaming;
-   - binder reordering;
-   - notation expansion;
-   - namespace qualification;
-   - universe parameters;
-   - implicit arguments;
-   - coercions;
-   - typeclass synthesis.
-4. Define which views are:
-   - identity-sensitive;
-   - expected invariant;
-   - diagnostic only;
-   - suitable model inputs;
-   - forbidden as split keys because they may merge non-equivalent examples.
-5. Build semantic fingerprints used for audit and deduplication, not as ground-truth labels.
-6. Measure collision rates on at least 100,000 extracted statements.
-
-#### Deliverables
-
-```text
-src/leanfaith/representations/
-LeanFaith/Meta/Extract.lean
-LeanFaith/Meta/Fingerprint.lean
-data/representation_samples/
-reports/milestones/phase_3_representations.md
-```
-
-#### Gate 3
-
-Pass only when:
-
-- all views round-trip through their documented serialization format;
-- alpha-invariant views are empirically invariant on at least 10,000 generated renamings;
-- no view silently drops a semantically material binder, constant, literal, relation, or type;
-- any fingerprint collision observed in a manually audited sample is documented;
-- representation extraction failures are below 0.5% on supported elaborated statements or are isolated by an explicit unsupported category.
-
-### Phase 4 — Deterministic transformation engine
-
-**Goal:** generate conservative positives and difficult, compiling provisional negatives with complete provenance.
-
-#### Tasks
-
-1. Implement a typed transformation interface:
-
-   ```python
-   class Transformation(Protocol):
-       family_id: str
-       version: str
-       intended_relation: IntendedRelation
-
-       def applicable(self, record: TheoremRecord) -> Applicability: ...
-       def propose(self, record: TheoremRecord, rng: Random) -> list[VariantDraft]: ...
-       def audit(self, source: TheoremRecord, variant: VariantRecord) -> TransformationAudit: ...
-   ```
-
-2. Implement common gates once, not separately per transformation:
-   - context reconstruction;
-   - elaboration;
-   - declaration extraction;
-   - semantic-atom comparison;
-   - source/variant structural diff;
-   - round-trip check where applicable;
-   - certificate hygiene;
-   - duplicate check;
-   - triviality check;
-   - evidence creation.
-3. Implement positive families P00–P06 in order of risk.
-4. Implement negative families N01–N10 in order of interpretability.
-5. Generate no more than a configurable quota per source theorem and family.
-6. Record failed applicability and failed-generation reasons; do not merely discard them.
-7. Add mutation difficulty controls:
-   - token edit distance band;
-   - tree edit distance band;
-   - semantic-atom overlap band;
-   - location of changed subtree;
-   - number of changed operations;
-   - whether the change affects assumptions, conclusion, type, or binder structure.
-8. Add counterexample attempts for decidable/small fragments.
-9. Perform blinded manual audits by family.
-10. Freeze transformation family versions before producing a release dataset.
-
-#### Deliverables
-
-```text
-src/leanfaith/transforms/
-configs/transforms/*.yaml
-data/generated/deterministic_pilot/
-reports/transformation_audits/*.md
-reports/milestones/phase_4_transforms.md
-```
-
-#### Gate 4A — positive families
-
-A positive family may be promoted to automatic gold only when:
-
-- at least 200 randomly sampled pairs from that family have been independently audited;
-- estimated precision is at least 99% with a reported confidence interval;
-- no recurrent semantic-erasure pattern is found;
-- every generated pair passes the family-specific invariants;
-- the certificate does not import or invoke either theorem declaration as an assumption;
-- the family survives a held-out source/domain audit.
-
-Otherwise the family remains `silver`, `experimental`, or disabled.
-
-#### Gate 4B — negative families
-
-A negative family may be used for supervised training only when:
-
-- variants elaborate;
-- source and variant are not definitionally equal;
-- automatic proof checks do not establish same-claim equivalence under the configured safe rules;
-- accidental-equivalence audits are below the family threshold;
-- at least one of human confirmation, counterexample evidence, or exceptionally high-confidence typed mutation evidence is present;
-- the family has an explicit difficulty distribution rather than only trivial mutations.
-
-Unverified negative intentions remain unlabeled candidate pairs.
-
-### Phase 5 — Real autoformalization output collection
-
-**Goal:** capture deployment-like errors before the synthetic generator dominates the project.
-
-#### Tasks
-
-1. Select a source NL problem pool disjoint from external evaluation benchmarks.
-2. Stratify by domain, length, notation burden, and expected difficulty.
-3. Run multiple generator families and checkpoints, including:
-   - a formalization-specialized open model such as ReForm-32B where feasible;
-   - one or more strong general open models;
-   - frontier API models available to the project;
-   - deliberately weaker models/checkpoints to broaden the error distribution.
-4. Sample multiple candidates under several temperatures and prompting strategies.
-5. Retain every raw completion and request metadata.
-6. Parse candidate declarations conservatively.
-7. Validate all candidates through LeanInteract.
-8. Keep both compiling and noncompiling candidates, but route them to different tasks:
-   - compiling candidates: faithfulness dataset;
-   - noncompiling candidates: optional syntax/elaboration repair dataset, not semantic-equivalence negatives.
-9. Cluster candidates by normalized signature and structural fingerprint.
-10. Sample across clusters for judging and human annotation rather than overrepresenting repeated outputs.
-11. Record generator identity only in provenance; hide it from judges and human annotators.
-
-#### Deliverables
-
-```text
-data/generations/raw/
-data/generations/parsed/
-data/generations/validated/
-configs/generation/*.yaml
-reports/generation_coverage.md
-reports/milestones/phase_5_real_outputs.md
-```
-
-#### Gate 5
-
-Pass only when:
-
-- at least three materially different generator families are represented;
-- at least 10,000 compiling candidate/reference pairs exist for the pilot, subject to budget;
-- no single generator contributes more than 50% of the judged pilot;
-- all API calls have replayable metadata except secret values;
-- benchmark/test examples have been excluded by problem ID and near-duplicate checks;
-- candidate diversity is demonstrated beyond surface paraphrase statistics.
-
-### Phase 6 — LLM-proposed transformations and multi-judge silver labels
-
-**Goal:** use abundant model tokens to diversify examples without confusing model consensus with ground truth.
-
-#### Tasks
-
-1. Build separate prompts for:
-   - faithful restatement;
-   - stronger claim;
-   - weaker claim;
-   - wrong quantifier;
-   - missing/added side condition;
-   - wrong domain/type;
-   - wrong mathematical object;
-   - redundant/free-variable pathology;
-   - notation/definition change;
-   - subtle same-type constant substitution;
-   - explanation of the minimal semantic difference.
-2. Ask proposers for structured output with:
-   - candidate Lean statement;
-   - intended relation;
-   - changed span/subexpression;
-   - rationale;
-   - uncertainty;
-   - optional counterexample sketch.
-3. Ignore proposer labels during verification except as provenance.
-4. Validate all proposed Lean statements through LeanInteract.
-5. Run at least two independent blinded judges from different model families.
-6. Randomize pair order and include swapped-order duplicates for judge-consistency measurement.
-7. Include hidden calibration items and known traps.
-8. Request directional judgments rather than only binary equivalence.
-9. Promote only under the policy in Section 17; route disagreement to active learning/human review.
-10. Track judge drift by prompt, model version, date, and calibration performance.
-11. Prevent label leakage by ensuring the same judge rationale is never included as model input in the main equivalence experiment unless explicitly studied as a separate condition.
-
-#### Deliverables
-
-```text
-prompts/proposers/
-prompts/judges/
-src/leanfaith/llm/
-data/generated/llm_pilot/
-data/judgments/silver/
-reports/judge_calibration.md
-reports/milestones/phase_6_llm_data.md
-```
-
-#### Gate 6
-
-Pass only when:
-
-- all promoted silver labels satisfy a prespecified consensus threshold;
-- swapped-order consistency is reported and acceptable;
-- judge performance on hidden gold/calibration items exceeds the minimum policy threshold;
-- at least 20% of LLM-generated examples are manually audited, stratified by relation and proposer/judge;
-- disagreement examples are retained rather than discarded;
-- training weights distinguish gold, silver, and weak labels.
-
-### Phase 7 — Human annotation pilot and guideline freeze
-
-**Goal:** establish a defensible gold standard for same-claim faithfulness.
-
-#### Tasks
-
-1. Build annotation UI and assignment tooling.
-2. Train annotators on the semantic contract and trap examples.
-3. Run a 100-pair pilot with at least two expert annotators per pair.
-4. Conduct adjudication and collect disagreement reasons.
-5. Revise guidelines once, then relabel a subset to test stability.
-6. Define annotation confidence and ambiguity handling.
-7. Define stopping/escalation rules:
-   - third annotator;
-   - project-lead adjudication;
-   - mark `UNCERTAIN`;
-   - flag reference defect.
-8. Freeze guideline version `v1` before the main human set.
-
-#### Deliverables
-
-```text
-annotation/guidelines_v1.md
-annotation/ui/
-data/human/pilot_raw/
-data/human/pilot_adjudicated/
-reports/human_pilot.md
-reports/milestones/phase_7_human_pilot.md
-```
-
-#### Gate 7
-
-Pass only when:
-
-- annotators can explain F1 vs F2 distinctions;
-- agreement is reported by relation and error type, not only globally;
-- every recurring disagreement pattern has a guideline decision or explicit `UNCERTAIN` route;
-- annotators are blinded to model/generator identity and automatic labels;
-- at least 90% of pilot records have complete rationale and confidence fields.
-
-### Phase 8 — Dataset v0 construction and freeze
-
-**Goal:** combine heterogeneous evidence without losing its origin or contaminating splits.
-
-#### Tasks
-
-1. Resolve labels using a deterministic policy engine.
-2. Produce separate training views:
-   - gold only;
-   - gold + weighted silver;
-   - all evidence for weak-supervision experiments;
-   - deterministic-only;
-   - real-output-only;
-   - synthetic-only.
-3. Group-split by source problem/theorem ancestry before pair expansion.
-4. Add generator-, domain-, project-, and transformation-held-out evaluation slices.
-5. Run exact and fuzzy leakage checks across all splits.
-6. Freeze benchmark and human-test manifests before training.
-7. Publish a data card with counts, sources, licenses, label quality, and exclusions.
-
-#### Deliverables
-
-```text
-data/releases/v0/
-  train.jsonl
-  validation.jsonl
-  calibration.jsonl
-  test_internal.jsonl
-  manifests/
-  DATA_CARD.md
-reports/dataset_v0.md
-```
-
-#### Gate 8
-
-Pass only when:
-
-- all records pass schema validation;
-- all referenced artifacts exist and checksums match;
-- no ancestry cluster crosses splits;
-- external benchmark IDs and near-duplicates are absent from training;
-- label/evidence distributions are reported by split;
-- every pair can be traced back to immutable source records and tool versions;
-- rerunning dataset assembly yields byte-identical manifests under the same inputs.
-
-### Phase 9 — Baseline suite
-
-**Goal:** establish a rigorous difficulty floor before training the main model.
-
-#### Tasks
-
-1. Implement lexical, normalized-text, structural, symbolic, LLM-judge, and hybrid-rule baselines.
-2. Adapt the LeanInteract BEq+ example into a reproducible baseline module.
-3. Implement directional implication checks separately from equivalence.
-4. Enforce certificate hygiene and per-example timeouts.
-5. Report coverage as well as precision/recall for abstaining or partial methods.
-6. Tune thresholds only on validation/calibration splits.
-7. Run baselines on:
-   - deterministic synthetic validation;
-   - transformation-held-out validation;
-   - real-output validation;
-   - human pilot;
-   - external benchmark where compatible.
-
-#### Deliverables
-
-```text
-src/leanfaith/baselines/
-configs/baselines/
-reports/baselines_v0.md
-reports/milestones/phase_9_baselines.md
-```
-
-#### Gate 9
-
-Pass only when:
-
-- every baseline has a versioned config and reproducible output;
-- no baseline reads gold labels at inference time;
-- symbolic methods distinguish timeout, search failure, proof success, and invalid input;
-- at least one lexical, one structural, one symbolic, and one LLM baseline is operational;
-- reported scores can be regenerated from stored prediction files.
-
-### Phase 10 — Main Lean–Lean model
-
-**Goal:** train a calibrated same-claim relation model with explicit bidirectional matching.
-
-#### Tasks
-
-1. Train M0 independent-embedding baseline.
-2. Train M1 concatenated cross-encoder.
-3. Train M2 shared encoder plus bidirectional cross-attention/matching blocks.
-4. Add multitask heads:
-   - relation class;
-   - `A ⇒ B`;
-   - `B ⇒ A`;
-   - F1 same-claim probability;
-   - error tags;
-   - uncertainty/abstention score.
-5. Add pair-order augmentation and symmetry/direction consistency losses.
-6. Train on staged curricula and evidence-quality weights.
-7. Calibrate on a dedicated split after model selection.
-8. Evaluate all predeclared slices and held-out families.
-9. Run synthetic-only, real-only, and mixed-data ablations.
-10. Run representation ablations and remove any feature that creates source shortcuts.
-
-#### Deliverables
-
-```text
-src/leanfaith/models/
-configs/models/m0.yaml
-configs/models/m1.yaml
-configs/models/m2.yaml
-artifacts/models/
-reports/model_v0.md
-reports/milestones/phase_10_model.md
-```
-
-#### Gate 10
-
-Pass only when:
-
-- M2 beats the strongest non-LLM structural baseline on the real-output human validation set;
-- calibration error and risk–coverage curves meet the prespecified target;
-- swapped-order predictions are consistent within tolerance;
-- gains do not vanish on a held-out generator or project;
-- training on real outputs adds measurable transfer beyond synthetic-only data;
-- all model-selection decisions use validation/calibration data only.
-
-### Phase 11 — Final human test and external evaluation
-
-**Goal:** obtain publishable, frozen, unbiased estimates.
-
-#### Tasks
-
-1. Construct the final human test set after all model-design decisions are frozen.
-2. Double-annotate and adjudicate all final items.
-3. Lock prediction code and model checkpoints before unblinding labels.
-4. Run all baselines and models once under the registered protocol.
-5. Compute bootstrap confidence intervals and paired comparisons.
-6. Publish full slice results and failure taxonomy.
-7. Document incompatible/excluded benchmark items transparently.
-
-#### Deliverables
-
-```text
-data/human/final_test_frozen/
-reports/final_leanlean_evaluation.md
-reports/external_benchmarks.md
-artifacts/predictions/final/
-```
-
-#### Gate 11
-
-Pass only when:
-
-- final labels were unavailable during model selection;
-- all methods are evaluated on identical eligible examples;
-- exclusions and failures are enumerated;
-- confidence intervals are reported;
-- the learned model demonstrates useful discrimination and calibration on real outputs, not only synthetic data.
-
-### Phase 12 — NL–Lean faithfulness and downstream reranking
-
-**Goal:** show practical utility in an autoformalization pipeline.
-
-#### Tasks
-
-1. Add the NL encoder and fusion/matching layer.
-2. Train jointly or in a controlled second stage using human/silver NL–Lean pairs.
-3. Compare:
-   - NL–Lean direct scoring;
-   - Lean–Lean scoring against a trusted reference;
-   - combined scoring when both NL and reference are available.
-4. Generate K candidates per held-out NL problem.
-5. Use LeanInteract to validate and extract each candidate.
-6. Evaluate ranking, abstention, and calibration.
-7. Measure token cost, wall-clock latency, Lean validation cost, and judge cost.
-8. Test a repair loop using predicted error tags.
-9. Include a held-out generator to demonstrate judge transfer.
-
-#### Deliverables
-
-```text
-src/leanfaith/models/nllean/
-configs/reranking/
-reports/reranking.md
-reports/repair_loop.md
-artifacts/predictions/reranking/
-```
-
-#### Gate 12
-
-Pass only when:
-
-- reranking improves faithful@1 over first-compiling-candidate with statistical confidence;
-- performance holds for at least one generator unseen in training;
-- abstention improves precision at reduced coverage in a predictable way;
-- improvements are not explained solely by compilation status or output length;
-- repair improves faithful accuracy without an unacceptable false-repair rate.
-
-### Phase 13 — Graph/Expr extension
-
-**Goal:** test whether elaborated expression structure adds robust value beyond text and scalar structural features.
-
-#### Tasks
-
-1. Build graph extraction from elaborated expressions.
-2. Define stable node and edge schemas.
-3. Add graph encoders and graph-to-token fusion.
-4. Compare against a parameter-matched text-only model.
-5. Evaluate especially on:
-   - long statements;
-   - high notation variation;
-   - namespace/project shift;
-   - held-out mutation families;
-   - binder/dependency errors.
-6. Measure extraction cost and training/inference overhead.
-
-#### Deliverables
-
-```text
-src/leanfaith/graphs/
-src/leanfaith/models/graph/
-reports/graph_extension.md
-```
-
-#### Gate 13
-
-Keep the graph component in the final system only if it gives a meaningful, reproducible improvement on real or OOD slices after accounting for compute and parameter count. A null result is acceptable and should be reported; the project must not depend on forcing a graph contribution.
-
-### Phase 14 — Release and paper package
-
-**Goal:** make the research independently reproducible.
-
-#### Tasks
-
-1. Freeze code, environment, datasets, models, and evaluation manifests.
-2. Produce:
-   - dataset card;
-   - model card;
-   - benchmark protocol;
-   - transformation catalog;
-   - human annotation guidelines;
-   - experiment registry;
-   - limitations and ethics statement;
-   - artifact-evaluation instructions.
-3. Release only source data permitted by license; otherwise release IDs, transforms, adapters, and derived metadata as allowed.
-4. Add one-command smoke reproduction and documented full reproduction.
-5. Run the release from a clean machine/container.
-6. Archive exact dependency locks and checksums.
-
-#### Gate 14
-
-Pass only when a person who did not implement the system can follow the public instructions, run the smoke pipeline, reproduce a published table subset, and trace a prediction back to its inputs and evidence.
-
----
-
-## 25. Coding-agent operating contract
-
-These instructions are mandatory for any coding agent implementing this plan.
-
-### 25.1 Scope discipline
-
-1. Implement only the current milestone and its explicitly listed dependencies.
-2. Do not add a new framework, database, orchestration system, model family, or Lean interface without a written architectural decision record.
-3. Do not silently weaken a validation rule to make a test pass.
-4. Do not treat an exploratory notebook as production code.
-5. Do not begin model training before the dataset and split gates pass.
-6. Do not use final benchmark or human-test labels for debugging, prompt selection, threshold selection, or feature design.
-
-### 25.2 Lean interaction discipline
-
-1. Import and call LeanInteract only through `src/leanfaith/lean/leaninteract_backend.py` and narrowly scoped support modules.
-2. Do not scatter direct LeanInteract calls throughout source adapters, transformations, or baselines.
-3. Do not create an alternative Python wrapper around Lean subprocesses.
-4. Custom Lean code is allowed under `LeanFaith/Meta/` when needed for metaprogramming, but Python must invoke it through LeanInteract.
-5. Store the following for every Lean request:
-   - project/context ID;
-   - Lean and dependency revisions;
-   - LeanInteract version;
-   - request type and options;
-   - source code or content hash;
-   - timeout/memory settings;
-   - start/end timestamps and duration;
-   - normalized response status;
-   - raw diagnostic payload or a lossless serialized form where practical.
-6. Never infer semantic failure from a timeout or crash.
-7. Never reuse an environment state across incompatible contexts.
-8. Do not use tactic mode as the only validity oracle because it is documented as experimental; validate complete declarations with `Command` or `FileCommand` as the authoritative path.
-
-### 25.3 Python engineering standards
-
-1. Support the pinned Python version and declare it in `pyproject.toml`.
-2. Use type hints for all public functions and strict static checking for core modules.
-3. Use Pydantic or equivalent validated models at data boundaries.
-4. Prefer pure functions for normalization, transformations, split assignment, and label resolution.
-5. Every CLI command must:
-   - accept a config file;
-   - support `--seed` where randomness exists;
-   - support `--dry-run` where writes are substantial;
-   - write a run manifest;
-   - fail nonzero on incomplete output unless explicitly configured to continue;
-   - resume safely from completed shards;
-   - never overwrite a frozen dataset release.
-6. Use structured logging; do not parse human log text as a data interface.
-7. Catch only expected exceptions and preserve their original traceback or structured details.
-8. Never write `except Exception: pass`.
-9. Keep secrets out of configs, logs, prompts, data records, and Git history.
-10. All randomness must derive from explicit run-level and record-level seeds.
-11. All IDs must be stable across reruns and independent of processing order.
-12. Avoid global mutable state, especially around Lean server pools.
-13. Keep functions small enough to test; avoid “pipeline god objects.”
-14. Document non-obvious semantic assumptions in code, not just in the research paper.
-
-### 25.4 Pull-request discipline
-
-Each pull request should:
-
-- address one issue or tightly coupled milestone slice;
-- include tests and documentation;
-- include a migration note for schema/config changes;
-- include before/after sample output when data behavior changes;
-- not mix mechanical formatting with semantic changes;
-- pass all required local and CI checks;
-- update the relevant milestone report or checklist.
-
-A pull request that changes label semantics, evidence resolution, split logic, benchmark eligibility, or automatic promotion policy requires explicit human review and an updated policy version.
-
-### 25.5 Definition of done for a feature
-
-A feature is done only when:
-
-1. the behavior is specified;
-2. code is typed and documented;
-3. unit tests cover success and failure paths;
-4. an integration test covers the real dependency where relevant;
-5. outputs are schema-validated;
-6. provenance is preserved;
-7. the CLI or API is documented;
-8. the feature is represented in a smoke pipeline;
-9. reproducibility is demonstrated on a clean rerun;
-10. no known failure is silently converted into a semantic label.
-
----
-
-## 26. Initial coding-agent backlog
-
-The following backlog is ordered. Issue numbers are stable planning IDs, not GitHub issue numbers.
-
-### LF-001 — Repository bootstrap
-
-**Implement**
-
-- `pyproject.toml` with pinned Python and dependency groups;
-- `uv.lock` or equivalent lock file;
-- package skeleton;
-- formatter, linter, type checker, and test configuration;
-- `pre-commit` hooks;
-- minimal README and contributor instructions;
-- CI skeleton.
-
-**Acceptance**
-
-```bash
-uv sync --frozen
-uv run ruff check .
-uv run ruff format --check .
-uv run mypy src/leanfaith
-uv run pytest -q
-```
-
-all pass in a clean checkout.
-
-### LF-002 — Lean fixture project
-
-**Implement**
-
-- pinned Lean toolchain;
-- minimal Lake project;
-- fixture files covering syntax/context cases from Phase 1;
-- one custom meta helper placeholder.
-
-**Acceptance**
-
-- `lake build` succeeds;
-- fixture declarations have documented expected signatures;
-- invalid fixture files are isolated and intentionally tested.
-
-### LF-003 — LeanInteract dependency and compatibility pin
-
-**Implement**
-
-- `lean-interact==0.11.4` initial pin;
-- import smoke test;
-- runtime version recording;
-- compatibility assertion with the pinned Lean toolchain;
-- upgrade checklist in `docs/leaninteract.md`.
-
-**Acceptance**
-
-- CI prints and stores LeanInteract/Lean versions;
-- a deliberately unsupported configuration fails with a useful diagnostic;
-- no unpinned LeanInteract dependency remains.
-
-### LF-004 — Core schemas and enums
-
-**Implement**
-
-- IDs and hash utilities;
-- `ContextRecord`, `TheoremRecord`, `VariantRecord`, `PairRecord`, `EvidenceRecord`, `ResolvedLabel`, `NLPLeanRecord`;
-- relation/evidence/error enums;
-- JSONL serialization and schema versioning.
-
-**Acceptance**
-
-- round-trip tests;
-- invalid records fail early;
-- schema version is mandatory;
-- stable hashes do not change with JSON key order.
-
-### LF-005 — `LeanBackend` protocol
-
-**Implement**
-
-- typed request/response domain models independent of LeanInteract internals;
-- methods for command, file, validation, declaration extraction, and batch execution;
-- status taxonomy.
-
-**Acceptance**
-
-- source/transformation modules can depend on the protocol without importing LeanInteract;
-- statuses distinguish valid, invalid, timeout, crash, setup failure, unsupported, and internal error.
-
-### LF-006 — `LeanInteractBackend`
-
-**Implement**
-
-- config creation;
-- project resolution;
-- `Command` and `FileCommand` execution;
-- response normalization;
-- `AutoLeanServer` lifecycle;
-- timeout/recovery behavior;
-- environment state use.
-
-**Acceptance**
-
-- Phase 1 fixture integration tests pass;
-- full declaration signatures are extracted;
-- `sorry` policy is explicit;
-- server failure does not lose the input record.
-
-### LF-007 — Lean server pool
-
-**Implement**
-
-- process worker initializer with preconstructed `LeanREPLConfig`;
-- one `AutoLeanServer` per process;
-- task sharding by context;
-- bounded queue and graceful shutdown;
-- memory/timeout configuration;
-- retry policy limited to infrastructure failures.
-
-**Acceptance**
-
-- deterministic results with 1 and N workers;
-- no duplicate or missing IDs in a 10,000-request test;
-- retries preserve the first error and retry count;
-- semantic invalidity is never retried as infrastructure failure.
-
-### LF-008 — `leanfaith doctor`
-
-**Implement**
-
-Checks for:
-
-- Python/version lock;
-- Git and `elan` availability;
-- Lean toolchain;
-- Lake project build;
-- LeanInteract import/version;
-- REPL initialization;
-- simple command;
-- declaration extraction;
-- writable cache/output paths;
-- optional API credentials without exposing them.
-
-**Acceptance**
-
-- emits human-readable and JSON reports;
-- exits nonzero on critical failure;
-- suggests actionable remediation;
-- never prints secrets.
-
-### LF-009 — Source manifest and probe framework
-
-**Implement**
-
-- source plugin protocol;
-- immutable source manifests;
-- sample/probe reports;
-- licensing field requirements;
-- source fingerprinting.
-
-**Acceptance**
-
-- an unknown source schema fails before ingestion;
-- each probe stores representative raw examples and summary statistics;
-- source revision is mandatory.
-
-### LF-010 — SFT Classic adapter
-
-**Implement**
-
-- schema discovery report;
-- explicit adapters for actually observed variants;
-- extraction of NL, Lean code, imports/context, theorem statement, and provenance;
-- conservative code-fence/declaration parsing;
-- raw-record retention.
-
-**Acceptance**
-
-- works on a 1,000-row sample;
-- zero silently skipped records;
-- every failure has a category;
-- reconstructed declarations are validated through LeanInteract.
-
-### LF-011 — Repository extractor
-
-**Implement**
-
-- file discovery for mathlib/CSLib/PhysLib;
-- `FileCommand(..., declarations=True)` extraction;
-- source-span capture;
-- context/import manifest;
-- restartable sharding.
-
-**Acceptance**
-
-- IDs are stable across worker count and reruns;
-- extraction on the fixture repository is exact;
-- a mathlib sample completes with complete failure accounting.
-
-### LF-012 — Statement proof stripping and reconstruction
-
-**Implement**
-
-- declaration-kind-aware statement extraction from `DeclarationInfo` and source ranges;
-- fresh declaration name injection;
-- placeholder proof policy;
-- context reconstruction.
-
-**Acceptance**
-
-- reconstructed statement elaborates whenever the source declaration did, for supported cases;
-- theorem body/proof tokens do not appear in the extracted signature;
-- unsupported syntax is surfaced, not guessed.
-
-### LF-013 — Representation pipeline
-
-**Implement**
-
-- views from Section 13;
-- representation IDs and hashes;
-- semantic-atom extraction;
-- batch CLI.
-
-**Acceptance**
-
-- invariance/property tests pass;
-- representations link to exact theorem/context versions;
-- no material atom loss in golden examples.
-
-### LF-014 — Pair/evidence store
-
-**Implement**
-
-- append-only pair and evidence records;
-- evidence deduplication;
-- immutable evidence history;
-- deterministic label-resolution engine;
-- explanation trace for each resolved label.
-
-**Acceptance**
-
-- adding evidence never mutates or deletes prior evidence;
-- label resolution is deterministic;
-- policy-version changes create a new resolved label record;
-- no pair label exists without a resolution trace.
-
-### LF-015 — Transformation framework
-
-**Implement**
-
-- family registry;
-- applicability/proposal/audit lifecycle;
-- common validation gates;
-- deterministic seeds;
-- quotas;
-- audit artifacts.
-
-**Acceptance**
-
-- toy transformations can be registered without modifying the engine;
-- every proposal yields accepted, rejected, or errored output with a reason;
-- reruns are identical.
-
-### LF-016 — First conservative positive families
-
-**Implement**
-
-- alpha-renaming;
-- declaration-name change;
-- grouped-binder split/merge;
-- safe independent binder/hypothesis reordering;
-- selected notation qualification.
-
-**Acceptance**
-
-- all generated statements elaborate;
-- family invariants and round trips pass;
-- 200-pair family audit report is generated;
-- no family is marked gold before Gate 4A passes.
-
-### LF-017 — First hard negative families
-
-**Implement**
-
-- relation weakening/strengthening (`<`/`≤`, subset/equality where typed);
-- quantifier flip;
-- conjunction/disjunction mutation;
-- dropped side condition;
-- same-type constant substitution.
-
-**Acceptance**
-
-- variants elaborate;
-- changes are localized and documented;
-- accidental equivalence checks run;
-- outputs remain provisional until evidence policy resolves them.
-
-### LF-018 — Proof/certificate checker
-
-**Implement**
-
-- definitional-equality check where available;
-- directional implication templates;
-- safe tactic portfolios with budgets;
-- certificate hygiene scanner;
-- proof result status/evidence records.
-
-**Acceptance**
-
-- proving both directions cannot use either original theorem declaration as an axiom;
-- timeout/search failure does not become a negative label;
-- known positive/negative fixtures behave as expected;
-- all tactic/config details are recorded.
-
-### LF-019 — Pilot dataset report
-
-**Implement**
-
-Generate a 10,000–50,000 pair pilot and report:
-
-- source/domain counts;
-- relation/error counts;
-- transformation counts;
-- edit-distance distributions;
-- evidence strength;
-- duplicates;
-- failure rates;
-- manual-audit sample.
-
-**Acceptance**
-
-- report is generated from stored records, not hand-edited numbers;
-- every chart/table has a source query/config;
-- the project team signs off before scaling.
-
-### LF-020 — Generation provider abstraction
-
-**Implement**
-
-- provider-neutral request/response schema;
-- prompt versioning;
-- caching;
-- retries/rate limits;
-- cost/token accounting;
-- secret handling;
-- raw response retention.
-
-**Acceptance**
-
-- mock provider tests pass;
-- one open/local and one API provider complete a smoke run;
-- cached reruns make no API call;
-- model/version/date are recorded.
-
-### LF-021 — Autoformalization candidate collector
-
-**Implement**
-
-- problem sampler;
-- candidate generation;
-- declaration parser;
-- LeanInteract validation;
-- clustering;
-- provenance.
-
-**Acceptance**
-
-- compiling and noncompiling candidates are separated correctly;
-- no benchmark contamination in the development pool;
-- a 100-problem multi-generator pilot produces a coverage report.
-
-### LF-022 — LLM proposer pipeline
-
-**Implement**
-
-- task-specific prompts;
-- structured output validation;
-- Lean validation;
-- intended-relation provenance;
-- candidate routing.
-
-**Acceptance**
-
-- malformed output is retained with status;
-- no proposer vote directly sets a gold label;
-- all compiling candidates have exact context records.
-
-### LF-023 — LLM judge pipeline
-
-**Implement**
-
-- blinded pair presentation;
-- order randomization and swap repeats;
-- directional relation schema;
-- hidden calibration items;
-- consensus and disagreement computation.
-
-**Acceptance**
-
-- order consistency and calibration are reported;
-- identity of proposer/generator is hidden;
-- silver promotion follows a versioned policy only.
-
-### LF-024 — Annotation tool and export
-
-**Implement**
-
-- randomized/blinded UI;
-- relation/error/confidence/rationale inputs;
-- assignment and adjudication workflow;
-- immutable raw annotations;
-- export to schemas.
-
-**Acceptance**
-
-- annotator identity and guideline version are recorded;
-- adjudication never destroys original labels;
-- pilot agreement report is reproducible.
-
-### LF-025 — Split and leakage engine
-
-**Implement**
-
-- ancestry grouping;
-- problem/source grouping;
-- exact/fuzzy/structural near-duplicate checks;
-- benchmark denylist;
-- deterministic stratified split assignment.
-
-**Acceptance**
-
-- adversarial leakage fixtures are caught;
-- split assignment is stable across processing order;
-- a release cannot freeze while leakage checks fail.
-
-### LF-026 — Baseline framework
-
-**Implement**
-
-- common prediction schema;
-- threshold/calibration interface;
-- latency/cost instrumentation;
-- lexical/structural/symbolic/LLM baseline adapters.
-
-**Acceptance**
-
-- all baselines emit directly comparable prediction files;
-- evaluation code is model-agnostic;
-- missing/abstaining predictions are handled explicitly.
-
-### LF-027 — M0/M1 training pipeline
-
-**Implement**
-
-- tokenizer/data collator;
-- shared pair dataset;
-- M0 embedding baseline;
-- M1 cross-encoder;
-- checkpointing and resume;
-- experiment manifests;
-- calibration pipeline.
-
-**Acceptance**
-
-- tiny overfit test succeeds;
-- deterministic smoke training succeeds;
-- no test labels are loaded by training code;
-- prediction files include checkpoint/config/data hashes.
-
-### LF-028 — M2 bidirectional cross-attention model
-
-**Implement**
-
-- shared encoder;
-- A-to-B and B-to-A cross-attention blocks;
-- directional pooled representations;
-- relation/implication/error/uncertainty heads;
-- order-consistency losses.
-
-**Acceptance**
-
-- tensor-shape and masking tests cover variable lengths;
-- swapped inputs swap directional outputs while preserving equivalence output within tolerance;
-- M2 can initialize from the chosen pretrained encoder;
-- parameter count and compute are reported.
-
-### LF-029 — Final evaluation harness
-
-**Implement**
-
-- metrics and slices from Section 23;
-- bootstrap confidence intervals;
-- risk–coverage curves;
-- calibration plots;
-- paired method comparisons;
-- failure export for qualitative audit.
-
-**Acceptance**
-
-- all metrics are tested on synthetic fixtures;
-- tables regenerate from frozen predictions;
-- no manual spreadsheet manipulation is required.
-
-### LF-030 — Reranking experiment
-
-**Implement**
-
-- candidate scorer;
-- reference-aware and NL-direct modes;
-- abstention policies;
-- ranker evaluation;
-- cost/latency reporting;
-- optional repair loop.
-
-**Acceptance**
-
-- end-to-end run from NL problem to selected Lean statement is reproducible;
-- first/first-compiling/random/LLM-judge baselines are included;
-- no hidden reference information leaks into the direct NL–Lean condition.
-
----
-
-## 27. Test and continuous-integration strategy
-
-### 27.1 Test classes
-
-#### Unit tests
-
-Cover:
-
-- schema validation;
-- hash/ID stability;
-- pure normalization functions;
-- transformation applicability;
-- split assignment;
-- label resolution;
-- metric calculations;
-- model masking and symmetry behavior.
-
-Unit tests must not require network access or a full mathlib checkout.
-
-#### Lean integration tests
-
-Use the pinned fixture project and LeanInteract to test:
-
-- project setup;
-- command/file elaboration;
-- declaration extraction;
-- invalid code;
-- `sorry` handling;
-- timeouts/recovery;
-- environment reuse;
-- parallel execution;
-- custom meta helpers.
-
-#### Golden tests
-
-Use small, reviewed fixtures for:
-
-- extracted theorem signatures;
-- representation JSON;
-- transformation diffs;
-- normalized diagnostics;
-- label-resolution traces;
-- evaluation tables.
-
-Golden files may be updated only with a reviewed explanation.
-
-#### Property-based tests
-
-Use generated examples to check:
-
-- alpha-renaming invariance;
-- stable IDs independent of processing order;
-- pair swap behavior;
-- transformation round trips;
-- split non-overlap;
-- serialization round trips;
-- deterministic sampling.
-
-#### End-to-end smoke tests
-
-A smoke pipeline should:
-
-```text
-extract 20 fixture theorems
-→ build representations
-→ generate positive and negative variants
-→ validate through LeanInteract
-→ create pairs/evidence
-→ split data
-→ run two baselines
-→ train a tiny model
-→ produce an evaluation report
-```
-
-It must complete in CI with bounded resources.
-
-### 27.2 CI tiers
-
-```text
-PR-fast:
-  format + lint + typecheck + unit tests + tiny model tests
-
-PR-Lean:
-  fixture Lake build + LeanInteract integration tests + smoke pipeline
-
-Nightly:
-  mathlib sample extraction + 10k request stress test + deterministic rerun
-
-Weekly/release:
-  larger source probes + dataset integrity + baseline reproduction + security/license checks
-```
-
-### 27.3 Required quality checks
-
-- line and branch coverage thresholds for core policy/data modules;
-- no unresolved schema migrations;
-- no dependency with an unreviewed major upgrade;
-- no test using final human labels unless tagged evaluation-only;
-- no network access in deterministic dataset assembly after raw sources are cached;
-- no secret patterns in repository or artifacts;
-- no direct Lean subprocess invocation outside explicitly approved setup/doctor diagnostics.
-
-### 27.4 Performance regression tests
-
-Track:
-
-- Lean requests/second by context type;
-- server startup time;
-- timeout/crash rate;
-- peak worker memory;
-- extraction time per file;
-- representation time per theorem;
-- transformation acceptance rate;
-- model examples/second and inference latency.
-
-Set alerts after a stable baseline exists. Do not optimize before correctness, but do not allow silent 2× regressions.
-
----
-
-## 28. Operational, cost, and reproducibility controls
-
-### 28.1 Configuration hierarchy
-
-Use explicit layered configuration:
-
-```text
-configs/defaults.yaml
-configs/environments/{local,cluster,ci}.yaml
-configs/sources/*.yaml
-configs/transforms/*.yaml
-configs/generation/*.yaml
-configs/judges/*.yaml
-configs/models/*.yaml
-configs/evaluation/*.yaml
-```
-
-Resolved configuration must be written into each run directory. Environment variables may provide secrets or machine-specific paths, but must not silently change semantic settings.
-
-### 28.2 Run directory contract
-
-Every substantial run creates:
-
-```text
-runs/<run_id>/
-  resolved_config.yaml
-  manifest.json
-  environment.json
-  inputs.json
-  logs.jsonl
-  metrics.json
-  failures.jsonl
-  outputs/ or output_pointers.json
-  COMPLETE or FAILED
-```
-
-`run_id` should include a semantic name plus an immutable content hash. A run is complete only after all expected shards and checksums are verified.
-
-### 28.3 Data storage policy
-
-Use append-only/raw-first storage:
-
-```text
-raw source snapshot/reference
-→ parsed record
-→ elaborated record
-→ representations
-→ variants
-→ pairs
-→ evidence
-→ resolved labels
-→ split/release manifests
-```
-
-Never overwrite raw records when parsers improve. Write a new parser/version output and retain the lineage.
-
-Parquet is preferred for large analytical tables; JSONL is acceptable for interchange and debugging. Large code/text blobs may be content-addressed separately to avoid duplication.
-
-### 28.4 Cache policy
-
-Cache keys must include all semantically relevant inputs:
-
-- source/code content hash;
-- project/context fingerprint;
-- Lean version;
-- dependency revisions;
-- LeanInteract version;
-- query options;
-- custom meta-helper revision;
-- timeout or tactic portfolio where relevant.
-
-Do not reuse cached validity/certificate results across incompatible contexts.
-
-### 28.5 API token and budget policy
-
-For LLM calls:
-
-1. Store credentials only in a secret manager or local environment.
-2. Precompute a budget forecast by model/task.
-3. Start with small stratified pilots.
-4. Cache all successful responses.
-5. Use idempotency keys where supported.
-6. Enforce per-run and cumulative spending caps.
-7. Stop automatically when output validity or diversity falls below configured thresholds.
-8. Track input/output tokens, retries, latency, and monetary cost per accepted example.
-9. Never route private or restricted data to an external API without approval.
-10. Record model aliases and resolved version IDs where the provider exposes them.
-
-Dozens of billions of available tokens are a resource, not a reason to generate undifferentiated data. Allocation should be driven by coverage gaps and active-learning value.
-
-### 28.6 Checkpoint and artifact policy
-
-- Store model checkpoints with exact data/config/code hashes.
-- Keep best-by-validation and last checkpoint separately.
-- Never identify a “best” checkpoint using final-test performance.
-- Store predictions independently of checkpoints so evaluation can be rerun.
-- Track tokenizer revision and any added special tokens.
-- Record hardware, precision, distributed-training settings, and random seeds.
-
-### 28.7 Reproducibility levels
-
-Define three levels:
-
-```text
-R1 — record reproducibility:
-     reconstruct one pair, all evidence, and its label.
-
-R2 — experiment reproducibility:
-     rerun a baseline/model evaluation from frozen predictions or checkpoint.
-
-R3 — pipeline reproducibility:
-     regenerate a release slice from source manifests through evaluation.
-```
-
-The paper artifact must support R1 and R2 publicly. R3 should be supported where source licensing and compute permit.
-
-### 28.8 Monitoring dashboards
-
-Track at minimum:
-
-- extraction success/failure by source and context;
-- LeanInteract crash/timeout/memory rates;
-- transformation applicability and acceptance by family;
-- semantic-atom drift distributions;
-- LLM proposer validity/diversity;
-- judge disagreement/calibration;
-- annotation throughput/agreement;
-- label quality by evidence tier;
-- split leakage alerts;
-- model calibration and slice performance;
-- cost per usable gold/silver example.
-
-Dashboards are diagnostic only; their derived numbers must still be reproducible from immutable records.
-
----
-
-## 29. Risk register with triggers and mandatory responses
-
-| ID | Risk | Early-warning trigger | Mandatory response | Residual-risk reporting |
-|---|---|---|---|---|
-| R01 | Synthetic-to-real gap | Synthetic validation rises while real-output validation is flat or falls | Stop scaling synthetic data; increase real-output/human data; reweight curriculum; inspect shortcut features | Report synthetic vs real learning curves and transfer gaps |
-| R02 | Accidental positive labels | Human audit finds semantic erasure in an automatic-positive family | Disable family promotion; invalidate affected labels; bump family/policy version; regenerate releases | Publish affected counts and corrected results |
-| R03 | Accidental negative labels | Counterexample/proof/human audit finds many mutated pairs remain same-claim | Demote family to unlabeled; refine applicability; require stronger evidence | Report per-family estimated label precision |
-| R04 | Truth-equivalence collapse | Model scores broad simplifications or unrelated true propositions as faithful | Add F1/F2 contrast set; remove unsafe proof-derived positives; train explicit same-claim negatives | Include semantic-erasure slice |
-| R05 | Failed-search misuse | Any code maps timeout/proof failure to negative | Block release in CI; correct resolution policy; audit all affected evidence | State search coverage and failure rates |
-| R06 | Context drift | Same statement changes elaboration under different revisions/imports | Treat context as part of identity; invalidate incompatible caches; pin and record revisions | Report environment versions for every benchmark |
-| R07 | LeanInteract API/version drift | Compatibility smoke test or response schema changes | Freeze upgrade; run documented compatibility suite; adapt backend only; bump environment version | List tested LeanInteract/Lean ranges |
-| R08 | Lean server instability/OOM | Crash/timeout rate exceeds threshold or workers leak memory | Reduce worker count; use AutoLeanServer recovery; shard by context; add memory recycling | Report throughput and failure rates |
-| R09 | Source schema drift | New dataset columns/format bypass adapter assumptions | Fail closed; add a new explicit schema adapter and tests | Version source adapter and manifest |
-| R10 | Benchmark contamination | Exact/near-duplicate appears in training | Quarantine affected release/model; rebuild splits; retrain material experiments | Publish contamination audit |
-| R11 | Generator/judge circularity | Performance is high only when judge/generator families match | Add held-out generator/judge evaluations; diversify roles; increase human labels | Report cross-family matrix |
-| R12 | LLM consensus overconfidence | Judges agree on hidden traps but are wrong | Tighten promotion threshold; recalibrate; require human review for affected strata | Report calibration-item accuracy |
-| R13 | Human disagreement | Low agreement on a relation/error family | Clarify guidelines; use `UNCERTAIN`; collect third labels; do not force binary gold | Report agreement and uncertain rate |
-| R14 | Reference formalization defect | Annotators repeatedly flag references as wrong/underspecified | Add reference-status field; adjudicate separately; exclude or relabel task | Report reference-defect rate |
-| R15 | Shortcut learning from provenance | Performance collapses after hiding names/source formatting | Strip/randomize shortcut fields; group splits; adversarial source prediction probe | Report source/generator probing results |
-| R16 | Length/compilation shortcut | Model predicts based on length, syntax, or validation status | Match distributions; include hard controls; audit feature attribution | Report controlled slices |
-| R17 | Duplicate dominance | A few theorem families dominate pair counts | Cap per ancestry cluster; weight examples; report effective sample size | Publish cluster-size distribution |
-| R18 | Cost explosion | Cost per accepted example exceeds budget or diversity saturates | Stop broad generation; active-learn only high-value strata; use cheaper models for screening | Report cost per usable example |
-| R19 | License/release restriction | Source terms prevent redistribution | Release adapters/IDs/derived allowed metadata; seek permission; exclude restricted fields | Publish license matrix |
-| R20 | Graph scope creep | Graph work delays core benchmark/model | Enforce Phase 13 dependency; keep graph on separate branch/workstream | Report text-only complete system first |
-| R21 | Calibration drift | Confidence no longer matches accuracy on new generator/domain | Recalibrate on a separate current-domain set; monitor risk–coverage | Report calibration per slice/date |
-| R22 | Irreproducible API model versions | Provider alias changes silently | Store date, alias, request/response IDs, behavior probes; rerun a calibration panel | State version uncertainty explicitly |
-| R23 | Annotation leakage | Annotators see generator, automatic label, or model score | Fix UI; invalidate affected annotations if material; reannotate blinded | Document blinding checks |
-| R24 | Certificate leakage | Equivalence proof uses source/target theorem constant or equivalent global result | Run dependency scanner; mark certificate invalid; tighten namespace/environment | Report certificate-hygiene method |
-| R25 | Overclaiming undecidable semantics | Paper treats predictor as a decision procedure | Frame as calibrated empirical metric; report abstention/unknown; separate certificates from predictions | Limit claims explicitly |
-
-### 29.1 Incident procedure
-
-For any material data or evaluation incident:
-
-1. freeze affected releases and runs;
-2. write an incident record with discovery date, scope, root cause, and affected hashes;
-3. patch code/policy with a new version;
-4. regenerate affected artifacts from the earliest compromised stage;
-5. rerun leakage and integrity checks;
-6. update reports and paper numbers;
-7. preserve the incident history rather than rewriting it away.
-
----
-
-## 30. Decision gates and pivot criteria
-
-The project should use evidence-based pivots rather than continuing every idea indefinitely.
-
-### 30.1 Data-generation decisions
-
-- **Automatic positive family:** keep only if audited precision reaches Gate 4A. Otherwise use as silver/experimental or remove.
-- **Negative family:** keep for supervised training only if accidental-equivalence risk is controlled. Otherwise use for active learning only.
-- **LLM proposer:** reduce or stop allocation when accepted-example diversity and human utility plateau.
-- **LLM judge:** never promote to silver if calibration on hidden gold is below policy threshold, regardless of apparent agreement.
-- **Source corpus:** deprioritize if context reconstruction is too unreliable or licensing prevents meaningful use.
-
-### 30.2 Modeling decisions
-
-- Continue from M0/M1 to M2 only after the data pipeline and baselines are stable.
-- Keep M2 only if it gives reproducible real-output or OOD gains over M1 commensurate with complexity.
-- Add graph modeling only after the text/structural model is complete.
-- Keep the graph model only under Gate 13.
-- Prefer the simplest calibrated model within a small performance margin for deployment/cost comparisons.
-
-### 30.3 Project-level pivot conditions
-
-Pivot the research emphasis toward the benchmark/data contribution if:
-
-- model gains over strong baselines are small but the benchmark exposes important metric failures;
-- human annotation reveals that target semantics need a richer taxonomy;
-- cross-generator transfer remains weak despite substantial real-output data.
-
-Pivot toward a hybrid certifier/predictor if:
-
-- learned scores are strong primarily where symbolic methods abstain;
-- symbolic positives have very high precision but low coverage;
-- combining certified and predicted evidence improves risk–coverage materially.
-
-Do not claim a successful universal faithfulness metric if gains exist only on transformations seen during training.
-
----
-
-## 31. Pre-registered experiment matrix
-
-The exact set may be refined before the final test is opened, but the categories should remain stable.
-
-### 31.1 Core model table
-
-Rows:
-
-```text
-Exact/raw equality
-Normalized equality
-Token similarity classifier
-GTED/operator-tree baseline
-BEq+
-LLM judge A
-LLM judge ensemble
-M0 dual encoder
-M1 cross-encoder
-M2 bidirectional cross-attention
-M3 hybrid symbolic + learned
-M4 graph-augmented, if retained
-```
-
-Columns:
-
-```text
-macro F1
-faithful-class precision/recall/F1
-AUROC/AUPRC
-ECE/Brier/NLL
-coverage at 95% faithful precision
-latency
-cost
-human-test accuracy
-held-out-generator accuracy
-held-out-project accuracy
-```
-
-### 31.2 Data-ablation table
-
-```text
-synthetic deterministic only
-LLM-generated only
-real autoformalization only
-synthetic + real
-synthetic + real + silver judged
-synthetic + real + human gold
-all data without quality weighting
-all data with quality weighting
-```
-
-### 31.3 Representation-ablation table
-
-```text
-raw Lean only
-headless signature only
-pretty-printed signature only
-raw + explicit view
-raw + semantic atoms
-raw + structural scalar features
-raw + operator tree
-raw + Expr graph
-```
-
-### 31.4 Generalization matrix
-
-Train/evaluate across:
-
-- transformation families;
-- theorem source projects;
-- math domains;
-- generator families;
-- statement-length quartiles;
-- confidence/evidence tiers;
-- notation-heavy vs notation-light;
-- binder/side-condition/quantifier/object errors.
-
-### 31.5 Calibration and abstention figure
-
-Plot risk–coverage curves for:
-
-- M1;
-- M2;
-- hybrid model;
-- strongest LLM judge;
-- symbolic baseline with abstention.
-
-Use a single frozen calibration split and report recalibration separately for domain-shift experiments.
-
-### 31.6 Reranking table
-
-Rows:
-
-```text
-first generated
-first compiling
-random compiling
-self-ranked generator
-LLM judge
-Lean–Lean metric with reference
-NL–Lean direct metric
-combined NL + reference metric
-oracle
-```
-
-Columns:
-
-```text
-faithful@1
-faithful@3
-MRR/nDCG
-coverage at precision target
-Lean validation cost
-model/API cost
-latency
-```
-
-### 31.7 Qualitative analysis
-
-Publish representative examples for:
-
-- symbolic success / learned failure;
-- learned success / symbolic abstention;
-- all methods fooled;
-- truth-equivalent but claim-unfaithful;
-- redundant-variable pathology;
-- wrong side condition;
-- wrong domain/coercion;
-- reference defect;
-- human disagreement;
-- successful and harmful repairs.
-
-Do not select only favorable examples; define selection rules before inspection.
-
----
-
-## 32. Minimum viable project, strong paper, and stretch result
-
-### 32.1 Minimum viable project
-
-A complete MVP consists of:
-
-1. pinned LeanInteract-backed extraction/validation system;
-2. at least two source corpora;
-3. conservative deterministic positive and hard negative families;
-4. real autoformalization candidate collection;
-5. evidence-preserving schemas and leak-free splits;
-6. lexical, structural, BEq+, and LLM-judge baselines;
-7. M1 cross-encoder and calibrated relation output;
-8. expert-labeled real-output test set;
-9. one downstream reranking experiment.
-
-The MVP is scientifically useful even without graph modeling.
-
-### 32.2 Strong paper
-
-A strong paper additionally includes:
-
-- M2 bidirectional cross-attention with directional entailment heads;
-- well-audited, diverse data release;
-- held-out generator/project/family generalization;
-- high-quality calibration and abstention analysis;
-- a clear synthetic-to-real ablation;
-- measurable reranking gains;
-- detailed error taxonomy and human agreement;
-- a hybrid symbolic/learned system with favorable cost–quality trade-off.
-
-### 32.3 Stretch result
-
-Stretch contributions include:
-
-- graph augmentation with robust OOD gain;
-- actionable repair generation using error tags;
-- active-learning efficiency results;
-- transfer across Lean projects/versions;
-- a jointly trained NL–Lean and Lean–Lean metric;
-- use as a reward model during autoformalization training.
-
----
-
-## 33. Paper claim boundaries
-
-The paper may claim:
-
-- a learned, calibrated predictor of expert-judged autoformalization faithfulness;
-- improvements over specified baselines on specified distributions;
-- utility for reranking or triage;
-- certified equivalence for the subset with valid formal certificates;
-- empirical generalization to held-out transformations/generators/projects.
-
-The paper must not claim:
-
-- a complete decision procedure for semantic equivalence;
-- that proof-search failure proves inequivalence;
-- that agreement among LLM judges is ground truth;
-- that all logical equivalences preserve the intended natural-language claim;
-- that a reference formalization is always correct;
-- universal transfer beyond tested Lean versions/projects/domains.
-
----
-
-## 34. Reference implementation policy for LeanInteract
-
-LeanInteract is the default and mandatory Python–Lean integration layer for this project because it directly supports executing Lean commands/files, extracting declarations and InfoTrees, reusing environments, and incremental/parallel elaboration. The project should follow its documented concurrency pattern: construct the shared `LeanREPLConfig` before creating processes, then use one `AutoLeanServer` per worker when multiprocessing.
-
-The initial pin is:
-
-```toml
-[project]
-requires-python = ">=3.12,<3.13"
-dependencies = [
-  "lean-interact==0.11.4",
-]
-```
-
-This pin is an initial implementation choice, not a permanent promise. Upgrades require the compatibility protocol below.
-
-### 34.1 Upgrade protocol
-
-1. Open an architectural maintenance issue.
-2. Read the LeanInteract release notes and interface changes.
-3. Update only a dedicated branch.
-4. Run:
-   - full backend unit tests;
-   - fixture declaration-extraction goldens;
-   - timeout/recovery tests;
-   - parallel stress test;
-   - 1,000-record source extraction comparison;
-   - certificate baseline comparison.
-5. Compare normalized responses and failure rates.
-6. Bump `environment_schema_version` if serialized behavior changes.
-7. Invalidate caches whose keys did not already isolate the version.
-8. Record the decision and any result differences.
-9. Merge only after review.
-
-### 34.2 Escape hatch policy
-
-A direct Lean subprocess or a different interface may be used only when all of the following hold:
-
-- LeanInteract demonstrably cannot expose a required capability;
-- a minimal reproducible limitation is documented;
-- a custom Lean meta command invoked through LeanInteract cannot solve it;
-- the project lead approves an architectural decision record;
-- the alternative is isolated behind the same `LeanBackend` protocol;
-- outputs and failure semantics remain compatible;
-- the paper/release discloses the exception.
-
-This is an exception mechanism, not permission to build a second runner “for convenience.”
-
----
-
-# Appendices
-
-## Appendix A — Illustrative LeanInteract integration patterns
-
-These snippets establish the intended structure. The implementation must verify them against the pinned LeanInteract version and wrap them in project domain models rather than exposing third-party response objects everywhere.
-
-### A.1 Single-command declaration extraction
-
-```python
-from __future__ import annotations
-
-from lean_interact import AutoLeanServer, Command, LeanREPLConfig
-from lean_interact.interface import CommandResponse, LeanError
-from lean_interact.project import LocalProject
-
-project = LocalProject(directory="/absolute/path/to/leanfaith-fixtures")
-config = LeanREPLConfig(project=project, verbose=False)
-server = AutoLeanServer(config)
-
-code = """
-import Mathlib
-
-theorem leanfaith_example (n : Nat) : n + 0 = n := by
-  simp
-"""
-
-result = server.run(
-    Command(
-        cmd=code,
-        declarations=True,
-        root_goals=True,
-    ),
-    timeout=60,
-)
-
-if isinstance(result, LeanError):
-    raise RuntimeError(f"Lean infrastructure/query failure: {result}")
-if not isinstance(result, CommandResponse):
-    raise TypeError(f"Unexpected LeanInteract response: {type(result)!r}")
-
-is_valid = result.lean_code_is_valid(allow_sorry=False)
-for declaration in result.declarations:
-    print(declaration.full_name)
-    print(declaration.signature.pp)
-    print(declaration.signature.constants)
-```
-
-Implementation notes:
-
-- `LeanError` is an infrastructure/query result, not an invalid-theorem label.
-- `lean_code_is_valid(allow_sorry=False)` is the validity check for complete proof/certificate code.
-- Candidate theorem statements may deliberately use a placeholder proof during statement validation; that route must call `allow_sorry=True` and mark the record `statement_valid_with_placeholder`, not `proof_complete`.
-- Store `DeclarationInfo.signature.pp`, constants, ranges, binders, type/value when available, and the complete response diagnostics.
-
-### A.2 File-level extraction
-
-```python
-from lean_interact import AutoLeanServer, FileCommand, LeanREPLConfig
-from lean_interact.interface import CommandResponse, LeanError
-from lean_interact.project import LocalProject
-
-config = LeanREPLConfig(project=LocalProject(directory="/path/to/mathlib4"))
-server = AutoLeanServer(config)
-
-result = server.run(
-    FileCommand(
-        path="Mathlib/Algebra/Group/Basic.lean",
-        declarations=True,
-    ),
-    timeout=600,
-)
-
-if isinstance(result, LeanError):
-    # Persist the error with file/context identity.
-    ...
-elif isinstance(result, CommandResponse):
-    for declaration in result.declarations:
-        ...
-else:
-    raise TypeError(type(result))
-```
-
-Do not assume every declaration is a theorem. Filter using declaration kind and project policy while retaining non-theorem metadata where useful.
-
-### A.3 InfoTree extraction
-
-```python
-from lean_interact import AutoLeanServer, Command, LeanREPLConfig
-from lean_interact.interface import CommandResponse, InfoTreeOptions
-
-server = AutoLeanServer(LeanREPLConfig())
-response = server.run(
-    Command(
-        cmd="theorem ex (n : Nat) : n = n := by rfl",
-        declarations=True,
-        infotree=InfoTreeOptions.substantive,
-    ),
-    timeout=60,
-)
-
-if isinstance(response, CommandResponse):
-    trees = response.infotree or []
-    for tree in trees:
-        for command_node in tree.commands():
-            ...
-```
-
-InfoTrees are optional structural evidence. The core extractor must remain functional when InfoTree extraction fails or is disabled, and failure must be recorded explicitly.
-
-### A.4 Batch execution with `LeanServerPool`
-
-```python
-from lean_interact import Command, LeanREPLConfig, LeanServerPool
-
-# Construct once before the pool so setup/build work is not repeated by workers.
-config = LeanREPLConfig(verbose=False)
-commands = [
-    Command(cmd=f"#eval {i} * {i}")
-    for i in range(100)
-]
-
-with LeanServerPool(config, num_workers=4) as pool:
-    results = pool.run_batch(
-        commands,
-        timeout_per_cmd=60,
-        show_progress=True,
-    )
-
-for request, result in zip(commands, results, strict=True):
-    # LeanServerPool may return exceptions/errors alongside successful results.
-    # Normalize every item; never assume the batch succeeded globally.
-    ...
-```
-
-For the theorem pipeline, batch by compatible context and use one record ID per command. Preserve order only as a convenience; correctness must use IDs.
-
-### A.5 Backend protocol sketch
-
-```python
-from __future__ import annotations
-
-from dataclasses import dataclass
-from enum import StrEnum
-from pathlib import Path
-from typing import Protocol, Sequence
-
-
 class LeanStatus(StrEnum):
     VALID = "valid"
     VALID_WITH_SORRY = "valid_with_sorry"
@@ -4916,8 +909,7 @@ class LeanStatus(StrEnum):
     UNSUPPORTED = "unsupported"
     INTERNAL_ERROR = "internal_error"
 
-
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class LeanRequest:
     request_id: str
     context_id: str
@@ -4925,586 +917,2796 @@ class LeanRequest:
     file_path: Path | None = None
     declarations: bool = False
     root_goals: bool = False
-    infotree: str | None = None
-    allow_sorry: bool = True
-    timeout_seconds: float = 60.0
+    infotree: Literal["none", "substantive", "full"] = "none"
+    allow_sorry: bool = False
+    timeout_seconds: float = 30.0
+    metadata: Mapping[str, str] = field(default_factory=dict)
 
-
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class LeanResult:
     request_id: str
+    request_hash: str
+    context_id: str
+    context_fingerprint: str
     status: LeanStatus
-    declarations: tuple[dict, ...]
-    messages: tuple[dict, ...]
-    sorries: tuple[dict, ...]
-    duration_seconds: float
-    raw_response: dict | None
-    infrastructure_error: str | None
-
+    messages: tuple[dict, ...] = ()
+    sorries: tuple[dict, ...] = ()
+    declarations: tuple[dict, ...] = ()
+    root_goals: tuple[str, ...] = ()
+    infotree: tuple[dict, ...] = ()
+    elapsed_ms: int = 0
+    raw_response_path: str | None = None
+    infrastructure_error: str | None = None
 
 class LeanBackend(Protocol):
     def run(self, request: LeanRequest) -> LeanResult: ...
-
     def run_batch(self, requests: Sequence[LeanRequest]) -> list[LeanResult]: ...
+    def close(self) -> None: ...
 ```
 
-The concrete backend translates these models to and from LeanInteract. Source adapters and transformations should not depend on LeanInteract classes.
+Invariants:
 
-### A.6 Statement-validation template
+- exactly one of `code`/`file_path` is present;
+- one terminal result per request, in input order;
+- request hash includes payload, context, timeout, `allow_sorry`, InfoTree level, method version, and `environment_schema_version`;
+- raw response is saved before normalization;
+- infrastructure states never become semantic labels.
+
+### 8.5 Pinned API caveats
+
+Phase 1 verifies every symbol before implementation. Expected 0.11.4 behavior:
+
+- `CommandResponse`, `InfoTreeOptions`, `DeclarationInfo`, and `LeanError` are imported from `lean_interact.interface`, not assumed top-level exports;
+- `lean_code_is_valid` defaults to `allow_sorry=True`, so every LeanFaith call passes it explicitly;
+- `LeanServerPool.run_batch` can return a response, `LeanError`, or Python exception per item;
+- `AutoLeanServer` is experimental and requires a tested `LeanServer` fallback;
+- `memory_hard_limit_mb` is Linux-only and applies per REPL process.
+
+### 8.6 Canonical status mapping
+
+| Observation | Status |
+|---|---|
+| accepted with strict no-admission policy | `VALID` |
+| statement valid only with explicit placeholder | `VALID_WITH_SORRY` |
+| Lean diagnostic rejects code | `INVALID` |
+| configured timeout | `TIMEOUT` |
+| process/recovery failure | `CRASH` |
+| project/build/import failure | `SETUP_ERROR` |
+| unsupported toolchain/feature | `UNSUPPORTED` |
+| unclassified adapter failure | `INTERNAL_ERROR` |
+
+`statement_valid_with_placeholder` maps to `VALID_WITH_SORRY`. The adapter preserves diagnostics and exception type/message/trace digest.
+
+### 8.7 Server and parallelization policy
+
+- Use `LeanServerPool` for independent batches after pool tests pass.
+- Use one `LeanServer`/approved `AutoLeanServer` per worker for context-grouped incremental workloads.
+- Group by compatible context/prefix; never reuse state across incompatible contexts.
+- Bound retries; a crash/timeout creates a terminal result and retry lineage.
+- Doctor reports workers × configured per-process memory limit versus detected RAM when available; this is a safety check, not a hardware mandate.
+- One-worker and multiworker runs must yield identical semantic IDs/statuses after normalization.
+
+### 8.8 Statement validation and certificate validation
+
+Statement extraction submits the exact header plus proof-stripped declaration with a placeholder and `allow_sorry=True`; success is `VALID_WITH_SORRY`. A certificate uses `allow_sorry=False`, rejects all admissions/unresolved metavariables, and runs dependency/axiom checks required by §16.
+
+Never infer a negative semantic label from `INVALID`, timeout, crash, unsupported evidence, or failed proof search.
+
+### 8.9 Declaration extraction
+
+Repository files use `FileCommand(..., declarations=True)` through the backend. Dataset snippets use `Command(..., declarations=True)`. Save the complete raw response, then normalize returned declaration metadata/source ranges. Regex can locate candidates but never defines repository theorem boundaries.
+
+### 8.10 InfoTree escalation
+
+Default: `infotree="none"`. `substantive` and `full` are sanctioned only for representation derivation, structural evidence, bounded debugging, or a pre-registered experiment. The exact `InfoTreeOptions` construction is verified against 0.11.4 first.
+
+### 8.11 Context identity
+
+```text
+context_fingerprint = SHA256(canonical context payload)
+context_id = "ctx:" + context_fingerprint
+```
+
+The payload includes `environment_schema_version`, Lean/LeanInteract/REPL/project revisions, imports, namespace/open/scoped context, relevant options/notation, and normalized header. These values enter every backend cache key.
+
+### 8.12 LeanInteract integration tests
+
+Gate 1 requires:
+
+1. import/signature introspection for every Appendix A symbol;
+2. supported/unsupported toolchain checks;
+3. valid, placeholder-valid, invalid, timeout, forced-crash, setup-error, and injected-internal-error normalization;
+4. per-item batch exception/order preservation;
+5. raw response persistence and cache-key determinism;
+6. `Command` and `FileCommand` declaration extraction golden tests;
+7. explicit `allow_sorry` behavior;
+8. InfoTree none/substantive/full smoke where supported;
+9. one-worker/multiworker equivalence;
+10. experimental auto-server recovery and stable server fallback;
+11. memory-product warning/platform handling;
+12. no LeanInteract import outside the Lean boundary.
+
+---
+
+## 9. Data sources and source manifests
+
+### 9.1 Canonical source registry
+
+| Source | Canonical identity | Role/constraint |
+|---|---|---|
+| mathlib | `leanprover-community/mathlib4`, exact revision | main theorem inventory; toolchain constrained by §6.2 |
+| requested private source | `formalmathatepfl/sft_classic` | private Hugging Face dataset; anonymous access returns 401 but the project HF token loads it; license/schema/counts remain unverified until the Phase 0 authenticated probe |
+| public fallback 1 | `formalmathatepfl/sft_classic_numina` | current public sibling, 99,774-row scale; fields include `uuid`, `question`, `answer`, `lean_code`; verify pinned schema |
+| public fallback 2 | `internlm/Lean-Workbook` | about 57k machine-generated/synthetic NL–Lean pairs; weak supervision/problem pool only |
+| public fallback 3 | permitted `PAug/ProofNetVerif` train partition | only if manifest explicitly designates trainable rows |
+| ProofNetVerif evaluation | `PAug/ProofNetVerif` | 3,752 rows; columns `id`, `nl_statement`, `lean4_src_header`, `lean4_formalization`, `lean4_prediction`, `correct`; frozen benchmark |
+| CSLib | `https://github.com/leanprover/cslib`; root `Cslib`; `Cslib/**/*.lean` | small CS library; probe early, adapter at OOD phase; report absolute counts |
+| Physlib | `https://github.com/leanprover-community/physlib`; root `Physlib` | physics OOD source; formerly PhysLean (itself formerly HepLean) and consolidated with Lean-QuantumInfo under the Physlib repository in 2026; pin the exact revision/toolchain |
+| ReForm | `GuoxinChen/ReForm-32B`; fallback `GuoxinChen/ReForm-8B` | Apache-2.0, Qwen3-based specialized generators (arXiv:2510.24592); trained on Lean Workbook, so that overlap must be tagged |
+
+Fixed NL-source fallback order (contingency only, since authenticated `sft_classic` access is expected to succeed):
+
+```text
+accessible sft_classic variant
+→ sft_classic_numina
+→ Lean-Workbook
+→ permitted ProofNetVerif train partition
+```
+
+### 9.2 Gate 0 primary-source lock
+
+The `sft_classic` probe runs with the project HF token (`HF_TOKEN`, supplied via environment/secret manager and referenced by name in `configs/sources/sft_classic.yaml`; never stored in configs or manifests). Archive for the selected primary source:
+
+```text
+resolved ID and immutable revision
+access status and license/terms
+split names/counts and full schema
+a raw 100-row sample plus SHA256
+adapter mapping/version
+phase5_pool_candidate_count by source/domain/trust/dedup reason
+```
+
+Gate 0 fails without this artifact. Do not guess `sft_classic` fields from ProofNetVerif.
+
+**Private-data boundary:** content from a private or gated source — including its natural-language statements — may not be sent to any external LLM provider without a recorded approval decision (an ADR or an `external_api_approved` flag in the source manifest naming the provider set and scope). Phase 5/6 provider calls check this flag before submitting any prompt containing private-source content.
+
+### 9.3 Verified/fallback mappings
+
+ProofNetVerif:
+
+```yaml
+problem_id: id
+nl_statement: nl_statement
+lean_header: lean4_src_header
+reference_lean: lean4_formalization
+candidate_lean: lean4_prediction
+source_label: correct
+```
+
+`sft_classic_numina`, rechecked at pinned revision:
+
+```yaml
+problem_id: uuid
+nl_statement: question
+solution_text: answer
+reference_or_candidate_lean: lean_code
+```
+
+The adapter records whether `lean_code` is trusted, generated, or unknown; it does not infer trust from the column name.
+
+### 9.4 Trusted NL problem pool
+
+The Phase-5 problem-pool frame is the union of accessible rows from the selected `sft_classic`-family primary source that contain usable human-origin NL and Lean Workbook problems, followed by removal of benchmark-denylist IDs and exact/near duplicates. If the selected primary source is itself synthetic or its NL provenance is unknown, it is retained only under the corresponding trust tag rather than being silently upgraded.
+
+A problem is eligible when source/revision/terms are fixed, the NL statement is nonempty and separated from solution text, its group ID is stable, and it is outside the denylist/near-duplicate registry. Store `nl_trust=trusted|synthetic|uncertain`; “trusted NL problem” means human-origin NL with verified provenance and no detected benchmark contamination. Lean Workbook problems are always marked synthetic and may contribute diversity/weak supervision but never satisfy a trusted-human-NL quota. The source probe reports `phase5_pool_candidate_count` before and after every eligibility/deduplication filter, broken down by source, domain, and trust.
+
+### 9.5 Source manifest
+
+Each source writes `data/source_manifests/<source>.json` containing source kind/ID/revision/retrieval date/license, adapter/schema versions, columns/splits/counts, sample/raw hashes, project toolchain where relevant, eligible Phase-5 count, external-API approval status where applicable, and notes. Raw partitions are append-only; adapter fixes create new parsed partitions.
+
+### 9.6 MVP versus OOD source scope
+
+Full MVP adapters: mathlib, the selected primary NL source, and ProofNetVerif. CSLib/Physlib receive exact revision/toolchain/root-module probes in Phase 2; their full adapters, extraction, labeling, and the `heldout_project_test` manifest are built during Phase 11 preparation on the strong-paper track (backlog LF-030), before test unsealing. Small-project percentages are always accompanied by item and ancestry-group counts.
+
+---
+
+## 10. Data lifecycle and immutable stages
+
+```text
+RAW → PARSED → ELABORATED → REPRESENTED → GENERATED → VALIDATED
+    → EVIDENCE_COLLECTED → LABELED → SPLIT → FROZEN
+```
+
+Rules:
+
+1. each stage reads immutable prior manifests and writes a new partition;
+2. raw source/provider/Lean responses are saved before parsing;
+3. every partition has input/config/code hashes, schema version, row counts, and checksums;
+4. commands are idempotent and resumable by deterministic shard ID;
+5. failures remain in explicit failure partitions;
+6. same inputs/config either reproduce exact IDs/hashes or fail closed;
+7. frozen evaluation data are read-only and unavailable to training/prompt-selection jobs;
+8. collection may start early only under quarantine rules in §24.
+
+Recommended key:
+
+```text
+{stage}/{source}/{source_revision}/{config_hash}/{shard_id}.{jsonl.zst|parquet}
+```
+
+---
+
+## 11. Persistent schemas — canonical contracts
+
+Pydantic v2 models use `extra="forbid"`, explicit schema versions, UTC timestamps, stable canonical-JSON IDs, and artifact hashes. Definitions live only in §7.1 modules.
+
+### 11.1 Canonical enums
 
 ```python
-def wrap_statement_for_validation(
-    *,
-    imports: list[str],
-    namespace_prelude: str,
-    theorem_name: str,
-    signature: str,
-) -> str:
-    import_block = "\n".join(f"import {module}" for module in imports)
-    return f"""{import_block}
-{namespace_prelude}
+class ResolutionOutcome(StrEnum):
+    SAME_CLAIM = "same_claim"
+    NOT_SAME_CLAIM = "not_same_claim"
+    AMBIGUOUS = "ambiguous"
+    UNRESOLVED = "unresolved"
 
-theorem {theorem_name} {signature} := by
-  sorry
-"""
+class RelationLabel(StrEnum):
+    EQUIVALENT = "equivalent"
+    A_STRONGER = "A_stronger"
+    B_STRONGER = "B_stronger"
+    INCOMPARABLE_NEAR_MISS = "incomparable_near_miss"
+    UNRELATED = "unrelated"
+    AMBIGUOUS = "ambiguous"
+    UNKNOWN = "unknown"
+
+class IntendedRelation(StrEnum):
+    EQUIVALENT = "equivalent"
+    A_STRONGER = "A_stronger"
+    B_STRONGER = "B_stronger"
+    NEAR_MISS = "near_miss"
+    UNRELATED = "unrelated"
+    UNKNOWN = "unknown"
+
+class QualityTier(StrEnum):
+    GOLD_HUMAN = "gold_human"
+    GOLD_CONSERVATIVE_TRANSFORM = "gold_conservative_transform"
+    GOLD_COUNTEREXAMPLE = "gold_counterexample"
+    BENCHMARK = "benchmark"
+    SILVER_CONSENSUS = "silver_consensus"
+    PROVISIONAL = "provisional"
+    UNKNOWN = "unknown"
+
+class ValidationStatus(StrEnum):
+    UNVALIDATED = "unvalidated"
+    ELABORATES = "elaborates"
+    ELABORATES_WITH_PLACEHOLDER = "elaborates_with_placeholder"
+    INVALID = "invalid"
+    TIMEOUT = "timeout"
+    INFRASTRUCTURE_ERROR = "infrastructure_error"
+    QUARANTINED = "quarantined"
+
+class TransformationFamilyStatus(StrEnum):
+    GOLD_PROMOTED = "gold_promoted"
+    SILVER = "silver"
+    EXPERIMENTAL = "experimental"
+    DISABLED = "disabled"
+
+class EvidenceExecutionStatus(StrEnum):
+    SUCCESS = "success"
+    TIMEOUT = "timeout"
+    ERROR = "error"
+    UNSUPPORTED = "unsupported"
+    ABSTAIN = "abstain"
+    NOT_RUN = "not_run"
+
+class SemanticLabelTargetKind(StrEnum):
+    LEAN_PAIR = "lean_pair"
+    NL_LEAN = "nl_lean"
+
+class EvidenceTargetKind(StrEnum):
+    THEOREM = "theorem"
+    LEAN_PAIR = "lean_pair"
+    NL_LEAN = "nl_lean"
+    TRANSFORMATION_DRAFT = "transformation_draft"
+    TRANSFORMATION_FAMILY = "transformation_family"
 ```
 
-Requirements:
+`near_miss` is intention-only; resolved labels use `incomparable_near_miss`.
 
-- generated theorem names must be fresh and deterministic;
-- validate the extracted declaration and verify its signature, not merely the absence of a process error;
-- `sorry` is allowed only because the task is statement elaboration;
-- the status must remain distinct from a complete proof certificate;
-- do not inject both compared theorems as axioms into equivalence checks.
+### 11.2 `ContextRecord`
 
-### A.7 Directional certificate template
+Required fields:
+
+```text
+schema_version; environment_schema_version; context_id; context_fingerprint;
+project kind/URI/revision/registry key; Lean/LeanInteract/REPL revisions;
+ordered imports; namespace/open/scoped context; relevant options/notation;
+normalized header text/hash
+```
+
+`context_id = "ctx:" + context_fingerprint`. Current writers expose no competing context hash field.
+
+### 11.3 `TheoremRecord`
+
+```text
+schema_version; theorem_id; ancestry_id; root_ancestry_ids;
+parent_theorem_ids; source identity/revision/split/record/file/range;
+context_id; declaration kind/name/full name; raw-declaration artifact pointer/hash;
+proof-stripped declaration; declaration-info artifact; Lean result ID; proposition-valued flag;
+elaboration status/diagnostics; statement content hash;
+NL source link; reference trust; metadata
+```
+
+It contains source/declaration identity only; normalized views live in `RepresentationRecord`. The immutable raw-source artifact is access-controlled for audit and extraction replay, but proof bodies are never admitted as representation fields or model inputs.
+
+### 11.4 `RepresentationRecord`
+
+Key: `(theorem_id, normalization_version)`. Fields use §13.2 names verbatim:
+
+```text
+representation_id; theorem_id; normalization_version; context_id;
+raw_proof_stripped; headless; signature_pp; signature_explicit;
+alpha_structural; notation_light; semantic_atoms; operator_tree;
+view_status per field; option_profile; content_hash; created_at
+```
+
+Optional failed views are null with explicit status; successful views are never overwritten.
+
+### 11.5 `VariantRecord`
+
+```text
+variant_id; source_theorem_ids; generator_kind/id; config hash/seed;
+prompt/raw-output artifacts; extracted statement;
+intended_relation; intended_error_types; candidate_pool;
+transformation/inverse traces; validation_status; validation evidence ID;
+derived theorem ID; quality_tier=provisional until resolution;
+polarity_metadata=positive|negative|mixed|unknown; metadata
+```
+
+`validation_status` is execution state, not semantic truth. Final supervised quality comes from `ResolvedLabel`.
+
+### 11.6 `PairRecord`
+
+```text
+pair_id; A/B theorem IDs; pair source; NL problem group;
+split_group_ids: list[str]; generator/transformation family;
+intended_relation; resolved_label_id; evidence_ids;
+lexical/structural stats; split eligibility; metadata
+```
+
+`split_group_ids` is the sorted union of both sides' root ancestries plus the NL problem group and mandatory near-duplicate/benchmark groups. Split assignment uses union-find connected components (§19.5).
+
+### 11.7 `EvidenceRecord`
+
+```text
+evidence_id; target_kind; target_id; kind;
+status=success|timeout|error|unsupported|abstain|not_run;
+value; method/config versions; raw artifact; created_at
+```
+
+`target_kind` uses `EvidenceTargetKind`; the referenced target must exist and match the evidence kind. This single target contract covers theorem checks, Lean–Lean pairs, NL–Lean judgments, transformation drafts, and family audits without nullable competing IDs.
+
+Per-kind semantic outcomes live in `value`:
+
+```text
+proof: proved | not_proved
+defeq: equal | not_equal
+counterexample: found | not_found | unsupported
+claim_alignment: {alignment_version, binder_map, premise_map,
+                  conclusion_role_map, direction, certified|rejected|unsupported}
+LLM/human: canonical answer/confidence/rationale/audit fields
+```
+
+`not_proved` and counterexample `not_found` never map to a negative label.
+
+### 11.8 `ResolvedLabel`
+
+```text
+label_id; target_kind=lean_pair|nl_lean; target_id;
+same_claim: bool|null; resolution_outcome; relation;
+faithfulness_levels {F0_representation_equivalent,
+F1_same_claim, F2_truth_equivalent}; truth_A_implies_B;
+truth_B_implies_A; error_types; quality_tier; resolution_method;
+evidence_ids_used; adjudication_notes; requires_adjudication;
+train_eligibility; eval_eligibility; policy_version
+```
+
+`target_kind` uses `SemanticLabelTargetKind`. A Lean–Lean label targets one `PairRecord`; an NL–Lean label targets one `NLPLeanRecord`. The target record carries the reverse `resolved_label_id`; a schema/reference-integrity check requires a one-to-one link.
+
+Invariants:
+
+- `F1_same_claim == same_claim`;
+- resolved yes/no outcomes match `same_claim`;
+- ambiguous/unresolved require null;
+- unresolved review route requires `quality_tier=unknown` and `requires_adjudication=true`;
+- terminal human ambiguity uses `quality_tier=gold_human` (or benchmark when source-defined), no binary target;
+- truth false requires accepted separating evidence; failed search produces null;
+- F0/F2 derive mechanically from accepted representation/truth evidence.
+
+### 11.9 `NLPLeanRecord`
+
+```text
+nl_lean_id; problem/group/source/revision; NL statement/trust;
+candidate theorem/generator; reference theorem IDs;
+reference_pairs [{reference_theorem_id, pair_id}];
+resolved_label_id; evidence_ids; split_group_ids; metadata
+```
+
+The NL–Lean label is referenced, never duplicated, and its `ResolvedLabel` must have `target_kind=nl_lean` and `target_id=nl_lean_id`. Every candidate/reference comparison is a separate `PairRecord` whose own label, if present, has `target_kind=lean_pair`; relation-to-reference is therefore per reference rather than a single overloaded field.
+
+### 11.10 Transformation support records
+
+`Applicability`, `VariantDraft`, and `TransformationAudit` are defined once in §15.2 and serialized by `schemas/variant.py`. Draft/audit IDs survive promotion.
+
+### 11.11 LLM call record
+
+Store call/provider/model/family/role, exact revision/date, prompt template/render hashes, input IDs, decoding parameters, raw/parsed output, parse status, retries, tokens/provider cost when available, timestamps, supervision eligibility, private-source approval status, and denylist results.
+
+### 11.12 ID determinism
+
+IDs hash normalized UTF-8 canonical JSON with sorted keys. Timestamps, machine-local absolute paths, and mutable state never enter semantic IDs. Schema migrations write explicit old→new mapping manifests.
+
+---
+## 12. Theorem extraction and context reconstruction
+
+### 12.1 Required products
+
+Every accepted declaration yields immutable source identity, `ContextRecord`, `TheoremRecord`, initial required `RepresentationRecord`, raw/normalized Lean response pointers, diagnostics/exclusion reason, and optional NL/trust links.
+
+### 12.2 Repository extraction
+
+1. resolve pinned project/context;
+2. submit files via `FileCommand(..., declarations=True)`;
+3. save complete raw/normalized response;
+4. select configured theorem/lemma proposition declarations;
+5. recover raw text from returned source ranges;
+6. replace proof using syntax/range-aware code;
+7. revalidate with explicit `allow_sorry=True`;
+8. write accepted or failure record.
+
+### 12.3 Dataset-string extraction
+
+Preserve/hash the original row; remove only versioned outer wrappers; combine exact source header and Lean field; elaborate complete snippet with declarations; select intended declaration by adapter rule; use ranges to proof-strip; re-elaborate in the same context; quarantine multi-declaration ambiguity.
+
+### 12.4 Proof stripping
+
+Handle term proofs, `:= by`, existing admissions, modifiers/attributes, `where` blocks, nested `by`, and examples. Required before pilot: at least 100 difficult golden fixtures, signature-preservation property tests, proof-token leakage checks, and explicit failure records.
+
+### 12.5 Context identity
+
+Canonical payload:
+
+```text
+environment_schema_version
+Lean/LeanInteract/REPL-fork versions
+project URI/exact revision
+ordered imports and namespace/open/scoped context
+local notation/attributes and relevant options
+normalized header text/hash
+```
+
+Then SHA256 and `ctx:` prefix as in §8.11. Changing payload schema increments `environment_schema_version` and invalidates caches.
+
+### 12.6 Theorem and ancestry identity
+
+Source theorem ID hashes source/revision, context, stable declaration identity/range, and statement hash.
+
+```text
+ancestry_id = "anc:" + SHA256(source + revision + source_record + declaration_identity)
+```
+
+One-parent variants inherit root ancestries; multi-parent variants use the sorted union and hash it for their derived ancestry; NL-only candidates receive a generator-call/problem-derived ancestry while the pair also includes the problem group. Ancestry never changes after labeling/splitting.
+
+### 12.7 Filtering and scale checkpoints
+
+Retain proposition-valued declarations that re-elaborate in registered context. Exclude with stable codes: unresolved metavariables, inaccessible context, non-propositions, unsupported syntax, configured length limits, or ambiguous selection.
+
+- smoke: fixtures/source probes;
+- pilot: ≥10,000 eligible statements for MVP identity/collision analysis;
+- research_v1: repeat at ≥100,000 before large-scale identity claims.
+
+“Reload” means reparsing immutable raw data reproduces byte-identical IDs/content hashes; re-elaboration is a separate nightly compatibility check.
+
+---
+
+## 13. Statement representations and normalization
+
+### 13.1 Multi-view principle
+
+No fully expanded string is universally canonical. Each theorem receives a versioned `RepresentationRecord`; expansion is bounded and environment-pinned.
+
+### 13.2 Canonical view names
+
+| Field | Definition | v0 |
+|---|---|---:|
+| `raw_proof_stripped` | source declaration with proof replaced | required |
+| `headless` | name/proof/comments removed; cosmetic normalization | required |
+| `signature_pp` | elaborator pretty-printed type | required |
+| `signature_explicit` | pinned explicit-print helper output | optional until stable |
+| `alpha_structural` | binder-ID/de Bruijn-normalized structure | optional v0; required before M5 |
+| `notation_light` | whitelist-only notation expansions | optional |
+| `semantic_atoms` | ordered/multiset substantive symbols/types/literals | required for promoted transforms |
+| `operator_tree` | compact tree for GTED/TransTED | required before those baselines |
+
+These names are used verbatim in the schema.
+
+### 13.3 Invariants
+
+Deterministic under lock; no proof-body leakage; theorem/binder renaming invariance where applicable; context retained; no unrestricted `simp`/proof search as normalization; explicit view failures; versioned atom extraction.
+
+### 13.4 Pretty-print options
+
+Audit and pin candidates such as:
+
+```lean
+set_option pp.explicit true
+set_option pp.universes true
+set_option pp.fullNames true
+set_option pp.proofs false
+set_option pp.proofs.withType false
+set_option pp.mvars false
+```
+
+The required `pp.explicit`, `pp.universes`, `pp.fullNames`, and `pp.proofs` options exist under the target toolchain but must still be smoke-tested. `pp.proofs=false` is default and may render proofs as `⋯`; this is expected. Probe `pp.proofs.withType` and `pp.mvars` as additional diagnostic candidates, not as justification to include proof payloads.
+
+### 13.5 Structural representation
+
+At minimum store node kind, full constant name, ordered application children, binder/scope links, literals, universe/type summary where useful, and source ranges when available. M5 may add binder-scope/type-of/shared-constant edges.
+
+### 13.6 Semantic atoms and positive audits
+
+Atoms include quantifiers, binder types/dependencies, structures/typeclasses, predicate/relation heads, constructors, casts/targets, literals, and hypothesis/conclusion heads. Every promoted positive stores an atom-diff audit; unexpected deletion/substitution routes to `semantic_rewrite_candidate` or quarantine.
+
+### 13.7 Tokenizer audit
+
+Compare ModernBERT-large, CodeT5+ encoder, and DeBERTa-v3-large on fixed extracted strata. Report sequence/truncation statistics and Unicode fragmentation; test special-token changes only on pilot; record ADR-0004 before non-smoke training.
+
+### 13.8 Representation ablations
+
+Compare raw, headless, signature, combinations, explicit signature, text+atoms/scalars, and M5 text+graph. H3 is assessed on hard near misses and held-out transformation/project slices, not aggregate accuracy alone.
+
+---
+
+## 14. Pair-label taxonomy and error ontology
+
+### 14.1 Canonical labels
+
+Only the §11 enums may be serialized. Proposer intentions, judge text, UI labels, and imported benchmarks map through explicit tables; they never create new persisted spellings.
+
+### 14.2 Review routing and ambiguity
+
+- **UNCERTAIN** is a process route, not a persisted semantic class: `same_claim=null`, `resolution_outcome=unresolved`, `quality_tier=unknown`, `requires_adjudication=true`;
+- terminal ambiguity is a trusted semantic outcome: null + ambiguous + trusted human/benchmark tier + no pending adjudication;
+- external spellings such as judge `uncertain` or UI `cannot assess yet` normalize to the UNCERTAIN route;
+- review is not a model class;
+- terminal ambiguity is masked from binary BCE and headline binary metrics.
+
+### 14.3 E01–E30 ontology
+
+| ID | Name |
+|---|---|
+| E01 | `missing_hypothesis` |
+| E02 | `extra_hypothesis` |
+| E03 | `vacuous_or_inconsistent_hypothesis` |
+| E04 | `wrong_quantifier` |
+| E05 | `wrong_quantifier_order` |
+| E06 | `wrong_domain_or_type` |
+| E07 | `wrong_codomain` |
+| E08 | `wrong_typeclass_or_structure` |
+| E09 | `wrong_constant_or_predicate` |
+| E10 | `wrong_operator` |
+| E11 | `wrong_inequality_strictness` |
+| E12 | `wrong_equality_or_iff_direction` |
+| E13 | `wrong_set_operation` |
+| E14 | `wrong_function_direction_image_preimage_map_comap` |
+| E15 | `wrong_cast_or_coercion` |
+| E16 | `wrong_index_or_bound` |
+| E17 | `wrong_numerical_constant` |
+| E18 | `wrong_answer_value` |
+| E19 | `special_case_only` |
+| E20 | `overgeneralization` |
+| E21 | `irrelevant_or_unbound_variable` |
+| E22 | `omitted_dependency_between_binders` |
+| E23 | `namespace_import_or_notation_mismatch` |
+| E24 | `malformed_or_non_elaborating_statement` |
+| E25 | `semantic_erasure_or_tautologization` |
+| E26 | `formalizes_related_but_different_claim` |
+| E27 | `reference_suspected_incorrect` |
+| E28 | `ambiguous_natural_language` |
+| E29 | `cosmetic_only` |
+| E30 | `other` |
+
+Only IDs are stored in `error_types`; names come from `policies/error_ontology_v1.yaml`.
+
+### 14.4 Interface mappings
+
+Proposer:
+
+| Input | Intended relation | Default error |
+|---|---|---|
+| equivalent/same | `equivalent` | none/E29 |
+| A stronger | `A_stronger` | policy-specific |
+| B stronger | `B_stronger` | policy-specific |
+| non-directional near miss | `near_miss` | E26 unless more specific |
+| unrelated | `unrelated` | E26 |
+| malformed/unknown | `unknown` | none |
+
+Judge:
+
+| Answer | Resolution candidate |
+|---|---|
+| `same_claim` | true/equivalent |
+| `not_same_claim` + directional relation | false/relation |
+| `ambiguous` | terminal-ambiguity candidate |
+| `uncertain`/malformed | UNCERTAIN process route; no terminal label |
+
+UI:
+
+```text
+same claim | not same claim | ambiguous | cannot assess yet
+```
+
+`cannot assess yet` creates the review route. The explanatory UI phrase “related, neither directional claim” serializes as `incomparable_near_miss`.
+
+### 14.5 Quality tiers
+
+| Tier | Meaning | Training | Final evaluation |
+|---|---|---:|---:|
+| `gold_human` | independent expert labels + adjudication | yes | yes |
+| `gold_conservative_transform` | promoted conservative family/item | yes | diagnostic unless independently sampled |
+| `gold_counterexample` | accepted kernel-checked separator/certificate | yes | yes/diagnostic by split policy |
+| `benchmark` | external benchmark label | only when explicitly trainable | yes when held out |
+| `silver_consensus` | promoted independent weak supervision | weighted | not sole final basis |
+| `provisional` | intention/smoke/mining candidate | restricted | no |
+| `unknown` | unresolved/insufficient evidence | no binary target | workflow analysis |
+
+Terminal expert ambiguity can be `gold_human` while still lacking a binary target.
+
+### 14.6 Resolution precedence and conflict policy
+
+```text
+human adjudication
+> frozen benchmark policy
+> promoted conservative certificate / accepted separator
+> promoted independent consensus
+> generation intention
+```
+
+This is decision precedence, not destructive overwrite. Conflicting strong evidence creates a conflict record and review route.
+
+### 14.7 F0/F1/F2 checks
+
+F1 equals `same_claim`; F0 derives from accepted definitional/representation evidence; F2 derives from accepted directional truth fields. F2 false requires separating evidence, not failed proof search. Impossible combinations fail schema validation unless an explicit policy exception is linked.
+
+---
+
+## 15. Deterministic transformation framework
+
+### 15.1 v1 scope
+
+Active v1 families:
+
+```text
+positives: P01 alpha, P02 binder/interface, P04-lite direct notation
+negatives: N01 operator, N02 quantifier, N03 hypothesis deletion,
+           N07 literal/bound/index, N10 nearby theorem
+```
+
+Other families remain registry stubs with `experimental` or `disabled`. Cosmetic P00 is for invariance tests and cannot dominate training.
+
+### 15.2 Canonical transformation protocol
+
+```python
+@dataclass(frozen=True, slots=True)
+class Applicability:
+    applicable: bool
+    reason_codes: tuple[str, ...]
+    matched_nodes: tuple[str, ...] = ()
+    required_capabilities: tuple[str, ...] = ()
+    metadata: Mapping[str, object] = field(default_factory=dict)
+
+@dataclass(frozen=True, slots=True)
+class VariantDraft:
+    draft_id: str
+    source_theorem_ids: tuple[str, ...]
+    rule_id: str
+    rule_version: str
+    family_id: str
+    seed: int
+    candidate_code: str
+    intended_relation: IntendedRelation
+    intended_error_types: tuple[str, ...]
+    candidate_pool: str
+    transformation_trace: tuple[dict, ...]
+    inverse_trace: tuple[dict, ...] | None
+    expected_atom_mapping: Mapping[str, str]
+    expected_structural_diff: Mapping[str, object]
+    generation_config_hash: str
+    metadata: Mapping[str, object] = field(default_factory=dict)
+
+@dataclass(frozen=True, slots=True)
+class TransformationAudit:
+    audit_id: str
+    draft_id: str
+    applicability: Applicability
+    elaboration_evidence_id: str | None
+    structural_diff_ok: bool | None
+    atom_mapping_ok: bool | None
+    inverse_or_roundtrip_ok: bool | None
+    certificate_evidence_ids: tuple[str, ...]
+    violation_codes: tuple[str, ...]
+    recommended_validation_status: ValidationStatus
+    recommended_quality_tier: QualityTier
+    metadata: Mapping[str, object] = field(default_factory=dict)
+
+class TransformationRule(Protocol):
+    rule_id: str
+    rule_version: str
+    family_id: str
+    polarity: str
+    def assess(self, theorem, representation) -> Applicability: ...
+    def generate(self, theorem, representation, seed: int) -> Sequence[VariantDraft]: ...
+    def audit(self, source, source_representation, candidate,
+              candidate_representation, draft) -> TransformationAudit: ...
+```
+
+String substitution is permitted only for cosmetic fixtures; real rules operate on Lean-aware syntax/structure.
+
+### 15.3 Universal gates
+
+Every draft references valid sources/reps; elaborates as a proposition; has no unresolved metavariables; differs under required hash; retains seed/config/trace; passes denylist/dedup/size checks; stores diagnostics/evidence; receives canonical validation status; remains semantically provisional until promotion.
+
+`semantic_rewrite_candidate` is a `candidate_pool` value, not a status/tier.
+
+### 15.4 Positive promotion
+
+`gold_conservative_transform` requires:
+
+1. family status `gold_promoted` and positive allowlist;
+2. exact local structural diff;
+3. approved semantic-atom mapping;
+4. preserved binder dependencies, assumptions, literals, and conclusion heads;
+5. round-trip/inverse or rule-specific certificate;
+6. no source/candidate proof constants or admissions;
+7. Gate 4A family audit;
+8. no item-level quarantine violation.
+
+Otherwise keep provisional or route to semantic rewrite/human review.
+
+### 15.5 Active positives
+
+- **P01:** capture-avoiding alpha renaming; alpha-structural identity required.
+- **P02:** regroup typed binders and a narrow approved currying/uncurrying subset; dependency graph and round trip required.
+- **P04-lite:** finite notation↔direct-form table with exact constants and rule-specific certificate/invariant.
+
+Unrestricted `simp`, `ring_nf`, `linarith`, `omega`, `aesop`, theorem lookup, mutual provability, semantic fusion/equisatisfiability, or collapse to `True`/reflexivity is never sufficient automatic-positive evidence.
+
+### 15.6 Active negatives
+
+- **N01:** type-compatible relation/operator mutation.
+- **N02:** quantifier/order/dependency mutation.
+- **N03:** substantive hypothesis deletion with type-correct repair.
+- **N07:** literal, bound, index, or argument-order mutation.
+- **N10:** high-overlap nearby theorem/component substitution; both source ancestries enter split groups.
+
+v1 N01 and N10 draw substitutions from a curated, versioned type-compatible replacement table (`configs/transformations/replacement_table_v1.yaml`) listing allowed replacements with type preconditions and expected E-codes. Environment-derived replacement indexing — proposing substitutions automatically from extracted signatures — is deferred along with the stubbed families.
+
+### 15.7 Negative promotion routes
+
+A mutation begins provisional and may become supervised only by exactly one route:
+
+1. checked counterexample/separator in supported fragment → `gold_counterexample`;
+2. accepted one-direction proof plus separator for the reverse → `gold_counterexample` with directional relation;
+3. expert adjudication → `gold_human`;
+4. independent consensus plus audited precision → `silver_consensus`.
+
+No “high-confidence mutation” shortcut. Search `not_found`/`not_proved` does not qualify.
+
+### 15.8 Family registry and audits
+
+`configs/transformations/registry.yaml` stores family/version/polarity/profile/status, allowed intentions/errors, invariants/evidence, audit manifest, and policy decision.
+
+- 50–100 blinded items: pilot/refinement, especially negatives; no gold promotion.
+- ≥200 blinded items for positive gold promotion. Define family precision as `audited same_claim=true / all blindly audited, successfully elaborated family outputs selected by the frozen design`; terminal ambiguity, unresolved review, policy violation, or incorrect output is not counted as a success. Require point precision ≥99% **and** the lower endpoint of a two-sided 95% Clopper–Pearson exact interval ≥95%.
+- Rule changes create new versions and reopen promotion.
+
+### 15.9 Required tests
+
+Applicability fixtures; deterministic seeded output; capture/dependency property tests; re-elaboration; round trips; atom/structural golden diffs; no self-promotion from intended labels; N10 two-ancestry grouping; disabled-family rejection; immutable audit-stat recomputation.
+
+---
+
+## 16. Counterexample and symbolic evidence pipeline
+
+### 16.1 Sampling scope
+
+Symbolic evidence is mandatory for evaluation/calibration pairs when applicable, gold-promotion candidates, gold-counterexample candidates, and a preregistered stratified training sample. It is not exhaustively run over all training pairs.
+
+### 16.2 Evidence jobs
+
+| Kind | Execution status | Semantic value |
+|---|---|---|
+| definitional equality | success/error/etc. | `equal|not_equal` |
+| closed proof A→B / B→A | success/timeout/etc. | `proved|not_proved` for F2 only |
+| binder-aligned claim certificate | success/unsupported/etc. | `certified|rejected|unsupported` + mapped direction |
+| counterexample | success/unsupported/etc. | `found|not_found|unsupported` |
+
+Only checked proof yields `proved`; only checked separator yields `found`. Negative search outcomes remain unknown.
+
+### 16.3 Proposition isolation and comparison modes
+
+Build helpers from proposition types, not imported theorem proof constants. Do not make either compared proof constant available to the tactic context. Audit used constants/axioms for accepted certificates.
+
+Keep two evidence modes distinct:
+
+1. **closed truth mode** proves the complete proposition A→B or B→A and can populate only F2;
+2. **binder-aligned claim mode** records a versioned alignment of corresponding binders, premises, and conclusion roles, then proves a local mapped implication without exploiting an inconsistent whole-theorem premise.
+
+Only the second mode may support `A_stronger`/`B_stronger`, and only when the alignment/diff passes the semantic policy. If alignment is unavailable or the proof uses vacuity/ex falso, keep the claim relation unknown or human-resolved even when closed truth mode succeeds.
+
+### 16.4 Authoritative proof portfolio
+
+`configs/evidence/portfolio_v1.yaml` is authoritative and versioned. It may include exact/assumption, constructors/intros, replayed `simp?`/`aesop?`, `omega`, `linarith`, `nlinarith`, `ring`, `norm_num`, approved domain tactics, and narrowly defined binder-alignment templates. Accept only replayed admission-free certificates. Alignment templates record binder/premise/conclusion maps and reject vacuity/ex-falso shortcuts. Tactic order, templates, and timeouts are part of the method version.
+
+### 16.5 Bounded counterexamples
+
+Restrict v1 to finite/bounded `Decidable` fragments. Prefer kernel `decide`. Persist domain/encoding/helper/theorem/result and axiom audit. Coverage is best effort; no broad counterexample gate exists.
+
+### 16.6 Lower-trust native execution
+
+`native_decide` is a distinct lower-trust evidence method because native execution bypasses ordinary kernel reduction and has had known soundness failures. Mathlib policy forbids relying on it for accepted library proofs, and Lean ≥4.29 can attach per-computation axioms. For every use record the Lean version and `#print axioms` (or pinned equivalent), store per-computation/other axioms, and never use it as the sole basis for a gold negative. It may mine/corroborate candidates only unless a later reviewed policy changes this.
+
+### 16.7 Certificate acceptance
+
+Require `allow_sorry=False`, no admissions/unresolved metavariables/forbidden axioms, no source/candidate proof constants, exact context, persisted code/result, axiom/dependency audit, pair/method link, and reproducibility after cache deletion.
+
+### 16.8 Evidence-to-label policy
+
+Defeq informs F0; closed whole-proposition proofs inform F2; binder-aligned certificates may support a directional claim relation; a checked separator can set a truth direction false and support F1=false under policy. None alone silently sets F1. A closed implication never directly assigns `A_stronger`/`B_stronger`, and mutual closed provability never directly assigns F1=true. Conflicts route to review.
+
+### 16.9 Cache key
+
+Include pair/theorem ID, kind/version, context ID, `environment_schema_version`, timeout, portfolio/config hash, and Lean/LeanInteract versions. A changed timeout/method is a new key.
+
+---
+
+## 17. LLM data generation with a very large token budget
+
+### 17.1 Roles and boundary
+
+Models may autoformalize, propose controlled variants, repair diagnostics, or judge. Model output/votes are evidence, never automatic gold.
+
+### 17.2 Provider slots
+
+`configs/generation/providers.yaml` declares:
+
+```text
+judge_A              frontier family A
+judge_B              distinct frontier family B
+broad_generator      high-capability general model
+open_diversity       open-weight diversity model
+specialized_generator ReForm-32B, ReForm-8B fallback
+primary_eval_judge   family excluded from all training supervision
+```
+
+Exact IDs/revisions are frozen at run start. Secret credentials stay outside configs. Prompts containing private-source content are submitted only to providers covered by the §9.2 approval record.
+
+### 17.3 Generator families
+
+Use 3–4 materially distinct successful families; hard floor three for Gate 5. Candidate families: ReForm-32B/8B, Kimina-Autoformalizer-7B, Goedel-Formalizer-V2, StepFun-Formalizer, Herald, ATLAS, and a capable frontier family. Exact availability/license/overlap is probed first.
+
+One family may be reserved from the same 3–4 for `heldout_generator_test`; none of its outputs/judgments enters supervision.
+
+### 17.4 Early real-output collection carve-out
+
+Collection may begin after Gate 2, but outputs stay under raw/parsed quarantine until Phase 5/6 policies exist. For each trusted NL problem request multiple independent candidates across families/seeds. Preserve noncompiling outputs for repair/failure analysis; only compiling proposition candidates enter semantic pair pools.
+
+### 17.5 Prompt families
+
+Version direct autoformalization, diagnostic repair, equivalent reformulation, single-E-code near miss, stronger/weaker, adversarial minimal edit, and critique/revise prompts. Require strict machine-parsable output and retain raw failures.
+
+### 17.6 Validation/deduplication
+
+Parse under versioned extractor; validate through LeanInteract; create variant/theorem/representation records; apply denylist/near-duplicate checks; deduplicate by raw/headless/alpha/problem IDs; retain repair lineage and failed attempts.
+
+### 17.7 Blinded judges and circularity control
+
+Judges see only registered Lean/NL views and allowed evidence condition—not proposer/family/intention/gold/other votes. Judge A/B are distinct. The primary LLM baseline family is excluded from all training-time supervision. Freeze a judge×supervision cross matrix before labels are produced.
+
+### 17.8 Silver promotion
+
+Require schema parse, family independence, no proposer–judge shortcut in primary data, canonical agreement, no conflict with accepted evidence, and audited stratum precision. Store `silver_consensus`; disagreement/low confidence/semantic-erasure suspicion/malformed output routes to review.
+
+### 17.9 Capped stratified audit
+
+Audit promoted silver strata with:
+
+```text
+base sample size = min(ceil(0.20 × promoted_silver_count), 1000)
+```
+
+Allocate preregistered per-stratum minimums **inside** that base sample. If the requested minima do not fit, coarsen/merge the promotion strata before sampling or keep the affected strata unpromoted; do not silently exceed the cap or waive a minimum. Oversample disagreement, near-threshold, rare domains/errors, and symbolic conflicts within the resulting design. Preserve inclusion propensities and report weighted/unweighted results.
+
+### 17.10 Real-output prevalence
+
+Before freezing `real_output_test`, human-label a 200–300-item stratified sample across generator/domain from compiling candidates. Estimate faithful prevalence with confidence intervals and sampling propensities. Use it for power/headroom, test composition, and reranking expectations—not as an automatic training shortcut.
+
+### 17.11 Active learning and token policy
+
+Prioritize model/judge/symbolic disagreement, high-similarity negatives, low-overlap positives, semantic erasure, rare categories, suspected references, and held-out-like behavior. Never inspect frozen tests. Spend tokens first on diversity, then validation/dedup, then independent judging, and only later repeated judging of informative residuals. Record tokens/calls/latency/retries/provider cost without dollar caps.
+
+---
+## 18. Human annotation and adjudication
+
+### 18.1 Parallel tooling track
+
+Annotation tooling/guidelines may start after Gate 3 in parallel with generation. Generation and promotion are separate checkpoints: candidates may exist before the pilot, but no family/silver stratum is promoted without required blinded labels.
+
+### 18.2 Products and rounds
+
+| Product | Purpose | Use |
+|---|---|---|
+| policy pilot | definitions/UI/mapping refinement | no final metric |
+| `development_gold` | training/error analysis | training allowed |
+| `calibration_gold` | final calibration/thresholds on real outputs | no weight training |
+| `final_human_test` | primary claims | sealed evaluation |
+
+Rounds: first 100 Lean–Lean workflow items; then cumulative 200–400 Lean–Lean plus 100–200 NL–Lean; then Phase 7b main campaign.
+
+A ≥500-item final main-task test can support aggregate/95%-precision claims with intervals when enough accepts exist, but not precise rare-error/every-domain/99%-precision recall claims.
+
+### 18.3 Sampling and propensities
+
+Store stratum, inclusion probability, and design weight. Sample provenance/generator/domain/length/relation/similarity/error/symbolic strata. Final-test selection may not depend on any compared model. A fixed preregistered reference scorer may define difficulty only if excluded from comparisons. Include a simple-random compiling-real-output subpanel; deployment operating claims rest on it.
+
+### 18.4 Blinded interface
+
+Show proof-stripped statements, elaborated signatures, minimal context/import summary, and typecheck status. Optional structural/reference panels are explicitly marked. Hide generator, transformation, intention, prior votes, split, and model scores.
+
+### 18.5 Fields
+
+```text
+same_claim: same_claim | not_same_claim | ambiguous | cannot_assess_yet
+relation: equivalent | A_stronger | B_stronger |
+          incomparable_near_miss | unrelated | ambiguous | unknown
+error_types: E01–E30 multi-label
+confidence: 1–5
+rationale: required for not-same/ambiguous
+reference_issue: none | suspected | definite
+```
+
+`cannot_assess_yet` routes to unresolved review, not terminal ambiguity.
+
+### 18.6 Protocol
+
+Two independent expert labels; no discussion before first labels; adjudicate disagreement/low-confidence/policy triggers; preserve raw labels/rationales; resolve under versioned guideline; compute raw agreement, Cohen's κ, and per-category agreement. Guideline revisions occur only between rounds and trigger reevaluation of affected pilot examples.
+
+Gate 7: κ≥0.60 and raw agreement≥80%. Failure triggers category/guideline revision and a new blinded pilot, never threshold lowering.
+
+### 18.7 Audit tiers
+
+- 50–100 blinded items: pilot/noisy negative-family refinement; no gold promotion.
+- ≥200: positive-family gold promotion under Gate 4A point/Clopper–Pearson rule.
+- Any rule-version change invalidates prior family promotion.
+
+### 18.8 Ambiguity policy
+
+Distinguish genuine ambiguity from annotator uncertainty. Genuine terminal ambiguity stays in the audit/evaluation set, masked from binary target and used for three-class/abstention analysis. Annotator uncertainty triggers further review.
+
+### 18.9 Guideline inventory
+
+Include vacuity, inconsistent/redundant hypotheses, directional strength, domains/typeclasses, implicit arguments/coercions/subtypes, semantic erasure, answer-only statements, reference errors, ambiguous NL, and notation/abstraction boundaries. Every E-code has accepted/rejected examples before Phase 7b.
+
+---
+
+## 19. Dataset construction, balancing, and contamination control
+
+### 19.1 Build profiles
+
+| Profile | Scope |
+|---|---|
+| smoke | fixtures/≤1,000 pairs; plumbing only |
+| pilot | ≥10k statements; controlled generation/pilot labels |
+| research_v1 | ≥100k statements when learning curves justify scale |
+
+LF-018's pre-scale audit slice precedes the pilot profile.
+
+### 19.2 Balance versus prevalence
+
+Training may balance labels/relations/tier/family/error/source/domain/provenance/generator. Evaluation preserves or reweights to declared prevalence. Never imply a 50/50 deployment prior.
+
+### 19.3 Sampling metadata
+
+Precompute lexical/token/atom/tree similarity, binder/length/typeclass differences, symbolic outcomes, source/provenance. Store frame, stratum, inclusion probability, design weight, fixed reference scorer if used, and selection timestamp.
+
+### 19.4 Denylist timing
+
+Phase 2 writes `data/benchmarks/frozen_ids.json` before any Phase 4 generation, freezing source IDs, normalized-NL hashes, raw-text hashes, references/candidates, and provenance. Representation-dependent near-duplicate signatures (headless/signature/alpha hashes and retrieval indexes) are appended to the frozen registry at the end of Phase 3 — still before any Phase 4 generation; the append is additive and versioned, never a rewrite. Cross-split candidates appear in contamination reports.
+
+### 19.5 Connected-component grouping
+
+For each pair, `split_group_ids` is the union of both sides' root ancestries, NL problem group, and mandatory near-duplicate/benchmark groups. Build pair↔group edges, compute union-find connected components, and assign each component atomically. This handles multi-parent/N10/multiple-reference/multiple-candidate cases.
+
+### 19.6 Split inventory and label sources
+
+`human_test` is the serialized split name for the sealed `final_human_test` product; no second spelling is allowed in code. Every split manifest freezes `target_count`, realized eligible count, label source, sampling design, and its exact subset/disjoint relation to `human_test`.
+
+| Split | Label source | Target-count rule | Relation to `human_test` | v0/track |
+|---|---|---|---|---|
+| `train` | permitted gold/silver under policy | build-profile/config count after component assignment | disjoint | mandatory |
+| `validation` | development labels | frozen development fraction/component count | disjoint | mandatory |
+| `calibration` | pair-level development labels for method comparison only | frozen development fraction/component count | disjoint | mandatory |
+| `internal_test` | frozen internal gold/diagnostic labels | fixed in `configs/splits/v0.yaml` before model selection | disjoint | mandatory |
+| `human_test` | sealed expert adjudication | ≥500 eligible main-task items unless preregistration declares the corresponding operating-point claim unsupported | identity | final claims |
+| `benchmark_test` | frozen external benchmark labels | all eligible rows after environment migration/exclusions | disjoint after denylist/near-duplicate filtering | when adapters ready |
+| `real_output_test` | expert labels on compiling real outputs, including a simple-random-sample subpanel | power-derived and frozen after the 200–300-item prevalence study | named subset of `human_test` by default; any disjoint design requires preregistered ADR | deployment claims |
+| `heldout_transform_test` | blinded expert/audited labels for unseen families | all eligible or power-derived frozen count | subset of `human_test` when human-labeled; otherwise disjoint manifest | strong-paper |
+| `heldout_project_test` | expert/accepted labels from unseen projects | all eligible with absolute item/group counts | disjoint project manifest | strong-paper |
+| `heldout_generator_test` | expert labels from the supervision-excluded family | power-derived frozen count | named subset of `real_output_test`/`human_test` | H6 strong-paper |
+| `adversarial_test` | expert minimal-pair/semantic-erasure labels | frozen curated frame count | named subset of `human_test` unless separately constructed | strong-paper |
+
+Human/benchmark/real/held-out/adversarial splits are manifest-built, not random fractions. A row may belong to an explicitly declared reporting subset (for example `heldout_generator_test ⊆ real_output_test ⊆ human_test`) while having exactly one primary split assignment for training-access control; reporting-subset membership is stored separately from the primary split.
+
+Deployment thresholds use `calibration_gold`, restricted to the real-output distribution and disjoint from all weight-training and `human_test` records. Pair-level `calibration` is development-only. CSLib/Physlib results always include absolute item and ancestry-group counts.
+
+### 19.7 Frozen evaluation registry
+
+Denylist at minimum:
+
+```text
+ProofNetVerif; ProofNet#; RLM25; Con-NF; EPLA; CriticLeanBench;
+ConsistencyCheck; Gaokao-Formal; DriftBench; miniF2F variants
+```
+
+Store exact source/revision/IDs/hashes/near-duplicate signatures/usage. Test labels never influence training, active learning, calibration, or prompts.
+
+Special rules:
+
+- ReForm is trained on Lean Workbook; ReForm×Lean-Workbook items are not held-out-generator/source-independent evidence.
+- Public benchmarks/mathlib may be in pretrained models; Risk R26 requires public-versus-post-cutoff-novel deltas.
+- Any trainable ProofNetVerif partition is frozen/disjoint before benchmark claims.
+
+### 19.8 Split manifests
+
+Each stores record/component/group IDs, label source, source/project/generator, propensities, denylist status, hashes/version/config. `configs/splits/v0.yaml` contains random fractions only for train/validation/calibration/internal_test and manifest paths for all constructed tests, plus held-out generators/projects/transforms and mandatory/deferred status.
+
+### 19.9 Reload definition
+
+Reparsing immutable raw data must reproduce byte-identical IDs/content hashes for ≥99.5% of checked records, with all discrepancies explained. Re-elaboration is a separate nightly check.
+
+---
+
+## 20. Baselines
+
+### 20.1 Simple/scalar
+
+Exact/headless/signature equality; token/character edit; constant/atom overlap; generic embedding cosine; logistic/boosted scalar classifier. The scalar classifier is not M0.
+
+### 20.2 Symbolic and naming
+
+Typecheck; defeq; directional `portfolio_v1`; certificate-or-abstain; original **BEq** (Liu et al./Con-NF); **BEq+** (Poiroux et al./ProofNetVerif); symbolic ensemble. Always name the implementation/paper/config/protocol—never collapse BEq and BEq+.
+
+### 20.3 Structural/learned critics
+
+Operator-tree edit, GTED, ASSESS/TransTED, FormalAlign-compatible evaluator, CriticLean/CriticLeanGPT, LeanScorer/Mathesis condition, generic code cross-encoder. If code/protocol is unavailable, document it; do not publish an approximation under the method's name.
+
+### 20.4 LLM judge conditions
+
+Raw Lean; signature Lean; reference-free NL+Lean; reference-aware NL+reference+candidate; two-family consensus; judge+symbolic; fixed self-consistency; and a COVCAL-style risk-controlled Lean-as-judge condition when its released protocol is reproducible under the pinned environment. Primary judge family is supervision-free. Prompt development has a bounded preregistered variant/example/call allowance and never uses frozen tests. Any COVCAL comparison uses its own disjoint calibration data and reports coverage/risk assumptions rather than treating Lean execution as an infallible oracle.
+
+### 20.5 Fair cost accounting
+
+Report wall-clock/compute class, provider tokens/calls/cost, Lean requests and amortized evidence cost, cache/cold-start conditions, coverage/abstention. M3/symbolic methods include evidence collection cost; LLM and neural comparisons state batching/caching.
+
+### 20.6 Common output
+
+```json
+{
+  "record_id": "pair:... or nllean:...",
+  "method": "...",
+  "method_version": "...",
+  "score_same_claim": 0.0,
+  "score_ambiguous": 0.0,
+  "decision": "ACCEPT | REVIEW | REJECT",
+  "relation_scores": {},
+  "error_type_scores": {},
+  "elapsed_ms": 0,
+  "cost": {},
+  "evidence_ids": [],
+  "config_hash": "..."
+}
+```
+
+---
+
+## 21. Model design
+
+### 21.1 Fixed numbering
+
+```text
+M0 dual-encoder embedding model
+M1 concatenated Lean-pair cross-encoder
+M2 shared encoder + bidirectional cross-attention/matching
+M3 M2 + symbolic/structural fusion
+M4 NL–Lean faithfulness model
+M5 optional text + elaborated Expr graph
+```
+
+### 21.2 Encoder decision
+
+ModernBERT-large default candidate, subject to §13.7 comparison with CodeT5+ encoder and DeBERTa-v3-large. ADR freezes tokenizer/special tokens/max lengths/truncation before non-smoke training.
+
+### 21.3 M0
+
+Shared separate encoders; normalized embeddings; symmetric head over cosine, absolute difference, and product; BCE plus optional contrastive/ranking loss. Used for retrieval/mining and low-cost baseline.
+
+### 21.4 M1
+
+Concatenate tagged A/B headless/signature views; predict same-claim, ambiguity, relation, masked directional truth, and E01–E30.
+
+### 21.5 M2 bidirectional matching
+
+Encode A/B with shared encoder; run L blocks where A attends to B and B to A; pool symmetric/directional features; apply heads. Enforce swap augmentation/consistency:
+
+```text
+p_same(A,B) ≈ p_same(B,A)
+p_A_stronger(A,B) ≈ p_B_stronger(B,A)
+```
+
+This is the intended decoder-like cross-attention, not autoregressive decoding.
+
+### 21.6 M3 hybrid
+
+Fuse defeq, directional proof/counterexample state, GTED/tree score, atom/constant overlap, binder/typeclass/context/lexical features. Compare feature concatenation, calibrated meta-model, and certified-override→neural-fallback. Failed proof search is encoded unknown, not negative. `configs/models/m3.yaml` is mandatory.
+
+### 21.7 Heads and ambiguity
+
+- binary same-claim; ambiguous/unresolved masked;
+- separate ambiguity head;
+- seven-way relation head with unknown masking;
+- masked A→B/B→A auxiliaries;
+- E01–E30 multi-label errors.
+
+Primary training masks terminal ambiguity from BCE. A three-class model is a preregistered ablation.
+
+### 21.8 Loss
+
+```text
+L = λeq BCE(same) + λamb BCE(ambiguity) + λrel CE(relation)
+  + λdir masked directional BCE + λerr multilabel BCE
+  + λswap swap consistency + optional λrank ranking
+```
+
+Unknown fields are masked. Quality weights/loss weights select on validation only.
+
+### 21.9 Curriculum
+
+Start with promoted conservative/near-miss data; mix real outputs early; add silver with explicit weights; fine-tune on development gold. Compare deterministic-only, +LLM, +real, all weak, and weak+human. Provisional data are mining/pretraining only unless ablated.
+
+### 21.10 Calibration/abstention
+
+Two roles:
+
+- pair-level `calibration`: compare methods during development;
+- `calibration_gold`: fit final deployment thresholds on expert real-output distribution.
+
+Select calibration by K-fold within `calibration_gold`, then refit/freeze. Headline ACCEPT target is ≥95% precision; 99%-precision recall exploratory. Split-conformal/selective-risk claims state exchangeability and no guarantee under generator/project shift; check generator-Mondrian behavior diagnostically.
+
+### 21.11 M4
+
+NL encoder + Lean encoder initialized from M2/M3 with joint/bidirectional attention. Support reference-free `N+C` and reference-aware `N+C` plus separate `R+C` PairRecords. Primary application claim is reference-free reranking.
+
+### 21.12 M5
+
+Use `alpha_structural`/Expr nodes (`forallE`, `lam`, `letE`, `app`, `const`, `fvar`, `bvar`, `sort`, `lit`, `proj`) and parent/child, binder-scope, type-of, application, shared-constant edges. Compare graph-only/text-only/late/cross-modal fusion. Retain only under H3 slice gains.
+
+### 21.13 Hard-negative mining
+
+Mine disagreements only from nonfrozen pools; independently verify; create a new dataset version. Never mine from final/external test labels or derived scores.
+
+---
+
+## 22. Training and experiment discipline
+
+### 22.1 Manifests
+
+Every run records dataset/split manifests; model/tokenizer/views/truncation; sampler/quality weights; optimizer/scheduler/seeds; precision/runtime; loss weights; calibration/evaluation protocol; code/environment revisions. No run mutates a frozen split.
+
+### 22.2 Determinism/restartability
+
+Seed all RNGs; record nondeterministic kernels; checkpoint optimizer/sampler; persist exact IDs; resume deterministically or create a new run ID.
+
+### 22.3 Long inputs
+
+Compare head+tail, section-budgeted binder/hypothesis/conclusion, atom-preserving, and long-context handling. Report truncation by label/source/slice; do not give one representation systematically more content without disclosure.
+
+### 22.4 Hard aborts
+
+Abort if connected components cross protected splits; exact/headless/alpha/near duplicates violate policy; denylisted or prohibited overlap enters supervision; primary judge family appears in weak labels; final-test items enter active learning/prompt logs; manifests disagree; test labels are mounted to training without evaluation-only flag.
+
+### 22.5 Selection order
+
+Weights/hyperparameters: validation. Calibration-method development: pair-level calibration. Final thresholds: K-fold `calibration_gold` real outputs. Final tests only after checkpoint/tokenizer/prompts/calibration/thresholds freeze. Decisions go to reports/decisions or ADRs.
+
+### 22.6 Learning curves
+
+Run multiple scales for deterministic-only, +LLM, +real, all weak, weak+human. H2 uses controlled architecture/training comparisons, not merely a larger final run.
+
+### 22.7 Smoke exemption
+
+`artifact_class=smoke` may use tiny provisional alpha pairs with `resolution_method=smoke_alpha_certificate` solely for plumbing. These artifacts cannot enter release, selection, calibration, or scientific tables.
+
+### 22.8 Pretraining contamination metadata
+
+For judges/encoders record public benchmark/mathlib exposure as unknown/suspected/documented. Risk R26 uses post-cutoff novel items and public-versus-novel deltas; lack of documentation is not evidence of no exposure.
+
+---
+
+## 23. Evaluation plan
+
+### 23.1 Ambiguous policy
+
+Gold terminal ambiguous items are excluded from binary metrics with counts/prevalence reported. Evaluate three-class macro-F1, abstention alignment (share routed REVIEW), and sensitivity with ambiguous→not-same. Unresolved review-route records are workflow volume, not gold test labels.
+
+### 23.2 Headline metrics
+
+Prevalence, AUROC, AUPRC, macro-F1, same-claim precision/recall/F1, Brier, ECE/reliability, and risk/coverage. Headline operating point: coverage/recall at 95% precision with Wilson or Clopper–Pearson interval and denominator. Recall at 99% precision is exploratory.
+
+### 23.3 Relation/error metrics
+
+Relation macro-F1/confusion; directional accuracy only on non-null certified/human truth; E01–E30 micro/macro/per-code P/R/F1 and exact match; swap consistency; ambiguity separately.
+
+### 23.4 Robustness
+
+A/B swap, binder/theorem renaming, whitespace/comments, safe regrouping, unseen transforms, held-out projects/generators, long statements, low-overlap positives, high-overlap negatives, semantic-erasure traps, context changes, reference defects, ambiguous NL. Gate 6 swapped-order agreement ≥90% after direction remap.
+
+### 23.5 Sampling/weighting
+
+Store propensities. Report raw counts/groups plus unweighted/design-weighted metrics. Deployment operating claims use the SRS real-output subpanel or explicit deployment weights. Final sampling cannot depend on any compared model.
+
+### 23.6 External registry
+
+ProofNetVerif, ProofNet#, RLM25, Con-NF, EPLA, CriticLeanBench, ConsistencyCheck, Gaokao-Formal, DriftBench, and compatible miniF2F variants. Run released protocols where possible; document imports/exclusions/migrations/mappings. No test label affects selection/calibration/prompts.
+
+### 23.7 Reranking
+
+Generate K → Lean validate → score compiling → optional cluster → select/REVIEW. Compare first, first compiling, random, generator score, clean LLM judge, judge+symbolic, symbolic/reference methods, M4/M3. Metrics: faithful@1/@k, MRR/nDCG when graded, coverage at 95% precision, no-compiling, abstention, tokens/calls/Lean evidence/latency.
+
+### 23.8 Repair
+
+On a frozen eligible subset provide predicted errors/minimal mismatch to a repair generator; revalidate; measure faithful repair, regression/false repair, and cost. Repair outputs receive new ancestry/groups.
+
+### 23.9 Statistics and test-size limits
+
+- bootstrap by ancestry connected component/NL problem, never pair;
+- report block count/effective class counts;
+- paired block bootstrap method differences;
+- Holm–Bonferroni α=0.05 for primary H1–H6;
+- BH FDR q=0.10 for exploratory slices;
+- report effect sizes/CIs;
+- Wilson/Clopper–Pearson for operating points.
+
+A roughly 500-item test supports aggregate/95%-precision claims only with enough accepts; it does not support precise rare-code/every-domain/99%-precision claims.
+
+### 23.10 Judge circularity/calibration
+
+Freeze judge×supervision matrix; primary comparison uses supervision-free family. Report same-family cells only as circular diagnostics. Pair calibration is development-only; deployment thresholds use `calibration_gold`. Conformal claims state exchangeability and shift caveats.
+
+### 23.11 Preregistered H1–H6 targets
+
+Default `policies/preregistration_v1.yaml`; changing before test unseal requires ADR/new version.
+
+| Claim | Primary comparison | Success threshold |
+|---|---|---|
+| H1 | M2/M3 vs best fixed non-LLM structural/symbolic on human + real-output | ≥0.03 absolute macro-F1 or AUPRC gain on both; Holm-adjusted paired-block CI excludes 0 on real-output |
+| H2 | same architecture full data vs deterministic-only on real-output | ≥0.03 macro-F1 and adjusted CI excludes 0 |
+| H3 | representation augmentation on hard-near-miss/heldout-transform/heldout-project | positive on all available, mean gain ≥0.02; aggregate-only insufficient |
+| H4/Gate10 | selected model calibration | ECE≤0.05; ACCEPT coverage≥40% at point estimate≥95% precision with interval reported |
+| H5 | reranker vs first-compiling and strongest clean baseline | faithful@1 +0.05 vs first-compiling and positive paired-block CI vs strongest clean |
+| H6 | held-out generator/project | +0.03 macro-F1 over best clean nontrained baseline on each powered setting |
+| Gate6 | swapped LLM/silver audit | ≥90% agreement after remap |
+| Gate7 | annotation pilot | κ≥0.60 and raw≥80%; otherwise revise/repeat |
+
+Underpowered/deferred hypotheses are reported unsupported, not redefined.
+
+---
+## 24. Implementation roadmap with hard stage gates
+
+### 24.0 Gate semantics and permitted parallelism
+
+A phase may produce quarantined artifacts before a later promotion gate, but those artifacts are not supervised/release-eligible. Every gate writes `reports/gates/gate_<id>.json` with input manifest hashes, checks, results, deviations, and decision.
+
+Ordering carve-outs:
+
+- real-output collection may start after Gate 2 but stays raw/parsed until Phase 5 policy;
+- annotation tooling/guidelines may start after Gate 3 in parallel with Phases 4–6;
+- positive/negative/silver promotion closes only after the relevant blinded pilot;
+- smoke training is allowed only under `artifact_class=smoke`;
+- Phase 6 may be marked `deferred (strong-paper track)` by ADR for an MVP that consumes none of it;
+- final tests remain sealed until model/prompt/calibration/threshold freeze.
+
+### Phase 0 — Lock semantics, sources, providers, and environment
+
+**Tasks**
+
+1. Approve/version all files in `policies/`.
+2. Create exact project/source/provider/benchmark configs; no executable placeholder remains.
+3. Probe `sft_classic` with the project HF token (authenticated access is expected to succeed); archive ID/revision/license/schema/100-row sample; apply the fixed fallback order only if the authenticated probe fails.
+4. Resolve provider slots, including supervision-free primary judge, and record the §9.2 external-API approval decision for private-source content.
+5. Register benchmark identities/usage before generation.
+6. Choose one §6.2 mode: a matching in-range Lean/mathlib pair (default) or a matching stable-`v4.31.0` exception pair after the full probe; reject silent toolchain overrides and mathlib `v4.32.0-rc1`.
+7. Record environment schema, source choice, encoder pilot, annotation tool, and deferral policy in ADRs.
+8. Implement `leanfaith doctor --write-lock`.
+
+**Deliverables**
+
+```text
+policies/semantic_policy_v1.md
+policies/error_ontology_v1.yaml
+policies/label_resolution_v1.yaml
+policies/transformation_promotion_v1.yaml
+policies/benchmark_denylist_v1.yaml
+policies/evidence_policy_v1.yaml
+policies/split_policy_v1.yaml
+policies/calibration_policy_v1.yaml
+policies/preregistration_v1.yaml
+configs/environment.lock.yaml
+configs/projects/
+configs/sources/
+configs/generation/providers.yaml
+configs/benchmarks/registry.yaml
+data/source_manifests/<primary_nl_source>.json
+docs/adr/ADR-0001-environment-lock.md
+reports/milestones/phase_0_contract.md
+```
+
+**Gate 0**
+
+Pass when canonical enums/policies are complete; one primary NL source has exact access/license/schema/sample; fallback and pool count are recorded; provider slots are resolved/explicitly disabled with fallback; exact Lean/project toolchains satisfy the supported range or tested ADR exception; benchmark registry exists; no semantic/schema/provider choice is left to implementation code.
+
+### Phase 1 — LeanInteract backend vertical slice
+
+**Tasks**
+
+1. First task before any LeanInteract-importing code: executable API-shape verification of every Appendix A symbol/signature/field. (The LeanInteract-free protocol module of LF-005 may precede the probe.)
+2. Implement Appendix A.5 protocol in `lean/protocol.py`.
+3. Implement project registry/context identity/response normalization.
+4. Implement `Command`/`FileCommand`, explicit `allow_sorry`, raw response storage, per-item exception normalization.
+5. Implement stable `LeanServer` and tested experimental `AutoLeanServer` mode.
+6. Implement pool/worker path, recovery, bounded retry, memory-product checks.
+7. Build fixture/meta-helper smoke and §8.12 tests.
+
+**Deliverables**
+
+```text
+src/leanfaith/lean/protocol.py
+src/leanfaith/lean/leaninteract_backend.py
+src/leanfaith/lean/project_registry.py
+src/leanfaith/lean/response_normalization.py
+src/leanfaith/lean/session_policy.py
+src/leanfaith/cli/doctor.py
+tests/integration/leaninteract/
+tests/lean_fixtures/
+artifacts/golden/leaninteract/
+reports/compatibility/leaninteract_api.json
+reports/milestones/phase_1_leaninteract.md
+```
+
+**Gate 1**
+
+All §8.12 tests pass; every request has one terminal ordered result; explicit placeholder behavior works; toolchain/memory checks work; stable/approved experimental modes normalize equivalently; only the backend imports LeanInteract.
+
+### Phase 2 — Source extraction and benchmark freeze
+
+**Tasks**
+
+1. Implement probe/manifest framework.
+2. Implement full adapters for mathlib, selected primary NL source, ProofNetVerif.
+3. Probe CSLib/Physlib revisions, roots, toolchains; defer full adapters.
+4. Archive raw and parsed partitions.
+5. Extract/revalidate declarations through LeanInteract; keep failures.
+6. Compute context/theorem/ancestry/content IDs.
+7. Compute Phase-5 pool adequacy.
+8. Freeze benchmark IDs, normalized-NL hashes, and raw-text hashes before Phase 4 (representation-hash signatures are appended in Phase 3 per §19.4).
+9. Run reload test and configure separate nightly re-elaboration.
+
+**Deliverables**
+
+```text
+src/leanfaith/sources/
+src/leanfaith/lean/extraction.py
+configs/sources/
+data/source_manifests/
+data/raw/sources/
+data/parsed/sources/
+data/extracted/theorems/
+data/extracted/failures/
+data/benchmarks/frozen_ids.json
+data/benchmarks/source_registry.yaml
+reports/source_probes/
+reports/milestones/phase_2_extraction.md
+```
+
+**Gate 2**
+
+Each MVP source has exact manifest/mapping; ≥99.5% checked records reproduce byte-identical IDs/content hashes when reparsed, all differences explained; proof-stripped records meet the configured supported rate with explicit exclusions; frozen IDs executable; CSLib/Physlib probe exact; nightly re-elaboration distinguished from reload.
+
+### Phase 3 — Representations and identity stress tests
+
+**Tasks**
+
+1. Implement required RepresentationRecord views/statuses.
+2. Implement Lean helpers only through LeanInteract.
+3. Implement semantic atoms/operator tree/serialization/hashes.
+4. Implement a property-test-only renamer distinct from P01.
+5. Run ≥10,000 eligible statements for MVP collision/invariance audit.
+6. Audit proof leakage, atom loss, round trip, context attachment.
+7. Append representation-based near-duplicate signatures (headless/signature/alpha) to the frozen benchmark registry (§19.4).
+8. Start annotation tooling/guidelines after gate.
+
+**Deliverables**
+
+```text
+src/leanfaith/representations/
+LeanFaith/Meta/Extract.lean
+LeanFaith/Meta/Fingerprint.lean
+LeanFaith/Meta/SemanticAtoms.lean
+data/representations/
+tests/property/
+reports/representation_collisions_mvp.md
+reports/milestones/phase_3_representations.md
+```
+
+**Gate 3**
+
+Required views round-trip; alpha hashes stable under the distinct test renamer; no audited material loss/proof leakage; failure categories explicit; 10k collision report complete. Repeat ≥100k before research_v1 identity claims.
+
+### Phase 4 — Deterministic generation and promotion
+
+**Tasks**
+
+1. Implement §15.2 protocol/common validation/audit.
+2. Implement scoped P01/P02/P04-lite/N01/N02/N03/N07/N10; stubs cannot run.
+3. Generate seeded drafts with applicability/failure logs.
+4. Re-elaborate and create variant/theorem/representation/pair records.
+5. Collect atom/structural/round-trip/certificate evidence.
+6. Run bounded `decide`-able counterexample search best effort.
+7. Export blinded audit samples.
+8. Freeze family registry.
+
+**Deliverables**
+
+```text
+src/leanfaith/transforms/
+configs/transformations/registry.yaml
+configs/transformations/v1.yaml
+data/generated/deterministic/
+data/evidence/
+reports/transformation_audits/
+reports/milestones/phase_4_transforms.md
+```
+
+**Gate 4G — generation**
+
+Active families are deterministic, elaborating, provenance-complete; disabled stubs cannot execute; N10 includes both ancestries; no intention is resolved label; every candidate has validation/audit status.
+
+**Gate 4A — positive gold promotion**
+
+After annotation pilot, each family/version has blinded `n≥200`, point precision≥99%, 95% Clopper–Pearson lower bound≥95%, all invariants, no recurrent semantic erasure, and held-out source/domain audit. Else remain silver/experimental/disabled.
+
+**Gate 4B — negative supervised promotion**
+
+After pilot, each promoted item uses exactly one §15.7 route and corresponding tier. Family refinement audit is 50–100; no intention-confidence shortcut. Others remain provisional.
+
+### Phase 5 — Real autoformalization outputs and prevalence
+
+**Tasks**
+
+1. Build trusted problem pool excluding denylist/near duplicates.
+2. Configure 3–4 distinct families, reserve one held-out.
+3. Generate multiple candidates/seeds/prompts; archive calls/repairs.
+4. Parse/Lean-validate/cluster/deduplicate.
+5. Keep noncompiling only for repair analysis.
+6. Build candidate-reference PairRecords and NLPLeanRecords.
+7. Draw 200–300 human prevalence sample across generator/domain.
+8. Report coverage/diversity/leakage/pool adequacy.
+
+**Deliverables**
+
+```text
+configs/generation/real_outputs.yaml
+data/raw/real_outputs/
+data/parsed/real_outputs/
+data/real_outputs/validated/
+reports/generation_coverage.md
+reports/faithful_prevalence_design.md
+reports/milestones/phase_5_real_outputs.md
+```
+
+**Gate 5**
+
+At least three successful families; reserved family absent from supervision; configured per-stratum unique-compiling coverage met; calls replayable; benchmark/ReForm×Lean-Workbook checks pass; prevalence design/sample complete and used for test/headroom planning.
+
+### Phase 6 — LLM variants and silver supervision
+
+May be deferred for MVP by ADR; no LLM-silver claim then.
+
+**Tasks**
+
+1. Implement canonical prompts/parsers.
+2. Generate equivalent, directional, E-code, semantic-erasure, and minimal edits.
+3. Validate/deduplicate normally.
+4. Collect two-family blinded judgments, swapped copies, trap/calibration items.
+5. Enforce family separation/cross matrix.
+6. Retain disagreement and route to annotation.
+7. Build promotion strata/capped audit.
+
+**Deliverables**
+
+```text
+prompts/proposers/
+prompts/judges/
+configs/generation/llm_variants.yaml
+configs/judges/weak_supervision.yaml
+data/generated/llm/
+data/raw/judgments/
+data/labels/silver/
+reports/judge_calibration.md
+reports/milestones/phase_6_llm_data.md
+```
+
+**Gate 6G — generation/judging**
+
+All calls parse or retain failure; candidates validate/quarantine; order randomized; intentions remain provenance; primary eval judge absent from weak labels.
+
+**Gate 6 — silver promotion**
+
+After pilot, promoted strata satisfy consensus/audit policy; the §17.9 capped base sample `min(ceil(0.20×N),1000)` contains all feasible preregistered per-stratum minima and the required disagreement/threshold oversampling; swapped agreement≥90%; disagreement is retained; tier `silver_consensus` remains distinct from gold. A stratum whose minimum cannot fit the capped design is not promoted.
+
+### Phase 7 — Annotation pilot and guideline freeze
+
+**Tasks**
+
+1. Complete Argilla/Label Studio integration or documented fallback.
+2. Run first 100 Lean–Lean round and fix defects.
+3. Run cumulative 200–400 Lean–Lean + 100–200 NL–Lean.
+4. Double-label/adjudicate/preserve raw decisions.
+5. Audit active transformation/silver strata blindly.
+6. Freeze ambiguity/error/escalation rules and guideline.
+
+**Deliverables**
+
+```text
+annotation/guidelines_v1.md
+annotation/templates/
+data/human/pilot_raw/
+data/human/pilot_adjudicated/
+reports/human_pilot.md
+reports/milestones/phase_7_human_pilot.md
+```
+
+**Gate 7**
+
+Raw agreement≥80%, κ≥0.60, required rationales/fields complete, recurring disagreement has rule/route, blinding and serialization pass. Failure means revise/repeat.
+
+### Phase 7b — Main annotation campaign
+
+**Tasks**
+
+1. Freeze frames/propensities.
+2. Produce `development_gold`.
+3. Produce real-output-only `calibration_gold`.
+4. Construct/seal final test including SRS real-output subpanel.
+5. Maintain reference/ambiguity audits.
+6. Publish label-source/overlap manifests without exposing labels.
+
+**Deliverables**
+
+```text
+data/human/development_gold/
+data/human/calibration_gold/
+data/human/final_test_frozen/
+annotation/adjudication/
+reports/annotation_main.md
+reports/milestones/phase_7b_main_annotation.md
+```
+
+**Gate 7b**
+
+All records have groups/provenance/propensities/adjudication/canonical ambiguity. `development_gold` may enter training by design; `calibration_gold` and `human_test` are disjoint from every weight-training record and from each other. Calibration is restricted to the real-output distribution, final labels are sealed, and all subset/disjoint relations match §19.6 manifests.
+
+### Phase 8 — Resolve labels, split, freeze dataset v0
+
+**Tasks**
+
+1. Deterministic resolver/conflict/review routing.
+2. Mechanical F0/F1/F2 checks.
+3. Union-find components from split groups.
+4. Development random fractions and manifest-built tests.
+5. Exact/near/denylist/judge/ReForm/final contamination checks.
+6. Export gold-only, gold+silver, deterministic-only, real-output-only views.
+7. Freeze manifests/checksums/schemas/data card.
+
+**Deliverables**
+
+```text
+src/leanfaith/labeling/
+src/leanfaith/datasets/
+configs/splits/v0.yaml
+data/labels/resolved/
+data/split_manifests/
+data/releases/v0/train.parquet
+data/releases/v0/validation.parquet
+data/releases/v0/calibration.parquet
+data/releases/v0/internal_test.parquet
+data/releases/v0/manifests/
+data/releases/v0/DATA_CARD.md
+reports/contamination_v0.md
+reports/milestones/phase_8_dataset_v0.md
+```
+
+**Gate 8**
+
+No connected/prohibited duplicate leakage; every supervised record has allowed tier/canonical label; ambiguous masking correct; evaluation manifests include source/propensity; all artifacts hash/round-trip/rebuild.
+
+### Phase 9 — Baselines
+
+**Tasks**
+
+Implement simple/scalar/symbolic/structural/embedding; distinct BEq/BEq+; reproducible GTED/TransTED/FormalAlign/CriticLean/LeanScorer; freeze primary LLM and judge+symbolic prompts; measure quality/coverage/calibration/cost; emit common output.
+
+**Deliverables**
+
+```text
+src/leanfaith/baselines/
+configs/baselines/
+artifacts/predictions/baselines/
+reports/baselines.md
+reports/milestones/phase_9_baselines.md
+```
+
+**Gate 9**
+
+Common contract/frozen IDs; naming/provenance explicit; primary judge supervision-free; fair cost; reproducible without test-label access at prediction time.
+
+### Phase 10 — M0–M3, calibration, model freeze
+
+**Tasks**
+
+1. Tokenizer audit/ADR.
+2. Train M0/M1/M2/M3.
+3. Include `configs/models/m3.yaml` and amortized evidence cost.
+4. Run mixture learning curves/hard-negative mining on nonfrozen pools.
+5. Train ambiguity/relation/error heads and three-class ablation.
+6. Run swap/H3 slice tests.
+7. Compare calibration on development split.
+8. K-fold `calibration_gold`, fit/freeze deployment calibration/thresholds.
+9. Freeze checkpoint/tokenizer/prompts/policy before final tests.
+
+**Deliverables**
+
+```text
+configs/models/m0.yaml
+configs/models/m1.yaml
+configs/models/m2.yaml
+configs/models/m3.yaml
+src/leanfaith/models/
+artifacts/checkpoints/m0/
+artifacts/checkpoints/m1/
+artifacts/checkpoints/m2/
+artifacts/checkpoints/m3/
+artifacts/calibration/
+reports/tokenizer_audit.md
+reports/model_selection.md
+reports/milestones/phase_10_lean_lean_models.md
+```
+
+**Gate 10**
+
+Leakage/swap/ambiguity checks pass; selected model, tokenizer, prompts, calibration method, and thresholds are frozen. Development-only H2 analyses and the Gate-10/H4 calibration criteria in §23.11 are evaluated without final-test access. H1, the final H2 claim, and all sealed-test comparisons remain pending until Phase 11.
+
+### Phase 11 — Sealed Lean–Lean/external evaluation
+
+**Tasks**
+
+Verify hashes/freeze; on the strong-paper track, first implement CSLib/Physlib adapters, extract/label held-out-project items, and freeze the `heldout_project_test` manifest before unsealing; run human/real/benchmark and available held-out/adversarial sets; apply ambiguity/weighting/group bootstrap/Holm/BH/test-size policy; run registered external suites; produce contamination/public-vs-novel/cost reports; no tuning.
+
+**Deliverables**
+
+```text
+artifacts/predictions/final/
+reports/evaluation_final.md
+reports/external_benchmarks.md
+reports/statistics_primary.md
+reports/milestones/phase_11_final_evaluation.md
+```
+
+**Gate 11**
+
+Predictions match frozen manifests/configs; ambiguity/weights/groups/corrections/exclusions explicit; no test-derived model/prompt/threshold change.
+
+### Phase 12 — M4 and downstream reranking
+
+**Tasks**
+
+Build reference-free/reference-aware M4; train allowed data only; freeze problem/candidate manifests; compare §23.7 baselines; measure prevalence/headroom/faithful@1/coverage/no-compiling/abstention/cost; optional frozen repair.
+
+**Deliverables**
+
+```text
+configs/models/m4.yaml
+artifacts/checkpoints/m4/
+artifacts/predictions/reranking/
+reports/reranking.md
+reports/repair_application.md
+reports/milestones/phase_12_nl_lean_reranking.md
+```
+
+**Gate 12**
+
+H5 evaluated as preregistered; generation/selection labels disjoint; reference-free has no reference leakage; prevalence/headroom/cost complete; failure reported without candidate-set changes.
+
+### Phase 13 — M5 Expr graph
+
+**Tasks**
+
+Stabilize graph extraction/cache; train graph-only/text+graph controlled conditions; evaluate hard/held-out/long/dependency slices; measure overhead/failures; retain/drop under H3.
+
+**Deliverables**
+
+```text
+configs/models/m5.yaml
+src/leanfaith/models/m5_graph.py
+artifacts/checkpoints/m5/
+reports/graph_extension.md
+reports/milestones/phase_13_graph.md
+```
+
+**Gate 13**
+
+Retain only if preregistered H3 slice rule passes with reproducible gains/coverage. Null result is valid and does not block core project.
+
+### Phase 14 — Release and paper artifact
+
+**Tasks**
+
+Freeze code/environment/data/model/eval manifests; produce data/model cards, protocol, transformation catalog, guidelines, experiment registry, limitations/contamination statement; release only permitted content; run clean smoke/table reproduction; enable DVC for research_v1; verify end-to-end traceability.
+
+**Deliverables**
+
+```text
+data/releases/research_v1/
+artifacts/release/
+docs/reproducibility.md
+docs/limitations.md
+reports/release_validation.md
+reports/milestones/phase_14_release.md
+```
+
+**Gate 14**
+
+Appendices G/H pass; clean reconstruction succeeds; every headline number traces to frozen predictions/config/manifests; licenses/terms respected; unsupported/deferred claims explicitly scoped.
+
+---
+## 25. Coding-agent operating contract
+
+1. Work one backlog item/gate at a time; do not silently begin dependent work.
+2. Read `PLAN.md`, relevant policy/config/schema, and previous gate report first.
+3. Use LeanInteract exclusively for semantic Lean operations.
+4. Add tests before or with implementation; preserve raw inputs/failures.
+5. Never infer labels from intentions, compilation, failed proof search, or missing counterexamples.
+6. Never alter canonical enums/paths/schemas without updating this plan, migrations, and tests.
+7. Commands must be deterministic, resumable, manifest-writing, and fail closed on hash/schema mismatch.
+8. No production path reads final labels during training/prompt selection.
+9. Every implementation PR/change report states scope, files, commands, tests, artifacts, deviations, and next gate.
+10. When blocked by missing external access/API, emit a structured blocked artifact and follow the declared fallback; do not fabricate data or APIs.
+11. Direct shell Lean use is diagnostic-only and cannot become a hidden backend.
+12. Smoke exemptions must carry `artifact_class=smoke` and release guards.
+13. Deferred strong-paper phases require ADR naming blocked claims/artifacts/re-entry gate.
+14. Do not add staffing/timeline/budget/hardware prescriptions.
+15. Never send private-source content to an external provider without the §9.2 approval record.
+
+---
+
+## 26. Initial coding-agent backlog
+
+Each item closes only with code, tests, artifacts, and acceptance evidence. Items are ordered; an item may not start before its predecessors' acceptance evidence exists. Parallel-track exception (matching §24.0): LF-021 may begin once LF-001–LF-013 are accepted (post-Gate-2 quarantined real-output collection), and LF-023 once LF-001–LF-015 are accepted (post-Gate-3 annotation tooling), regardless of intervening item numbers.
+
+1. **LF-001 — scaffold/tooling:** pyproject/uv/Typer/Ruff/Pytest/mypy/pre-commit; strict core modules.
+2. **LF-002 — config loader:** strict schemas, hashes, secret references (including `HF_TOKEN`), unknown-key failure.
+3. **LF-003 — IDs/manifests:** canonical JSON, content hashes, run/output manifests, migration map.
+4. **LF-004 — canonical records:** implement §11 modules, semantic/evidence target-kind integrity, reverse label links, and cross-record invariants.
+5. **LF-005 — backend protocol:** exact Appendix A.5 contract; no LeanInteract imports above adapter (LeanInteract-free, so it may precede the LF-006 probe; the probe must precede LF-008).
+6. **LF-006 — API probe:** introspect imports/signatures/defaults/fields; write compatibility artifact.
+7. **LF-007 — project/context registry:** supported-range/toolchain/revision/context hash doctor.
+8. **LF-008 — LeanInteract adapter:** Command/FileCommand/raw response/explicit placeholder/status mapping.
+9. **LF-009 — server lifecycle:** stable/experimental/pool/retry/recovery/memory checks.
+10. **LF-010 — source probe framework:** revisions/licenses/schema/sample/archive/fallback.
+11. **LF-011 — MVP adapters:** mathlib, selected NL source, ProofNetVerif.
+12. **LF-012 — declaration extraction:** ranges/proof strip/revalidation/failure records.
+13. **LF-013 — benchmark freeze:** source IDs, normalized-NL and raw-text hashes before generation; representation-hash signatures appended by LF-014.
+14. **LF-014 — representations:** required views/statuses/hashes/option profile; appends representation-based near-duplicate signatures to the benchmark registry (§19.4).
+15. **LF-015 — semantic atoms/operator tree:** versioned helpers/golden tests.
+16. **LF-016 — transform protocol:** Applicability/VariantDraft/Audit/registry/promotion.
+17. **LF-017 — scoped positives:** P01/P02/P04-lite + invariants/round trips.
+18. **LF-018 — scoped negatives:** N01/N02/N03/N07/N10 with the curated replacement table; produces the pre-scale audit slice.
+19. **LF-019 — smoke vertical slice:** fixture→records→provisional pair→tiny model; release guard; runs only after LF-016–LF-018 exist.
+20. **LF-020 — evidence pipeline:** defeq/directional/counterexample/certificate/axiom cache.
+21. **LF-021 — real-output collection:** provider slots, pool, parse/validate/dedup/prevalence frame.
+22. **LF-022 — LLM variants/judges:** prompts/parsers/family separation/call records.
+23. **LF-023 — annotation integration:** blind templates/export/import/adjudication/agreement.
+24. **LF-024 — resolver:** precedence/conflicts/review/F0-F2/quality tiers.
+25. **LF-025 — split builder:** ancestry/group union-find/denylist/propensities/manifests.
+26. **LF-026 — dataset freeze:** views/cards/checksums/rebuild and contamination report.
+27. **LF-027 — baseline suite:** common output, symbolic/structural/critics/clean LLM.
+28. **LF-028 — M0–M3:** tokenizer audit, models, heads, swap, hybrid, calibration development.
+29. **LF-029 — M4/application:** NL–Lean, final calibration, frozen reranking/repair.
+30. **LF-030 — M5/external/release:** graph experiment, CSLib/Physlib adapters + `heldout_project_test` construction (strong-paper track), sealed suites, statistics, artifact assembly.
+
+Acceptance for every LF item: declared paths exist; unit/integration/golden/property tests relevant to scope pass; mypy/Ruff pass on touched core; command writes manifest; failure paths tested; milestone/gate report updated; no forbidden label inference.
+
+---
+
+## 27. Test and continuous-integration strategy
+
+### 27.1 Layers
+
+- unit: schemas, IDs, mappings, configs, resolver, metrics;
+- property: alpha/capture/dependency/ID/round-trip/swap invariants;
+- golden: LeanInteract responses, extraction, representations, transforms, prompts;
+- integration: fixture project, source samples, provider mocks, annotation import/export;
+- end-to-end: smoke pipeline and restart/rebuild;
+- compatibility: toolchain/API upgrade diffs;
+- data audits: leakage, denylist, split groups, propensities, quality/promotion.
+
+The LF-019 smoke slice is exempt from scientific-label prerequisites only under its explicit artifact restrictions.
+
+### 27.2 CI tiers
+
+1. PR-Python: no Lean; schemas/unit/mypy/Ruff.
+2. PR-Lean: fixture project only; no mathlib.
+3. nightly-mathlib: prebuilt mathlib container/cache; sample extraction/representation/evidence.
+4. weekly-data: manifests/reload/splits/leakage/rebuild.
+5. release: full environment/source/model/eval/reproduction checks.
+
+No runner/hardware mandate is implied.
+
+### 27.3 Required invariants
+
+Even code fences; unique schema definitions; Appendix A.5/§8.4 parity; supported toolchain; explicit placeholder flag; one result/request; deterministic IDs; no proof leakage; no intention→label; no search-failure→negative; connected split isolation; primary judge separation; smoke release rejection; phase paths declared; no stale enum/path/model aliases.
+
+### 27.4 Upgrade testing
+
+Dependency/toolchain changes run API/golden diff, 1,000-record extraction/representation/evidence comparison, cache invalidation, and migration report. Pretty-printer change is accepted only with representation-version/hash change and deliberate regeneration.
+
+---
+
+## 28. Operational, measurement, and reproducibility controls
+
+### 28.1 Canonical config inventory
+
+The §7 tree is authoritative:
+
+```text
+environment.lock.yaml
+projects/{fixtures,mathlib,cslib,physlib}.yaml
+sources/{mathlib,sft_classic,sft_classic_numina,lean_workbook,
+         proofnetverif,cslib,physlib}.yaml
+generation/{providers,problem_pool,real_outputs,llm_variants}.yaml
+judges/{weak_supervision,primary_eval}.yaml
+transformations/{registry,v1,replacement_table_v1,
+                 p01_alpha,p02_binders,p04_notation_lite,
+                 n01_operator,n02_quantifier,n03_drop_hypothesis,
+                 n07_literal_bound,n10_nearby_theorem}.yaml
+evidence/{portfolio_v1,counterexample_v1,sampling_v1}.yaml
+annotation/{tool,pilot,main}.yaml
+splits/v0.yaml
+benchmarks/registry.yaml
+baselines/*.yaml
+models/{m0,m1,m2,m3,m4,m5}.yaml
+evaluation/{primary,external,reranking}.yaml
+```
+
+### 28.2 Run manifest
+
+`runs/<run_id>/manifest.json` stores run/artifact class, command/code dirty state, config/input/output hashes, environment/context/project versions, seeds/server/workers/timeout/memory config, source/provider/model/prompt revisions, status counts/retries, token/call/cost/elapsed measurements, tracker ID/offline artifact, and parent/resume pointers.
+
+### 28.3 Measurement
+
+Record tokens/calls/retries/latency/cache hits/Lean requests/evidence attempts/provider cost and stage/stratum throughput. Scale increases require measured diversity/learning/coverage benefit, not merely available tokens.
+
+### 28.4 Caches/partial results
+
+Content-addressed keys include environment schema, context, exact input, method/config/version. Corruption/schema mismatch fails closed. Retries append lineage rather than overwrite raw failures.
+
+### 28.5 Version control
+
+Content-hash manifests remain authoritative. DVC starts at research_v1 for storage pointers. W&B default supports offline/export.
+
+### 28.6 Privacy/licenses/terms
+
+Store/release only permitted content; redact secrets/unneeded personal data; otherwise release IDs/hashes/adapters/traces/permitted metadata. Every source/model/provider manifest records redistribution status. Private or gated source content — including NL statements — is never sent to an external LLM provider without the §9.2 approval record naming the provider set and scope.
+
+### 28.7 Failure rates
+
+Report parser/elaboration/server/view/family/provider/tactic/source failure denominators. Never hide failures by filtering them before rate computation.
+
+---
+
+## 29. Risk register with triggers and mandatory responses
+
+| ID | Risk/trigger | Mandatory response |
+|---|---|---|
+| R01 | synthetic→real gap | increase real-output/dev gold; report mixture ablation |
+| R02 | transformation shortcut learning | hold out families; adversarial/minimal real tests |
+| R03 | positive semantic erasure | quarantine family; atom/roundtrip audit; human review |
+| R04 | accidental-equivalent negatives | keep provisional; allowed promotion routes only |
+| R05 | proof-search incompleteness | encode unknown; never negative |
+| R06 | truth/F1 collapse | proposition isolation; F0/F1/F2 checks |
+| R07 | LLM label noise | independent families; audited silver; human conflicts |
+| R08 | generator–judge circularity | supervision-free primary family; cross matrix |
+| R09 | benchmark leakage | pre-generation denylist; connected/near-duplicate audit |
+| R10 | ReForm/Lean-Workbook overlap | exclude held-out claims; tag overlap |
+| R11 | reference defects | explicit E27/review/adjudication; reference not infallible |
+| R12 | ambiguous NL | separate ambiguity target/eval; no binary coercion |
+| R13 | Lean environment drift | exact lock/context/cache versions; nightly re-elaboration |
+| R14 | LeanInteract API drift | API probe/golden/1k comparison/migration |
+| R15 | experimental server instability | use stable server; preserve normalized contract |
+| R16 | pool nondeterminism | one-vs-many parity; deterministic shards/order |
+| R17 | representation drift/leakage | version views; proof-leak tests; regenerate deliberately |
+| R18 | weak calibration under shift | real-output calibration; shift caveat/Mondrian diagnostic |
+| R19 | insufficient test power | report denominators/CIs; demote unsupported claims |
+| R20 | rare-category instability | absolute counts; exploratory FDR; no broad claim |
+| R21 | provider/model unavailability | declared slot fallback; preserve family-separation rules |
+| R22 | source access/license failure | fixed fallback order; blocked manifest; no fabrication |
+| R23 | evidence cost explosion | mandatory/sampled policy; amortized cost reports |
+| R24 | annotation-policy instability | pilot/repeat/freeze version; reannotate affected examples |
+| R25 | custom annotation/tooling failure | existing platform first; documented fallback only |
+| R26 | pretrained judge/encoder contamination | post-cutoff novel subset; public-vs-novel deltas; qualified claims |
+
+### 29.1 Incident procedure
+
+For any material data or evaluation incident:
+
+1. freeze affected releases and runs;
+2. write an incident record with discovery date, scope, root cause, and affected hashes under `reports/decisions/`;
+3. patch code/policy with a new version;
+4. regenerate affected artifacts from the earliest compromised stage;
+5. rerun leakage and integrity checks;
+6. update reports and paper numbers;
+7. preserve the incident history rather than rewriting it away.
+
+---
+
+## 30. Decision and pivot criteria
+
+### 30.1 Environment/source
+
+If requested `sft_classic` cannot be verified even with authenticated access, use the fixed fallback. If stable Lean 4.31.0 fails the LeanInteract probe, use an explicitly supported in-range pair. Record before downstream manifests.
+
+### 30.2 Deterministic data
+
+Disable/demote families missing Gate 4A/4B; never lower precision criteria. If positives remain too narrow, expand only with a new audited family/version.
+
+### 30.3 LLM silver
+
+If audits/circularity fail, keep Phase 6 deferred or use data for mining only. Core MVP proceeds with deterministic+real+human.
+
+### 30.4 Model
+
+If M2 does not beat M1, retain the simpler model and analyze matching failure. If M3 gains vanish after evidence-cost control, do not claim hybrid advantage. M5 proceeds only after stable M2/M3.
+
+### 30.5 Calibration
+
+If Gate 10 ECE/coverage fails, deploy REVIEW-heavy policy, recalibrate on valid real-output data, or restrict claimed distribution; never tune on final test.
+
+### 30.6 Power/OOD
+
+Underpowered held-out/error groups receive descriptive intervals/counts and no H3/H6 claim; do not merge protected splits to manufacture power.
+
+### 30.7 Application
+
+If M4 fails faithful@1, test whether reference-aware clustering/triage or repair prioritization still has preregistered measurable value under a new sealed version.
+
+---
+
+## 31. Pre-registered experiment matrix
+
+### 31.1 Core methods
+
+| ID | Method | Inputs | Role |
+|---|---|---|---|
+| B0 | scalar classifier | lexical/atom/tree scalars | simple learned |
+| S0 | defeq/proof/certificate | propositions | symbolic high precision |
+| T0 | GTED/operator tree | trees | structural |
+| T1 | ASSESS/TransTED | transformed trees | semantic-structural |
+| C0 | CriticLean | released NL–Lean protocol | closest learned critic |
+| J0 | held-out-family LLM judge | frozen prompt/views | clean LLM |
+| J1 | same judge + symbolic | prompt/views/evidence | fairness |
+| J2 | COVCAL-style risk-controlled judge | held-out judge + disjoint calibration | calibrated judge baseline |
+| M0 | dual encoder | Lean text/signature | embedding/retrieval |
+| M1 | concatenated pair | Lean pair | cross-encoder |
+| M2 | separate sides + matching | Lean pair | main neural |
+| M3 | M2 + structural/symbolic | sampled evidence | main hybrid |
+| M4 | NL + Lean | optional reference branch | application |
+| M5 | text + Expr graph | graph/text | extension |
+
+All emit §20.6.
+
+### 31.2 Data mixtures for H2
+
+```text
+D0 promoted deterministic
+D1 D0 + LLM silver (if active)
+D2 D0 + real outputs
+D3 all permitted weak
+D4 D3 + development_gold
+```
+
+Compare under matched architecture/training schedule.
+
+### 31.3 Representations for H3
+
+Raw/headless/signature/explicit/text+atoms/scalars/M5 graph. Confirm H3 only by §23.11 gains on hard-near-miss, heldout-transform, heldout-project—not aggregate-only. Report extraction/truncation coverage.
+
+### 31.4 Judge×supervision matrix
+
+Primary cell: primary held-out family scoring a model with no labels from that family. Other-family labels are secondary; same-family labels are circular diagnostics only.
+
+### 31.5 Calibration
+
+Uncalibrated, temperature, vector, isotonic, beta, split-conformal/selective risk. K-fold inside calibration_gold; report ECE/Brier/risk-coverage/95%-precision coverage and exploratory 99% denominator/CI.
+
+### 31.6 NL/application
+
+M4 reference-free; M4 reference-aware; M3 reference Lean+candidate; frozen ensemble. Compare first/first-compiling/random/generator/J0/J1/J2/S0/M4/M3.
+
+### 31.7 Hypothesis mapping
+
+H1: M1–M3 vs B0/S0/T0/T1/J0. H2: D0–D4. H3: representation slices/M5. H4: calibration. H5: frozen reranking. H6: clean held-out generator/project. Every paper row maps to config/prediction/hypothesis or is exploratory.
+
+---
+## 32. Minimum viable project, strong-paper track, and stretch result
+
+### 32.1 MVP critical path
+
+```text
+0 contracts/lock → 1 LeanInteract → 2 extraction/denylist
+→ 3 representations → 4G generation
+↘ annotation tooling after Gate 3
+→ 5 real outputs/prevalence → 7/7b human products
+→ 4A/4B promotion → 8 split/freeze → 9 baselines
+→ 10 M0–M3/calibration → 11 sealed Lean–Lean eval
+→ 12 minimal M4/reranking
+```
+
+Phase 6 may be deferred by ADR; M5 never blocks MVP.
+
+### 32.2 MVP deliverable
+
+LeanInteract extraction, versioned reps, scoped deterministic families, multi-generator real outputs, expert development/calibration/final labels, leakage-safe splits, strong baselines, calibrated M2/M3, and one frozen reranking result. Claims limited to observed projects/generators/power.
+
+### 32.3 Strong-paper track
+
+Promoted LLM silver; more diverse outputs; full external registry; held-out transformation/project/generator/adversarial tests; public-vs-novel contamination analysis; full M4 study/statistical matrix.
+
+### 32.4 Stretch
+
+Useful M5 gains, reliable error-guided repair, generator-stratified risk control, broadly reusable benchmark/generation release.
+
+### 32.5 Deferral records
+
+A deferred phase records reason, blocked hypotheses/tables/artifacts, and re-entry gate. It never masquerades as completion.
+
+---
+
+## 33. Paper claim boundaries
+
+Permitted when tests pass: improved same-claim metrics on named human/real/external distributions; calibrated selective acceptance on matched real-output calibration distribution; improved frozen reranking; explicitly measured held-out transfer; controlled data/representation ablation contributions.
+
+Prohibited or qualified:
+
+- “logical equivalence oracle” or completeness;
+- treating failed proof/counterexample search as semantic evidence;
+- universal calibration under project/generator shift;
+- unseen-benchmark claims when pretraining exposure is unknown;
+- broad claims from tiny CSLib/rare groups without counts;
+- human-level claims without identical protocol/items/ambiguity handling;
+- graph benefit without H3;
+- LLM-silver benefit when deferred/circular;
+- synthetic-transform accuracy as real autoformalization faithfulness.
+
+Every headline names task, distribution, label source, operating point, coverage, confidence interval, and exclusions.
+
+---
+
+## 34. Reference implementation policy for LeanInteract
+
+### 34.1 Single adapter/cache identity
+
+Appendix A.5 is canonical. One real v1 adapter maps it to LeanInteract. Request/cache keys include `environment_schema_version`, context/request hashes, Lean/LeanInteract/REPL/project versions, options, timeout, and method version.
+
+### 34.2 Pin/range
+
+Pin 0.11.4; advertised Lean range binds unless fully tested ADR exception. Record the `augustepoiroux/repl` revision/tag exposed by configuration/package.
+
+### 34.3 Imports/API
+
+Use top-level exported server/command/project objects as verified; import `CommandResponse`, `DeclarationInfo`, `InfoTreeOptions`, `LeanError` from `lean_interact.interface`. Verify every Appendix A symbol before implementation/after upgrade.
+
+### 34.4 Caveats
+
+Explicit `allow_sorry`; normalize per-item response/LeanError/Exception; Linux per-process memory limit; experimental AutoLeanServer with stable fallback; default no InfoTree with sanctioned escalation.
+
+### 34.5 Upgrade
+
+Change lock only; run introspection/fixture/golden/recovery/batch; 1k extraction/representation/evidence comparison; inspect support/fork changes; increment environment/schema/normalization versions when needed; regenerate affected caches; merge after gate review.
+
+### 34.6 Shell exception
+
+Direct shell Lean only in doctor/CI installation/build diagnostics. It cannot parse semantics, label, or become fallback without architectural revision.
+
+---
+
+## Appendix A — Canonical LeanInteract integration contract and examples
+
+### A.1 Version/API caveat
+
+Examples target `lean-interact==0.11.4`. Before backend work, Phase 1 introspects every import, constructor, method, response field, and default. A mismatch blocks implementation until lock/plan reconciliation. The advertised Lean range and `augustepoiroux/repl` fork are binding environment metadata.
+
+### A.2 Imports
+
+```python
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from enum import StrEnum
+from pathlib import Path
+from typing import Literal, Mapping, Protocol, Sequence
+
+from lean_interact import (
+    AutoLeanServer,
+    Command,
+    FileCommand,
+    LeanREPLConfig,
+    LeanServer,
+    LeanServerPool,
+    LocalProject,
+)
+from lean_interact.interface import (
+    CommandResponse,
+    DeclarationInfo,
+    InfoTreeOptions,
+    LeanError,
+)
+```
+
+The four interface types are not assumed top-level exports.
+
+### A.3 Project/config
+
+```python
+project = LocalProject(directory=Path("/absolute/path/to/pinned/project"))
+repl_config = LeanREPLConfig(
+    project=project,
+    memory_hard_limit_mb=None,  # Linux-only, per REPL process when set.
+)
+```
+
+Doctor records project revision/toolchain, checks supported range, and reports worker count × configured per-process limit against detected RAM where available.
+
+### A.4 Command/validation
+
+```python
+statement = """
+import Mathlib
+
+theorem leanfaith_probe (x y : Nat) : x + y = y + x := by
+  omega
+"""
+
+server = LeanServer(repl_config)
+raw_response = server.run(
+    Command(cmd=statement, declarations=True, root_goals=True),
+    timeout=30.0,
+)
+if isinstance(raw_response, LeanError):
+    raise RuntimeError(f"Lean probe failed: {raw_response}")
+response: CommandResponse = raw_response
+strict_valid = response.lean_code_is_valid(allow_sorry=False)
+placeholder_valid = response.lean_code_is_valid(allow_sorry=True)
+```
+
+Never rely on the permissive default. The Phase 1 probe verifies every keyword argument shown here (including `root_goals=` — `rootGoals` is only the wire-format serialization alias — and `server.run(..., timeout=)`). `FileCommand` use is implemented only after signature verification. Save raw response before declaration normalization.
+
+### A.5 Canonical LeanFaith backend protocol
+
+This subsection is the source of truth; §8.4 mirrors it.
+
+```python
+class LeanStatus(StrEnum):
+    VALID = "valid"
+    VALID_WITH_SORRY = "valid_with_sorry"
+    INVALID = "invalid"
+    TIMEOUT = "timeout"
+    CRASH = "crash"
+    SETUP_ERROR = "setup_error"
+    UNSUPPORTED = "unsupported"
+    INTERNAL_ERROR = "internal_error"
+
+@dataclass(frozen=True, slots=True)
+class LeanRequest:
+    request_id: str
+    context_id: str
+    code: str | None = None
+    file_path: Path | None = None
+    declarations: bool = False
+    root_goals: bool = False
+    infotree: Literal["none", "substantive", "full"] = "none"
+    allow_sorry: bool = False
+    timeout_seconds: float = 30.0
+    metadata: Mapping[str, str] = field(default_factory=dict)
+
+@dataclass(frozen=True, slots=True)
+class LeanResult:
+    request_id: str
+    request_hash: str
+    context_id: str
+    context_fingerprint: str
+    status: LeanStatus
+    messages: tuple[dict, ...] = ()
+    sorries: tuple[dict, ...] = ()
+    declarations: tuple[dict, ...] = ()
+    root_goals: tuple[str, ...] = ()
+    infotree: tuple[dict, ...] = ()
+    elapsed_ms: int = 0
+    raw_response_path: str | None = None
+    infrastructure_error: str | None = None
+
+class LeanBackend(Protocol):
+    def run(self, request: LeanRequest) -> LeanResult: ...
+    def run_batch(self, requests: Sequence[LeanRequest]) -> list[LeanResult]: ...
+    def close(self) -> None: ...
+```
+
+Invariants: one of code/file; ordered one-result-per-input batch; hash includes request/context/method/environment schema; raw immutable response; placeholder status never silently strict; infrastructure status never semantic label.
+
+### A.6 Normalization table
+
+| Observation | Status |
+|---|---|
+| strict valid | `VALID` |
+| placeholder-valid / `statement_valid_with_placeholder` | `VALID_WITH_SORRY` |
+| Lean rejection | `INVALID` |
+| timeout | `TIMEOUT` |
+| process/recovery failure | `CRASH` |
+| project setup failure | `SETUP_ERROR` |
+| unsupported contract/toolchain | `UNSUPPORTED` |
+| adapter exception | `INTERNAL_ERROR` |
+
+`run_batch` can return response, `LeanError`, or Python exception per item; normalize independently and preserve order. Serialize safe exception type/message/trace digest.
+
+### A.7 InfoTree/server policy
+
+Map `none` to no request; `substantive`/`full` only after verified `InfoTreeOptions` construction. Representation/structural evidence are sanctioned escalation paths. `AutoLeanServer` remains experimental; tested `LeanServer` fallback shares the protocol. Callers do not manage REPL processes directly.
+
+### A.8 API-shape report
+
+Record package/distribution version, supported Lean range, constructor/method signatures, interface-type module paths, validation signature/default, response attributes, experimental server lifecycle, and memory-limit platform behavior under `artifacts/compatibility/`/`reports/compatibility/`.
+
+### A.9 Directional certificate template
 
 ```lean
 import Mathlib
 
-namespace LeanFaith.Certificates
+section LeanFaithCertificate
+variable {α : Type} [Preorder α]
+def A (x y : α) : Prop := x < y
+def B (x y : α) : Prop := x ≤ y
 
--- A and B are embedded as proposition expressions, not imported theorem constants.
-def A : Prop := by
-  exact True  -- replaced by generated proposition expression
-
-def B : Prop := by
-  exact True  -- replaced by generated proposition expression
-
-example : A → B := by
-  -- bounded, recorded tactic portfolio or generated proof
+example (x y : α) : A x y → B x y := by
   intro h
-  exact h
-
-example : B → A := by
-  intro h
-  exact h
-
-end LeanFaith.Certificates
+  exact le_of_lt h
+end LeanFaithCertificate
 ```
 
-The actual code generator should place proposition expressions directly into fresh definitions or examples in an isolated namespace. A certificate scanner must reject dependencies on source/target theorem constants and other disallowed shortcuts.
+Failure to prove B→A is search failure only.
 
 ---
 
-## Appendix B — Example project configuration
+## Appendix B — Example locked configuration
+
+### B.1 Environment/projects
 
 ```yaml
-schema_version: 1
-project_name: leanfaith
-seed: 20260710
-
-runtime:
-  python: "3.12"
-  lean_interact: "0.11.4"
-  max_workers: 8
-  request_timeout_seconds: 120
-  file_timeout_seconds: 900
-  memory_hard_limit_mb: 12288
-  auto_server:
-    max_total_memory: 0.85
-    max_process_memory: 0.85
-    max_restart_attempts: 3
-
-lean_projects:
+environment_schema_version: 1
+python: {version: "3.12"}
+lean_interact:
+  package: lean-interact
+  version: "0.11.4"
+  advertised_lean_min: "v4.8.0-rc1"
+  advertised_lean_max: "v4.31.0-rc1"
+  repl_fork: "https://github.com/augustepoiroux/repl"
+toolchain_lock:
+  mode: advertised_range  # or stable_v4_31_exception after the complete probe
+  accepted_lean: null      # Phase 0 writes the exact tested version
+  mathlib_toolchain_must_match: true
+  stable_v4_31_exception_adr: null
+projects:
   mathlib:
-    kind: local
-    path: /data/lean/mathlib4
-    git_url: https://github.com/leanprover-community/mathlib4.git
-    revision: REPLACE_WITH_PINNED_COMMIT
+    git_url: "https://github.com/leanprover-community/mathlib4"
+    revision: "<exact revision written by Phase 0>"
+    expected_toolchain: "<exact accepted toolchain>"
+    root_module: Mathlib
+    globs: ["Mathlib/**/*.lean"]
   cslib:
-    kind: git
-    git_url: REPLACE_WITH_VERIFIED_CSLIB_URL
-    revision: REPLACE_WITH_PINNED_COMMIT
+    git_url: "https://github.com/leanprover/cslib"
+    revision: "<exact revision written by Phase 0>"
+    root_module: Cslib
+    globs: ["Cslib/**/*.lean"]
+    role: probe_now_adapter_at_ood
   physlib:
-    kind: git
-    git_url: REPLACE_WITH_VERIFIED_PHYSLIB_URL
-    revision: REPLACE_WITH_PINNED_COMMIT
-
-sources:
-  sft_classic:
-    enabled: true
-    dataset_id: formalmathatepfl/sft_classic
-    revision: REPLACE_WITH_PINNED_DATASET_REVISION
-    adapter_schema: auto_probe_then_explicit
-  mathlib:
-    enabled: true
-    project_id: mathlib
-    include_globs: ["Mathlib/**/*.lean"]
-    exclude_globs: ["MathlibTest/**/*.lean"]
-
-statement_filter:
-  declaration_kinds: [theorem, lemma]
-  min_signature_tokens: 5
-  max_signature_tokens: 2048
-  keep_propositions_only: true
-  require_context_reconstruction: true
-
-representations:
-  raw: true
-  headless: true
-  pretty_signature: true
-  explicit_binders: true
-  semantic_atoms: true
-  operator_tree: true
-  infotree: substantive
-
-transformations:
-  max_variants_per_theorem: 12
-  positive_families:
-    - alpha_rename_v1
-    - split_merge_binders_v1
-    - independent_binder_reorder_v1
-  negative_families:
-    - relation_boundary_v1
-    - quantifier_flip_v1
-    - drop_side_condition_v1
-    - same_type_constant_substitution_v1
-  automatic_gold_positive_families: []  # populated only after audit gates
-
-proof_checks:
-  enabled: true
-  per_direction_timeout_seconds: 20
-  tactics:
-    - rfl
-    - simp
-    - aesop
-    - omega
-    - linarith
-    - ring
-  failed_search_label: unknown
-  certificate_dependency_scan: true
-
-splits:
-  train: 0.80
-  validation: 0.08
-  calibration: 0.04
-  internal_test: 0.08
-  group_keys:
-    - source_problem_id
-    - theorem_ancestry_id
-  held_out_transformation_families: []
-  held_out_projects: []
-  benchmark_denylist_manifest: data/benchmarks/frozen_ids.json
-
-output:
-  root: /data/leanfaith
-  write_raw_responses: true
-  compression: zstd
-  overwrite_frozen_release: false
+    git_url: "https://github.com/leanprover-community/physlib"
+    revision: "<exact revision written by Phase 0>"
+    root_module: Physlib
+    globs: ["Physlib/**/*.lean"]
+    role: probe_now_adapter_at_ood
+lean_backend:
+  backend: leaninteract
+  server_mode: pool
+  workers: null  # resolved per run; no universal worker-count mandate
+  timeout_seconds: 30
+  memory_hard_limit_mb: null  # Linux-only; limit is per REPL process
+  allow_sorry: false
+  infotree: none  # escalate only under §8.10, including representation derivation
+  save_raw_responses: true
 ```
 
-Placeholders beginning with `REPLACE_WITH_` must cause `leanfaith doctor` or config validation to fail.
+The generated executable lock replaces null/angle-bracket explanatory values. Doctor rejects an unresolved mode/version, a mathlib `lean-toolchain` mismatch, or an out-of-range version without the tested exception ADR. It also reports memory-product/platform checks; no universal worker/RAM mandate.
+
+### B.2 Sources
+
+```yaml
+sources:
+  primary_nl_lean:
+    requested_id: formalmathatepfl/sft_classic
+    access_status: private_requires_hf_auth  # loads with the project HF token
+    auth: {hf_token_env: HF_TOKEN}           # secret reference; value never stored
+    required_probe: [resolved_id, revision, license, schema, archived_100_row_sample_hash]
+    external_api_approved: null              # §9.2 approval decision written at Phase 0
+    fallback_order:
+      - formalmathatepfl/sft_classic_numina
+      - internlm/Lean-Workbook
+      - PAug/ProofNetVerif:train
+  sft_classic_numina:
+    dataset_id: formalmathatepfl/sft_classic_numina
+    expected_columns: [uuid, question, answer, lean_code]
+  lean_workbook:
+    dataset_id: internlm/Lean-Workbook
+    supervision_role: synthetic_weak_only
+  proofnetverif:
+    dataset_id: PAug/ProofNetVerif
+    expected_columns: [id, nl_statement, lean4_src_header,
+                       lean4_formalization, lean4_prediction, correct]
+    role: frozen_external_benchmark
+```
+
+### B.3 Representations/evidence
+
+```yaml
+representations:
+  normalization_version: repr_v1
+  views: [raw_proof_stripped, headless, signature_pp, signature_explicit,
+          alpha_structural, notation_light, semantic_atoms, operator_tree]
+  pretty_options:
+    pp.all: false
+    pp.universes: true
+    pp.explicit: true
+    pp.fullNames: true
+    pp.proofs: false
+    pp.proofs.withType: false
+    pp.mvars: false
+  note: "An ellipsis under pp.proofs=false is expected."
+evidence:
+  sampling_policy: evidence_sampling_v1
+  mandatory_for: [evaluation_pairs, calibration_pairs, gold_promotion_candidates]
+  training_sample: {strategy: stratified}
+  proof_search_portfolio: portfolio_v1
+  illustrative_tactics: ["exact?", aesop, simp, omega]
+  counterexample_search:
+    scope: decidable_bounded_fragments_only
+    kernel_decide_preferred: true
+    native_decide_trust: lower_trust_never_sole_gold_negative
+```
+
+The tactic list is illustrative; §16.4/versioned portfolio is authoritative.
+
+### B.4 Splits
+
+```yaml
+splits:
+  split_version: split_v0
+  connected_component_key_field: split_group_ids
+  held_out_generators: []
+  held_out_projects: [cslib, physlib]
+  held_out_transformation_families: []
+  manifests:
+    train: data/split_manifests/train.json
+    validation: data/split_manifests/validation.json
+    calibration: data/split_manifests/calibration.json
+    internal_test: data/split_manifests/internal_test.json
+    human_test: data/split_manifests/human_test.json
+    benchmark_test: data/split_manifests/benchmark_test.json
+    real_output_test: data/split_manifests/real_output_test.json
+    heldout_transform_test: data/split_manifests/heldout_transform_test.json
+    heldout_project_test: data/split_manifests/heldout_project_test.json
+    heldout_generator_test: data/split_manifests/heldout_generator_test.json
+    adversarial_test: data/split_manifests/adversarial_test.json
+```
+
+V0 mandatory: train/validation/calibration/internal/human/benchmark-when-ready/real-output. Strong-paper held-out/adversarial manifests may be explicit deferred manifests in MVP.
 
 ---
+## Appendix C — Canonical pair and routing examples
 
-## Appendix C — Pair and evidence examples
-
-### C.1 Positive structural restatement
+### C.1 Alpha restatement
 
 ```lean
--- Source
-∀ n : Nat, n + 0 = n
-
--- Variant
-∀ x : Nat, x + 0 = x
+-- A: ∀ (n : Nat), n + 0 = n
+-- B: ∀ (k : Nat), k + 0 = k
 ```
-
-Expected:
 
 ```yaml
-relation: EQUIVALENT_SAME_CLAIM
-faithfulness_level: F1
-primary_evidence:
-  - alpha_renaming_certificate
-semantic_atom_change: none
+same_claim: true
+resolution_outcome: same_claim
+relation: equivalent
+error_types: []
+faithfulness_levels: {F0_representation_equivalent: true, F1_same_claim: true, F2_truth_equivalent: true}
+quality_tier: gold_conservative_transform
+resolution_method: p01_alpha_certificate
 ```
 
-### C.2 Truth-equivalent but claim-unfaithful simplification
+### C.2 Claim erasure
 
 ```lean
--- Source
-∀ n : Nat, n + 0 = n
-
--- Variant
-True
+-- A: ∀ (n : Nat), Nat.Prime n → 1 < n
+-- B: ∀ (n : Nat), True
 ```
-
-Both propositions are provable, and their truth values coincide in the current theory, but they do not express the same mathematical claim.
-
-Expected:
 
 ```yaml
-relation: NOT_SAME_CLAIM
-faithfulness_level: F2_ONLY_OR_TRUTH_COLLAPSE
-error_tags: [E_SEMANTIC_ERASURE]
+same_claim: false
+resolution_outcome: not_same_claim
+relation: incomparable_near_miss
+error_types: [E25]
+faithfulness_levels: {F0_representation_equivalent: false, F1_same_claim: false, F2_truth_equivalent: true}
+quality_tier: gold_human
 ```
 
-This example must appear in training/validation contrast sets.
-
-### C.3 Directional weakening
+### C.3 Missing premise plus tautology
 
 ```lean
--- Source A
-∀ x : Real, x < 0 → x ≤ 0
-
--- Candidate B
-∀ x : Real, x ≤ 0 → x ≤ 0
+-- A: ∀ (x : Real), x ≠ 0 → x / x = 1
+-- B: ∀ (x : Real), x / x = x / x
 ```
-
-A and B are both provable, but B removes the meaningful strict-negativity premise and becomes tautological.
-
-Expected:
 
 ```yaml
-relation: NOT_SAME_CLAIM
-error_tags: [E_ASSUMPTION_WEAKENED, E_TRIVIALIZATION]
+same_claim: false
+resolution_outcome: not_same_claim
+relation: incomparable_near_miss
+error_types: [E01, E25]
+quality_tier: gold_human
 ```
 
-### C.4 Missing side condition
+### C.4 Strictness change under aligned binders
 
 ```lean
--- Source
-∀ x y : Real, y ≠ 0 → x / y = 1 → x = y
-
--- Variant
-∀ x y : Real, x / y = 1 → x = y
+-- Compare proposition bodies in a shared local context (x y : Real).
+-- A body: x < y
+-- B body: x ≤ y
 ```
-
-The variant is a hard near-miss whose validity/equivalence depends on the semantics and totalized division behavior. It must not be labeled merely from mutation intention. Run Lean checks, seek a counterexample, and route to human review when evidence is insufficient.
-
-### C.5 Redundant/free variable pathology
-
-```lean
--- Reference
-∀ n : Nat, n + 0 = n
-
--- Candidate
-∀ n k : Nat, n + 0 = n
-```
-
-Whether this is accepted as faithful is a policy question. The default plan treats semantically unused extra binders as a specific faithfulness defect unless the annotation policy explicitly declares them harmless for the deployment task.
-
-Expected default:
 
 ```yaml
-relation: NOT_SAME_CLAIM_OR_MINOR_DEFECT
-error_tags: [E_UNUSED_EXTRA_BINDER]
-requires_policy_version: true
+same_claim: false
+resolution_outcome: not_same_claim
+relation: A_stronger
+error_types: [E11]
+quality_tier: gold_human
+resolution_method: expert_binder_aligned_claim_comparison
 ```
+
+The relation is claim-level under the recorded `x↔x, y↔y` alignment. It is not inferred by proving an implication between two closed, universally quantified theorem types.
+
+### C.5 Extra irrelevant variable
+
+```lean
+-- A: ∀ (n : Nat), n + 0 = n
+-- B: ∀ (n m : Nat), n + 0 = n
+```
+
+```yaml
+same_claim: false
+resolution_outcome: not_same_claim
+relation: incomparable_near_miss
+error_types: [E21]
+faithfulness_levels: {F0_representation_equivalent: false, F1_same_claim: false, F2_truth_equivalent: true}
+quality_tier: gold_human
+```
+
+Under the project policy this is theorem-interface unfaithful even if truth conditions are unchanged.
 
 ### C.6 Wrong domain
 
 ```lean
--- Reference
-∀ x : Real, x^2 ≥ 0
-
--- Candidate
-∀ x : Nat, x^2 ≥ 0
+-- A: ∀ (x : Real), 0 ≤ x ^ 2
+-- B: ∀ (x : Nat), 0 ≤ x ^ 2
 ```
-
-Expected:
 
 ```yaml
-relation: CANDIDATE_WEAKER_OR_DOMAIN_RESTRICTED
-error_tags: [E_WRONG_DOMAIN]
+same_claim: false
+resolution_outcome: not_same_claim
+relation: incomparable_near_miss
+error_types: [E06]
+quality_tier: gold_human
 ```
 
-### C.7 Reference defect
-
-A human annotator may determine that the released reference omits a condition present in the natural-language statement. Store:
+### C.7 Suspected reference defect: review route
 
 ```yaml
-reference_status: SUSPECT_OR_INCORRECT
-pair_label: UNCERTAIN
-adjudication_required: true
+same_claim: null
+resolution_outcome: unresolved
+relation: unknown
+error_types: [E27]
+faithfulness_levels: {F0_representation_equivalent: null, F1_same_claim: null, F2_truth_equivalent: null}
+quality_tier: unknown
+requires_adjudication: true
+resolution_method: null
 ```
 
-Do not force the candidate to be wrong because it differs from a defective reference.
+### C.8 Terminal expert ambiguity
+
+```yaml
+same_claim: null
+resolution_outcome: ambiguous
+relation: ambiguous
+error_types: [E30]
+faithfulness_levels: {F0_representation_equivalent: null, F1_same_claim: null, F2_truth_equivalent: null}
+quality_tier: gold_human
+requires_adjudication: false
+resolution_method: expert_adjudication
+```
 
 ---
 
-## Appendix D — LLM proposer prompt template
+## Appendix D — LLM proposer prompt contract
 
 ```text
 SYSTEM
-You are generating research data for evaluating Lean 4 autoformalization
-faithfulness. You propose candidate theorem STATEMENTS only. Do not provide a
-proof unless asked. Preserve imports and the available environment. Return
-strict JSON matching the schema below.
+Propose diverse Lean 4 theorem-statement variants for a faithfulness dataset.
+Do not provide proofs. Preserve compilability under supplied imports.
+Return strict JSON only. Do not claim verification.
 
-USER
-Natural-language problem:
-{{natural_language}}
+INTENDED RELATIONS
+ equivalent | A_stronger | B_stronger | near_miss | unrelated | unknown
 
-Reference Lean theorem statement:
-```lean
-{{reference_statement}}
+ERROR IDS
+ E01 through E30 only.
+
+INPUT
+ imports: [IMPORTS]
+ source_statement_id: [ID]
+ source_statement: [LEAN]
+ optional_natural_language: [NL_OR_NULL]
+
+TASK
+Produce [N] complete statements covering requested strata. Equivalent variants
+must avoid mere formatting unless requested; negative variants should be
+plausible type-correct autoformalization mistakes.
+
+OUTPUT
+{"variants":[{
+  "candidate_lean":"...",
+  "intended_relation":"...",
+  "intended_error_types":["E01"],
+  "edit_summary":"...",
+  "confidence":0.0,
+  "assumptions":[],
+  "potential_ambiguity":null
+}]}
 ```
 
-Task relation to create:
-{{target_relation}}
-
-Allowed error family:
-{{target_error_family}}
-
-Requirements:
-1. The output must be a single Lean theorem statement that should elaborate in
-   the supplied environment after a placeholder proof is attached.
-2. Make the smallest change that realizes the requested semantic relation.
-3. Avoid mere formatting changes unless the requested relation is equivalent.
-4. Do not copy the theorem proof.
-5. Identify the exact changed mathematical content.
-6. State uncertainty. Your claimed label will be treated only as a proposal.
-
-JSON schema:
-{
-  "candidate_statement": "string",
-  "intended_relation": "equivalent|reference_stronger|candidate_stronger|not_same_claim|uncertain",
-  "error_tags": ["string"],
-  "changed_content": "string",
-  "reasoning_summary": "string",
-  "counterexample_sketch": "string|null",
-  "confidence": 0.0
-}
-```
-
-The production system must reject extra prose and schema violations while retaining the raw output for diagnosis.
+Reject unknown enums/errors, missing fields, duplicate normalized candidates, proof bodies when prohibited, or text outside JSON. `near_miss` is intention-only; final relation requires resolution. Store prompt/model/parameters/tokens/retries/source provenance.
 
 ---
 
-## Appendix E — Blinded LLM judge prompt template
+## Appendix E — Blinded LLM judge prompt contract
 
 ```text
 SYSTEM
-Judge whether two Lean 4 theorem statements express the same mathematical
-claim. Do not judge merely whether both are true or provable. Account for
-quantifiers, domains, assumptions, conclusions, constants, coercions,
-redundant variables, and accidental trivialization. Return strict JSON.
+Judge whether two Lean theorem statements express the same intended mathematical
+claim. Do not equate both true/provable with same claim. Check domains, binders,
+hypotheses, dependencies, quantifiers, operators, constants, casts, bounds,
+conclusion strength, vacuity, and irrelevant variables. Return strict JSON.
 
-USER
-Statement A:
-```lean
-{{statement_a}}
-```
+A: [LEAN_A]
+B: [LEAN_B]
+OPTIONAL_NL: [NL_OR_NULL]
 
-Statement B:
-```lean
-{{statement_b}}
-```
+SAME-CLAIM ANSWERS
+ same_claim | not_same_claim | ambiguous | uncertain
+RELATIONS
+ equivalent | A_stronger | B_stronger | incomparable_near_miss |
+ unrelated | ambiguous | unknown
+DIRECTIONAL
+ yes | no | unknown
+ERRORS
+ E01 through E30 only
 
-Optional natural-language source:
-{{natural_language_or_omitted}}
-
-Choose one relation:
-- equivalent_same_claim
-- a_stronger
-- b_stronger
-- overlapping_but_not_equivalent
-- unrelated_or_wrong_claim
-- uncertain
-
-Also predict whether A implies B and whether B implies A, but use "unknown"
-when you cannot justify a direction. Do not infer non-implication from failure
-to find a proof.
-
-Return:
+OUTPUT
 {
-  "relation": "...",
-  "a_implies_b": "yes|no|unknown",
-  "b_implies_a": "yes|no|unknown",
-  "same_claim_probability": 0.0,
-  "error_tags": ["..."],
-  "minimal_difference": "...",
-  "confidence": 0.0
+ "same_claim_answer":"...",
+ "relation":"...",
+ "A_implies_B":"yes|no|unknown",
+ "B_implies_A":"yes|no|unknown",
+ "error_types":[],
+ "confidence":0.0,
+ "rationale":"at most three concise sentences",
+ "needs_expert_review":true
 }
 ```
 
-Judge inputs must not reveal source, generator, proposer intention, other judges, automatic transformations, or existing labels.
+Map same/not-same to weak votes; ambiguous to terminal-ambiguity candidate with no binary target; uncertain to no vote/review. No single vote creates gold. Judges never see proposer/intention/gold/symbolic result/other vote unless the registered evidence condition explicitly supplies symbolic evidence.
 
 ---
 
 ## Appendix F — Human annotation checklist
 
-For each pair, annotators answer in order:
+1. Confirm both statements' context/typecheck status or mark context defect.
+2. Identify objects/domains/binders/hypotheses/dependencies/conclusion.
+3. Ignore names/formatting/proof text/harmless alpha changes.
+4. Do not use “both provable” as same-claim evidence.
+5. Compare every side condition, quantifier/order, operator, constant, cast, index, set/domain, and extra/free binder.
+6. Choose same/not-same, or terminal ambiguity only when genuinely irresolvable from context.
+7. Choose canonical relation and all E-codes.
+8. Mark source/reference defect and minimum missing context.
+9. Use cannot-assess only for further adjudication.
+10. Give concise syntax/semantic rationale.
+11. Remain blind to generator/intention/judges/model/split.
 
-1. Does each statement elaborate in the recorded environment? This is supplied by tooling, not manually inferred.
-2. Is either statement/reference malformed, vacuous, or obviously defective?
-3. What are the quantified objects and their domains?
-4. What assumptions are made?
-5. What conclusion is asserted?
-6. Are any constants, relations, operators, literals, or coercions materially different?
-7. Has either statement been generalized or restricted?
-8. Is one statement stronger or weaker?
-9. Are there unused, extra, or missing binders?
-10. Could both statements be true while expressing different claims?
-11. Do they express the same mathematical content under the annotation policy?
-12. Which error tags apply?
-13. What is the annotator's confidence?
-14. Is adjudication needed?
-
-Annotators must not use “both are provable” as sufficient justification for `equivalent_same_claim`.
+Adjudicator reproduces context, inspects independent labels/evidence without treating failed search as negation, resolves outcome/relation/errors, records method/guideline/rationale, and requires another reviewer for frozen-label changes.
 
 ---
 
 ## Appendix G — Dataset release checklist
 
-A release candidate may be frozen only when all boxes are checked:
-
-```text
-[ ] Source manifests and licenses are complete.
-[ ] Lean, project, dependency, LeanInteract, and meta-helper revisions are pinned.
-[ ] All records pass current schemas.
-[ ] All raw-to-derived lineage pointers resolve.
-[ ] Context reconstruction succeeds for all included pairs.
-[ ] Pair sides elaborate under the recorded placeholder-proof policy.
-[ ] Automatic-positive families passed their audit gates.
-[ ] Supervised negatives meet evidence requirements.
-[ ] Gold/silver/weak labels are distinguishable.
-[ ] Ancestry groups do not cross splits.
-[ ] External benchmark/test IDs are absent from training.
-[ ] Exact, normalized, structural, and fuzzy leakage checks pass.
-[ ] Duplicate and cluster distributions are reported.
-[ ] Generator/source/transformation distributions are reported.
-[ ] Failure and exclusion counts are reported.
-[ ] Release assembly is deterministic.
-[ ] Checksums and release manifest are written.
-[ ] Data card documents limitations and intended use.
-[ ] A clean smoke load and evaluation pass succeeds.
-```
+- exact Python/LeanInteract/Lean/REPL/project/source/model revisions and terms;
+- supported-range/ADR checks pass;
+- schemas validate and evidence/labels remain separate;
+- F1 equals same_claim; every label/evidence target kind and ID resolves; NL records reference NL-targeted labels; reference comparisons are PairRecords;
+- representations keyed by theorem+normalization;
+- denylist frozen before generation;
+- all ancestry/problem connected components isolated;
+- near-duplicate/ReForm/judge-family/final-test audits pass;
+- final sampling independent of compared models;
+- promotion/audit/Clopper–Pearson rules pass;
+- no failed search/not-found/infrastructure error becomes negative;
+- Parquet/manifests/counts/hashes/card/licenses validate;
+- private-source external-API approvals recorded where applicable;
+- restricted payloads replaced with reproducible IDs/scripts when needed;
+- clean smoke rebuild succeeds; plan/policies/prompts/configs/reports linked.
 
 ---
 
 ## Appendix H — Experiment completion checklist
 
-```text
-[ ] Research question and hypothesis are named.
-[ ] Data release and split hashes are fixed.
-[ ] Model/baseline config is versioned.
-[ ] All random seeds are recorded.
-[ ] Checkpoint and tokenizer revisions are recorded.
-[ ] Thresholds were selected without test labels.
-[ ] Calibration used only the calibration split.
-[ ] Predictions are saved for every eligible example.
-[ ] Missing/failed predictions are counted.
-[ ] Overall and slice metrics are produced.
-[ ] Confidence intervals are computed.
-[ ] Runtime, hardware, latency, and cost are reported.
-[ ] Results can be regenerated from prediction files.
-[ ] Failure examples are selected by a declared procedure.
-[ ] No final-test result was used to alter the method.
-```
+1. experiment/hypothesis/config/code/data/environment IDs recorded;
+2. protected evaluation/near duplicates excluded;
+3. tokenizer ADR precedes non-smoke training;
+4. seeds/selection/stopping frozen before final results;
+5. evidence conditions report amortized cost;
+6. primary judge supervision-free and prompt-development record frozen;
+7. calibration selected by K-fold within calibration_gold and final thresholds use real-output distribution;
+8. ambiguity binary exclusion + three-class/abstention/sensitivity reported;
+9. group/problem bootstrap and group counts used;
+10. Holm primary/BH exploratory applied;
+11. propensities and design/deployment-weighted results reported;
+12. deployment claims use SRS real-output panel;
+13. H3 only under registered hard/OOD slice rule;
+14. ECE/selective precision/coverage/subgroup counts/failures/raw predictions included;
+15. public-vs-novel contamination deltas where available;
+16. reranking reports prevalence/headroom/compilation/top-k/ties/abstention/latency/evidence cost;
+17. smoke artifacts excluded from selection/release/tables;
+18. report states supported/failed claims, deviations, exclusions.
 
 ---
 
 ## Appendix I — First executable vertical slice
 
-The coding agent should start with the smallest end-to-end path below, not with mass data generation or model code.
+This slice is backlog item LF-019 and runs only after LF-016–LF-018 exist.
 
-### Input
-
-A fixture Lean file containing ten theorem statements.
-
-### Pipeline
+Inputs: fixture project, ≥10 statements, P01 plus one provisional negative, no protected benchmark.
 
 ```text
-1. `leanfaith doctor`
-2. extract declarations with LeanInteract
-3. create theorem/context records
-4. build raw/headless/semantic-atom views
-5. alpha-rename five theorems
-6. apply one typed relation mutation to five theorems
-7. validate all variants with LeanInteract
-8. create pair/evidence records
-9. resolve only the alpha pairs as conservative positives;
-   retain mutations as provisional candidates
-10. make a grouped train/validation split
-11. run exact and token-similarity baselines
-12. train a tiny M1 model solely as a software smoke test
-13. emit a report with lineage for every prediction
+doctor/API probe → extract → Context/Theorem → Representation
+→ P01/provisional draft → Lean validation → Pair/Evidence
+→ smoke-only alpha resolution → connected smoke split
+→ tiny nonproduction classifier → predictions/metrics/manifest
 ```
 
-### Vertical-slice acceptance
+All artifacts:
 
-- one command runs the pipeline from clean fixture inputs;
-- every Lean call uses LeanInteract;
-- every artifact has a schema/version/hash;
-- no mutation-intended negative is silently promoted;
-- rerun output manifests are identical;
-- deleting an intermediate shard and resuming reconstructs it correctly;
-- the report links predictions to pair, variant, source theorem, context, and evidence.
+```yaml
+artifact_class: smoke
+release_eligible: false
+model_selection_eligible: false
+```
 
-Only after this slice passes should the agent implement large-scale source extraction.
+Alpha pairs may use `quality_tier=provisional`, `resolution_method=smoke_alpha_certificate`. Acceptance: deterministic extraction/views, explicit placeholder behavior, P01 ancestry, provisional negative not gold, zero split leakage, batch exception tests, clean-checkout run, release guard rejects smoke.
 
 ---
 
 ## Appendix J — Selected references and implementation anchors
 
-### Lean/Python infrastructure
+### J.1 Infrastructure/libraries
 
-- LeanInteract repository and documentation: <https://github.com/augustepoiroux/LeanInteract>
-- LeanInteract data extraction guide: <https://github.com/augustepoiroux/LeanInteract/blob/main/docs/user-guide/data-extraction.md>
-- LeanInteract performance guide: <https://github.com/augustepoiroux/LeanInteract/blob/main/docs/user-guide/performance.md>
-- LeanInteract BEq+ example: <https://github.com/augustepoiroux/LeanInteract/blob/main/examples/beq_plus.py>
-- LeanInteract scalable declaration extraction example: <https://github.com/augustepoiroux/LeanInteract/blob/main/examples/extract_mathlib_decls.py>
+- LeanInteract: `https://github.com/augustepoiroux/LeanInteract`, `lean-interact==0.11.4`.
+- REPL fork: `https://github.com/augustepoiroux/repl`.
+- mathlib: `https://github.com/leanprover-community/mathlib4`.
+- CSLib: `https://github.com/leanprover/cslib`, root `Cslib`.
+- Physlib: `https://github.com/leanprover-community/physlib`, root `Physlib`; consolidates PhysLean (formerly HepLean) and Lean-QuantumInfo under the Physlib repository in 2026.
 
-### Faithfulness/equivalence evaluation
+### J.2 Corpora/benchmarks
 
-- ProofNetVerif / BEq+ paper and released benchmark.
-- GTED: graph/tree-edit-based evaluation of formalized theorem statements.
-- FormalAlign: learned evaluation/alignment for autoformalization.
-- ASSESS/TransTED and related structural-semantic metric work.
+- private primary source `formalmathatepfl/sft_classic` (HF-token access; schema verified at probe);
+- public `formalmathatepfl/sft_classic_numina`;
+- synthetic `internlm/Lean-Workbook`;
+- `PAug/ProofNetVerif`;
+- ProofNet#, RLM25, Con-NF, EPLA, CriticLeanBench, ReForm ConsistencyCheck, Gaokao-Formal, DriftBench, miniF2F variants.
 
-### Typed mutation and test generation
+### J.3 Methods
 
-- Type-aware operator mutation for SMT solvers.
-- Generative type-aware mutation for SMT solver testing.
-- Grammar-based enumeration for SMT solver correctness/performance testing.
-- Dominik Winterer's work on semantic fusion and metamorphic testing.
+- Liu et al., *Rethinking and Improving Autoformalization* (ICLR 2025): BEq/Con-NF.
+- Poiroux et al., *Reliable Evaluation and Benchmarks for Statement Autoformalization* (EMNLP 2025; arXiv:2406.07222): ProofNetVerif/BEq+.
+- FormalAlign (arXiv:2410.10135; ICLR 2025).
+- CriticLean/CriticLeanGPT/CriticLeanBench (arXiv:2507.06181).
+- GTED (arXiv:2507.07399).
+- ASSESS/TransTED/EPLA (arXiv:2509.22246).
+- Mathesis/LeanScorer/Gaokao-Formal (arXiv:2506.07047).
+- ReForm/ConsistencyCheck (arXiv:2510.24592; 859 expert-annotated validation items).
+- *The Faithfulness Gap*/DriftBench (arXiv:2606.16541).
+- COVCAL (arXiv:2605.28365).
 
-### Corpora/models to verify and pin during source probing
+### J.4 Candidate generators
 
-- `formalmathatepfl/sft_classic` or the exact accessible dataset/config variant.
-- mathlib4.
-- CSLib.
-- PhysLib.
-- ProofNetVerif.
-- ReForm-32B or the exact available model checkpoint.
+`GuoxinChen/ReForm-32B` and `GuoxinChen/ReForm-8B` (Apache-2.0, Qwen3-based; arXiv:2510.24592), Kimina-Autoformalizer-7B, Goedel-Formalizer-V2, StepFun-Formalizer, Herald, ATLAS, plus provider slots. Resolve every non-ReForm exact ID/revision/license/interface/overlap during Phase 0/5. ReForm was trained on Lean Workbook; ReForm×Lean-Workbook is overlap-tagged and ineligible for held-out claims.
 
-Every external source/model must be recorded by exact revision and license in the project manifests. Names in this appendix are planning anchors, not permission to rely on mutable aliases.
+### J.5 Typed mutation/testing anchors
+
+- Winterer, Zhang, and Su, *Validating SMT Solvers via Semantic Fusion* (PLDI 2020; DOI `10.1145/3385412.3385985`);
+- Winterer, Zhang, and Su, *On the Unusual Effectiveness of Type-Aware Operator Mutations for Testing SMT Solvers* / OpFuzz (OOPSLA 2020; DOI `10.1145/3428261`);
+- Park, Winterer, Zhang, and Su, *Generative Type-Aware Mutation for Testing SMT Solvers* / TypeFuzz (OOPSLA 2021; DOI `10.1145/3485529`);
+- Winterer and Su, *Validating SMT Solvers for Correctness and Performance via Grammar-Based Enumeration* (OOPSLA 2024; DOI `10.1145/3689795`).
+
+These motivate generation/testing discipline; they do not establish Lean same-claim labels.
+
+### J.6 Reference hygiene
+
+For every external artifact record immutable ID/revision/retrieval/license, verify schema/count at pin, mark human/synthetic/model/weak/adjudicated provenance, register train/eval/overlap before ingestion, freeze denylist signatures, and report unavailable artifacts rather than substituting similarly named resources.
 
 ---
 
 # Final definition of project completion
 
-The project is complete when it delivers a reproducible LeanInteract-backed system that:
+LeanFaith is complete for the declared release track only when:
 
-1. reconstructs and validates Lean theorem statements in pinned environments;
-2. stores multiple representations and complete provenance;
-3. creates conservative certified positives, difficult typed provisional negatives, LLM-diversified examples, real autoformalization failures, and expert gold labels;
-4. prevents truth-level proof success from being confused with same-claim faithfulness;
-5. trains and calibrates a bidirectional Lean–Lean relation model;
-6. evaluates against strong symbolic, structural, and LLM baselines on frozen human and external sets;
-7. demonstrates useful autoformalization reranking or repair behavior;
-8. reports uncertainty, abstention, failure modes, compute, and cost;
-9. releases the code, policies, manifests, and permitted data with enough information to reproduce the central results.
+1. pinned Python/LeanInteract/Lean/REPL/projects pass API/range/fixture/recovery/batch/reproducibility checks;
+2. all source/theorem/representation/variant/pair/evidence/label/NL records validate and reproduce immutable manifests;
+3. semantic/F0-F2/relation/error/evidence/ambiguity/promotion policies are implemented and golden-tested;
+4. benchmark-before-generation denylisting, connected groups, and near-duplicate audits show no protected leakage;
+5. candidates are promoted only by allowed routes; failed searches never become negatives; required human development/calibration/final products exist;
+6. M0–M3 and required clean symbolic/structural/LLM comparisons run; M4 provides the declared application; M5 only when graph claims are made;
+7. deployment thresholds use real-output calibration_gold and Gate 10 targets are evaluated without final-test tuning;
+8. sealed internal/human/benchmark/real and track-required held-out tests report group-aware uncertainty, weights, corrections, counts, abstention, and contamination caveats;
+9. frozen reranking reports prevalence/headroom/compilation/top-k/coverage/latency/evidence cost against fair baselines;
+10. clean release smoke reconstructs declared artifacts; smoke data are excluded; cards/provenance/licenses are complete;
+11. every claim obeys §33 and every deferred/failed gate is explicit.
+
+A scoped MVP/intermediate artifact may be released when named gates are missing, but claims must be limited and the full track must not be declared complete.
