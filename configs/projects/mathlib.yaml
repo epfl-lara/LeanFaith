@@ -1,0 +1,13 @@
+# Main theorem inventory (PLAN.md §9.1, ADR-0001). Tag v4.31.0-rc1; its
+# checked-in lean-toolchain matches the accepted lock exactly. The checkout
+# lives under /storage/milikic (bulk storage); the doctor validates the
+# toolchain once cloned.
+registry_key: mathlib
+kind: git
+uri: https://github.com/leanprover-community/mathlib4
+revision: d568c8c09630de097a046763c17b9ea99f95f950  # tag v4.31.0-rc1
+expected_toolchain: v4.31.0-rc1
+root_module: Mathlib
+globs:
+  - "Mathlib/**/*.lean"
+role: mvp_source

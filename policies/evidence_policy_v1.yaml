@@ -1,0 +1,163 @@
+# Evidence policy v1 (PLAN.md section 16; record contract section 11.7;
+# certificate template Appendix A.9). Governs when symbolic evidence runs,
+# what each evidence kind may mean, and how evidence maps to labels.
+# Changing any semantic rule in this file requires a new policy version;
+# cached evidence produced under the old version keeps its old cache keys.
+policy_version: evidence_policy_v1
+status: "approved for implementation (Phase 0); operational restatement of PLAN.md, which prevails on any conflict"
+
+# ---------------------------------------------------------------- 16.1
+sampling_scope:
+  mandatory_when_applicable:
+    - evaluation_and_calibration_pairs
+    - gold_promotion_candidates
+    - gold_counterexample_candidates
+    - preregistered_stratified_training_sample
+  never: "exhaustive execution over all training pairs"
+  decision: >-
+    The stratified training sample is preregistered in
+    configs/evidence/training_sample_prereg_v1.yaml (strata definitions and
+    selection seed recorded before any evidence job runs on training data);
+    evidence results never move a pair into or out of the registered sample.
+
+# ---------------------------------------------------------------- 16.2 / 11.7
+record_contract:
+  # EvidenceRecord (PLAN.md 11.7): evidence_id; target_kind; target_id; kind;
+  # status; value; method/config versions; raw artifact; created_at.
+  # Execution status and semantic value are SEPARATE fields: status says
+  # whether the job ran; value says what it established.
+  execution_status_enum: [success, timeout, error, unsupported, abstain, not_run]
+  principle: >-
+    Only a checked proof yields proved; only a checked separator yields found.
+    Negative search outcomes remain unknown and never map to a negative label.
+
+evidence_kinds:
+  defeq:
+    description: "definitional equality check between the two proposition types"
+    semantic_values: [equal, not_equal]
+    may_inform: [F0]
+  closed_proof:
+    description: "closed whole-proposition proof of A->B or B->A"
+    semantic_values: [proved, not_proved]
+    may_inform: [F2]   # F2 only; never a directional claim relation by itself
+  claim_alignment:
+    description: >-
+      binder-aligned claim certificate: a versioned alignment of corresponding
+      binders, premises, and conclusion roles, plus a proved local mapped
+      implication
+    semantic_values: [certified, rejected, unsupported]
+    value_payload: "alignment_version, binder_map, premise_map, conclusion_role_map, direction (PLAN.md 11.7)"
+    may_inform: [directional_claim_relation]
+  counterexample:
+    description: "checked separator witnessing a truth difference between the two propositions"
+    semantic_values: [found, not_found, unsupported]
+    may_inform: [F2_direction_false, F1_false_under_policy]
+
+# ---------------------------------------------------------------- 16.3
+comparison_modes:
+  closed_truth:
+    proves: "the complete proposition A->B or B->A"
+    may_populate: "F2 only"
+    never_assigns: [A_stronger, B_stronger, F1]
+  binder_aligned_claim:
+    records: >-
+      a versioned alignment of corresponding binders, premises, and conclusion
+      roles, then proves a local mapped implication without exploiting an
+      inconsistent whole-theorem premise
+    may_support: [A_stronger, B_stronger]
+    conditions:
+      - "the alignment/diff passes semantic_policy_v1"
+      - "the proof does not use vacuity or ex falso; such certificates are rejected"
+      - >-
+        if alignment is unavailable, the claim relation stays unknown or
+        human-resolved even when closed truth mode succeeds
+  canonical_template: >-
+    PLAN.md Appendix A.9 is the canonical directional certificate shape
+    (section-local Prop helpers, intro/exact-style proof). Failure to prove
+    the reverse direction is search failure only, never evidence of
+    nonimplication.
+
+proposition_isolation:
+  rules:
+    - "Build helper definitions from proposition types, never from imported theorem proof constants."
+    - "Neither compared proof constant may be available to the tactic context."
+    - "For every accepted certificate, audit the used constants and axioms and persist the audit with the record."
+
+# ---------------------------------------------------------------- 16.4
+proof_portfolio:
+  authoritative_config: configs/evidence/portfolio_v1.yaml
+  rule: >-
+    That file, not this one, defines the tactic order, the binder-alignment
+    templates, and the timeouts; all three are part of the method version, so
+    changing any of them creates a new method version and new cache keys.
+  admissible_content: >-
+    exact/assumption, constructors/intros, replayed simp?/aesop? results,
+    omega, linarith, nlinarith, ring, norm_num, approved domain tactics, and
+    narrowly defined binder-alignment templates that record binder, premise,
+    and conclusion maps and reject vacuity/ex-falso shortcuts
+  acceptance: "only replayed admission-free certificates are accepted"
+  decision: >-
+    portfolio_v1.yaml is a separate Phase 0/1 deliverable; no evidence job may
+    run before it exists, and this policy intentionally does not duplicate its
+    contents.
+
+# ---------------------------------------------------------------- 16.5
+bounded_counterexamples:
+  scope: "finite/bounded Decidable fragments only (v1); anything else returns unsupported"
+  preferred_checker: "kernel decide"
+  persist: [domain, encoding, helper, theorem, result, axiom_audit]
+  coverage: "best effort; no broad counterexample gate exists"
+
+# ---------------------------------------------------------------- 16.6
+native_decide:
+  trust: >-
+    distinct lower-trust evidence method: native execution bypasses ordinary
+    kernel reduction and has had known soundness failures; Mathlib policy
+    forbids relying on it for accepted library proofs
+  required_records:
+    - lean_version
+    - "axiom audit via #print axioms or a pinned equivalent"
+    - "per-computation axioms (Lean >= 4.29) and any other axioms"
+  prohibitions:
+    - "never the sole basis for a gold negative"
+    - "may mine or corroborate candidates only, unless a later reviewed policy version changes this"
+
+# ---------------------------------------------------------------- 16.7
+certificate_acceptance:
+  # Every item is required; failing any one rejects the certificate.
+  checklist:
+    - "allow_sorry=False"
+    - "no admissions, no unresolved metavariables, no forbidden axioms"
+    - "no source or candidate proof constants used"
+    - "exact pinned context"
+    - "certificate code and result persisted"
+    - "axiom and dependency audit persisted"
+    - "linked to its pair and method version"
+    - "reproducible after cache deletion"
+
+# ---------------------------------------------------------------- 16.8
+evidence_to_label:
+  informs:
+    defeq: "informs F0"
+    closed_proof: "informs F2"
+    claim_alignment: "may support a directional claim relation (A_stronger/B_stronger)"
+    counterexample: "may set a truth direction false and support F1=false under policy"
+  hard_rules:
+    - "No evidence kind alone silently sets F1."
+    - "A closed implication never directly assigns A_stronger or B_stronger."
+    - "Mutual closed provability never directly assigns F1=true."
+    - "not_proved and counterexample not_found never map to a negative label (PLAN.md 11.7)."
+    - "Conflicting evidence routes to review; code never auto-resolves a conflict."
+
+# ---------------------------------------------------------------- 16.9
+cache_key:
+  fields:
+    - pair_or_theorem_id
+    - evidence_kind_and_version
+    - context_id
+    - environment_schema_version
+    - timeout
+    - portfolio_or_config_hash
+    - lean_version
+    - lean_interact_version
+  rule: "a changed timeout or method is a new key; cached entries are never overwritten in place"

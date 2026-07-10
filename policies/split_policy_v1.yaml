@@ -1,0 +1,246 @@
+# Split policy v1 (PLAN.md sections 19.5-19.9, 22.4-22.5, Appendix B.4).
+# Serialized records store only split names and group IDs; the rules that
+# produce and protect them live here. Changing any rule in this file requires
+# a new policy version and a rebuild of affected manifests (section 18.6
+# versioning discipline applies to splits as to labels).
+policy_version: split_policy_v1
+source_of_truth: "PLAN.md sections 19.5-19.9, 22.4-22.5, Appendix B.4"
+status: approved_for_pilot_builds
+
+# ---------------------------------------------------------------------------
+# 1. Connected-component grouping (PLAN.md section 19.5)
+# ---------------------------------------------------------------------------
+connected_component_rule:
+  key_field: split_group_ids
+  # For each pair, split_group_ids is the UNION of all of the following;
+  # omitting any source is a policy violation, not a soft warning.
+  group_sources:
+    - root_ancestry_side_a          # full root ancestry of the first statement
+    - root_ancestry_side_b          # full root ancestry of the second statement
+    - nl_problem_group              # shared natural-language problem grouping
+    - mandatory_near_duplicate_groups   # exact/headless/alpha/near-dup signatures
+    - mandatory_benchmark_groups        # frozen-registry benchmark membership
+  algorithm:
+    edges: pair_to_group            # build pair<->group edges over split_group_ids
+    components: union_find          # compute connected components
+    assignment: atomic_per_component
+    # Every record in a component receives the SAME primary split. This is
+    # what makes multi-parent, N10, multiple-reference, and multiple-candidate
+    # cases safe: relatives can never straddle a train/test boundary.
+  handles_cases: [multi_parent, n10_transform_chains, multiple_reference, multiple_candidate]
+  near_duplicate_source: "data/benchmarks/frozen_ids.json plus the end-of-Phase-3 additive signature append (PLAN.md section 19.4); appends are versioned, never rewrites"
+
+# ---------------------------------------------------------------------------
+# 2. Single-spelling rule (PLAN.md section 19.6)
+# ---------------------------------------------------------------------------
+naming:
+  sealed_final_set_product: final_human_test
+  serialized_name: human_test
+  rule: >
+    human_test is the ONLY serialized split name for the sealed
+    final_human_test product. No second spelling (final_human_test,
+    humanTest, human-test, final_test, or any alias) may appear in
+    manifests, records, configs, or code paths that serialize split names.
+    Loaders MUST reject unknown split spellings rather than normalize them.
+
+# ---------------------------------------------------------------------------
+# 3. Primary split versus reporting subsets (PLAN.md section 19.6)
+# ---------------------------------------------------------------------------
+primary_vs_reporting:
+  primary_split_assignments_per_record: 1
+  purpose_of_primary_split: training_access_control
+  reporting_subset_field: reporting_subsets   # list-valued, stored SEPARATELY
+  rule: >
+    A record has exactly one primary split assignment. It may additionally
+    belong to explicitly declared reporting subsets (for example
+    heldout_generator_test as a subset of real_output_test as a subset of
+    human_test). Reporting-subset membership is stored in the
+    reporting_subsets field and never in the primary split field; no code
+    may infer training access from reporting-subset membership.
+  decision: >
+    Phase 0 decision: reporting subsets are declared only in split manifests
+    (never computed ad hoc at evaluation time), so every reported subset has
+    a frozen membership list, target_count, and sampling design.
+
+# ---------------------------------------------------------------------------
+# 4. Split inventory (PLAN.md section 19.6 table)
+# ---------------------------------------------------------------------------
+# construction: random_fraction splits get fractions from configs/splits/v0.yaml
+# (frozen before model selection); manifest splits are manifest-built, never
+# random fractions. Every manifest freezes target_count, realized eligible
+# count, label source, sampling design, and the exact subset/disjoint relation
+# to human_test.
+splits:
+  train:
+    label_source: permitted_gold_silver_under_policy
+    target_count_rule: build_profile_or_config_count_after_component_assignment
+    relation_to_human_test: disjoint
+    construction: random_fraction
+    status: v0_mandatory
+  validation:
+    label_source: development_labels
+    target_count_rule: frozen_development_fraction_or_component_count
+    relation_to_human_test: disjoint
+    construction: random_fraction
+    status: v0_mandatory
+  calibration:
+    label_source: pair_level_development_labels_method_comparison_only
+    target_count_rule: frozen_development_fraction_or_component_count
+    relation_to_human_test: disjoint
+    construction: random_fraction
+    status: v0_mandatory
+    note: development_only_never_used_for_deployment_thresholds
+  internal_test:
+    label_source: frozen_internal_gold_and_diagnostic_labels
+    target_count_rule: fixed_in_configs_splits_v0_before_model_selection
+    relation_to_human_test: disjoint
+    construction: random_fraction
+    status: v0_mandatory
+  human_test:
+    label_source: sealed_expert_adjudication
+    target_count_rule: >-
+      at least 500 eligible main-task items, unless preregistration declares
+      the corresponding operating-point claim unsupported
+    relation_to_human_test: identity
+    construction: manifest
+    status: v0_mandatory
+    track: final_claims
+  benchmark_test:
+    label_source: frozen_external_benchmark_labels
+    target_count_rule: all_eligible_rows_after_environment_migration_and_exclusions
+    relation_to_human_test: disjoint_after_denylist_and_near_duplicate_filtering
+    construction: manifest
+    status: v0_mandatory_when_adapters_ready
+  real_output_test:
+    label_source: expert_labels_on_compiling_real_outputs_with_simple_random_sample_subpanel
+    target_count_rule: power_derived_and_frozen_after_200_to_300_item_prevalence_study
+    relation_to_human_test: named_subset_by_default
+    construction: manifest
+    status: v0_mandatory
+    track: deployment_claims
+    decision: >
+      Phase 0 decision: v0 uses the default named-subset-of-human_test design.
+      Any disjoint design requires a preregistered ADR before construction.
+  heldout_transform_test:
+    label_source: blinded_expert_or_audited_labels_for_unseen_families
+    target_count_rule: all_eligible_or_power_derived_frozen_count
+    relation_to_human_test: subset_when_human_labeled_otherwise_disjoint_manifest
+    construction: manifest
+    status: strong_paper
+  heldout_project_test:
+    label_source: expert_or_accepted_labels_from_unseen_projects
+    target_count_rule: all_eligible_with_absolute_item_and_group_counts
+    relation_to_human_test: disjoint_project_manifest
+    construction: manifest
+    status: strong_paper
+    held_out_projects_v0: [cslib, physlib]
+    reporting_rule: cslib_physlib_results_always_include_absolute_item_and_ancestry_group_counts
+  heldout_generator_test:
+    label_source: expert_labels_from_supervision_excluded_family
+    target_count_rule: power_derived_frozen_count
+    relation_to_human_test: named_subset_of_real_output_test_and_human_test
+    construction: manifest
+    status: strong_paper
+    track: h6
+  adversarial_test:
+    label_source: expert_minimal_pair_and_semantic_erasure_labels
+    target_count_rule: frozen_curated_frame_count
+    relation_to_human_test: named_subset_unless_separately_constructed
+    construction: manifest
+    status: strong_paper
+
+split_config:
+  path: configs/splits/v0.yaml
+  contains: >
+    random fractions ONLY for train/validation/calibration/internal_test;
+    manifest paths for all constructed test splits; held-out
+    generators/projects/transformation families; mandatory/deferred status
+    per split (PLAN.md sections 19.8, B.4).
+  decision: >
+    Phase 0 decision: strong-paper splits (heldout_transform_test,
+    heldout_project_test, heldout_generator_test, adversarial_test) ship in
+    v0 as explicit deferred manifests: schema-valid manifest files with
+    status deferred and zero rows, so their names, paths, and protection
+    rules exist from the first build rather than appearing later as new keys.
+
+manifest_required_fields:
+  - record_ids
+  - component_ids
+  - group_ids
+  - label_source
+  - source_project_generator
+  - propensities            # inclusion probabilities / design weights
+  - denylist_status
+  - target_count
+  - realized_eligible_count
+  - sampling_design
+  - relation_to_human_test  # exact subset/disjoint declaration
+  - hashes_version_config
+
+# ---------------------------------------------------------------------------
+# 5. Deployment thresholds and selection order (PLAN.md sections 19.6, 22.5)
+# ---------------------------------------------------------------------------
+deployment_thresholds:
+  dataset: calibration_gold
+  restriction: real_output_distribution_only
+  disjoint_from: [all_weight_training_records, human_test]
+  method: k_fold_over_calibration_gold_real_outputs
+  pair_level_calibration_split_usage: development_only_method_comparison
+selection_order:
+  weights_and_hyperparameters: validation
+  calibration_method_development: calibration   # pair-level, development only
+  final_thresholds: k_fold_calibration_gold_real_outputs
+  final_tests: only_after_checkpoint_tokenizer_prompts_calibration_thresholds_freeze
+  decisions_recorded_in: [reports/decisions, ADRs]
+
+# ---------------------------------------------------------------------------
+# 6. Hard aborts (PLAN.md section 22.4)
+# ---------------------------------------------------------------------------
+# Any condition below aborts the build/run; none may be downgraded to a
+# warning by configuration.
+protected_splits:
+  - internal_test
+  - human_test
+  - benchmark_test
+  - real_output_test
+  - heldout_transform_test
+  - heldout_project_test
+  - heldout_generator_test
+  - adversarial_test
+hard_aborts:
+  - id: HA01
+    condition: connected_component_crosses_protected_splits
+    detail: "A union-find component contains records assigned to more than one split where any member split is protected."
+  - id: HA02
+    condition: duplicate_policy_violation
+    detail: "Exact, headless, alpha, or near duplicates violate the duplicate policy across a protected boundary."
+  - id: HA03
+    condition: denylisted_or_prohibited_overlap_in_supervision
+    detail: "A denylisted (section 19.7 registry) or otherwise prohibited record enters any supervision set."
+  - id: HA04
+    condition: primary_judge_family_in_weak_labels
+    detail: "The primary judge model family appears as a weak-label source."
+  - id: HA05
+    condition: final_test_items_in_active_learning_or_prompt_logs
+    detail: "Any final-test item appears in active-learning pools or prompt logs."
+  - id: HA06
+    condition: manifests_disagree
+    detail: "Two manifests, or a manifest and its config/hashes, disagree about membership, counts, or relations."
+  - id: HA07
+    condition: test_labels_mounted_without_evaluation_only_flag
+    detail: "Test labels are mounted to a training process without the evaluation-only flag."
+
+# ---------------------------------------------------------------------------
+# 7. Reload definition (PLAN.md section 19.9)
+# ---------------------------------------------------------------------------
+reload:
+  definition: >
+    Reparsing immutable raw data must reproduce byte-identical IDs and
+    content hashes for at least 99.5 percent of checked records.
+  threshold_fraction: 0.995
+  comparison: byte_identical_ids_and_content_hashes
+  discrepancy_rule: >
+    Every discrepancy below the 100 percent line is individually listed and
+    explained; unexplained discrepancies fail the reload check even when the
+    99.5 percent threshold is met.
+  re_elaboration: separate_nightly_check_not_part_of_reload

@@ -1,0 +1,189 @@
+# Provider slot registry (PLAN.md sections 17.2, 17.3, 17.7; section 9.2
+# private-data boundary; section 28.2 run manifest). This file declares slots
+# and binding constraints only. It never contains secret values: credentials
+# are referenced by environment-variable name (api_key_env) and resolved at
+# run time. Exact model IDs and revisions are frozen into the run manifest at
+# run start; an enabled slot without a frozen (exact_model, revision) pair
+# fails closed.
+config_version: providers_v1
+plan_sections: ["17.2", "17.3", "17.7", "9.2", "28.2"]
+
+# Gate 0 requires every slot to be resolved or explicitly disabled with a
+# recorded fallback. Current file-level status:
+status: declared_unresolved_pending_provider_accounts
+
+rules:
+  freeze_at_run_start: >-
+    Exact model IDs and revisions for every enabled slot are frozen at run
+    start and recorded in the run manifest (PLAN.md section 28.2). No run may
+    proceed with exact_model or revision left null for a slot it uses.
+  primary_eval_judge_supervision_exclusion: >-
+    The primary_eval_judge family is excluded from ALL training supervision:
+    no output, vote, judgment, ranking, or distilled signal from that family
+    may enter weak labels, silver consensus, gold selection, training data,
+    or training-time prompts (PLAN.md sections 17.7 and 23.10). Appearance of
+    the primary judge family in weak labels is a hard abort (section 22.4).
+  judge_family_distinctness: >-
+    judge_A and judge_B must be materially distinct model families. A
+    same-family assignment is a configuration error, not a soft warning
+    (PLAN.md section 17.7).
+  private_source_boundary: >-
+    Prompts containing private-source content, including sft_classic NL
+    statements, are submitted only to providers named in the section 9.2
+    approval record (ADR or external_api_approved flag naming the provider
+    set and scope). Absent that record, such prompts are not submitted to any
+    external provider (PLAN.md sections 9.2 and 28.6).
+  secrets_by_env_name_only: >-
+    Secret credentials stay outside configs and manifests. This file and all
+    derived manifests reference secrets by environment-variable name only;
+    secret values never appear in configs, logs, or run manifests.
+  heldout_generator_reservation: >-
+    One generator family from the resolved 3-4 materially distinct successful
+    families may be reserved for heldout_generator_test; none of its outputs
+    or judgments enters supervision (PLAN.md sections 17.3 and 17.7). The
+    reservation is recorded in the judge x supervision cross matrix, which is
+    frozen before any label is produced.
+
+# decision: environment-variable naming convention for resolved slots is
+# LEANFAITH_API_KEY_<PROVIDER>, uppercased provider short name. The api_key_env
+# fields below stay null until the provider accounts are decided.
+api_key_env_convention: LEANFAITH_API_KEY_<PROVIDER>
+
+slots:
+  judge_A:
+    role: >-
+      Weak-supervision judge, frontier family A. Produces blinded
+      same-claim/relation/error votes over registered Lean/NL views under the
+      allowed evidence condition; never sees proposer, family, intention,
+      gold, or other votes (PLAN.md section 17.7).
+    family_constraint: >-
+      Frontier-capability family; must be materially distinct from judge_B's
+      family and from the primary_eval_judge family.
+    exact_model: null
+    revision: null
+    api_key_env: null
+    status: unresolved
+    unresolved: >-
+      Requires the user's provider-account decision (which frontier families
+      are available under project accounts) and the slot's entry in the
+      frozen judge x supervision cross matrix.
+
+  judge_B:
+    role: >-
+      Weak-supervision judge, frontier family B. Second independent blinded
+      vote for silver consensus; identical blinding rules to judge_A
+      (PLAN.md sections 17.7 and 17.8).
+    family_constraint: >-
+      Frontier-capability family; must be materially distinct from judge_A's
+      family and from the primary_eval_judge family.
+    exact_model: null
+    revision: null
+    api_key_env: null
+    status: unresolved
+    unresolved: >-
+      Requires the user's provider-account decision; must be resolvable to a
+      family distinct from whatever fills judge_A.
+
+  broad_generator:
+    role: >-
+      High-capability general model for broad candidate generation:
+      autoformalization, controlled variants, diagnostic repair, and
+      critique/revise prompt families (PLAN.md sections 17.2 and 17.5).
+      Outputs are evidence, never automatic gold.
+    family_constraint: >-
+      High-capability general-purpose model. May not be the
+      primary_eval_judge family; its family assignment is recorded in the
+      judge x supervision cross matrix to expose any proposer-judge shortcut
+      (PLAN.md sections 17.7 and 17.8).
+    exact_model: null
+    revision: null
+    api_key_env: null
+    status: unresolved
+    unresolved: >-
+      Requires the user's provider-account decision and, for any use on
+      private-source prompts, coverage by the section 9.2 approval record.
+
+  open_diversity:
+    role: >-
+      Open-weight diversity model contributing materially distinct generation
+      behavior toward the 3-4 family floor for Gate 5 (PLAN.md section 17.3).
+    family_constraint: >-
+      Open-weight model runnable under project control. Candidate families
+      per PLAN.md section 17.3 and Appendix J.4: Kimina-Autoformalizer-7B,
+      Goedel-Formalizer-V2, StepFun-Formalizer, Herald, ATLAS. Exact
+      availability, license, interface, and training-data overlap are probed
+      before pinning; overlap findings are tagged, never silently accepted.
+    exact_model: null
+    revision: null
+    api_key_env: null
+    status: unresolved
+    unresolved: >-
+      Requires the availability/license/overlap probe of the section 17.3
+      candidate list; no external account is strictly required, but the
+      family choice is the user's.
+
+  specialized_generator:
+    role: >-
+      Specialized autoformalization generator producing realistic candidate
+      outputs for semantic pair pools and real-output evaluation (PLAN.md
+      sections 17.2 and 17.4; Appendix J.4).
+    family_constraint: >-
+      ReForm family (Qwen3-based, Apache-2.0). Fixed to the candidate/fallback
+      pair below; substituting a non-ReForm family reopens the Phase 0
+      decision via ADR.
+    candidate_model: GuoxinChen/ReForm-32B
+    fallback_model: GuoxinChen/ReForm-8B
+    license: Apache-2.0
+    base_family: Qwen3
+    exact_model: null
+    revision: null
+    api_key_env: null
+    status: candidate_pinned_pending_availability_probe
+    decision: >-
+      Phase 0 pins GuoxinChen/ReForm-32B as the candidate with
+      GuoxinChen/ReForm-8B as the fallback. exact_model and revision are
+      filled from whichever passes the availability/serving probe; the
+      probe result is recorded before any generation run.
+    overlap_rule: >-
+      ReForm is trained on Lean Workbook. Every ReForm x Lean-Workbook item
+      must carry an overlap tag and is ineligible as held-out-generator or
+      source-independent evidence (PLAN.md section 19.7; Appendix J.4).
+
+  primary_eval_judge:
+    role: >-
+      Primary LLM-judge baseline for evaluation (PLAN.md sections 17.2 and
+      20.4). Provides the clean judge conditions against which trained models
+      are compared.
+    family_constraint: >-
+      Family excluded from ALL training supervision (see
+      rules.primary_eval_judge_supervision_exclusion). Must be distinct from
+      judge_A and judge_B and must appear in no weak-label, silver, or
+      training-prompt role anywhere in the project.
+    exact_model: null
+    revision: null
+    api_key_env: null
+    status: unresolved
+    unresolved: >-
+      Requires the user's provider-account decision made jointly with
+      judge_A/judge_B so that a supervision-free family remains available;
+      the judge x supervision cross matrix must be frozen before labels are
+      produced.
+
+resolution_blockers:
+  - >-
+    User decision: provider accounts and family assignments for judge_A,
+    judge_B, broad_generator, and primary_eval_judge. The assignment must be
+    made jointly: judge_A and judge_B distinct families, and one further
+    family kept entirely out of supervision for primary_eval_judge.
+  - >-
+    User decision: the section 9.2 external-API approval record (ADR or
+    external_api_approved flag in the source manifest) naming exactly which
+    providers may receive private-source sft_classic content and at what
+    scope. An explicit denial is also acceptable; it confines private-source
+    prompts to locally served open-weight slots.
+  - >-
+    Availability probe: GuoxinChen/ReForm-32B download/serving feasibility;
+    fall back to GuoxinChen/ReForm-8B on failure and record the outcome.
+  - >-
+    Availability/license/overlap probe of the open_diversity candidate
+    families (PLAN.md section 17.3), followed by the user's family choice.

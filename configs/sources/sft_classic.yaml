@@ -1,0 +1,35 @@
+# Source config: sft_classic (PLAN.md §9.1, §9.2, B.2).
+# Requested private primary NL-Lean source. Anonymous access returns 401; the
+# project HF token is expected to load it. Nothing about license, schema, or
+# counts is verified until the Gate 0 authenticated probe runs.
+source_config_version: 1
+source_name: sft_classic
+kind: huggingface_dataset
+requested_id: formalmathatepfl/sft_classic
+access_status: private_requires_hf_auth
+auth:
+  hf_token_env: HF_TOKEN  # secret referenced by name only; the token value is never stored in configs or manifests (§9.2)
+required_probe:  # Gate 0 fails without the archived probe artifact (§9.2)
+  - resolved_id
+  - revision
+  - license
+  - schema
+  - archived_100_row_sample_hash
+external_api_approved: null  # §9.2 approval decision required before any provider call containing this source's content
+fallback_order:  # fixed NL-source fallback order (§9.1); contingency only
+  - formalmathatepfl/sft_classic_numina
+  - internlm/Lean-Workbook
+  - "PAug/ProofNetVerif:train"
+role: primary_nl_lean_candidate
+probe_status: unresolved
+unresolved: >-
+  Awaiting the approved authenticated probe (data-collection boundary).
+  HF_TOKEN exists in the environment, but the authenticated sft_classic probe
+  has not run. Unblocked by an explicit approval to execute the Gate 0 probe
+  of §9.2, which archives resolved ID and immutable revision, access status
+  and license/terms, split names/counts and full schema, a raw 100-row sample
+  plus SHA256, adapter mapping/version, and phase5_pool_candidate_count.
+notes: >-
+  Do not guess sft_classic fields from ProofNetVerif (§9.2). If the probed NL
+  provenance is synthetic or unknown, rows are retained only under the
+  corresponding nl_trust tag, never silently upgraded (§9.4).

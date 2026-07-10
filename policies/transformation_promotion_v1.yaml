@@ -1,0 +1,250 @@
+# Transformation family registry defaults and promotion policy v1
+# (PLAN.md section 15 whole, section 18.7 audit tiers, Phase 4 gates 4G/4A/4B).
+# The Phase 4 file configs/transformations/registry.yaml is the runtime
+# registry; it must be initialized from, and stay consistent with, this
+# policy. Records store family_id/status only; meanings live here. Any rule
+# change creates a new rule_version and reopens promotion (section 15.8,
+# section 18.7); changing this policy requires a new policy_version.
+policy_version: transformation_promotion_v1
+plan_sections: ["15", "18.7", "phase-4 gates 4G/4A/4B"]
+
+# Vocabulary is fixed by the PLAN.md section 11.1 enums. No other values
+# are legal; the strict loader and schema validation reject unknowns.
+status_vocabulary: [gold_promoted, silver, experimental, disabled]
+item_tier_vocabulary: [gold_human, gold_conservative_transform,
+                       gold_counterexample, benchmark, silver_consensus,
+                       provisional, unknown]
+
+registry_defaults:
+  # decision: every active v1 family starts at status=experimental and can
+  # only move via the promotion rules below. No family is created at
+  # silver or gold_promoted.
+  initial_status_active: experimental
+  # decision: any family_id not listed under active_families below has
+  # status=disabled, including reserved/stub numbering gaps (p03, p05+,
+  # n04-n06, n08-n09, n11+) and environment-derived replacement indexing
+  # (deferred by section 15.6).
+  unlisted_family_status: disabled
+  disabled_families_non_executable: true
+  # Enforcement of non-executability (Gate 4G "disabled stubs cannot
+  # execute"; section 15.9 "disabled-family rejection" test):
+  # assess/generate/audit on a disabled family must raise, produce zero
+  # drafts, and log a rejection event; a disabled family cannot appear as
+  # rule_id/family_id on any VariantDraft.
+  disabled_enforcement:
+    - "assess/generate/audit raise for disabled families; no drafts emitted"
+    - "CI test: disabled-family rejection (section 15.9)"
+    - "Gate 4G check: no generated record carries a disabled family_id"
+  # Intention is never a resolved label (Gate 4G); all outputs remain
+  # semantically provisional until promoted (section 15.3).
+  intention_is_never_resolved_label: true
+
+active_families:
+  # Positives (intended_relation is the generation intention, not a label).
+  p01_alpha:
+    polarity: positive
+    status: experimental
+    rule_scope: "Capture-avoiding alpha renaming (section 15.5)."
+    intended_relation: equivalent
+    required_evidence:
+      - "alpha-structural identity certificate"
+      - "capture/dependency property tests"
+      - "re-elaboration in pinned context"
+  p02_binders:
+    polarity: positive
+    status: experimental
+    rule_scope: >-
+      Regroup typed binders and a narrow approved currying/uncurrying
+      subset (section 15.5).
+    intended_relation: equivalent
+    required_evidence:
+      - "binder dependency graph preserved"
+      - "round-trip/inverse trace"
+      - "re-elaboration in pinned context"
+  p04_notation_lite:
+    polarity: positive
+    status: experimental
+    rule_scope: >-
+      Finite notation-to-direct-form table with exact constants
+      (section 15.5); table entries are versioned with the rule.
+    intended_relation: equivalent
+    required_evidence:
+      - "rule-specific certificate/invariant for the table entry used"
+      - "exact-constant match against the approved table"
+      - "re-elaboration in pinned context"
+  # Negatives. intended_error_types below are registry defaults decided in
+  # Phase 0 (PLAN.md names the mutation classes but not the E-code map);
+  # they are intentions only and never resolve labels.
+  n01_operator:
+    polarity: negative
+    status: experimental
+    rule_scope: "Type-compatible relation/operator mutation (section 15.6)."
+    intended_relation: near_miss
+    intended_error_types: [E10, E11, E12, E13]
+    replacement_source: configs/transformations/replacement_table_v1.yaml
+  n02_quantifier:
+    polarity: negative
+    status: experimental
+    rule_scope: "Quantifier kind/order/dependency mutation (section 15.6)."
+    intended_relation: near_miss
+    intended_error_types: [E04, E05, E22]
+  n03_drop_hypothesis:
+    polarity: negative
+    status: experimental
+    rule_scope: >-
+      Substantive hypothesis deletion with type-correct repair
+      (section 15.6).
+    intended_relation: near_miss
+    intended_error_types: [E01]
+  n07_literal_bound:
+    polarity: negative
+    status: experimental
+    rule_scope: >-
+      Literal, bound, index, or argument-order mutation (section 15.6).
+      decision: argument-order swaps default to E12 for oriented
+      relations and E30 (rationale required) otherwise.
+    intended_relation: near_miss
+    intended_error_types: [E16, E17]
+  n10_nearby_theorem:
+    polarity: negative
+    status: experimental
+    rule_scope: >-
+      High-overlap nearby theorem/component substitution (section 15.6);
+      BOTH source ancestries enter split groups (Gate 4G, section 19).
+    intended_relation: near_miss
+    intended_error_types: [E09, E26]
+    replacement_source: configs/transformations/replacement_table_v1.yaml
+    both_ancestries_in_split_groups: true
+
+stub_families:
+  # decision: P00 cosmetic is registered but disabled as a data-generating
+  # family in v1. String-substitution cosmetic fixtures are permitted only
+  # inside invariance/property tests (section 15.2) and cannot dominate
+  # training (section 15.1); the property-test renamer is distinct from
+  # P01 (Phase 3 task 4).
+  p00_cosmetic:
+    polarity: positive
+    status: disabled
+    permitted_use: "invariance/property-test fixtures only; never training-dominant"
+  # All other family_ids are unregistered stubs governed by
+  # registry_defaults.unlisted_family_status and must be non-executable.
+
+positive_gold_promotion:
+  # Family-level promotion to status=gold_promoted (Gate 4A). Until a
+  # family is gold_promoted, no item from it may carry
+  # quality_tier=gold_conservative_transform.
+  target_family_status: gold_promoted
+  item_tier_unlocked: gold_conservative_transform
+  audit_requirements:
+    blinded: true
+    n_min: 200
+    point_precision_min: 0.99
+    interval_rule: >-
+      Lower endpoint of a two-sided 95% Clopper-Pearson exact interval
+      for family precision must be >= 0.95.
+    # Precision definition, verbatim from PLAN.md section 15.8:
+    precision_definition: >-
+      audited same_claim=true / all blindly audited, successfully
+      elaborated family outputs selected by the frozen design
+    non_success_outcomes: >-
+      Terminal ambiguity, unresolved review, policy violation, or
+      incorrect output is not counted as a success (section 15.8).
+    design_frozen_before_audit: true
+    additional_gate_4a_checks:
+      - "all family invariants hold on the audited sample"
+      - "no recurrent semantic erasure pattern (E25)"
+      - "held-out source/domain audit passes"
+  # Item-level conditions for gold_conservative_transform, all required
+  # (section 15.4):
+  item_conditions:
+    - "family status gold_promoted and positive allowlist"
+    - "exact local structural diff"
+    - "approved semantic-atom mapping"
+    - "preserved binder dependencies, assumptions, literals, and conclusion heads"
+    - "round-trip/inverse or rule-specific certificate"
+    - "no source/candidate proof constants or admissions"
+    - "Gate 4A family audit"
+    - "no item-level quarantine violation"
+  on_failure: >-
+    Keep provisional or route to semantic rewrite/human review
+    (section 15.4). Families that miss any audit requirement remain
+    silver/experimental/disabled (Gate 4A).
+
+negative_supervised_promotion:
+  # A mutation item begins provisional and may become supervised only by
+  # EXACTLY ONE of the section 15.7 routes; Gate 4B checks the route and
+  # its corresponding tier per promoted item.
+  exactly_one_route_per_item: true
+  routes:
+    route_1:
+      evidence: "checked counterexample/separator in a supported fragment"
+      tier: gold_counterexample
+    route_2:
+      evidence: >-
+        accepted one-direction proof plus a separator for the reverse
+        direction
+      tier: gold_counterexample
+      note: "recorded with the directional relation"
+    route_3:
+      evidence: "expert adjudication"
+      tier: gold_human
+    route_4:
+      evidence: "independent consensus plus audited precision"
+      tier: silver_consensus
+  prohibited_shortcuts:
+    - "no high-confidence-mutation shortcut (section 15.7, Gate 4B)"
+    - "proof-search not_found/not_proved never qualifies as a separator"
+    - "vacuity/ex-falso evidence never certifies a directional relation"
+  on_failure: "items remain provisional (Gate 4B)"
+
+refinement_audits:
+  # Section 18.7 tier below the promotion tier.
+  blinded: true
+  n_min: 50
+  n_max: 100
+  purpose: >-
+    Pilot and noisy-family refinement, especially negatives; calibrates
+    rules and guidelines between rounds.
+  gold_promotion_allowed: false
+  note: >-
+    A 50-100 item refinement audit can demote or hold a family and can
+    surface rule defects; it can never satisfy the n>=200 positive gold
+    promotion requirement, nor substitute for a section 15.7 route.
+
+promotion_reopening:
+  # Section 15.8 and section 18.7: rule changes create new versions and
+  # invalidate prior family promotion.
+  rule_version_change_reopens_promotion: true
+  effects:
+    - "prior family promotion status does not transfer to a new rule_version"
+    - "the new rule_version re-enters at status=experimental"
+    - >-
+      items already promoted under the old rule_version keep their tier
+      but record the promoting rule_version; new items require a new
+      audit under the new version
+    - "audit statistics are immutable and recomputable (section 15.9)"
+  registry_change_control: >-
+    Registry entries record family/version/polarity/profile/status,
+    allowed intentions/errors, invariants/evidence, audit manifest, and
+    the policy decision (section 15.8); status changes reference the
+    audit or route that justified them.
+
+prohibited_evidence:
+  # Section 15.5: none of the following, alone or in combination, is ever
+  # sufficient automatic-positive (same-claim) evidence, for any family
+  # or tier.
+  never_sufficient_automatic_positive:
+    - "unrestricted simp"
+    - "unrestricted ring_nf"
+    - "unrestricted linarith"
+    - "unrestricted omega"
+    - "unrestricted aesop"
+    - "theorem lookup"
+    - "mutual provability of closed propositions"
+    - "semantic fusion/equisatisfiability"
+    - "collapse to True or reflexivity (semantic erasure, E25)"
+  note: >-
+    Acceptable positive evidence is rule-specific and structural: alpha
+    identity, dependency-preserving round trips, and approved-table
+    certificates (active_families above), each stored as evidence records
+    with execution status (section 15.3).

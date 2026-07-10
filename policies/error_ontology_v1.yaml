@@ -1,0 +1,35 @@
+# Error ontology v1 (PLAN.md §14.3). Records store only the E-codes;
+# names/definitions live here. Changing a name or meaning requires a new
+# ontology version and re-annotation of affected examples (§18.6).
+ontology_version: error_ontology_v1
+codes:
+  E01: {name: missing_hypothesis, definition: "A substantive hypothesis of the intended claim is absent."}
+  E02: {name: extra_hypothesis, definition: "A substantive hypothesis not present in the intended claim was added."}
+  E03: {name: vacuous_or_inconsistent_hypothesis, definition: "Hypotheses are unsatisfiable or make the statement vacuously true."}
+  E04: {name: wrong_quantifier, definition: "A quantifier kind differs from the intended claim (forall/exists/unique)."}
+  E05: {name: wrong_quantifier_order, definition: "Quantifier order or dependency structure differs materially."}
+  E06: {name: wrong_domain_or_type, definition: "An object ranges over the wrong domain or carrier type."}
+  E07: {name: wrong_codomain, definition: "A function or map has the wrong codomain."}
+  E08: {name: wrong_typeclass_or_structure, definition: "The algebraic/order/topological structure assumed differs."}
+  E09: {name: wrong_constant_or_predicate, definition: "A named constant, function, or predicate differs from the intended one."}
+  E10: {name: wrong_operator, definition: "An operator differs (e.g. + vs *, ∪ vs ∩, ∣ vs %)."}
+  E11: {name: wrong_inequality_strictness, definition: "Strict vs non-strict inequality mismatch."}
+  E12: {name: wrong_equality_or_iff_direction, definition: "Equation/iff orientation or an implication used where iff intended (or vice versa)."}
+  E13: {name: wrong_set_operation, definition: "A set operation or relation differs from the intended one."}
+  E14: {name: wrong_function_direction_image_preimage_map_comap, definition: "Image vs preimage / map vs comap direction confusion."}
+  E15: {name: wrong_cast_or_coercion, definition: "A cast or coercion changes the mathematical content."}
+  E16: {name: wrong_index_or_bound, definition: "An index range, endpoint, or bound differs."}
+  E17: {name: wrong_numerical_constant, definition: "A numeric literal differs from the intended value."}
+  E18: {name: wrong_answer_value, definition: "The stated answer/witness value differs from the intended answer."}
+  E19: {name: special_case_only, definition: "The formalization proves only a special case of the intended claim."}
+  E20: {name: overgeneralization, definition: "The formalization claims strictly more than intended."}
+  E21: {name: irrelevant_or_unbound_variable, definition: "Extra unused bound variable or dangling variable changes the theorem interface."}
+  E22: {name: omitted_dependency_between_binders, definition: "A required dependency between bound variables is dropped."}
+  E23: {name: namespace_import_or_notation_mismatch, definition: "Wrong namespace/import/notation resolution changes meaning."}
+  E24: {name: malformed_or_non_elaborating_statement, definition: "The candidate does not elaborate in the pinned context."}
+  E25: {name: semantic_erasure_or_tautologization, definition: "Content collapsed to a trivial/tautological statement (e.g. True, x = x)."}
+  E26: {name: formalizes_related_but_different_claim, definition: "A materially related but different claim was formalized."}
+  E27: {name: reference_suspected_incorrect, definition: "The trusted reference itself is suspected to be wrong."}
+  E28: {name: ambiguous_natural_language, definition: "The NL statement is genuinely ambiguous."}
+  E29: {name: cosmetic_only, definition: "Differences are cosmetic/interface-preserving only (names, formatting, harmless grouping)."}
+  E30: {name: other, definition: "A defect not covered by E01-E29; rationale required."}

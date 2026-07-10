@@ -1,0 +1,29 @@
+# Source config: ProofNetVerif (PLAN.md §9.1, §9.3, B.2).
+# Frozen external benchmark. Evaluation only; a train partition may feed
+# training only if the source manifest explicitly designates trainable rows
+# (fixed fallback order entry 3, §9.1).
+source_config_version: 1
+source_name: proofnetverif
+kind: huggingface_dataset
+dataset_id: PAug/ProofNetVerif
+expected_rows: 3752
+expected_columns:
+  - id
+  - nl_statement
+  - lean4_src_header
+  - lean4_formalization
+  - lean4_prediction
+  - correct
+adapter_mapping:  # verified mapping per §9.3
+  problem_id: id
+  nl_statement: nl_statement
+  lean_header: lean4_src_header
+  reference_lean: lean4_formalization
+  candidate_lean: lean4_prediction
+  source_label: correct
+role: frozen_external_benchmark
+usage: evaluation_only  # unless a train partition is explicitly designated trainable in the source manifest (§9.1)
+notes: >-
+  Frozen evaluation data are read-only and unavailable to training and
+  prompt-selection jobs (§10 rule 7). Do not guess sft_classic fields from
+  this dataset (§9.2).

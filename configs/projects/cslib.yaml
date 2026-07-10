@@ -1,0 +1,14 @@
+# CS library OOD source (PLAN.md §9.1, §9.6): probe now, adapter at Phase 11.
+# HEAD (c0120dddfe75d4ab913691c0c184fc436927b19d) is on Lean v4.32.0-rc1 and
+# is OUTSIDE the locked range; this pin is the last in-range revision
+# (toolchain v4.31.0-rc1, 2026-05-29). Final extraction revision is confirmed
+# at Phase 11 prep (LF-030); see ADR-0001.
+registry_key: cslib
+kind: git
+uri: https://github.com/leanprover/cslib
+revision: 2f677bfc8ef76fa7a27feafc597c1e4a7eda3e42
+expected_toolchain: v4.31.0-rc1
+root_module: Cslib
+globs:
+  - "Cslib/**/*.lean"
+role: probe_now_adapter_at_ood

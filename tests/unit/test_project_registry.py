@@ -112,6 +112,18 @@ def test_check_project_toolchain_rejects_lock_mismatch(tmp_path: Path) -> None:
         check_project_toolchain(spec, directory, _IN_RANGE_LOCK)
 
 
+def test_ood_probe_projects_only_need_in_range_toolchain(tmp_path: Path) -> None:
+    # CSLib/Physlib pins may lag the accepted lock; they must only be in range.
+    directory = _project_dir(tmp_path, "v4.30.0")
+    spec = _spec(
+        registry_key="physlib",
+        expected_toolchain="v4.30.0",
+        role=ProjectRole.PROBE_NOW_ADAPTER_AT_OOD,
+    )
+    version = check_project_toolchain(spec, directory, _IN_RANGE_LOCK)
+    assert str(version) == "v4.30.0"
+
+
 # --- registry loading ---
 
 

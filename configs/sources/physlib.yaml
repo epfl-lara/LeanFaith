@@ -1,0 +1,23 @@
+# Source config: Physlib (PLAN.md §9.1, §9.6).
+# Physics OOD project source. Physlib consolidates PhysLean (formerly
+# HepLean) and Lean-QuantumInfo under one repository (2026). Probe now; the
+# full adapter, extraction, labeling, and heldout_project_test manifest are
+# built during Phase 11 preparation (backlog LF-030).
+source_config_version: 1
+source_name: physlib
+kind: git
+repo: https://github.com/leanprover-community/physlib
+probed_head:
+  revision: b0070e4bfd04
+  toolchain: v4.31.0  # stable release, outside the advertised range's maximum v4.31.0-rc1; usable only under a stable-exception ADR (§6.2 mode 2)
+older_in_range_candidate:
+  revision: f5242c99d796
+  toolchain: v4.30.0  # inside the advertised range v4.8.0-rc1..v4.31.0-rc1
+root_module: Physlib
+globs: ["Physlib/**/*.lean"]
+role: probe_now_adapter_at_ood
+decision: >-
+  Extraction revision is deferred to Phase 11 preparation (LF-030); see
+  ADR-0001 (docs/adr/ADR-0001-environment-lock.md). Candidates: the probed
+  HEAD b0070e4bfd04 only if ADR-0001 records a Gate 1 tested stable-v4.31.0
+  exception, otherwise the older in-range revision f5242c99d796 on v4.30.0.

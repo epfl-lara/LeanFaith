@@ -37,13 +37,27 @@ def doctor(
             help="Repository root override (defaults to discovery from the cwd).",
         ),
     ] = None,
+    write_lock_flag: Annotated[
+        bool,
+        typer.Option(
+            "--write-lock",
+            help="Write configs/environment.lock.yaml from pinned constants (Phase 0 task 8).",
+        ),
+    ] = False,
+    force: Annotated[
+        bool,
+        typer.Option("--force", help="Overwrite a divergent existing lock (ADR-0001 change)."),
+    ] = False,
 ) -> None:
     """Check Python/LeanInteract/toolchain environment against the lock (LF-007)."""
-    from leanfaith.cli.doctor import doctor_report_path, run_doctor
+    from leanfaith.cli.doctor import doctor_report_path, run_doctor, write_lock
     from leanfaith.config.paths import RepoPaths
     from leanfaith.schemas import write_manifest
 
     paths = RepoPaths.discover(root_dir) if root_dir is None else RepoPaths(root=root_dir)
+    if write_lock_flag:
+        _, message = write_lock(paths, force=force)
+        typer.echo(message)
     report = run_doctor(paths)
     write_manifest(report, doctor_report_path(paths))
     for check in report.checks:

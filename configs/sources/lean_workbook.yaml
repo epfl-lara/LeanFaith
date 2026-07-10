@@ -1,0 +1,13 @@
+# Source config: Lean-Workbook (PLAN.md §9.1, §9.4, B.2).
+# Machine-generated/synthetic NL-Lean pairs; weak supervision and problem
+# diversity only. Second entry in the fixed NL-source fallback order.
+source_config_version: 1
+source_name: lean_workbook
+kind: huggingface_dataset
+dataset_id: internlm/Lean-Workbook
+expected_scale_rows: 57000  # approximate; machine-generated NL-Lean pairs (§9.1)
+supervision_role: synthetic_weak_only
+nl_trust: synthetic  # always; assigned unconditionally, never upgraded (§9.4)
+trusted_human_nl_quota_eligible: false  # never satisfies a trusted-human-NL quota (§9.4)
+reform_overlap_tagging: required  # ReForm generators were trained on Lean Workbook, so any overlap must be tagged (§9.1)
+role: public_fallback_2

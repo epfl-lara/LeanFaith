@@ -1,0 +1,15 @@
+# Physics OOD source (PLAN.md §9.1, §9.6): probe now, adapter at Phase 11.
+# Physlib consolidates PhysLean (ex-HepLean) and Lean-QuantumInfo (2026).
+# HEAD (b0070e4bfd04) is on stable v4.31.0 - outside the advertised range -
+# and Physlib never pinned v4.31.0-rc1. This pin is the last in-range
+# revision (v4.30.0, 2026-06-04). Phase 11 prep must either keep this pin or
+# reopen ADR-0001 with the stable-v4.31.0 exception probe.
+registry_key: physlib
+kind: git
+uri: https://github.com/leanprover-community/physlib
+revision: f5242c99d796b59a390d26cd7d1a8057e04c46b5
+expected_toolchain: v4.30.0
+root_module: Physlib
+globs:
+  - "Physlib/**/*.lean"
+role: probe_now_adapter_at_ood

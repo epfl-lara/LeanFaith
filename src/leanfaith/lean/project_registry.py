@@ -146,7 +146,13 @@ def check_toolchain_allowed(version: LeanVersion, lock: ToolchainLock) -> None:
 def check_project_toolchain(
     spec: ProjectSpec, project_dir: Path, lock: ToolchainLock
 ) -> LeanVersion:
-    """Validate a checked-out project's toolchain against pin and lock."""
+    """Validate a checked-out project's toolchain against pin and lock.
+
+    Fixture/MVP-source projects must match the accepted lock exactly when
+    ``mathlib_toolchain_must_match`` is set (§6.2). OOD probe projects
+    (CSLib/Physlib) only need an in-range or ADR-excepted toolchain; their
+    extraction contexts are pinned separately at Phase 11 prep (§9.6).
+    """
     version = read_project_toolchain(project_dir)
     if spec.expected_toolchain is not None:
         expected = parse_lean_version(spec.expected_toolchain)
@@ -157,7 +163,8 @@ def check_project_toolchain(
             )
     check_toolchain_allowed(version, lock)
     accepted = parse_lean_version(lock.accepted_lean)
-    if lock.mathlib_toolchain_must_match and version != accepted:
+    requires_lock_match = spec.role in (ProjectRole.FIXTURE, ProjectRole.MVP_SOURCE)
+    if lock.mathlib_toolchain_must_match and requires_lock_match and version != accepted:
         raise ToolchainViolation(
             f"project {spec.registry_key}: toolchain {version} does not match the "
             f"accepted lock {accepted} and mathlib_toolchain_must_match is set"

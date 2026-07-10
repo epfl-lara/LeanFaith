@@ -1,0 +1,185 @@
+# Calibration policy v1 (PLAN.md 19.6, 21.10, 23.9-23.11, 30.5, 31.5).
+# Governs how confidence calibration is developed, selected, frozen, and
+# claimed. Records and code reference this file by policy_version; changing
+# any frozen definition below requires a new policy version and an ADR.
+# Where PLAN.md leaves a parameter open, this file decides it and marks the
+# line with "decision:".
+policy_version: calibration_policy_v1
+status: approved for development; deployment-threshold sections activate when calibration_gold exists
+source_of_truth: "PLAN.md sections 19.6, 20.6, 21.10, 23.9, 23.10, 23.11, 30.5, 31.5"
+
+scope:
+  calibrated_score: score_same_claim from the section 20.6 common output schema
+  decision_labels: [ACCEPT, REVIEW, REJECT]
+  applies_to: every scoring method that emits a decision (deterministic, LLM judge, trained models)
+  note: >
+    Calibration maps a method's raw score to a probability and a decision
+    threshold. It never changes model weights and never runs on any sealed
+    or final-test record.
+
+# ---------------------------------------------------------------------------
+# 1. Two calibration roles (PLAN.md 21.10, 19.6)
+# ---------------------------------------------------------------------------
+roles:
+  calibration:
+    split_name: calibration
+    label_source: pair-level development labels
+    purpose: method comparison during development only
+    permitted_uses:
+      - comparing the method menu below on development data
+      - narrowing the menu before the calibration_gold K-fold protocol
+      - development-only diagnostics and ablation tables
+    forbidden_uses:
+      - fitting or adjusting any deployment threshold
+      - supporting any H4/Gate-10 or deployment claim
+      - weight training (it is a distinct non-training split per section 19.6)
+  calibration_gold:
+    split_name: calibration_gold
+    label_source: expert labels on compiling real outputs
+    distribution: real-output distribution only (PLAN.md 19.6)
+    disjointness: disjoint from all weight-training records and from human_test, and from every named subset of human_test
+    purpose: select the final calibration method and fit/freeze deployment thresholds
+    unresolved: >
+      realized item and ancestry-group counts are not yet known; unblocked by
+      real-output collection and the 200-300-item prevalence study, after
+      which the target count is power-derived and frozen in the split
+      manifest (PLAN.md 19.6). Until then every section below that reads
+      calibration_gold is specified but not executable.
+
+# ---------------------------------------------------------------------------
+# 2. Method menu (PLAN.md 31.5)
+# ---------------------------------------------------------------------------
+method_menu:
+  - id: uncalibrated
+    description: raw score used directly; mandatory baseline row in all comparisons
+  - id: temperature_scaling
+    description: single-parameter logit temperature fit by NLL
+  - id: vector_scaling
+    description: per-class affine logit map fit by NLL
+  - id: isotonic_regression
+    description: monotone nonparametric map on the raw score
+  - id: beta_calibration
+    description: three-parameter beta map on the raw score
+  - id: split_conformal_selective_risk
+    description: >
+      split-conformal / selective-risk control: hold out a conformal
+      calibration portion, control ACCEPT selective risk at alpha with
+      confidence delta, abstain (REVIEW) otherwise.
+    alpha: 0.05  # target ACCEPT selective risk = 1 - 0.95 precision target
+    delta: 0.05  # decision: confidence parameter for risk-controlling variants
+menu_rules:
+  - the menu is closed for v1; adding a method requires a new policy version
+  - every comparison table reports all menu rows on the same folds
+
+# ---------------------------------------------------------------------------
+# 3. Selection protocol (PLAN.md 21.10, 31.5)
+# ---------------------------------------------------------------------------
+selection_protocol:
+  stage_development:
+    data: calibration split (pair-level)
+    action: run the full menu; results are development diagnostics only and bind nothing downstream
+  stage_kfold:
+    data: calibration_gold
+    k: 5  # decision: 5 folds; revisit by ADR only if realized group count makes 5 grouped folds infeasible
+    fold_construction: >
+      decision: folds are grouped by ancestry connected component / NL
+      problem so no component spans folds (mirrors the section 23.9 block
+      bootstrap unit), stratified by generator family where the group
+      structure permits; fold assignment is a deterministic function of
+      record ids under a frozen seed and is stored with the artifacts.
+    metrics_reported_per_method:
+      - ECE (frozen definition below)
+      - Brier score
+      - risk-coverage curve
+      - ACCEPT coverage at the 95%-precision operating point
+      - exploratory 99%-precision recall with denominator and CI
+    selection_criterion: >
+      decision: select the method with the highest mean cross-fold ACCEPT
+      coverage at the 95%-precision operating point subject to mean
+      cross-fold ECE <= 0.05; ties broken by lower ECE, then lower Brier.
+      If no method satisfies the ECE constraint, select the minimum-ECE
+      method and enter the failure_fallbacks path at Gate 10.
+  stage_refit_freeze:
+    action: >
+      refit the selected method on all of calibration_gold, derive the
+      deployment thresholds, and freeze method + parameters + thresholds in
+      artifacts/calibration/ with a config hash; Gate 10 records the freeze.
+      Any later change requires an ADR and a new frozen calibration version.
+
+# ---------------------------------------------------------------------------
+# 4. Operating points and claims (PLAN.md 21.10, 23.9, 23.11)
+# ---------------------------------------------------------------------------
+operating_points:
+  headline_accept:
+    definition: >
+      ACCEPT threshold chosen on calibration_gold as the coverage-maximizing
+      threshold whose point-estimate ACCEPT precision is >= 0.95 (decision:
+      point estimate qualifies the threshold; the interval is always
+      reported alongside, per section 23.11).
+    precision_target: 0.95
+    coverage_target: 0.40
+    interval: >
+      decision: Wilson score interval is primary; Clopper-Pearson is
+      reported alongside as the conservative sensitivity (section 23.9
+      permits either). The denominator (number of ACCEPT decisions) is
+      always reported with every precision estimate.
+  gate_10_h4:
+    criteria:
+      - ECE <= 0.05 under the frozen definition below
+      - ACCEPT coverage >= 0.40 at point-estimate precision >= 0.95 with interval reported
+    evaluated_without: any final-test access (PLAN.md Gate 10)
+  exploratory_99_precision:
+    status: exploratory only; never a headline or preregistered claim
+    reporting: recall/coverage at 99% point-estimate precision with denominator and CI always shown
+  reject_threshold:
+    decision: >
+      the REJECT threshold targets >= 0.95 point-estimate precision on
+      REJECT decisions with the same interval reporting; scores between the
+      two thresholds map to REVIEW. This is an operational setting, not a
+      preregistered claim; only the ACCEPT operating point carries H4/Gate-10
+      status.
+
+ece_definition:
+  estimator: >
+    decision: expected calibration error with 15 equal-mass bins on the
+    calibrated score_same_claim, binary correctness of the top decision;
+    frozen for Gate 10 and all H4 reporting. Brier score is always reported
+    next to ECE as the binning-free companion.
+
+# ---------------------------------------------------------------------------
+# 5. Conformal and shift caveats (PLAN.md 21.10, 23.10)
+# ---------------------------------------------------------------------------
+conformal_claims:
+  required_statements:
+    - every split-conformal or selective-risk claim states the exchangeability assumption between calibration_gold and the deployment distribution
+    - every such claim states that the guarantee does NOT transfer under generator shift or project shift
+  generator_mondrian:
+    status: diagnostic only
+    protocol: >
+      fit Mondrian (per-generator-family) conformal groups on
+      calibration_gold and report per-family coverage and selective risk;
+      results never upgrade to a headline claim and may only motivate the
+      restrict-claimed-distribution fallback below.
+
+# ---------------------------------------------------------------------------
+# 6. Prohibitions
+# ---------------------------------------------------------------------------
+prohibitions:
+  - never tune, fit, select, or adjust any calibration method or threshold on human_test, any named subset of human_test (real_output_test, heldout_generator_test, adversarial_test, human-labeled heldout_transform_test), benchmark_test, internal_test, heldout_project_test, or any sealed manifest
+  - the pair-level calibration split never sets deployment thresholds (section 23.10)
+  - calibration_gold never enters weight training
+  - no threshold changes after the Gate-10 freeze without ADR and a new calibration version, and never after test unseal
+
+# ---------------------------------------------------------------------------
+# 7. Failure fallbacks (PLAN.md 30.5)
+# ---------------------------------------------------------------------------
+failure_fallbacks:
+  trigger: Gate 10 ECE or coverage criterion fails
+  options_in_order_of_preference:
+    - id: review_heavy_policy
+      description: deploy with tightened ACCEPT threshold and a REVIEW-heavy decision policy; report the realized (lower) coverage honestly
+    - id: recalibrate_real_output
+      description: recalibrate on additional valid real-output data collected under the same policies (a new calibration_gold version, still disjoint from final tests)
+    - id: restrict_claimed_distribution
+      description: restrict the claimed deployment distribution (for example to generator families where diagnostics hold) and state the restriction in every claim
+  never: tune on final test

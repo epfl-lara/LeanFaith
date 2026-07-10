@@ -1,0 +1,10 @@
+# Fixture Lake project for the PR-Lean CI tier (PLAN.md §27.2); no mathlib.
+registry_key: fixtures
+kind: local
+uri: tests/lean_fixtures
+revision: workspace
+expected_toolchain: v4.31.0-rc1
+root_module: LeanFaithFixtures
+globs:
+  - "LeanFaithFixtures/**/*.lean"
+role: fixture

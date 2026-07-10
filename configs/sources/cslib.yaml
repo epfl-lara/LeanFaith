@@ -1,0 +1,25 @@
+# Source config: CSLib (PLAN.md §9.1, §9.6).
+# Small CS library used as an OOD project source. Probe now; the full
+# adapter, extraction, labeling, and heldout_project_test manifest are built
+# during Phase 11 preparation (backlog LF-030). Report absolute counts, never
+# bare percentages (§9.6).
+source_config_version: 1
+source_name: cslib
+kind: git
+repo: https://github.com/leanprover/cslib
+probed_head:
+  revision: c0120dddfe75d4ab913691c0c184fc436927b19d
+  toolchain: v4.32.0-rc1  # OUTSIDE the LeanInteract 0.11.4 advertised range v4.8.0-rc1..v4.31.0-rc1
+last_in_range_revision:
+  revision: 2f677bfc8ef7
+  toolchain: v4.31.0-rc1
+  date: "2026-05-29"
+root_module: Cslib
+globs: ["Cslib/**/*.lean"]
+role: probe_now_adapter_at_ood
+decision: >-
+  Extraction revision is deferred to Phase 11 preparation (LF-030); see
+  ADR-0001 (docs/adr/ADR-0001-environment-lock.md). Candidates: the last
+  in-range revision 2f677bfc8ef7 under the current lock, or the probed HEAD
+  if a future lock change admits v4.32.0-rc1. HEAD must not be extracted
+  under the current lock without a dedicated lock-change per §6.2.

@@ -1,0 +1,18 @@
+# Source config: mathlib4 (PLAN.md §9.1, §9.6, §6.2).
+# Main theorem inventory; toolchain constrained by the environment lock.
+source_config_version: 1
+source_name: mathlib
+kind: git
+repo: https://github.com/leanprover-community/mathlib4
+revision: d568c8c09630de097a046763c17b9ea99f95f950  # tag v4.31.0-rc1 (verified)
+tag: v4.31.0-rc1
+expected_toolchain: v4.31.0-rc1  # lean-toolchain at this revision matches the accepted lock exactly (verified)
+root_module: Mathlib
+globs: ["Mathlib/**/*.lean"]
+role: main_theorem_inventory
+decision: >-
+  Pinned at Phase 0 to tag v4.31.0-rc1 = commit
+  d568c8c09630de097a046763c17b9ea99f95f950 under the chosen advertised_range
+  toolchain mode (accepted Lean v4.31.0-rc1, LeanInteract 0.11.4 advertised
+  range v4.8.0-rc1..v4.31.0-rc1). Doctor rejects any mathlib lean-toolchain
+  mismatch against this lock.

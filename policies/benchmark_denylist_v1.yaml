@@ -1,0 +1,223 @@
+# Benchmark denylist v1 (PLAN.md sections 19.4, 19.6, 19.7, 23.6, 9.4, J.2, J.6).
+# Protected external evaluation benchmarks: nothing on this list, and nothing
+# matching its frozen signatures, may enter training, active learning,
+# calibration, or prompt construction. The machine-readable frozen registry
+# (exact IDs, hashes, signatures) lives at data/benchmarks/frozen_ids.json;
+# this policy defines what that registry must contain and when it is written.
+# Loaded by the strict YAML loader: root mapping, no duplicate keys, no tabs.
+policy_version: benchmark_denylist_v1
+status: approved for Phase 2 freeze; identities marked resolve_at_freeze are
+  pinned by the Phase 2 registry probe before data/benchmarks/frozen_ids.json
+  is written.
+
+# ---------------------------------------------------------------------------
+# Global rules (PLAN.md 19.7, 23.6)
+# ---------------------------------------------------------------------------
+global_rules:
+  test_label_isolation: >-
+    Test labels from any benchmark below never influence training, active
+    learning, calibration, or prompts. This covers model weights, example
+    selection, threshold/calibration fitting, prompt text, and few-shot
+    exemplars. Pair-level development calibration uses the internal
+    calibration split only (PLAN.md 19.6), never external benchmark labels.
+  pool_exclusion: >-
+    Benchmark-denylist IDs and their exact/near duplicates are removed from
+    the Phase 5 trusted NL problem pool before eligibility counting
+    (PLAN.md 9.4), and benchmark_test rows are disjoint from all other splits
+    after denylist/near-duplicate filtering (PLAN.md 19.6).
+  no_substitution: >-
+    Per PLAN.md J.6, an unavailable or unresolvable benchmark is reported as
+    unavailable; a similarly named resource is never substituted for it.
+  registry_contents: >-
+    For every entry the frozen registry stores exact source, immutable
+    revision, retrieval date, license/terms, row IDs, content hashes,
+    near-duplicate signatures, and declared usage (PLAN.md 19.7, J.6), with
+    schema/count verified at pin.
+
+# ---------------------------------------------------------------------------
+# Freeze timing (PLAN.md 19.4)
+# ---------------------------------------------------------------------------
+freeze_timing:
+  frozen_registry_path: data/benchmarks/frozen_ids.json
+  phase2_freeze:
+    deadline: before ANY Phase 4 generation
+    frozen_fields:
+      - source_ids
+      - normalized_nl_hashes
+      - raw_text_hashes
+      - references_and_candidates
+      - provenance
+  phase3_append:
+    deadline: end of Phase 3, still before ANY Phase 4 generation
+    appended_fields:
+      - headless_hashes
+      - signature_hashes
+      - alpha_equivalence_hashes
+      - retrieval_indexes
+    rule: >-
+      Representation-dependent near-duplicate signatures are appended to the
+      already-frozen registry additively and versioned; the append never
+      rewrites, removes, or reorders Phase 2 entries.
+  contamination_reporting: >-
+    Cross-split denylist candidates (rows matching a frozen ID, hash, or
+    signature) appear in contamination reports rather than being silently
+    dropped.
+
+# ---------------------------------------------------------------------------
+# Protected benchmarks (PLAN.md 19.7, 23.6, J.2)
+# Every entry: usage is evaluation_only; identity is the HF dataset id or
+# repository when PLAN.md pins one, else resolve_at_freeze (pinned by the
+# Phase 2 probe; see unresolved note at the bottom).
+# ---------------------------------------------------------------------------
+benchmarks:
+  proofnetverif:
+    display_name: ProofNetVerif
+    identity: PAug/ProofNetVerif
+    identity_kind: huggingface_dataset
+    revision: resolve_at_freeze
+    role: >-
+      Primary external faithfulness benchmark; BEq+ protocol source
+      (Poiroux et al., EMNLP 2025; arXiv:2406.07222). 3,752 rows with columns
+      id, nl_statement, lean4_src_header, lean4_formalization,
+      lean4_prediction, correct (PLAN.md 9.1); verify at pin.
+    usage: evaluation_only
+    special: >-
+      Any trainable partition explicitly designated by its manifest
+      (PLAN.md 9.1 fallback 3) must be frozen and disjoint from all
+      evaluation rows BEFORE any benchmark claim is made and before any of
+      its rows enter training (PLAN.md 19.7).
+
+  proofnet_sharp:
+    display_name: "ProofNet#"
+    identity: resolve_at_freeze
+    role: >-
+      External autoformalization evaluation benchmark named in the frozen
+      registry list (PLAN.md 19.7, 23.6); exact distribution pinned at
+      freeze.
+    usage: evaluation_only
+
+  rlm25:
+    display_name: RLM25
+    identity: resolve_at_freeze
+    role: >-
+      External evaluation benchmark named in the frozen registry list
+      (PLAN.md 19.7, 23.6); exact distribution pinned at freeze.
+    usage: evaluation_only
+
+  con_nf:
+    display_name: Con-NF
+    identity: resolve_at_freeze
+    role: >-
+      BEq benchmark of Liu et al., Rethinking and Improving Autoformalization
+      (ICLR 2025) (PLAN.md 4.1, J.3); original-BEq protocol source, never
+      collapsed with BEq+ (PLAN.md 20).
+    usage: evaluation_only
+
+  epla:
+    display_name: EPLA
+    identity: resolve_at_freeze
+    role: >-
+      Evaluation set of the ASSESS/TransTED/EPLA line (arXiv:2509.22246;
+      PLAN.md 4.1, J.3).
+    usage: evaluation_only
+
+  criticleanbench:
+    display_name: CriticLeanBench
+    identity: resolve_at_freeze
+    role: >-
+      Benchmark of the CriticLean/CriticLeanGPT learned-critic line
+      (arXiv:2507.06181; PLAN.md 4.1, J.3), the closest learned NL-to-Lean
+      faithfulness critic comparison.
+    usage: evaluation_only
+
+  reform_consistencycheck:
+    display_name: ReForm ConsistencyCheck
+    identity: resolve_at_freeze
+    role: >-
+      ReForm semantic-validation set, 859 expert-annotated items
+      (arXiv:2510.24592; PLAN.md 4.1, J.3).
+    usage: evaluation_only
+    special: >-
+      ReForm generators are trained on internlm/Lean-Workbook; every
+      ConsistencyCheck (or other ReForm-derived) item overlapping
+      Lean-Workbook is overlap-tagged in the frozen registry and is NOT
+      admissible as held-out-generator or source-independent evidence
+      (PLAN.md 19.7, J.4).
+
+  gaokao_formal:
+    display_name: Gaokao-Formal
+    identity: resolve_at_freeze
+    role: >-
+      Benchmark of the Mathesis/LeanScorer line (arXiv:2506.07047;
+      PLAN.md 4.1, J.3).
+    usage: evaluation_only
+
+  driftbench:
+    display_name: DriftBench
+    identity: resolve_at_freeze
+    role: >-
+      Benchmark of The Faithfulness Gap (arXiv:2606.16541; PLAN.md 4.1,
+      J.3).
+    usage: evaluation_only
+
+  minif2f_variants:
+    display_name: miniF2F variants
+    identity: resolve_at_freeze
+    role: >-
+      All compatible miniF2F variants (PLAN.md 23.6). Each variant actually
+      used is pinned as a separate registry entry with its own immutable
+      revision; the family entry here denylists the shared problem pool so
+      that no variant's problems leak into training regardless of which
+      variants are evaluated.
+    usage: evaluation_only
+
+# ---------------------------------------------------------------------------
+# Special rules (PLAN.md 19.7)
+# ---------------------------------------------------------------------------
+special_rules:
+  reform_lean_workbook_overlap: >-
+    ReForm is trained on Lean-Workbook. The registry stores an explicit
+    overlap tag for every ReForm x Lean-Workbook item; overlap-tagged items
+    are excluded from held-out-generator and source-independent claims and
+    reported separately wherever ReForm results appear.
+  proofnetverif_trainable_partition: >-
+    If any ProofNetVerif partition is ever used for training (PLAN.md 9.1,
+    fallback 3), that partition is frozen and its disjointness from all
+    ProofNetVerif evaluation rows is verified and recorded in the registry
+    BEFORE any ProofNetVerif benchmark claim.
+  r26_pretraining_contamination: >-
+    Public benchmarks and mathlib may already be in pretrained model corpora
+    (Risk R26). Benchmark results are therefore reported as
+    public-versus-post-cutoff-novel deltas: performance on public benchmark
+    items alongside performance on post-cutoff or novel items, never public
+    numbers alone.
+  released_protocols: >-
+    Where a benchmark ships a released evaluation protocol, run it
+    (PLAN.md 23.6); document every import, exclusion, environment migration,
+    and field mapping in the registry entry.
+
+# ---------------------------------------------------------------------------
+# Phase 0 decisions and open items
+# ---------------------------------------------------------------------------
+decisions:
+  - "decision: the serialized usage value is exactly evaluation_only; no
+    second spelling is allowed in code or manifests."
+  - "decision: the frozen registry lives at data/benchmarks/frozen_ids.json
+    (PLAN.md 19.4) and is the only machine-readable denylist; this policy
+    file is its human-readable contract and is never consulted for matching."
+  - "decision: an entry whose identity cannot be resolved at the Phase 2
+    freeze is recorded as unavailable in the registry with the failed lookup
+    evidence (PLAN.md J.6); the freeze still completes for the remaining
+    entries and the unavailable entry stays on the denylist by name and by
+    any partial hashes obtained."
+  - "decision: the miniF2F family is denylisted as a whole; individual
+    variants get their own registry entries at freeze, but pool exclusion
+    applies to the union of all variants' problems."
+unresolved:
+  - "unresolved: exact HF dataset ids/revisions for every entry marked
+    resolve_at_freeze (ProofNet#, RLM25, Con-NF, EPLA, CriticLeanBench,
+    ReForm ConsistencyCheck, Gaokao-Formal, DriftBench, miniF2F variants) and
+    the pinned revision of PAug/ProofNetVerif. Unblocked by the Phase 2
+    network probe of public benchmark distributions (a data-collection step;
+    it does not require the private sft_classic token, whose authenticated
+    probe is a separate pending approval)."

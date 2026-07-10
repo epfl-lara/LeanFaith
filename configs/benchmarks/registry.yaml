@@ -1,0 +1,229 @@
+# External benchmark identity registry (PLAN.md sections 19.4, 19.7, 23.6).
+# Declares the identity, usage restriction, and freeze-artifact schedule for
+# every external benchmark named in the section 19.7 minimum denylist. This
+# registry mirrors policies/benchmark_denylist_v1.yaml: the two files must
+# list identical registry keys, and divergence is a load-time hard error
+# (section 22.4 hard aborts).
+registry_version: benchmark_registry_v1
+plan_sections: ["19.4", "19.7", "23.6", "22.4", "22.8"]
+mirror_of: policies/benchmark_denylist_v1.yaml
+
+# decision: registry keys are lowercase snake_case and stable across registry
+# versions; display names carry the exact published spelling.
+# decision: identities marked resolve_at_freeze are resolved by the Phase 2
+# benchmark-freeze step (LF-013) with exact source, revision, and hashes;
+# that resolution is scheduled Phase 2 work, not an open Phase 0 blocker.
+# Only PAug/ProofNetVerif is identity-verified today (PLAN.md Appendix J.2).
+
+usage_rule: >-
+  usage is evaluation_only for every entry. No benchmark test label may
+  influence training, active learning, calibration, or prompts (PLAN.md
+  section 19.7). Denylisted or prohibited overlap entering supervision is a
+  hard abort (section 22.4). Benchmark protocols are run as released where
+  possible, with imports/exclusions/migrations/mappings documented
+  (section 23.6).
+
+freeze_schedule:
+  phase_2: >-
+    Freeze exact source IDs, normalized-NL hashes, raw-text hashes,
+    references/candidates, and provenance into data/benchmarks/frozen_ids.json
+    before any Phase 4 generation (PLAN.md section 19.4; LF-013).
+  end_of_phase_3: >-
+    Append representation-dependent near-duplicate signatures (headless,
+    signature, and alpha hashes plus retrieval indexes) to the frozen
+    registry (LF-014). The append is additive and versioned, never a
+    rewrite, and still precedes any Phase 4 generation.
+
+contamination_note: >-
+  Public benchmarks and mathlib may be present in pretrained models. Risk R26
+  requires public-versus-post-cutoff-novel deltas; lack of exposure
+  documentation is not evidence of no exposure (PLAN.md sections 19.7
+  and 22.8).
+
+benchmarks:
+  proofnetverif:
+    registry_key: proofnetverif
+    display_name: ProofNetVerif
+    identity: PAug/ProofNetVerif
+    identity_kind: huggingface_dataset
+    revision: resolve_at_freeze
+    citation: "Poiroux et al., EMNLP 2025; arXiv:2406.07222 (BEq+)"
+    usage: evaluation_only
+    freeze_artifacts:
+      ids: pending_phase_2
+      nl_hashes: pending_phase_2
+      raw_hashes: pending_phase_2
+      representation_signatures: append_end_of_phase_3
+    notes: >-
+      Special rule: any trainable ProofNetVerif partition must be frozen and
+      made disjoint from all evaluation rows before any benchmark claim
+      (PLAN.md section 19.7). ProofNetVerif's permitted train partition is
+      also the last entry of the section 9.1 source fallback order; only that
+      frozen, disjoint partition may ever be used as a source. Never collapse
+      BEq+ (this benchmark) with BEq/Con-NF (section 20.2).
+
+  proofnet_sharp:
+    registry_key: proofnet_sharp
+    display_name: "ProofNet#"
+    identity: resolve_at_freeze
+    identity_kind: resolve_at_freeze
+    revision: resolve_at_freeze
+    citation: "Liu et al., Rethinking and Improving Autoformalization, ICLR 2025"
+    usage: evaluation_only
+    freeze_artifacts:
+      ids: pending_phase_2
+      nl_hashes: pending_phase_2
+      raw_hashes: pending_phase_2
+      representation_signatures: append_end_of_phase_3
+    notes: >-
+      Cleaned/repaired ProofNet variant from the BEq line. Distinct from
+      ProofNetVerif and from other ProofNet derivatives; the freeze records
+      which distribution was used.
+
+  rlm25:
+    registry_key: rlm25
+    display_name: RLM25
+    identity: resolve_at_freeze
+    identity_kind: resolve_at_freeze
+    revision: resolve_at_freeze
+    citation: resolve_at_freeze
+    usage: evaluation_only
+    freeze_artifacts:
+      ids: pending_phase_2
+      nl_hashes: pending_phase_2
+      raw_hashes: pending_phase_2
+      representation_signatures: append_end_of_phase_3
+    notes: >-
+      Named in the PLAN.md section 19.7 minimum denylist without a pinned
+      distribution. The Phase 2 freeze must record the exact source,
+      citation, and revision before any row is used or excluded.
+
+  con_nf:
+    registry_key: con_nf
+    display_name: Con-NF
+    identity: resolve_at_freeze
+    identity_kind: resolve_at_freeze
+    revision: resolve_at_freeze
+    citation: "Liu et al., Rethinking and Improving Autoformalization, ICLR 2025 (BEq)"
+    usage: evaluation_only
+    freeze_artifacts:
+      ids: pending_phase_2
+      nl_hashes: pending_phase_2
+      raw_hashes: pending_phase_2
+      representation_signatures: append_end_of_phase_3
+    notes: >-
+      Benchmark from the BEq paper built around the Con(NF) formalization
+      effort; the freeze distinguishes the benchmark distribution from the
+      underlying formalization repository. Never collapse BEq/Con-NF with
+      BEq+/ProofNetVerif (section 20.2).
+
+  epla:
+    registry_key: epla
+    display_name: EPLA
+    identity: resolve_at_freeze
+    identity_kind: resolve_at_freeze
+    revision: resolve_at_freeze
+    citation: "ASSESS/TransTED and EPLA; arXiv:2509.22246"
+    usage: evaluation_only
+    freeze_artifacts:
+      ids: pending_phase_2
+      nl_hashes: pending_phase_2
+      raw_hashes: pending_phase_2
+      representation_signatures: append_end_of_phase_3
+    notes: >-
+      Evaluation set from the ASSESS/TransTED line; the released TransTED
+      protocol is a named baseline (section 20.3) and must be run or
+      documented as unavailable, never approximated under its name.
+
+  criticleanbench:
+    registry_key: criticleanbench
+    display_name: CriticLeanBench
+    identity: resolve_at_freeze
+    identity_kind: resolve_at_freeze
+    revision: resolve_at_freeze
+    citation: "CriticLean/CriticLeanGPT/CriticLeanBench; arXiv:2507.06181"
+    usage: evaluation_only
+    freeze_artifacts:
+      ids: pending_phase_2
+      nl_hashes: pending_phase_2
+      raw_hashes: pending_phase_2
+      representation_signatures: append_end_of_phase_3
+    notes: >-
+      Benchmark for the closest learned NL-to-Lean faithfulness critic line;
+      CriticLean models are also named baselines (section 20.3).
+
+  consistencycheck:
+    registry_key: consistencycheck
+    display_name: ConsistencyCheck
+    identity: resolve_at_freeze
+    identity_kind: resolve_at_freeze
+    revision: resolve_at_freeze
+    citation: "ReForm; arXiv:2510.24592 (859 expert-annotated validation items)"
+    usage: evaluation_only
+    freeze_artifacts:
+      ids: pending_phase_2
+      nl_hashes: pending_phase_2
+      raw_hashes: pending_phase_2
+      representation_signatures: append_end_of_phase_3
+    notes: >-
+      Special rule: ReForm is trained on Lean Workbook, so ReForm x
+      Lean-Workbook items are not held-out-generator or source-independent
+      evidence (PLAN.md section 19.7). Because the specialized_generator slot
+      pins the ReForm family (configs/generation/providers.yaml), every
+      ConsistencyCheck evaluation involving ReForm outputs carries the
+      overlap tag.
+
+  gaokao_formal:
+    registry_key: gaokao_formal
+    display_name: Gaokao-Formal
+    identity: resolve_at_freeze
+    identity_kind: resolve_at_freeze
+    revision: resolve_at_freeze
+    citation: "Mathesis/LeanScorer; arXiv:2506.07047"
+    usage: evaluation_only
+    freeze_artifacts:
+      ids: pending_phase_2
+      nl_hashes: pending_phase_2
+      raw_hashes: pending_phase_2
+      representation_signatures: append_end_of_phase_3
+    notes: >-
+      From the Mathesis line; the LeanScorer condition is a named baseline
+      (section 20.3).
+
+  driftbench:
+    registry_key: driftbench
+    display_name: DriftBench
+    identity: resolve_at_freeze
+    identity_kind: resolve_at_freeze
+    revision: resolve_at_freeze
+    citation: "The Faithfulness Gap; arXiv:2606.16541"
+    usage: evaluation_only
+    freeze_artifacts:
+      ids: pending_phase_2
+      nl_hashes: pending_phase_2
+      raw_hashes: pending_phase_2
+      representation_signatures: append_end_of_phase_3
+    notes: >-
+      Post-cutoff-relevant faithfulness benchmark; a candidate for the Risk
+      R26 public-versus-novel delta analysis (section 22.8).
+
+  minif2f_variants:
+    registry_key: minif2f_variants
+    display_name: "miniF2F variants"
+    identity: resolve_at_freeze
+    identity_kind: umbrella_enumerate_at_freeze
+    revision: resolve_at_freeze
+    citation: resolve_at_freeze
+    usage: evaluation_only
+    freeze_artifacts:
+      ids: pending_phase_2
+      nl_hashes: pending_phase_2
+      raw_hashes: pending_phase_2
+      representation_signatures: append_end_of_phase_3
+    notes: >-
+      Special rule: variants are plural. This is an umbrella entry; the
+      Phase 2 freeze enumerates every compatible Lean 4 miniF2F variant
+      individually with its own identity, revision, and hashes, and all
+      enumerated variants inherit this entry's denylist and evaluation_only
+      status. No result may cite "miniF2F" without naming the exact variant
+      and revision used.

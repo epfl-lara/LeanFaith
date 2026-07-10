@@ -1,0 +1,233 @@
+# Preregistration v1 (PLAN.md sections 2, 23.1-23.11, 31). Freezes the
+# primary comparisons, numeric success thresholds, gate criteria, statistical
+# rules, and experiment conditions for H1-H6 before any test data is unsealed.
+# Method IDs (M2, M3, B0, S0, T0, T1, J0, ...) are defined in PLAN.md section
+# 31.1; every confirmatory result must cite the version of this file that was
+# in force. See amendment_rule for the only permitted way to change anything
+# below.
+preregistration_version: preregistration_v1
+status: "Phase 0 decision: sealed as written; changes only via amendment_rule"
+
+# ---------------------------------------------------------------------------
+# 1. Primary hypotheses (statements from PLAN.md section 2; primary
+#    comparison and success threshold exactly as PLAN.md section 23.11).
+#    Each hypothesis is confirmed only if its full success_threshold holds
+#    under the statistics block below.
+# ---------------------------------------------------------------------------
+hypotheses:
+  H1:
+    statement: >-
+      A learned cross-attention model trained on certified conservative
+      positives, typed near-miss negatives, real model outputs, and human
+      labels outperforms edit-based and proof-search-only metrics on the
+      held-out human-labeled test set.
+    primary_comparison: >-
+      M2/M3 vs the best fixed non-LLM structural/symbolic baseline
+      (B0/S0/T0/T1 family) on both the human-labeled and the real-output
+      test sets.
+    success_threshold: >-
+      At least 0.03 absolute macro-F1 or AUPRC gain on both sets; the
+      Holm-adjusted paired-block bootstrap CI excludes 0 on the real-output
+      set.
+    experiment: "PLAN.md sections 31.1 and 31.7 (H1 row)"
+  H2:
+    statement: >-
+      Deterministic transformations alone overfit to transformation
+      artifacts; adding real autoformalizer outputs and model-proposed
+      variants materially improves performance on real-output-only
+      evaluation.
+    primary_comparison: >-
+      Same architecture trained on the full permitted mixture vs
+      deterministic-only (D0), evaluated on the real-output test set.
+    success_threshold: >-
+      At least 0.03 macro-F1 gain and the adjusted paired-block CI
+      excludes 0.
+    experiment: "h2_data_mixtures below (PLAN.md section 31.2)"
+  H3:
+    statement: >-
+      An elaborated-signature view and compact structural features improve
+      hard-near-miss and out-of-domain performance over raw code alone; the
+      full expression graph (M5) is an ablation, not an assumption.
+    primary_comparison: >-
+      Representation augmentation vs raw code alone on the hard-near-miss,
+      heldout-transform, and heldout-project slices.
+    success_threshold: >-
+      Gain positive on every available hard slice and mean gain of at least
+      0.02 across them; an aggregate-only improvement is insufficient.
+    experiment: "h3_representation_conditions below (PLAN.md section 31.3)"
+  H4:
+    gate_alias: Gate10
+    statement: >-
+      Post-hoc calibration on a clean calibration split produces useful
+      high-precision acceptance thresholds and an uncertainty band that
+      routes difficult cases to review.
+    primary_comparison: >-
+      Calibration of the selected model on calibration_gold, evaluated on
+      the sealed test operating points.
+    success_threshold: >-
+      ECE at most 0.05, and ACCEPT coverage of at least 40% at a
+      point-estimate precision of at least 95%, with the interval reported.
+    experiment: "PLAN.md section 31.5 (calibration ladder)"
+  H5:
+    statement: >-
+      LeanFaith reranking improves faithful@1 over first-compiling-candidate
+      selection and baseline judges at lower marginal cost than repeatedly
+      invoking frontier judges.
+    primary_comparison: >-
+      Frozen reranker vs first-compiling selection and vs the strongest
+      clean baseline (clean per the judge_supervision_matrix block).
+    success_threshold: >-
+      faithful@1 gain of at least +0.05 vs first-compiling, and a positive
+      paired-block bootstrap CI vs the strongest clean baseline.
+    experiment: "PLAN.md sections 23.7 and 31.6"
+  H6:
+    statement: >-
+      Training with source-project, mutation-family, and generator diversity
+      improves transfer to held-out autoformalizers and held-out libraries
+      such as CSLib or Physlib.
+    primary_comparison: >-
+      Held-out generator and held-out project evaluations vs the best clean
+      nontrained baseline.
+    success_threshold: >-
+      At least +0.03 macro-F1 over the best clean nontrained baseline on
+      each adequately powered held-out setting; underpowered settings are
+      reported as unsupported (see amendment_rule), never dropped silently.
+    experiment: "PLAN.md section 31.7 (H6 row)"
+
+# ---------------------------------------------------------------------------
+# 2. Preregistered gates tied to evaluation validity (PLAN.md section 23.11).
+#    Gate failure always means: revise the upstream artifact and repeat the
+#    gate. Thresholds are never lowered (see amendment_rule.gates).
+# ---------------------------------------------------------------------------
+gates:
+  Gate6:
+    scope: "swapped LLM/silver audit (PLAN.md sections 23.4 and 23.11)"
+    criterion: >-
+      Swapped-order agreement of at least 90% after direction remap.
+    on_failure: >-
+      The silver channel does not activate (or is deactivated); fix the
+      prompt/protocol and repeat the audit. The 90% threshold is fixed.
+  Gate7:
+    scope: "human annotation pilot (PLAN.md section 23.11)"
+    criterion: >-
+      Cohen kappa of at least 0.60 AND raw agreement of at least 80% on the
+      pilot. Both conditions must hold.
+    on_failure: >-
+      Revise the annotation guidelines and/or the semantic policy (new
+      policy version) and repeat the pilot with the revised materials.
+      Neither threshold is ever lowered, and pilot rounds are never pooled
+      to reach the bar.
+
+# ---------------------------------------------------------------------------
+# 3. Statistics policy (PLAN.md section 23.9). Applies to every confirmatory
+#    claim above; no confirmatory result may use a different procedure.
+# ---------------------------------------------------------------------------
+statistics:
+  resampling_unit: >-
+    Block bootstrap resamples by ancestry connected component / NL problem.
+    Pair-level resampling is never permitted for any reported interval.
+  paired_differences: >-
+    Method differences use the paired block bootstrap over the same blocks
+    for both methods.
+  block_reporting: >-
+    Every interval is reported with its block count and effective per-class
+    counts.
+  primary_multiplicity: >-
+    Holm-Bonferroni at alpha=0.05 across the primary H1-H6 family.
+  exploratory_multiplicity: >-
+    Benjamini-Hochberg FDR at q=0.10 for exploratory slices. Exploratory
+    results are labeled as exploratory and are never promoted to
+    confirmatory post hoc.
+  operating_points: >-
+    Coverage/precision operating points use Wilson or Clopper-Pearson
+    intervals with the denominator stated. The headline operating point is
+    coverage/recall at 95% precision; recall at 99% precision is exploratory
+    only.
+  effect_sizes: >-
+    Effect sizes are reported with confidence intervals; a significant
+    p-value alone does not confirm a hypothesis.
+  power_limits: >-
+    A roughly 500-item test set supports aggregate and 95%-precision claims
+    only when enough accepts exist; it does not support precise rare-code,
+    per-domain, or 99%-precision claims, and no such claim is made from it.
+
+# ---------------------------------------------------------------------------
+# 4. Data mixtures for H2 (PLAN.md section 31.2). Compared under matched
+#    architecture and training schedule; only the mixture varies.
+# ---------------------------------------------------------------------------
+h2_data_mixtures:
+  rule: >-
+    All mixtures are compared under a matched architecture and training
+    schedule; only the data mixture varies between runs.
+  D0: "promoted deterministic pairs only"
+  D1: "D0 plus LLM silver labels (only if the silver channel is active)"
+  D2: "D0 plus real autoformalizer outputs"
+  D3: "all permitted weak supervision"
+  D4: "D3 plus development_gold"
+  d1_contingency: >-
+    decision: if the silver channel is inactive (Gate6 not passed or channel
+    switched off), D1 is reported as not run and H2 is evaluated on the
+    remaining mixtures; D1 is never silently merged into another mixture or
+    replaced by a substitute source.
+
+# ---------------------------------------------------------------------------
+# 5. Representation conditions for H3 (PLAN.md section 31.3).
+# ---------------------------------------------------------------------------
+h3_representation_conditions:
+  conditions:
+    - raw_lean_text
+    - headless
+    - elaborated_signature
+    - explicit_form
+    - text_plus_atoms
+    - scalar_features
+    - m5_expression_graph
+  confirmation_rule: >-
+    H3 is confirmed only by the success_threshold gains on the
+    hard-near-miss, heldout-transform, and heldout-project slices. An
+    aggregate-only improvement, of any size, does not confirm H3.
+  coverage_reporting: >-
+    Extraction and truncation coverage is reported for every representation
+    condition so that slice gains cannot be an artifact of silent coverage
+    loss.
+
+# ---------------------------------------------------------------------------
+# 6. Judge x supervision matrix rule (PLAN.md sections 23.10 and 31.4).
+# ---------------------------------------------------------------------------
+judge_supervision_matrix:
+  freeze: >-
+    The judge x supervision matrix is frozen before evaluation begins.
+  primary_cell: >-
+    The primary cell is the primary held-out judge family scoring a model
+    trained with no labels from that family (supervision-free comparison).
+  secondary_cells: >-
+    Cells where the model was trained on labels from a different judge
+    family are secondary evidence.
+  circular_cells: >-
+    Same-family cells (judge scoring a model trained on its own family's
+    labels) are reported only as circular diagnostics and can never support
+    a primary or secondary claim.
+
+# ---------------------------------------------------------------------------
+# 7. Amendment rule (PLAN.md section 23.11). This block governs every other
+#    block in this file.
+# ---------------------------------------------------------------------------
+amendment_rule:
+  before_test_unseal: >-
+    Changing any hypothesis row, comparison, threshold, gate criterion,
+    mixture, representation condition, or statistical rule in this file
+    before the test sets are unsealed requires an ADR and a new policy
+    version (preregistration_v2, ...). Records and results cite the version
+    in force when they were produced.
+  after_test_unseal: >-
+    After test unseal no amendment is permitted; the sealed version governs
+    all confirmatory claims for that test set.
+  underpowered_hypotheses: >-
+    Hypotheses or settings that turn out underpowered or deferred are
+    reported as unsupported or not-run under their preregistered
+    definitions. They are never redefined, re-thresholded, or reclassified
+    as exploratory after the fact.
+  gates: >-
+    Gate thresholds (Gate6, Gate7, and the H4/Gate10 criteria) are never
+    lowered. The only permitted response to a gate failure is to revise the
+    upstream artifact and repeat the gate.

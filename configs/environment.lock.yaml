@@ -1,0 +1,26 @@
+# Executable environment lock (PLAN.md §6.2, B.1, ADR-0001).
+# Validated by `leanfaith doctor` against the EnvironmentLock schema; the
+# doctor rejects unresolved values, out-of-range toolchains, and pin drift.
+environment_schema_version: 1
+python:
+  version: "3.12"
+lean_interact:
+  package: lean-interact
+  version: 0.11.4
+  advertised_lean_min: v4.8.0-rc1
+  advertised_lean_max: v4.31.0-rc1
+  repl_fork: https://github.com/augustepoiroux/repl
+toolchain_lock:
+  mode: advertised_range
+  accepted_lean: v4.31.0-rc1
+  mathlib_toolchain_must_match: true
+  stable_v4_31_exception_adr: null
+lean_backend:
+  backend: leaninteract
+  server_mode: stable
+  workers: null
+  timeout_seconds: 30.0
+  memory_hard_limit_mb: null
+  allow_sorry: false
+  infotree: none
+  save_raw_responses: true
