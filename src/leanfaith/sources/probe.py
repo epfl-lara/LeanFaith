@@ -250,6 +250,36 @@ def archive_probe(outcome: ProbeOutcome, paths: RepoPaths) -> ProbeOutcome:
     return outcome.model_copy(update={"sample_path": sample_path, "sample_jsonl": None})
 
 
+def hf_probe_config_from_yaml(paths: RepoPaths, source_name: str) -> HFProbeConfig:
+    """Bind ``configs/sources/<source>.yaml`` to an executable probe config.
+
+    The YAML files are identity documents with extra keys; binding selects
+    the probe-relevant keys explicitly rather than validating the whole file.
+    """
+    from leanfaith.config.loading import load_yaml_mapping
+
+    raw = load_yaml_mapping(paths.configs / "sources" / f"{source_name}.yaml")
+    probe_block = raw.get("probe") or {}
+    token: SecretRef | None = None
+    token_block = raw.get("token") or {}
+    auth_block = raw.get("auth") or {}
+    env_name = token_block.get("env") or auth_block.get("hf_token_env")
+    if env_name:
+        token = SecretRef(env=str(env_name))
+    expected = raw.get("expected_columns") or ()
+    nl_trust_raw = raw.get("nl_trust")
+    return HFProbeConfig(
+        source=str(raw.get("source", source_name)),
+        dataset_id=str(raw["dataset_id"]),
+        revision=probe_block.get("resolved_revision"),
+        sample_split=str(raw.get("sample_split", "train")),
+        expected_columns=tuple(str(column) for column in expected),
+        nl_trust=NLTrust(nl_trust_raw) if nl_trust_raw else None,
+        token=token,
+        external_api_approved=raw.get("external_api_approved"),
+    )
+
+
 def run_fallback_chain(
     probers: list[SourceProber],
 ) -> tuple[ProbeOutcome, list[ProbeOutcome]]:

@@ -6,6 +6,7 @@ source_config_version: 1
 source: proofnetverif
 kind: huggingface_dataset
 dataset_id: PAug/ProofNetVerif
+sample_split: valid  # this dataset has valid/test splits, no train
 expected_rows: 3752
 expected_columns:
   - id

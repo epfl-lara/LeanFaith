@@ -42,6 +42,10 @@ src = ["src", "tests"]
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "UP", "B", "C4", "SIM", "RUF"]
 
+[tool.ruff.lint.per-file-ignores]
+# Lean code fixtures legitimately contain math unicode and long statements.
+"tests/**" = ["RUF001", "RUF002", "E501"]
+
 [tool.mypy]
 python_version = "3.12"
 strict = true

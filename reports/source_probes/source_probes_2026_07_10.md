@@ -47,3 +47,16 @@ per-row provenance tags + Lean-Workbook 25,214 synthetic problems. Exact
 (per §9.4) is computed by the LF-011 adapter run over the full dataset and will be
 appended to the manifest; the raw scale exceeds the ≥10k pilot and ≥100k
 research_v1 thresholds by orders of magnitude.
+
+## LF-011 parsed-slice statistics (train[:20000], adapter sft_classic_adapter_v1)
+
+- parse status: 7,157 `parsed` (docstring NL present) / 12,843 `no_docstring`
+  (proof-SFT-only rows; Lean side still usable) / 0 `no_fence`.
+- trust: 11,616 `uncertain` / 8,384 `synthetic` (Lean-Workbook-derived, 42% -
+  identified by declaration name; they keep Goedel-style uuids, so the §9.1
+  overlap tag keys on declaration names).
+- NL-eligible: 7,157 (35.8%); 7,149 of them non-workbook.
+- `phase5_pool_estimate_train` ~= 718k eligible NL rows (uncertain provenance;
+  exact filtered count with the LF-012/13 full pass).
+- ProofNetVerif parsed in full (3,752 rows, both splits); mathlib inventory:
+  8,112 hashed .lean files at the pinned revision.

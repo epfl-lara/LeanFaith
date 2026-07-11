@@ -160,6 +160,66 @@ def probe_api(
     )
 
 
+@app.command()
+def probe(
+    source: Annotated[
+        str, typer.Argument(help="Source key from configs/sources/ (or 'all' for HF sources).")
+    ],
+    root_dir: Annotated[
+        Path | None,
+        typer.Option("--root", help="Repository root override."),
+    ] = None,
+) -> None:
+    """Run configured live source probes and archive manifests/samples (LF-011)."""
+    from leanfaith.config.paths import RepoPaths
+    from leanfaith.schemas import (
+        ArtifactClass,
+        RunManifest,
+        collect_code_state,
+        new_run_id,
+        run_manifest_path,
+        write_manifest,
+    )
+    from leanfaith.sources import HFDatasetProber, archive_probe
+    from leanfaith.sources.probe import RealHFClient, hf_probe_config_from_yaml
+
+    paths = RepoPaths.discover(root_dir) if root_dir is None else RepoPaths(root=root_dir)
+    hf_sources = ("sft_classic", "sft_classic_numina", "lean_workbook", "proofnetverif")
+    targets = hf_sources if source == "all" else (source,)
+    client = RealHFClient()
+    status_counts: dict[str, int] = {"accessible": 0, "blocked": 0}
+    output_hashes: dict[str, str] = {}
+    failed = False
+    for name in targets:
+        config = hf_probe_config_from_yaml(paths, name)
+        outcome = archive_probe(HFDatasetProber(config, client).probe(), paths)
+        if outcome.accessible:
+            status_counts["accessible"] += 1
+            assert outcome.sample_hash is not None
+            output_hashes[f"data/source_manifests/{name}.json"] = outcome.sample_hash
+            typer.echo(f"[ok     ] {name}: sample_rows={outcome.sample_row_count}")
+        else:
+            status_counts["blocked"] += 1
+            failed = True
+            typer.echo(f"[BLOCKED] {name}: {outcome.blocked_reason}", err=True)
+
+    created_at = datetime.datetime.now(tz=datetime.UTC)
+    run_id = new_run_id(created_at)
+    manifest = RunManifest(
+        run_id=run_id,
+        artifact_class=ArtifactClass.PRODUCTION,
+        command=f"leanfaith probe {source}",
+        argv=("leanfaith", "probe", source),
+        code=collect_code_state(paths.root),
+        output_hashes=output_hashes,
+        status_counts=status_counts,
+        created_at=created_at,
+    )
+    write_manifest(manifest, run_manifest_path(paths, run_id))
+    if failed:
+        raise typer.Exit(code=1)
+
+
 def main() -> None:
     app()
 
