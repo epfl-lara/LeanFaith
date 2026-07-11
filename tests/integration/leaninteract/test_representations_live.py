@@ -90,3 +90,25 @@ def test_unknown_declaration_marks_signature_failed(backend: LeanInteractBackend
     assert record.view_status["headless"].value == "ok"
     assert record.view_status["signature_pp"].value == "failed"
     assert record.signature_pp is None
+
+
+def test_semantic_atoms_and_operator_tree_live(backend: LeanInteractBackend) -> None:
+    from leanfaith.representations.pipeline import build_representations
+
+    theorems = [
+        _theorem("lf_add_comm", "theorem lf_add_comm (x y : Nat) : x + y = y + x := by sorry"),
+    ]
+    records = build_representations(
+        backend, theorems, imports="import LeanFaithFixtures", created_at=_UTC
+    )
+    record = records[0]
+    assert record.view_status["semantic_atoms"].value == "ok", record.view_status
+    assert record.view_status["operator_tree"].value == "ok"
+    assert record.semantic_atoms is not None
+    # The commutativity statement's atoms include the quantifiers, the addition
+    # head, and equality (extracted from the elaborated Expr, not text).
+    assert record.semantic_atoms.count("forall") == 2
+    assert "const:HAdd.hAdd" in record.semantic_atoms
+    assert "const:Eq" in record.semantic_atoms
+    assert record.operator_tree is not None
+    assert record.operator_tree["node_count"] > 5

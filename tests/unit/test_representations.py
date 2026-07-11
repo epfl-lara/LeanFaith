@@ -160,6 +160,7 @@ def test_headless_prefers_parsed_signature_over_regex() -> None:
         context_id="ctx:" + "0" * 64,
         source_signature='(s : String) : "a--b" = s',
     )
-    record = _build_record(theorem, "elaborated", "elaborated_explicit", _UTC)
+    record = _build_record(theorem, "elaborated", "elaborated_explicit", None, _UTC)
     assert record.headless == '(s : String) : "a--b" = s'  # parsed signature, not mangled
     assert record.view_status["headless"].value == "ok"
+    assert record.view_status["semantic_atoms"].value == "failed"  # no expr tree supplied

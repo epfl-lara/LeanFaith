@@ -144,7 +144,7 @@ def parse_check_type(message: str, full_name: str) -> str | None:
     return _WS.sub(" ", body[match.end() :]).strip() or None
 
 
-def representation_content_hash(views: dict[str, str | None]) -> str:
+def representation_content_hash(views: dict[str, object]) -> str:
     """Deterministic content hash over the view dict (§11.4)."""
     return hash_canonical(views)
 
