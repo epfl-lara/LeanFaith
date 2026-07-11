@@ -68,18 +68,35 @@ def test_operator_tree_stats_and_version() -> None:
 
 
 def test_parse_lfjson_line() -> None:
-    name, tree = parse_lfjson_line('LFJSON Nat.add_comm {"k":"const","n":"X"}')
+    name, tree = parse_lfjson_line('LFJSON {"name":"Nat.add_comm","tree":{"k":"const","n":"X"}}')
     assert name == "Nat.add_comm"
     assert tree == {"k": "const", "n": "X"}
 
 
 def test_parse_lfjson_notfound() -> None:
-    name, tree = parse_lfjson_line("LFJSON Missing.decl notfound")
+    name, tree = parse_lfjson_line('LFJSON {"name":"Missing.decl","notfound":true}')
     assert name == "Missing.decl"
     assert tree is None
 
 
+def test_parse_lfjson_name_with_space() -> None:
+    # Guillemet identifiers can contain spaces; the name lives inside the JSON.
+    name, tree = parse_lfjson_line('LFJSON {"name":"«foo bar»","tree":{"k":"sort"}}')
+    assert name == "«foo bar»"
+    assert tree == {"k": "sort"}
+
+
 def test_parse_lfjson_malformed_json() -> None:
-    name, tree = parse_lfjson_line("LFJSON x {not valid json")
-    assert name == "x"
+    name, tree = parse_lfjson_line("LFJSON {not valid json")
+    assert name == ""
     assert tree is None
+
+
+def test_deep_expr_does_not_blow_recursion() -> None:
+    # A 5000-deep application spine must not hit the Python recursion limit.
+    node: dict = {"k": "const", "n": "base"}
+    for _ in range(5000):
+        node = {"k": "app", "fn": node, "arg": {"k": "const", "n": "arg"}}
+    atoms = semantic_atoms(node)
+    assert atoms.count("const:arg") == 5000
+    assert operator_tree(node)["node_count"] == 10001

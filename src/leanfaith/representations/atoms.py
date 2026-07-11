@@ -17,30 +17,9 @@ ATOM_VERSION = "atoms_v1"
 _QUANTIFIER_KINDS = {"forall": "forall", "lam": "lam"}
 
 
-def _walk_atoms(node: dict[str, Any], out: list[str]) -> None:
-    kind = node.get("k")
-    if kind in _QUANTIFIER_KINDS:
-        out.append(_QUANTIFIER_KINDS[kind])
-        _walk_atoms(node.get("dom", {}), out)
-        _walk_atoms(node.get("body", {}), out)
-    elif kind == "app":
-        _walk_atoms(node.get("fn", {}), out)
-        _walk_atoms(node.get("arg", {}), out)
-    elif kind == "const":
-        out.append(f"const:{node.get('n', '')}")
-    elif kind == "lit":
-        if "nat" in node:
-            out.append(f"lit:nat:{node['nat']}")
-        elif "str" in node:
-            out.append("lit:str")
-    elif kind == "proj":
-        out.append(f"proj:{node.get('s', '')}")
-        _walk_atoms(node.get("base", {}), out)
-    elif kind == "let":
-        _walk_atoms(node.get("t", {}), out)
-        _walk_atoms(node.get("v", {}), out)
-        _walk_atoms(node.get("body", {}), out)
-    # bvar/fvar/sort/mvar: structural, no atom
+#: Ordered child keys per node kind (pre-order traversal order). Iterative to
+#: avoid Python recursion limits on deep mathlib application spines.
+_CHILD_KEYS = ("dom", "body", "fn", "arg", "base", "t", "v")
 
 
 def semantic_atoms(tree: dict[str, Any]) -> tuple[str, ...]:
@@ -48,21 +27,49 @@ def semantic_atoms(tree: dict[str, Any]) -> tuple[str, ...]:
     and literals in traversal order. The multiset is ``collections.Counter``
     of this; the ordered form preserves position for atom-diff audits."""
     out: list[str] = []
-    _walk_atoms(tree, out)
+    stack: list[dict[str, Any]] = [tree]
+    while stack:
+        node = stack.pop()
+        kind = node.get("k")
+        if kind in _QUANTIFIER_KINDS:
+            out.append(_QUANTIFIER_KINDS[kind])
+            stack.append(node.get("body", {}))
+            stack.append(node.get("dom", {}))
+        elif kind == "app":
+            stack.append(node.get("arg", {}))
+            stack.append(node.get("fn", {}))
+        elif kind == "const":
+            out.append(f"const:{node.get('n', '')}")
+        elif kind == "lit":
+            if "nat" in node:
+                out.append(f"lit:nat:{node['nat']}")
+            elif "str" in node:
+                out.append("lit:str")
+        elif kind == "proj":
+            out.append(f"proj:{node.get('s', '')}")
+            stack.append(node.get("base", {}))
+        elif kind == "let":
+            stack.append(node.get("body", {}))
+            stack.append(node.get("v", {}))
+            stack.append(node.get("t", {}))
+        # bvar/fvar/sort/mvar: structural, no atom
     return tuple(out)
 
 
-def _tree_stats(node: dict[str, Any]) -> tuple[int, int]:
-    """(node_count, depth) of the operator tree."""
-    children = []
-    for key in ("dom", "body", "fn", "arg", "base", "t", "v"):
-        child = node.get(key)
-        if isinstance(child, dict):
-            children.append(child)
-    if not children:
-        return 1, 1
-    counts_depths = [_tree_stats(c) for c in children]
-    return 1 + sum(c for c, _ in counts_depths), 1 + max(d for _, d in counts_depths)
+def _tree_stats(tree: dict[str, Any]) -> tuple[int, int]:
+    """(node_count, depth) of the operator tree, computed iteratively."""
+    node_count = 0
+    max_depth = 0
+    stack: list[tuple[dict[str, Any], int]] = [(tree, 1)]
+    while stack:
+        node, depth = stack.pop()
+        node_count += 1
+        max_depth = max(max_depth, depth)
+        for key in _CHILD_KEYS:
+            child = node.get(key)
+            if isinstance(child, dict):
+                stack.append((child, depth + 1))
+    return node_count, max_depth
 
 
 def operator_tree(tree: dict[str, Any]) -> dict[str, Any]:
@@ -79,16 +86,20 @@ def operator_tree(tree: dict[str, Any]) -> dict[str, Any]:
 
 
 def parse_lfjson_line(line: str) -> tuple[str, dict[str, Any] | None]:
-    """Parse an ``LFJSON <name> <json|notfound>`` emit line into
-    (name, tree-or-None)."""
+    """Parse an ``LFJSON {"name":..., "tree":...|"notfound":true}`` emit line
+    into (name, tree-or-None). The name lives inside the JSON so names
+    containing spaces (guillemet identifiers) are unambiguous."""
     import json
 
     payload = line.split("LFJSON ", 1)[1] if "LFJSON " in line else line
-    name, _, rest = payload.partition(" ")
-    rest = rest.strip()
-    if rest == "notfound" or not rest:
-        return name, None
     try:
-        return name, json.loads(rest)
+        obj = json.loads(payload.strip())
     except json.JSONDecodeError:
+        return "", None
+    if not isinstance(obj, dict):
+        return "", None
+    name = str(obj.get("name", ""))
+    tree = obj.get("tree")
+    if obj.get("notfound") or not isinstance(tree, dict):
         return name, None
+    return name, tree

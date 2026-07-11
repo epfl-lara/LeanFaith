@@ -81,11 +81,13 @@ def _run_expr_dump_batch(
     trees: dict[str, dict[str, Any]] = {}
     for message in result.messages:
         data = str(message.get("data", ""))
-        if "LFJSON " not in data:
-            continue
-        name, tree = parse_lfjson_line(data)
-        if tree is not None:
-            trees[name] = tree
+        # One IO.println per dump, but tolerate several landing in one message.
+        for candidate in data.splitlines():
+            if "LFJSON " not in candidate:
+                continue
+            name, tree = parse_lfjson_line(candidate)
+            if tree is not None:
+                trees[name] = tree
     return trees
 
 

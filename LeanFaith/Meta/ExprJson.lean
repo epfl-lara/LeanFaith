@@ -46,5 +46,9 @@ elab "lfDump " s:str : command => do
   let nm := (s.getString).toName
   liftTermElabM do
     match (← getEnv).find? nm with
-    | some ci => IO.println s!"LFJSON {s.getString} {(← lfExprJson ci.type).compress}"
-    | none => IO.println s!"LFJSON {s.getString} notfound"
+    | some ci =>
+      let obj := Json.mkObj [("name", Json.str s.getString), ("tree", ← lfExprJson ci.type)]
+      IO.println s!"LFJSON {obj.compress}"
+    | none =>
+      let obj := Json.mkObj [("name", Json.str s.getString), ("notfound", Json.bool true)]
+      IO.println s!"LFJSON {obj.compress}"
