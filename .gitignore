@@ -218,7 +218,11 @@ __marimo__/
 .streamlit/secrets.toml
 
 # LeanFaith generated artifacts (PLAN.md §7): pipeline data stays out of git
-data/
+/data/*
+# except the frozen benchmark denylist, a tracked hashes-only artifact (§19.4)
+!/data/benchmarks/
+/data/benchmarks/*
+!/data/benchmarks/frozen_ids.json
 artifacts/
 runs/
 
