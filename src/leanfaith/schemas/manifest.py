@@ -69,6 +69,17 @@ class RunManifest(StrictModel):
     retry_count: int = 0
     measurements: dict[str, int | float] = Field(default_factory=dict)
     tracker_id: str | None = None
+
+    @field_validator("measurements")
+    @classmethod
+    def _finite_measurements(cls, value: dict[str, int | float]) -> dict[str, int | float]:
+        import math
+
+        for name, measurement in value.items():
+            if isinstance(measurement, float) and not math.isfinite(measurement):
+                raise ValueError(f"measurement {name!r} must be finite")
+        return value
+
     tracker_offline_path: str | None = None
     parent_run_id: str | None = Field(default=None, pattern=_RUN_ID_PATTERN)
     resumed_from_run_id: str | None = Field(default=None, pattern=_RUN_ID_PATTERN)
@@ -144,20 +155,50 @@ def write_manifest(manifest: StrictModel, path: Path) -> str:
     return hash_file(path)
 
 
+def _reject_duplicate_keys(pairs: list[tuple[str, object]]) -> dict[str, object]:
+    result: dict[str, object] = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError(f"duplicate JSON key {key!r}")
+        result[key] = value
+    return result
+
+
+def _reject_nonfinite_constant(text: str) -> float:
+    raise ValueError(f"non-finite JSON constant {text!r}")
+
+
 def read_manifest[ModelT: StrictModel](path: Path, model_type: type[ModelT]) -> ModelT:
-    """Read and validate a manifest; fail closed on any mismatch."""
+    """Read and validate a manifest; fail closed on any mismatch.
+
+    Strict JSON: duplicate keys and NaN/Infinity literals — which the
+    canonical write path can never produce — are rejected rather than
+    silently coerced. A schema-version mismatch also fails closed (§10 rule
+    6: same inputs reproduce exactly or fail).
+    """
     try:
         text = path.read_text(encoding="utf-8")
     except OSError as exc:
         raise ManifestError(f"cannot read manifest {path}: {exc}") from exc
     try:
-        data = json.loads(text)
-    except json.JSONDecodeError as exc:
+        data = json.loads(
+            text,
+            object_pairs_hook=_reject_duplicate_keys,
+            parse_constant=_reject_nonfinite_constant,
+        )
+    except (json.JSONDecodeError, ValueError) as exc:
         raise ManifestError(f"invalid JSON in manifest {path}: {exc}") from exc
     try:
-        return model_type.model_validate(data)
+        manifest = model_type.model_validate(data)
     except ValidationError as exc:
         raise ManifestError(f"invalid manifest {path}:\n{exc}") from exc
+    declared = getattr(manifest, "schema_version", MANIFEST_SCHEMA_VERSION)
+    if declared != MANIFEST_SCHEMA_VERSION:
+        raise ManifestError(
+            f"manifest {path} has schema_version {declared}; this code understands "
+            f"{MANIFEST_SCHEMA_VERSION} — migrate explicitly (§11.12), never reinterpret"
+        )
+    return manifest
 
 
 def manifest_hash(path: Path) -> str:

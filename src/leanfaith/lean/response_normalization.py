@@ -25,7 +25,15 @@ _SORRY_DIAGNOSTICS = ("declaration uses `sorry`", "declaration uses 'sorry'")
 
 #: Exception types raised by the pinned LeanServer.run/run_dict (§8.5, verified
 #: in the LF-006 probe environment) and their canonical §8.6 statuses.
-_CRASH_EXCEPTIONS = (ConnectionAbortedError, ChildProcessError, BrokenPipeError, EOFError)
+#: MemoryError is raised by AutoLeanServer after exhausted memory-triggered
+#: restart attempts — a process/recovery failure, hence CRASH (§8.6).
+_CRASH_EXCEPTIONS = (
+    ConnectionAbortedError,
+    ChildProcessError,
+    BrokenPipeError,
+    EOFError,
+    MemoryError,
+)
 
 
 def _messages(raw: Mapping[str, Any]) -> tuple[dict[str, Any], ...]:

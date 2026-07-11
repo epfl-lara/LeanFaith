@@ -187,3 +187,224 @@ def test_datetime_still_rejected_in_canonical() -> None:
 
     with pytest.raises(CanonicalizationError):
         hash_canonical({"t": datetime.date(2026, 7, 10)})
+
+
+# --- round 2: deep-review confirmed findings ---
+
+
+def test_memory_error_maps_to_crash() -> None:
+    from leanfaith.lean.response_normalization import status_for_exception
+
+    assert status_for_exception(MemoryError("restart attempts exhausted")) == LeanStatus.CRASH
+
+
+def test_trailing_newline_ids_rejected() -> None:
+    from leanfaith.schemas import is_valid_id, parse_id
+
+    tainted = "thm:" + "0" * 64 + "\n"
+    assert not is_valid_id(tainted)
+    with pytest.raises(InvalidIdError):
+        parse_id(tainted)
+    with pytest.raises(InvalidIdError, match="prefix"):
+        make_id("thm\n", {"a": 1})
+
+
+def test_toolchain_lock_coherence_enforced() -> None:
+    from leanfaith.lean.project_registry import ToolchainLock, ToolchainMode
+
+    with pytest.raises(ValueError, match="mixed"):
+        ToolchainLock(
+            mode=ToolchainMode.STABLE_V4_31_EXCEPTION,
+            accepted_lean="v4.31.0-rc1",
+            stable_v4_31_exception_adr="ADR-0001",
+        )
+    with pytest.raises(ValueError, match="ADR-0001"):
+        ToolchainLock(mode=ToolchainMode.STABLE_V4_31_EXCEPTION, accepted_lean="v4.31.0")
+    with pytest.raises(ValueError, match="in-range"):
+        ToolchainLock(mode=ToolchainMode.ADVERTISED_RANGE, accepted_lean="v4.32.0-rc1")
+    with pytest.raises(ValueError, match="must be null"):
+        ToolchainLock(
+            mode=ToolchainMode.ADVERTISED_RANGE,
+            accepted_lean="v4.31.0-rc1",
+            stable_v4_31_exception_adr="ADR-0001",
+        )
+
+
+def test_judgment_value_rejects_non_canonical_spellings() -> None:
+    from leanfaith.schemas import JudgmentValue
+
+    with pytest.raises(ValueError):
+        JudgmentValue(answer="same claim")  # type: ignore[arg-type]
+    with pytest.raises(ValueError):
+        JudgmentValue(answer="same_claim", relation="A stronger")  # type: ignore[arg-type]
+    value = JudgmentValue(answer="same_claim", relation="A_stronger")
+    assert value.relation == "A_stronger"
+
+
+def test_manifest_rejects_duplicate_keys_and_nan(tmp_path: Path) -> None:
+    from leanfaith.schemas import ManifestError, RunManifest, read_manifest
+
+    target = tmp_path / "m.json"
+    target.write_text('{"a": 1, "a": 2}')
+    with pytest.raises(ManifestError, match="duplicate JSON key"):
+        read_manifest(target, RunManifest)
+    target.write_text('{"schema_version": NaN}')
+    with pytest.raises(ManifestError, match="non-finite JSON constant"):
+        read_manifest(target, RunManifest)
+
+
+def test_manifest_schema_version_mismatch_fails_closed(tmp_path: Path) -> None:
+    import datetime
+
+    from leanfaith.schemas import (
+        ArtifactClass,
+        CodeState,
+        ManifestError,
+        RunManifest,
+        new_run_id,
+        read_manifest,
+        write_manifest,
+    )
+
+    now = datetime.datetime(2026, 7, 10, tzinfo=datetime.UTC)
+    manifest = RunManifest(
+        run_id=new_run_id(now, nonce="deadbeef"),
+        artifact_class=ArtifactClass.SMOKE,
+        command="x",
+        code=CodeState(git_revision="a" * 40, git_dirty=False),
+        created_at=now,
+    )
+    target = tmp_path / "m.json"
+    write_manifest(manifest, target)
+    tampered = target.read_text().replace('"schema_version":1', '"schema_version":99')
+    target.write_text(tampered)
+    with pytest.raises(ManifestError, match="migrate explicitly"):
+        read_manifest(target, RunManifest)
+
+
+def test_run_manifest_rejects_non_finite_measurements() -> None:
+    import datetime
+    import math
+
+    from leanfaith.schemas import ArtifactClass, CodeState, RunManifest, new_run_id
+
+    now = datetime.datetime(2026, 7, 10, tzinfo=datetime.UTC)
+    with pytest.raises(ValueError, match="finite"):
+        RunManifest(
+            run_id=new_run_id(now, nonce="deadbeef"),
+            artifact_class=ArtifactClass.SMOKE,
+            command="x",
+            code=CodeState(git_revision="a" * 40, git_dirty=False),
+            measurements={"loss": math.nan},
+            created_at=now,
+        )
+
+
+def test_symlinked_home_form_rejected(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    target = tmp_path / "real_home"
+    target.mkdir()
+    link = tmp_path / "home_link"
+    link.symlink_to(target)
+    monkeypatch.setenv("HOME", str(link))
+    # Both the symlinked and the resolved spellings must be rejected.
+    for form in (str(link / "data" / "x.lean"), str(target / "data" / "x.lean")):
+        with pytest.raises(InvalidIdError):
+            make_id("thm", {"file": form})
+
+
+def test_setup_error_status_for_broken_server(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    from leanfaith.lean.leaninteract_backend import BackendSettings, LeanInteractBackend
+
+    backend = LeanInteractBackend(
+        BackendSettings(
+            project_dir=tmp_path,
+            context_fingerprint="0" * 64,
+            environment_schema_version=1,
+            raw_response_dir=tmp_path / "raw",
+        )
+    )
+
+    def boom() -> object:
+        raise RuntimeError("project build failed")
+
+    monkeypatch.setattr(backend, "_ensure_server", boom)
+    result = backend.run(_request())
+    assert result.status == LeanStatus.SETUP_ERROR
+    assert result.raw_response_path is not None
+
+
+def test_auto_mode_falls_back_to_stable_server(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    import leanfaith.lean.leaninteract_backend as backend_module
+    from leanfaith.lean.leaninteract_backend import BackendSettings, LeanInteractBackend
+    from leanfaith.lean.session_policy import ServerMode
+
+    class FakeStable:
+        def __init__(self, config: object) -> None:
+            self.config = config
+
+    def raising_auto(config: object) -> object:
+        raise RuntimeError("experimental server unavailable")
+
+    monkeypatch.setattr(backend_module, "AutoLeanServer", raising_auto)
+    monkeypatch.setattr(backend_module, "LeanServer", FakeStable)
+    monkeypatch.setattr(backend_module.LeanInteractBackend, "_repl_config", lambda self: object())
+    backend = LeanInteractBackend(
+        BackendSettings(
+            project_dir=tmp_path,
+            context_fingerprint="0" * 64,
+            environment_schema_version=1,
+            raw_response_dir=tmp_path / "raw",
+            server_mode=ServerMode.AUTO,
+        )
+    )
+    server = backend._ensure_server()
+    assert isinstance(server, FakeStable)
+    assert backend.auto_fallback_active
+
+
+def test_label_link_detects_target_id_mismatch() -> None:
+    from leanfaith.schemas import check_label_target_link
+    from tests.unit.record_factories import LABEL_ID, THM_A, THM_B, pair_record
+
+    other_pair = pair_record(
+        pair_id=make_id("pair", {"different": True}),
+        resolved_label_id=LABEL_ID,
+    )
+    label = resolved_label()  # targets the canonical PAIR_ID
+    violations = check_label_target_link(label, other_pair)
+    assert any("target_id" in violation for violation in violations)
+    assert THM_A != THM_B  # silence unused-import style pruning
+
+
+def test_doctor_memory_product_warning(tmp_path: Path) -> None:
+    import subprocess
+
+    from leanfaith.cli.doctor import run_doctor
+    from leanfaith.config.paths import RepoPaths
+
+    (tmp_path / "PLAN.md").write_text("plan\n")
+    (tmp_path / "pyproject.toml").write_text("[project]\n")
+    (tmp_path / "configs" / "projects").mkdir(parents=True)
+    subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
+    (tmp_path / "configs" / "environment.lock.yaml").write_text(
+        "environment_schema_version: 1\n"
+        "python:\n  version: '3.12'\n"
+        "lean_interact:\n"
+        "  package: lean-interact\n"
+        "  version: 0.11.4\n"
+        "  advertised_lean_min: v4.8.0-rc1\n"
+        "  advertised_lean_max: v4.31.0-rc1\n"
+        "  repl_fork: https://github.com/augustepoiroux/repl\n"
+        "toolchain_lock:\n"
+        "  mode: advertised_range\n"
+        "  accepted_lean: v4.31.0-rc1\n"
+        "lean_backend:\n"
+        "  workers: 1000000\n"
+        "  memory_hard_limit_mb: 1000000\n"
+    )
+    report = run_doctor(RepoPaths(root=tmp_path))
+    assert any("exceeds detected RAM" in warning for warning in report.warnings)

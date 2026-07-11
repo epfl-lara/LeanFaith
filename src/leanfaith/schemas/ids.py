@@ -16,8 +16,9 @@ from pathlib import Path
 
 from leanfaith.config.hashing import CanonicalizationError, hash_canonical, to_canonical
 
-_PREFIX_PATTERN = re.compile(r"^[a-z][a-z0-9_]*$")
-_ID_PATTERN = re.compile(r"^(?P<prefix>[a-z][a-z0-9_]*):(?P<digest>[0-9a-f]{64})$")
+#: \Z (not $) so trailing newlines can never smuggle past validation.
+_PREFIX_PATTERN = re.compile(r"^[a-z][a-z0-9_]*\Z")
+_ID_PATTERN = re.compile(r"^(?P<prefix>[a-z][a-z0-9_]*):(?P<digest>[0-9a-f]{64})\Z")
 
 HEX64_PATTERN = r"^[0-9a-f]{64}$"
 
@@ -58,12 +59,16 @@ _WINDOWS_PATH_PATTERN = re.compile(r"^[A-Za-z]:[\\/][^\s]*$")
 
 def _machine_local_roots() -> tuple[str, ...]:
     """Deterministic per-machine roots; the process CWD is deliberately
-    excluded so ID acceptance can never depend on where a command ran."""
-    roots = ["/tmp/", "/var/tmp/", "/storage/"]
+    excluded so ID acceptance can never depend on where a command ran.
+    Both the raw and the resolved home spellings are listed so a symlinked
+    $HOME cannot bypass the guard."""
+    roots = ["/tmp/", "/var/tmp/", "/private/tmp/", "/storage/"]
     # Resolution failure is environment-specific; the static roots remain.
-    with contextlib.suppress(OSError):
-        roots.append(str(Path.home().resolve()) + "/")
-    return tuple(roots)
+    with contextlib.suppress(OSError, RuntimeError):
+        home = Path.home()
+        roots.append(str(home) + "/")
+        roots.append(str(home.resolve()) + "/")
+    return tuple(dict.fromkeys(roots))
 
 
 def _check_string(value: str, roots: tuple[str, ...], path: str) -> None:

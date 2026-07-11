@@ -52,20 +52,48 @@ def doctor(
     """Check Python/LeanInteract/toolchain environment against the lock (LF-007)."""
     from leanfaith.cli.doctor import doctor_report_path, run_doctor, write_lock
     from leanfaith.config.paths import RepoPaths
-    from leanfaith.schemas import write_manifest
+    from leanfaith.schemas import (
+        ArtifactClass,
+        RunManifest,
+        collect_code_state,
+        new_run_id,
+        run_manifest_path,
+        write_manifest,
+    )
 
     paths = RepoPaths.discover(root_dir) if root_dir is None else RepoPaths(root=root_dir)
+    lock_refused = False
     if write_lock_flag:
-        _, message = write_lock(paths, force=force)
+        changed, message = write_lock(paths, force=force)
         typer.echo(message)
+        lock_refused = not changed and "--force" in message
     report = run_doctor(paths)
-    write_manifest(report, doctor_report_path(paths))
+    report_hash = write_manifest(report, doctor_report_path(paths))
+
+    created_at = datetime.datetime.now(tz=datetime.UTC)
+    run_id = new_run_id(created_at)
+    manifest = RunManifest(
+        run_id=run_id,
+        artifact_class=ArtifactClass.DIAGNOSTIC,
+        command="leanfaith doctor" + (" --write-lock" if write_lock_flag else ""),
+        argv=("leanfaith", "doctor", *(["--write-lock"] if write_lock_flag else [])),
+        code=collect_code_state(paths.root),
+        output_hashes={str(doctor_report_path(paths).relative_to(paths.root)): report_hash},
+        status_counts={
+            "checks_passed": sum(1 for c in report.checks if c.passed),
+            "checks_failed": sum(1 for c in report.checks if not c.passed),
+            "warnings": len(report.warnings),
+        },
+        created_at=created_at,
+    )
+    write_manifest(manifest, run_manifest_path(paths, run_id))
+
     for check in report.checks:
         marker = "ok " if check.passed else "FAIL"
         typer.echo(f"[{marker}] {check.name}: {check.detail}")
     for warning in report.warnings:
         typer.echo(f"[warn] {warning}")
-    if not report.ok:
+    if not report.ok or lock_refused:
         raise typer.Exit(code=1)
 
 

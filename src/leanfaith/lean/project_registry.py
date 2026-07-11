@@ -11,7 +11,7 @@ from __future__ import annotations
 from enum import StrEnum
 from pathlib import Path
 
-from pydantic import Field
+from pydantic import Field, model_validator
 
 from leanfaith.config.hashing import hash_canonical, sha256_hex
 from leanfaith.config.loading import load_config
@@ -66,12 +66,43 @@ class ProjectSpec(StrictModel):
 
 
 class ToolchainLock(StrictModel):
-    """§6.2/B.1 toolchain decision."""
+    """§6.2/B.1 toolchain decision.
+
+    Coherence is enforced at construction: exactly one toolchain mode, no
+    mixed stable/RC configuration (§6.2 "choose exactly one coherent
+    toolchain mode").
+    """
 
     mode: ToolchainMode
     accepted_lean: str
     mathlib_toolchain_must_match: bool = True
     stable_v4_31_exception_adr: str | None = None
+
+    @model_validator(mode="after")
+    def _coherent(self) -> ToolchainLock:
+        accepted = parse_lean_version(self.accepted_lean)
+        if self.mode == ToolchainMode.STABLE_V4_31_EXCEPTION:
+            if str(accepted) != "v4.31.0":
+                raise ValueError(
+                    "stable_v4_31_exception mode requires accepted_lean=v4.31.0; an "
+                    "RC-pinned lock under the stable exception is the mixed "
+                    "configuration §6.2 forbids"
+                )
+            if not self.stable_v4_31_exception_adr:
+                raise ValueError(
+                    "stable_v4_31_exception mode requires a recorded ADR-0001 reference"
+                )
+        else:
+            if not in_advertised_range(accepted):
+                raise ValueError(
+                    f"advertised_range mode requires an in-range accepted_lean; "
+                    f"{accepted} is outside the LeanInteract range (§6.2)"
+                )
+            if self.stable_v4_31_exception_adr is not None:
+                raise ValueError(
+                    "stable_v4_31_exception_adr must be null outside the exception mode"
+                )
+        return self
 
 
 class LeanInteractLock(StrictModel):

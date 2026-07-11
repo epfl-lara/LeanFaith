@@ -50,6 +50,14 @@ class AccessBlockedError(RuntimeError):
     """Raised by clients when a source is not accessible (401/403/404/gated)."""
 
 
+def _hub_token(token: str | None) -> str | bool:
+    """huggingface_hub treats ``None`` as "use ambient cached credentials";
+    an unauthenticated probe must be genuinely anonymous (a private source
+    accidentally succeeding via ambient login would corrupt the §9.2 access
+    record), so no-token maps to an explicit ``False``."""
+    return token if token is not None else False
+
+
 class RealHFClient:
     """Live client; lazy imports so unit tests never require the hub stack."""
 
@@ -64,7 +72,7 @@ class RealHFClient:
             RepositoryNotFoundError,
         )
 
-        api = HfApi(token=token)
+        api = HfApi(token=_hub_token(token))
         try:
             info = api.dataset_info(dataset_id, revision=revision)
         except (GatedRepoError, RepositoryNotFoundError) as exc:
@@ -82,9 +90,9 @@ class RealHFClient:
         columns: tuple[str, ...] = ()
         # Schema discovery is best effort; identity/access above is not.
         with contextlib.suppress(Exception):
-            split_names = hf_datasets.get_dataset_split_names(dataset_id, token=token)
+            split_names = hf_datasets.get_dataset_split_names(dataset_id, token=_hub_token(token))
             splits = dict.fromkeys(split_names)
-            builder = hf_datasets.load_dataset_builder(dataset_id, token=token)
+            builder = hf_datasets.load_dataset_builder(dataset_id, token=_hub_token(token))
             if builder.info.splits:
                 splits = {name: split.num_examples for name, split in builder.info.splits.items()}
             if builder.info.features is not None:
@@ -109,7 +117,7 @@ class RealHFClient:
         import datasets as hf_datasets
 
         dataset = hf_datasets.load_dataset(
-            dataset_id, split=f"{split}[:{rows}]", revision=revision, token=token
+            dataset_id, split=f"{split}[:{rows}]", revision=revision, token=_hub_token(token)
         )
         return [dict(row) for row in dataset]
 
@@ -212,9 +220,17 @@ def archive_probe(outcome: ProbeOutcome, paths: RepoPaths) -> ProbeOutcome:
             "blocked_reason": outcome.blocked_reason,
             "probed_at": outcome.probed_at.isoformat(),
         }
-        manifest_path.write_text(
-            json.dumps(blocked_record, sort_keys=True) + "\n", encoding="utf-8"
-        )
+        # A later blocked re-probe must never clobber durable probe evidence:
+        # if a successful manifest exists, the block is recorded alongside it.
+        target = manifest_path
+        if manifest_path.exists():
+            try:
+                existing = json.loads(manifest_path.read_text(encoding="utf-8"))
+            except json.JSONDecodeError:
+                existing = {}
+            if not existing.get("blocked"):
+                target = manifest_path.with_suffix(".blocked.json")
+        target.write_text(json.dumps(blocked_record, sort_keys=True) + "\n", encoding="utf-8")
         return outcome
 
     if outcome.manifest is None:

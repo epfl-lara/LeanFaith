@@ -110,9 +110,19 @@ def _check_symbol(module: ModuleType, symbol: str) -> SymbolCheck:
     )
 
 
+class _MissingParameter:
+    def __repr__(self) -> str:  # pragma: no cover - repr only surfaces in reports
+        return "<parameter missing>"
+
+
 def _param_default(callable_obj: object, param: str) -> object:
-    signature = inspect.signature(callable_obj)  # type: ignore[arg-type]
-    return signature.parameters[param].default
+    """Default of a parameter, or a sentinel when the API shape diverges —
+    the probe must report a failed caveat, never crash (A.8)."""
+    try:
+        signature = inspect.signature(callable_obj)  # type: ignore[arg-type]
+        return signature.parameters[param].default
+    except (TypeError, ValueError, KeyError):
+        return _MissingParameter()
 
 
 def _has_param(callable_obj: object, param: str) -> bool:

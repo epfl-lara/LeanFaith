@@ -204,9 +204,14 @@ def test_build_context_record_identity() -> None:
 # --- doctor ---
 
 
-def _doctor_root(tmp_path: Path, *, toolchain: str = "v4.31.0-rc1") -> RepoPaths:
+def _doctor_root(
+    tmp_path: Path, *, toolchain: str = "v4.31.0-rc1", accepted: str = "v4.31.0-rc1"
+) -> RepoPaths:
     paths = _registry_root(tmp_path)
     subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
+    subprocess.run(
+        ["git", "commit", "-q", "--allow-empty", "-m", "fixture"], cwd=tmp_path, check=True
+    )
     (paths.configs / "environment.lock.yaml").write_text(
         "environment_schema_version: 1\n"
         "python:\n  version: '3.12'\n"
@@ -218,7 +223,7 @@ def _doctor_root(tmp_path: Path, *, toolchain: str = "v4.31.0-rc1") -> RepoPaths
         "  repl_fork: https://github.com/augustepoiroux/repl\n"
         "toolchain_lock:\n"
         "  mode: advertised_range\n"
-        f"  accepted_lean: {toolchain}\n"
+        f"  accepted_lean: {accepted}\n"
         "lean_backend: {}\n"
     )
     (paths.configs / "projects" / "fixtures.yaml").write_text(
@@ -257,11 +262,22 @@ def test_doctor_fails_without_lock(tmp_path: Path) -> None:
 
 
 def test_doctor_fails_on_out_of_range_toolchain(tmp_path: Path) -> None:
-    paths = _doctor_root(tmp_path, toolchain="v4.32.0-rc1")
+    # Lock stays coherent (in-range accepted); the checked-out project pins
+    # an out-of-range toolchain, which the per-project check must reject.
+    paths = _doctor_root(tmp_path, toolchain="v4.32.0-rc1", accepted="v4.31.0-rc1")
     report = run_doctor(paths)
     assert not report.ok
     failed = {c.name for c in report.checks if not c.passed}
     assert "project_toolchain:fixtures" in failed
+
+
+def test_doctor_fails_on_incoherent_lock(tmp_path: Path) -> None:
+    # An out-of-range accepted_lean makes the LOCK itself unusable (§6.2).
+    paths = _doctor_root(tmp_path, accepted="v4.32.0-rc1")
+    report = run_doctor(paths)
+    assert not report.ok
+    failed = {c.name for c in report.checks if not c.passed}
+    assert "environment_lock_resolved" in failed
 
 
 def test_doctor_fails_on_missing_probe_report(tmp_path: Path) -> None:

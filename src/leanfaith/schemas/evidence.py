@@ -82,11 +82,26 @@ class CounterexampleValue(StrictModel):
 
 
 class JudgmentValue(StrictModel):
-    """Canonicalized LLM/human judgment fields (§11.7)."""
+    """Canonicalized LLM/human judgment fields (§11.7).
+
+    Only canonical §14.4 spellings persist; adapters map raw judge/UI text
+    through the interface tables BEFORE constructing evidence (§14.1).
+    """
 
     kind: Literal["judgment"] = "judgment"
-    answer: str
-    relation: str | None = None
+    answer: Literal["same_claim", "not_same_claim", "ambiguous", "uncertain", "cannot_assess_yet"]
+    relation: (
+        Literal[
+            "equivalent",
+            "A_stronger",
+            "B_stronger",
+            "incomparable_near_miss",
+            "unrelated",
+            "ambiguous",
+            "unknown",
+        ]
+        | None
+    ) = None
     a_implies_b: Literal["yes", "no", "unknown"] | None = None
     b_implies_a: Literal["yes", "no", "unknown"] | None = None
     error_types: tuple[str, ...] = ()

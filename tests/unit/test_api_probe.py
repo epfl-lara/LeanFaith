@@ -74,15 +74,22 @@ def test_report_paths_are_declared_locations() -> None:
 
 
 def test_cli_probe_api_writes_artifacts(tmp_path: Path) -> None:
-    # Redirect outputs to a scratch root that still has git metadata by
-    # pointing --root at the real repo? No: use the real repo root so code
-    # state resolves, but assert on the deliverable files it (re)writes.
-    root = find_repo_root(Path(__file__).parent)
+    # A scratch root (never the real repo: rewriting the committed Gate-1
+    # evidence file from a test would destroy provenance).
+    import subprocess
+
+    (tmp_path / "PLAN.md").write_text("plan\n")
+    (tmp_path / "pyproject.toml").write_text("[project]\n")
+    subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
+    subprocess.run(["git", "commit", "-q", "--allow-empty", "-m", "x"], cwd=tmp_path, check=True)
     runner = CliRunner()
-    result = runner.invoke(app, ["probe-api", "--root", str(root)])
+    result = runner.invoke(app, ["probe-api", "--root", str(tmp_path)])
     assert result.exit_code == 0, result.output
-    report_file = root / "reports" / "compatibility" / "leaninteract_api.json"
+    report_file = tmp_path / "reports" / "compatibility" / "leaninteract_api.json"
     assert report_file.is_file()
     payload = json.loads(report_file.read_text())
     assert payload["ok"] is True
     assert payload["installed_version"] == PINNED_VERSION
+    # The committed Gate-1 evidence in the real repo is untouched by design.
+    committed = find_repo_root(Path(__file__).parent) / "reports" / "compatibility"
+    assert (committed / "leaninteract_api.json").is_file()
