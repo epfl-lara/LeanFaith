@@ -55,6 +55,26 @@ live pipeline test        → repr_v1 views built + parsed against the fixture l
 real run                  → 120 mathlib repr_v1 records; frozen registry appended
 ```
 
+## Adversarial review (representation code)
+
+A find-then-verify workflow flagged four confirmed defects, all in the
+string-based `normalize_headless` — the fragility of regex-ing Lean source
+(the §12.4 lesson): nested block comments inside docstrings, guillemet names
+with spaces, nested-bracket attributes (`@[aesop (rule_sets := [Foo])]`), and
+comment-like sequences inside string literals. Fixed architecturally:
+
+- **Primary path now reuses the Lean-parsed signature** (the declaration
+  response's `signature.pp`, already computed at extraction and carried as
+  `TheoremForRepresentation.source_signature`) for `headless` — name/proof/
+  comment/attribute-free by construction, robust to all four cases. Verified
+  on real mathlib theorems.
+- The string `normalize_headless` remains a documented best-effort fallback
+  for inputs lacking a parsed signature (benchmark references), now hardened
+  for nested block comments (nesting-aware scan), guillemet names, and
+  nested-bracket attributes (balanced-bracket scan); its one remaining
+  limitation (not string-literal aware) is documented, and the benchmark
+  denylist's primary signal is the raw text hash regardless.
+
 ## Notes / deviations
 
 - `alpha_structural`, `notation_light`, `semantic_atoms`, and `operator_tree`

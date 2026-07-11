@@ -36,6 +36,12 @@ class TheoremForRepresentation:
     full_name: str
     proof_stripped: str
     context_id: str
+    #: The Lean-parsed source signature (the declaration response's
+    #: ``signature.pp``, e.g. ``(x y : Nat) : x + y = y + x``) — name/proof/
+    #: comment/attribute-free by construction, so it is the robust headless
+    #: view. When absent (e.g. a raw benchmark reference), the pipeline falls
+    #: back to the string-based ``normalize_headless``.
+    source_signature: str | None = None
 
 
 def _info_messages(result: LeanResult) -> list[str]:
@@ -131,7 +137,9 @@ def _build_record(
     signature_explicit: str | None,
     created_at: datetime.datetime,
 ) -> RepresentationRecord:
-    headless = normalize_headless(theorem.proof_stripped)
+    # Prefer the Lean-parsed signature (robust to comments/attributes/guillemet
+    # names); fall back to string normalization only when it is unavailable.
+    headless = theorem.source_signature or normalize_headless(theorem.proof_stripped)
     views: dict[str, str | None] = {
         "raw_proof_stripped": theorem.proof_stripped,
         "headless": headless,

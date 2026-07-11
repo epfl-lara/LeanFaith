@@ -30,28 +30,82 @@ PP_EXPLICIT_INLINE = (
 )
 
 _WS = re.compile(r"\s+")
-_BLOCK_COMMENT = re.compile(r"/-.*?-/", re.DOTALL)
+_NESTED_BLOCK_COMMENT = re.compile(r"/-.*?-/", re.DOTALL)
 _LINE_COMMENT = re.compile(r"--[^\n]*")
-#: A declaration head: optional attributes and modifiers, the keyword, and the
-#: declaration name — everything the headless view drops.
-_DECL_HEAD = re.compile(
-    r"^\s*(?:@\[[^\]]*\]\s*)*"
-    r"(?:protected\s+|private\s+|noncomputable\s+|scoped\s+|local\s+)*"
-    r"(?:theorem|lemma)\s+\S+\s*"
-)
+_MODIFIERS = re.compile(r"^\s*(?:protected|private|noncomputable|scoped|local)\s+")
+#: A declaration name: a guillemet identifier ``«...»`` (which may contain
+#: spaces) or an ordinary whitespace-free token.
+_DECL_KEYWORD_NAME = re.compile(r"^\s*(?:theorem|lemma)\s+(?:«[^»]*»|\S+)\s*")
 #: The proof tail of a proof-stripped declaration (`:= by sorry` / `:= sorry`)
 #: or a benchmark reference statement with an empty body (bare trailing `:=`).
 _PROOF_TAIL = re.compile(r"\s*:=\s*(?:by\s+sorry|sorry)?\s*$")
 
 
-def normalize_headless(proof_stripped: str) -> str | None:
-    """§13.2 headless view: name, proof, and comments removed, whitespace
-    collapsed — leaving the binder+conclusion skeleton for renaming-invariant
-    comparison. Returns None if the declaration head cannot be located."""
-    text = _BLOCK_COMMENT.sub(" ", proof_stripped)
+def _strip_nested_block_comments(text: str) -> str:
+    """Remove block comments honoring Lean's nesting (``/- a /- b -/ c -/``),
+    which a non-greedy regex closes too early."""
+    out: list[str] = []
+    depth = 0
+    i = 0
+    while i < len(text):
+        if text.startswith("/-", i):
+            depth += 1
+            i += 2
+        elif text.startswith("-/", i) and depth > 0:
+            depth -= 1
+            i += 2
+        else:
+            if depth == 0:
+                out.append(text[i])
+            i += 1
+    return "".join(out)
+
+
+def _strip_leading_attributes(text: str) -> str:
+    """Remove leading ``@[...]`` attribute blocks with balanced brackets, so an
+    attribute argument that itself contains ``[...]`` does not break the match."""
+    i = 0
+    n = len(text)
+    while True:
+        j = i
+        while j < n and text[j].isspace():
+            j += 1
+        if not text.startswith("@[", j):
+            return text[i:]
+        depth = 0
+        k = j + 1
+        while k < n:
+            if text[k] == "[":
+                depth += 1
+            elif text[k] == "]":
+                depth -= 1
+                if depth == 0:
+                    break
+            k += 1
+        if k >= n:
+            return text[i:]  # unbalanced; leave as-is
+        i = k + 1
+
+
+def normalize_headless(source: str) -> str | None:
+    """Best-effort §13.2 headless view for text lacking a Lean-parsed
+    signature (benchmark references): name, proof, comments, and attributes
+    removed, whitespace collapsed, for renaming-invariant comparison.
+
+    The primary path uses the elaborator/parser-derived signature instead
+    (``TheoremForRepresentation.source_signature``); this string fallback
+    handles nested block comments, guillemet names, and nested-bracket
+    attributes, but is not string-literal aware (a ``--`` or ``/- -/`` inside
+    a string literal is treated as a comment). Returns None if no declaration
+    head is found."""
+    text = _strip_nested_block_comments(source)
     text = _LINE_COMMENT.sub(" ", text)
     text = _PROOF_TAIL.sub("", text)
-    without_head, count = _DECL_HEAD.subn("", text, count=1)
+    text = _strip_leading_attributes(text)
+    text = _MODIFIERS.sub("", text)
+    while _MODIFIERS.match(text):
+        text = _MODIFIERS.sub("", text)
+    without_head, count = _DECL_KEYWORD_NAME.subn("", text, count=1)
     if count == 0:
         return None
     return _WS.sub(" ", without_head).strip() or None

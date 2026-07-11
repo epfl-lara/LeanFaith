@@ -126,3 +126,40 @@ def test_parse_check_no_at_prefix() -> None:
     assert parse_check_type("lf_add_comm : ∀ (x y : Nat), x + y = y + x", "lf_add_comm") == (
         "∀ (x y : Nat), x + y = y + x"
     )
+
+
+# --- review round: normalize_headless robustness (confirmed defects) ---
+
+
+def test_headless_nested_block_comment_in_docstring() -> None:
+    src = "/-- doc /- nested -/ end -/\ntheorem my_add (a b : Nat) : a + b = b + a := by sorry"
+    assert normalize_headless(src) == "(a b : Nat) : a + b = b + a"
+
+
+def test_headless_guillemet_name_with_space() -> None:
+    a = normalize_headless("theorem «foo bar» (n : Nat) : n = n := by sorry")
+    b = normalize_headless("theorem «qux baz» (n : Nat) : n = n := by sorry")
+    assert a == b == "(n : Nat) : n = n"  # name fully removed -> renaming invariant
+
+
+def test_headless_nested_bracket_attribute() -> None:
+    src = "@[aesop safe (rule_sets := [Foo])] theorem t (n : Nat) : n = n := by sorry"
+    assert normalize_headless(src) == "(n : Nat) : n = n"
+
+
+def test_headless_prefers_parsed_signature_over_regex() -> None:
+    from leanfaith.representations.pipeline import TheoremForRepresentation, _build_record
+    from leanfaith.schemas.ids import make_id
+
+    # A statement whose source would trip the string fallback (string literal
+    # containing comment-like text); the parsed signature is used verbatim.
+    theorem = TheoremForRepresentation(
+        theorem_id=make_id("thm", {"n": "s"}),
+        full_name="s",
+        proof_stripped='theorem s : "a--b".length = 4 := by sorry',
+        context_id="ctx:" + "0" * 64,
+        source_signature='(s : String) : "a--b" = s',
+    )
+    record = _build_record(theorem, "elaborated", "elaborated_explicit", _UTC)
+    assert record.headless == '(s : String) : "a--b" = s'  # parsed signature, not mangled
+    assert record.view_status["headless"].value == "ok"
