@@ -164,3 +164,15 @@ def test_headless_prefers_parsed_signature_over_regex() -> None:
     assert record.headless == '(s : String) : "a--b" = s'  # parsed signature, not mangled
     assert record.view_status["headless"].value == "ok"
     assert record.view_status["semantic_atoms"].value == "failed"  # no expr tree supplied
+
+
+def test_dump_command_escapes_names_with_quotes_and_backslashes() -> None:
+    from leanfaith.representations.pipeline import _dump_command
+
+    cmd = _dump_command("import Mathlib", "-- helper", ["good", "«a\\b»", '«a"b»'])
+    # Guillemets stay literal (Lean-parseable), quotes/backslashes are escaped,
+    # so no lfDump line becomes a syntax error that fails the whole batch.
+    assert 'lfDump "good"' in cmd
+    assert r'lfDump "«a\\b»"' in cmd
+    assert r'lfDump "«a\"b»"' in cmd
+    assert "\\u" not in cmd  # guillemets not ascii-escaped

@@ -100,3 +100,12 @@ def test_deep_expr_does_not_blow_recursion() -> None:
     atoms = semantic_atoms(node)
     assert atoms.count("const:arg") == 5000
     assert operator_tree(node)["node_count"] == 10001
+
+
+def test_proj_atom_includes_index() -> None:
+    # .1 and .2 on the same struct must produce different atoms (N07 index).
+    fst = {"k": "proj", "s": "Prod", "i": 0, "base": {"k": "fvar"}}
+    snd = {"k": "proj", "s": "Prod", "i": 1, "base": {"k": "fvar"}}
+    assert semantic_atoms(fst) != semantic_atoms(snd)
+    assert semantic_atoms(fst) == ("proj:Prod:0",)
+    assert semantic_atoms(snd) == ("proj:Prod:1",)

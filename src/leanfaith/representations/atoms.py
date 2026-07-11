@@ -46,7 +46,9 @@ def semantic_atoms(tree: dict[str, Any]) -> tuple[str, ...]:
             elif "str" in node:
                 out.append("lit:str")
         elif kind == "proj":
-            out.append(f"proj:{node.get('s', '')}")
+            # Include the field index so a projection-index mutation
+            # (.1 vs .2, an N07 index change) produces an atom-diff.
+            out.append(f"proj:{node.get('s', '')}:{node.get('i', '')}")
             stack.append(node.get("base", {}))
         elif kind == "let":
             stack.append(node.get("body", {}))

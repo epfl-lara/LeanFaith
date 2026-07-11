@@ -48,6 +48,29 @@ real run                  → 40/40 mathlib theorems, atoms surface real
                             typeclass/operator heads
 ```
 
+## Adversarial review
+
+A find-then-verify workflow reviewed the atom walk and the Lean helper/batch.
+
+- **Confirmed (fixed):** `_dump_command` embedded the declaration name in the
+  `lfDump` call unescaped, so a name containing a `"` or `\` — both legal in
+  `«...»` identifiers — made that line a Lean syntax error, flipping the whole
+  batch to INVALID and silently dropping `semantic_atoms`/`operator_tree` for
+  *every* theorem in it. Names are now JSON-escaped (`ensure_ascii=False`, so
+  guillemets stay literal); live-verified that a `«a\b»`-named theorem now
+  dumps cleanly in a batch.
+- **Fixed (proj index):** projection atoms now include the field index
+  (`proj:Prod:0` vs `proj:Prod:1`), so an N07 projection-index mutation
+  produces an atom-diff.
+- **Documented limitation (universe levels):** `.sort`/`.const` drop universe
+  levels, so two statements differing only in universe levels collide in both
+  atom and tree views. Low impact — universe mutation is not in the active
+  negative families (N01/N02/N07/N10) and §13.5 makes the universe summary
+  optional — recorded here for a later `atoms_v2` should a universe-sensitive
+  family be added.
+- Proactively (pre-review): the tree walkers are iterative (no recursion
+  limit; tested to 5000 deep) and the emitted name lives inside the JSON.
+
 ## Notes / deviations
 
 - Arrow vs universal: `A → B` is a dependent `forallE` with an unused binder,

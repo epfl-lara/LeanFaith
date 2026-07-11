@@ -9,6 +9,7 @@ pinned pp options. Batching loads the environment once per option set.
 from __future__ import annotations
 
 import datetime
+import json
 import re
 from dataclasses import dataclass
 from functools import lru_cache
@@ -53,7 +54,11 @@ def _dump_command(imports: str, helper: str, full_names: list[str]) -> str:
     # import-stripped helper body, then the calls. `import Lean` is explicit
     # because the domain import may not transitively provide Elab/Meta (the
     # fixture library does not; Mathlib does — a duplicate import is harmless).
-    calls = "\n".join(f'lfDump "{name}"' for name in full_names)
+    # The name is JSON-escaped (ensure_ascii=False keeps guillemets literal but
+    # escapes `"`/`\`), so a name containing a quote or backslash — both legal
+    # in `«...»` identifiers — cannot turn one lfDump line into a syntax error
+    # that would fail the whole batch and drop atoms for every theorem in it.
+    calls = "\n".join(f"lfDump {json.dumps(name, ensure_ascii=False)}" for name in full_names)
     import_lines = ["import Lean"]
     for line in imports.splitlines():
         if line.strip() and line.strip() != "import Lean":
