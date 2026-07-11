@@ -65,6 +65,14 @@ def check_command(imports: str, options_inline: str, full_names: list[str]) -> s
     return "\n".join(lines)
 
 
+#: The name→type separator in #check output: space, colon, then whitespace
+#: (which may be a newline when the type wraps to the next line). Matched
+#: before whitespace collapse. A declaration name never contains this, and the
+#: universe list ``.{u_1, ...}`` has no colon, so the first match is the
+#: separator.
+_NAME_TYPE_SEP = re.compile(r" :\s")
+
+
 def parse_check_type(message: str, full_name: str) -> str | None:
     """Extract the type from a ``[@]name[.{univs}] : <type>`` #check message,
     confirming it is the expected declaration. Lean drops the leading ``@``
@@ -76,10 +84,10 @@ def parse_check_type(message: str, full_name: str) -> str | None:
         body == full_name or body.startswith(f"{full_name} ") or body.startswith(f"{full_name}.{{")
     ):
         return None
-    separator = body.find(" : ")
-    if separator == -1:
+    match = _NAME_TYPE_SEP.search(body)
+    if match is None:
         return None
-    return _WS.sub(" ", body[separator + 3 :]).strip() or None
+    return _WS.sub(" ", body[match.end() :]).strip() or None
 
 
 def representation_content_hash(views: dict[str, str | None]) -> str:

@@ -113,3 +113,16 @@ def test_append_unknown_benchmark_raises() -> None:
     registry = FrozenRegistry(frozen_at=_UTC, benchmarks=(unresolved_benchmark("con_nf", "plan"),))
     with pytest.raises(KeyError, match="not in"):
         append_representation_signatures(registry, "nonexistent", ("h",))
+
+
+def test_parse_check_type_starting_on_next_line() -> None:
+    # The type may begin on the line after the colon when it wraps.
+    msg = "@big.{u_1} :\n  ∀ {F : Type u_1}, F → F"
+    assert parse_check_type(msg, "big") == "∀ {F : Type u_1}, F → F"
+
+
+def test_parse_check_no_at_prefix() -> None:
+    # Lean drops the @ when all binders are explicit.
+    assert parse_check_type("lf_add_comm : ∀ (x y : Nat), x + y = y + x", "lf_add_comm") == (
+        "∀ (x y : Nat), x + y = y + x"
+    )
