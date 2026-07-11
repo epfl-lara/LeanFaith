@@ -64,10 +64,15 @@ class FrozenBenchmark(StrictModel):
     row_ids: tuple[str, ...] = ()
     nl_hashes: tuple[str, ...] = ()
     text_hashes: tuple[str, ...] = ()
+    representation_hashes: tuple[str, ...] = ()
     resolution_plan: str = ""
 
     def all_text_hashes(self) -> frozenset[str]:
-        return frozenset(self.nl_hashes) | frozenset(self.text_hashes)
+        return (
+            frozenset(self.nl_hashes)
+            | frozenset(self.text_hashes)
+            | frozenset(self.representation_hashes)
+        )
 
 
 class FrozenRegistry(StrictModel):
@@ -125,16 +130,47 @@ def unresolved_benchmark(registry_key: str, resolution_plan: str) -> FrozenBench
     )
 
 
+def append_representation_signatures(
+    registry: FrozenRegistry,
+    registry_key: str,
+    representation_hashes: tuple[str, ...],
+) -> FrozenRegistry:
+    """Additively attach representation-based near-duplicate signatures to one
+    benchmark and flip ``representation_signatures_appended`` (§19.4: additive
+    and versioned, never a rewrite of the identity/text signatures)."""
+    updated = []
+    found = False
+    for benchmark in registry.benchmarks:
+        if benchmark.registry_key == registry_key:
+            found = True
+            merged = tuple(
+                sorted(set(benchmark.representation_hashes) | set(representation_hashes))
+            )
+            updated.append(benchmark.model_copy(update={"representation_hashes": merged}))
+        else:
+            updated.append(benchmark)
+    if not found:
+        raise KeyError(f"benchmark {registry_key!r} not in the frozen registry")
+    return registry.model_copy(
+        update={
+            "benchmarks": tuple(updated),
+            "representation_signatures_appended": True,
+        }
+    )
+
+
 class DenylistIndex:
-    """O(1) membership over frozen NL and Lean text hashes (§9.4 pool filter)."""
+    """O(1) membership over frozen NL, Lean, and representation hashes."""
 
     def __init__(self, registry: FrozenRegistry) -> None:
         self._nl: set[str] = set()
         self._text: set[str] = set()
+        self._repr: set[str] = set()
         self._ids: set[str] = set()
         for benchmark in registry.benchmarks:
             self._nl.update(benchmark.nl_hashes)
             self._text.update(benchmark.text_hashes)
+            self._repr.update(benchmark.representation_hashes)
             self._ids.update(benchmark.row_ids)
 
     def contains_nl(self, text: str) -> bool:
@@ -143,13 +179,16 @@ class DenylistIndex:
     def contains_lean(self, text: str) -> bool:
         return lean_hash(text) in self._text
 
+    def contains_representation(self, signature_hash: str) -> bool:
+        return signature_hash in self._repr
+
     def contains_any(self, *, nl: str | None = None, lean: str | None = None) -> bool:
         return (nl is not None and self.contains_nl(nl)) or (
             lean is not None and self.contains_lean(lean)
         )
 
     def __len__(self) -> int:
-        return len(self._nl) + len(self._text)
+        return len(self._nl) + len(self._text) + len(self._repr)
 
 
 def frozen_ids_path(data_dir: Path) -> Path:
