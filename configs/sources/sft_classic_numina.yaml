@@ -15,3 +15,15 @@ adapter_mapping:  # verified mapping per §9.3, rechecked at the pinned revision
   reference_or_candidate_lean: lean_code
 lean_code_trust: recorded_by_adapter  # the adapter records trusted|generated|unknown; trust is never inferred from the column name (§9.3)
 role: public_fallback_1
+
+# --- Probe results (2026-07-10; Gate 0) ---
+probe:
+  status: verified
+  probe_date: "2026-07-10"
+  resolved_revision: 9ba1be2e988c864a9b6c79a4e758a9944ff00cc6
+  splits: {train: 33027, test: 66747}
+  columns_actual: [uuid, data_source, question, answer, proof_plan, valid, proof_repair,
+                   lean_code, token_count, tactic_count, lean_score, lean_rank]
+  note: schema is identical to sft_classic (12 columns); the 4-column expectation in
+    PLAN.md 9.1 is a projection of this schema, not the full schema
+  report: reports/source_probes/source_probes_2026_07_10.md

@@ -11,3 +11,16 @@ nl_trust: synthetic  # always; assigned unconditionally, never upgraded (§9.4)
 trusted_human_nl_quota_eligible: false  # never satisfies a trusted-human-NL quota (§9.4)
 reform_overlap_tagging: required  # ReForm generators were trained on Lean Workbook, so any overlap must be tagged (§9.1)
 role: public_fallback_2
+
+# --- Probe results (2026-07-10; Gate 0) ---
+probe:
+  status: verified
+  probe_date: "2026-07-10"
+  resolved_revision: 2e066e310b2c6d2c27616927ae131f82901c8f1c
+  license: apache-2.0
+  splits: {train: 25214}
+  columns: [id, status, tactic, state_before, state_after, natural_language_statement,
+            answer, formal_statement]
+  note: 25214 rows at this revision; the PLAN.md 9.1 figure of about 57k does not match
+    and is recorded as a plan discrepancy
+  report: reports/source_probes/source_probes_2026_07_10.md

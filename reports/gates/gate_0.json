@@ -1,0 +1,32 @@
+{
+  "checks": {
+    "benchmark_registry_exists": true,
+    "canonical_enums_and_policies_complete": true,
+    "fallback_order_recorded": true,
+    "no_semantic_choice_left_to_code": true,
+    "pool_count_recorded": "preliminary (raw frame 2,006,425 train rows; filtered count at LF-011 adapter run)",
+    "primary_nl_source_access_license_schema_sample": true,
+    "provider_slots_resolved": false,
+    "toolchains_in_supported_range": true
+  },
+  "date": "2026-07-10",
+  "decision": "pass_with_open_provider_items",
+  "evidence": "reports/milestones/phase_0_contract.md",
+  "gate": "gate_0",
+  "inputs": {
+    "environment_lock": "e447ac3a773b0d29ec75b51bcfa5318158399e9fe7459a650f9d0bfef9986298",
+    "proofnetverif_manifest": "d699dd5181ad65c8150576312fa78ea7d7c8cacc2a7ec6c448fe3b4ea9db3efd",
+    "sft_classic_manifest": "052d14a2bcc965587709b7cb2c5cf229e55719c8737d7b70a5c20fdfd4498633",
+    "source_probe_report": "d4a372ac5c12dca7b758646e6083e6f1f36409f8d92ed4a97623653015ab3d6b"
+  },
+  "notes": [
+    "authenticated sft_classic probe succeeded: rev 0bf9f424..., 3,036,270 rows, schema verified, 100-row sample archived",
+    "plan discrepancies recorded: numina 12-column schema and train/test split; Lean-Workbook 25,214 rows (not ~57k)",
+    "provider-dependent phases (5/6) remain blocked; everything through Phase 4 is unblocked"
+  ],
+  "open_items": [
+    "provider slot resolution (judge_A/judge_B/broad_generator/open_diversity/primary_eval_judge exact models + keys) - user decision",
+    "section 9.2 external-API approval for private sft_classic content - user decision",
+    "exact filtered phase5_pool_candidate_count - produced by the LF-011 adapter full pass"
+  ]
+}

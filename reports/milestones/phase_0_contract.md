@@ -41,13 +41,21 @@ the phases that consume them.
    default, finalizes at LF-028 audit).
 7. **Doctor** (`leanfaith doctor`, `--write-lock`): implemented, green.
 
-## Open items (data-collection boundary — need user action/approval)
+## Resolved 2026-07-10 (data collection approved by user)
 
-1. **Authenticated `sft_classic` probe (Phase 0 task 3 / Gate 0 item).**
-   `HF_TOKEN` is present and the probe framework (LF-010) is ready; running
-   it downloads a 100-row sample and archives license/schema/counts. Blocked
-   only on approval to begin data collection. Fallback order applies if the
-   authenticated probe fails.
+1. **Authenticated `sft_classic` probe — DONE.** Revision
+   `0bf9f424309f668c2c2dd214aef6ec5d1d5c042f`; 2,006,425 train + 1,029,845
+   test rows; 12-column schema verified; 100-row sample archived
+   (sha256 9913ae83…). NL lives in Lean docstrings of prompt-wrapped,
+   proof-stripped questions; per-row `data_source` provenance is mixed —
+   `nl_trust` is tagged per row by the LF-011 adapter (§9.4). All fallback
+   sources and Lean projects probed and pinned; mathlib checked out with
+   full build cache at `/storage/milikic/leanfaith/mathlib4`. See
+   `reports/source_probes/source_probes_2026_07_10.md` and
+   `reports/gates/gate_0.json`.
+
+## Open items (need user account decisions; block Phases 5/6 only)
+
 2. **Provider slot resolution (Phase 0 task 4).**
    `configs/generation/providers.yaml` declares the six §17.2 slots with
    family-separation rules; exact provider/model IDs, API keys (by env-var

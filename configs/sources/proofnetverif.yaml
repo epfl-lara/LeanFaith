@@ -27,3 +27,13 @@ notes: >-
   Frozen evaluation data are read-only and unavailable to training and
   prompt-selection jobs (§10 rule 7). Do not guess sft_classic fields from
   this dataset (§9.2).
+
+# --- Probe results (2026-07-10; Gate 0) ---
+probe:
+  status: verified
+  probe_date: "2026-07-10"
+  resolved_revision: 91183e5b12d64374827bf2782db629b5b0f8f319
+  license: mit
+  splits: {valid: 2300, test: 1452}
+  note: total 3752 rows matches PLAN.md 9.1 exactly; columns match the 9.3 mapping verbatim
+  report: reports/source_probes/source_probes_2026_07_10.md
