@@ -18,6 +18,8 @@ from pathlib import Path
 
 from leanfaith.config.hashing import hash_file
 from leanfaith.lean.extraction import (
+    ExtractionFailure,
+    ExtractionFailureCode,
     ExtractionResult,
     SourceIdentity,
     extract_from_declarations,
@@ -223,6 +225,7 @@ def extract_dataset_snippets(
         for failure in extraction.failures:
             stats.failure_codes[failure.code.value] += 1
         confirmed = []
+        reval_failures: list[ExtractionFailure] = []
         for extracted in extraction.accepted:
             if revalidate:
                 reval = backend.run(
@@ -238,11 +241,29 @@ def extract_dataset_snippets(
                 )
                 if reval.status != LeanStatus.VALID_WITH_SORRY:
                     stats.revalidation_failed += 1
+                    stats.failure_codes[ExtractionFailureCode.REVALIDATION_FAILED.value] += 1
+                    reval_failures.append(
+                        ExtractionFailure(
+                            record_id,
+                            extracted.theorem.declaration_name,
+                            ExtractionFailureCode.REVALIDATION_FAILED,
+                            f"stripped statement re-elaborated as {reval.status.value}",
+                        )
+                    )
                     continue
                 stats.revalidated_ok += 1
             confirmed.append(extracted)
         stats.accepted += len(confirmed)
-        _write_records(ExtractionResult(accepted=tuple(confirmed)), theorems_path, failures_path)
+        # Every excluded declaration is persisted as an explicit failure record
+        # (§10 rule 5), symmetric with the repository path.
+        _write_records(
+            ExtractionResult(
+                accepted=tuple(confirmed),
+                failures=extraction.failures + tuple(reval_failures),
+            ),
+            theorems_path,
+            failures_path,
+        )
     return stats
 
 

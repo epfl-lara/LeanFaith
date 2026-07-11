@@ -208,11 +208,11 @@ def build_theorem_record(
     elaboration_status: ValidationStatus,
     created_at: datetime.datetime,
     lean_result_id: str | None = None,
-    parent_theorem_ids: tuple[str, ...] = (),
     diagnostics: tuple[str, ...] = (),
 ) -> ExtractedDeclaration | ExtractionFailure:
     """Build the TheoremRecord + minimal RepresentationRecord for one accepted
-    declaration, or an ExtractionFailure if it cannot be proof-stripped."""
+    source declaration (no parents; derived-variant ancestry is the transform
+    stage's job), or an ExtractionFailure if it cannot be proof-stripped."""
     name = declaration.get("name")
     full_name = declaration.get("full_name") or name
     kind = str(declaration.get("kind", ""))
@@ -245,10 +245,9 @@ def build_theorem_record(
     theorem = TheoremRecord(
         theorem_id=theorem_id,
         ancestry_id=ancestry_id,
-        # Extraction produces source theorems: their own ancestry is the root.
-        # Derived-variant root inheritance is the transformation stage's job.
+        # A source theorem is its own root; it has no parents.
         root_ancestry_ids=(ancestry_id,),
-        parent_theorem_ids=parent_theorem_ids,
+        parent_theorem_ids=(),
         source=identity.source,
         source_revision=identity.source_revision,
         source_split=identity.source_split,

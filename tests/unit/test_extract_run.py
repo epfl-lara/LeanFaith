@@ -86,6 +86,10 @@ def test_dataset_extraction_drops_failed_revalidation(tmp_path: Path) -> None:
     assert stats.accepted == 0
     assert stats.revalidation_failed == 1
     assert not (tmp_path / "theorems" / "sft_classic.jsonl").exists()
+    # The excluded declaration is persisted as an explicit failure record (§10 rule 5).
+    failures = (tmp_path / "failures" / "sft_classic.jsonl").read_text().strip().splitlines()
+    assert len(failures) == 1
+    assert json.loads(failures[0])["code"] == "revalidation_failed"
 
 
 def test_dataset_extraction_counts_non_elaborating_source(tmp_path: Path) -> None:

@@ -19,14 +19,33 @@ from leanfaith.lean.extract_run import (
     write_extraction_manifest,
 )
 from leanfaith.lean.leaninteract_backend import BackendSettings, LeanInteractBackend
-from leanfaith.schemas import collect_code_state, new_run_id
+from leanfaith.lean.project_registry import ContextPayload, build_context_record
+from leanfaith.schemas import collect_code_state, new_run_id, write_manifest
 from leanfaith.sources.mathlib import build_inventory
 
 MATHLIB_CHECKOUT = Path("/storage/milikic/leanfaith/mathlib4")
 MATHLIB_REV = "d568c8c09630de097a046763c17b9ea99f95f950"
 SFT_REV = "0bf9f424309f668c2c2dd214aef6ec5d1d5c042f"
-CTX_FP = "e" * 64  # project-level REPL context (mathlib env); §8.11 finer contexts later
-CTX = f"ctx:{CTX_FP}"
+
+# Real project-level REPL context (the mathlib environment shared by every
+# FileCommand/Command in this run); its fingerprint is derived, not faked, so
+# the context_id on each theorem references a persisted ContextRecord.
+# Per-file import-precise contexts are a later refinement (§8.11).
+_CONTEXT_PAYLOAD = ContextPayload(
+    environment_schema_version=1,
+    lean_version="v4.31.0-rc1",
+    lean_interact_version="0.11.4",
+    repl_revision="v1.3.17",
+    project_uri="https://github.com/leanprover-community/mathlib4",
+    project_revision=MATHLIB_REV,
+    imports=("Mathlib",),
+    header_text="import Mathlib\n",
+)
+_CONTEXT = build_context_record(
+    _CONTEXT_PAYLOAD, project_kind="git", project_registry_key="mathlib"
+)
+CTX_FP = _CONTEXT.context_fingerprint
+CTX = _CONTEXT.context_id
 
 
 def main() -> int:
@@ -36,6 +55,9 @@ def main() -> int:
     out_dir = paths.data / "extracted"
     run_id = new_run_id(datetime.datetime.now(tz=datetime.UTC))
     code = collect_code_state(paths.root)
+
+    # Persist the project-level ContextRecord that every theorem references.
+    write_manifest(_CONTEXT, paths.data / "extracted" / "contexts" / f"{CTX_FP}.json")
 
     backend = LeanInteractBackend(
         BackendSettings(
