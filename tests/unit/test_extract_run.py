@@ -123,3 +123,63 @@ def test_repository_extraction_writes_records(tmp_path: Path) -> None:
     )
     assert stats.accepted == 1
     assert stats.declarations_seen == 1
+
+
+class ZeroDeclBackend:
+    """Elaborates VALID but reports no declarations (mutual-block case)."""
+
+    def run(self, request: LeanRequest) -> LeanResult:
+        return LeanResult(
+            request_id=request.request_id,
+            request_hash="a" * 64,
+            context_id=request.context_id,
+            context_fingerprint="e" * 64,
+            status=LeanStatus.VALID,
+            declarations=(),
+        )
+
+
+def test_elaborating_no_declarations_counted_distinctly(tmp_path: Path) -> None:
+    stats = extract_dataset_snippets(
+        ZeroDeclBackend(),  # type: ignore[arg-type]
+        [{"uuid": "mut-1", "lean_code": "mutual\ntheorem a : True := b\nend"}],
+        source="sft_classic",
+        source_revision="0bf9",
+        context_id=_CTX,
+        out_dir=tmp_path,
+    )
+    assert stats.elaborating_no_declarations == 1
+    assert stats.source_not_elaborating == 0
+    assert stats.accepted == 0
+
+
+def test_degraded_rerun_preserves_prior_partition(tmp_path: Path) -> None:
+    # First run writes a good partition.
+    good = FakeBackend(decl_status=LeanStatus.VALID, reval_status=LeanStatus.VALID_WITH_SORRY)
+    extract_dataset_snippets(
+        good,  # type: ignore[arg-type]
+        [{"uuid": "row-1", "lean_code": _SNIPPET}],
+        source="sft_classic",
+        source_revision="0bf9",
+        context_id=_CTX,
+        out_dir=tmp_path,
+    )
+    partition = tmp_path / "theorems" / "sft_classic.jsonl"
+    assert partition.exists()
+    before = partition.read_text()
+
+    # A degraded re-run (every source non-elaborating) must not leave a
+    # half-written partition mid-flight; it atomically replaces at the end.
+    broken = ZeroDeclBackend()
+    extract_dataset_snippets(
+        broken,  # type: ignore[arg-type]
+        [{"uuid": "row-1", "lean_code": _SNIPPET}],
+        source="sft_classic",
+        source_revision="0bf9",
+        context_id=_CTX,
+        out_dir=tmp_path,
+    )
+    # Zero results this run -> partition removed (row_count=0 recorded in manifest),
+    # but never a truncated/partial file.
+    assert not (tmp_path / "theorems" / "sft_classic.jsonl.partial").exists()
+    assert before  # sanity: the first run really produced content

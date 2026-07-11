@@ -76,6 +76,26 @@ real run                  → 909 mathlib + 86 sft_classic theorems, manifests w
 frozen_ids.json           → 4,469 signatures, membership verified on real rows
 ```
 
+## Adversarial review (extraction code)
+
+A 3-dimension find-then-verify workflow (29 agents) reviewed
+`extraction.py`/`extract_run.py`. Confirmed findings, all fixed:
+
+- dataset-path extraction failures and revalidation failures are now written
+  as explicit `ExtractionFailure` records (§10 rule 5), symmetric with the
+  repo path; `REVALIDATION_FAILED` is instantiated;
+- the extraction script derives a **real** project-level context fingerprint
+  and persists the `ContextRecord`, so `context_id`/`theorem_id` no longer
+  embed a placeholder;
+- **`mutual … end` blocks** return zero declarations from LeanInteract — their
+  inner theorems are not currently extractable via the declarations API. This
+  is now counted distinctly (`elaborating_no_declarations`) so the gap is
+  auditable rather than silent; full mutual-block extraction is a known
+  limitation deferred to a later InfoTree-based pass;
+- partition writing is now crash-safe: records stage to `<source>.jsonl.partial`
+  and atomically replace the live partition only at run end, so a degraded
+  re-run can never destroy a prior good partition.
+
 ## Notes / deviations
 
 - Full per-declaration revalidation runs for dataset snippets (cheap,

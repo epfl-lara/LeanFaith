@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import datetime
 import json
+import os
 from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -48,6 +49,7 @@ class ExtractStats:
     revalidated_ok: int = 0
     revalidation_failed: int = 0
     source_not_elaborating: int = 0
+    elaborating_no_declarations: int = 0
     failure_codes: Counter[str] = field(default_factory=Counter)
 
     def as_dict(self) -> dict[str, object]:
@@ -59,6 +61,7 @@ class ExtractStats:
             "revalidated_ok": self.revalidated_ok,
             "revalidation_failed": self.revalidation_failed,
             "source_not_elaborating": self.source_not_elaborating,
+            "elaborating_no_declarations": self.elaborating_no_declarations,
             "failure_codes": dict(self.failure_codes),
         }
 
@@ -108,15 +111,35 @@ def _append_failures(result: ExtractionResult, failures_path: Path) -> None:
             )
 
 
-def _reset_partition(out_dir: Path, source: str) -> tuple[Path, Path]:
-    """Truncate a source's partitions so a full re-run is idempotent rather
-    than append-duplicating (§10 rule 4)."""
-    theorems_path = out_dir / "theorems" / f"{source}.jsonl"
-    failures_path = out_dir / "failures" / f"{source}.jsonl"
-    for path in (theorems_path, failures_path):
-        if path.exists():
-            path.unlink()
-    return theorems_path, failures_path
+def _open_partitions(out_dir: Path, source: str) -> tuple[Path, Path]:
+    """Fresh ``.partial`` staging files for a run. Writing to partials and
+    atomically renaming at the end (``_finalize_partitions``) keeps any prior
+    good partition intact until the run completes, so a crashed or degraded
+    re-run cannot destroy it (idempotent AND crash-safe, §10 rule 4)."""
+    theorems_partial = out_dir / "theorems" / f"{source}.jsonl.partial"
+    failures_partial = out_dir / "failures" / f"{source}.jsonl.partial"
+    for path in (theorems_partial, failures_partial):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("", encoding="utf-8")
+    return theorems_partial, failures_partial
+
+
+def _finalize_partition(partial: Path) -> None:
+    """Atomically move one staged partition into place, or drop it (and any
+    stale prior version) when the run produced nothing for it — no zero-byte
+    files, and the swap only happens after all writes succeed."""
+    final = partial.with_suffix("")  # strip .partial
+    if partial.stat().st_size == 0:
+        partial.unlink()
+        if final.exists():
+            final.unlink()
+    else:
+        os.replace(partial, final)
+
+
+def _finalize_partitions(theorems_partial: Path, failures_partial: Path) -> None:
+    _finalize_partition(theorems_partial)
+    _finalize_partition(failures_partial)
 
 
 def extract_repository_files(
@@ -133,7 +156,7 @@ def extract_repository_files(
     """Extract every proposition declaration from each file via FileCommand."""
     stats = ExtractStats()
     created_at = datetime.datetime.now(tz=datetime.UTC)
-    theorems_path, failures_path = _reset_partition(out_dir, source)
+    theorems_path, failures_path = _open_partitions(out_dir, source)
     for index, rel in enumerate(rel_paths):
         result = backend.run(
             LeanRequest(
@@ -147,6 +170,13 @@ def extract_repository_files(
         stats.sources_processed += 1
         if result.status not in _VALID:
             stats.source_not_elaborating += 1
+            continue
+        if not result.declarations:
+            # Elaborates but yields no declarations: e.g. a `mutual ... end`
+            # block, whose inner theorems LeanInteract does not report. Counted
+            # distinctly so this known extraction gap is auditable, never
+            # silently folded into non-elaborating (§12.7).
+            stats.elaborating_no_declarations += 1
             continue
         source_text = (checkout / rel).read_text(encoding="utf-8")
         extraction = extract_from_declarations(
@@ -169,6 +199,7 @@ def extract_repository_files(
         for failure in extraction.failures:
             stats.failure_codes[failure.code.value] += 1
         _write_records(extraction, theorems_path, failures_path)
+    _finalize_partitions(theorems_path, failures_path)
     return stats
 
 
@@ -189,7 +220,7 @@ def extract_dataset_snippets(
     stripped statement re-elaborates in its own context (§12.2 step 7)."""
     stats = ExtractStats()
     created_at = datetime.datetime.now(tz=datetime.UTC)
-    theorems_path, failures_path = _reset_partition(out_dir, source)
+    theorems_path, failures_path = _open_partitions(out_dir, source)
     for index, row in enumerate(rows):
         snippet = str(row.get(lean_key, ""))
         record_id = str(row.get(id_key, f"row-{index}"))
@@ -203,8 +234,13 @@ def extract_dataset_snippets(
                 timeout_seconds=timeout_seconds,
             )
         )
-        if decl_result.status not in _VALID or not decl_result.declarations:
+        if decl_result.status not in _VALID:
             stats.source_not_elaborating += 1
+            continue
+        if not decl_result.declarations:
+            # Elaborates but reports no declarations (e.g. a mutual block);
+            # counted distinctly rather than conflated with non-elaborating.
+            stats.elaborating_no_declarations += 1
             continue
         declarations = list(decl_result.declarations)
         extraction = extract_from_declarations(
@@ -264,6 +300,7 @@ def extract_dataset_snippets(
             theorems_path,
             failures_path,
         )
+    _finalize_partitions(theorems_path, failures_path)
     return stats
 
 
