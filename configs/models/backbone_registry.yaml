@@ -1,0 +1,26 @@
+registry_version: backbone_registry_v1
+frozen_at: "2026-07-14"
+selection_status: preregistered_not_run
+no_hard_parameter_ceiling: true
+lightweight_definition:
+  - non_autoregressive
+  - measured_quality_latency_memory_throughput_pareto
+candidates:
+  modernbert_base:
+    model_id: answerdotai/ModernBERT-base
+    revision: 8949b909ec900327062f0ebf497f51aef5e6f0c8
+    branch: full_encoder
+    smoke_fallback_only: true
+  modernbert_large:
+    model_id: answerdotai/ModernBERT-large
+    revision: 45bb4654a4d5aaff24dd11d4781fa46d39bf8c13
+    branch: full_encoder
+  codet5p_220m_encoder:
+    model_id: Salesforce/codet5p-220m
+    revision: 2b92f36e2782341a50551759fdba0dd15e821f99
+    branch: encoder_only
+    decoder_loaded: false
+  deberta_v3_large:
+    model_id: microsoft/deberta-v3-large
+    revision: 64a8c8eab3e352a784c658aef62be1662607476f
+    branch: full_encoder

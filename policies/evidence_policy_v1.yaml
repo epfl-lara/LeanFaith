@@ -4,7 +4,7 @@
 # Changing any semantic rule in this file requires a new policy version;
 # cached evidence produced under the old version keeps its old cache keys.
 policy_version: evidence_policy_v1
-status: authored_pending_gate_0_review
+status: active_internal_research
 
 # ---------------------------------------------------------------- 16.1
 sampling_scope:
@@ -153,12 +153,23 @@ evidence_to_label:
 # ---------------------------------------------------------------- 16.9
 cache_key:
   fields:
-    - pair_or_theorem_id
-    - evidence_kind_and_version
+    - pair_id
+    - theorem_a_and_b_ids
+    - theorem_a_and_b_statement_hashes
+    - representation_a_and_b_ids
+    - representation_a_and_b_content_hashes
+    - representation_version
+    - evidence_kind_and_direction
+    - method_version
     - context_id
+    - context_fingerprint
     - environment_schema_version
+    - environment_hash
     - timeout
     - portfolio_or_config_hash
+    - semantic_policy_version_and_hash
     - lean_version
     - lean_interact_version
+    - repl_revision
+    - project_revision
   rule: "a changed timeout or method is a new key; cached entries are never overwritten in place"

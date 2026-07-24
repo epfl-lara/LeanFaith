@@ -1,0 +1,71 @@
+schema_version: 1
+config_id: gate3_mathlib_adjacent_docstrings_v1
+frozen_at: "2026-07-23T22:34:14Z"
+
+source:
+  repository: https://github.com/leanprover-community/mathlib4
+  checkout_revision: d568c8c09630de097a046763c17b9ea99f95f950
+  source_name: mathlib
+  context_id: ctx:0cd06826b8767b3bc951c0eb00c802424af95785b558f9f8a61f18694a86c4ce
+  expected_mathlib_records: 5000
+  theorem_manifest:
+    path: /storage/milikic/leanfaith/gate3/frozen/gate3_inputs.json
+    sha256: 19f5c38ea15bbc72c97fe73be6f4a50d5491e3e27cdf024cc05889d4eb1471e3
+  theorem_records:
+    path: /storage/milikic/leanfaith/gate3/frozen/gate3_inputs.theorems.jsonl
+    sha256: 8eb75ffa0b9233c5a91492fa181f604e3c098a6f3970799bcb0406f8b517f09e
+  representation_records:
+    path: /storage/milikic/leanfaith/gate3/run_rev41_v3/run_a/records/gate3.jsonl
+    sha256: 0fa2e40b4504e647a9abbcf0c4745b29bf701839c99e36ea10c22091022381bf
+  representation_normalization_version: repr_v2
+
+selection:
+  selection_version: gate3_mathlib_adjacent_docstrings_hash_v1
+  target_distinct_ancestry_groups: 300
+  exact_normalized_nl_deduplication: true
+  selection_key_fields:
+    - selection_version
+    - theorem_id
+    - ancestry_id
+    - raw_docstring_sha256
+
+temporal_non_overlap:
+  history_method: git_log_follow_pickaxe_exact_pair_v3
+  latest_checkpoint_created_at: "2025-10-13T07:12:42Z"
+  require_strictly_after_latest_checkpoint: true
+  checkpoint_pins:
+    - family_id: kimina_autoformalizer_7b
+      repo_id: AI-MO/Kimina-Autoformalizer-7B
+      revision: ddd47cb477d93b3ca990468e1c0d5ad6b60973dd
+      created_at: "2025-04-16T08:52:17Z"
+    - family_id: goedel_formalizer_v2_8b
+      repo_id: Goedel-LM/Goedel-Formalizer-V2-8B
+      revision: fe2d362d899601abe79d7d5e95eaa7fe9883a0cb
+      created_at: "2025-07-20T16:34:46Z"
+    - family_id: stepfun_formalizer_7b
+      repo_id: stepfun-ai/StepFun-Formalizer-7B
+      revision: fb0dc612761fecd64ebbc489c2a3417e9ea01968
+      created_at: "2025-10-13T07:12:42Z"
+
+screening:
+  active_registry_manifest: data/benchmarks/manifests/representation_signatures_v1.json
+  active_registry_manifest_sha256: 4ffbd31dd0e10efb9dfe7e57fb815690f3e1d750e4640aeff959ca4cbdc911df
+  require_nl_screen: true
+  require_reference_lean_screen: true
+  require_reference_representation_screen: true
+
+policy:
+  source_license: Apache-2.0
+  nl_trust: trusted
+  nl_trust_semantics: human_authored_provenance_only_not_self_containedness
+  self_containedness_status: unreviewed
+  candidate_source_records_only: true
+  problem_pool_admitted: false
+  model_collection_authorized: false
+  model_execution_performed: false
+  semantic_labels_created: false
+  private_source_transmission_performed: false
+  gate_claimed: false
+  use_existing_theorem_record_as_reference: true
+  full_alpha_structural_required: false
+  graph_required: false

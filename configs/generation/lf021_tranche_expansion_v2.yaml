@@ -1,0 +1,41 @@
+schema_version: 2
+policy_id: lf021_problem_aware_tranche_expansion_v2
+status: frozen
+
+# Revision 2 is a narrow pre-label amendment.  The complete tranche sequence,
+# pools, coverage thresholds, and frame sizes remain those of the exact frozen
+# v1 policy; v1 decisions remain historical collection authorizations.
+base_v1_policy:
+  artifact: configs/generation/lf021_tranche_expansion_v1.yaml
+  sha256: 0c726e197ef5358ef4a7414e36622c10fb7ff19082199540b62e4bc170834e16
+base_v1_implementation:
+  artifact: src/leanfaith/generation/tranche_expansion.py
+  sha256: 33078832be9131cc85f7ac10e0e4da6374c768ffb6a0e4829a71b4e8f7fcbc67
+
+scientific_cluster_key:
+  - problem_group
+  - alpha_identity_fingerprint
+representative_hash_salt: lf021-problem-group-alpha-representative-v2-frozen
+sampling_hash_salt: lf021-human-prevalence-problem-group-alpha-v2-frozen
+
+decision_inputs:
+  - alpha_identity_fingerprint
+  - benchmark_screen
+  - compile_status
+  - family_id
+  - parse_status
+  - pool_id
+  - problem_group
+  - source_proxy
+forbidden_inputs:
+  - faithfulness_judgment
+  - human_label
+  - llm_judgment
+  - proof_search_result
+  - relation
+  - same_claim
+
+semantic_labels_created: false
+supervision_eligible: false
+gate_5g_credit_claimed: false
+gate_5_closed: false

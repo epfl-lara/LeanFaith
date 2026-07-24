@@ -1,0 +1,16 @@
+profile_version: public_research_replication_v1
+extends: configs/sources/public_replication.yaml
+private_sources_allowed: false
+sources:
+  lean_environment:
+    source: mathlib
+    revision: d568c8c09630de097a046763c17b9ea99f95f950
+  trusted_nl_lean:
+    source: mathlib_post_formalrx_docstrings_v1
+    config: configs/sources/mathlib_post_formalrx_docstrings_v1.yaml
+rules:
+  - no artifact contains or derives from formalmathatepfl/sft_classic
+  - source docstrings and signatures are verified against exact public git blobs
+  - FormalRx and public-pretraining overlap tags are retained on every record
+  - evaluation benchmarks remain sealed and are never substituted for source data
+  - this profile does not establish held-out-generator or source-independent status

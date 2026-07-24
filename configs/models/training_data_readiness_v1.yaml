@@ -1,0 +1,75 @@
+policy_id: training_data_readiness_v1
+schema_version: 1
+
+inputs:
+  prevalence_frame: reports/generation/lf021_post_exhaustion_frame_v1/frames/a07b352030a2c51fa51ebcabc00a3c1d1ecf2041318feabfe57a4c70fc365069.jsonl
+  prevalence_human_labels: data/human/prevalence_frame/adjudicated_labels_v1.jsonl
+  training_inventory: data/releases/v0/manifests/training_readiness_inventory_v1.jsonl
+  human_products:
+    training_gold: data/human/training_gold/readiness_manifest_v1.json
+    selection_gold: data/human/selection_gold/readiness_manifest_v1.json
+    calibration_gold: data/human/calibration_gold/readiness_manifest_v1.json
+    final_human_test: data/human/final_human_test/readiness_manifest_v1.json
+  lf022_required_artifacts:
+    - data/generated/llm/G_sci/readiness_manifest_v1.json
+    - data/generated/llm/G_open/readiness_manifest_v1.json
+
+prevalence:
+  minimum_frame_items: 200
+  maximum_frame_items: 300
+  minimum_generator_families: 3
+  minimum_human_terminal_label_fraction: 1.0
+
+pilot:
+  confirmatory_pair_count: 50000
+  reduced_data_minimum_pair_count: 2
+  positive_fraction: 0.5
+  negative_fraction: 0.5
+  maximum_unique_variants_per_component_per_arm: 4
+
+selection_gold_minimum_groups:
+  faithful: 100
+  unfaithful: 100
+  per_included_relation_class: 50
+
+negative_arms:
+  D0: {G_rule: 1.0}
+  D1: {G_rule: 0.5, G_sci: 0.5}
+  D2: {G_rule: 0.5, G_open: 0.5}
+  D3: {G_rule: 0.5, G_real: 0.5}
+  D4: {G_rule: 0.2, G_sci: 0.25, G_open: 0.25, G_real: 0.3}
+  D5: {G_rule: 0.2, G_sci: 0.25, G_open: 0.25, G_real: 0.3}
+
+full_arm_positive_mix:
+  certified_positive: 0.5
+  human_or_promoted_faithful_real: 0.3
+  promoted_llm_equivalent: 0.2
+
+family_controls:
+  apply_caps_to_arms: [D4, D5]
+  deterministic_family_fraction_of_all_negative: 0.05
+  minimum_llm_proposer_families: 3
+  maximum_one_llm_family_fraction_of_llm_negative: 0.4
+  minimum_real_generator_families: 3
+  maximum_one_real_family_fraction_of_real_negative: 0.4
+
+label_policy:
+  allowed_f1_label_bases:
+    - human_adjudication
+    - certified_conservative_transformation
+    - human_promoted_transformation
+    - human_promoted_llm_variant
+    - trusted_human_dataset_label
+  forbidden_label_bases:
+    - compilation
+    - type_correct_mutation
+    - proof_search
+    - failed_proof_search
+    - directional_proof_search
+    - counterexample_only
+    - llm_agreement
+    - llm_judge_consensus
+
+reports:
+  json_path: reports/model_selection/training_data_readiness_v1.json
+  markdown_path: reports/model_selection/training_data_readiness_v1.md

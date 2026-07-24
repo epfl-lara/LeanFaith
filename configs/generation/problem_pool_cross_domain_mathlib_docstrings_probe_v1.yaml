@@ -1,0 +1,96 @@
+schema_version: 1
+config_id: lf021_cross_domain_mathlib_docstring_feasibility_v1
+frozen_at: "2026-07-23T23:40:00Z"
+
+source:
+  repository: https://github.com/leanprover-community/mathlib4
+  checkout_revision: d568c8c09630de097a046763c17b9ea99f95f950
+  context_id: ctx:0cd06826b8767b3bc951c0eb00c802424af95785b558f9f8a61f18694a86c4ce
+  environment_schema_version: 1
+  import_header:
+    path: examples/lf021_public_research_mathlib_header_v1.lean
+    sha256: 1015f8f4676a27ea63780b30cc916712232857097b2bdf635dc61cb949c107fb
+  latest_generator_checkpoint_created_at: "2025-10-13T07:12:42Z"
+
+domains:
+  - domain_proxy: Analysis
+    source_file: Mathlib/Analysis/Normed/Module/Bases.lean
+    source_file_sha256: df1412f38267eebfad2217a404154e225572105354b40411ecdcd8156ddfecce
+    git_blob_sha1: bb322bb074a2d0d9fa0f5403f6fe5bd101bccfbd
+    file_addition_commit: 58f63c64f7207514bdd291f66d1b67e62e6f8a20
+    file_addition_created_at: "2026-03-17T20:24:08Z"
+    screening_limit: 8
+    target_selected: 4
+  - domain_proxy: Topology
+    source_file: Mathlib/Topology/Compactness/CountablyCompact.lean
+    source_file_sha256: cabd0d2498ad4af4d633982d359754d8f6dd82ff5a170c4e2d4afd3795a4782a
+    git_blob_sha1: d32142964c8b242d71de08625dc47b64c6eceb64
+    file_addition_commit: a22c8fb5b84d1dcf9776ea55d527d1de04a06e29
+    file_addition_created_at: "2026-03-27T17:46:03Z"
+    screening_limit: 8
+    target_selected: 4
+  - domain_proxy: NumberTheory
+    source_file: Mathlib/NumberTheory/Height/Basic.lean
+    source_file_sha256: 3c06d2db212725505aa4046b4522d6f134477cb55a1406180403e18e3c1d5f02
+    git_blob_sha1: ccb65f86701f3cf09b753d2e6e0bb3d407e23368
+    file_addition_commit: 477c7fe330dc91fcff50ba28125dcc1372efa19e
+    file_addition_created_at: "2026-01-05T16:12:46Z"
+    screening_limit: 8
+    target_selected: 4
+  - domain_proxy: Combinatorics
+    source_file: Mathlib/Combinatorics/Compactness.lean
+    source_file_sha256: 44a01634b6653e0d9e33dfb14b6ec5ffa4aa5d523005601762c92770961f9cd1
+    git_blob_sha1: a1ae1640e0ae1a8664ac914208cb90415e652c1b
+    file_addition_commit: b18781884491057dcb51e25182f0e9d141b23444
+    file_addition_created_at: "2026-03-06T18:06:32Z"
+    screening_limit: 4
+    target_selected: 4
+  - domain_proxy: Probability
+    source_file: Mathlib/Probability/Decision/Risk/Basic.lean
+    source_file_sha256: 1bda18e6e4243eb5ea6e147cb2f9311a931b5a59bb92e7a46d7104c373103cde
+    git_blob_sha1: f2637b9d1e96425c7c94219d33055cedd0972f00
+    file_addition_commit: d5ebaafbfcd6327140b67d2668f3d22b9913366b
+    file_addition_created_at: "2025-10-27T21:05:19Z"
+    screening_limit: 8
+    target_selected: 4
+  - domain_proxy: Geometry
+    source_file: Mathlib/Geometry/Euclidean/Angle/Incenter.lean
+    source_file_sha256: 6c470c937b5070e3d9bd3bcc2a44b3d5e5de28fed5f99be2878e449655e63a09
+    git_blob_sha1: b33f20eab32a56a2ac1cc167767bc6e119042bc0
+    file_addition_commit: faa68624bc26af739e021f0b2b9bf7ed988fa482
+    file_addition_created_at: "2026-03-27T17:02:39Z"
+    screening_limit: 8
+    target_selected: 4
+
+selection:
+  selection_version: lf021_cross_domain_docstring_hash_v1
+  minimum_domain_proxies: 4
+  exact_normalized_nl_deduplication: true
+  require_post_checkpoint_exact_pair_introduction: true
+  require_complete_reference_representation: true
+
+screening:
+  active_registry_manifest: data/benchmarks/manifests/representation_signatures_v1.json
+  active_registry_manifest_sha256: 4ffbd31dd0e10efb9dfe7e57fb815690f3e1d750e4640aeff959ca4cbdc911df
+  require_nl_screen: true
+  require_reference_lean_screen: true
+  require_reference_representation_screen: true
+
+policy:
+  source_license: Apache-2.0
+  nl_trust: trusted
+  nl_trust_semantics: human_authored_provenance_only_not_self_containedness
+  self_containedness_status: unreviewed
+  domain_semantics: top_level_mathlib_directory_proxy_only
+  candidate_source_records_only: true
+  problem_pool_admitted: false
+  model_collection_authorized: false
+  model_execution_performed: false
+  semantic_labels_created: false
+  private_source_content_used: false
+  external_provider_transmission_performed: false
+  gate_claimed: false
+
+outputs:
+  root: /storage/milikic/leanfaith/lf021/cross_domain_mathlib_docstring_feasibility_v1
+  report: reports/generation/lf021_cross_domain_mathlib_docstring_feasibility_v1.json

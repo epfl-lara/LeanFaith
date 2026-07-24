@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "audit_id": "lf021_goedel_20260723T215852Z_audit_v1",
+  "audited_at": "2026-07-23T22:00:45Z",
+  "status": "passed_expected_failure",
+  "run_directory": "runs/lf021_local_qualification/goedel_formalizer_v2_20260723T215852Z",
+  "bundle_manifest": {
+    "path": "runs/lf021_local_qualification/goedel_formalizer_v2_20260723T215852Z/bundle_manifest.json",
+    "sha256": "66c9da41380d5fb4c60eb29c1505a2c4cf0220baba3ca2d85ac4cedb881c4da2",
+    "bundle_id": "local_qualification_bundle:21079dc2caf110c0582e46ba1e5ebb1a6006a46a2bbf4f27a2f65107f7370322",
+    "artifact_count": 21
+  },
+  "terminal": {
+    "path": "runs/lf021_local_qualification/goedel_formalizer_v2_20260723T215852Z/terminal.json",
+    "sha256": "031c563eced9cf1f4a8797080e77c0a81512d84f71a7fb3456bcc62d58e8a255",
+    "terminal_id": "local_qualification:eb5ca0247ff178ce9475923d22276fec64b12b1f61c608bfa174046358c58785",
+    "status": "parse_failed",
+    "error_code": "multiple_lean_fences"
+  },
+  "qualification_inputs": {
+    "path": "runs/lf021_local_qualification/goedel_formalizer_v2_20260723T215852Z/qualification_inputs.json",
+    "sha256": "f9a2d149199ea46806df92958e1e99420668fbb9700f7c4e75b6ce74bb9663a2"
+  },
+  "checks": {
+    "all_manifest_artifact_hashes_match": true,
+    "working_tree_independent_replay": true,
+    "model_execution_performed": true,
+    "raw_response_persisted": true,
+    "observed_lean4_fence_count": 2,
+    "strict_parser_rejected_without_guessing": true,
+    "semantic_labels_created": false,
+    "qualifies_for_gate5g": false
+  },
+  "raw_response_sha256": "2a445de9e70a7769e80f871eaeed99b7633a49849a1ea77070739ae7a04443ae",
+  "disposition": "Preserved diagnostic failure. The response contains a Lean example inside the model's reasoning block followed by a terminal Lean answer. Parser v2 correctly followed its unique-fence contract; a separately versioned terminal-fence parser is required before any retry.",
+  "conclusion": "This attempt is replayable failure evidence only. It does not qualify the Goedel family and earns no Gate 5G or Gate 5 credit."
+}

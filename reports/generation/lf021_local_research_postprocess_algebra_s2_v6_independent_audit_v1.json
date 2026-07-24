@@ -1,0 +1,268 @@
+{
+  "schema_version": 1,
+  "audit_id": "lf021_local_research_postprocess_algebra_s2_v6_independent_audit_v1",
+  "audited_at": "2026-07-24T03:21:16Z",
+  "status": "passed_postprocess_v6_live_mechanics_audit",
+  "scope": {
+    "collection_kind": "local_research_collection_v5",
+    "tranche_id": "algebra_s2",
+    "collection_root": "data/raw/real_outputs/gate3_docstrings_operational_v1/v5/algebra_s2/local_collection/9dc8113d3a1529b8e9bfa20bec1f2593a254d2359df0305ecd89521179be6af4",
+    "postprocess_root": "data/raw/real_outputs/gate3_docstrings_operational_v1/v5/algebra_s2/local_collection/9dc8113d3a1529b8e9bfa20bec1f2593a254d2359df0305ecd89521179be6af4/postprocess_v6",
+    "collection_manifest_id": "research_collection_manifest_v5:e1e6d0cc0e85f84da2dc17afe242983228063c19c46258f1192592f72f29ff6d",
+    "collection_manifest_sha256": "e6578d481f01c4c017e31eae6708a66c586a98547d4570045c0d60d82235098d",
+    "postprocess_manifest_id": "research_postprocess_v6_manifest:5bc60cb9cb4fd6b419651a86b544dba82903f7e334b03021792e8c59d9a83bfc",
+    "postprocess_manifest_sha256": "3107e0565c943aca68684343b44694b0f481fa10a2d656144cd3873bbb033f07",
+    "input_binding_hash": "ea1b7e9dcd1f3a3998bc51c683183d76207e1b9ee0f356e3a3491878ab294ae2",
+    "shared_processing_input_binding_hash": "2fff79c0ec0db7bfb03e01708725f32838e49729429e8cd9b4d726b92bb29e06",
+    "raw_collection_independent_audit": {
+      "artifact": "reports/generation/lf021_local_research_collection_algebra_s2_v5_independent_audit_v1.json",
+      "sha256": "9309c78994f88d686b43adb3716d046db74240ccc0598d01cfa95930bb7cf39c"
+    }
+  },
+  "implementation_bindings": {
+    "postprocess_v6": {
+      "artifact": "src/leanfaith/generation/research_postprocess_v6.py",
+      "sha256": "a5f3fa6ce0da674973c5fbb9d32c7fe5516d65af91b725c20eb7873410c47fc9"
+    },
+    "entrypoint": {
+      "artifact": "scripts/28_postprocess_research_tranche_v6.py",
+      "sha256": "fda22e75e0f77fe4156449ef1fd597c950c5641b893ec07eb8b15134f12493de"
+    },
+    "focused_test": {
+      "artifact": "tests/unit/test_lf021_research_postprocess_v6.py",
+      "sha256": "2af337378053d908cd18e3b9fb10e8a37d49e96e52ba8404717928f4aaf12601"
+    },
+    "shared_postprocess_v3_engine": {
+      "artifact": "src/leanfaith/generation/research_postprocess_v3.py",
+      "sha256": "aa8415663187b99558df25889df4809dd24d673515500dc21882e1a2e9e103e9"
+    },
+    "recovery_parser": {
+      "artifact": "src/leanfaith/generation/local_output_recovery.py",
+      "parser_id": "lean_expected_declaration_recovery_v1",
+      "sha256": "34bd4757fdd06d119ccbc2c57692cf8e53c07447bbe2319ffc9dbec57b67d983"
+    }
+  },
+  "denominator_audit": {
+    "passed": true,
+    "problem_count": 40,
+    "family_count": 3,
+    "seed_count_by_family": {
+      "goedel_formalizer_v2_8b": 1,
+      "kimina_autoformalizer_7b": 1,
+      "stepfun_formalizer_7b": 1
+    },
+    "expected_invocations": 120,
+    "terminal_invocations": 120,
+    "unique_terminal_ids": 120,
+    "post_freeze_denominator_filtering_detected": false
+  },
+  "hash_and_identity_audit": {
+    "passed": true,
+    "scalar_bound_artifacts_checked": 23,
+    "collection_terminal_hashes_checked": 120,
+    "collection_family_session_hashes_checked": 6,
+    "raw_lineage_entries_checked": 960,
+    "unique_raw_lineage_files_checked": 843,
+    "postprocess_terminal_hashes_checked": 120,
+    "postprocess_output_hashes_checked": 397,
+    "family_report_hashes_checked": 3,
+    "lean_raw_files_checked": 228,
+    "input_binding_hash_recomputed": true,
+    "shared_processing_input_binding_hash_recomputed": true,
+    "manifest_id_recomputed": true,
+    "terminal_ids_recomputed": 120,
+    "family_report_ids_recomputed": 3,
+    "shared_v3_terminal_ids_recomputed": 120,
+    "shared_v3_terminal_hashes_recomputed": 120,
+    "raw_lineage_maps_reconciled": 120,
+    "output_artifact_maps_reconciled": 120,
+    "missing_bound_files": 0,
+    "hash_mismatches": 0,
+    "symlink_count": 0,
+    "partial_file_count": 0
+  },
+  "terminal_accounting": {
+    "passed": true,
+    "status_counts": {
+      "admitted_unresolved": 30,
+      "parse_failed": 89,
+      "screen_rejected": 1
+    },
+    "admitted_pair_count": 30,
+    "admitted_nl_lean_count": 30,
+    "family_yields": {
+      "goedel_formalizer_v2_8b": 12,
+      "kimina_autoformalizer_7b": 10,
+      "stepfun_formalizer_7b": 8
+    },
+    "failure_terminals_with_zero_output_artifacts": 89,
+    "screen_rejected_terminals_with_complete_7_artifact_sets": 1,
+    "admitted_terminals_with_complete_13_artifact_sets": 30,
+    "all_terminals_execute_the_registered_parser": true
+  },
+  "primary_and_recovery_audit": {
+    "passed": true,
+    "recovery_status_counts": {
+      "failed": 57,
+      "not_eligible": 32,
+      "not_needed": 8,
+      "succeeded": 23
+    },
+    "primary_failure_counts": {
+      "declaration_count": 79,
+      "lean_invalid": 32,
+      "none": 8,
+      "trailing_output": 1
+    },
+    "terminal_failure_counts": {
+      "candidate_screen_rejected": 1,
+      "lean_invalid": 32,
+      "none": 30,
+      "recovery_declaration_name": 9,
+      "recovery_lean_invalid": 42,
+      "recovery_normalized_invalid": 5,
+      "recovery_terminal_fence_required": 1
+    },
+    "terminal_stage_counts": {
+      "complete": 30,
+      "parser": 89,
+      "screening": 1
+    },
+    "by_family": {
+      "goedel_formalizer_v2_8b": {
+        "admitted_unresolved": 12,
+        "parse_failed": 27,
+        "screen_rejected": 1
+      },
+      "kimina_autoformalizer_7b": {
+        "admitted_unresolved": 10,
+        "parse_failed": 30
+      },
+      "stepfun_formalizer_7b": {
+        "admitted_unresolved": 8,
+        "parse_failed": 32
+      }
+    },
+    "parser_success_count": 31,
+    "screening_clean_count": 30,
+    "screening_rejected_count": 1
+  },
+  "typed_output_audit": {
+    "passed": true,
+    "parsed_call_records": 31,
+    "parsed_candidate_records": 31,
+    "materialization_outcome_records": 31,
+    "admission_outcome_records": 30,
+    "materialized_theorem_records": 31,
+    "admitted_theorem_records": 30,
+    "materialized_representation_records": 31,
+    "admitted_representation_records": 30,
+    "materialized_variant_records": 31,
+    "admitted_variant_records": 30,
+    "screening_records": 31,
+    "pair_records": 30,
+    "nl_lean_records": 30,
+    "materialized_and_admitted_theorem_representation_variant_records_byte_equivalent": true,
+    "cross_record_ids_reconciled": true,
+    "unique_candidate_theorem_ids": 31,
+    "unique_representation_ids": 31,
+    "unique_variant_ids": 31,
+    "unique_screening_ids": 31,
+    "unique_pair_ids": 30,
+    "unique_nl_lean_ids": 30,
+    "clean_screening_records": 30,
+    "rejected_duplicate_screening_records": 1,
+    "unique_alpha_identity_fingerprints": 30,
+    "all_model_visible_representation_views_present": true
+  },
+  "unresolved_schema_audit": {
+    "passed": true,
+    "terminal_records_checked": 30,
+    "pair_records_checked": 30,
+    "nl_lean_records_checked": 30,
+    "same_claim_is_null": true,
+    "relation_is_null": true,
+    "resolution_outcome": "unresolved",
+    "quality_tier": "unknown",
+    "requires_adjudication": true,
+    "decision": "REVIEW",
+    "resolved_label_ids_are_null": true,
+    "semantic_labels_created": false,
+    "supervision_eligible": false,
+    "gate_5g_credit_claimed": false,
+    "gate_5_closed": false
+  },
+  "lean_execution_evidence": {
+    "passed": true,
+    "record_count": 228,
+    "unique_request_ids": 228,
+    "unique_request_hashes": 205,
+    "stage_counts": {
+      "materialization_validate": 31,
+      "primary_terminal_fence_or_raw": 40,
+      "recovery_normalized": 28,
+      "recovery_source": 70,
+      "recovery_type": 28,
+      "representation": 31
+    },
+    "filename_request_hash_binding_count": 228,
+    "filename_request_id_digest_binding_count": 228,
+    "method_version": "leaninteract_backend_v2",
+    "backend_error_count": 0,
+    "materialization_validation_success_count": 31,
+    "representation_success_count": 31
+  },
+  "family_report_hashes": {
+    "goedel_formalizer_v2_8b": "ba4330d3e61181899976cf04868dd50d7e48ef38ae80b96c96b839c6995167c8",
+    "kimina_autoformalizer_7b": "a27fe975e8651e13839b32a035885284302e9281ee5fee5a26d270c464ca99ca",
+    "stepfun_formalizer_7b": "b3996e08d820332ec9d853b58a749ed6784946d9221115b02baee15907fec1d6"
+  },
+  "postprocess_tree": {
+    "file_count": 749,
+    "tree_hash_algorithm": "sha256(canonical compact JSON object mapping repository-relative file path to file sha256, with sorted keys)",
+    "tree_sha256": "d1cc5af66915c658ef085da31a90d39dcb043e0716ffa103293c5c1d184a4039"
+  },
+  "verify_only_replay": {
+    "passed": true,
+    "command": "CUDA_VISIBLE_DEVICES='' NVIDIA_VISIBLE_DEVICES=void uv run python scripts/28_postprocess_research_tranche_v6.py --verify-only --root /localhome/milikic/LeanFaith --collection-root /localhome/milikic/LeanFaith/data/raw/real_outputs/gate3_docstrings_operational_v1/v5/algebra_s2/local_collection/9dc8113d3a1529b8e9bfa20bec1f2593a254d2359df0305ecd89521179be6af4 --collection-config /localhome/milikic/LeanFaith/configs/generation/local_research_collection_algebra_s2_v5.json",
+    "elapsed_ms": 3891,
+    "gpu_visible": false,
+    "before_file_count": 749,
+    "after_file_count": 749,
+    "before_tree_sha256": "d1cc5af66915c658ef085da31a90d39dcb043e0716ffa103293c5c1d184a4039",
+    "after_tree_sha256": "d1cc5af66915c658ef085da31a90d39dcb043e0716ffa103293c5c1d184a4039",
+    "file_hash_map_byte_invariant": true,
+    "lean_execution_performed": false,
+    "writes_performed": false
+  },
+  "focused_checks": {
+    "pytest": {
+      "command": "uv run pytest -q tests/unit/test_lf021_research_postprocess_v6.py",
+      "passed": true,
+      "test_count": 8
+    },
+    "ruff_check": {
+      "passed": true
+    },
+    "ruff_format_check": {
+      "passed": true
+    },
+    "mypy": {
+      "command": "uv run mypy src/leanfaith/generation/research_postprocess_v6.py scripts/28_postprocess_research_tranche_v6.py",
+      "passed": true
+    }
+  },
+  "hard_boundaries": {
+    "artifact_mechanics_claim": true,
+    "parser_and_lean_elaboration_claim": true,
+    "semantic_validity_claim": false,
+    "faithfulness_claim": false,
+    "prevalence_claim": false,
+    "resolved_label_claim": false,
+    "supervision_admission_claim": false,
+    "gate_5g_credit_claim": false,
+    "gate_5_closure_claim": false,
+    "global_alpha_v1_projection_authoritative": false,
+    "disposition": "The 120 frozen Algebra s2 outputs reconcile exactly to 30 Lean-elaborating, denylist-clean, alpha-unique candidates routed to unresolved REVIEW, one explicit duplicate screen rejection, and 89 explicit parse failures. This audit establishes artifact mechanics and Lean elaboration only. It creates no semantic labels, supports no faithfulness or prevalence estimate, admits no training supervision, and closes neither Gate 5G nor Gate 5. The v1 global-alpha prevalence projection is not authoritative."
+  }
+}

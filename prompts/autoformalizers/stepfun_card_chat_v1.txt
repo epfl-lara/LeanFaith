@@ -1,0 +1,10 @@
+Please autoformalize the following problem in Lean 4 with a header. Use the following theorem names: {{THEOREM_NAME}}.
+
+{{NL_STATEMENT}}
+
+Your code should start with:
+```Lean4
+{{REGISTERED_HEADER}}
+```
+
+{{COMMON_SUFFIX}}

@@ -10,7 +10,7 @@ plan_sections: ["17.2", "17.3", "17.7", "9.2", "28.2"]
 
 # Gate 0 requires every slot to be resolved or explicitly disabled with a
 # recorded fallback. Current file-level status:
-status: declared_unresolved_pending_provider_accounts
+status: external_slots_disabled_until_phase_5_adr
 
 rules:
   freeze_at_run_start: >-
@@ -28,23 +28,24 @@ rules:
     same-family assignment is a configuration error, not a soft warning
     (PLAN.md section 17.7).
   private_source_boundary: >-
-    Prompts containing private-source content, including sft_classic NL
-    statements, are submitted only to providers named in the section 9.2
-    approval record (ADR or external_api_approved flag naming the provider
-    set and scope). Absent that record, such prompts are not submitted to any
-    external provider (PLAN.md sections 9.2 and 28.6).
+    No sft_classic content, including NL statements, is submitted to any
+    external provider under Revision 4.1. A later Phase-5 provider ADR cannot
+    relax this boundary without a separate superseding source-authorization
+    record (PLAN.md sections 9.2 and 28.6).
   secrets_by_env_name_only: >-
     Secret credentials stay outside configs and manifests. This file and all
     derived manifests reference secrets by environment-variable name only;
     secret values never appear in configs, logs, or run manifests.
   heldout_generator_reservation: >-
-    Gate 5's hard floor is three materially distinct successful generator
-    families; 3-4 families is the target range (PLAN.md section 17.3). One
-    successful family may be reserved for heldout_generator_test; none of
-    its outputs or judgments enters supervision (PLAN.md sections 17.3 and
-    17.7). The reservation is recorded in configs/splits/v0.yaml (PLAN.md
-    section 19.8); the judge x supervision cross matrix covers judge
-    families versus supervision, not this reservation.
+    Gate 5G's collection hard floor is three materially distinct successful
+    generator families. A confirmatory D4/D5 run with a clean
+    heldout_generator_test family requires at least four successful families:
+    three supervision-eligible families plus one fully reserved family
+    (PLAN.md sections 17.3 and 24 Phase 5). None of the reserved family's
+    outputs or judgments enters supervision. The reservation is recorded in
+    configs/splits/v0.yaml (PLAN.md section 19.8); the judge x supervision
+    cross matrix covers judge families versus supervision, not this
+    reservation.
 
 # decision: environment-variable naming convention for resolved slots is
 # LEANFAITH_API_KEY_<PROVIDER>, uppercased provider short name. The api_key_env
@@ -64,11 +65,12 @@ slots:
     exact_model: null
     revision: null
     api_key_env: null
-    status: unresolved
+    status: disabled_until_phase_5_adr
     unresolved: >-
-      Requires the user's provider-account decision (which frontier families
-      are available under project accounts) and the slot's entry in the
-      frozen judge x supervision cross matrix.
+      Requires the Phase-5 ADR to record which frontier families are available
+      under project accounts and the slot's entry in the frozen judge x
+      supervision cross matrix. If no suitable account is available, this
+      optional slot remains disabled.
 
   judge_B:
     role: >-
@@ -81,16 +83,16 @@ slots:
     exact_model: null
     revision: null
     api_key_env: null
-    status: unresolved
+    status: disabled_until_phase_5_adr
     unresolved: >-
-      Requires the user's provider-account decision; must be resolvable to a
-      family distinct from whatever fills judge_A.
+      Requires a Phase-5 ADR assignment to a family distinct from whatever
+      fills judge_A; otherwise this optional slot remains disabled.
 
   broad_generator:
     role: >-
       High-capability general model for broad candidate generation:
-      autoformalization, controlled variants, diagnostic repair, and
-      critique/revise prompt families (PLAN.md sections 17.2 and 17.5).
+      autoformalization, controlled variants, and critique/revise prompt
+      families (PLAN.md sections 17.2 and 17.5).
       Outputs are evidence, never automatic gold.
     family_constraint: >-
       High-capability general-purpose model. May not be the
@@ -100,16 +102,19 @@ slots:
     exact_model: null
     revision: null
     api_key_env: null
-    status: unresolved
+    status: disabled_until_phase_5_adr
     unresolved: >-
-      Requires the user's provider-account decision and, for any use on
-      private-source prompts, coverage by the section 9.2 approval record.
+      Requires a Phase-5 ADR assignment based on verified project-account
+      availability for public-source work. Private-source prompts remain
+      prohibited for external providers and may be processed only by an
+      approved local execution path.
 
   open_diversity:
     role: >-
       Open-weight diversity model contributing materially distinct generation
-      behavior toward the Gate 5 hard floor of three successful families,
-      with 3-4 families as the target range (PLAN.md section 17.3).
+      behavior toward the Gate 5G collection floor and, when four families are
+      available, the confirmatory held-out-generator design (PLAN.md section
+      17.3).
     family_constraint: >-
       Open-weight model runnable under project control. Candidate families
       per PLAN.md section 17.3 and Appendix J.4: Kimina-Autoformalizer-7B,
@@ -119,11 +124,11 @@ slots:
     exact_model: null
     revision: null
     api_key_env: null
-    status: unresolved
+    status: disabled_until_phase_5_adr
     unresolved: >-
       Requires the availability/license/overlap probe of the section 17.3
-      candidate list; no external account is strictly required, but the
-      family choice is the user's.
+      candidate list; no external account is strictly required. The Phase-5
+      ADR selects the first eligible family under the frozen selection rule.
 
   specialized_generator:
     role: >-
@@ -141,7 +146,7 @@ slots:
     exact_model: null
     revision: null
     api_key_env: null
-    status: candidate_pinned_pending_availability_probe
+    status: disabled_until_phase_5_adr
     decision: >-
       Phase 0 pins GuoxinChen/ReForm-32B as the candidate with
       GuoxinChen/ReForm-8B as the fallback. exact_model and revision are
@@ -165,28 +170,30 @@ slots:
     exact_model: null
     revision: null
     api_key_env: null
-    status: unresolved
+    status: disabled_until_phase_5_adr
     unresolved: >-
-      Requires the user's provider-account decision made jointly with
-      judge_A/judge_B so that a supervision-free family remains available;
-      the judge x supervision cross matrix must be frozen before labels are
-      produced.
+      Requires a Phase-5 ADR assignment made jointly with judge_A/judge_B so
+      that a supervision-free family remains available; the judge x
+      supervision cross matrix must be frozen before labels are produced. If
+      no distinct family is available, this baseline remains unavailable and
+      the limitation is reported.
 
 resolution_blockers:
   - >-
-    User decision: provider accounts and family assignments for judge_A,
-    judge_B, broad_generator, and primary_eval_judge. The assignment must be
-    made jointly: judge_A and judge_B distinct families, and one further
-    family kept entirely out of supervision for primary_eval_judge.
+    Phase-5 ADR: record available project accounts and jointly assign
+    judge_A, judge_B, broad_generator, and primary_eval_judge. judge_A and
+    judge_B must be distinct families, and one further family must remain
+    entirely outside supervision for primary_eval_judge. Unavailable optional
+    slots stay disabled rather than blocking offline/local development.
   - >-
-    User decision: the section 9.2 external-API approval record (ADR or
-    external_api_approved flag in the source manifest) naming exactly which
-    providers may receive private-source sft_classic content and at what
-    scope. An explicit denial is also acceptable; it confines private-source
-    prompts to locally served open-weight slots.
+    Private-source use is already denied for every external provider. Any
+    future attempt to relax that boundary requires a separate superseding
+    source-authorization record; the Phase-5 provider ADR alone is
+    insufficient.
   - >-
     Availability probe: GuoxinChen/ReForm-32B download/serving feasibility;
     fall back to GuoxinChen/ReForm-8B on failure and record the outcome.
   - >-
     Availability/license/overlap probe of the open_diversity candidate
-    families (PLAN.md section 17.3), followed by the user's family choice.
+    families (PLAN.md section 17.3), followed by the frozen Phase-5 ADR
+    selection rule.

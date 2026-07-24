@@ -1,0 +1,123 @@
+schema_version: 3
+config_id: lf021_local_research_collection_v3
+tranche_id: cross_domain_s0
+frozen_at: "2026-07-24T00:30:00Z"
+artifact_class: research
+collection_scope: cross_domain_s0_three_family_v3
+shared_execution_record_schema: lf021_research_execution_records_v1
+status: ready
+execution_enabled: true
+semantic_labels_created: false
+gate_5g_credit_claimed: false
+gate_5_closed: false
+
+problem_pool_contract:
+  manifest_schema_version: 1
+  pool_dialect: cross_domain_operational_v1
+  manifest_artifact_kind: lf021_cross_domain_docstrings_operational_problem_pool_v1
+  expected_problem_count: 20
+  require_public_records: true
+  require_eligible_records: true
+  require_denylist_clear: true
+  require_local_model_authorization: true
+  require_reference_hidden: true
+  require_no_semantic_labels: true
+  require_no_gate_claims: true
+problem_pool_records:
+  artifact: data/parsed/real_outputs/cross_domain_docstrings_operational_v1/problem_pool_records.jsonl
+  sha256: 13111c14f2061acd8e9ceb9a2ffe937c6c5b72025f32a0c2a9e93e49934aebbf
+problem_pool_manifest:
+  artifact: data/parsed/real_outputs/cross_domain_docstrings_operational_v1/problem_pool_manifest.json
+  sha256: f7fdcdb9676148500ba4620bc12a4776192e8b4804ab6fc160571d4d8aef4122
+context:
+  artifact: data/parsed/real_outputs/cross_domain_docstrings_operational_v1/context.json
+  sha256: d08d78779f9a3ea7c9c1779c982cc8359a309c94de2ea0b4c2c5a3df85ff51fc
+import_header:
+  artifact: examples/lf021_public_research_mathlib_header_v1.lean
+  sha256: 1015f8f4676a27ea63780b30cc916712232857097b2bdf635dc61cb949c107fb
+source_matrix:
+  artifact: configs/generation/local_research_source_matrix_cross_domain_v3.yaml
+  sha256: e6252802d61117acf34fc7844c3fcf3a72ceb17de7c7bc379310dc69d6080bde
+
+runtime:
+  device: cuda:0
+  dtype: bfloat16
+  loader_policy: local_files_only_single_device_v1
+  local_files_only: true
+  allow_remote_code: false
+  python_version: 3.12.3
+  torch_version: 2.13.0+cu130
+  transformers_version: 4.57.6
+  driver_version: 595.71.05
+  device_name: NVIDIA GeForce RTX 4090
+  runtime_adapter:
+    artifact: src/leanfaith/generation/local_hf.py
+    sha256: a9265656d65d63f43d63aa58a0bffad9f0b6998066e831df35959681371f1caf
+  environment_lock:
+    artifact: uv.lock
+    sha256: f9111b930623c818c94093e2642029385ceabcb5b3ce3b19a5e4c7c9d6002921
+  orchestration_adapter:
+    artifact: src/leanfaith/generation/research_collection_v3.py
+    sha256: e202e93f009c3314f2172c8f048bb1dc65aacc3cebd81905f5ff65306b28a684
+
+families:
+  - family_id: goedel_formalizer_v2_8b
+    provider_slot: local_goedel_research
+    qualification_pin_source:
+      artifact: configs/generation/local_qualification_goedel_v1.yaml
+      sha256: 8569627bf1f336b8d0e06bd2e3154e7b9945949ffcd15a1e4fece471ca1e758c
+    seeds: [30]
+    activation:
+      status: ready
+      qualification_bundle_artifact: runs/lf021_local_qualification/goedel_formalizer_v2_20260723T221540Z/bundle_manifest.json
+      qualification_bundle_sha256: edcd06b1bf6e7a2a8b96deef947add2c412200d83f4d97797ace7d602293fc70
+      overlap_record_artifact: reports/generation/overlap_v3/cross_domain_docstrings_operational_v1/goedel_formalizer_v2_8b.json
+      overlap_record_sha256: f86034b876f3cece14dc69fe368bffbe70fae17bd63e5c7618d7e9396d92fc14
+      blocker: null
+
+  - family_id: kimina_autoformalizer_7b
+    provider_slot: local_kimina_research
+    qualification_pin_source:
+      artifact: configs/generation/local_qualification_kimina_v2.yaml
+      sha256: 711789470e5547829da340d10c012521942a1cb8d22acb44d404c41eb5ff3244
+    seeds: [0]
+    activation:
+      status: ready
+      qualification_bundle_artifact: runs/lf021_local_qualification/kimina_autoformalizer_20260723T215416Z/bundle_manifest.json
+      qualification_bundle_sha256: 27bd7d958b1e266b335d5c9f55e45341ee278f7c192f362dc307438481fb1312
+      overlap_record_artifact: reports/generation/overlap_v3/cross_domain_docstrings_operational_v1/kimina_autoformalizer_7b.json
+      overlap_record_sha256: 3d1864a9fab44dfecee4fd24f8fd71217f4d1bcb71c616690f25ccdd95453633
+      blocker: null
+
+  - family_id: stepfun_formalizer_7b
+    provider_slot: local_stepfun_research
+    qualification_pin_source:
+      artifact: configs/generation/local_qualification_stepfun_v1.yaml
+      sha256: a34644682b38e54a2e952c6307214f494608c00c99af12f4e6a2c6e88c79d687
+    seeds: [0]
+    activation:
+      status: ready
+      qualification_bundle_artifact: runs/lf021_local_qualification/stepfun_final_v1_20260723T223533Z/bundle_manifest.json
+      qualification_bundle_sha256: 34395af5629fc17dd07886fad2a0479fc12a1cff5da0d19903f1356a4bb4c520
+      overlap_record_artifact: reports/generation/overlap_v3/cross_domain_docstrings_operational_v1/stepfun_formalizer_7b.json
+      overlap_record_sha256: 1362a6875e05a97bce8136684d5e0588ec0ecc7fbc37e7e1959691247c853d39
+      blocker: null
+
+retry:
+  max_attempts: 1
+  retryable_statuses: []
+  append_only_attempt_artifacts: true
+
+outputs:
+  root: data/raw/real_outputs/cross_domain_docstrings_operational_v1/v3/cross_domain_s0/local_collection
+  preflight_report: reports/generation/lf021_local_research_collection_preflight_cross_domain_s0_v3.json
+
+rules:
+  - this frozen tranche is exactly 20 public cross-domain proxy problems x 3 families x 1 frozen seed
+  - the source-path domain proxies are operational coverage metadata and are not semantic gold
+  - qualification bundles authorize runtime paths but remain smoke-only and receive no Gate credit
+  - each exact overlap-v3 record permits only collection over this bound pool
+  - raw collection creates no parsing result, semantic label, supervision admission, or Gate claim
+  - every requested problem x family x seed has one deterministic invocation and terminal outcome
+  - completed artifacts are immutable and resume verifies their exact hashes
+  - v1 execution records are reused explicitly; config, plan, preflight, manifest, tranche, and output roots are v3

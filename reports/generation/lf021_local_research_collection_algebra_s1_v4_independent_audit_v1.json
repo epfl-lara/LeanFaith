@@ -1,0 +1,295 @@
+{
+  "schema_version": 1,
+  "audit_id": "lf021_local_research_collection_algebra_s1_v4_independent_audit_v1",
+  "audited_at": "2026-07-24T02:10:59Z",
+  "status": "passed_raw_collection_audit_with_bound_static_typing_debt",
+  "scope": {
+    "collection_kind": "local_research_collection_v4",
+    "tranche_id": "algebra_s1",
+    "output_root": "data/raw/real_outputs/gate3_docstrings_operational_v1/v4/algebra_s1/local_collection/1936c77952aa28a2f482c60b646cdbde556b9cc52f8472552a83c2158902ac6c",
+    "raw_collector_tree_includes": [
+      "plan.json",
+      "manifest.json",
+      "terminals/*.json",
+      "invocations/**/*.json",
+      "families/**/*.json"
+    ],
+    "raw_collector_tree_excludes": [
+      "postprocess_v5/**"
+    ],
+    "exclusion_reason": "postprocess_v5 is a separately versioned downstream artifact and is audited separately"
+  },
+  "bound_inputs": {
+    "config": {
+      "path": "configs/generation/local_research_collection_algebra_s1_v4.json",
+      "file_sha256": "09bc01258404548c1bf7bae826da689af1783204472b185937f4f6832f9c3e37",
+      "canonical_config_hash": "b85c5327db44ea04323b5cef211949b4c464ce2dfba2899314404fc57aadf771"
+    },
+    "source_matrix": {
+      "path": "configs/generation/local_research_source_matrix_algebra_s1_v4.json",
+      "sha256": "4f6f5ab0119cfdd8c6f0ba3c47112cc83a4c0ce61b8a3ae40e2c5009a4828ce4"
+    },
+    "preflight": {
+      "path": "reports/generation/lf021_local_research_collection_preflight_algebra_s1_v4.json",
+      "sha256": "2024364fafeb56d46576234a7c752d975d3703e0c9438d34c34e5f61787f0402",
+      "all_15_checks_passed": true,
+      "execution_ready": true
+    },
+    "collector_module": {
+      "path": "src/leanfaith/generation/research_collection_v4.py",
+      "sha256": "6ac7c17c9ebdf66b458cd39079e467daee663e8cbc4eb7382a2d1a52fd31987b"
+    },
+    "collector_script": {
+      "path": "scripts/21_collect_research_tranche_v4.py",
+      "sha256": "465e8abd269edf6389f599a844dd88397b9f0f60b57021733a4b94443499442f"
+    },
+    "plan": {
+      "path": "data/raw/real_outputs/gate3_docstrings_operational_v1/v4/algebra_s1/local_collection/1936c77952aa28a2f482c60b646cdbde556b9cc52f8472552a83c2158902ac6c/plan.json",
+      "plan_id": "research_collection_plan_v4:1936c77952aa28a2f482c60b646cdbde556b9cc52f8472552a83c2158902ac6c",
+      "plan_hash": "3cb7ab03c09f5f0077b18916ca1808716e825db192800bdfbb181b3ffac3b78a",
+      "file_sha256": "12a639aedb0a04f6c8e47119bba51f7c8cb05a7735ffbccddad559395cf87128"
+    },
+    "problem_pool": {
+      "records_path": "data/parsed/real_outputs/gate3_docstrings_operational_v1/problem_pool_records.jsonl",
+      "records_sha256": "6f45ebf158fcbb23f7b9833f2c433fb335cda7e66c061c0436aab68702330c6f",
+      "manifest_path": "data/parsed/real_outputs/gate3_docstrings_operational_v1/problem_pool_manifest.json",
+      "manifest_sha256": "229cf1dfcc7c8eee0de839c62b6beb708678ff2a2bea876803b704033de324d7"
+    },
+    "overlap_bundle": {
+      "path": "reports/generation/overlap_v2/gate3_docstrings_operational_v1/bundle_manifest.json",
+      "sha256": "e226fef20f6eea359ead9c8a8892d7a234d8c8ff826fe7f1a9049b4ae6322180"
+    }
+  },
+  "expansion_authorization": {
+    "passed": true,
+    "policy_id": "lf021_compilation_only_tranche_expansion_v1",
+    "policy_path": "configs/generation/lf021_tranche_expansion_v1.yaml",
+    "policy_sha256": "0c726e197ef5358ef4a7414e36622c10fb7ff19082199540b62e4bc170834e16",
+    "decision_id": "lf021_expansion_decision:4e89b908916de794221493de0d254a649ed5e4b76fc9bf5e773da831bbf733cc",
+    "decision_path": "reports/generation/lf021_tranche_expansion_v1/decisions/4e89b908916de794221493de0d254a649ed5e4b76fc9bf5e773da831bbf733cc.json",
+    "decision_sha256": "0c7386e12dbff0906ec4b7afe50ee568c5e29b131efce2d329e85d4af00d074b",
+    "observed_prefix_manifest_count": 2,
+    "observed_prefix_replay_byte_identical": true,
+    "selected_tranche": "algebra_s1",
+    "selected_problem_count": 40,
+    "selected_invocation_count": 120,
+    "selected_seeds": {
+      "goedel_formalizer_v2_8b": 31,
+      "kimina_autoformalizer_7b": 1,
+      "stepfun_formalizer_7b": 1
+    },
+    "decision_inputs_used": [
+      "parse_status",
+      "compile_status",
+      "dedup_identity",
+      "benchmark_screen",
+      "family_id",
+      "pool_id",
+      "source_proxy"
+    ],
+    "forbidden_inputs_used": [],
+    "semantic_labels_inspected": false,
+    "semantic_labels_created": false,
+    "gate_5g_credit_claimed": false,
+    "gate_5_closed": false
+  },
+  "model_pins": {
+    "goedel_formalizer_v2_8b": {
+      "model": "Goedel-LM/Goedel-Formalizer-V2-8B",
+      "revision": "fe2d362d899601abe79d7d5e95eaa7fe9883a0cb",
+      "seed": 31,
+      "overlap_artifact_sha256": "5f1822416580f498fc05e5bae2378c97e078170bea2b7b5f683c60d13e939138"
+    },
+    "kimina_autoformalizer_7b": {
+      "model": "AI-MO/Kimina-Autoformalizer-7B",
+      "revision": "ddd47cb477d93b3ca990468e1c0d5ad6b60973dd",
+      "seed": 1,
+      "overlap_artifact_sha256": "6fc268f5ae244f41ab5da5d7d583f30c81697e384f3ff9bb2ab765c8e3586f6e"
+    },
+    "stepfun_formalizer_7b": {
+      "model": "stepfun-ai/StepFun-Formalizer-7B",
+      "revision": "fb0dc612761fecd64ebbc489c2a3417e9ea01968",
+      "seed": 1,
+      "overlap_artifact_sha256": "a707cfea9c42857b270a2965352ef80aabd4b0739b1f55b96ef23716c9b8251d"
+    }
+  },
+  "plan_audit": {
+    "passed": true,
+    "problem_count": 40,
+    "family_count": 3,
+    "seed_count_per_family": 1,
+    "expected_invocation_count": 120,
+    "unique_problem_count": 40,
+    "unique_invocation_id_count": 120,
+    "unique_expected_declaration_name_count": 120,
+    "invocation_count_by_family": {
+      "goedel_formalizer_v2_8b": 40,
+      "kimina_autoformalizer_7b": 40,
+      "stepfun_formalizer_7b": 40
+    },
+    "invocation_overlap_with_algebra_s0": 0,
+    "canonical_plan_bytes_replay": true,
+    "canonical_preflight_bytes_replay": true,
+    "all_bound_artifact_hashes_replayed": true,
+    "semantic_labels_created": false,
+    "gate_5_closed": false,
+    "gate_5g_credit_claimed": false
+  },
+  "overlap_audit": {
+    "passed": true,
+    "family_artifact_count": 3,
+    "exact_pool_and_pin_binding": true,
+    "problem_count_per_family": 40,
+    "contamination_status": "unknown",
+    "exact_pool_collection_allowed": true,
+    "heldout_claim": false,
+    "unseen_claim": false,
+    "source_independent_claim": false,
+    "evaluation_claim": false,
+    "semantic_labels_created": false,
+    "gate_credit_claimed": false
+  },
+  "manifest": {
+    "path": "data/raw/real_outputs/gate3_docstrings_operational_v1/v4/algebra_s1/local_collection/1936c77952aa28a2f482c60b646cdbde556b9cc52f8472552a83c2158902ac6c/manifest.json",
+    "manifest_id": "research_collection_manifest_v4:49be08beb1829747905ea2bb9da7f4153bb58f1fc90b5a65ec0d9a1fd0544304",
+    "sha256": "050f432b4f1acf4979894f13e47cece52248462dfac7e07adea9fc371e5f814d",
+    "expected_candidate_count": 120,
+    "terminal_candidate_count": 120,
+    "status_counts": {
+      "raw_collected": 120
+    },
+    "successful_family_count": 3,
+    "terminal_artifact_hash_map_matches": true,
+    "family_session_artifact_hash_map_matches": true,
+    "semantic_labels_created": false,
+    "gate_5_closed": false,
+    "gate_5g_credit_claimed": false
+  },
+  "terminal_artifact_audit": {
+    "passed": true,
+    "terminal_count": 120,
+    "terminal_count_by_family": {
+      "goedel_formalizer_v2_8b": 40,
+      "kimina_autoformalizer_7b": 40,
+      "stepfun_formalizer_7b": 40
+    },
+    "terminal_status": "raw_collected",
+    "canonical_schema_validation_count": 120,
+    "provider_request_validation_count": 120,
+    "provider_boundary_validation_count": 120,
+    "model_attempt_boundary_validation_count": 120,
+    "local_generation_result_validation_count": 120,
+    "llm_call_validation_count": 120,
+    "llm_attempt_validation_count": 120,
+    "provider_raw_response_validation_count": 120,
+    "unique_provider_request_hash_count": 120,
+    "unique_raw_output_hash_count": 120,
+    "raw_output_hashes_reconcile_across_records": true,
+    "artifact_paths_and_hashes_reconcile": true,
+    "local_execution_only": true,
+    "private_data_transmitted": false,
+    "denylist_clear": true,
+    "parsed_output_created": false,
+    "lean_validation_performed": false,
+    "semantic_admission_performed": false,
+    "semantic_labels_created": false,
+    "supervision_eligible": false,
+    "gate_credit_claimed": false
+  },
+  "family_sessions": {
+    "goedel_formalizer_v2_8b": {
+      "family_session_id": "research_family_session:25a62665ebb0a0be67f612caa3f0c1aa49c2715a49d735f00ff21068f04aae38",
+      "start_artifact_sha256": "ea04a1023fc7b867da7c88b9817547d2207d03781a6cc3fb8cd98db73ee9c34c",
+      "end_artifact_sha256": "9359a929c562bffb569ab62db45708874369296d1843ceb9413133bb245b3e88",
+      "planned_invocation_count": 40,
+      "completed_invocation_count": 40,
+      "load_count": 1,
+      "unload_count": 1,
+      "timestamps_enclose_all_terminal_attempts": true
+    },
+    "kimina_autoformalizer_7b": {
+      "family_session_id": "research_family_session:efcd25dd032a54d023be74ffbb166c96a7e320a4fdb6b35cc6d1c2d86ad737f5",
+      "start_artifact_sha256": "804c58c2fb95e678070f75d2d28ba86edc663d39165e4a1dbca5108e52778793",
+      "end_artifact_sha256": "b6c0a3b89c62929734e26d316af75dba6adb756ae22ee25c3578fed846528099",
+      "planned_invocation_count": 40,
+      "completed_invocation_count": 40,
+      "load_count": 1,
+      "unload_count": 1,
+      "timestamps_enclose_all_terminal_attempts": true
+    },
+    "stepfun_formalizer_7b": {
+      "family_session_id": "research_family_session:eca3491027cb9855ea74e320e0863651921eb9e5726545c179bda0a31ce7e3de",
+      "start_artifact_sha256": "ea2bc4981c08009262f74c6d7708e97ff68e264713eb23774b11752ece20aba5",
+      "end_artifact_sha256": "7dcc19112ae7ad3b2f90a43174c683b46fff875d95a4b7d8cad4ab7fe68441b3",
+      "planned_invocation_count": 40,
+      "completed_invocation_count": 40,
+      "load_count": 1,
+      "unload_count": 1,
+      "timestamps_enclose_all_terminal_attempts": true
+    }
+  },
+  "raw_collector_tree": {
+    "file_count": 968,
+    "plan_file_count": 1,
+    "manifest_file_count": 1,
+    "terminal_file_count": 120,
+    "invocation_file_count": 840,
+    "family_session_file_count": 6,
+    "symlink_count": 0,
+    "partial_file_count": 0,
+    "tree_hash_algorithm": "sha256(canonical compact JSON object mapping repository-relative file path to file sha256, with sorted keys)",
+    "tree_sha256": "46dadfd459175a92e27a7d29f7da76518f9cbcdeedae5b3e7faaef10707cb415"
+  },
+  "resume_replay": {
+    "passed": true,
+    "command": "CUDA_VISIBLE_DEVICES='' NVIDIA_VISIBLE_DEVICES=void uv run python scripts/21_collect_research_tranche_v4.py --execute --config configs/generation/local_research_collection_algebra_s1_v4.json",
+    "gpu_visible": false,
+    "gpu_required_for_completed_replay": false,
+    "elapsed_ms": 3762,
+    "before_file_count": 968,
+    "after_file_count": 968,
+    "before_tree_sha256": "46dadfd459175a92e27a7d29f7da76518f9cbcdeedae5b3e7faaef10707cb415",
+    "after_tree_sha256": "46dadfd459175a92e27a7d29f7da76518f9cbcdeedae5b3e7faaef10707cb415",
+    "file_hash_map_byte_invariant": true,
+    "manifest_sha256_invariant": true,
+    "new_family_session_count": 0,
+    "new_invocation_count": 0,
+    "resume_invariance": true
+  },
+  "focused_checks": {
+    "pytest": {
+      "command": "uv run pytest -q tests/unit/test_lf021_research_collection_v4.py",
+      "passed": true,
+      "test_count": 2
+    },
+    "ruff": {
+      "command": "uv run ruff check src/leanfaith/generation/research_collection_v4.py scripts/21_collect_research_tranche_v4.py tests/unit/test_lf021_research_collection_v4.py",
+      "passed": true
+    },
+    "collector_v4_mypy": {
+      "command": "uv run mypy src/leanfaith/generation/research_collection_v4.py",
+      "passed": false,
+      "error_count": 2,
+      "diagnostics": [
+        "src/leanfaith/generation/research_collection_v4.py:128: error: Incompatible return value type (got \"str\", expected \"Literal['lf021_research_family_overlap_v2', 'lf021_research_family_overlap_v3']\")  [return-value]",
+        "src/leanfaith/generation/research_collection_v4.py:1174: error: Incompatible types in assignment (expression has type \"ScalableResearchSourceMatrixV3\", variable has type \"ScalableResearchSourceMatrixV2\")  [assignment]"
+      ]
+    }
+  },
+  "static_typing_debt": {
+    "bound_collector_v4_bytes_modified": false,
+    "raw_artifact_integrity_affected": false,
+    "runtime_validation_affected": false,
+    "follow_on": "Fix the two typing diagnostics only in a separately versioned collector-v5 or after all collector-v4 bound artifacts are retired; do not mutate the frozen collector-v4 module."
+  },
+  "hard_boundaries": {
+    "raw_collection_only": true,
+    "semantic_validity_claim": false,
+    "faithfulness_claim": false,
+    "supervision_admission_claim": false,
+    "heldout_or_unseen_claim": false,
+    "gate_5_credit_claim": false,
+    "gate_5_closure_claim": false,
+    "disposition": "The 120 terminal artifacts are complete, unique, hash-reconciled raw local generation evidence. They remain unparsed, unvalidated, semantically unlabeled, supervision-ineligible, and non-credit-bearing for Gate 5 or Gate 5G."
+  }
+}

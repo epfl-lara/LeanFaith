@@ -1,0 +1,39 @@
+schema_version: 1
+policy_id: lf021_gate5g_finalizer_v1
+status: frozen_prelabel
+
+required_decision_schema_version: 3
+required_v2_stop_action: freeze_preferred_frame
+required_prevalence_design_policy_id: lf021_prevalence_design_v2
+minimum_frame_size: 200
+maximum_frame_size: 300
+required_sampling_method: problem_aware_stratified_csprng_srs_without_replacement_v2
+required_sampling_rank_algorithm: hmac_sha256_keyed_rank_v1
+allowed_production_seed_sources:
+  - external_randomness_beacon_256
+  - os_csprng_secrets_token_bytes_256
+
+required_scalable_family_ids:
+  - goedel_formalizer_v2_8b
+  - kimina_autoformalizer_7b
+  - stepfun_formalizer_7b
+
+required_scope_flags:
+  three_family_collection_only: true
+  reduced_data_ablation: true
+  confirmatory_d4_d5_eligible: false
+  heldout_generator_claim_eligible: false
+  supplemental_qualifications_count_for_gate_credit: false
+
+required_reduced_data_reasons:
+  - confirmatory_d4_d5_unavailable
+  - heldout_generator_claim_unavailable
+  - three_family_collection_only
+
+dry_run_output_root: reports/generation/lf021_gate5g_finalization_v1
+canonical_gate_report: reports/gates/gate_5g.json
+
+semantic_labels_inspected_when_frozen: false
+semantic_labels_created: false
+supervision_eligible: false
+gate_5_closed: false

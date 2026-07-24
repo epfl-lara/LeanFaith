@@ -1,0 +1,12 @@
+schema_version: 1
+rule_id: n01_operator
+rule_version: 1.0.0
+family_id: n01_operator
+implementation_key: n01_operator
+candidate_pool: deterministic_negative_provisional
+replacement_table_path: configs/transformations/replacement_table_v1.yaml
+supported_declaration_kinds: [lemma, theorem]
+placeholder_forms: [by_sorry, sorry]
+require_exactly_one_site: true
+require_source_candidate_elaboration: true
+failed_proof_search_is_negative_evidence: false

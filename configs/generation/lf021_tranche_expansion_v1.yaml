@@ -1,0 +1,208 @@
+schema_version: 1
+policy_id: lf021_compilation_only_tranche_expansion_v1
+status: frozen
+
+# This exact allowlist is the entire decision surface. Compilation is not a
+# same-claim label, and no field below is allowed to stand in for one.
+decision_inputs:
+  - parse_status
+  - compile_status
+  - dedup_identity
+  - benchmark_screen
+  - family_id
+  - pool_id
+  - source_proxy
+forbidden_inputs:
+  - same_claim
+  - relation
+  - faithfulness_judgment
+  - llm_judgment
+  - human_label
+  - proof_search_result
+
+required_families:
+  - goedel_formalizer_v2_8b
+  - kimina_autoformalizer_7b
+  - stepfun_formalizer_7b
+
+pools:
+  - pool_id: algebra_gate3_docstrings_v1
+    problem_count: 40
+    records:
+      artifact: data/parsed/real_outputs/gate3_docstrings_operational_v1/problem_pool_records.jsonl
+      sha256: 6f45ebf158fcbb23f7b9833f2c433fb335cda7e66c061c0436aab68702330c6f
+    manifest:
+      artifact: data/parsed/real_outputs/gate3_docstrings_operational_v1/problem_pool_manifest.json
+      sha256: 229cf1dfcc7c8eee0de839c62b6beb708678ff2a2bea876803b704033de324d7
+    declared_source_proxies:
+      - Algebra/AffineMonoid
+      - Algebra/Algebra
+      - Algebra/BigOperators
+      - Algebra/Category
+      - Algebra/Exact
+      - Algebra/Group
+      - Algebra/other
+
+  - pool_id: cross_domain_docstrings_v1
+    problem_count: 20
+    records:
+      artifact: data/parsed/real_outputs/cross_domain_docstrings_operational_v1/problem_pool_records.jsonl
+      sha256: 13111c14f2061acd8e9ceb9a2ffe937c6c5b72025f32a0c2a9e93e49934aebbf
+    manifest:
+      artifact: data/parsed/real_outputs/cross_domain_docstrings_operational_v1/problem_pool_manifest.json
+      sha256: f7fdcdb9676148500ba4620bc12a4776192e8b4804ab6fc160571d4d8aef4122
+    declared_source_proxies:
+      - Analysis
+      - Combinatorics
+      - Geometry
+      - NumberTheory
+      - Probability
+      - Topology
+
+# Observations must be a complete prefix. The cross-domain tranche at order 1
+# is mandatory even if order 0 alone happens to produce many compiling items.
+# Later tranches alternate pools and never silently substitute another source.
+tranches:
+  - order: 0
+    tranche_id: algebra_s0
+    pool_id: algebra_gate3_docstrings_v1
+    seeds_by_family:
+      goedel_formalizer_v2_8b: 30
+      kimina_autoformalizer_7b: 0
+      stepfun_formalizer_7b: 0
+    expected_problem_count: 40
+    expected_invocations: 120
+    mandatory_before_stopping: true
+
+  - order: 1
+    tranche_id: cross_domain_s0
+    pool_id: cross_domain_docstrings_v1
+    seeds_by_family:
+      goedel_formalizer_v2_8b: 30
+      kimina_autoformalizer_7b: 0
+      stepfun_formalizer_7b: 0
+    expected_problem_count: 20
+    expected_invocations: 60
+    mandatory_before_stopping: true
+
+  - order: 2
+    tranche_id: algebra_s1
+    pool_id: algebra_gate3_docstrings_v1
+    seeds_by_family:
+      goedel_formalizer_v2_8b: 31
+      kimina_autoformalizer_7b: 1
+      stepfun_formalizer_7b: 1
+    expected_problem_count: 40
+    expected_invocations: 120
+
+  - order: 3
+    tranche_id: cross_domain_s1
+    pool_id: cross_domain_docstrings_v1
+    seeds_by_family:
+      goedel_formalizer_v2_8b: 31
+      kimina_autoformalizer_7b: 1
+      stepfun_formalizer_7b: 1
+    expected_problem_count: 20
+    expected_invocations: 60
+
+  - order: 4
+    tranche_id: algebra_s2
+    pool_id: algebra_gate3_docstrings_v1
+    seeds_by_family:
+      goedel_formalizer_v2_8b: 32
+      kimina_autoformalizer_7b: 2
+      stepfun_formalizer_7b: 2
+    expected_problem_count: 40
+    expected_invocations: 120
+
+  - order: 5
+    tranche_id: cross_domain_s2
+    pool_id: cross_domain_docstrings_v1
+    seeds_by_family:
+      goedel_formalizer_v2_8b: 32
+      kimina_autoformalizer_7b: 2
+      stepfun_formalizer_7b: 2
+    expected_problem_count: 20
+    expected_invocations: 60
+
+  - order: 6
+    tranche_id: algebra_s3
+    pool_id: algebra_gate3_docstrings_v1
+    seeds_by_family:
+      goedel_formalizer_v2_8b: 33
+      kimina_autoformalizer_7b: 3
+      stepfun_formalizer_7b: 3
+    expected_problem_count: 40
+    expected_invocations: 120
+
+  - order: 7
+    tranche_id: cross_domain_s3
+    pool_id: cross_domain_docstrings_v1
+    seeds_by_family:
+      goedel_formalizer_v2_8b: 33
+      kimina_autoformalizer_7b: 3
+      stepfun_formalizer_7b: 3
+    expected_problem_count: 20
+    expected_invocations: 60
+
+  - order: 8
+    tranche_id: algebra_s4
+    pool_id: algebra_gate3_docstrings_v1
+    seeds_by_family:
+      goedel_formalizer_v2_8b: 34
+      kimina_autoformalizer_7b: 4
+      stepfun_formalizer_7b: 4
+    expected_problem_count: 40
+    expected_invocations: 120
+
+  - order: 9
+    tranche_id: cross_domain_s4
+    pool_id: cross_domain_docstrings_v1
+    seeds_by_family:
+      goedel_formalizer_v2_8b: 34
+      kimina_autoformalizer_7b: 4
+      stepfun_formalizer_7b: 4
+    expected_problem_count: 20
+    expected_invocations: 60
+
+  - order: 10
+    tranche_id: algebra_s5
+    pool_id: algebra_gate3_docstrings_v1
+    seeds_by_family:
+      goedel_formalizer_v2_8b: 35
+      kimina_autoformalizer_7b: 5
+      stepfun_formalizer_7b: 5
+    expected_problem_count: 40
+    expected_invocations: 120
+
+  - order: 11
+    tranche_id: cross_domain_s5
+    pool_id: cross_domain_docstrings_v1
+    seeds_by_family:
+      goedel_formalizer_v2_8b: 35
+      kimina_autoformalizer_7b: 5
+      stepfun_formalizer_7b: 5
+    expected_problem_count: 20
+    expected_invocations: 60
+
+coverage:
+  minimum_unique_contribution_per_family: 20
+  minimum_unique_per_pool:
+    algebra_gate3_docstrings_v1: 40
+    cross_domain_docstrings_v1: 30
+  minimum_unique_per_family_pool_cell: 5
+  minimum_unique_per_declared_source_proxy: 1
+
+frame:
+  minimum_size: 200
+  preferred_size: 240
+  maximum_size: 300
+  stratum_definition: representative_family_x_pool_x_source_proxy
+  minimum_per_nonempty_stratum: 1
+  representative_hash_salt: lf021-global-alpha-representative-v1-frozen
+  sampling_hash_salt: lf021-human-prevalence-frame-v1-frozen
+
+semantic_labels_created: false
+supervision_eligible: false
+gate_5g_credit_claimed: false
+gate_5_closed: false

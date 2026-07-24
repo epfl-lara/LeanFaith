@@ -1,0 +1,1 @@
+offline mock: prior live probe observed a nonfatal stale model-cache diagnostic

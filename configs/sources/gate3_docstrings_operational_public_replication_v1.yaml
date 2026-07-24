@@ -1,0 +1,19 @@
+profile_version: gate3_docstrings_operational_public_replication_v1
+extends: configs/sources/public_replication.yaml
+private_sources_allowed: false
+sources:
+  lean_environment:
+    source: mathlib
+    revision: d568c8c09630de097a046763c17b9ea99f95f950
+  trusted_nl_lean:
+    source: mathlib_gate3_docstrings_operational_v1
+    config: configs/sources/mathlib_gate3_docstrings_operational_v1.yaml
+rules:
+  - all 40 records are public contributor docstrings from exact pinned mathlib Git blobs
+  - all 40 records form one Algebra tranche; path proxies do not establish cross-domain diversity or semantic-domain gold
+  - operational curation is Codex-assisted and is neither human review nor semantic gold
+  - model collection is authorized only for local pinned generator families
+  - reference theorem and representation artifacts are never generator inputs
+  - active benchmark screens and deterministic deduplication are rerun by the pool preflight
+  - no generator plan exists until the recovery-parser binding is frozen
+  - no artifact in this profile creates semantic labels or Gate-5 credit

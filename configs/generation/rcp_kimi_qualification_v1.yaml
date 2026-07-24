@@ -1,0 +1,93 @@
+schema_version: 1
+config_id: lf021_rcp_kimi_qualification_v1
+frozen_at: "2026-07-24T01:25:30Z"
+status: qualification_ready
+artifact_class: qualification
+
+transport:
+  transport_id: epfl_rcp_openai_compatible_v1
+  provenance: remote_on_prem_epfl_rcp
+  base_url_env: RCP_BASE_URL
+  api_key_env: RCP_API_KEY
+  expected_base_url: https://inference.rcp.epfl.ch/v1
+  catalog_path: /models
+  chat_completions_path: /chat/completions
+
+models:
+  primary:
+    model_id: moonshotai/Kimi-K2.7-Code
+    role: generator
+    use: primary_qualification_and_candidate_generator
+    family_id: moonshot_kimi_k2
+    diversity_group: moonshot_kimi_k2
+    counts_as_independent_family: false
+    judge_eligible: false
+    checkpoint_revision_status: unavailable_from_rcp_route_id
+    training_cutoff_status: unknown
+    contamination_status: unknown
+    unseen_claim_eligible: false
+    heldout_claim_eligible: false
+    evaluation_claim_eligible: false
+    supplemental_generator_candidates_only: true
+  fallback:
+    model_id: moonshotai/Kimi-K2.6
+    role: generator
+    use: explicit_fallback_and_ablation_only
+    family_id: moonshot_kimi_k2
+    diversity_group: moonshot_kimi_k2
+    counts_as_independent_family: false
+    judge_eligible: false
+    checkpoint_revision_status: unavailable_from_rcp_route_id
+    training_cutoff_status: unknown
+    contamination_status: unknown
+    unseen_claim_eligible: false
+    heldout_claim_eligible: false
+    evaluation_claim_eligible: false
+    supplemental_generator_candidates_only: true
+
+problem:
+  records_artifact: data/parsed/real_outputs/public_research_v1/one_example_preflight_v1/problem_pool_records.jsonl
+  records_sha256: c8b0329b101269015d8e33cce6cb06d9c8b5dbb30a936f787a177f013fd4155c
+  reference_theorems_artifact: data/parsed/real_outputs/public_research_v1/one_example_preflight_v1/reference_theorems.jsonl
+  reference_theorems_sha256: a372fdb29ae0755db156f9f69e7cce435719c9656b0187d21a187ec91ce97663
+  expected_problem_record_id: problem:3f8bc3e9dc8bf7e7850557b75544d8d8ef892afcf0f8776012ebc5fa7af7a05b
+  required_private_source_content: false
+  required_external_provider_eligible: true
+  require_reference_hidden: true
+
+prompt:
+  artifact: prompts/autoformalizers/rcp_reference_blind_v1.txt
+  sha256: e84a699cd8b1cc4a16a99dfdf11dfe0ede46fad0b5b72906730cae1599a6f304
+  declaration_name: leanfaith_rcp_qualification_v1
+  system_message: You translate public mathematical statements into proof-free Lean 4 theorem statements.
+
+decoding:
+  temperature: 0.0
+  max_tokens: 4096
+  seed: 0
+  stream: false
+  reasoning_effort: high
+  chat_template_enable_thinking: true
+
+retry:
+  max_attempts: 3
+  request_timeout_seconds: 600
+  catalog_timeout_seconds: 30
+  retry_delays_seconds: [5, 20]
+  retryable_http_statuses: [408, 425, 429, 500, 502, 503, 504]
+  cold_start_markers: [cold start, loading, model is loading, starting worker]
+
+outputs:
+  root: data/raw/real_outputs/rcp_kimi_qualification_v1
+  preflight_root: reports/generation/lf021_rcp_kimi_preflight_v1
+
+policy:
+  public_source_only: true
+  private_source_transmission_forbidden: true
+  reference_transmission_forbidden: true
+  bulk_execution_available: false
+  semantic_labels_created: false
+  supervision_eligible: false
+  gate_credit_claimed: false
+  gate_closed: false
+  fallback_counts_as_independent_family: false

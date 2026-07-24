@@ -1,0 +1,40 @@
+schema_version: 1
+config_id: problem_pool_v1
+status: ready
+selection_seed: lf021_gate3_docstrings_operational_v1
+
+sources:
+  - source: mathlib_gate3_docstrings_operational_v1
+    source_config: configs/sources/mathlib_gate3_docstrings_operational_v1.yaml
+    source_config_sha256: 6b96f4fa9d960186c2baa58dacd29427b94fd7cee1145417baf76051ba0c42dc
+    authorization:
+      source_revision: d568c8c09630de097a046763c17b9ea99f95f950
+      license_id: Apache-2.0
+      private_source: false
+      external_transmission: true
+      release_eligible: true
+    enabled: true
+    private_source: false
+    # Operational curation authorizes only the pinned local model families.
+    # Public licensing does not expand that curation decision to providers.
+    external_provider_eligible: false
+    allowed_trust: [trusted]
+    require_reference_theorem: true
+
+active_benchmark_registry_manifest: data/benchmarks/manifests/representation_signatures_v1.json
+active_benchmark_registry_manifest_sha256: 4ffbd31dd0e10efb9dfe7e57fb815690f3e1d750e4640aeff959ca4cbdc911df
+benchmark_preflight_required: true
+normalized_nl_exact_dedup: true
+near_duplicate:
+  status: frozen
+  method: supplied_group_ids
+  method_version: v1
+  threshold: 1.0
+private_source_external_transmission: false
+public_replication_profile: configs/sources/gate3_docstrings_operational_public_replication_v1.yaml
+
+outputs:
+  records: data/parsed/real_outputs/gate3_docstrings_operational_v1/problem_pool_records.jsonl
+  failures: data/parsed/real_outputs/gate3_docstrings_operational_v1/problem_pool_failures.jsonl
+  manifest: data/parsed/real_outputs/gate3_docstrings_operational_v1/problem_pool_manifest.json
+  coverage_report: reports/generation/lf021_gate3_docstrings_operational_pool_v1.json

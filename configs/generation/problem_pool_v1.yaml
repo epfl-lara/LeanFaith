@@ -1,0 +1,48 @@
+schema_version: 1
+config_id: problem_pool_v1
+status: disabled_until_phase_5_adr
+selection_seed: leanfaith_problem_pool_v1
+
+# Every source stays disabled in this foundation config. Enabling one requires
+# a frozen Phase-5 ADR, complete source terms/provenance, and a regenerated
+# config hash. Private sft_classic is never external-provider eligible.
+sources:
+  - source: sft_classic
+    source_config: configs/sources/sft_classic.yaml
+    enabled: false
+    private_source: true
+    external_provider_eligible: false
+    allowed_trust: [synthetic, uncertain]
+    require_reference_theorem: true
+  - source: sft_classic_numina
+    source_config: configs/sources/sft_classic_numina.yaml
+    enabled: false
+    private_source: false
+    external_provider_eligible: false
+    allowed_trust: [synthetic, uncertain]
+    require_reference_theorem: true
+  - source: lean_workbook
+    source_config: configs/sources/lean_workbook.yaml
+    enabled: false
+    private_source: false
+    external_provider_eligible: false
+    allowed_trust: [synthetic]
+    require_reference_theorem: true
+
+active_benchmark_registry_manifest: data/benchmarks/manifests/representation_signatures_v1.json
+active_benchmark_registry_manifest_sha256: 4ffbd31dd0e10efb9dfe7e57fb815690f3e1d750e4640aeff959ca4cbdc911df
+benchmark_preflight_required: true
+normalized_nl_exact_dedup: true
+near_duplicate:
+  status: disabled_until_method_frozen
+  method: null
+  method_version: null
+  threshold: null
+private_source_external_transmission: false
+public_replication_profile: configs/sources/public_replication.yaml
+
+outputs:
+  records: data/parsed/real_outputs/problem_pool_v1.jsonl
+  failures: data/parsed/real_outputs/problem_pool_failures_v1.jsonl
+  manifest: data/parsed/real_outputs/problem_pool_manifest_v1.json
+  coverage_report: reports/generation_coverage.md

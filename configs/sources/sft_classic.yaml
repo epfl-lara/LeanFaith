@@ -1,7 +1,8 @@
 # Source config: sft_classic (PLAN.md §9.1, §9.2, B.2).
-# Requested private primary NL-Lean source. Anonymous access returns 401; the
-# project HF token is expected to load it. Nothing about license, schema, or
-# counts is verified until the Gate 0 authenticated probe runs.
+# Verified private internal-research source. Anonymous access returns 401; the
+# project HF token resolves the pinned revision below. Its license is
+# undeclared, so redistribution, release, and external-provider transmission
+# are prohibited unless a superseding authorization record is approved.
 source_config_version: 1
 source: sft_classic
 kind: huggingface_dataset
@@ -12,30 +13,30 @@ auth:
   hf_token_env: HF_TOKEN  # secret referenced by name only; the token value is never stored in configs or manifests (§9.2)
 token:
   env: HF_TOKEN  # SecretRef shape consumed by HFProbeConfig; name only, resolved at call time
-required_probe:  # Gate 0 fails without the archived probe artifact (§9.2)
+required_probe:  # archived probe artifact requirements (§9.2)
   - resolved_id
   - revision
   - license
   - schema
   - archived_100_row_sample_hash
-external_api_approved: null  # §9.2 approval decision required before any provider call containing this source's content
+access_basis: authenticated_project_hf_token
+institutional_policy_status: internal_research_only_pending_formal_license
+license_status: undeclared
+redistribution: false
+external_transmission: false
+release_eligibility: false
+external_api_approved: false
 fallback_order:  # fixed NL-source fallback order (§9.1); contingency only
   - formalmathatepfl/sft_classic_numina
   - internlm/Lean-Workbook
   - "PAug/ProofNetVerif:train"
 role: primary_nl_lean_candidate
-probe_status: unresolved
-unresolved: >-
-  Awaiting the approved authenticated probe (data-collection boundary).
-  HF_TOKEN exists in the environment, but the authenticated sft_classic probe
-  has not run. Unblocked by an explicit approval to execute the Gate 0 probe
-  of §9.2, which archives resolved ID and immutable revision, access status
-  and license/terms, split names/counts and full schema, a raw 100-row sample
-  plus SHA256, adapter mapping/version, and phase5_pool_candidate_count.
+probe_status: verified_private
 notes: >-
   Do not guess sft_classic fields from ProofNetVerif (§9.2). If the probed NL
   provenance is synthetic or unknown, rows are retained only under the
-  corresponding nl_trust tag, never silently upgraded (§9.4).
+  corresponding nl_trust tag, never silently upgraded (§9.4). No row content
+  may be sent to an external model provider under the current policy.
 
 # --- Probe results (2026-07-10, authenticated; Gate 0 task 3) ---
 probe:
@@ -48,7 +49,8 @@ probe:
             lean_code, token_count, tactic_count, lean_score, lean_rank]
   sample_hash_prefix: 9913ae837d021d6e
   structure: question is prompt-wrapped proof-stripped Lean with NL in the docstring;
-    lean_code is the completed proof; valid marks typecheck success
+    lean_code is the completed proof; valid marks typecheck success. Extraction preserves
+    the original but elaborates only a bracket/comment-aware proof-stripped fallback.
   nl_provenance: per-row data_source (Goedel-LM/SFT_dataset_v2, Goedel-LM/Goedel-Pset-v1,
     formalmathatepfl/solved_problems_finetuning_iter1, AI-MO/NuminaMath-LEAN, uw-math-ai/APRIL);
     nl_trust tagged per row by the LF-011 adapter, source-level uncertain

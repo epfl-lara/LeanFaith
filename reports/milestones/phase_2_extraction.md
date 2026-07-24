@@ -1,112 +1,133 @@
-# LF-012 + LF-013 — Declaration extraction and benchmark freeze (Phase 2)
+# Phase 2 — Ingestion and benchmark freeze (Revision 4.1)
 
-**Date:** 2026-07-11
-**Scope (PLAN.md §26):** LF-012 declaration extraction (ranges/proof strip/
-revalidation/failure records); LF-013 benchmark freeze (source IDs +
-normalized-NL + raw-text hashes before any Phase-4 generation).
+**Updated:** 2026-07-18
+**Decision:** **PASS**
+**Authorization:** LF-016 remains blocked until Gate 3 passes.
 
-## LF-012 — Extraction
+Gate 2 establishes deterministic, fully accounted theorem-statement ingestion
+and freezes the exact 10,000-theorem denominator for Gate 3. Non-elaborating
+and non-Prop rows remain explicit failures rather than being called theorems.
 
-- `src/leanfaith/lean/extraction.py`: range-based proof stripping (§12.2/§12.4).
-  Verified against the real REPL that Lean reports **codepoint** columns (even
-  for non-BMP symbols like `𝓝`), so the strip is
-  `source[decl_start .. signature.range.finish] + " := by sorry"` with direct
-  Python string offsets. Builds `TheoremRecord` + minimal
-  `RepresentationRecord` (three required v0 views) + `SourceIdentity`, computes
-  §12.6 theorem/ancestry IDs, and emits explicit `ExtractionFailure` records
-  (not-a-proposition, missing/out-of-bounds range, duplicate name). Selects
-  only `theorem`/`lemma` (always propositions); quarantines duplicate names
-  (§12.3). **Quality flags** on each record — `trivial_conclusion`,
-  `autoparam_tactic_in_signature`, `transform_source_eligible` — surface
-  malformed autoformalizations for the transform stage without dropping them.
-- `src/leanfaith/lean/extract_run.py` + `scripts/02_extract_statements.py`:
-  FileCommand (repository) and Command (dataset-snippet) drivers with
-  per-declaration revalidation (`reconstruct_for_revalidation` re-elaborates
-  each stripped statement in its own context — the real proof-leak guard),
-  idempotent partition writing, and OutputManifests.
+## Prerequisites
 
-### Real extraction run (30 mathlib files + 100 sft_classic valid rows)
+- Gate 0: `pass_internal_research_only`; SHA-256
+  `4ca346600b867324ef39632922e339f19275297e7a362cefe6fc470feb684e9c`.
+- Gate 1: `pass`; SHA-256
+  `638690d5f49be3d6673b2b01fca800fd89d04584b605b0a4328eedc4b7095971`.
+- Doctor: 7/7, zero warnings; SHA-256
+  `587fd3dae6c251c31244deb429d437dc241b94a8695ddb9b0485df7240dca706`.
+- Current verification: 460 pytest tests, Ruff lint/format, strict mypy over
+  59 source files, API probe, doctor, and Lean fixtures all passed.
 
-| source | processed | declarations | accepted | key finding |
-|---|---|---|---|---|
-| mathlib | 30 files | 1,345 | **909 theorems** | 68% of decls are theorems/lemmas; rest (defs/instances) correctly skipped; 1 duplicate-name quarantine |
-| sft_classic | 100 valid rows | 89 | **86 theorems** (all revalidated) | **31 rows do not elaborate against our pinned mathlib** (version drift) |
+The private `sft_classic` source remains internal-research-only and cannot be
+redistributed or sent to external providers.
 
-Two findings driven by the data:
-1. **~31% of `valid=true` sft_classic rows fail to elaborate** against
-   mathlib `v4.31.0-rc1` — they were autoformalized against a different
-   mathlib. Revalidation catches this; only elaborating rows become source
-   theorems. So the usable deterministic-variation frame is ≈69% of valid
-   rows, not 100%.
-2. **Malformed autoformalizations**: some rows stuff the proof into a binder
-   autoParam (`(x : ℕ := by ...) : True`) with a `True` conclusion. Lean
-   accepts them (`valid=true`) but they are worthless as transform sources.
-   The proof-strip handles them correctly (robust through autoParams); the
-   quality flags mark them `transform_source_eligible=false`.
+## Immutable 100-row regression
 
-Artifacts (local; `data/` gitignored): `data/extracted/theorems/{mathlib,
-sft_classic}.jsonl`, `data/extracted/failures/mathlib.jsonl`,
-`data/extracted/manifests/*.json`. Full mathlib extraction (8,112 files) is a
-resumable batch to launch when needed.
+Input SHA-256:
+`9913ae837d021d6e9857659346fe47088762c3ab19dc378551e77a5bc0be38cd`.
+Expected-outcome SHA-256:
+`7aaf607c2dbff00f37242fa75015c6ddc7625c60e6e27be602592c17f40cead8`.
 
-## LF-013 — Benchmark denylist freeze
+| Outcome | Rows |
+|---|---:|
+| accepted question theorem | 85 |
+| accepted `lean_code` fallback | 10 |
+| elaborating non-Prop definition | 1 |
+| source non-elaboration | 4 |
+| **total** | **100** |
 
-- `src/leanfaith/datasets/denylist.py`: `normalize_nl` (aggressive: lowercase +
-  whitespace-collapse, so reformatted problems still match) and
-  `normalize_lean` (case-preserving), frozen-registry schema, `DenylistIndex`
-  for O(1) NL/Lean membership, and `build_proofnetverif`.
-- **`data/benchmarks/frozen_ids.json` (tracked)**: ProofNetVerif fully frozen
-  at rev `91183e5b` — 3,752 rows (2,300 valid + 1,452 test) → **361 unique NL
-  problems** (≈10 candidates each) and **4,108 Lean signatures**. Nine further
-  protected benchmarks (ProofNet#, RLM25, Con-NF, EPLA, CriticLeanBench,
-  ConsistencyCheck, Gaokao-Formal, DriftBench, miniF2F variants) are
-  denylisted by name with resolution plans (§19.7/J.6: recorded, never
-  substituted); their exact hashes are added before use.
-- Frozen **before any generation** (§19.4); representation-based near-duplicate
-  signatures append at the end of Phase 3 (LF-014,
-  `representation_signatures_appended=false` marks that gate).
+Thus 95 rows yield accepted propositions. The apparent 86th question-route
+elaboration is `def halfRoundDown`, not a proposition. The artifact has 97
+declarations, 95 accepted declarations, two declaration failures, four
+partial-declaration diagnostics, and seven failure records. Every route and
+signature matches the per-row oracle.
 
-## Acceptance evidence
+Artifact hashes:
 
-```text
-ruff / mypy               → clean (43 source files)
-pytest tests/unit         → all green (extraction, orchestration, denylist)
-live extraction tests     → every declaration shape strips + revalidates VALID_WITH_SORRY
-real run                  → 909 mathlib + 86 sft_classic theorems, manifests written
-frozen_ids.json           → 4,469 signatures, membership verified on real rows
-```
+- manifest `317dbbc00857db543b9773b4b54f81f40d870dbd6d23265856097aae83606bc8`;
+- theorems `ad2c3bf8509d21a09c88ad7715255391f94cb9283c987aa888e61160ae520ed2`;
+- failures `5edad96bdf5e913e775f999f8b655b5b30562caf9500e84318b0057b4afb7946`.
 
-## Adversarial review (extraction code)
+## Frozen 20,000-row `sft_classic` audit
 
-A 3-dimension find-then-verify workflow (29 agents) reviewed
-`extraction.py`/`extract_run.py`. Confirmed findings, all fixed:
+Pre-extraction-stratified sample SHA-256:
+`de589184690baa7ac89d5a3c542702db793dced493d04aca9b5e92d0079dc41d`;
+sampling-manifest SHA-256:
+`12258cd258d8ef50ba2082d009c0ef82d8678dd9c8980629fe1450c93f1288c5`.
 
-- dataset-path extraction failures and revalidation failures are now written
-  as explicit `ExtractionFailure` records (§10 rule 5), symmetric with the
-  repo path; `REVALIDATION_FAILED` is instantiated;
-- the extraction script derives a **real** project-level context fingerprint
-  and persists the `ContextRecord`, so `context_id`/`theorem_id` no longer
-  embed a placeholder;
-- **`mutual … end` blocks** return zero declarations from LeanInteract — their
-  inner theorems are not currently extractable via the declarations API. This
-  is now counted distinctly (`elaborating_no_declarations`) so the gap is
-  auditable rather than silent; full mutual-block extraction is a known
-  limitation deferred to a later InfoTree-based pass;
-- partition writing is now crash-safe: records stage to `<source>.jsonl.partial`
-  and atomically replace the live partition only at run end, so a degraded
-  re-run can never destroy a prior good partition.
+Both independent executions reconcile exactly:
 
-## Notes / deviations
+| Item | Count |
+|---|---:|
+| input / accepted / failed rows | 20,000 / 18,643 / 1,357 |
+| theorem / failure records | 18,669 / 1,584 |
+| declarations seen / accepted / failed-skipped | 18,896 / 18,669 / 227 |
+| partial-declaration diagnostics | 1,266 |
+| question / fallback accepted rows | 16,867 / 1,776 |
+| non-Prop / source-failure rows | 95 / 1,262 |
 
-- Full per-declaration revalidation runs for dataset snippets (cheap,
-  single-theorem); for repository files the FileCommand elaboration is trusted
-  (the declaration compiled as part of the file) and per-statement
-  revalidation is sampled — re-elaborating each of a file's hundreds of
-  statements standalone is O(n²). Recorded as an intentional scope choice.
-- Per-declaration `ContextRecord`s (precise per-file imports) are deferred to
-  LF-014; extraction uses a project-level REPL context for the request and
-  records the context_id on each theorem.
+Audits A and B are byte-identical, `ok=true`, with no errors; SHA-256
+`fd6115b6547e37615f39b3d64f9dd704e28c48cfa49088079f914d839fe4f425`.
+The normalized replay is `ok=true`, compares 18,669 theorem and 1,584 failure
+records per side with zero errors; SHA-256
+`3ced74e5a00734766c5bfb7dcaab49a65826e08a94d8c4335e0855f31df27de5`.
 
-**Next:** LF-014 — full multi-view representations (supersedes the minimal
-extract views) and appends the Phase-3 near-duplicate signatures to the
-frozen registry.
+Run A hashes: manifest
+`0674aafe8f2954e1bb667b00cd8db42aede078f066214ee4542e2f228ad2790e`,
+theorems `d5840eca5eca9f348547df64a7432bab3d343bff155a03e7ba327479e11f6e4c`,
+failures `d4e7010859f0f2a448857ca84e1897a79db22c72ed615941bc0a0c89fb4d4611`.
+Run B hashes: manifest
+`e4ddeb055c708bb53a36662ace15c0cd85349e3b8e9bf0e549f900214e891381`,
+theorems `ec343c5fc468641dc729eb6d57b4557c5d2a75a8402a4bd2c9742841d8f31cc0`,
+failures `d4e7010859f0f2a448857ca84e1897a79db22c72ed615941bc0a0c89fb4d4611`.
+
+The theorem files differ bytewise only in allowed operational timestamps;
+normalized replay requires exact semantic and terminal-outcome equality. The
+Run-A code bundle SHA-256 is
+`21769ae87ef126cf725a32abf20c0e97561af1dbc0fa0865d653b2f9258c882d`.
+It includes an unused `extract_run.py.orig` backup that was never imported or
+executed. The deviation is disclosed; the file is absent from the current
+tree and the Gate-3 bundle.
+
+## Pinned mathlib extraction
+
+The pinned 400-file extraction has 400 explicit file outcomes: 281 accepted,
+51 with no accepted proposition, 66 non-elaborating, and two elaborating with
+no declarations. Its 9,999 declaration outcomes are 6,397 accepted and 3,602
+failed/skipped; all 3,670 failure records reconcile. There are 6,386
+transform-eligible propositions; 11 accepted `autoParam` signatures are
+explicitly excluded. All 401 input and all output checksums verify.
+
+- manifest `e38138d23b964d3b409ac03c878f4761c88ea2d8258480d493c976eae4fb9c23`;
+- theorems `3a2e49b9481ab903fba6d2b0a28e54fa4d1cbb75b331296aae7b77251644323e`;
+- failures `632404b0b7379c82c3011f734af30c635b153229ade698ece7fdea1e200e4e0f`;
+- integrity audit `243c3e055a7da561a5cba52d6cadd221aabde12504a1d1755558a2f8f23b86f6`;
+- code bundle `b78ac2357280f114fa2b523ea6cc38c61e4b589c2d0311426e79ae5fde20642e`.
+
+All extracted theorem records use context
+`ctx:0cd06826b8767b3bc951c0eb00c802424af95785b558f9f8a61f18694a86c4ce`.
+
+## Exact Gate-3 denominator
+
+| Source | Input | Eligible | Selected |
+|---|---:|---:|---:|
+| mathlib | 6,397 | 6,386 | 5,000 |
+| `sft_classic` | 18,669 | 17,933 | 5,000 |
+| **total selected** |  |  | **10,000** |
+
+The schema-v2 freeze uses `gate3_equal_source_hash_order_v1`. It has one
+context, no duplicate/cross-source theorem IDs, and permits no denominator
+change after freezing.
+
+- manifest SHA-256
+  `19f5c38ea15bbc72c97fe73be6f4a50d5491e3e27cdf024cc05889d4eb1471e3`;
+- exact 10,000-row partition SHA-256
+  `8eb75ffa0b9233c5a91492fa181f604e3c098a6f3970799bcb0406f8b517f09e`.
+
+## Decision
+
+All Gate-2 unit, fixed-regression, scale, accounting, replay, source-scale,
+equal-source-freeze, immutable-denominator, prerequisite, and archived-code
+requirements pass. Gate 2 is closed. Gate 3 must run on the exact frozen
+partition; LF-016 remains unauthorized until Gate 3 closes.

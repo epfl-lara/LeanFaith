@@ -1,0 +1,16 @@
+schema_version: 1
+rule_id: n10_nearby_theorem
+rule_version: 1.0.0
+family_id: n10_nearby_theorem
+implementation_key: n10_nearby_theorem
+candidate_pool: deterministic_negative_provisional
+replacement_table_path: configs/transformations/replacement_table_v1.yaml
+supported_declaration_kinds: [lemma, theorem]
+placeholder_forms: [by_sorry, sorry]
+minimum_signature_tokens: 8
+minimum_positional_overlap_ppm: 900000
+require_exactly_one_curated_component_diff: true
+require_distinct_source_theorems: true
+require_disjoint_root_ancestries: true
+require_source_donor_candidate_elaboration: true
+failed_proof_search_is_negative_evidence: false

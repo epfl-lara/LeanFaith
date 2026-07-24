@@ -1,0 +1,71 @@
+schema_version: 2
+policy_id: lf021_remote_generation_v2
+frozen_at: "2026-07-24T05:30:00Z"
+status: prospective_fail_disabled_no_execution_authorization
+
+portfolio:
+  artifact: configs/generation/rcp_provider_portfolio_v2.yaml
+  sha256: 729bb9c56e4787906bcdf4ffec2e70365523e1e6fe0de59c6d3e6ddc0aedfbe3
+predecessor_policy:
+  artifact: policies/rcp_remote_generation_v1.yaml
+  sha256: c924efacdf2bd28373eed255c9b04b8e45cb56d430b2f4906b253ab63d661470
+
+scope:
+  public_sources_only_if_later_admitted: true
+  reference_hidden_if_later_admitted: true
+  private_sft_classic_transmission_forbidden: true
+  trusted_lean_reference_transmission_forbidden: true
+  route_execution_authorized: false
+  additional_qualification_calls_authorized: false
+  proposal_generation_authorized: false
+  bulk_remote_collection_authorized: false
+  semantic_label_use_authorized: false
+  supervision_use_authorized: false
+  training_use_authorized: false
+  gate_use_authorized: false
+  heldout_or_unseen_claim_authorized: false
+
+future_role_policy:
+  primary: moonshotai/Kimi-K2.7-Code
+  same_family_fallback: moonshotai/Kimi-K2.6
+  distinct_family_backup: Qwen/Qwen3.6-35B-A3B
+  upper_capacity_ablation: Qwen/Qwen3.5-397B-A17B
+  cheap_non_thinking_fallback: Qwen/Qwen3-30B-A3B-Instruct-2507
+  excluded_default_text_only: Qwen/Qwen3-VL-235B-A22B-Thinking
+  selective_high_value_public_proposer: gpt-5.6-terra
+  clean_heldout_judge_family: intentionally_unassigned
+
+family_accounting:
+  - family_id: moonshot_kimi_k2
+    route_ids:
+      - moonshotai/Kimi-K2.7-Code
+      - moonshotai/Kimi-K2.6
+    independent_family_count: 1
+    current_gate_family_credit: 0
+  - family_id: qwen3
+    route_ids:
+      - Qwen/Qwen3.6-35B-A3B
+      - Qwen/Qwen3.5-397B-A17B
+      - Qwen/Qwen3-30B-A3B-Instruct-2507
+      - Qwen/Qwen3-VL-235B-A22B-Thinking
+    independent_family_count: 1
+    current_gate_family_credit: 0
+  - family_id: openai_codex
+    route_ids:
+      - gpt-5.6-terra
+    independent_family_count: 1
+    current_gate_family_credit: 0
+
+admission_boundary:
+  authorized_route_ids: []
+  required_future_artifact: separately_versioned_route_admission_policy_and_execution_manifest
+  exact_route_and_decoding_contract_must_be_requalified: true
+  human_quality_review_required_before_model_ranking: true
+  no_v1_or_v2_qualification_counts_as_semantic_evidence: true
+  no_silent_route_or_precision_substitution: true
+
+provider_calls_performed_by_policy_creation: 0
+semantic_labels_created: false
+supervision_eligible: false
+gate_credit_eligible: false
+gate_closed: false

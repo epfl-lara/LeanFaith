@@ -1,0 +1,133 @@
+{
+    "audited_at": "2026-07-23T20:34:48Z",
+    "generated_at": "2026-07-23T20:11:59Z",
+  "probe_kind": "lf021_local_generator_availability",
+  "schema_version": 1,
+  "status": "available_not_runtime_qualified",
+  "hub_client": {
+    "name": "huggingface_hub",
+    "version": "1.23.0"
+  },
+    "local_device": {
+        "driver_version": "595.71.05",
+        "memory_total_mib": 24564,
+        "name": "NVIDIA GeForce RTX 4090",
+        "measurement_only": true
+    },
+    "models": [
+        {
+            "activation_status": "disabled_pending_runtime_prompt_parser_overlap_and_fixture_qualification",
+            "architecture": "Qwen2ForCausalLM",
+            "artifact_sha256": {
+                "config.json": "1bc02cfa2fbdb052184f7af9d348ccfe1ed374db9e123c202f3bd855c22669be",
+                "generation_config.json": "722a06091ec871c6cbc3dda5412f294267bcd5d9310f4ffbef1d358000dd3bfc",
+                "README.md": "3dacbeef57ce2e15a83a3dee53b908e2020acf3617dce6c502325d553c1c1a75",
+                "tokenizer_config.json": "adf48fe03efc6ccb759a592b536527423b99c1db65fcf5520e9286abbcc3397f"
+            },
+            "base_model": "Qwen/Qwen2.5-Coder-7B-Instruct",
+            "checkpoint_weight_bytes": 15231271864,
+            "download_size": "15.2G",
+            "gated": false,
+            "gate_5g_credit": false,
+            "intended_role": "supervision_eligible_generator_1",
+            "license": "apache-2.0",
+            "max_position_embeddings": 32768,
+            "parameter_count": 7615616512,
+            "private": false,
+            "repo_id": "AI-MO/Kimina-Autoformalizer-7B",
+            "revision": "ddd47cb477d93b3ca990468e1c0d5ad6b60973dd",
+            "runtime_qualified": false,
+            "training_lineage_status": "not_disclosed_in_pinned_card"
+        },
+        {
+            "activation_status": "disabled_pending_runtime_prompt_parser_overlap_and_fixture_qualification",
+            "architecture": "Qwen3ForCausalLM",
+            "artifact_sha256": {
+                "config.json": "6d4190d4c7ae77cba38a83cce1152ead961929795a7a95d4814b3fb65ab878a3",
+                "generation_config.json": "ae29473afe95319d9adb9553a2cad4a89db813ff768792f29c5278fb127ff4cc",
+                "README.md": "fb99bdc55ff4af4f2b49b14a71f64d2402ed7780202cd9e424236480e1f2e4d9",
+                "tokenizer_config.json": "5d27a191a7ba6f93bcc2a8e78bc633764bbaaee263e9f3d9225e2c8621a5dd72"
+            },
+            "base_model": "Qwen/Qwen3-8B",
+            "checkpoint_weight_bytes": 16381516824,
+            "download_size": "16.4G",
+            "gated": false,
+            "gate_5g_credit": false,
+            "intended_role": "supervision_eligible_generator_2",
+            "license": "apache-2.0",
+            "max_position_embeddings": 40960,
+            "parameter_count": 8190735360,
+            "private": false,
+            "repo_id": "Goedel-LM/Goedel-Formalizer-V2-8B",
+            "revision": "fe2d362d899601abe79d7d5e95eaa7fe9883a0cb",
+            "runtime_qualified": false,
+            "training_lineage_status": "not_disclosed_in_pinned_card"
+        },
+        {
+            "activation_status": "disabled_pending_runtime_prompt_parser_overlap_and_fixture_qualification",
+            "architecture": "Qwen2ForCausalLM",
+            "artifact_sha256": {
+                "config.json": "7ac9c14e315f21fe7b4ed23810a0c4264c093d85ffe709978824ee231eb609ed",
+                "generation_config.json": "72cbec1015da9ed03ad025483005cbf6481403abf947adfd54e504d1a66a2126",
+                "README.md": "c863993187169d618e130adbfbd220e7f15bbbc55697b701d6f0b11fb9e33d9f",
+                "tokenizer_config.json": "aefa2a0c2214c8e3a5f1c45b080ddf70362ee3482ceb0e9b362cc42cf3ac1682"
+            },
+            "base_model": "deepseek-ai/DeepSeek-R1-Distill-Qwen-7B",
+            "checkpoint_weight_bytes": 15231271960,
+            "download_size": "15.2G",
+            "gated": false,
+            "gate_5g_credit": false,
+            "intended_role": "supervision_eligible_generator_3",
+            "license": "apache-2.0",
+            "max_position_embeddings": 131072,
+            "parameter_count": 7615616512,
+            "private": false,
+            "repo_id": "stepfun-ai/StepFun-Formalizer-7B",
+            "revision": "fb0dc612761fecd64ebbc489c2a3417e9ea01968",
+            "runtime_qualified": false,
+            "training_lineage_status": "dataset_id_declared_revision_and_lineages_unresolved"
+        },
+        {
+            "activation_status": "disabled_pending_runtime_prompt_parser_overlap_and_fixture_qualification",
+            "architecture": "Qwen3ForCausalLM",
+            "artifact_sha256": {
+                "config.json": "1f07053448f4e78ae0e21211c91ff8445e591e6da218a5432aec59e6ef6d8338",
+                "generation_config.json": "85eb7aa4abab67dfbc3898a53616cd1c039f63d97c456becc2deb65286c037e8",
+                "README.md": "dab91cf6676f157058f3b68aae5e015573b5573f4b2d0e834875c0b902f55ede",
+                "tokenizer_config.json": "c9836df2e942ba9887ef1c721c100d9f4746aaf86e79e7ed99ceb0af78a3b48e"
+            },
+            "base_model": "Qwen/Qwen3-8B",
+            "checkpoint_weight_bytes": 16381516712,
+            "download_size": "16.4G",
+            "gated": false,
+            "gate_5g_credit": false,
+            "intended_role": "supervision_excluded_heldout_generator",
+            "license": "apache-2.0",
+            "max_position_embeddings": 40960,
+            "parameter_count": 8190735360,
+            "private": false,
+            "repo_id": "GuoxinChen/ReForm-8B",
+            "revision": "1589c832cfad679a280b222e694b987a33befd26",
+            "runtime_qualified": false,
+            "training_lineage_status": "project_policy_requires_lean_workbook_overlap_tag",
+            "training_overlap_note": "ReForm x Lean-Workbook items require an overlap tag and are ineligible as held-out-generator evidence."
+        }
+  ],
+  "runtime_probe": {
+    "accelerate_installed": false,
+    "bitsandbytes_installed": false,
+    "torch_installed": false,
+    "transformers_installed": false,
+    "vllm_installed": false
+    },
+    "rules": {
+        "checkpoint_weights_downloaded": false,
+        "external_inference_api_used": false,
+        "hub_metadata_api_used": true,
+        "inference_execution_authorized": false,
+        "metadata_download_performed": true,
+        "model_cards_and_configs_downloaded": true,
+        "private_source_transmission_allowed": false,
+        "qualifies_for_gate_5g": false
+  }
+}

@@ -1,0 +1,43 @@
+# Public, contributor-authored mathlib theorem docstrings introduced after
+# FormalRx v1 was submitted. This is a small LF-021 research-pool source, not
+# the pinned Lean execution environment and not a benchmark.
+source_config_version: 1
+source: mathlib_post_formalrx_docstrings_v1
+kind: git_curated_docstrings
+repo_url: https://github.com/leanprover-community/mathlib4
+source_snapshot_revision: c368140668f5fa16a1bd977448c1f665d48c3df4
+source_snapshot_date: "2026-07-10T22:27:48+00:00"
+license: Apache-2.0
+license_blob_sha1: 8dada3edaf50dbc082c9a125058f25def75e625a
+raw_records: data/raw/real_outputs/public_research_v1/mathlib_post_formalrx_docstrings_v1.json
+trust_policy:
+  nl_trust: trusted
+  required_basis: exact_contributor_docstring_in_introduction_git_blob
+  require_introduction_commit_after: "2026-07-06T00:00:00+00:00"
+  note: >-
+    "Post-submission" is a temporal provenance fact, not proof that a model
+    never saw the item and not proof of independence from all FormalRx source
+    lineages.
+formalrx_policy:
+  source_lineage_tag: mathlib_docstring_theorem_pairs
+  temporal_tag: post_submission_commit
+  pretraining_contamination_status: unknown
+  post_submission_unseen_claim_eligible: false
+  source_independent_claim_eligible: false
+  heldout_generator_claim_eligible: false
+execution_environment:
+  project_registry_key: mathlib
+  project_revision: d568c8c09630de097a046763c17b9ea99f95f950
+  import_header_artifact: examples/lf021_public_research_mathlib_header_v1.lean
+probe:
+  status: verified_local_git_objects
+  resolved_revision: c368140668f5fa16a1bd977448c1f665d48c3df4
+  record_count: 3
+  private_source_content: false
+  external_provider_content_permitted: true
+lf021_authorization:
+  source_revision: c368140668f5fa16a1bd977448c1f665d48c3df4
+  license_id: Apache-2.0
+  private_source: false
+  external_transmission: true
+  release_eligible: true

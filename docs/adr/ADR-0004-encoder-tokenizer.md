@@ -1,69 +1,88 @@
-# ADR-0004: Encoder and tokenizer selection
+# ADR-0004: Encoder and tokenizer pilot
 
-**Status:** authored_pending_gate_0_review (Gate 0 approval is recorded in
-`reports/milestones/phase_0_contract.md`, not here; finalizes at the LF-028
-tokenizer audit; see Decision)
-**Date:** 2026-07-10
-**Source of truth:** PLAN.md section 6.4 (lines 362-364), section 13.7,
-sections 21.1-21.3.
+**Status:** protocol_frozen_pending_execution
+**Date:** 2026-07-14
+**Source of truth:** PLAN.md Revision 4.1 §6.4, §13.7, and §21.2
 
 ## Context
 
-The model family of PLAN.md sections 21.1-21.3 (M0 dual encoder through M4, plus the
-M5 graph extension) needs a pretrained encoder whose tokenizer handles Lean statement
-text well. Lean text is dense in Unicode mathematical symbols, dotted namespaces,
-subscripted identifiers, and long elaborated signatures; a tokenizer that fragments
-these inflates sequence length, forces truncation, and degrades exactly the
-near-miss-sensitive comparisons the project targets.
+LeanFaith needs a non-autoregressive encoder whose tokenizer preserves Lean
+binders, hypotheses, conclusions, Unicode operators, and qualified constants.
+No backbone is selected in advance and no hard parameter ceiling defines
+"lightweight". The scientific decision is a preregistered quality/efficiency
+pilot; ModernBERT-base is only a smoke fallback if the pilot cannot run.
 
-PLAN.md fixes the candidate set and the audit obligation: default candidate
-ModernBERT-large, compared against the CodeT5+ encoder and DeBERTa-v3-large on a fixed
-pilot (section 6.4); the comparison runs on fixed extracted strata with
-sequence/truncation statistics and Unicode fragmentation reported, special-token
-changes tested only on pilot (section 13.7); the ADR freezes tokenizer, special tokens,
-max lengths, and truncation before any non-smoke training (section 21.2).
+## Frozen candidate registry
 
-## Decision
+Pin exact model and tokenizer revisions before any pilot tokenization:
 
-decision: **Default candidate is ModernBERT-large.** It is the presumptive encoder for
-the whole model family (M0 dual encoder through M4, and the M5 graph extension,
-PLAN.md sections 21.1-21.3) unless the fixed-pilot comparison overturns it; the
-section 13.7 decision recorded here governs all non-smoke training.
+1. `answerdotai/ModernBERT-base`;
+2. `answerdotai/ModernBERT-large`;
+3. `Salesforce/codet5p-220m`, encoder branch only;
+4. `microsoft/deberta-v3-large`.
 
-decision: The comparison protocol is fixed as follows and executed at **LF-028**:
+The later execution amendment to this ADR records immutable revisions and the
+winner. It may not change the selection rule after candidate predictions are
+observed.
 
-1. **Candidates:** ModernBERT-large (default), CodeT5+ encoder, DeBERTa-v3-large. No
-   other encoder enters the comparison without superseding this ADR.
-2. **Data:** fixed extracted strata from the pinned environment (ADR-0001); the same
-   strata for all three candidates; strata identified by manifest hash (ADR-0003).
-3. **Tokenizer audit (blocking):** before any non-smoke training, audit Unicode/token
-   fragmentation for the section 6.4 symbol list
-   `∀ ∃ → ↔ ≤ ≥ ⊆ ∈ ∉ ⟨ ⟩`, plus namespaces (dotted identifiers such as
-   `Nat.succ_le_iff`), subscripts, common constants, and explicit elaborated
-   signatures. Report per-candidate: tokens-per-symbol for each listed symbol,
-   sequence-length distributions per representation, and truncation rates at candidate
-   max lengths.
-4. **Special tokens:** additions are permitted only with measured benefit on the pilot
-   (same strata, before/after comparison) and are recorded in this ADR when it is
-   finalized. No speculative vocabulary additions.
-5. **Freeze:** when LF-028 closes, this ADR moves to Accepted and freezes the chosen
-   encoder, exact tokenizer revision, special-token set (possibly empty), max lengths
-   per representation, and truncation policy. After the freeze, any change reopens
-   this ADR and invalidates non-smoke runs made under the old freeze.
+## Context-length eligibility
+
+Audit the frozen Gate-3 10,000-theorem manifest with the exact pilot
+representation bundle:
+
+```text
+[HEADLESS]
+...
+[SIGNATURE_EXPLICIT]
+...
+```
+
+Use a deterministic section budget. Use 512 tokens only if every conclusion
+and at least 99% of statements' complete binder, typeclass-binder, and
+hypothesis sets are retained. Otherwise use 1,024. At 1,024, a model is
+eligible only when its released architecture supports that length without a
+positional-architecture modification. Preserve all excluded examples under a
+`long_input` evaluation slice.
+
+## Training protocol
+
+- same 50,000 ancestry-disjoint pairs, or all if fewer;
+- 50/50 positive-negative batches;
+- equal semantic input content, effective batch size, and example exposure;
+- AdamW;
+- learning rates `{5e-6, 1e-5, 2e-5}`;
+- weight decay `{0.01, 0.1}`;
+- one tuning seed and three independent confirmation seeds per candidate.
+
+`selection_gold` must contain at least 100 faithful and 100 unfaithful
+ancestry/NL groups and at least 50 groups per relation class included in the
+confirmatory relation metric.
+
+## Deterministic winner rule
+
+Use a hierarchical paired bootstrap over seeds and ancestry/NL groups with
+simultaneous one-sided 95% confidence bounds over every candidate comparison.
+
+1. Retain candidates whose AUPRC deficit from the empirical best has
+   simultaneous upper bound ≤0.01.
+2. From those, retain candidates whose relation-macro-F1 deficit from the
+   empirical relation best has simultaneous upper bound ≤0.02.
+3. Select the survivor with highest median cached-reference batch-32 pairs per
+   second.
+4. Throughput differences below 5% break ties by lower peak memory, fewer
+   loaded parameters, then lexicographically smaller model ID.
+
+Runtime uses one frozen environment and supported numeric precision, with 20
+warmup and 100 timed batches. Report tokenization separately and end-to-end,
+and report bootstrap intervals. If the selection sample lacks its required
+group counts, the decision remains provisional rather than weakening the rule.
 
 ## Consequences
 
-1. No non-smoke training may start before the audit in item 3 exists and this ADR is
-   Accepted (PLAN.md sections 13.7 and 21.2). Smoke runs may use the default candidate
-   with stock tokenizer settings.
-2. The audit consumes only extracted pilot strata; it does not require external
-   provider access or the sealed test sets.
-3. Representation ablations (section 13.8) inherit the frozen tokenizer settings;
-   representation choice and encoder choice are decided separately, but truncation
-   statistics from item 3 inform representation max lengths.
-4. If ModernBERT-large loses the comparison, the replacement is one of the two named
-   alternatives; choosing outside the candidate set requires superseding this ADR with
-   a new comparison on the same fixed strata.
-5. Encoder weights and tokenizer files are cached under the approved bulk storage
-   location with their identities (model ID, revision, file hashes) recorded in
-   manifests (ADR-0003).
+- No non-smoke model training begins before this protocol's inputs and exact
+  candidate revisions are frozen.
+- No test or calibration label enters the pilot.
+- Special-token changes are separate preregistered ablations, not post-result
+  fixes.
+- The selected backbone, tokenizer, length, representation version, and pilot
+  artifact hashes are appended here when LF-028 closes.

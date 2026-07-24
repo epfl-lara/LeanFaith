@@ -1,0 +1,20 @@
+{
+  "schema_version": 2,
+  "fixture_id": "lf021_kimina_mathlib_nat_comm_20260723_v1",
+  "source": "lf021_kimina_mathlib_public_fixture",
+  "source_revision": "v1",
+  "source_split": "smoke",
+  "source_record_id": "public-nat-comm-20260723-1",
+  "source_license": "CC0-1.0",
+  "problem_id": "lf021-public-nat-comm-20260723",
+  "problem_group": "nl-problem:lf021-public-nat-comm-20260723",
+  "nl_statement": "For every natural number n, prove that adding 20260723 to n gives the same result as adding n to 20260723.",
+  "nl_source_link": "repo://examples/lf021_kimina_mathlib_nat_comm_20260723_v1.json",
+  "imports": "import Mathlib\n",
+  "reference_name": "lf021_kimina_reference_nat_comm_20260723",
+  "reference_statement": "theorem lf021_kimina_reference_nat_comm_20260723 (n : Nat) : n + 20260723 = 20260723 + n",
+  "generated_response": "```lean4\ntheorem lf021_kimina_generated_nat_comm_20260723 (n : Nat) : n + 20260723 = 20260723 + n\n```\n",
+  "project_registry_key": "mathlib",
+  "import_header_artifact": "examples/lf021_kimina_mathlib_nat_header_v1.lean",
+  "generated_declaration_name": "lf021_kimina_generated_nat_comm_20260723"
+}

@@ -1,0 +1,153 @@
+{
+  "report_id": "lf021_post_exhaustion_execution_independent_audit_v1:b75cdefbf626ce1ca19af30bcd56ab70d6febb0ac6a1abd193e29d417f229e50",
+  "schema_version": 1,
+  "report_kind": "lf021_post_exhaustion_execution_independent_audit_v1",
+  "audit_scope": "collector_v6_postprocess_v7_extended_gate5g_v2_and_production_lineage_replay_builder",
+  "audit_verdict": "PASS_IMPLEMENTATION_READY_REAL_EXECUTION_HOLD",
+  "status_dimensions": {
+    "collector_v6_security_and_resume": "PASS",
+    "postprocess_v7_version_neutral_lineage": "PASS",
+    "extended_gate5g_authorization_replay": "PASS",
+    "replay_certificate_independent_recomputation": "PASS",
+    "production_mixed_lineage_builder": "PASS_SYNTHETIC_END_TO_END",
+    "policy_implementation_pins": "PASS",
+    "real_extension_collection": "HOLD_NOT_PERFORMED",
+    "real_postprocess_v7": "HOLD_NOT_PERFORMED",
+    "real_extended_frame": "HOLD_NOT_MATERIALIZED",
+    "real_entropy_and_lineage": "HOLD_NOT_AVAILABLE",
+    "gate5g": "HOLD"
+  },
+  "corrected_blockers": [
+    {
+      "blocker": "v7_manifest_prefix_incompatible_with_frozen_version_neutral_loader",
+      "correction": "v7 now emits research_postprocess_v7_manifest IDs accepted by the frozen loader and embeds replayable shared-v3 lineage"
+    },
+    {
+      "blocker": "plan_only_authorization_flags_could_make_genuine_v6_v7_evidence_unusable",
+      "correction": "extended Gate5G now pairs exact v6/v7 execution evidence with prior authorization records and holds when evidence is absent"
+    },
+    {
+      "blocker": "collector_resume_and_append_only_state_were_not_fully_rehashed_or_symlink_safe",
+      "correction": "all-component no-follow checks, append-only artifact rehashing, terminal identity checks, and post-attempt-boundary fail-closed recovery were added"
+    },
+    {
+      "blocker": "replay_certificates_could_assert_two_equal_tree_hashes_without_independent_recomputation",
+      "correction": "production verification now independently scans and recomputes each manifest-bound artifact closure twice before accepting a certificate"
+    },
+    {
+      "blocker": "no_production_writer_existed_for_mixed_original_extension_gate5g_lineage",
+      "correction": "a separately versioned content-addressed builder now derives the complete 12-plus-extension lineage, writes replay certificates first, and publishes lineage last"
+    }
+  ],
+  "new_artifacts": {
+    "lineage_builder": {
+      "artifact": "src/leanfaith/generation/post_exhaustion_gate5g_lineage_v1.py",
+      "sha256": "f89f6a54d4c1f308da0d1d8eb6385ad58f27313bff1edb2d4ddfd3305b151f7a"
+    },
+    "lineage_builder_cli": {
+      "artifact": "scripts/35_build_post_exhaustion_gate5g_lineage_v1.py",
+      "sha256": "1e652431c5340f0adf2d8e0b3198db405943336eb7f26955d5e1a4b5c6ea427e"
+    },
+    "lineage_builder_tests": {
+      "artifact": "tests/unit/test_lf021_post_exhaustion_gate5g_lineage_v1.py",
+      "sha256": "ac71057bce3af1315522303063c46f829672f160ce19ba0291b290441e8b60cb"
+    },
+    "collector_v6": {
+      "artifact": "src/leanfaith/generation/post_exhaustion_collection_v6.py",
+      "sha256": "c0acdadbd8f4729bedab88972a81b39a24dc14af54f45b1a6fc1a4ad8e6aec83"
+    },
+    "postprocess_v7": {
+      "artifact": "src/leanfaith/generation/post_exhaustion_postprocess_v7.py",
+      "sha256": "38e054c2d905bbb4e591d440d1262b653eb7680452a8cedae4505dd594d422af"
+    },
+    "extended_gate5g_v2": {
+      "artifact": "src/leanfaith/generation/extended_gate5g.py",
+      "sha256": "d4d39c46f37d4b1351f0031233a842933ba0b7fcaf7c106cd211fe95891c917c"
+    },
+    "execution_policy": {
+      "artifact": "configs/generation/lf021_post_exhaustion_execution_v1.yaml",
+      "sha256": "f21fcfb37056009b18af45442920d001ba098a98ea765705c30138bb9668683f"
+    },
+    "gate5g_v2_policy": {
+      "artifact": "configs/generation/lf021_gate5g_finalizer_v2.yaml",
+      "sha256": "ca59643c9e48c872a907263aea6a60e12580d7cd345ecbf32eb341ec45960e7c"
+    }
+  },
+  "frozen_predecessor_hashes": {
+    "configs/generation/lf021_frame_freeze_v3.yaml": "5514f7bbb7620413f48d9c087657d3ae89980a8cb7e2dd802fc3af5b6716cc8f",
+    "configs/generation/lf021_post_exhaustion_collection_v1.yaml": "3acb29045d1afdd43ccc604d31669f2bb074f5c29705fa78a6e5b97176ea7281",
+    "configs/generation/lf021_post_exhaustion_extension_v1.yaml": "71f532ffd13e64404ab006c5b86a0d887ecf4f8ee76f85b933c557e44abb33f1",
+    "configs/generation/lf021_post_exhaustion_frame_v1.yaml": "f404e4a1cf62858171774541bab80fe1ccd13f45c9a136c08d9976e36ca280c1",
+    "configs/generation/lf021_tranche_expansion_v1.yaml": "0c726e197ef5358ef4a7414e36622c10fb7ff19082199540b62e4bc170834e16",
+    "configs/generation/lf021_tranche_expansion_v2.yaml": "ac16afa29eccbf072e88c3424eb9d717743710f8282d76bd8b217ff55d607b70",
+    "src/leanfaith/generation/frame_freeze_v3.py": "a4d9e107cff84f3db4052ab4d7b2afd341e3c0e6fa6251d87a48efca18c3cec6",
+    "src/leanfaith/generation/post_exhaustion_collection_v1.py": "cad47d171dfa3a3b8ba11ee58800a87c4f52f774926122e9b24985761b0e0ddf",
+    "src/leanfaith/generation/research_collection.py": "14570660891504bcd9cbe73ce649b6621eca304331319e4cb6eb8d983793f3bc",
+    "src/leanfaith/generation/research_collection_v2.py": "4657f184113b1dd1bdb2a272f822454e2f8de2baa85778b7853721e4a2f6a671",
+    "src/leanfaith/generation/research_collection_v3.py": "e202e93f009c3314f2172c8f048bb1dc65aacc3cebd81905f5ff65306b28a684",
+    "src/leanfaith/generation/research_collection_v5.py": "720f23b7f0ae3c528b9d95cc8e7580421f366d2b7044d74c7f7fd98e0403c56b",
+    "src/leanfaith/generation/research_postprocess_v5.py": "9e422e71793242bbb51237fe53770bf2cd33874e7a1bc6d6f0aab8904b8df378",
+    "src/leanfaith/generation/research_postprocess_v6.py": "a5f3fa6ce0da674973c5fbb9d32c7fe5516d65af91b725c20eb7873410c47fc9",
+    "src/leanfaith/generation/tranche_expansion.py": "33078832be9131cc85f7ac10e0e4da6374c768ffb6a0e4829a71b4e8f7fcbc67",
+    "src/leanfaith/generation/tranche_expansion_v2.py": "2e8a759c1882cb31fb1937c4584bcf258246d62307be09e74bca13446a2f32d0"
+  },
+  "invariant_results": {
+    "closed_collection_postprocess_version_registry": true,
+    "exact_three_local_family_extension": true,
+    "remote_family_authorized": false,
+    "content_addressed_spec_and_outputs": true,
+    "atomic_no_follow_outputs": true,
+    "all_component_no_follow_inputs": true,
+    "lineage_builder_pinned_to_executing_code": true,
+    "complete_tranche_prefix_derived_from_frozen_policies": true,
+    "replay_certificates_independently_recomputed": true,
+    "mixed_lineage_verified_by_frozen_gate_and_extended_gate": true,
+    "semantic_or_gate_flags_allowed": false,
+    "unknown_unbound_files_enumerated": false
+  },
+  "verification": {
+    "focused_test_command": ".venv/bin/pytest -q tests/unit/test_lf021_post_exhaustion_gate5g_lineage_v1.py tests/unit/test_lf021_post_exhaustion_execution_v6.py tests/unit/test_lf021_extended_gate5g_v2.py tests/unit/test_lf021_post_exhaustion_frame_v1.py",
+    "focused_tests_collected": 42,
+    "focused_tests_passed": 42,
+    "full_test_command": ".venv/bin/pytest -q",
+    "full_tests_collected": 1600,
+    "full_tests_passed": 1600,
+    "ruff_format_check": "PASS_350_FILES",
+    "ruff_check": "PASS",
+    "mypy_src": "PASS_163_SOURCE_FILES",
+    "doctor": "PASS",
+    "lean_fixture_lake_build": "PASS",
+    "all_policy_artifact_pins_reverified": true
+  },
+  "current_state": {
+    "status": "HOLD",
+    "reason": "No real v6 collection, v7 postprocess, extended frame, entropy certificate, replay certificates, or mixed lineage exists yet.",
+    "implementation_path_missing": false,
+    "hypothetical_real_path_mechanically_reachable": true,
+    "readiness_claim": "The versioned production path is implemented and adversarially tested; Gate5G credit remains unavailable until real frozen extension artifacts are produced and replayed."
+  },
+  "scope_limitations": {
+    "artifact_tree_scope": "manifest_bound_artifact_closure",
+    "unbound_unknown_files": "not_enumerated_and_not_claimed",
+    "real_builder_run": "unavailable_without_real_extension_artifacts",
+    "synthetic_coverage": "mixed_12_original_plus_1_extension_publication_and_gate_verification",
+    "remote_model_candidates": "Kimi_Qwen_and_OpenAI_candidates_remain_outside_the_frozen_three_local_family_extension_and_require_a_separate_versioned_arm"
+  },
+  "negative_assertions": {
+    "model_execution_performed": false,
+    "lean_generation_performed": false,
+    "provider_call_performed": false,
+    "semantic_labels_read_or_written": false,
+    "real_extension_collection_performed": false,
+    "real_postprocess_performed": false,
+    "frame_frozen": false,
+    "entropy_certificate_written": false,
+    "real_replay_certificate_written": false,
+    "real_lineage_written": false,
+    "gate5g_credit_claimed": false,
+    "canonical_gate_report_written": false,
+    "plan_modified": false,
+    "documentation_modified": false,
+    "commit_created": false
+  }
+}

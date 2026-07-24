@@ -21,6 +21,7 @@ from leanfaith.lean.project_registry import (
     ToolchainMode,
     ToolchainViolation,
     build_context_record,
+    check_project_revision,
     check_project_toolchain,
     check_toolchain_allowed,
     context_fingerprint,
@@ -110,6 +111,31 @@ def test_check_project_toolchain_rejects_lock_mismatch(tmp_path: Path) -> None:
     spec = _spec(expected_toolchain="v4.30.0")
     with pytest.raises(ToolchainViolation, match="accepted lock"):
         check_project_toolchain(spec, directory, _IN_RANGE_LOCK)
+
+
+def test_check_git_project_revision_matches_pin(tmp_path: Path) -> None:
+    directory = _project_dir(tmp_path, "v4.31.0-rc1")
+    subprocess.run(["git", "init", "-q"], cwd=directory, check=True)
+    subprocess.run(["git", "add", "lean-toolchain"], cwd=directory, check=True)
+    subprocess.run(["git", "commit", "-q", "-m", "fixture"], cwd=directory, check=True)
+    revision = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=directory,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    spec = _spec(kind=ProjectKind.GIT, revision=revision)
+    assert check_project_revision(spec, directory) == revision
+
+
+def test_check_git_project_revision_rejects_mismatch(tmp_path: Path) -> None:
+    directory = _project_dir(tmp_path, "v4.31.0-rc1")
+    subprocess.run(["git", "init", "-q"], cwd=directory, check=True)
+    subprocess.run(["git", "add", "lean-toolchain"], cwd=directory, check=True)
+    subprocess.run(["git", "commit", "-q", "-m", "fixture"], cwd=directory, check=True)
+    with pytest.raises(ToolchainViolation, match="does not match pinned revision"):
+        check_project_revision(_spec(kind=ProjectKind.GIT, revision="0" * 40), directory)
 
 
 def test_ood_probe_projects_only_need_in_range_toolchain(tmp_path: Path) -> None:

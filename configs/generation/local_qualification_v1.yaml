@@ -1,0 +1,109 @@
+schema_version: 1
+config_id: lf021_local_qualification_v1
+status: fixture_qualification_only
+artifact_class: smoke
+qualifies_for_gate5g: false
+semantic_labels_created: false
+external_endpoints_allowed: false
+private_source_content_allowed: false
+
+active_model:
+  family_id: kimina_autoformalizer_7b
+  provider_slot: local_kimina_qualification
+  repo_id: AI-MO/Kimina-Autoformalizer-7B
+  revision: ddd47cb477d93b3ca990468e1c0d5ad6b60973dd
+  tokenizer_revision: ddd47cb477d93b3ca990468e1c0d5ad6b60973dd
+  license: Apache-2.0
+  base_family: Qwen2.5-Coder-7B-Instruct
+  architecture: Qwen2ForCausalLM
+  model_positions: 32768
+  checkpoint_bytes: 15231271864
+  metadata_hashes:
+    readme: 3dacbeef57ce2e15a83a3dee53b908e2020acf3617dce6c502325d553c1c1a75
+    config: 1bc02cfa2fbdb052184f7af9d348ccfe1ed374db9e123c202f3bd855c22669be
+    tokenizer_config: adf48fe03efc6ccb759a592b536527423b99c1db65fcf5520e9286abbcc3397f
+    generation_config: 722a06091ec871c6cbc3dda5412f294267bcd5d9310f4ffbef1d358000dd3bfc
+  checkpoint_artifacts:
+    index:
+      artifact: model.safetensors.index.json
+      bytes: 27752
+      sha256: 998a078123ffc97763690de7f2a677eb89168af5eaf8a5e12e6bc24d18e25bdb
+    shards:
+      - artifact: model-00001-of-00004.safetensors
+        bytes: 4877660776
+        sha256: 0eef469efc42b223e0fb73869c53db8ece24e935583720d61bb93dd23cd461de
+      - artifact: model-00002-of-00004.safetensors
+        bytes: 4932751008
+        sha256: 4538537963213497592b063ffc7b29ed094f05a53f6f31fc0d0a030d10e10c61
+      - artifact: model-00003-of-00004.safetensors
+        bytes: 4330865200
+        sha256: 98a2514143b5709fdce5641450119c7f5459c2f0ea0080c97cbef22a2d5807bc
+      - artifact: model-00004-of-00004.safetensors
+        bytes: 1089994880
+        sha256: a3a1aa2b28aa887f63d39a53f5700d8d20016a41cb11cbdb88a0ee18251cfd35
+    auxiliary_files:
+      - artifact: tokenizer.json
+        bytes: 11421896
+        sha256: 9c5ae00e602b8860cbd784ba82a8aa14e8feecec692e7076590d014d7b7fdafa
+      - artifact: vocab.json
+        bytes: 2776833
+        sha256: ca10d7e9fb3ed18575dd1e277a2579c16d108e32f27439684afa0e10b1440910
+      - artifact: merges.txt
+        bytes: 1671853
+        sha256: 8831e4f1a044471340f7c0a83d7bd71306a5b867e95fd870f74d0c5308a904d5
+      - artifact: special_tokens_map.json
+        bytes: 613
+        sha256: 76862e765266b85aa9459767e33cbaf13970f327a0e88d1c65846c2ddd3a1ecd
+      - artifact: added_tokens.json
+        bytes: 605
+        sha256: 58b54bbe36fc752f79a24a271ef66a0a0830054b4dfad94bde757d851968060b
+  training_lineage_status: unresolved
+  activation_scope: one_public_fixture
+  supervision_eligible: false
+  heldout_generator: false
+
+prompt:
+  formatter_id: kimina_card_chat_v1
+  system_prompt: You are an expert in mathematics and Lean 4.
+  template_artifact: prompts/autoformalizers/kimina_card_chat_v1.txt
+  template_sha256: d9396d6688e2a21059f7f359f46c10e9cf5ee58dd2332cc796217b8ac1975e4b
+  common_suffix_artifact: prompts/autoformalizers/common_final_fence_v1.txt
+  common_suffix_sha256: 0bdd45e0e8ed86ce3eba34399d74297e180aa97eacd87c1604d0e14dbf15f222
+  parser_id: lean_final_fence_signature_v1
+  parser_source_artifact: src/leanfaith/generation/local_output_adapter.py
+  parser_source_sha256: e02e67675810b81effbb97740dd4a27070be9ef0eef2627b25fb4b9b749d1da4
+
+decoding:
+  max_new_tokens: 2048
+  do_sample: true
+  num_beams: 1
+  num_return_sequences: 1
+  temperature: 0.6
+  top_p: 0.95
+  top_k: 20
+  seed: 0
+  repetition_penalty: 1.1
+  eos_token_id: null
+  pad_token_id: null
+
+candidate_registry:
+  - family_id: kimina_autoformalizer_7b
+    repo_id: AI-MO/Kimina-Autoformalizer-7B
+    revision: ddd47cb477d93b3ca990468e1c0d5ad6b60973dd
+    role: supervision_candidate
+    status: fixture_qualification_only
+  - family_id: goedel_formalizer_v2_8b
+    repo_id: Goedel-LM/Goedel-Formalizer-V2-8B
+    revision: fe2d362d899601abe79d7d5e95eaa7fe9883a0cb
+    role: supervision_candidate
+    status: disabled
+  - family_id: stepfun_formalizer_7b
+    repo_id: stepfun-ai/StepFun-Formalizer-7B
+    revision: fb0dc612761fecd64ebbc489c2a3417e9ea01968
+    role: supervision_candidate
+    status: disabled
+  - family_id: reform_8b
+    repo_id: GuoxinChen/ReForm-8B
+    revision: 1589c832cfad679a280b222e694b987a33befd26
+    role: heldout_candidate
+    status: disabled

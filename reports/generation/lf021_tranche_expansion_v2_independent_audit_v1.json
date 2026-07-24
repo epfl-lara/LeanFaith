@@ -1,0 +1,265 @@
+{
+  "schema_version": 1,
+  "audit_id": "lf021_tranche_expansion_v2_independent_audit_v1",
+  "audited_at": "2026-07-24T03:38:05Z",
+  "verdict": "PASS",
+  "audited_before_cross_domain_s2_live_use": true,
+  "scope": [
+    "frozen revision-1 policy and implementation preservation",
+    "problem-group x alpha scientific identity",
+    "cross-problem separation and same-problem duplicate multiplicity",
+    "five-observation exact-prefix replay",
+    "decision and frame content addressing",
+    "prevalence-estimator frame compatibility",
+    "tamper rejection and immutable replay",
+    "absence of semantic labels, supervision admission, and Gate claims",
+    "focused pytest, Ruff, formatting, and mypy"
+  ],
+  "frozen_revision_1": {
+    "unchanged_and_hash_bound": true,
+    "policy": {
+      "artifact": "configs/generation/lf021_tranche_expansion_v1.yaml",
+      "sha256": "0c726e197ef5358ef4a7414e36622c10fb7ff19082199540b62e4bc170834e16"
+    },
+    "implementation": {
+      "artifact": "src/leanfaith/generation/tranche_expansion.py",
+      "sha256": "33078832be9131cc85f7ac10e0e4da6374c768ffb6a0e4829a71b4e8f7fcbc67"
+    },
+    "bindings_match_revision_2_amendment": true
+  },
+  "revision_2_artifacts": {
+    "policy": {
+      "artifact": "configs/generation/lf021_tranche_expansion_v2.yaml",
+      "sha256": "ac16afa29eccbf072e88c3424eb9d717743710f8282d76bd8b217ff55d607b70"
+    },
+    "implementation": {
+      "artifact": "src/leanfaith/generation/tranche_expansion_v2.py",
+      "sha256": "2e8a759c1882cb31fb1937c4584bcf258246d62307be09e74bca13446a2f32d0"
+    },
+    "cli": {
+      "artifact": "scripts/29_plan_lf021_tranche_expansion_v2.py",
+      "sha256": "1594df039748c976d863abc431a60d9aecbfc84b6788659c028ced2c20904f53"
+    },
+    "tests": {
+      "artifact": "tests/unit/test_lf021_tranche_expansion_v2.py",
+      "sha256": "a3370f5c2ef4c04d5766a2ca3549a5958ac5169eb9a28d8def2271ab4d4c2e4d"
+    }
+  },
+  "scientific_identity_audit": {
+    "passed": true,
+    "scientific_cluster_key": [
+      "problem_group",
+      "alpha_identity_fingerprint"
+    ],
+    "representative_rank_includes_problem_group": true,
+    "cluster_id_includes_problem_group": true,
+    "synthetic_same_alpha_different_problem_groups_remain_distinct": true,
+    "synthetic_same_problem_group_same_alpha_members_cluster_together": true,
+    "member_invocation_multiplicity_preserved": true,
+    "duplicate_invocation_ids_rejected": true,
+    "actual_five_prefix": {
+      "benchmark_clear_member_count": 93,
+      "problem_group_alpha_unit_count": 81,
+      "duplicate_member_count": 12,
+      "cross_problem_cluster_count": 0,
+      "member_count_reconciles": true,
+      "all_actual_repeated_alpha_members_share_problem_group": true
+    },
+    "interpretation": "The observed five-tranche prefix happens not to contain one alpha identity shared across distinct problem groups, so v1 and v2 both count 81 units here. The v2 key is nevertheless required prospectively and the synthetic order-invariant regression proves that future cross-problem matches cannot collapse."
+  },
+  "five_prefix_decision": {
+    "passed": true,
+    "decision_id": "lf021_expansion_decision_v2:b0bb67b848e551ea13dfdb16187fb66559863dddff349adc1ac2984dd9d80a6a",
+    "decision_artifact": {
+      "artifact": "reports/generation/lf021_tranche_expansion_v2/decisions/b0bb67b848e551ea13dfdb16187fb66559863dddff349adc1ac2984dd9d80a6a.json",
+      "sha256": "305b535aaf7c89614ae5d1ad6ce06eb44e832a73e4ebb19bd0d76e19a0d0cf85"
+    },
+    "report_artifact": {
+      "artifact": "reports/generation/lf021_tranche_expansion_v2/decisions/b0bb67b848e551ea13dfdb16187fb66559863dddff349adc1ac2984dd9d80a6a.md",
+      "sha256": "8c730fdb42a891d3f6e0af5dbde09a89b1bf673bbf2d04583129fc5484ddbf98"
+    },
+    "observed_tranches": [
+      "algebra_s0",
+      "cross_domain_s0",
+      "algebra_s1",
+      "cross_domain_s1",
+      "algebra_s2"
+    ],
+    "observed_manifest_sha256": [
+      "d5bef91b0667f6f9bbb7fa5fa350272f6336cfbfc90b6aa13d45ac434443bd20",
+      "1b379edc653f661af28c2ce3d341b85368b38cb5bca00e29cfcb7e4e88cdf2a8",
+      "cf4334a26db95415a20297a7e61fab09b03675f61640e2970bdc5d6ade7b792a",
+      "54b0a1d07d3ee6d47aa1313a2e0b88e2653fcccad229266a07b7d750c4823bcc",
+      "3107e0565c943aca68684343b44694b0f481fa10a2d656144cd3873bbb033f07"
+    ],
+    "total_invocations": 480,
+    "parser_success_count": 95,
+    "compile_success_count": 93,
+    "benchmark_clear_compile_count": 93,
+    "problem_group_alpha_unit_count": 81,
+    "duplicate_member_count": 12,
+    "action": "collect_next_tranche",
+    "next_tranche": "cross_domain_s2",
+    "next_pool": "cross_domain_docstrings_v1",
+    "next_expected_problem_count": 20,
+    "next_expected_invocations": 60,
+    "next_seeds_by_family": {
+      "goedel_formalizer_v2_8b": 32,
+      "kimina_autoformalizer_7b": 2,
+      "stepfun_formalizer_7b": 2
+    }
+  },
+  "frame_and_prevalence_compatibility": {
+    "passed": true,
+    "generated_frame_record_ids_are_content_addressed": true,
+    "generated_frame_binding_hashes_exact_frame_bytes": true,
+    "persistence_rechecks_frame_sha256": true,
+    "same_problem_duplicate_members_preserved_in": [
+      "contributing_invocation_ids",
+      "member_count",
+      "member_count_by_family",
+      "member_count_by_source_proxy"
+    ],
+    "all_multiplicity_fields_reconcile": true,
+    "prevalence_loader_validates_full_FrameItemV2_before_projection": true,
+    "real_prefix_full_population_projection_probe": {
+      "frame_items": 81,
+      "projected_items": 81,
+      "retained_members_before_projection": 93,
+      "retained_members_after_projection": 93,
+      "duplicate_members_preserved": 12
+    },
+    "semantic_labels_in_frame": false,
+    "supervision_eligible": false,
+    "gate_5g_credit_claimed": false,
+    "gate_5_closed": false
+  },
+  "hash_identity_and_replay_audit": {
+    "passed": true,
+    "v1_policy_binding_verified_before_evaluation": true,
+    "v1_implementation_binding_verified_before_evaluation": true,
+    "imported_v1_module_path_must_equal_bound_implementation_path": true,
+    "pool_record_bindings_verified": true,
+    "pool_manifest_bindings_verified_by_v1_observation_loader": true,
+    "postprocess_manifest_hashes_bound_in_decision": true,
+    "terminal_and candidate_output_bindings_verified_by_v1_loader": true,
+    "decision_id_recomputed_from_complete_decision_content": true,
+    "temporary_output_replay_byte_identical_to_frozen_artifacts": true,
+    "in_place_replay_byte_identical": true,
+    "divergent_immutable_overwrite_rejected": true,
+    "decision_json_sha256_before_and_after": "305b535aaf7c89614ae5d1ad6ce06eb44e832a73e4ebb19bd0d76e19a0d0cf85",
+    "decision_report_sha256_before_and_after": "8c730fdb42a891d3f6e0af5dbde09a89b1bf673bbf2d04583129fc5484ddbf98"
+  },
+  "tamper_audit": {
+    "passed": true,
+    "checks": [
+      {
+        "case": "scientific cluster key order/content changed",
+        "result": "rejected by TrancheExpansionAmendmentV2 validation"
+      },
+      {
+        "case": "bound revision-1 policy hash changed",
+        "result": "rejected by evaluation"
+      },
+      {
+        "case": "bound revision-1 implementation hash changed",
+        "result": "rejected by evaluation"
+      },
+      {
+        "case": "observed manifest semantic_labels_created changed to true",
+        "result": "rejected by operational observation loading"
+      },
+      {
+        "case": "decision operational count changed without matching decision ID",
+        "result": "rejected by ExpansionDecisionV2 validation"
+      },
+      {
+        "case": "persisted report bytes changed before replay",
+        "result": "rejected by immutable writer"
+      }
+    ]
+  },
+  "hard_boundaries": {
+    "model_execution_performed": false,
+    "semantic_labels_inspected": false,
+    "semantic_labels_created": false,
+    "faithfulness_claim": false,
+    "compilation_treated_as_faithfulness": false,
+    "supervision_eligible": false,
+    "gate_5g_credit_claimed": false,
+    "gate_5_closed": false,
+    "decision_inputs_used": [
+      "alpha_identity_fingerprint",
+      "benchmark_screen",
+      "compile_status",
+      "family_id",
+      "parse_status",
+      "pool_id",
+      "problem_group",
+      "source_proxy"
+    ],
+    "forbidden_inputs_used": []
+  },
+  "collector_authorization_boundary": {
+    "passed": true,
+    "revision_2_role": "scientific stopping and prevalence-frame identity amendment",
+    "revision_1_role": "historical collection authorization retained by the frozen amendment",
+    "collector_v5_binds_revision_1_decision": {
+      "artifact": "reports/generation/lf021_tranche_expansion_v1/decisions/19f4309fd71d69f60af62174ad651bf61b140352f1191c4b639dcb922e333c54.json",
+      "sha256": "2ff4ac91367ea658f618ebec31563dfe01ed3f33a9dcbd62577dbd318fb6ac34"
+    },
+    "revision_1_and_revision_2_next_tranche_agree": true,
+    "next_tranche": "cross_domain_s2",
+    "collector_config": {
+      "artifact": "configs/generation/local_research_collection_cross_domain_s2_v5.json",
+      "sha256": "8c2084217d8a733932204448be18a440207dcdaadb2a04aa7b3a4dbf71a76022"
+    },
+    "source_matrix": {
+      "artifact": "configs/generation/local_research_source_matrix_cross_domain_s2_v5.json",
+      "sha256": "4786eaee4aa3ae422497b37e214b4255595d18381c84462060150bd270cda9d2"
+    },
+    "preflight": {
+      "artifact": "reports/generation/lf021_local_research_collection_preflight_cross_domain_s2_v5.json",
+      "sha256": "98a45356ea4eb3f65246ca15ce83dc8a2a963ad1c4503d1e53ed3122eb0f7e79"
+    }
+  },
+  "validation": {
+    "focused_pytest": {
+      "command": "uv run pytest -q tests/unit/test_lf021_tranche_expansion_v2.py",
+      "collected": 5,
+      "passed": 5
+    },
+    "ruff_check": {
+      "command": "uv run ruff check src/leanfaith/generation/tranche_expansion_v2.py scripts/29_plan_lf021_tranche_expansion_v2.py tests/unit/test_lf021_tranche_expansion_v2.py",
+      "passed": true
+    },
+    "ruff_format": {
+      "command": "uv run ruff format --check src/leanfaith/generation/tranche_expansion_v2.py scripts/29_plan_lf021_tranche_expansion_v2.py tests/unit/test_lf021_tranche_expansion_v2.py",
+      "files_checked": 3,
+      "passed": true
+    },
+    "mypy": {
+      "command": "uv run mypy src/leanfaith/generation/tranche_expansion_v2.py scripts/29_plan_lf021_tranche_expansion_v2.py",
+      "source_files_checked": 2,
+      "passed": true
+    }
+  },
+  "nonblocking_follow_on": [
+    {
+      "id": "EXP-V2-N01",
+      "description": "Promote the independently exercised implementation-binding, semantic-manifest, decision-ID, and divergent-replay tamper probes into permanent unit tests before the first v2 frame is frozen. The current frozen five-prefix decision and cross_domain_s2 authorization are unaffected."
+    },
+    {
+      "id": "EXP-V2-N02",
+      "description": "A future schema revision may enforce the exact decision-input and forbidden-input sets in the amendment model rather than only their sortedness, uniqueness, and disjointness. The current exact frozen config is correct, content-addressed, and uses no semantic input."
+    }
+  ],
+  "authorization": {
+    "safe_to_launch_exact_audited_cross_domain_s2_v5_collection": true,
+    "revision_2_scientific_decision_passed": true,
+    "semantic_labels_created": false,
+    "supervision_eligible": false,
+    "gate_5g_credit_claimed": false,
+    "gate_5_closed": false
+  }
+}

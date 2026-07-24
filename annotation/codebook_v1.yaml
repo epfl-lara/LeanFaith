@@ -1,0 +1,409 @@
+schema_version: 1
+codebook_id: lf021_prevalence_codebook_v1
+status: frozen_preannotation_specification
+artifact_class: production
+
+scope:
+  campaign_id: lf021_prevalence_v1
+  task: reference_assisted_nl_plus_lean_a_b
+  semantic_target: F1_same_mathematical_claim
+  unit: problem_group_x_alpha_identity
+  item_count: 240
+  labels_created_by_this_artifact: false
+  assignments_created_by_this_artifact: false
+  exports_created_by_this_artifact: false
+
+bindings:
+  frame_decision:
+    artifact: reports/generation/lf021_post_exhaustion_frame_v1/decisions/0574621043042ed62b486260de9bf633797f2471217f502be25b9aec3a46a19c.json
+    sha256: e780d3bc6150f2fafe576170be792b6f13e60d7ef35567912d27d03b63d8eabc
+    decision_id: lf021_extended_frame_freeze_decision_v1:0574621043042ed62b486260de9bf633797f2471217f502be25b9aec3a46a19c
+  frame:
+    artifact: reports/generation/lf021_post_exhaustion_frame_v1/frames/a07b352030a2c51fa51ebcabc00a3c1d1ecf2041318feabfe57a4c70fc365069.jsonl
+    sha256: a07b352030a2c51fa51ebcabc00a3c1d1ecf2041318feabfe57a4c70fc365069
+    frame_id: lf021_extended_prevalence_frame_v1:c4d248631456c45a05a6c4d929cda6a69c6b91e05e5e65ed4a8ca8eff0367312
+    item_count: 240
+  frame_materializer_policy:
+    artifact: configs/generation/lf021_post_exhaustion_frame_v1.yaml
+    sha256: f404e4a1cf62858171774541bab80fe1ccd13f45c9a136c08d9976e36ca280c1
+    policy_id: lf021_post_exhaustion_frame_materializer_v1
+  prevalence_policy:
+    artifact: policies/lf021_prevalence_design_v3.yaml
+    sha256: d00e096cf6c49224ffa45fc236f872daa57c0adcafe3f3fec4ffa39781a79504
+    policy_id: lf021_prevalence_design_v3
+    schema_version: 3
+  guideline:
+    artifact: annotation/guidelines_v1.md
+    sha256: 604eeade46c6328646bd71641f9a3c69cb0588462ac725c5eaf251a89a4b779f
+    title: LeanFaith Lean-Lean annotation guidelines v1
+
+annotation_design:
+  annotator_slots_per_item: 2
+  slots:
+    - slot_id: independent_annotator_1
+      annotator_assignment: not_materialized
+    - slot_id: independent_annotator_2
+      annotator_assignment: not_materialized
+  independence:
+    discussion_before_both_submissions_locked: forbidden
+    show_other_slot_response: false
+    show_other_slot_identity: false
+    raw_submission_mutable: false
+  fixed_side_semantics:
+    A: registered_reference_lean_statement
+    B: candidate_autoformalization_lean_statement
+    swap_sides_in_ui: false
+
+display_contract:
+  mode: reference_assisted_nl_plus_lean_a_b
+  required:
+    - field: natural_language_statement
+      label: Natural-language claim
+      source_role: trusted_problem_statement
+    - field: lean_a.headless
+      label: Lean A - reference - headless
+      source_role: registered_reference
+    - field: lean_a.signature_pp
+      label: Lean A - reference - normalized signature
+      source_role: registered_reference
+    - field: lean_a.signature_explicit
+      label: Lean A - reference - explicit signature
+      source_role: registered_reference
+    - field: lean_b.headless
+      label: Lean B - candidate - headless
+      source_role: candidate_autoformalization
+    - field: lean_b.signature_pp
+      label: Lean B - candidate - normalized signature
+      source_role: candidate_autoformalization
+    - field: lean_b.signature_explicit
+      label: Lean B - candidate - explicit signature
+      source_role: candidate_autoformalization
+  optional_permitted_context:
+    - minimal_import_text
+    - namespace_text
+    - local_notation_text
+    - required_type_information
+    - neutral_view_unavailable_notice
+    - pinned_definition_lookup_text
+  definition_lookup_rule: >-
+    A lookup is permitted only when a constant in A or B cannot otherwise be
+    interpreted. The lookup must use the pinned Lean environment and be
+    recorded in the rationale; no unblinded source path or identifier may be
+    copied into the response.
+  forbidden_model_views:
+    - raw_proof_stripped
+    - semantic_atoms
+    - operator_tree
+    - alpha_identity_fingerprint
+    - alpha_structural
+    - notation_light
+
+response_fields:
+  same_claim:
+    required: true
+    values:
+      - same_claim
+      - not_same_claim
+      - ambiguous
+      - cannot_assess_yet
+  relation:
+    required: true
+    nullable: true
+    values:
+      - equivalent
+      - A_stronger
+      - B_stronger
+      - incomparable
+      - unrelated
+      - ambiguous
+  confidence:
+    required: true
+    type: integer
+    minimum: 1
+    maximum: 5
+  rationale:
+    required: true
+    type: string
+    minimum_non_whitespace_length_when:
+      - same_claim=not_same_claim
+      - same_claim=ambiguous
+      - same_claim=cannot_assess_yet
+  reference_issue:
+    required: true
+    values:
+      - none
+      - suspected
+      - definite
+  error_types:
+    required: false
+    role: optional_analysis_metadata_only
+    values: E01_through_E30
+
+combination_rules:
+  - when: same_claim=same_claim
+    require: relation=equivalent
+  - when: same_claim=not_same_claim
+    require_relation_in:
+      - A_stronger
+      - B_stronger
+      - incomparable
+      - unrelated
+  - when: same_claim=ambiguous
+    require: relation=ambiguous
+  - when: same_claim=cannot_assess_yet
+    require: relation=null
+  - when: same_claim=cannot_assess_yet
+    derived_workflow:
+      resolution_outcome: unresolved
+      quality_tier: unknown
+      requires_adjudication: true
+      decision: REVIEW
+  - when: same_claim=ambiguous
+    derived_workflow:
+      same_claim: null
+      resolution_outcome: ambiguous
+      relation: ambiguous
+      requires_adjudication: false
+
+adjudication_triggers:
+  - same_claim_disagreement
+  - terminal_relation_disagreement
+  - either_response_cannot_assess_yet
+  - either_reference_issue_definite
+  - either_confidence_at_most_2
+  - versioned_policy_trigger
+
+blinding:
+  mode: allowlist_display_fail_closed_recursive_denylist
+  applies_to: annotation_display_payload_before_annotator_access
+  does_not_apply_to:
+    - response_schema_field_names
+    - locked_response_records
+  show_only_display_contract_fields: true
+  prohibit_unlisted_fields: true
+  prohibit_nested_unlisted_fields: true
+  prohibit_raw_frame_records: true
+  prohibit_artifact_paths_and_hashes: true
+  prohibited_field_names:
+    - family_id
+    - family_ids
+    - representative_family_id
+    - contributing_family_ids
+    - generator
+    - generator_id
+    - generator_family
+    - model
+    - model_id
+    - model_name
+    - model_size
+    - checkpoint
+    - checkpoint_id
+    - provider
+    - provider_id
+    - provider_slot
+    - prompt
+    - prompt_id
+    - prompt_hash
+    - reasoning
+    - reasoning_trace
+    - chain_of_thought
+    - generated_explanation
+    - decoding
+    - decoding_config
+    - temperature
+    - top_p
+    - top_k
+    - seed
+    - random_seed
+    - tranche
+    - tranche_id
+    - invocation_id
+    - invocation_ids
+    - representative_invocation_id
+    - contributing_invocation_ids
+    - pool_id
+    - pool_ids
+    - representative_pool_id
+    - contributing_pool_ids
+    - source_proxy
+    - source_proxies
+    - representative_source_proxy
+    - contributing_source_proxies
+    - source_file
+    - source_path
+    - source_link
+    - nl_source_link
+    - sampling_stratum
+    - sampling_method
+    - sampling_rank_algorithm
+    - sampling_rank_digest
+    - sampling_seed_sha256
+    - sampling_seed_provenance
+    - inclusion_probability
+    - inclusion_probability_numerator
+    - inclusion_probability_denominator
+    - stratum_population_size
+    - stratum_sample_size
+    - member_count
+    - members
+    - member_count_by_family
+    - member_count_by_pool
+    - member_count_by_source_proxy
+    - retained_multiplicity
+    - population_item
+    - population_record_id
+    - population_manifest
+    - population_manifest_id
+    - cluster_id
+    - problem_group
+    - problem_record_id
+    - contributing_problem_record_ids
+    - alpha_identity_fingerprint
+    - frame_record_id
+    - frame_id
+    - decision
+    - same_claim
+    - relation
+    - resolution_outcome
+    - quality_tier
+    - requires_adjudication
+    - semantic_labels_created
+    - supervision_eligible
+    - expected_label
+    - gold_label
+    - ground_truth
+    - intended_relation
+    - intended_error_type
+    - mutation_intention
+    - formalrx_sci_requested
+    - formalrx_sci_validated
+    - error_types
+    - metric_prediction
+    - metric_predictions
+    - model_score
+    - model_scores
+    - score
+    - scores
+    - similarity
+    - structural_similarity
+    - gted_score
+    - beq_result
+    - beq_plus_result
+    - proof_search
+    - proof_search_result
+    - proof_a_implies_b
+    - proof_b_implies_a
+    - definitional_equality
+    - defeq_result
+    - counterexample
+    - counterexample_result
+    - symbolic_evidence
+    - evidence
+    - evidence_ids
+    - evidence_ids_used
+    - llm_judgment
+    - llm_judgments
+    - judge_vote
+    - judge_votes
+    - prior_annotation
+    - prior_annotations
+    - prior_human_vote
+    - adjudication
+    - adjudication_record
+    - annotator_id
+    - benchmark
+    - benchmark_status
+    - denylist_hits
+    - split
+    - split_assignment
+    - gate_5_closed
+    - gate_5g_credit_claimed
+    - representation_artifact
+    - screening_artifact
+    - terminal_artifact
+    - postprocess_manifest
+    - postprocess_manifest_id
+    - postprocess_manifest_ids
+    - artifact
+    - artifact_path
+    - sha256
+    - content_hash
+    - context_id
+    - theorem_id
+    - representation_id
+    - raw_proof_stripped
+    - semantic_atoms
+    - operator_tree
+    - alpha_structural
+    - notation_light
+    - created_at
+    - frozen_at
+    - runtime
+    - device
+    - host
+  prohibited_path_globs:
+    - "$.population_item"
+    - "$.population_item.*"
+    - "$..members"
+    - "$..members[*]"
+    - "$..*family*"
+    - "$..*generator*"
+    - "$..*provider*"
+    - "$..*model*"
+    - "$..*prompt*"
+    - "$..*reasoning*"
+    - "$..*tranche*"
+    - "$..*invocation*"
+    - "$..*pool*"
+    - "$..*source_proxy*"
+    - "$..*sampling*"
+    - "$..*multiplicity*"
+    - "$..*score*"
+    - "$..*similarity*"
+    - "$..*evidence*"
+    - "$..*judgment*"
+    - "$..*prior_annotation*"
+    - "$..*adjudication*"
+    - "$..*benchmark*"
+    - "$..*split*"
+    - "$..*artifact*"
+    - "$..*sha256"
+    - "$..*content_hash"
+  audit_rule: >-
+    Recursively reject an annotation payload when any prohibited field name or
+    path is present, even if its value is null, empty, redacted, or nested
+    below an otherwise permitted object.
+
+domain_separators:
+  frame_sampling:
+    value: leanfaith-lf021-frame-v3-hmac-sha256-v1
+    source: frozen_frame_decision
+  payload_content_id:
+    value: leanfaith-lf021-prevalence-annotation-payload-v1
+    message_encoding: utf8_domain_nul_frame_id_nul_frame_record_id_nul_payload_sha256_v1
+  opaque_item_token:
+    value: leanfaith-lf021-prevalence-annotation-item-token-v1
+    message_encoding: utf8_domain_nul_frame_id_nul_frame_record_id_v1
+  independent_assignment:
+    value: leanfaith-lf021-prevalence-annotation-assignment-v1
+    message_encoding: utf8_domain_nul_campaign_id_nul_round_id_nul_item_token_v1
+  display_order:
+    value: leanfaith-lf021-prevalence-annotation-order-v1
+    message_encoding: utf8_domain_nul_campaign_id_nul_round_id_nul_item_token_v1
+  response_record:
+    value: leanfaith-lf021-prevalence-annotation-response-v1
+    message_encoding: utf8_domain_nul_campaign_id_nul_item_token_nul_slot_id_nul_response_sha256_v1
+  adjudication_record:
+    value: leanfaith-lf021-prevalence-adjudication-v1
+    message_encoding: utf8_domain_nul_campaign_id_nul_item_token_nul_raw_response_ids_v1
+  rule: >-
+    Domain separators are public protocol constants only. This specification
+    contains no secret key, seed, assignment, annotator identity, or response.
+
+launch_guard:
+  annotation_execution_enabled: false
+  assignment_materialized: false
+  payload_export_materialized: false
+  annotator_keys_materialized: false
+  external_calls_allowed: false
+  semantic_labels_created: false

@@ -1,0 +1,5 @@
+Please autoformalize the following natural language problem statement in Lean 4. Use the following theorem name: {{THEOREM_NAME}}
+The natural language statement is: 
+{{NL_STATEMENT}}Think before you provide the lean statement.
+
+{{COMMON_SUFFIX}}

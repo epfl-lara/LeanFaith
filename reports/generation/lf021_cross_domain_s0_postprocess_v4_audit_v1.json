@@ -1,0 +1,223 @@
+{
+  "schema_version": 1,
+  "report_kind": "lf021_cross_domain_s0_postprocess_v4_audit_v1",
+  "generated_at": "2026-07-24T01:26:38Z",
+  "passed": true,
+  "audit_scope": {
+    "tranche_id": "cross_domain_s0",
+    "postprocess_version": 4,
+    "independent_checks": 3727,
+    "raw_collection_was_treated_as_immutable_input": true,
+    "postprocess_artifacts_were_not_modified": true
+  },
+  "bindings": {
+    "collection_config": {
+      "path": "configs/generation/local_research_collection_cross_domain_s0_v3.yaml",
+      "sha256": "989a9b10ef39b566540e8cd9a46d8e1df0e32d073085e8e5500277448ecb85da"
+    },
+    "raw_collection_plan": {
+      "path": "data/raw/real_outputs/cross_domain_docstrings_operational_v1/v3/cross_domain_s0/local_collection/b5080892f0b71e43735dfe3a1f3bf4e227f7988c362196ea7a09ea703db3846c/plan.json",
+      "id": "research_collection_plan_v3:b5080892f0b71e43735dfe3a1f3bf4e227f7988c362196ea7a09ea703db3846c",
+      "semantic_plan_hash": "d98936b07d13488e6a37bb16ec0945337f5050f3b45bdc750a6b26e6413fb7bc",
+      "file_sha256": "fac78990f8901a2fbdd5ae0b8baf9bd19ad1bb644dc0d5130066b756f9caf349"
+    },
+    "raw_collection_manifest": {
+      "path": "data/raw/real_outputs/cross_domain_docstrings_operational_v1/v3/cross_domain_s0/local_collection/b5080892f0b71e43735dfe3a1f3bf4e227f7988c362196ea7a09ea703db3846c/manifest.json",
+      "id": "research_collection_manifest_v3:654fbb69a1bee7d5b7cde3d4159402759756b058495e5bd1030902e1707dcbc9",
+      "sha256": "e75a2d38f7511b4ebe46054fd84b4eccb8e17a9f12253867756b579171a4b819"
+    },
+    "postprocess_manifest": {
+      "path": "data/raw/real_outputs/cross_domain_docstrings_operational_v1/v3/cross_domain_s0/local_collection/b5080892f0b71e43735dfe3a1f3bf4e227f7988c362196ea7a09ea703db3846c/postprocess_v4/manifest.json",
+      "id": "research_postprocess_v4_manifest:f7df4ea666de96d4a74a0c331a505a844ad6e25b7592125db4afc296a6f34383",
+      "sha256": "1b379edc653f661af28c2ce3d341b85368b38cb5bca00e29cfcb7e4e88cdf2a8",
+      "input_binding_hash": "2cbbf48500e2871fce30d65bf14e8a79d30ea2cfbaedf841d6c996cd46916e4",
+      "shared_processing_input_binding_hash": "e23e1d145009f819a12fd5ebf0fb5a421dec2414f54e44d88b2ed1b5a2d4b7f6"
+    },
+    "shared_processing_implementation": {
+      "path": "src/leanfaith/generation/research_postprocess_v3.py",
+      "sha256": "aa8415663187b99558df25889df4809dd24d673515500dc21882e1a2e9e103e9"
+    },
+    "postprocess_implementation": {
+      "path": "src/leanfaith/generation/research_postprocess_v4.py",
+      "sha256": "b13ddd4d23633f38b50c91f041d242dd013c6c55fc58684a6535a01e0b958c88"
+    },
+    "postprocess_cli": {
+      "path": "scripts/20_postprocess_research_outputs_v4.py",
+      "sha256": "028777f29048229e151d051a1d872cd68490e9c883cdb04f1f0fb7d1c8e03962"
+    },
+    "active_registry_content_hash": "eac1ab353cfc0108068ff3d6035281f08b52dc97d3b5cb536dd1781e49d05ca3"
+  },
+  "denominator": {
+    "pool_dialect": "cross_domain_operational_v1",
+    "pool_source": "mathlib_cross_domain_docstrings_operational_v1",
+    "problem_count": 20,
+    "family_count": 3,
+    "seed_count_by_family": {
+      "goedel_formalizer_v2_8b": 1,
+      "kimina_autoformalizer_7b": 1,
+      "stepfun_formalizer_7b": 1
+    },
+    "expected_invocations": 60,
+    "terminal_invocations": 60,
+    "cartesian_problem_family_seed_coverage_exact": true,
+    "raw_lineage_maps_exact": 60,
+    "postprocess_terminal_bijection_exact": true
+  },
+  "outcomes": {
+    "status_counts": {
+      "admitted_unresolved": 7,
+      "materialization_failed": 1,
+      "parse_failed": 52
+    },
+    "recovery_status_counts": {
+      "failed": 35,
+      "not_eligible": 17,
+      "not_needed": 3,
+      "succeeded": 5
+    },
+    "by_family": {
+      "goedel_formalizer_v2_8b": {
+        "status_counts": {
+          "materialization_failed": 1,
+          "parse_failed": 19
+        },
+        "recovery_status_counts": {
+          "failed": 19,
+          "succeeded": 1
+        },
+        "parser_success_count": 1,
+        "admitted_unresolved_count": 0
+      },
+      "kimina_autoformalizer_7b": {
+        "status_counts": {
+          "admitted_unresolved": 4,
+          "parse_failed": 16
+        },
+        "recovery_status_counts": {
+          "failed": 16,
+          "succeeded": 4
+        },
+        "parser_success_count": 4,
+        "admitted_unresolved_count": 4
+      },
+      "stepfun_formalizer_7b": {
+        "status_counts": {
+          "admitted_unresolved": 3,
+          "parse_failed": 17
+        },
+        "recovery_status_counts": {
+          "not_eligible": 17,
+          "not_needed": 3
+        },
+        "parser_success_count": 3,
+        "admitted_unresolved_count": 3
+      }
+    },
+    "materialization_failure": {
+      "count": 1,
+      "failure_code": "DirectOutputParseError",
+      "failure_detail_class": "proof_bearing_output",
+      "semantic_record_created": false
+    }
+  },
+  "processed_artifacts": {
+    "manifest_indexed_non_lean_file_count": 157,
+    "terminal_count": 60,
+    "family_report_count": 3,
+    "terminal_output_artifact_count": 93,
+    "terminal_output_shape_counts": {
+      "no_output_artifacts": 52,
+      "two_output_artifacts": 1,
+      "thirteen_output_artifacts": 7
+    },
+    "artifact_type_counts": {
+      "parsed_call": 8,
+      "parsed_candidate": 8,
+      "materialized_outcome": 7,
+      "materialized_theorem": 7,
+      "materialized_representation": 7,
+      "materialized_variant": 7,
+      "screening": 7,
+      "admitted_outcome": 7,
+      "admitted_theorem": 7,
+      "admitted_representation": 7,
+      "admitted_variant": 7,
+      "unresolved_pairs": 7,
+      "unresolved_nl_lean": 7
+    },
+    "non_lean_inventory_algorithm": "SHA256 per relative path followed by canonical hash of the sorted path-to-SHA256 mapping",
+    "non_lean_inventory_sha256": "2f0a6e36590fc16934422994076cc678c2480c156b00f69c74a6ae154d0627fc",
+    "all_manifest_and_terminal_hashes_match": true,
+    "all_records_canonical_and_schema_valid": true,
+    "all_cross_record_ids_and_hashes_reconcile": true,
+    "no_extra_or_missing_non_lean_files": true,
+    "no_symlinks": true
+  },
+  "leaninteract_raw_artifacts": {
+    "file_count": 89,
+    "request_id_count": 89,
+    "semantic_request_hash_count": 85,
+    "content_sha256_count": 89,
+    "response_count": 89,
+    "infrastructure_error_count": 0,
+    "stage_counts": {
+      "terminal_fence_or_raw_parse": 20,
+      "recovery_source": 37,
+      "recovery_normalized": 9,
+      "recovery_type": 9,
+      "candidate_validation": 7,
+      "representation_build": 7
+    },
+    "request_hashes_recomputed_from_payload_context_environment_and_method": true,
+    "filename_request_and_submission_hashes_match": true,
+    "all_context_ids_match_bound_context": true,
+    "all_artifacts_content_unique": true,
+    "inventory_algorithm": "SHA256 per relative path followed by canonical hash of the sorted path-to-SHA256 mapping",
+    "inventory_sha256": "5840c240a6ed4a3e64e5fa22db052d8b9d79c58e83a689ad5e741eb7fa70751d",
+    "base_manifest_individually_indexes_these_files": false,
+    "independent_audit_inventory_binds_these_files": true
+  },
+  "screening_and_admission": {
+    "screening_executed_count": 7,
+    "clean_count": 7,
+    "rejected_count": 0,
+    "benchmark_hit_count": 0,
+    "duplicate_candidate_hit_count": 0,
+    "canonical_candidate_count": 7,
+    "unique_candidate_theorem_ids": 7,
+    "unique_alpha_identity_fingerprints": 7,
+    "admitted_pair_count": 7,
+    "admitted_nl_lean_count": 7,
+    "frozen_registry_hash_matches": true,
+    "pair_split_group_checks_pass": true,
+    "nl_problem_lineage_checks_pass": true
+  },
+  "semantic_policy": {
+    "admitted_same_claim_values_are_null": true,
+    "admitted_relation_values_are_null": true,
+    "admitted_resolution_outcome": "unresolved",
+    "admitted_quality_tier": "unknown",
+    "admitted_requires_adjudication": true,
+    "admitted_decision": "REVIEW",
+    "non_admitted_semantic_records_created": false,
+    "resolved_label_ids_created": false,
+    "evidence_ids_created": false,
+    "semantic_labels_created": false,
+    "supervision_eligible": false,
+    "gate_5g_credit_claimed": false,
+    "gate_5_closed": false,
+    "generation_intention_unknown_is_not_a_resolved_relation": true
+  },
+  "verify_only_replay": {
+    "command": "CUDA_VISIBLE_DEVICES='' HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 uv run python scripts/20_postprocess_research_outputs_v4.py --root /localhome/milikic/LeanFaith --collection-root /localhome/milikic/LeanFaith/data/raw/real_outputs/cross_domain_docstrings_operational_v1/v3/cross_domain_s0/local_collection/b5080892f0b71e43735dfe3a1f3bf4e227f7988c362196ea7a09ea703db3846c --verify-only",
+    "exit_code": 0,
+    "elapsed_seconds": 3.85,
+    "lean_execution_performed": false,
+    "file_count_before": 246,
+    "file_count_after": 246,
+    "full_inventory_sha256_before": "b16721364ae385775446d624737d75e01c7a428850b5353c1f77bc54de6ac683",
+    "full_inventory_sha256_after": "b16721364ae385775446d624737d75e01c7a428850b5353c1f77bc54de6ac683",
+    "byte_invariant": true
+  },
+  "interpretation": "This audit establishes exact raw lineage, operational parsing/recovery/Lean validation, clean benchmark and alpha-identity screening for seven unresolved admissions, complete artifact hashing, and a byte-invariant verify-only replay. The seven admitted records remain REVIEW-only candidates: they are not semantic labels, are not training supervision, and receive no Gate credit."
+}

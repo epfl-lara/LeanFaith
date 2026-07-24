@@ -1,0 +1,68 @@
+{
+  "schema_version": 1,
+  "artifact_kind": "benchmark_representation_signatures",
+  "selection_version": "benchmark_signature_inputs_v1",
+  "normalization_version": "repr_v2",
+  "generated_at": "2026-07-18T16:51:40.631726Z",
+  "completed_at": "2026-07-23T14:57:35Z",
+  "context_id": "ctx:0cd06826b8767b3bc951c0eb00c802424af95785b558f9f8a61f18694a86c4ce",
+  "base_registry": {
+    "path": "data/benchmarks/frozen_ids.json",
+    "sha256": "f213c1106fe41b0357608101af4d34cbf01e511c4ac54430bcde500eb00e15e4"
+  },
+  "active_registry": {
+    "path": "data/benchmarks/frozen_ids.representations_v1.json",
+    "sha256": "613441d568b51a231efe653a2622d01e1aa5d7b31eb29d6b6f9ff17bbe30feed"
+  },
+  "detailed_index": {
+    "uri": "/storage/milikic/leanfaith/gate3/run_rev41_v3/benchmark_signatures/frozen_representation_signatures_v1.json",
+    "sha256": "591bcda1031995ef0871bb398b32a00681074d92c39525d878fd3427620757a2",
+    "required_for_preflight": true
+  },
+  "input_manifest": {
+    "uri": "/storage/milikic/leanfaith/gate3/run_rev41_v3/benchmark_signatures_work/input_manifest.json",
+    "sha256": "02e3d10b9e7c067ff3183dec8d199274fcca1ad8f7041d2bd8fc5dfb70543b25",
+    "statement_count": 14534
+  },
+  "code_bundle": {
+    "uri": "/storage/milikic/leanfaith/gate3/run_rev41_v3/code_bundle/code_bundle_8b8caafd3bc70810183204b91e1f14f7e54c5dcb0b874cf438e0b46966f15900.tar.gz",
+    "sha256": "8b8caafd3bc70810183204b91e1f14f7e54c5dcb0b874cf438e0b46966f15900",
+    "code_tree_hash": "e965800ceb8d05b565a729a9993a4ff14eb59bab7b4e6a71430f2e0d5722f411"
+  },
+  "accounting": {
+    "attempted": 14534,
+    "elaborated": 10686,
+    "all_views_ok": 10628,
+    "records_with_failures": 3906,
+    "failures": 3925,
+    "by_benchmark": {
+      "formalrx_test": 7030,
+      "proofnetverif": 7504
+    },
+    "view_success": {
+      "alpha_identity_fingerprint": 10628,
+      "headless": 10647,
+      "signature_explicit": 10647,
+      "signature_pp": 10647
+    },
+    "failure_counts": {
+      "ambiguous_target_theorems": 2,
+      "representation_operator_tree_failed": 19,
+      "representation_semantic_atoms_failed": 19,
+      "source_invalid": 3848,
+      "target_theorem_missing": 37
+    }
+  },
+  "resolved_benchmarks": {
+    "formalrx_test": {
+      "statement_count": 7030,
+      "representation_hash_count": 16373
+    },
+    "proofnetverif": {
+      "statement_count": 7504,
+      "representation_hash_count": 12445
+    }
+  },
+  "unresolved_benchmark_policy": "Retain every unresolved registry key as evaluation-only and fail closed by name until its exact artifact is pinned; unresolved benchmarks are never treated as clean non-overlap.",
+  "missing_representation_policy": "protected_unknown_never_non_overlap"
+}

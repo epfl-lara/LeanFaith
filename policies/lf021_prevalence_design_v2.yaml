@@ -1,0 +1,67 @@
+schema_version: 2
+policy_id: lf021_prevalence_design_v2
+status: frozen_prelabel
+
+# Revision 2 preserves every estimand, ambiguity, nonresponse, and scope rule
+# from the exact frozen v1 policy while replacing its fixed-salt frame
+# contract with the independently replayed randomized frame-freeze v3.
+base_v1_design:
+  artifact: policies/lf021_prevalence_design_v1.yaml
+  sha256: 312bc2905eec9e9c30679aaecf1d12a90f46b7fa01f6e01bdfffe132cc584a27
+
+target_population:
+  frame_schema_version: 3
+  primary_unit: problem_group_x_alpha_identity
+  eligible_population: benchmark_clear_compiling_problem_aware_claims_in_verified_v3_population
+  label_reuse_scope: same_problem_group_and_alpha_identity_only
+  sampling_method: problem_aware_stratified_csprng_srs_without_replacement_v2
+  sampling_rank_algorithm: hmac_sha256_keyed_rank_v1
+
+primary:
+  category_estimand: finite_population_faithful_unfaithful_ambiguous_claim_shares
+  headline_scalar: faithful_among_terminal_nonambiguous_claims
+  estimator: stratified_horvitz_thompson_known_population_total
+  confidence_interval: exact_hypergeometric_inversion_bonferroni_simultaneous_v1
+  confidence_level: 0.95
+  singleton_noncertainty_stratum: supported_by_exact_inversion
+
+secondary:
+  estimands:
+    - retained_invocation_weighted
+    - per_generator_family_invocation_weighted
+  estimator: stratified_hajek_ratio_using_retained_multiplicity
+  confidence_interval: stratified_taylor_linearization_normal_v1
+  confidence_level: 0.95
+  singleton_noncertainty_stratum: point_estimate_only_interval_unsupported_fail_closed
+  interval_role: descriptive_pointwise_not_primary_confirmatory
+
+ambiguity:
+  primary: exclude_terminal_ambiguous_from_binary_denominator
+  required_three_way_report: true
+  sensitivity: treat_terminal_ambiguous_as_not_faithful
+
+nonresponse:
+  unresolved_or_missing: nonresponse_not_terminal_ambiguity
+  point_estimate: respondent_hajek_descriptive
+  bounds: worst_case_all_unfaithful_vs_all_faithful
+  every_frame_item_attempted: true
+
+source_proxy:
+  canonical_label: operational_source_path_proxy
+  interpretation: coverage_metadata_not_adjudicated_semantic_domain
+  forbidden_claim: semantic_domain_prevalence
+
+scope:
+  required_scalable_families:
+    - goedel_formalizer_v2_8b
+    - kimina_autoformalizer_7b
+    - stepfun_formalizer_7b
+  three_family_collection_only: true
+  confirmatory_d4_d5_eligible: false
+  heldout_generator_claim_eligible: false
+  supplemental_qualifications_count_for_gate_credit: false
+
+semantic_labels_inspected_when_frozen: false
+semantic_labels_created: false
+gate_5g_closed: false
+gate_5_closed: false

@@ -1,0 +1,157 @@
+schema_version: 1
+policy_id: lf021_post_exhaustion_tranche_extension_v1
+status: frozen_prelabel
+
+# This extension cannot activate while any tranche in the original immutable
+# 12-tranche sequence remains. It never creates a prevalence frame; the bound
+# v3 frame-freeze line remains the only permitted sampling mechanism.
+base_v1_policy:
+  artifact: configs/generation/lf021_tranche_expansion_v1.yaml
+  sha256: 0c726e197ef5358ef4a7414e36622c10fb7ff19082199540b62e4bc170834e16
+base_v1_implementation:
+  artifact: src/leanfaith/generation/tranche_expansion.py
+  sha256: 33078832be9131cc85f7ac10e0e4da6374c768ffb6a0e4829a71b4e8f7fcbc67
+base_v2_policy:
+  artifact: configs/generation/lf021_tranche_expansion_v2.yaml
+  sha256: ac16afa29eccbf072e88c3424eb9d717743710f8282d76bd8b217ff55d607b70
+base_v2_implementation:
+  artifact: src/leanfaith/generation/tranche_expansion_v2.py
+  sha256: 2e8a759c1882cb31fb1937c4584bcf258246d62307be09e74bca13446a2f32d0
+frame_v3_policy:
+  artifact: configs/generation/lf021_frame_freeze_v3.yaml
+  sha256: 5514f7bbb7620413f48d9c087657d3ae89980a8cb7e2dd802fc3af5b6716cc8f
+frame_v3_implementation:
+  artifact: src/leanfaith/generation/frame_freeze_v3.py
+  sha256: a4d9e107cff84f3db4052ab4d7b2afd341e3c0e6fa6251d87a48efca18c3cec6
+
+family_source_matrices:
+  - artifact: configs/generation/local_research_source_matrix_v2.yaml
+    sha256: 6869ef8acde1327d42311552e0a3e62e28d8bea8d3859855d029ca084fdbb426
+  - artifact: configs/generation/local_research_source_matrix_cross_domain_v3.yaml
+    sha256: e6252802d61117acf34fc7844c3fcf3a72ceb17de7c7bc379310dc69d6080bde
+
+required_families:
+  - goedel_formalizer_v2_8b
+  - kimina_autoformalizer_7b
+  - stepfun_formalizer_7b
+
+family_pins:
+  - family_id: goedel_formalizer_v2_8b
+    model: Goedel-LM/Goedel-Formalizer-V2-8B
+    revision: fe2d362d899601abe79d7d5e95eaa7fe9883a0cb
+    transport: local
+  - family_id: kimina_autoformalizer_7b
+    model: AI-MO/Kimina-Autoformalizer-7B
+    revision: ddd47cb477d93b3ca990468e1c0d5ad6b60973dd
+    transport: local
+  - family_id: stepfun_formalizer_7b
+    model: stepfun-ai/StepFun-Formalizer-7B
+    revision: fb0dc612761fecd64ebbc489c2a3417e9ea01968
+    transport: local
+
+pool_pins:
+  - pool_id: algebra_gate3_docstrings_v1
+    problem_count: 40
+    records:
+      artifact: data/parsed/real_outputs/gate3_docstrings_operational_v1/problem_pool_records.jsonl
+      sha256: 6f45ebf158fcbb23f7b9833f2c433fb335cda7e66c061c0436aab68702330c6f
+    manifest:
+      artifact: data/parsed/real_outputs/gate3_docstrings_operational_v1/problem_pool_manifest.json
+      sha256: 229cf1dfcc7c8eee0de839c62b6beb708678ff2a2bea876803b704033de324d7
+  - pool_id: cross_domain_docstrings_v1
+    problem_count: 20
+    records:
+      artifact: data/parsed/real_outputs/cross_domain_docstrings_operational_v1/problem_pool_records.jsonl
+      sha256: 13111c14f2061acd8e9ceb9a2ffe937c6c5b72025f32a0c2a9e93e49934aebbf
+    manifest:
+      artifact: data/parsed/real_outputs/cross_domain_docstrings_operational_v1/problem_pool_manifest.json
+      sha256: f7fdcdb9676148500ba4620bc12a4776192e8b4804ab6fc160571d4d8aef4122
+
+original_tranche_count: 12
+activation_actions:
+  - freeze_reduced_frame
+  - exhausted_without_frame
+
+extension_tranches:
+  - order: 12
+    tranche_id: algebra_s6
+    pool_id: algebra_gate3_docstrings_v1
+    seeds_by_family:
+      goedel_formalizer_v2_8b: 36
+      kimina_autoformalizer_7b: 6
+      stepfun_formalizer_7b: 6
+    expected_problem_count: 40
+    expected_invocations: 120
+
+  - order: 13
+    tranche_id: cross_domain_s6
+    pool_id: cross_domain_docstrings_v1
+    seeds_by_family:
+      goedel_formalizer_v2_8b: 36
+      kimina_autoformalizer_7b: 6
+      stepfun_formalizer_7b: 6
+    expected_problem_count: 20
+    expected_invocations: 60
+
+  - order: 14
+    tranche_id: algebra_s7
+    pool_id: algebra_gate3_docstrings_v1
+    seeds_by_family:
+      goedel_formalizer_v2_8b: 37
+      kimina_autoformalizer_7b: 7
+      stepfun_formalizer_7b: 7
+    expected_problem_count: 40
+    expected_invocations: 120
+
+  - order: 15
+    tranche_id: cross_domain_s7
+    pool_id: cross_domain_docstrings_v1
+    seeds_by_family:
+      goedel_formalizer_v2_8b: 37
+      kimina_autoformalizer_7b: 7
+      stepfun_formalizer_7b: 7
+    expected_problem_count: 20
+    expected_invocations: 60
+
+stop_rule: bound_v1_preferred_size_and_coverage
+frame_creation_enabled: false
+frame_freezer_line: lf021_problem_aware_frame_freeze_v3
+current_v3_extended_population_directly_eligible: false
+frame_handoff_requires_separate_reviewed_adapter: true
+
+decision_inputs:
+  - alpha_identity_fingerprint
+  - benchmark_screen
+  - compile_status
+  - family_id
+  - parse_status
+  - pool_id
+  - problem_group
+  - source_proxy
+forbidden_inputs:
+  - faithfulness_judgment
+  - human_label
+  - llm_judgment
+  - proof_search_result
+  - relation
+  - same_claim
+
+forecast_motivation:
+  observed_unique_units_after_s2: 96
+  observed_incremental_unique_yields:
+    - 23
+    - 7
+    - 22
+    - 4
+    - 25
+    - 15
+  preferred_size: 240
+  unresolved_coverage_proxy: Algebra/Category
+  operational_motivation_only: true
+  statistical_guarantee: false
+
+semantic_labels_inspected: false
+semantic_labels_created: false
+supervision_eligible: false
+gate_5g_credit_claimed: false
+gate_5_closed: false

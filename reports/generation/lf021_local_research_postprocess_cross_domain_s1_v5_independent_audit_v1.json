@@ -1,0 +1,277 @@
+{
+  "schema_version": 1,
+  "audit_id": "lf021_local_research_postprocess_cross_domain_s1_v5_independent_audit_v1",
+  "audited_at": "2026-07-24T02:30:30Z",
+  "status": "passed_postprocess_v5_audit",
+  "scope": {
+    "collection_kind": "local_research_collection_v4",
+    "tranche_id": "cross_domain_s1",
+    "collection_root": "data/raw/real_outputs/cross_domain_docstrings_operational_v1/v4/cross_domain_s1/local_collection/40860adfb4f149dbf357f3cc624a4df02bdae020be27cdb4f3f16ca4f9771100",
+    "postprocess_root": "data/raw/real_outputs/cross_domain_docstrings_operational_v1/v4/cross_domain_s1/local_collection/40860adfb4f149dbf357f3cc624a4df02bdae020be27cdb4f3f16ca4f9771100/postprocess_v5",
+    "postprocess_manifest_id": "research_postprocess_v5_manifest:7631d31786f35436e0508fd8ce612365ba0630775c6a7d9950b6362395272509",
+    "postprocess_manifest_sha256": "54b0a1d07d3ee6d47aa1313a2e0b88e2653fcccad229266a07b7d750c4823bcc",
+    "input_binding_hash": "3afc3d7fe05942a29afcd49e11ff72d064a40a6091c11e61183cf7b65e62e9d1",
+    "shared_processing_input_binding_hash": "83fe8755fb92cdb6fad5fc5a233c3f275304fbff552f2cb23f2a7a24795d05b1"
+  },
+  "implementation_bindings": {
+    "postprocess_v5": {
+      "path": "src/leanfaith/generation/research_postprocess_v5.py",
+      "sha256": "9e422e71793242bbb51237fe53770bf2cd33874e7a1bc6d6f0aab8904b8df378"
+    },
+    "entrypoint": {
+      "path": "scripts/22_postprocess_research_tranche_v5.py",
+      "sha256": "a3545d1c1b001e5c54ad7670d475d542fdd885d74242056dbbec02fa3c8431b7"
+    },
+    "shared_postprocess_v3_engine": {
+      "path": "src/leanfaith/generation/research_postprocess_v3.py",
+      "sha256": "aa8415663187b99558df25889df4809dd24d673515500dc21882e1a2e9e103e9"
+    },
+    "recovery_parser": {
+      "path": "src/leanfaith/generation/local_output_recovery.py",
+      "parser_id": "lean_expected_declaration_recovery_v1",
+      "sha256": "34bd4757fdd06d119ccbc2c57692cf8e53c07447bbe2319ffc9dbec57b67d983"
+    }
+  },
+  "denominator_audit": {
+    "passed": true,
+    "problem_count": 20,
+    "family_count": 3,
+    "seed_count_by_family": {
+      "goedel_formalizer_v2_8b": 1,
+      "kimina_autoformalizer_7b": 1,
+      "stepfun_formalizer_7b": 1
+    },
+    "expected_invocations": 60,
+    "terminal_invocations": 60,
+    "unique_terminal_ids": 60,
+    "post_freeze_denominator_filtering_detected": false
+  },
+  "hash_and_identity_audit": {
+    "passed": true,
+    "scalar_bound_artifacts_checked": 23,
+    "collection_terminal_hashes_checked": 60,
+    "collection_family_session_hashes_checked": 6,
+    "raw_lineage_entries_checked": 480,
+    "unique_raw_lineage_files_checked": 423,
+    "postprocess_terminal_hashes_checked": 60,
+    "postprocess_output_hashes_checked": 132,
+    "family_report_hashes_checked": 3,
+    "lean_raw_files_checked": 101,
+    "input_binding_hash_recomputed": true,
+    "shared_processing_input_binding_hash_recomputed": true,
+    "manifest_id_recomputed": true,
+    "terminal_ids_recomputed": 60,
+    "family_report_ids_recomputed": 3,
+    "shared_v3_terminal_ids_recomputed": 60,
+    "shared_v3_terminal_hashes_recomputed": 60,
+    "raw_lineage_maps_reconciled": 60,
+    "output_artifact_maps_reconciled": 60,
+    "missing_bound_files": 0,
+    "hash_mismatches": 0,
+    "symlink_count": 0,
+    "partial_file_count": 0
+  },
+  "terminal_accounting": {
+    "passed": true,
+    "status_counts": {
+      "admitted_unresolved": 10,
+      "materialization_failed": 1,
+      "parse_failed": 49
+    },
+    "admitted_pair_count": 10,
+    "admitted_nl_lean_count": 10,
+    "family_status_counts": {
+      "goedel_formalizer_v2_8b": {
+        "admitted_unresolved": 1,
+        "materialization_failed": 1,
+        "parse_failed": 18
+      },
+      "kimina_autoformalizer_7b": {
+        "admitted_unresolved": 7,
+        "parse_failed": 13
+      },
+      "stepfun_formalizer_7b": {
+        "admitted_unresolved": 2,
+        "parse_failed": 18
+      }
+    },
+    "failure_terminals_with_zero_output_artifacts": 49,
+    "materialization_failure_with_two_parser_artifacts": 1,
+    "admitted_terminals_with_complete_13_artifact_sets": 10,
+    "all_terminals_execute_the_registered_parser": true
+  },
+  "primary_and_recovery_audit": {
+    "passed": true,
+    "recovery_status_counts": {
+      "failed": 30,
+      "not_eligible": 19,
+      "not_needed": 3,
+      "succeeded": 8
+    },
+    "primary_failure_counts": {
+      "declaration_count": 37,
+      "lean_invalid": 19,
+      "missing_final_fence": 1,
+      "none": 3
+    },
+    "terminal_failure_counts": {
+      "DirectOutputParseError": 1,
+      "lean_invalid": 19,
+      "none": 10,
+      "recovery_declaration_count": 1,
+      "recovery_declaration_name": 3,
+      "recovery_lean_invalid": 20,
+      "recovery_normalized_invalid": 5,
+      "recovery_terminal_fence_required": 1
+    },
+    "by_family": {
+      "goedel_formalizer_v2_8b": {
+        "failed": 18,
+        "succeeded": 2
+      },
+      "kimina_autoformalizer_7b": {
+        "failed": 12,
+        "not_eligible": 1,
+        "not_needed": 1,
+        "succeeded": 6
+      },
+      "stepfun_formalizer_7b": {
+        "not_eligible": 18,
+        "not_needed": 2
+      }
+    },
+    "parser_success_count": 11,
+    "compile_and_admission_success_count": 10,
+    "materialization_failure_count": 1
+  },
+  "materialization_failure_audit": {
+    "passed": true,
+    "invocation_id": "research_collection_invocation:32829e1e59fdfe942b2524e23ed071e8dbba3d39589a0805e72ad8cc1cb9f7cd",
+    "family_id": "goedel_formalizer_v2_8b",
+    "terminal_stage": "materialization",
+    "failure_code": "DirectOutputParseError",
+    "failure_detail": "proof_bearing_output: expected a theorem statement without assignment or proof terms",
+    "parsed_call_persisted": true,
+    "parsed_candidate_persisted": true,
+    "candidate_theorem_created": false,
+    "representation_created": false,
+    "pair_created": false,
+    "nl_lean_created": false,
+    "semantic_pool_admitted": false,
+    "semantic_labels_created": false,
+    "supervision_eligible": false
+  },
+  "typed_output_audit": {
+    "passed": true,
+    "parsed_call_records": 11,
+    "parsed_candidate_records": 11,
+    "materialization_outcome_records": 10,
+    "admission_outcome_records": 10,
+    "theorem_records": 20,
+    "representation_records": 20,
+    "variant_records": 20,
+    "screening_records": 10,
+    "pair_records": 10,
+    "nl_lean_records": 10,
+    "materialized_and_admitted_records_byte_equivalent": true,
+    "cross_record_ids_reconciled": true,
+    "unique_candidate_theorem_ids": 10,
+    "unique_representation_ids": 10,
+    "unique_variant_ids": 10,
+    "unique_screening_ids": 10,
+    "unique_pair_ids": 10,
+    "unique_nl_lean_ids": 10,
+    "clean_screening_records": 10,
+    "benchmark_hit_records": 0,
+    "noncanonical_records": 0,
+    "unique_alpha_identity_fingerprints": 10,
+    "all_model_visible_representation_views_present": true
+  },
+  "unresolved_schema_audit": {
+    "passed": true,
+    "terminal_records_checked": 10,
+    "pair_records_checked": 10,
+    "nl_lean_records_checked": 10,
+    "same_claim_is_null": true,
+    "relation_is_null": true,
+    "resolution_outcome": "unresolved",
+    "quality_tier": "unknown",
+    "requires_adjudication": true,
+    "decision": "REVIEW",
+    "resolved_label_ids_are_null": true,
+    "semantic_labels_created": false,
+    "supervision_eligible": false,
+    "gate_5g_credit_claimed": false,
+    "gate_5_closed": false
+  },
+  "lean_execution_evidence": {
+    "passed": true,
+    "record_count": 101,
+    "unique_request_ids": 101,
+    "unique_request_hashes": 94,
+    "stage_counts": {
+      "materialization_validate": 10,
+      "primary_raw_or_fence": 2,
+      "primary_stepfun_terminal_fence": 20,
+      "recovery_normalized": 13,
+      "recovery_source": 33,
+      "recovery_type": 13,
+      "representation": 10
+    },
+    "filename_request_hash_binding_count": 101,
+    "filename_request_id_digest_binding_count": 101,
+    "method_version": "leaninteract_backend_v2",
+    "backend_error_count": 0,
+    "materialization_validation_success_count": 10,
+    "representation_success_count": 10
+  },
+  "family_report_hashes": {
+    "goedel_formalizer_v2_8b": "de25bbca9861abdb19208de5d2cd58cd99221bd38038b108d6f88eb5041a2835",
+    "kimina_autoformalizer_7b": "edb8464b033edfc65fa6e4ae3399eef41250377544107f1be46a174caec36489",
+    "stepfun_formalizer_7b": "31d243b2030111f64ebe8f10d9f58bbe41645d92b1239c21c3d36c000c65f565"
+  },
+  "postprocess_tree": {
+    "file_count": 297,
+    "tree_hash_algorithm": "sha256(canonical compact JSON object mapping repository-relative file path to file sha256, with sorted keys)",
+    "tree_sha256": "2a378ab01f48f1800a7744f98633f513f38baa5f00d5db0d56f84cb66f24c450"
+  },
+  "verify_only_replay": {
+    "passed": true,
+    "command": "CUDA_VISIBLE_DEVICES='' NVIDIA_VISIBLE_DEVICES=void uv run python scripts/22_postprocess_research_tranche_v5.py --verify-only --root /localhome/milikic/LeanFaith --collection-root /localhome/milikic/LeanFaith/data/raw/real_outputs/cross_domain_docstrings_operational_v1/v4/cross_domain_s1/local_collection/40860adfb4f149dbf357f3cc624a4df02bdae020be27cdb4f3f16ca4f9771100 --collection-config /localhome/milikic/LeanFaith/configs/generation/local_research_collection_cross_domain_s1_v4.json",
+    "elapsed_ms": 3577,
+    "gpu_visible": false,
+    "before_file_count": 297,
+    "after_file_count": 297,
+    "before_tree_sha256": "2a378ab01f48f1800a7744f98633f513f38baa5f00d5db0d56f84cb66f24c450",
+    "after_tree_sha256": "2a378ab01f48f1800a7744f98633f513f38baa5f00d5db0d56f84cb66f24c450",
+    "file_hash_map_byte_invariant": true,
+    "lean_execution_performed": false,
+    "writes_performed": false
+  },
+  "focused_checks": {
+    "pytest": {
+      "command": "uv run pytest -q tests/unit/test_lf021_research_postprocess_v5.py",
+      "passed": true,
+      "test_count": 2
+    },
+    "ruff_check": {
+      "passed": true
+    },
+    "ruff_format_check": {
+      "passed": true
+    },
+    "mypy": {
+      "command": "uv run mypy src/leanfaith/generation/research_postprocess_v5.py scripts/22_postprocess_research_tranche_v5.py",
+      "passed": true
+    }
+  },
+  "hard_boundaries": {
+    "semantic_validity_claim": false,
+    "faithfulness_claim": false,
+    "resolved_label_claim": false,
+    "supervision_admission_claim": false,
+    "gate_5g_credit_claim": false,
+    "gate_5_closure_claim": false,
+    "disposition": "The 60 frozen cross-domain s1 outputs reconcile exactly to 10 Lean-elaborating, denylist-clean, alpha-unique candidates routed to unresolved REVIEW, 49 explicit parse failures, and one isolated proof-bearing materialization failure. The bundle creates no semantic labels, admits no training supervision, and closes neither Gate 5G nor Gate 5."
+  }
+}

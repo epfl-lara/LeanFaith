@@ -118,7 +118,16 @@ def test_blocked_source_returns_structured_block() -> None:
 def test_token_resolved_by_name_and_never_stored(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("LEANFAITH_TEST_HF_TOKEN", "hf_secret_value")
     client = FakeHFClient(blocked_without_token=True, gated=True)
-    config = _config(token=SecretRef(env="LEANFAITH_TEST_HF_TOKEN"))
+    config = _config(
+        token=SecretRef(env="LEANFAITH_TEST_HF_TOKEN"),
+        access_basis="test fixture authorization",
+        institutional_policy_status="approved_for_test",
+        license_status="undeclared",
+        redistribution_allowed=False,
+        external_transmission_allowed=False,
+        release_eligibility=False,
+        external_api_approved=False,
+    )
     outcome = HFDatasetProber(config, client).probe()
     assert outcome.accessible
     assert client.seen_tokens == ["hf_secret_value"]

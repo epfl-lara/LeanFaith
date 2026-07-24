@@ -1,7 +1,7 @@
 """Lean-backed representation builder (PLAN.md §13, LF-014).
 
 Supersedes the minimal ``repr_v0_extract`` record from extraction with a
-``repr_v1`` multi-view record: the three required v0 views plus the
+``repr_v2`` multi-view record: the three required v0 views plus the
 elaborated ``signature_explicit``, obtained by batched ``#check @name`` under
 pinned pp options. Batching loads the environment once per option set.
 """
@@ -16,9 +16,11 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
+from leanfaith.config.hashing import canonical_json_bytes, sha256_hex
 from leanfaith.config.paths import find_repo_root
 from leanfaith.lean.leaninteract_backend import LeanInteractBackend
 from leanfaith.lean.protocol import LeanRequest, LeanResult, LeanStatus
+from leanfaith.lean.session_policy import RetryPolicy, run_with_retries
 from leanfaith.representations.atoms import (
     operator_tree,
     parse_lfjson_line,
@@ -38,6 +40,34 @@ from leanfaith.schemas.ids import REPRESENTATION_PREFIX, make_id
 from leanfaith.schemas.theorem import CANONICAL_VIEW_NAMES, RepresentationRecord
 
 _CHECK_NAME = re.compile(r"^@?(?P<name>[^\s.]+(?:\.[^\s.{:]+)*)")
+_UNIVERSE_TOKEN = re.compile(r"(?:[^\W\d]|_)[\w\x27.]*", re.UNICODE)
+_UNIVERSE_KEYWORDS = frozenset({"max", "imax", "succ", "zero"})
+_REPRESENTATION_RETRY_POLICY = RetryPolicy(
+    max_attempts=2,
+    retry_statuses=frozenset({LeanStatus.CRASH, LeanStatus.INTERNAL_ERROR, LeanStatus.TIMEOUT}),
+)
+
+
+def _run_representation_request(
+    backend: LeanInteractBackend,
+    request: LeanRequest,
+) -> LeanResult:
+    """Run one correctness request with bounded infrastructure-only retries."""
+
+    return run_with_retries(
+        backend.run,
+        request,
+        _REPRESENTATION_RETRY_POLICY,
+    ).result
+
+
+def _run_representation_requests(
+    backend: LeanInteractBackend,
+    requests: list[LeanRequest],
+) -> list[LeanResult]:
+    """Keep each theorem request independent while preserving retry lineage."""
+
+    return [_run_representation_request(backend, request) for request in requests]
 
 
 @lru_cache(maxsize=1)
@@ -73,13 +103,14 @@ def _run_expr_dump_batch(
     names: list[str],
     request_id: str,
 ) -> dict[str, dict[str, Any]]:
-    result = backend.run(
+    result = _run_representation_request(
+        backend,
         LeanRequest(
             request_id=request_id,
             context_id=context_id,
             code=_dump_command(imports, _expr_json_helper(), names),
             timeout_seconds=600.0,
-        )
+        ),
     )
     if result.status not in (LeanStatus.VALID, LeanStatus.VALID_WITH_SORRY):
         return {}
@@ -108,6 +139,115 @@ class TheoremForRepresentation:
     #: view. When absent (e.g. a raw benchmark reference), the pipeline falls
     #: back to the string-based ``normalize_headless``.
     source_signature: str | None = None
+    #: Inline dataset statements are declared and inspected in the same
+    #: LeanInteract request. Repository declarations already exist in imports.
+    inline_declaration: bool = False
+    #: Full non-model command context for inline elaboration. The raw/headless
+    #: views continue to use ``proof_stripped`` exclusively.
+    inline_source: str | None = None
+    #: Environment-facing declaration name. LeanInteract renders private
+    #: declarations as ``_private.0.<suffix>`` in FileCommand metadata, while
+    #: the imported environment stores the source-qualified name
+    #: ``_private.<module>.0.<suffix>``. Model-visible identity continues to
+    #: use ``full_name``; only meta-level environment lookup uses this field.
+    environment_lookup_name: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class RepresentationBatch:
+    """One homogeneous context/import unit for representation orchestration."""
+
+    context_id: str
+    import_header: str
+    ordered_theorem_inputs: tuple[TheoremForRepresentation, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class RepresentationFailure:
+    theorem_id: str
+    view: str
+    status: str
+    detail: str
+
+
+@dataclass(frozen=True, slots=True)
+class RepresentationBatchResult:
+    ordered_representation_records: tuple[RepresentationRecord, ...]
+    per_theorem_failures: tuple[RepresentationFailure, ...]
+
+
+def declaration_environment_lookup_name(full_name: str, source_file: str | None) -> str:
+    """Recover the environment name for a FileCommand-rendered private name.
+
+    LeanInteract intentionally pretty-prints private declarations without the
+    source module (for example ``_private.0.ZMod.foo``), but ``Environment``
+    keys retain it (``_private.Mathlib.Algebra.Field.ZMod.0.ZMod.foo``).
+    Exact source qualification avoids an ambiguous suffix scan. Public names,
+    or private names without a trustworthy ``.lean`` source path, are left
+    unchanged so lookup fails explicitly rather than guessing.
+    """
+
+    if not full_name.startswith("_private.") or source_file is None:
+        return full_name
+    normalized_source = source_file.replace("\\", "/").lstrip("/")
+    if not normalized_source.endswith(".lean"):
+        return full_name
+    module_name = normalized_source.removesuffix(".lean").replace("/", ".")
+    if not module_name:
+        return full_name
+    return f"_private.{module_name}.{full_name.removeprefix('_private.')}"
+
+
+def _expr_lookup_name(theorem: TheoremForRepresentation) -> str:
+    return theorem.environment_lookup_name or theorem.full_name
+
+
+def _requires_environment_only_lookup(theorem: TheoremForRepresentation) -> bool:
+    """Whether Lean's parser cannot address the environment declaration name."""
+
+    return (
+        theorem.environment_lookup_name is not None
+        and theorem.environment_lookup_name != theorem.full_name
+    )
+
+
+def alpha_canonical_bytes(expr_tree: dict[str, Any]) -> bytes:
+    """Canonical binder-normalized bytes for a declaration *type* tree.
+
+    The Lean helper serializes bound variables by de Bruijn index and omits
+    declaration values/proofs. Binder domains, binder metadata, constants,
+    literals, projections, lets, and application structure remain. Universe
+    identifiers are represented only by normalized shape/count metadata.
+    """
+
+    names: dict[str, str] = {}
+
+    def normalize_universe(text: str) -> str:
+        def replace(match: re.Match[str]) -> str:
+            token = match.group(0)
+            if token in _UNIVERSE_KEYWORDS:
+                return token
+            if token not in names:
+                names[token] = f"u{len(names)}"
+            return names[token]
+
+        return _UNIVERSE_TOKEN.sub(replace, text)
+
+    def visit(value: object, key: str | None = None) -> object:
+        if isinstance(value, dict):
+            return {name: visit(item, name) for name, item in sorted(value.items())}
+        if isinstance(value, list):
+            return [visit(item, key) for item in value]
+        if isinstance(value, str) and key in {"u", "us"}:
+            return normalize_universe(value)
+        return value
+
+    normalized = visit(expr_tree)
+    return canonical_json_bytes(normalized)
+
+
+def alpha_identity_fingerprint(expr_tree: dict[str, Any]) -> str:
+    return sha256_hex(alpha_canonical_bytes(expr_tree))
 
 
 def _info_messages(result: LeanResult) -> list[str]:
@@ -145,17 +285,363 @@ def _run_check_batch(
     names: list[str],
     request_id: str,
 ) -> dict[str, str]:
-    result = backend.run(
+    result = _run_representation_request(
+        backend,
         LeanRequest(
             request_id=request_id,
             context_id=context_id,
-            code=check_command(imports, options_inline, names),
+            code=check_command(_imports_with_lean(imports), options_inline, names),
             timeout_seconds=300.0,
-        )
+        ),
     )
     if result.status not in (LeanStatus.VALID, LeanStatus.VALID_WITH_SORRY):
         return {}
     return _map_check_types(_info_messages(result), set(names))
+
+
+def _combined_command(
+    imports: str,
+    theorem: TheoremForRepresentation,
+) -> str:
+    inline_imports, inline_body = _hoist_inline_imports(
+        (theorem.inline_source or theorem.proof_stripped) if theorem.inline_declaration else ""
+    )
+    lines = [_imports_with_lean("\n".join((imports, inline_imports))), _expr_json_helper()]
+    if theorem.inline_declaration:
+        lines.append(inline_body)
+    if not _requires_environment_only_lookup(theorem):
+        lines.extend(
+            (
+                f"{PP_SIGNATURE_INLINE} #check @{theorem.full_name}",
+                f"{PP_EXPLICIT_INLINE} #check @{theorem.full_name}",
+            )
+        )
+    lines.append(f"lfDump {json.dumps(_expr_lookup_name(theorem), ensure_ascii=False)}")
+    return "\n".join(line for line in lines if line)
+
+
+def _parse_combined_result(
+    result: LeanResult,
+    full_name: str,
+    *,
+    dump_name: str | None = None,
+) -> tuple[str | None, str | None, dict[str, Any] | None]:
+    parsed_checks = [
+        parsed
+        for message in _info_messages(result)
+        if (parsed := parse_check_type(message, full_name)) is not None
+    ]
+    signature_pp = parsed_checks[0] if parsed_checks else None
+    signature_explicit = parsed_checks[1] if len(parsed_checks) > 1 else None
+    tree: dict[str, Any] | None = None
+    for message in result.messages:
+        for candidate in str(message.get("data", "")).splitlines():
+            if "LFJSON " not in candidate:
+                continue
+            parsed_name, parsed_tree = parse_lfjson_line(candidate)
+            if parsed_name == (dump_name or full_name) and parsed_tree is not None:
+                tree = parsed_tree
+    return signature_pp, signature_explicit, tree
+
+
+def _single_check_command(
+    imports: str,
+    theorem: TheoremForRepresentation,
+    options_inline: str,
+) -> str:
+    inline_imports, inline_body = _hoist_inline_imports(
+        (theorem.inline_source or theorem.proof_stripped) if theorem.inline_declaration else ""
+    )
+    lines = [_imports_with_lean("\n".join((imports, inline_imports)))]
+    if theorem.inline_declaration:
+        lines.append(inline_body)
+    lines.append(f"{options_inline} #check @{theorem.full_name}")
+    return "\n".join(lines)
+
+
+def _single_dump_command(imports: str, theorem: TheoremForRepresentation) -> str:
+    inline_imports, inline_body = _hoist_inline_imports(
+        (theorem.inline_source or theorem.proof_stripped) if theorem.inline_declaration else ""
+    )
+    lines = [_imports_with_lean("\n".join((imports, inline_imports))), _expr_json_helper()]
+    if theorem.inline_declaration:
+        lines.append(inline_body)
+    lines.append(f"lfDump {json.dumps(_expr_lookup_name(theorem), ensure_ascii=False)}")
+    return "\n".join(lines)
+
+
+def _imports_with_lean(imports: str) -> str:
+    """Ensure meta-command requests import Lean's elaborator API explicitly."""
+
+    lines = [line.strip() for line in imports.splitlines() if line.strip()]
+    return "\n".join(["import Lean", *(line for line in lines if line != "import Lean")])
+
+
+def _hoist_inline_imports(source: str) -> tuple[str, str]:
+    """Move inline ``import`` commands ahead of the injected meta helper.
+
+    Dataset declarations frequently preserve their original import header.
+    Appending that source after helper declarations would place imports after
+    declarations, which Lean rejects.  Imports are order-insensitive command
+    prerequisites, so hoisting them preserves the statement context while
+    keeping all non-import commands in source order.
+    """
+
+    imports: list[str] = []
+    body: list[str] = []
+    block_depth = 0
+    for line in source.splitlines():
+        initial_depth = block_depth
+        first_code, block_depth = _scan_lean_line(line, block_depth)
+        # Only move a real command whose first code token is `import`.  In
+        # particular, prose such as `import geometry;` inside a nested Lean
+        # block comment must remain a comment.  Requiring balanced comments on
+        # the import line avoids moving one half of a multi-line comment.
+        is_import = (
+            initial_depth == 0
+            and block_depth == 0
+            and first_code is not None
+            and re.match(r"import(?:\s|$)", line[first_code:]) is not None
+        )
+        if is_import:
+            imports.append(line[first_code:].strip())
+        else:
+            body.append(line)
+    return "\n".join(dict.fromkeys(imports)), "\n".join(body)
+
+
+def _scan_lean_line(line: str, block_depth: int) -> tuple[int | None, int]:
+    """Return the first top-level code offset and ending block-comment depth.
+
+    Lean block comments nest.  Comment delimiters inside string literals do
+    not affect nesting, and a line comment ends scanning for that line.  This
+    small lexer intentionally answers only what import hoisting needs; Lean
+    remains the authority for parsing the resulting command.
+    """
+
+    first_code: int | None = None
+    in_string = False
+    escaped = False
+    index = 0
+    while index < len(line):
+        if block_depth:
+            if line.startswith("/-", index):
+                block_depth += 1
+                index += 2
+            elif line.startswith("-/", index):
+                block_depth -= 1
+                index += 2
+            else:
+                index += 1
+            continue
+
+        if in_string:
+            char = line[index]
+            if escaped:
+                escaped = False
+            elif char == "\\":
+                escaped = True
+            elif char == '"':
+                in_string = False
+            index += 1
+            continue
+
+        if line.startswith("--", index):
+            break
+        if line.startswith("/-", index):
+            block_depth += 1
+            index += 2
+            continue
+
+        char = line[index]
+        if first_code is None and not char.isspace():
+            first_code = index
+        if char == '"':
+            in_string = True
+        index += 1
+
+    return first_code, block_depth
+
+
+def _retry_check_views(
+    backend: LeanInteractBackend,
+    theorems: list[TheoremForRepresentation],
+    imports: str,
+    options_inline: str,
+    view: str,
+) -> dict[str, str]:
+    requests = [
+        LeanRequest(
+            request_id=(
+                f"repr-{theorem.theorem_id.removeprefix('thm:')[:16]}-"
+                f"{NORMALIZATION_VERSION}-{view}"
+            ),
+            context_id=theorem.context_id,
+            code=_single_check_command(imports, theorem, options_inline),
+            allow_sorry=theorem.inline_declaration,
+            timeout_seconds=300.0,
+        )
+        for theorem in theorems
+    ]
+    recovered: dict[str, str] = {}
+    for theorem, result in zip(
+        theorems, _run_representation_requests(backend, requests), strict=True
+    ):
+        if result.status not in (LeanStatus.VALID, LeanStatus.VALID_WITH_SORRY):
+            continue
+        mapped = _map_check_types(_info_messages(result), {theorem.full_name})
+        value = mapped.get(theorem.full_name)
+        if value is not None:
+            recovered[theorem.theorem_id] = value
+    return recovered
+
+
+def _retry_expr_views(
+    backend: LeanInteractBackend,
+    theorems: list[TheoremForRepresentation],
+    imports: str,
+) -> dict[str, dict[str, Any]]:
+    requests = [
+        LeanRequest(
+            request_id=(
+                f"repr-{theorem.theorem_id.removeprefix('thm:')[:16]}-{NORMALIZATION_VERSION}-expr"
+            ),
+            context_id=theorem.context_id,
+            code=_single_dump_command(imports, theorem),
+            allow_sorry=theorem.inline_declaration,
+            timeout_seconds=600.0,
+        )
+        for theorem in theorems
+    ]
+    recovered: dict[str, dict[str, Any]] = {}
+    for theorem, result in zip(
+        theorems, _run_representation_requests(backend, requests), strict=True
+    ):
+        if result.status not in (LeanStatus.VALID, LeanStatus.VALID_WITH_SORRY):
+            continue
+        _, _, tree = _parse_combined_result(
+            result,
+            theorem.full_name,
+            dump_name=_expr_lookup_name(theorem),
+        )
+        if tree is not None:
+            recovered[theorem.theorem_id] = tree
+    return recovered
+
+
+def build_representation_batch(
+    backend: LeanInteractBackend,
+    batch: RepresentationBatch,
+    *,
+    created_at: datetime.datetime,
+) -> RepresentationBatchResult:
+    """Build one homogeneous batch without cross-theorem Lean requests."""
+
+    if not batch.ordered_theorem_inputs:
+        return RepresentationBatchResult((), ())
+    mismatched = [
+        theorem.theorem_id
+        for theorem in batch.ordered_theorem_inputs
+        if theorem.context_id != batch.context_id
+    ]
+    if mismatched:
+        raise ValueError(
+            "RepresentationBatch contains mixed contexts; rejected before Lean execution: "
+            + ", ".join(mismatched)
+        )
+
+    theorems = list(batch.ordered_theorem_inputs)
+    requests = [
+        LeanRequest(
+            request_id=(
+                f"repr-{theorem.theorem_id.removeprefix('thm:')[:16]}-"
+                f"{NORMALIZATION_VERSION}-combined"
+            ),
+            context_id=theorem.context_id,
+            code=_combined_command(batch.import_header, theorem),
+            allow_sorry=theorem.inline_declaration,
+            timeout_seconds=600.0,
+        )
+        for theorem in theorems
+    ]
+    parsed: dict[
+        str,
+        tuple[str | None, str | None, dict[str, Any] | None],
+    ] = {}
+    for theorem, result in zip(
+        theorems, _run_representation_requests(backend, requests), strict=True
+    ):
+        values: tuple[str | None, str | None, dict[str, Any] | None] = (None, None, None)
+        if result.status in (LeanStatus.VALID, LeanStatus.VALID_WITH_SORRY):
+            values = _parse_combined_result(
+                result,
+                theorem.full_name,
+                dump_name=_expr_lookup_name(theorem),
+            )
+        parsed[theorem.theorem_id] = values
+
+    missing_signature_pp = [
+        theorem
+        for theorem in theorems
+        if parsed[theorem.theorem_id][0] is None and not _requires_environment_only_lookup(theorem)
+    ]
+    missing_signature_explicit = [
+        theorem
+        for theorem in theorems
+        if parsed[theorem.theorem_id][1] is None and not _requires_environment_only_lookup(theorem)
+    ]
+    missing_expr = [theorem for theorem in theorems if parsed[theorem.theorem_id][2] is None]
+    recovered_pp = _retry_check_views(
+        backend,
+        missing_signature_pp,
+        batch.import_header,
+        PP_SIGNATURE_INLINE,
+        "signature_pp",
+    )
+    recovered_explicit = _retry_check_views(
+        backend,
+        missing_signature_explicit,
+        batch.import_header,
+        PP_EXPLICIT_INLINE,
+        "signature_explicit",
+    )
+    recovered_expr = _retry_expr_views(backend, missing_expr, batch.import_header)
+
+    records: list[RepresentationRecord] = []
+    failures: list[RepresentationFailure] = []
+    for theorem in theorems:
+        signature_pp, signature_explicit, tree = parsed[theorem.theorem_id]
+        signature_pp = signature_pp or recovered_pp.get(theorem.theorem_id)
+        signature_explicit = signature_explicit or recovered_explicit.get(theorem.theorem_id)
+        tree = tree or recovered_expr.get(theorem.theorem_id)
+        record = _build_record(
+            theorem,
+            signature_pp,
+            signature_explicit,
+            tree,
+            created_at,
+        )
+        records.append(record)
+        for view, status in record.view_status.items():
+            if status == ViewStatus.FAILED:
+                if view in {"signature_pp", "signature_explicit"} and (
+                    _requires_environment_only_lookup(theorem)
+                ):
+                    detail = (
+                        "signature view is unavailable for a source-qualified "
+                        "private environment name"
+                    )
+                else:
+                    detail = "combined request and independent view retry did not recover view"
+                failures.append(
+                    RepresentationFailure(
+                        theorem_id=theorem.theorem_id,
+                        view=view,
+                        status="failed",
+                        detail=detail,
+                    )
+                )
+    return RepresentationBatchResult(tuple(records), tuple(failures))
 
 
 def build_representations(
@@ -166,39 +652,21 @@ def build_representations(
     created_at: datetime.datetime,
     batch_label: str = "repr",
 ) -> list[RepresentationRecord]:
-    """Build ``repr_v1`` records for a batch of pre-existing declarations."""
-    names = [t.full_name for t in theorems]
-    signature_pp = _run_check_batch(
+    """Compatibility wrapper around the canonical RepresentationBatch API."""
+
+    del batch_label
+    if not theorems:
+        return []
+    result = build_representation_batch(
         backend,
-        theorems[0].context_id,
-        imports,
-        PP_SIGNATURE_INLINE,
-        names,
-        f"{batch_label}-sig",
+        RepresentationBatch(
+            context_id=theorems[0].context_id,
+            import_header=imports,
+            ordered_theorem_inputs=tuple(theorems),
+        ),
+        created_at=created_at,
     )
-    signature_explicit = _run_check_batch(
-        backend,
-        theorems[0].context_id,
-        imports,
-        PP_EXPLICIT_INLINE,
-        names,
-        f"{batch_label}-explicit",
-    )
-    trees = _run_expr_dump_batch(
-        backend, theorems[0].context_id, imports, names, f"{batch_label}-expr"
-    )
-    records = []
-    for theorem in theorems:
-        records.append(
-            _build_record(
-                theorem,
-                signature_pp.get(theorem.full_name),
-                signature_explicit.get(theorem.full_name),
-                trees.get(theorem.full_name),
-                created_at,
-            )
-        )
-    return records
+    return list(result.ordered_representation_records)
 
 
 def _build_record(
@@ -222,6 +690,8 @@ def _build_record(
     views_full: dict[str, object] = dict(views)
     views_full["semantic_atoms"] = list(atoms) if atoms is not None else None
     views_full["operator_tree"] = op_tree
+    identity_fingerprint = alpha_identity_fingerprint(expr_tree) if expr_tree is not None else None
+    views_full["alpha_identity_fingerprint"] = identity_fingerprint
 
     view_status = dict.fromkeys(CANONICAL_VIEW_NAMES, ViewStatus.NOT_ATTEMPTED)
     view_status["raw_proof_stripped"] = ViewStatus.OK
@@ -245,6 +715,7 @@ def _build_record(
         signature_explicit=signature_explicit,
         semantic_atoms=atoms,
         operator_tree=op_tree,
+        alpha_identity_fingerprint=identity_fingerprint,
         view_status=view_status,
         option_profile={
             "signature_pins": PP_SIGNATURE_INLINE,

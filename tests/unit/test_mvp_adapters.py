@@ -132,7 +132,9 @@ def test_hf_probe_config_binding_from_repo_configs() -> None:
     assert sft.dataset_id == "formalmathatepfl/sft_classic"
     assert sft.token is not None and sft.token.env == "HF_TOKEN"
     assert sft.revision == "0bf9f424309f668c2c2dd214aef6ec5d1d5c042f"
-    assert sft.external_api_approved is None
+    assert sft.external_api_approved is False
+    assert sft.license_status == "undeclared"
+    assert sft.external_transmission_allowed is False
 
     pnv = hf_probe_config_from_yaml(paths, "proofnetverif")
     assert pnv.dataset_id == "PAug/ProofNetVerif"

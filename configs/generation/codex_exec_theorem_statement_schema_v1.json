@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "LeanFaith Codex exec theorem-statement qualification v1",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "lean_statement": {
+      "type": "string",
+      "minLength": 16,
+      "maxLength": 4096,
+      "pattern": "^theorem "
+    }
+  },
+  "required": [
+    "lean_statement"
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "LeanFaith Codex exec provider probe v1",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "status": {
+      "type": "string",
+      "const": "ok"
+    },
+    "token": {
+      "type": "string",
+      "const": "OK"
+    }
+  },
+  "required": [
+    "status",
+    "token"
+  ]
+}

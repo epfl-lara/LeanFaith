@@ -16,6 +16,7 @@ from leanfaith.schemas.enums import NLTrust
 from leanfaith.sources.hf_sft_classic import (
     DATA_SOURCE_TRUST,
     parse_row,
+    strip_completed_proof,
     unwrap_question,
 )
 
@@ -178,3 +179,26 @@ def test_lean_workbook_theorem_name_rows_are_synthetic() -> None:
         )
     )
     assert parsed.nl_trust is NLTrust.SYNTHETIC
+
+
+def test_completed_proof_strip_uses_top_level_delimiter() -> None:
+    source = """import Mathlib
+theorem t (h : True := by trivial) : True := by
+  have nested : True := by trivial
+  exact nested
+"""
+    assert strip_completed_proof(source) == (
+        "import Mathlib\ntheorem t (h : True := by trivial) : True := by\n  sorry\n"
+    )
+
+
+def test_completed_proof_strip_ignores_comments_and_fails_closed() -> None:
+    source = """import Mathlib
+-- := by is not a proof
+theorem t : True := by trivial
+"""
+    assert (
+        strip_completed_proof(source)
+        == "import Mathlib\n-- := by is not a proof\ntheorem t : True := by\n  sorry\n"
+    )
+    assert strip_completed_proof("import Mathlib\ndef x := 1") is None

@@ -1,0 +1,30 @@
+schema_version: 3
+policy_id: lf021_problem_aware_frame_freeze_v3
+status: frozen_prelabel
+
+# Revision 3 is frame-freeze-only. Revision 2 remains immutable and continues
+# to authorize label-blind collect-next decisions. A v2 fixed-salt frame is
+# never admitted as a v3 probability sample.
+base_v2_policy:
+  artifact: configs/generation/lf021_tranche_expansion_v2.yaml
+  sha256: ac16afa29eccbf072e88c3424eb9d717743710f8282d76bd8b217ff55d607b70
+base_v2_implementation:
+  artifact: src/leanfaith/generation/tranche_expansion_v2.py
+  sha256: 2e8a759c1882cb31fb1937c4584bcf258246d62307be09e74bca13446a2f32d0
+
+population_unit:
+  - problem_group
+  - alpha_identity_fingerprint
+sampling_method: problem_aware_stratified_csprng_srs_without_replacement_v2
+sampling_rank_algorithm: hmac_sha256_keyed_rank_v1
+sampling_domain_separator: leanfaith-lf021-frame-v3-hmac-sha256-v1
+sampling_rank_message_encoding: utf8_domain_nul_stratum_nul_cluster_id_v1
+sampling_seed_bytes: 32
+sampling_seed_generation: single_draw_after_population_freeze
+fixed_salt_v2_frame_eligible: false
+
+semantic_labels_inspected: false
+semantic_labels_created: false
+supervision_eligible: false
+gate_5g_credit_claimed: false
+gate_5_closed: false

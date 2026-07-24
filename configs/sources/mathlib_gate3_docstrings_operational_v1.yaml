@@ -1,0 +1,88 @@
+# Public, contributor-authored mathlib docstrings selected from the immutable
+# Gate-3 mathlib partition and admitted by Codex-assisted operational curation.
+# This source is suitable only for local-model collection. Operational
+# standalone-ness is not human review, semantic gold, or a Gate-5 claim.
+source_config_version: 1
+source: mathlib_gate3_docstrings_operational_v1
+kind: git_curated_docstrings
+repo_url: https://github.com/leanprover-community/mathlib4
+revision: d568c8c09630de097a046763c17b9ea99f95f950
+tag: v4.31.0-rc1
+license: Apache-2.0
+license_blob_sha1: 8dada3edaf50dbc082c9a125058f25def75e625a
+
+lf021_authorization:
+  source_revision: d568c8c09630de097a046763c17b9ea99f95f950
+  license_id: Apache-2.0
+  private_source: false
+  external_transmission: true
+  release_eligible: true
+
+operational_curation:
+  curation_config:
+    path: configs/generation/problem_pool_gate3_mathlib_docstrings_curation_v1.yaml
+    sha256: 43242296e9fac94f27aa3e4fbf372c5497e0c357b02df86f4234b637361cc12f
+  curation_report:
+    path: reports/generation/lf021_gate3_mathlib_docstrings_curation_v1.json
+    sha256: 540fbb6cbb4433e92c7cfaf03cb4e0a5dee61badfe7811991edeb7cb57cd34aa
+  curation_manifest:
+    path: /storage/milikic/leanfaith/lf021/problem_pool_gate3_mathlib_docstrings_curation_v1/manifest.json
+    sha256: 9ee77f57023bc31e76eceb3108fc69f4cbccb52089cd86d0fb714938558a8c30
+  admitted_records:
+    path: /storage/milikic/leanfaith/lf021/problem_pool_gate3_mathlib_docstrings_curation_v1/admitted.jsonl
+    sha256: b476c8b1d2fc4aa52bdb51376001e96f300317363f000339d2ad213a705303dc
+  no_sorry_reference_checks:
+    path: /storage/milikic/leanfaith/lf021/problem_pool_gate3_mathlib_docstrings_curation_v1/reference_checks.json
+    sha256: dd9878ff207b3b1ad6f9e424a0c7aeaffb7ce54a03436f17e2dcaad7b881cf85
+  expected_reviewed: 57
+  expected_admitted: 40
+  reviewer_type: codex_agent
+  review_method: llm_assisted_operational_curation_v1
+  human_reviewed: false
+  semantic_gold_created: false
+
+canonical_references:
+  theorem_records:
+    path: /storage/milikic/leanfaith/gate3/frozen/gate3_inputs.theorems.jsonl
+    sha256: 8eb75ffa0b9233c5a91492fa181f604e3c098a6f3970799bcb0406f8b517f09e
+  representation_records:
+    path: /storage/milikic/leanfaith/gate3/run_rev41_v3/run_a/records/gate3.jsonl
+    sha256: 0fa2e40b4504e647a9abbcf0c4745b29bf701839c99e36ea10c22091022381bf
+  context:
+    path: data/extracted/contexts/0cd06826b8767b3bc951c0eb00c802424af95785b558f9f8a61f18694a86c4ce.json
+    sha256: d08d78779f9a3ea7c9c1779c982cc8359a309c94de2ea0b4c2c5a3df85ff51fc
+  import_header:
+    path: examples/lf021_public_research_mathlib_header_v1.lean
+    sha256: 1015f8f4676a27ea63780b30cc916712232857097b2bdf635dc61cb949c107fb
+
+screening:
+  active_benchmark_registry_manifest:
+    path: data/benchmarks/manifests/representation_signatures_v1.json
+    sha256: 4ffbd31dd0e10efb9dfe7e57fb815690f3e1d750e4640aeff959ca4cbdc911df
+  rerun_problem_identity_and_nl: true
+  rerun_reference_lean: true
+  rerun_reference_representation: true
+  rerun_exact_normalized_nl_deduplication: true
+  rerun_supplied_ancestry_deduplication: true
+
+policy:
+  expected_admitted_problem_records: 40
+  nl_trust: trusted
+  nl_trust_semantics: human_authored_provenance_only
+  operational_adequacy_status: codex_llm_assisted_standalone_sufficient
+  domain: Algebra
+  domain_method: mathlib_source_path_first_segment_v1
+  domain_proxy_method: mathlib_algebra_second_segment_bucket_v1
+  subdomain_proxy_method: mathlib_algebra_second_segment_bucket_v1
+  domain_proxy_is_semantic_gold: false
+  cross_domain_diversity_established: false
+  model_collection_authorized: true
+  model_collection_scope: local_models_only
+  external_provider_collection_authorized: false
+  reference_visible_to_generator: false
+  human_review_claimed: false
+  semantic_labels_created: false
+  gate_claimed: false
+  model_execution_performed: false
+  generator_collection_plan_created: false
+  recovery_parser_binding_status: unresolved

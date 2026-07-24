@@ -15,6 +15,8 @@ from leanfaith.schemas.enums import (
     EvidenceTargetKind,
     GeneratorKind,
     IntendedRelation,
+    LLMAttemptStatus,
+    LLMCallStatus,
     LLMRole,
     NLTrust,
     ParseStatus,
@@ -49,9 +51,11 @@ from leanfaith.schemas.ids import (
     EVIDENCE_PREFIX,
     HEX64_PATTERN,
     LABEL_PREFIX,
+    LLM_ATTEMPT_PREFIX,
     LLM_CALL_PREFIX,
     NL_LEAN_PREFIX,
     PAIR_PREFIX,
+    PROBLEM_PREFIX,
     REPRESENTATION_PREFIX,
     THEOREM_PREFIX,
     VARIANT_PREFIX,
@@ -67,7 +71,13 @@ from leanfaith.schemas.label import (
     ResolvedLabel,
     check_label_target_link,
 )
-from leanfaith.schemas.llm import LLMCallRecord
+from leanfaith.schemas.llm import (
+    LLMAttemptRecord,
+    LLMCallRecord,
+    check_llm_call_attempt_lineage,
+    make_llm_attempt_id,
+    make_llm_call_id,
+)
 from leanfaith.schemas.manifest import (
     CodeState,
     ManifestError,
@@ -82,10 +92,20 @@ from leanfaith.schemas.manifest import (
     run_manifest_path,
     write_manifest,
 )
-from leanfaith.schemas.nl_lean import NLPLeanRecord, ReferencePairLink
+from leanfaith.schemas.nl_lean import (
+    NLPLeanRecord,
+    ProblemPoolRecord,
+    ReferencePairLink,
+    check_nl_lean_problem_link,
+    make_problem_record_id,
+)
 from leanfaith.schemas.pair import PairRecord, check_pair_groups
 from leanfaith.schemas.prediction import PredictionRecord
-from leanfaith.schemas.source import SourceManifest
+from leanfaith.schemas.source import (
+    HFSourceRecordIdentity,
+    SourceManifest,
+    make_hf_source_record_id,
+)
 from leanfaith.schemas.theorem import (
     CANONICAL_VIEW_NAMES,
     REQUIRED_V0_VIEWS,
@@ -96,9 +116,13 @@ from leanfaith.schemas.theorem import (
 from leanfaith.schemas.variant import (
     ECODE_PATTERN,
     Applicability,
+    FamilyPromotionDecision,
+    TransformationAttempt,
+    TransformationAttemptOutcome,
     TransformationAudit,
     VariantDraft,
     VariantRecord,
+    check_deterministic_variant_lineage,
 )
 
 __all__ = [
@@ -112,9 +136,11 @@ __all__ = [
     "EVIDENCE_PREFIX",
     "HEX64_PATTERN",
     "LABEL_PREFIX",
+    "LLM_ATTEMPT_PREFIX",
     "LLM_CALL_PREFIX",
     "NL_LEAN_PREFIX",
     "PAIR_PREFIX",
+    "PROBLEM_PREFIX",
     "REPRESENTATION_PREFIX",
     "REQUIRED_V0_VIEWS",
     "THEOREM_PREFIX",
@@ -138,11 +164,16 @@ __all__ = [
     "EvidenceTargetKind",
     "EvidenceValue",
     "FaithfulnessLevels",
+    "FamilyPromotionDecision",
     "GeneratorKind",
+    "HFSourceRecordIdentity",
     "IntendedRelation",
     "InvalidIdError",
     "JudgmentValue",
+    "LLMAttemptRecord",
+    "LLMAttemptStatus",
     "LLMCallRecord",
+    "LLMCallStatus",
     "LLMRole",
     "ManifestError",
     "MigrationMap",
@@ -153,6 +184,7 @@ __all__ = [
     "ParseStatus",
     "Polarity",
     "PredictionRecord",
+    "ProblemPoolRecord",
     "ProofValue",
     "QualityTier",
     "ReferenceIssue",
@@ -166,6 +198,8 @@ __all__ = [
     "SourceKind",
     "SourceManifest",
     "TheoremRecord",
+    "TransformationAttempt",
+    "TransformationAttemptOutcome",
     "TransformationAudit",
     "TransformationFamilyStatus",
     "TypecheckValue",
@@ -173,13 +207,20 @@ __all__ = [
     "VariantDraft",
     "VariantRecord",
     "ViewStatus",
+    "check_deterministic_variant_lineage",
     "check_label_target_link",
+    "check_llm_call_attempt_lineage",
+    "check_nl_lean_problem_link",
     "check_pair_groups",
     "collect_code_state",
     "id_pattern",
     "id_prefix",
     "is_valid_id",
+    "make_hf_source_record_id",
     "make_id",
+    "make_llm_attempt_id",
+    "make_llm_call_id",
+    "make_problem_record_id",
     "manifest_hash",
     "new_run_id",
     "parse_id",

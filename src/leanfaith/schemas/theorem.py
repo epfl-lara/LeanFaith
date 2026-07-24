@@ -88,15 +88,28 @@ class TheoremRecord(StrictModel):
     source_revision: str
     source_split: str | None = None
     source_record: str | None = None
+    source_record_id: str | None = Field(default=None, pattern=HEX64_PATTERN)
+    upstream_uuid: str | None = None
+    raw_row_hash: str | None = Field(default=None, pattern=HEX64_PATTERN)
+    question_hash: str | None = Field(default=None, pattern=HEX64_PATTERN)
+    lean_code_hash: str | None = Field(default=None, pattern=HEX64_PATTERN)
+    extraction_route: str | None = None
+    nl_pair_eligibility: str | None = None
+    question_lean_code_agreement: str | None = None
     source_file: str | None = None
     source_range: tuple[int, int] | None = None
     context_id: str = Field(pattern=id_pattern(CONTEXT_PREFIX))
     declaration_kind: str
     declaration_name: str | None = None
     declaration_full_name: str | None = None
+    declaration_ordinal: int = Field(default=0, ge=0)
     raw_declaration_artifact: str | None = None
     raw_declaration_hash: str | None = Field(default=None, pattern=HEX64_PATTERN)
     proof_stripped_declaration: str
+    # Non-model source used only to recreate the declaration in its original
+    # inline command context. It may contain preceding declarations/proofs and
+    # therefore must never be copied into RepresentationRecord views.
+    inline_elaboration_source: str | None = None
     declaration_info_artifact: str | None = None
     lean_result_id: str | None = None
     is_proposition: bool
@@ -140,6 +153,7 @@ class RepresentationRecord(StrictModel):
     notation_light: str | None = None
     semantic_atoms: tuple[str, ...] | None = None
     operator_tree: dict[str, object] | None = None
+    alpha_identity_fingerprint: str | None = Field(default=None, pattern=HEX64_PATTERN)
     view_status: dict[str, ViewStatus]
     option_profile: dict[str, MetadataValue] = Field(default_factory=dict)
     content_hash: str = Field(pattern=HEX64_PATTERN)

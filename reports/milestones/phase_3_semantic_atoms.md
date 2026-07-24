@@ -25,7 +25,7 @@ views with golden tests.
   - `parse_lfjson_line` — parses the `LFJSON <name> <json|notfound>` emit.
 - `representations/pipeline.py`: `build_representations` now also runs the
   batched Expr dump and populates `semantic_atoms` and `operator_tree`,
-  completing the `repr_v1` view set. Failures mark only those two views
+  completing the `repr_v2` view set. Failures mark only those two views
   `failed`; the text views are unaffected.
 
 ## Real run

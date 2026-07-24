@@ -13,8 +13,8 @@ mirror_of: policies/benchmark_denylist_v1.yaml
 # decision: known benchmark identities are registered now (Phase 0). Entries
 # marked identity_unresolved carry lookup evidence + a resolution plan and are
 # flagged in the unresolved list at the bottom; their hashes are frozen at the
-# Phase 2 freeze per PLAN.md 19.4 (LF-013). Only PAug/ProofNetVerif is
-# identity-verified today (PLAN.md Appendix J.2).
+# Phase 2 freeze per PLAN.md 19.4 (LF-013). ProofNetVerif and FormalRx-Test
+# are the two identity-verified v1 benchmarks (PLAN.md Appendix J.2).
 
 usage_rule: >-
   usage is evaluation_only for every entry. No benchmark test label may
@@ -35,6 +35,17 @@ freeze_schedule:
     registry (LF-014). The append is additive and versioned, never a
     rewrite, and still precedes any Phase 4 generation.
 
+active_freeze:
+  status: complete
+  identity_registry_path: data/benchmarks/frozen_ids.json
+  matching_registry_path: data/benchmarks/frozen_ids.representations_v1.json
+  manifest_path: data/benchmarks/manifests/representation_signatures_v1.json
+  resolved_benchmarks: [proofnetverif, formalrx_test]
+  unresolved_policy: >-
+    Unresolved benchmark keys remain evaluation-only and fail closed by name
+    until their exact artifacts are pinned. Missing representation signatures
+    never establish non-overlap.
+
 contamination_note: >-
   Public benchmarks and mathlib may be present in pretrained models. Risk R26
   requires public-versus-post-cutoff-novel deltas; lack of exposure
@@ -47,14 +58,14 @@ benchmarks:
     display_name: ProofNetVerif
     identity: PAug/ProofNetVerif
     identity_kind: huggingface_dataset
-    revision: resolve_at_freeze
+    revision: 91183e5b12d64374827bf2782db629b5b0f8f319
     citation: "Poiroux et al., EMNLP 2025; arXiv:2406.07222 (BEq+)"
     usage: evaluation_only
     freeze_artifacts:
-      ids: pending_phase_2
-      nl_hashes: pending_phase_2
-      raw_hashes: pending_phase_2
-      representation_signatures: append_end_of_phase_3
+      ids: frozen_phase_2
+      nl_hashes: frozen_phase_2
+      raw_hashes: frozen_phase_2
+      representation_signatures: frozen_phase_3_v1
     notes: >-
       Special rule: any trainable ProofNetVerif partition must be frozen and
       made disjoint from all evaluation rows before any benchmark claim
@@ -208,6 +219,25 @@ benchmarks:
     notes: >-
       Post-cutoff-relevant faithfulness benchmark; a candidate for the Risk
       R26 public-versus-novel delta analysis (section 22.8).
+
+  formalrx_test:
+    registry_key: formalrx_test
+    display_name: FormalRx-Test
+    identity: LARK-Lab/FormalRx-Test
+    identity_kind: huggingface_dataset
+    revision: 4b7c6b883e0859e9bd38620a539bdcef408f91b4
+    citation: "FormalRx; arXiv:2607.04655v1"
+    usage: evaluation_only
+    freeze_artifacts:
+      ids: pinned_inputs_labels_withheld
+      nl_hashes: frozen_phase_2
+      raw_hashes: frozen_phase_2
+      representation_signatures: frozen_phase_3_v1
+    notes: >-
+      The pinned artifact has 7,030 input rows and no released gold diagnoses.
+      Its card counts differ from the paper, so observed artifact counts and
+      hashes are authoritative for contamination checks. It is never used for
+      prompt, model, calibration, or threshold selection.
 
   minif2f_variants:
     registry_key: minif2f_variants

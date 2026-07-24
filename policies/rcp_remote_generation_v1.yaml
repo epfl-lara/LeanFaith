@@ -1,0 +1,52 @@
+schema_version: 1
+policy_id: lf021_rcp_remote_generation_v1
+status: qualification_only
+portfolio: configs/generation/rcp_provider_portfolio_v1.yaml
+qualification: configs/generation/rcp_kimi_qualification_v1.yaml
+
+scope:
+  public_sources_only: true
+  private_sft_classic_content_forbidden: true
+  trusted_lean_reference_transmission_forbidden: true
+  one_problem_kimi_qualification_authorized: true
+  bulk_remote_collection_authorized: false
+  qwen_execution_authorized: false
+
+lineage:
+  require_live_models_catalog_validation: true
+  require_exact_model_id: true
+  require_catalog_response_hash_and_observation_time: true
+  require_request_response_attempt_terminal_artifacts: true
+  require_credential_redaction_scan: true
+  transport_provenance: remote_on_prem_epfl_rcp
+
+research_status:
+  semantic_labels_created: false
+  supervision_eligible: false
+  gate_credit_eligible: false
+  gate_closed: false
+  remote_outputs_modify_v1_expansion_stopping: false
+  admission_required_for_any_later_use: separately_versioned_policy_and_manifest
+  checkpoint_revision_status: unavailable_from_rcp_route_ids
+  training_cutoff_status: unknown
+  contamination_status: unknown
+  unseen_claim_eligible: false
+  heldout_claim_eligible: false
+  evaluation_claim_eligible: false
+  allowed_use: supplemental_generator_candidates_only
+
+role_policy:
+  primary_generator: moonshotai/Kimi-K2.7-Code
+  moonshot_fallback_ablation: moonshotai/Kimi-K2.6
+  distinct_family_backup: Qwen/Qwen3.6-35B-A3B
+  upper_capacity_ablation: Qwen/Qwen3.5-397B-A17B
+  cheap_qwen_fallback: Qwen/Qwen3-30B-A3B-Instruct-2507
+  excluded_text_only_model: Qwen/Qwen3-VL-235B-A22B-Thinking
+  judge_family: intentionally_unassigned_and_must_be_independent
+
+diversity_policy:
+  moonshot_diversity_group: moonshot_kimi_k2
+  qwen_text_diversity_group: qwen3
+  moonshot_checkpoint_count_as_independent_families: false
+  qwen_checkpoint_count_as_independent_families: false
+  current_remote_gate_family_credit: 0

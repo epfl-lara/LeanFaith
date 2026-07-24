@@ -13,7 +13,7 @@
     "raw_persistence_and_cache_keys": true,
     "status_normalization_all_states": true
   },
-  "date": "2026-07-10",
+  "date": "2026-07-18",
   "decision": "pass",
   "deviations": [
     "context-grouped incremental workloads deferred to Phase 2 (LF-012)",
@@ -24,6 +24,24 @@
   "inputs": {
     "doctor_report": "587fd3dae6c251c31244deb429d437dc241b94a8695ddb9b0485df7240dca706",
     "golden_command_declaration": "435656d329c3351089f012ca5348a790d881007c1828065fb119f27e39ed1a08",
-    "leaninteract_api_report": "abc464517712492f3aede7e5c626c9ce5ab18adfe26ec482b3030f0c3ef7a777"
+    "leaninteract_api_report": "abc464517712492f3aede7e5c626c9ce5ab18adfe26ec482b3030f0c3ef7a777",
+    "phase_report": "93509653d6459f55813509000c8a36607a8068a994ab19466dbe16865806092d"
+  },
+  "revision_4_1_revalidation": {
+    "api_caveats": 7,
+    "api_symbols": 14,
+    "collected_tests": 460,
+    "doctor_checks": 7,
+    "doctor": "pass",
+    "doctor_warnings": 0,
+    "formatted_files": 104,
+    "lean_fixture": "pass",
+    "lean_fixture_jobs": 4,
+    "mypy": "pass",
+    "mypy_source_files": 59,
+    "probe_api": "pass",
+    "pytest": "pass",
+    "ruff_format": "pass",
+    "ruff_lint": "pass"
   }
 }

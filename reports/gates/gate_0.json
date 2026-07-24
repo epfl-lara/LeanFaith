@@ -1,32 +1,52 @@
 {
   "checks": {
-    "benchmark_registry_exists": true,
-    "canonical_enums_and_policies_complete": true,
-    "fallback_order_recorded": true,
-    "no_semantic_choice_left_to_code": true,
-    "pool_count_recorded": "preliminary (raw frame 2,006,425 train rows; filtered count at LF-011 adapter run)",
-    "primary_nl_source_access_license_schema_sample": true,
-    "provider_slots_resolved": false,
-    "toolchains_in_supported_range": true
+    "backbone_pilot_preregistered": true,
+    "benchmark_registry_frozen": true,
+    "canonical_policies_complete": true,
+    "external_provider_slots_disabled": true,
+    "formalrx_unavailability_nonblocking": true,
+    "private_access_basis_recorded": true,
+    "private_external_transmission_prohibited": true,
+    "private_license_status_undeclared": true,
+    "private_redistribution_prohibited": true,
+    "public_replication_profile_recorded": true,
+    "toolchains_in_supported_range": true,
+    "verified_private_revision_canonical": true
   },
-  "date": "2026-07-10",
-  "decision": "pass_with_open_provider_items",
+  "date": "2026-07-18",
+  "decision": "pass_internal_research_only",
   "evidence": "reports/milestones/phase_0_contract.md",
   "gate": "gate_0",
   "inputs": {
+    "backbone_pilot": "e4d255ee0d6c3052fd260ce5f94f57b1cb6781f9e21e07f7e7a8ed6da759ebb6",
+    "backbone_registry": "185dfc070acaf68440a7f4158298c0845147e556a3948e5fece3f1a895f890c4",
+    "benchmark_denylist": "2b40201771d2d09b0a34bf193c63bc51a64af0c6a7bdb0921710a6cf531804d4",
+    "benchmark_freeze": "f213c1106fe41b0357608101af4d34cbf01e511c4ac54430bcde500eb00e15e4",
+    "benchmark_registry": "ddc26730a647d75c5cf39052aa45d99cabc840dd84d774cb9e32cf3d116e929b",
     "environment_lock": "e447ac3a773b0d29ec75b51bcfa5318158399e9fe7459a650f9d0bfef9986298",
-    "proofnetverif_manifest": "d699dd5181ad65c8150576312fa78ea7d7c8cacc2a7ec6c448fe3b4ea9db3efd",
-    "sft_classic_manifest": "052d14a2bcc965587709b7cb2c5cf229e55719c8737d7b70a5c20fdfd4498633",
-    "source_probe_report": "d4a372ac5c12dca7b758646e6083e6f1f36409f8d92ed4a97623653015ab3d6b"
+    "formalrx_config": "ea17e5e00d954a86098983a07ed10b72fe9491a31152e9263f0bd25e23be52ba",
+    "formalrx_comparison_policy": "e2d50d46d0f250f465c993f9ad30e3ce4897320b5837baf125dbc354d97d260b",
+    "label_resolution_policy": "4bc5e3ec87f5a6c29977f4b3b104da7d6e5a5c0cf3866dc59d5af09c9bc0d74d",
+    "phase_report": "af463d2d833aca1eb57e9f7952e63ea43686b9aa4c741c1e560b2f9b47671e1c",
+    "preregistration_policy": "7d5c423ec03a6766025fbc344800ae52622e43e5cbd03c5b718b6e2697a72d1d",
+    "private_source_policy": "2e6871d45d933817b09989a26f19d0757ac3bb41a62a1daf2f6dc8b56b220038",
+    "provider_registry": "c9135b9e69fc75c7e3b9827bda76da91d4820d9c0d70bb9f3adc869bd616be8d",
+    "public_replication_profile": "86d3b5360738bffd58e7bca9030136455a85c03f8af75d7fe710379c8dd3adca",
+    "semantic_policy": "d555de3b9eba9e90cb44bf8595f97684ced7098e699f901a7cba0e2805c9fd78",
+    "sci_crosswalk": "778967dcb3d747046c6630a85d7f7c34d32a4bc20a4600973c5c942c1e2c402e",
+    "sft_classic_source_config": "a98d0f9fe422a0766d77d95e0355f066976ab52604693bd8f9f44484d558ba63",
+    "split_config": "66d4c961bce4b7efb87ef15ecbea6db0b5d5946864fe662dad284c40f6de6139",
+    "training_arms": "7896836e43317feca38ed2962138de3442e03dfc1a29305bacf741783e73da3e"
   },
   "notes": [
-    "authenticated sft_classic probe succeeded: rev 0bf9f424..., 3,036,270 rows, schema verified, 100-row sample archived",
-    "plan discrepancies recorded: numina 12-column schema and train/test split; Lean-Workbook 25,214 rows (not ~57k)",
-    "provider-dependent phases (5/6) remain blocked; everything through Phase 4 is unblocked"
+    "Gate 0 authorizes internal research only; redistribution, external transmission, and release remain prohibited for sft_classic.",
+    "Unresolved provider slots are explicitly disabled until the Phase-5 ADR and do not block Gates 2-3.",
+    "Any modification to a hashed input invalidates this report and requires regeneration."
   ],
-  "open_items": [
-    "provider slot resolution (judge_A/judge_B/broad_generator/open_diversity/primary_eval_judge exact models + keys) - user decision",
-    "section 9.2 external-API approval for private sft_classic content - user decision",
-    "exact filtered phase5_pool_candidate_count - produced by the LF-011 adapter full pass"
-  ]
+  "open_items_outside_gate_scope": [
+    "Phase-5 provider and family assignments",
+    "FormalRx released-checkpoint prompt/variant verification",
+    "future explicit release permission for private-source artifacts"
+  ],
+  "schema_version": 2
 }

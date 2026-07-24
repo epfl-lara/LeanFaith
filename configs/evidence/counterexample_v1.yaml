@@ -1,0 +1,46 @@
+schema_version: 1
+profile_id: counterexample_v1
+profile_version: 1.0.0
+scope: decidable_bounded_fragments_only
+default_timeout_seconds: 10.0
+max_enumerated_assignments: 100000
+engines:
+  - engine_id: kernel_decide_v1
+    order: 10
+    enabled: true
+    implementation: decide
+    trust_tier: kernel_checked
+    may_support_gold_negative: true
+  - engine_id: native_decide_v1
+    order: 20
+    enabled: false
+    implementation: native_decide
+    trust_tier: lower_trust
+    may_support_gold_negative: false
+domain_encodings:
+  - encoding_id: bool_v1
+    domain: Bool
+    enabled: true
+    max_cardinality: 2
+  - encoding_id: fin_v1
+    domain: Fin
+    enabled: true
+    max_cardinality: 64
+  - encoding_id: nat_interval_v1
+    domain: Nat
+    enabled: false
+    lower_bound: 0
+    upper_bound: 32
+  - encoding_id: int_interval_v1
+    domain: Int
+    enabled: false
+    lower_bound: -16
+    upper_bound: 16
+certificate_policy:
+  persist_helper_theorem: true
+  persist_witness: true
+  persist_axiom_audit: true
+  require_allow_sorry_false: true
+  unsupported_is_not_negative: true
+  not_found_is_not_negative: true
+  native_decide_never_sole_gold_negative: true

@@ -1,0 +1,33 @@
+{
+  "candidate": "theorem alpha_fixture {α : Type} (lf_alpha_ad7f4292b27a : α) : lf_alpha_ad7f4292b27a = lf_alpha_ad7f4292b27a := by sorry",
+  "seed": 23,
+  "source": "theorem alpha_fixture {α : Type} (x : α) : x = x := by sorry",
+  "trace": {
+    "binder_kind": "explicit",
+    "binder_ordinal": 1,
+    "candidate_code_hash": "a5da08512d19c06aed689431f98777c6b7f757d5591b657c2692d74f4c0fe404",
+    "declaration_name": "alpha_fixture",
+    "from_identifier": "x",
+    "operation": "alpha_rename",
+    "placeholder_form": "by_sorry",
+    "replacement_spans": [
+      {
+        "end": 35,
+        "role": "binder_declaration",
+        "start": 34
+      },
+      {
+        "end": 44,
+        "role": "bound_occurrence",
+        "start": 43
+      },
+      {
+        "end": 48,
+        "role": "bound_occurrence",
+        "start": 47
+      }
+    ],
+    "source_code_hash": "7167e32ddf33acea78c90d070d27830cb03c3209102286f5547631c720b246f7",
+    "to_identifier": "lf_alpha_ad7f4292b27a"
+  }
+}

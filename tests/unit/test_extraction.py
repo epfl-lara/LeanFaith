@@ -191,6 +191,19 @@ def test_ids_are_deterministic_and_provenance_sensitive() -> None:
     assert a.theorem.theorem_id == b.theorem.theorem_id
     assert a.theorem.theorem_id != c.theorem.theorem_id  # revision enters the ID
 
+    ordinal_one = build_theorem_record(
+        _identity(),
+        src,
+        decl,
+        elaboration_status=ValidationStatus.ELABORATES_WITH_PLACEHOLDER,
+        created_at=_UTC,
+        declaration_ordinal=1,
+    )
+    assert isinstance(ordinal_one, ExtractedDeclaration)
+    assert a.theorem.declaration_ordinal == 0
+    assert ordinal_one.theorem.declaration_ordinal == 1
+    assert a.theorem.theorem_id != ordinal_one.theorem.theorem_id
+
 
 # --- extract_from_declarations ---
 
@@ -210,9 +223,10 @@ def test_extract_selects_props_and_quarantines_duplicates() -> None:
     ]
     result = extract_from_declarations(_identity(), src, decls, created_at=_UTC)
     accepted_names = {d.theorem.declaration_name for d in result.accepted}
-    assert accepted_names == {"good"}  # def skipped, dup quarantined
+    assert accepted_names == {"good"}  # def rejected explicitly, dup quarantined
     failure_codes = {f.code for f in result.failures}
-    assert ExtractionFailureCode.ANONYMOUS_DECLARATION in failure_codes
+    assert ExtractionFailureCode.NOT_A_PROPOSITION in failure_codes
+    assert ExtractionFailureCode.DUPLICATE_DECLARATION_NAME in failure_codes
 
 
 def test_quality_flags_trivial_conclusion() -> None:

@@ -1,0 +1,8 @@
+policy_version: model_selection_v1
+selection_partition: selection_gold
+calibration_partition: calibration_gold
+test_partition: final_human_test
+ancestry_disjoint: true
+simultaneous_bounds_required: true
+protocol: configs/models/backbone_pilot.yaml
+rule_changes_after_predictions: forbidden

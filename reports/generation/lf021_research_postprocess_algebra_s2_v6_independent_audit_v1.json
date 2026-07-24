@@ -1,0 +1,243 @@
+{
+  "schema_version": 1,
+  "report_kind": "lf021_research_postprocess_algebra_s2_v6_independent_audit_v1",
+  "created_at": "2026-07-24T02:52:31Z",
+  "verdict": "PASS",
+  "audited_before_live_postprocessing": true,
+  "scope": [
+    "exact frozen postprocess-v6 implementation, CLI, focused-test, and readiness hashes",
+    "preservation of frozen postprocess-v5 and collector-v5 bytes",
+    "collector-v5 config, plan, expansion-policy, and expansion-decision lineage",
+    "strict collector-v4 and unknown-version rejection",
+    "both supported closed-pool dialects",
+    "per-invocation processing and failure isolation",
+    "v3 parser, recovery, LeanInteract, screening, deduplication, and unresolved-admission reuse",
+    "immutable write-free verify-only replay",
+    "v6 output identity and root separation",
+    "absence of semantic labels, supervision admission, and Gate claims",
+    "focused tests, Ruff, formatting, mypy, and AST/data-flow inspection"
+  ],
+  "frozen_postprocess_v6": {
+    "artifacts": [
+      {
+        "artifact": "src/leanfaith/generation/research_postprocess_v6.py",
+        "sha256": "a5f3fa6ce0da674973c5fbb9d32c7fe5516d65af91b725c20eb7873410c47fc9"
+      },
+      {
+        "artifact": "scripts/28_postprocess_research_tranche_v6.py",
+        "sha256": "fda22e75e0f77fe4156449ef1fd597c950c5641b893ec07eb8b15134f12493de"
+      },
+      {
+        "artifact": "tests/unit/test_lf021_research_postprocess_v6.py",
+        "sha256": "2af337378053d908cd18e3b9fb10e8a37d49e96e52ba8404717928f4aaf12601"
+      },
+      {
+        "artifact": "reports/generation/lf021_research_postprocess_algebra_s2_v6_readiness.json",
+        "sha256": "f501f483dcd21e6fba0eac8429a2f60fc243af0b9a3a4c0552702ca9a8c05a20"
+      }
+    ],
+    "hashes_match_readiness": true,
+    "schema_version": 6,
+    "terminal_id_prefix": "research_postprocess_v6_terminal:",
+    "family_report_id_prefix": "research_postprocess_v6_family:",
+    "manifest_id_prefix": "research_postprocess_v6_manifest:",
+    "default_output_suffix": "postprocess_v6"
+  },
+  "preserved_frozen_predecessors": {
+    "unchanged": true,
+    "artifacts": [
+      {
+        "artifact": "src/leanfaith/generation/research_postprocess_v5.py",
+        "sha256": "9e422e71793242bbb51237fe53770bf2cd33874e7a1bc6d6f0aab8904b8df378"
+      },
+      {
+        "artifact": "scripts/22_postprocess_research_tranche_v5.py",
+        "sha256": "a3545d1c1b001e5c54ad7670d475d542fdd885d74242056dbbec02fa3c8431b7"
+      },
+      {
+        "artifact": "tests/unit/test_lf021_research_postprocess_v5.py",
+        "sha256": "72cea1397b1e554ac458c2548fa5782dc5112297d56542ea301eecbdb45d28f0"
+      },
+      {
+        "artifact": "src/leanfaith/generation/research_collection_v5.py",
+        "sha256": "720f23b7f0ae3c528b9d95cc8e7580421f366d2b7044d74c7f7fd98e0403c56b"
+      },
+      {
+        "artifact": "scripts/27_collect_research_tranche_v5.py",
+        "sha256": "e9332258836591d959cef101e480a5d3a6e052529cd86ccd402d130b33a3922f"
+      },
+      {
+        "artifact": "tests/unit/test_lf021_research_collection_v5.py",
+        "sha256": "20f23002816d3ff60d4b40c8538c23698863c7162cdf9adbf0b69b6a04017ea5"
+      }
+    ]
+  },
+  "collector_v5_binding": {
+    "tranche_id": "algebra_s2",
+    "pool_dialect": "gate3_algebra_operational_v1",
+    "problem_count": 40,
+    "family_count": 3,
+    "expected_invocations": 120,
+    "config": {
+      "artifact": "configs/generation/local_research_collection_algebra_s2_v5.json",
+      "sha256": "1602d3a6f35114b4369d185fe23a83abcb24ee65cd2ad54f6a1d75780e744bf1"
+    },
+    "source_matrix": {
+      "artifact": "configs/generation/local_research_source_matrix_algebra_s2_v5.json",
+      "sha256": "9af7812b90ef33be2630b608c2b086ec91c928a8d0009bff81ead8958f8e46e5"
+    },
+    "preflight": {
+      "artifact": "reports/generation/lf021_local_research_collection_preflight_algebra_s2_v5.json",
+      "sha256": "7a4e33a1f9aa640c4d19decdb0375246644a073b836a76bf9abefdb8cc6a0da3"
+    },
+    "plan": {
+      "artifact": "data/raw/real_outputs/gate3_docstrings_operational_v1/v5/algebra_s2/local_collection/9dc8113d3a1529b8e9bfa20bec1f2593a254d2359df0305ecd89521179be6af4/plan.json",
+      "plan_id": "research_collection_plan_v5:9dc8113d3a1529b8e9bfa20bec1f2593a254d2359df0305ecd89521179be6af4",
+      "plan_hash": "75cc2ee65f77c94ee7969d0c58d403acc418dbd2f14d6f1c3945e3ee4363bf13",
+      "sha256": "1b2485667fd41b6bc75b0a0aea165a2d53d2bd4831614182419ae26f40c1bcf9"
+    },
+    "expansion_decision": {
+      "artifact": "reports/generation/lf021_tranche_expansion_v1/decisions/024550993e73ef6532a29d0ec1a029b90c74de796e2863a99bde1c9405857365.json",
+      "decision_id": "lf021_expansion_decision:024550993e73ef6532a29d0ec1a029b90c74de796e2863a99bde1c9405857365",
+      "sha256": "ba53146b4a2d86dcddb6fe1bd4b31a60aeff20ceb0943ffcb5ded752fd3190d3",
+      "selected_tranche": "algebra_s2"
+    },
+    "expansion_policy": {
+      "artifact": "configs/generation/lf021_tranche_expansion_v1.yaml",
+      "sha256": "0c726e197ef5358ef4a7414e36622c10fb7ff19082199540b62e4bc170834e16"
+    },
+    "plan_replays_from_exact_config": true,
+    "manifest_state_at_audit": "not_yet_final",
+    "runtime_precondition": "postprocess-v6 may execute only after collector-v5 writes and validates its final 120-invocation manifest"
+  },
+  "shared_correctness_engine": {
+    "implementation": {
+      "artifact": "src/leanfaith/generation/research_postprocess_v3.py",
+      "sha256": "aa8415663187b99558df25889df4809dd24d673515500dc21882e1a2e9e103e9"
+    },
+    "recovery_implementation": {
+      "artifact": "src/leanfaith/generation/local_output_recovery.py",
+      "sha256": "34bd4757fdd06d119ccbc2c57692cf8e53c07447bbe2319ffc9dbec57b67d983"
+    },
+    "v5_v6_terminal_projection_ast_equal_after_version_normalization": true,
+    "v5_v6_verify_ast_equal_after_version_normalization": true,
+    "v5_v6_run_semantics_equal_after_version_and_docstring_normalization": true,
+    "v5_v6_report_write_semantics_equal_after_version_and_type_annotation_normalization": true
+  },
+  "checks": [
+    {
+      "id": "V6-A01",
+      "result": "pass",
+      "description": "The module, CLI, focused test, and readiness report retain the exact prospectively frozen hashes."
+    },
+    {
+      "id": "V6-A02",
+      "result": "pass",
+      "description": "Frozen postprocess-v5 and collector-v5 module, CLI, and test bytes remain unchanged."
+    },
+    {
+      "id": "V6-A03",
+      "result": "pass",
+      "description": "The Algebra s2 config and persisted plan bind the exact collector-v5 implementation, CLI, source matrix, expansion policy, expansion decision, problem pool, three families, and 120-invocation denominator."
+    },
+    {
+      "id": "V6-A04",
+      "result": "pass",
+      "description": "Collector-v4 and unknown collector versions are rejected before typed load for both plan and manifest; a v5 plan must also replay exactly from the bound config."
+    },
+    {
+      "id": "V6-A05",
+      "result": "pass",
+      "description": "The input schema supports only the registered Algebra and cross-domain pool dialect/source/manifest-kind triples and rejects mismatched combinations."
+    },
+    {
+      "id": "V6-A06",
+      "result": "pass",
+      "description": "The frozen plan invocation set is the only denominator: v3 processing visits every invocation, records every failure, and v6 refuses to write a manifest unless terminal IDs equal the complete bound invocation set."
+    },
+    {
+      "id": "V6-A07",
+      "result": "pass",
+      "description": "Primary parse, recovery, Lean validation, materialization, screening, deduplication, and unresolved admission use the same immutable v3 engine as postprocess-v5; invocation-specific failures become invocation terminals rather than removing denominator rows."
+    },
+    {
+      "id": "V6-A08",
+      "result": "pass",
+      "description": "A fake 120-invocation bundle with one materialization failure produced 120 terminals, isolated exactly one failure, and replayed byte-for-byte."
+    },
+    {
+      "id": "V6-A09",
+      "result": "pass",
+      "description": "Verify-only replay made zero filesystem changes across 124 manifest, terminal, and family-report files and detected terminal tampering."
+    },
+    {
+      "id": "V6-A10",
+      "result": "pass",
+      "description": "Output IDs use v6 prefixes and the output path must remain inside the repository with a postprocess_v6 path component; the default root is the collector-v5 bundle's postprocess_v6 child."
+    },
+    {
+      "id": "V6-A11",
+      "result": "pass",
+      "description": "Schemas force same_claim and relation to null, semantic_labels_created, supervision_eligible, gate_5g_credit_claimed, and gate_5_closed to false; admitted records remain unresolved and require adjudication."
+    },
+    {
+      "id": "V6-A12",
+      "result": "pass",
+      "description": "AST and data-flow inspection found no post-hoc denominator filtering or access to semantic labels for selection."
+    }
+  ],
+  "validation": {
+    "focused_pytest": {
+      "command": "uv run pytest -q tests/unit/test_lf021_research_collection_v5.py tests/unit/test_lf021_research_postprocess_v6.py",
+      "collected": 20,
+      "passed": 20
+    },
+    "ruff_check": {
+      "command": "uv run ruff check src/leanfaith/generation/research_postprocess_v6.py scripts/28_postprocess_research_tranche_v6.py tests/unit/test_lf021_research_postprocess_v6.py",
+      "passed": true
+    },
+    "ruff_format": {
+      "command": "uv run ruff format --check src/leanfaith/generation/research_postprocess_v6.py scripts/28_postprocess_research_tranche_v6.py tests/unit/test_lf021_research_postprocess_v6.py",
+      "files_checked": 3,
+      "passed": true
+    },
+    "mypy": {
+      "command": "uv run mypy src/leanfaith/generation/research_postprocess_v6.py scripts/28_postprocess_research_tranche_v6.py",
+      "source_files_checked": 2,
+      "passed": true
+    },
+    "verify_only_write_audit": {
+      "files_snapshotted": 124,
+      "content_and_mtime_unchanged": true
+    },
+    "collector_version_rejection_audit": {
+      "plan_versions_rejected": [
+        3,
+        4,
+        6,
+        999
+      ],
+      "manifest_versions_rejected": [
+        3,
+        4,
+        6,
+        999
+      ]
+    }
+  },
+  "defects_found": [],
+  "runtime_conditions": [
+    "the final collector-v5 manifest must exist and reconcile exactly with the frozen plan before load succeeds",
+    "the four frozen postprocess-v6 hashes must be rechecked immediately before execution",
+    "postprocess-v6 must use the exact frozen Algebra s2 config and default versioned output root",
+    "immediate verify-only replay must equal the just-written manifest"
+  ],
+  "authorization": {
+    "safe_to_execute_after_final_collector_v5_manifest": true,
+    "safe_to_execute_before_final_collector_v5_manifest": false,
+    "semantic_labels_created": false,
+    "supervision_eligible": false,
+    "gate_5g_credit_claimed": false,
+    "gate_5_closed": false
+  }
+}

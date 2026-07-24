@@ -140,8 +140,9 @@ negative_promotion:
         Sets a directional relation (A_stronger/B_stronger) only under a
         recorded binder alignment passing the semantic policy (PLAN.md 16.3
         mode 2); without an accepted alignment the relation stays
-        incomparable_near_miss or unknown per semantic_policy_v1 section 3,
-        even though same_claim=false and the truth fields are set.
+        incomparable when expert/policy evidence supports that terminal
+        class, or null on the unresolved REVIEW route, even though truth
+        fields may be set.
     - route_id: N3
       name: expert_adjudication
       requires: independent expert labels plus adjudication
@@ -289,10 +290,11 @@ field_contracts:
     fields:
       same_claim: null
       resolution_outcome: unresolved
-      relation: unknown
+      relation: null
       F1_same_claim: null
       quality_tier: unknown
       requires_adjudication: true
+      decision: REVIEW
       resolution_method: null
     f0_f2_note: >-
       decision: F0/F2 and the truth direction fields still derive
@@ -340,7 +342,7 @@ interface_mappings:
   proposer_to_intended_relation:
     # Targets IntendedRelation (intention-only). near_miss is never
     # persisted on a ResolvedLabel; resolved labels use RelationLabel with
-    # incomparable_near_miss (PLAN.md 11.1).
+    # incomparable while near_miss stays provenance (PLAN.md 11.1).
     table:
       - inputs: [equivalent, same]
         intended_relation: equivalent
@@ -393,8 +395,8 @@ interface_mappings:
           relation: >-
             the judge's directional relation, accepted as A_stronger or
             B_stronger only with a recorded binder alignment per
-            semantic_policy_v1 section 3; otherwise incomparable_near_miss
-            or unrelated as stated, else unknown
+            semantic_policy_v1 section 3; otherwise incomparable or
+            unrelated as stated, else the unresolved route with relation null
       - answer: ambiguous
         candidate: terminal_ambiguity_candidate
         note: >-
@@ -420,8 +422,8 @@ interface_mappings:
       - input: cannot_assess_yet       # displayed "cannot assess yet"
         maps_to: unresolved_review_route
       - input: related_neither_directional_claim
-        maps_to: {relation: incomparable_near_miss}
-        note: explanatory UI phrase; serializes as incomparable_near_miss
+        maps_to: {relation: incomparable}
+        note: explanatory UI phrase; near_miss stays provenance only
     unmatched: >-
       decision: any other UI value is a client bug; the submission is
       rejected at the API boundary rather than coerced.

@@ -1,0 +1,115 @@
+{
+  "schema_version": 1,
+  "audit_id": "lf021_goedel_20260723T221540Z_audit_v1",
+  "audited_at": "2026-07-23T22:19:52Z",
+  "status": "passed_canonical_smoke_bundle",
+  "run_directory": "runs/lf021_local_qualification/goedel_formalizer_v2_20260723T221540Z",
+  "bundle": {
+    "path": "runs/lf021_local_qualification/goedel_formalizer_v2_20260723T221540Z/bundle_manifest.json",
+    "sha256": "edcd06b1bf6e7a2a8b96deef947add2c412200d83f4d97797ace7d602293fc70",
+    "bundle_id": "local_qualification_bundle:d0eeeb2d23c02cd3622f95f0804d1341c21870a2e14601103bf8cb7bb1e0aa2b",
+    "manifest_schema_version": 2,
+    "artifact_count": 27,
+    "archived_input_count": 17,
+    "persisted_record_count": 10,
+    "all_manifest_artifact_hashes_match": true
+  },
+  "replay": {
+    "passed": true,
+    "verifier": "verify_local_qualification_bundle",
+    "repo_root": "/localhome/milikic/LeanFaith/.audit-nonexistent-repo-root-221540",
+    "repo_root_existed_before": false,
+    "repo_root_exists_after": false,
+    "working_tree_independent": true
+  },
+  "fixture_binding": {
+    "fixture_artifact": "examples/lf021_goedel_mathlib_nat_comm_20260723_v1.json",
+    "fixture_sha256": "c166ad5f8dc270f80510f45b9dab9f99edbacb59c94a689493badd0ba1118f4e",
+    "fixture_bytes": 1256,
+    "import_header_artifact": "examples/lf021_goedel_mathlib_standard_header_v1.lean",
+    "import_header_sha256": "3bb94d805ee09bc30c2070c91136c6fc337651a7877e83817d262ec98ab59e85",
+    "import_header_bytes": 97,
+    "execution_input_sha256": "af84fb5394ec4fd6a714ed0c8d8f8ebef4a967405c2df1262799ad10dfba89bf",
+    "problem_record_id": "problem:8effacda51aa5b0e34b31e1d09c6d59a59b46eb40d0cb5312fe3949cd46b0d75",
+    "reference_theorem_id": "thm:eb5ae5638e269c8287af9ae03397e0f9e64ade65c04fafaa5bb076a154b03bf5",
+    "project_registry_key": "mathlib",
+    "project_revision": "d568c8c09630de097a046763c17b9ea99f95f950",
+    "fixture_imports_equal_archived_header": true,
+    "execution_header_equal_archived_header": true,
+    "context_header_hash_matches": true,
+    "problem_source_hash_matches_fixture": true,
+    "problem_reference_lineage_matches": true
+  },
+  "model_and_code_binding": {
+    "model": "Goedel-LM/Goedel-Formalizer-V2-8B",
+    "model_revision": "fe2d362d899601abe79d7d5e95eaa7fe9883a0cb",
+    "qualification_config_file_sha256": "8569627bf1f336b8d0e06bd2e3154e7b9945949ffcd15a1e4fece471ca1e758c",
+    "qualification_config_hash": "98a6bf7035f4bb87b267685246137a1d2a70627e32904f1864b75d3c4e72467a",
+    "checkpoint_verification_artifact_sha256": "95848847cf52950e35a4fa39ff482b307a26ccda2b0d8b33a8288f982c8510e4",
+    "checkpoint_verification_hash": "b344b46087b14f2c929d6c39769b72e3e8e647e410ef57692793f5bba187e45b",
+    "checkpoint_file_count": 14,
+    "checkpoint_bytes": 16381516824,
+    "code_bundle_sha256": "3f8a8311d16b7ef374d2f8ce6dd4403656f36ce2590ec867d1d6199a7f913147",
+    "code_tree_hash": "4bc25c543323956b12741ae6dc1c33284ce93987596593f09be8aa40e69c1940"
+  },
+  "provider_lineage": {
+    "provider_request_hash": "dacea854bf2d56cfbfcf267383e9cc2b864080c595470ec2523c012c4701d605",
+    "provider_request_artifact_sha256": "fde325ad46d6ba939765166a0e919c1ccaef928963f3c124763679ae7f3c2a54",
+    "call_id": "call:7ff365582416c00e845cff18e3fc47685d43bbd79ce0fdce9fb511253967cf5f",
+    "attempt_id": "call_attempt:08b2b3a86bfe19155db6ae05833cb2210fec5e954cf830a3fc4245e0f71ff505",
+    "provider_attempt_id": "provider-attempt:2753fffaba0a3399500edea1cb9f38b3ef27c46946793a9778788c9686255bb3",
+    "raw_response_sha256": "37015f3e5ce2b0211deb3a05ae402c0d6d53b3ad3fa2b54e6a7500fbadd4052a",
+    "raw_output_hash": "699afbde659a2f8a0dea5d2084213e08ff10c70ec2e86d75c19ee055ac46fbce",
+    "raw_output_char_count": 1554,
+    "lean4_fence_count": 2,
+    "parser_id": "lean_terminal_fence_or_raw_signature_v3",
+    "parser_source_sha256": "e02e67675810b81effbb97740dd4a27070be9ef0eef2627b25fb4b9b749d1da4"
+  },
+  "qualification_lineage": {
+    "terminal_id": "local_qualification:71c4e254c7112822837eec9dbf908d2aaad741715ddf8959dcdec95a0745269b",
+    "terminal_sha256": "d92913686594907bf5015957ade97c46b0c3ed11f6d5626f81c33bbaf5aa5b66",
+    "terminal_status": "qualified_smoke",
+    "materialization_outcome_id": "real_output:0ff158219a9bcbfd2cbb164a8e5b9994cb49e5f3ac4d32646892afb8b53d9079",
+    "candidate_theorem_id": "thm:27547d21475fd4d6251b486e0f90e9e0acf5a6c787b4d0e78eef2e7bcd968578",
+    "representation_id": "repr:2d2ca18d97822871ab3de9b8805aedc706b33658f805c3683fcc3d15727b0bd3",
+    "variant_id": "var:5a43021a6d306addc83a92e531b5d8d68ac5a672f76227e6a93fbe7d665df847",
+    "screening_id": "candidate_screen:1cf3754850ce468cf817ba4d69f4e0f020752b58745397e56353dd8af9eefd55",
+    "admission_receipt_id": "smoke_admission_receipt:2f531c26179d0b49193580ad76c2c958e2e595e0ab35169e7e864672fe63e38e",
+    "dry_run_admitted_outcome_id": "real_output:54c9df55a4bcef206bb4a4f51cf42a0e351fc6232c0fb1f257d9cfae8cc50cf8",
+    "candidate_statement": "theorem lf021_goedel_generated_nat_comm_20260723 : ∀ n : ℕ, n + 20260723 = 20260723 + n",
+    "validation_status": "elaborates_with_placeholder"
+  },
+  "screening": {
+    "status": "clean",
+    "active_registry_hash": "eac1ab353cfc0108068ff3d6035281f08b52dc97d3b5cb536dd1781e49d05ca3",
+    "benchmark_hit_count": 0,
+    "duplicate_candidate_count": 0
+  },
+  "semantic_record_audit": {
+    "persisted_pair_record_count": 0,
+    "persisted_nl_lean_record_count": 0,
+    "persisted_label_record_count": 0,
+    "terminal_admitted_pair_ids": [],
+    "terminal_admitted_nl_lean_id": null,
+    "pending_outcome_pair_ids": [],
+    "pending_outcome_nl_lean_id": null,
+    "receipt_dry_run_pair_ids": [
+      "pair:07ee1b168477c8428aec894ee9d09432b7546bc9cb68efc09c30a6bd6a1acc74"
+    ],
+    "receipt_dry_run_nl_lean_id": "nllean:eb1dc98202d4e570757ec0e804f1f05d801487af8d017fe9671c0697bb79ab58",
+    "receipt_persistence_allowed": false,
+    "receipt_semantic_pool_eligible": false,
+    "semantic_labels_created": false
+  },
+  "hard_false_eligibility": {
+    "qualifies_for_gate5g": false,
+    "semantic_labels_created": false,
+    "supervision_eligible": false,
+    "training_eligible": false,
+    "release_eligible": false,
+    "calibration_eligible": false,
+    "model_selection_eligible": false,
+    "scientific_evaluation_eligible": false
+  },
+  "disposition": "Canonical replayable fixture-qualification smoke evidence only. It creates no semantic label, persists no PairRecord or NLPLeanRecord, and earns no Gate 5G or Gate 5 credit."
+}

@@ -1,0 +1,114 @@
+schema_version: 1
+config_id: lf021_local_research_collection_v1
+frozen_at: "2026-07-23T22:59:36Z"
+artifact_class: research
+collection_scope: public_three_problem_three_family_minimal_v1
+status: ready
+execution_enabled: true
+semantic_labels_created: false
+gate_5g_credit_claimed: false
+gate_5_closed: false
+
+# These are the exact public, denylist-screened bytes produced by the accepted
+# model-free problem-pool preflight.  They are research inputs, not smoke
+# fixtures.
+problem_pool_records:
+  artifact: data/parsed/real_outputs/public_research_v1/problem_pool_records.jsonl
+  sha256: 20dea442faa027a104d49e96ca336210d1310dfe3813bf47d2a8736a65d60da0
+problem_pool_manifest:
+  artifact: data/parsed/real_outputs/public_research_v1/problem_pool_manifest.json
+  sha256: e823da6c31c14136f1797419ed728fd901c5a27cf9ea398382bbd9ebd8d86d87
+context:
+  artifact: data/parsed/real_outputs/public_research_v1/context.json
+  sha256: 26495faf51a57e6d81eb54d8caf32304c32676bddcf98a0024f3bdcdc8760244
+import_header:
+  artifact: examples/lf021_public_research_mathlib_header_v1.lean
+  sha256: 1015f8f4676a27ea63780b30cc916712232857097b2bdf635dc61cb949c107fb
+source_matrix:
+  artifact: configs/generation/local_research_source_matrix_v1.yaml
+  sha256: 09d042b32bec38aa585b19388e116232852974acf97553671ae9df931cbb4cf1
+runtime:
+  device: cuda:0
+  dtype: bfloat16
+  loader_policy: local_files_only_single_device_v1
+  local_files_only: true
+  allow_remote_code: false
+  python_version: 3.12.3
+  torch_version: 2.13.0+cu130
+  transformers_version: 4.57.6
+  driver_version: 595.71.05
+  device_name: NVIDIA GeForce RTX 4090
+  runtime_adapter:
+    artifact: src/leanfaith/generation/local_hf.py
+    sha256: a9265656d65d63f43d63aa58a0bffad9f0b6998066e831df35959681371f1caf
+  environment_lock:
+    artifact: uv.lock
+    sha256: f9111b930623c818c94093e2642029385ceabcb5b3ce3b19a5e4c7c9d6002921
+  orchestration_adapter:
+    artifact: src/leanfaith/generation/research_collection.py
+    sha256: 14570660891504bcd9cbe73ce649b6621eca304331319e4cb6eb8d983793f3bc
+
+# One frozen seed per problem and family is deliberately the smallest
+# non-smoke collection slice.  It is not the multi-candidate prevalence frame
+# and cannot by itself satisfy Gate 5G.
+families:
+  - family_id: goedel_formalizer_v2_8b
+    provider_slot: local_goedel_research
+    qualification_pin_source:
+      artifact: configs/generation/local_qualification_goedel_v1.yaml
+      sha256: 8569627bf1f336b8d0e06bd2e3154e7b9945949ffcd15a1e4fece471ca1e758c
+    seeds: [30]
+    activation:
+      status: ready
+      qualification_bundle_artifact: runs/lf021_local_qualification/goedel_formalizer_v2_20260723T221540Z/bundle_manifest.json
+      qualification_bundle_sha256: edcd06b1bf6e7a2a8b96deef947add2c412200d83f4d97797ace7d602293fc70
+      overlap_record_artifact: reports/generation/overlap/lf021_goedel_public_pool_v1.json
+      overlap_record_sha256: 3f0da406933844c1dfbac8329a346135cb1909defa3e042adb93d8f4c960d699
+      blocker: null
+
+  - family_id: kimina_autoformalizer_7b
+    provider_slot: local_kimina_research
+    qualification_pin_source:
+      artifact: configs/generation/local_qualification_kimina_v2.yaml
+      sha256: 711789470e5547829da340d10c012521942a1cb8d22acb44d404c41eb5ff3244
+    seeds: [0]
+    activation:
+      status: ready
+      qualification_bundle_artifact: runs/lf021_local_qualification/kimina_autoformalizer_20260723T215416Z/bundle_manifest.json
+      qualification_bundle_sha256: 27bd7d958b1e266b335d5c9f55e45341ee278f7c192f362dc307438481fb1312
+      overlap_record_artifact: reports/generation/overlap/lf021_kimina_public_pool_v1.json
+      overlap_record_sha256: b19ec2e4333b9a336e0057553ee2c9340e17740c335823010f2d47201831d7be
+      blocker: null
+
+  - family_id: stepfun_formalizer_7b
+    provider_slot: local_stepfun_research
+    qualification_pin_source:
+      artifact: configs/generation/local_qualification_stepfun_v1.yaml
+      sha256: a34644682b38e54a2e952c6307214f494608c00c99af12f4e6a2c6e88c79d687
+    seeds: [0]
+    activation:
+      status: ready
+      qualification_bundle_artifact: runs/lf021_local_qualification/stepfun_final_v1_20260723T223533Z/bundle_manifest.json
+      qualification_bundle_sha256: 34395af5629fc17dd07886fad2a0479fc12a1cff5da0d19903f1356a4bb4c520
+      overlap_record_artifact: reports/generation/overlap/lf021_stepfun_public_pool_v1.json
+      overlap_record_sha256: c07577ece5d194e4f940767d55c025cd02ff17643b3a4aac240d7c920820bc6a
+      blocker: null
+
+retry:
+  max_attempts: 1
+  retryable_statuses: []
+  append_only_attempt_artifacts: true
+
+outputs:
+  root: data/raw/real_outputs/public_research_v1/local_collection_v1
+  preflight_report: reports/generation/lf021_local_research_collection_preflight_v1.json
+
+rules:
+  - source-matrix activation text is provenance-only; this config and its replayed activation evidence are authoritative
+  - qualification configs are executable pin sources only and never count as research outputs
+  - every problem x family x seed has one deterministic invocation ID
+  - dry-run creates no provider request, model output, terminal candidate, or semantic label
+  - actual execution uses LocalHFGenerationRequest execution_purpose research_collection
+  - raw collection terminals do not imply parsing, compilation, faithfulness, or Gate-5 credit
+  - a completed invocation is immutable and resume verifies every bound artifact hash
+  - family session attempts use append-only unique paths and the final manifest binds every start, end, and load-failure artifact

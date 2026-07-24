@@ -1,0 +1,31 @@
+schema_version: 1
+policy_id: evidence_sampling_v1
+policy_version: 1.0.0
+mandatory_for:
+  - evaluation_pairs
+  - calibration_pairs
+  - gold_promotion_candidates
+  - gold_counterexample_candidates
+training_sample:
+  enabled: true
+  strategy: stratified_hash_v1
+  hash_seed: leanfaith-evidence-sampling-v1
+  fraction_per_stratum: 0.10
+  minimum_per_stratum: 100
+  maximum_per_stratum: 1000
+  strata:
+    - pair_source
+    - transformation_family
+    - generator_id
+    - theorem_length_band
+applicability:
+  defeq: all_selected_pairs
+  directional_proof: proposition_pairs
+  claim_alignment: binder_alignment_supported_pairs
+  counterexample: decidable_bounded_fragments_only
+failure_policy:
+  persist_every_attempt: true
+  timeout_is_unknown: true
+  proof_not_proved_is_unknown: true
+  counterexample_not_found_is_unknown: true
+  unsupported_is_unknown: true

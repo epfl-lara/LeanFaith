@@ -1,0 +1,30 @@
+schema_version: 1
+audit_profile_id: lf018_pre_scale_v1
+audit_profile_version: 1.0.0
+project_dir: tests/lean_fixtures
+imports: ""
+seed: 18018
+record_timestamp_utc: "2026-07-23T00:00:00+00:00"
+cases:
+  - case_id: n01_nat_order
+    rule_id: n01_operator
+    primary_name: lf018_n01_nat_order
+    primary_code: "theorem lf018_n01_nat_order (m n : Nat) : m < n := by sorry"
+  - case_id: n02_forall_exists
+    rule_id: n02_quantifier
+    primary_name: lf018_n02_forall_exists
+    primary_code: "theorem lf018_n02_forall_exists : (∀ n : Nat, n = n) := by sorry"
+  - case_id: n03_unused_hypothesis
+    rule_id: n03_drop_hypothesis
+    primary_name: lf018_n03_unused_hypothesis
+    primary_code: "theorem lf018_n03_unused_hypothesis (P : Prop) (h : P) : True := by sorry"
+  - case_id: n07_numeric_bound
+    rule_id: n07_literal_bound
+    primary_name: lf018_n07_numeric_bound
+    primary_code: "theorem lf018_n07_numeric_bound (n : Nat) : n ≤ 0 := by sorry"
+  - case_id: n10_nearby_order
+    rule_id: n10_nearby_theorem
+    primary_name: lf018_n10_primary
+    primary_code: "theorem lf018_n10_primary (m n : Nat) : m < n := by sorry"
+    donor_name: lf018_n10_donor
+    donor_code: "theorem lf018_n10_donor (m n : Nat) : m ≤ n := by sorry"

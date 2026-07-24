@@ -1,0 +1,293 @@
+{
+  "schema_version": 2,
+  "report_kind": "lf021_prevalence_design_estimator_independent_reaudit_v2",
+  "created_at": "2026-07-24T03:57:07Z",
+  "supersedes_report": {
+    "artifact": "reports/generation/lf021_prevalence_design_estimator_independent_audit_v1.json",
+    "sha256": "e8726260f84965a95bbd288159f0fb0e3acb4585c7654d03887f987769509c9d"
+  },
+  "verdict": "FAIL_CLOSED_V3_INTEGRATION_SEED_AND_OUTPUT_SAFETY_REPAIRS_REQUIRED_BEFORE_REAL_PREVALENCE_REPORTING",
+  "semantic_labels_inspected": false,
+  "semantic_labels_created": false,
+  "gate_status_changed": false,
+  "production_code_changed_by_auditor": false,
+  "scope": [
+    "re-audit of PREV-B01 through PREV-B06 and PREV-N01 through PREV-N07",
+    "prospective randomized frame-freeze v3 contract",
+    "actual v3 frame-to-estimator integration",
+    "frame and decision binding against archived entropy",
+    "path traversal, symlink escape, and output check-to-write race behavior",
+    "incomplete adjudication projection, ambiguity, and sparse zero multiplicities",
+    "focused tests, lint, formatting, typing, and CLI availability"
+  ],
+  "audited_artifacts": [
+    {
+      "artifact": "policies/lf021_prevalence_design_v1.yaml",
+      "sha256": "312bc2905eec9e9c30679aaecf1d12a90f46b7fa01f6e01bdfffe132cc584a27"
+    },
+    {
+      "artifact": "src/leanfaith/evaluation/prevalence.py",
+      "sha256": "a9ccd2bc413481993df2a3b5a0589e9c3f1ad2b9a7ac39a2d49576cbafeb000f"
+    },
+    {
+      "artifact": "src/leanfaith/cli/report_prevalence.py",
+      "sha256": "be78bca03a8677e1c19b20a9052007287cfdfcc46faffc7641efd6586ad9451b"
+    },
+    {
+      "artifact": "src/leanfaith/cli/app.py",
+      "sha256": "5fda610a2a1850c0adccfe61202775c7e721a5c3ec5809f1b5b5bd13e0afe176"
+    },
+    {
+      "artifact": "src/leanfaith/generation/frame_freeze_v3.py",
+      "sha256": "cad24f00a8376f7539787c4a46af2980ca8d920285453f627e4d57d9bb90ef47"
+    },
+    {
+      "artifact": "configs/generation/lf021_frame_freeze_v3.yaml",
+      "sha256": "5514f7bbb7620413f48d9c087657d3ae89980a8cb7e2dd802fc3af5b6716cc8f"
+    },
+    {
+      "artifact": "scripts/30_freeze_lf021_frame_v3.py",
+      "sha256": "bb3bae40aa6c93f5faaf882279c5e03c61e66990c4a7cf0632740efb4b7312d5"
+    },
+    {
+      "artifact": "tests/unit/test_lf021_prevalence_estimator.py",
+      "sha256": "c3e59b5c4d4a687713dcef1249511921de79ad5b5caf257a974fdea22b8e4e50"
+    },
+    {
+      "artifact": "tests/unit/test_lf021_frame_freeze_v3.py",
+      "sha256": "34beabc3573653db8c4f385b3115e2b046ed1b891e756d736f8ede7adff3dec7"
+    },
+    {
+      "artifact": "src/leanfaith/generation/tranche_expansion_v2.py",
+      "sha256": "2e8a759c1882cb31fb1937c4584bcf258246d62307be09e74bca13446a2f32d0"
+    },
+    {
+      "artifact": "configs/generation/lf021_tranche_expansion_v2.yaml",
+      "sha256": "ac16afa29eccbf072e88c3424eb9d717743710f8282d76bd8b217ff55d607b70"
+    }
+  ],
+  "prior_finding_disposition": [
+    {
+      "id": "PREV-B01",
+      "status": "PARTIALLY_REPAIRED_NEW_BLOCKER_PREV_RA_B03",
+      "evidence": "The v3 implementation has a genuine secrets.token_bytes(32) path and HMAC-SHA256 within-stratum ranking, but the public CLI also accepts arbitrary --seed-file bytes and records them as provided_prelabel_seed_256."
+    },
+    {
+      "id": "PREV-B02",
+      "status": "PARTIALLY_REPAIRED_NEW_BLOCKERS_PREV_RA_B01_AND_PREV_RA_B02",
+      "evidence": "The estimator now verifies legacy v2 decision bindings and rejects fixed-salt v2 frames. It cannot parse the actual v3 decision or frame, and no independent v3 rank/selection replay verifier exists."
+    },
+    {
+      "id": "PREV-B03",
+      "status": "PARTIALLY_REPAIRED_NEW_BLOCKER_PREV_RA_B04",
+      "evidence": "Ordinary traversal and semantic/gate-like output names are rejected, but an escaped reports/prevalence root symlink is accepted and a check-to-write directory-swap race wrote outside the repository."
+    },
+    {
+      "id": "PREV-B04",
+      "status": "REPAIRED",
+      "evidence": "Both the estimator projection and FrameItemV3 now validate cluster, representative, contributor, multiplicity, stratum, and content-ID coherence; adversarial internal tampering failed."
+    },
+    {
+      "id": "PREV-B05",
+      "status": "REPAIRED",
+      "evidence": "Exactly one adjudication projection row is required per frame item and explicit unresolved is accounted separately from missing; the incomplete-projection adversarial test failed closed."
+    },
+    {
+      "id": "PREV-B06",
+      "status": "REPAIRED_FOR_DIRECT_ESTIMATOR_INPUTS",
+      "evidence": "Decision, frame, and adjudication inputs are each read once, hashed from those bytes, and parsed from the same buffers. Output publication still has a separate check-to-write race under PREV-RA-B04."
+    },
+    {
+      "id": "PREV-N01",
+      "status": "REPAIRED",
+      "evidence": "An all-ambiguous census now reports an undefined binary denominator with null interval bounds."
+    },
+    {
+      "id": "PREV-N02",
+      "status": "REPAIRED",
+      "evidence": "Sparse family and source-proxy maps reject nonpositive entries and must sum exactly to member_count."
+    },
+    {
+      "id": "PREV-N03",
+      "status": "REPAIRED",
+      "evidence": "Nonresponse reports respondent-Hajek descriptive point estimation and an explicit respondent-only scope."
+    },
+    {
+      "id": "PREV-N04",
+      "status": "OPEN_NONBLOCKING",
+      "evidence": "adjudication_id is unique within a projection and the projection bytes are hash-bound, but records still do not carry a content-derived ID or a typed upstream annotation/adjudication-manifest binding."
+    },
+    {
+      "id": "PREV-N05",
+      "status": "NOT_REESTABLISHED_BY_THIS_REAUDIT",
+      "evidence": "The re-audit verified frame lineage and label-blind fields, but did not establish an independent actual-read audit for every tranche decision input."
+    },
+    {
+      "id": "PREV-N06",
+      "status": "PARTIALLY_REPAIRED",
+      "evidence": "Service-level output rejection and overwrite tests exist and CLI help works. A full CLI happy-path, missing-input, and exit-code integration test against a real v3 frame cannot exist until v3 estimator support is implemented."
+    },
+    {
+      "id": "PREV-N07",
+      "status": "REPAIRED_FAIL_CLOSED",
+      "evidence": "Primary exact inversion supports singleton noncertainty strata; secondary Taylor intervals explicitly report unsupported status and retain only the descriptive point estimate."
+    }
+  ],
+  "confirmed_blockers": [
+    {
+      "id": "PREV-RA-B01",
+      "severity": "integration_blocker_before_real_prevalence_reporting",
+      "problem": "The estimator cannot consume the prospective randomized v3 decision or frame.",
+      "evidence": "An actual synthetic FrameFreezeDecisionV3 plus FrameItemV3 frame produced by freeze_frame_v3 was passed to load_verified_v2_frame_projection_bytes and failed with 37 ExpansionDecisionV2 validation errors. The loader imports only ExpansionDecisionV2 and FrameItemV2. The report policy and PrevalenceInputBinding still require frame_schema_version=2, and the input-binding decision regex expects lf021_expansion_decision_v3 while the real prefix is lf021_frame_freeze_decision_v3.",
+      "impact": "Legacy v2 frames correctly fail because they are fixed-salt, while valid randomized v3 frames also fail. Therefore no real design-based prevalence report can currently be produced.",
+      "required_correction": "Add an explicit schema-dispatching verified loader for FrameFreezeDecisionV3 and FrameItemV3; migrate the report input schema to represent frame schema 3 and the actual decision ID; keep v2 loading only to issue the fixed-salt rejection. Add one end-to-end v3 frame plus complete adjudication plus report CLI test."
+    },
+    {
+      "id": "PREV-RA-B02",
+      "severity": "provenance_blocker_before_real_prevalence_reporting",
+      "problem": "There is no independent loader that replays v3 population membership, seed provenance, HMAC ranks, stratum allocation, and selected units from the bound decision.",
+      "evidence": "A real v3 frame row was given an arbitrary wrong sampling_rank_digest; after recomputing its row, frame, and decision content IDs, FrameItemV3, FrameBindingV3, and FrameFreezeDecisionV3 all validated even though the digest differed from the archived seed. This is expected of self-consistency schemas but proves that parsing alone is not verification.",
+      "impact": "A future estimator fix that merely parses v3 schemas would accept a self-consistent forged sample and invalid inclusion probabilities.",
+      "required_correction": "Implement load_verified_frame_freeze_v3 that verifies repository-confined policy, implementation, v2-stop, population, seed bytes and provenance bindings; replays v2 observations and the eligible population; recomputes allocation and every HMAC rank; requires the supplied frame to equal the selected set; and returns the estimator projection only after exact replay."
+    },
+    {
+      "id": "PREV-RA-B03",
+      "severity": "sampling_design_blocker_before_scientific_frame_freeze",
+      "problem": "The production CLI permits a caller-chosen 32-byte seed while labeling the design CSPRNG SRS.",
+      "evidence": "scripts/30_freeze_lf021_frame_v3.py exposes --seed-file. archive_sampling_seed_v3 accepts any 32 bytes, including bytes(range(32)) in the test, and marks source=provided_prelabel_seed_256 without evidence that the value was random or unpredictable when the population was known.",
+      "impact": "An operator can search or choose a seed after seeing the label-blind population to favor particular units. Pre-label timing alone does not make that a probability sample, so exact design-based intervals are not justified.",
+      "required_correction": "For scientific runs, require the OS-CSPRNG single-draw path or a separately verified external-randomness-beacon schema. Remove --seed-file from the production CLI; keep deterministic seed injection only in a test-only/internal API guarded from release artifacts. The independent verifier must reject non-approved seed sources."
+    },
+    {
+      "id": "PREV-RA-B04",
+      "severity": "filesystem_safety_blocker_before_cli_release",
+      "problem": "Prevalence output confinement is vulnerable to a symlinked namespace root and a directory-swap check-to-write race.",
+      "evidence": "When repo/reports/prevalence was a symlink to an external directory, validate_prevalence_output_path accepted the external resolved path. In a controlled adversarial test, swapping an already validated child directory to an external symlink between exists() and write_bytes() caused the report to be written outside the repository. Ordinary ../ traversal was rejected.",
+      "impact": "The command can escape its promised non-gating repository namespace and may overwrite or create operational files elsewhere.",
+      "required_correction": "Require the canonical reports/prevalence root itself to remain beneath the canonical repository root and reject symlink components. Publish through a directory file descriptor using no-follow semantics and atomic create/replace, then fsync and re-verify the final inode/path; or stage in a trusted directory and atomically rename without following symlinks. Add static-root-symlink and race regression tests."
+    }
+  ],
+  "important_nonblocking_issues": [
+    {
+      "id": "PREV-RA-N01",
+      "priority": "P1",
+      "problem": "Frame-freeze v3 accepts and emits absolute artifact bindings whenever output_root is outside the repository, while the estimator's repository verifier requires relative bindings.",
+      "correction": "Constrain scientific v3 output to the registered repository artifact root or define one explicit content-addressed external-store URI scheme supported consistently by generator and verifier."
+    },
+    {
+      "id": "PREV-RA-N02",
+      "priority": "P1",
+      "problem": "The adjudication projection is file-hash-bound but not typed against an immutable full-adjudication manifest, annotator/adjudicator protocol version, or deterministic content-derived projection IDs.",
+      "correction": "Add a versioned adjudication-projection manifest with source annotation bindings, projection algorithm/version, record count, and content-derived unique record IDs before publication-quality reporting."
+    },
+    {
+      "id": "PREV-RA-N03",
+      "priority": "P2",
+      "problem": "Frame-freeze output creation uses check-then-write immutability helpers and a check-then-create population seed lock, which are not process-atomic.",
+      "correction": "Use exclusive atomic creation for immutable artifacts and the by-population seed lock; tolerate identical concurrent writers and fail closed on divergent content without leaving an ambiguous canonical lock."
+    },
+    {
+      "id": "PREV-RA-N04",
+      "priority": "P2",
+      "problem": "The v3 test suite validates generation and tampering but does not exercise a post-persistence independent decision/frame verifier because none exists.",
+      "correction": "Make verifier tests separate from generation tests and include forged policy, implementation, population, seed, rank, allocation, frame-count, path-traversal, and symlink cases."
+    },
+    {
+      "id": "PREV-RA-N05",
+      "priority": "P2",
+      "problem": "The secondary adjudication/source-manifest provenance and remaining full CLI exit-code coverage are still incomplete.",
+      "correction": "Complete these after PREV-RA-B01 and PREV-RA-B02 make a genuine v3 end-to-end report possible."
+    }
+  ],
+  "validated_strengths": [
+    {
+      "id": "PREV-RA-S01",
+      "result": "pass",
+      "description": "Fixed-salt v2 frames fail closed and are not silently treated as probability samples."
+    },
+    {
+      "id": "PREV-RA-S02",
+      "result": "pass",
+      "description": "V3 freezes the full eligible problem-group by alpha-identity population before its default OS-CSPRNG seed draw and uses deterministic HMAC-SHA256 replay from archived seed bytes."
+    },
+    {
+      "id": "PREV-RA-S03",
+      "result": "pass",
+      "description": "V3 population items strongly validate scientific keys, representative fields, contributor sets, multiplicities, stratum identity, and content-derived IDs."
+    },
+    {
+      "id": "PREV-RA-S04",
+      "result": "pass",
+      "description": "Incomplete adjudication projection, zero sparse multiplicities, and internally incoherent frame rows fail closed."
+    },
+    {
+      "id": "PREV-RA-S05",
+      "result": "pass",
+      "description": "All-ambiguous terminal samples preserve ambiguity and report the binary estimand as undefined rather than inventing a point or interval."
+    },
+    {
+      "id": "PREV-RA-S06",
+      "result": "pass",
+      "description": "Direct estimator inputs are read once and the report binds decision, frame, seed-provenance, adjudication, and policy hashes."
+    },
+    {
+      "id": "PREV-RA-S07",
+      "result": "pass",
+      "description": "Ordinary path traversal, gate-like output paths, divergent overwrites, and fixed-salt frames are rejected."
+    },
+    {
+      "id": "PREV-RA-S08",
+      "result": "pass",
+      "description": "The estimator does not create labels, change supervision eligibility, or close Gate 5g or Gate 5."
+    }
+  ],
+  "validation": {
+    "focused_pytest": {
+      "command": "uv run pytest -q tests/unit/test_lf021_frame_freeze_v3.py tests/unit/test_lf021_prevalence_estimator.py tests/unit/test_lf021_tranche_expansion_v2.py",
+      "passed": 27,
+      "failed": 0
+    },
+    "targeted_adversarial_pytest": {
+      "command": "uv run pytest -q incomplete-projection zero-multiplicity all-ambiguous population-coherence seed-binding focused nodes",
+      "passed": 5,
+      "failed": 0
+    },
+    "ruff_check": {
+      "command": "uv run ruff check on prevalence, report CLI, frame-freeze v3, script, and focused tests",
+      "passed": true
+    },
+    "ruff_format": {
+      "command": "uv run ruff format --check on prevalence, report CLI, frame-freeze v3, script, and focused tests",
+      "passed": true
+    },
+    "mypy": {
+      "command": "uv run mypy src/leanfaith/evaluation/prevalence.py src/leanfaith/cli/report_prevalence.py src/leanfaith/generation/frame_freeze_v3.py",
+      "passed": true
+    },
+    "cli_help": {
+      "command": "uv run leanfaith report-prevalence --help",
+      "passed": true
+    },
+    "adversarial_checks": {
+      "real_v3_decision_and_frame_accepted_by_estimator": false,
+      "real_v3_rejection": "37 ExpansionDecisionV2 validation errors",
+      "self_consistent_forged_v3_hmac_rank_schema_accepted": true,
+      "provided_known_32_byte_seed_accepted": true,
+      "ordinary_parent_traversal_rejected": true,
+      "prevalence_root_symlink_escape_accepted": true,
+      "output_directory_swap_to_external_symlink_wrote_outside_repo": true,
+      "incomplete_adjudication_projection_accepted": false,
+      "zero_sparse_multiplicity_accepted": false,
+      "all_ambiguous_binary_interval_status": "undefined_denominator"
+    }
+  },
+  "release_recommendation": {
+    "scientific_v3_frame_freeze": "BLOCKED_UNTIL_PREV_RA_B03_OR_AN_APPROVED_RANDOMNESS_SOURCE_IS_ENFORCED",
+    "real_prevalence_reporting": "BLOCKED_BY_PREV_RA_B01_AND_PREV_RA_B02",
+    "report_prevalence_cli_release": "BLOCKED_BY_PREV_RA_B04",
+    "continued_label_blind_collection": "NOT_BLOCKED_BY_THIS_REAUDIT",
+    "semantic_annotation": "DO_NOT_START_FROM_A FRAME PRODUCED THROUGH THE CALLER_CHOSEN_SEED ROUTE",
+    "gate_5g": "NOT_CLOSED_BY_THIS_REAUDIT",
+    "gate_5": "NOT_CLOSED_BY_THIS_REAUDIT"
+  }
+}

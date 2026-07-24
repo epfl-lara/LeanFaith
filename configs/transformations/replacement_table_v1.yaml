@@ -1,0 +1,57 @@
+schema_version: 1
+table_id: replacement_table_v1
+table_version: 1.0.0
+entries:
+  - entry_id: nat_lt_to_le
+    family_id: n01_operator
+    source_token: "<"
+    target_token: "≤"
+    type_precondition: nat_binary_order_relation
+    source_atoms: [const:LT.lt, const:instLTNat]
+    target_atoms: [const:LE.le, const:instLENat]
+    required_context_atoms: [const:Nat]
+    intended_error_types: [E11]
+  - entry_id: nat_le_to_lt
+    family_id: n01_operator
+    source_token: "≤"
+    target_token: "<"
+    type_precondition: nat_binary_order_relation
+    source_atoms: [const:LE.le, const:instLENat]
+    target_atoms: [const:LT.lt, const:instLTNat]
+    required_context_atoms: [const:Nat]
+    intended_error_types: [E11]
+  - entry_id: prop_and_to_or
+    family_id: n01_operator
+    source_token: "∧"
+    target_token: "∨"
+    type_precondition: prop_binary_connective
+    source_atoms: [const:And]
+    target_atoms: [const:Or]
+    required_context_atoms: []
+    intended_error_types: [E10]
+  - entry_id: prop_or_to_and
+    family_id: n01_operator
+    source_token: "∨"
+    target_token: "∧"
+    type_precondition: prop_binary_connective
+    source_atoms: [const:Or]
+    target_atoms: [const:And]
+    required_context_atoms: []
+    intended_error_types: [E10]
+nearby_theorem_entries:
+  - entry_id: n10_nat_lt_to_le
+    family_id: n10_nearby_theorem
+    replacement_entry_id: nat_lt_to_le
+    intended_error_types: [E09, E26]
+  - entry_id: n10_nat_le_to_lt
+    family_id: n10_nearby_theorem
+    replacement_entry_id: nat_le_to_lt
+    intended_error_types: [E09, E26]
+  - entry_id: n10_prop_and_to_or
+    family_id: n10_nearby_theorem
+    replacement_entry_id: prop_and_to_or
+    intended_error_types: [E09, E26]
+  - entry_id: n10_prop_or_to_and
+    family_id: n10_nearby_theorem
+    replacement_entry_id: prop_or_to_and
+    intended_error_types: [E09, E26]

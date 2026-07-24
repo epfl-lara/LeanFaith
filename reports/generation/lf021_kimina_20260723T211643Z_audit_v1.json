@@ -1,0 +1,152 @@
+{
+  "schema_version": 1,
+  "report_kind": "lf021_local_qualification_bundle_adversarial_audit",
+  "audited_at": "2026-07-23T21:27:23Z",
+  "run_directory": "runs/lf021_local_qualification/kimina_20260723T211643Z",
+  "bundle_manifest_sha256": "ef95066f9349cd05f68a80e174d818c6e367d064a85d37522cf6b37231d29c8e",
+  "bundle_id": "local_qualification_bundle:a9e6558a18bcdb5b2700ff16010ed0748d304f750cafee91d347e6b1b8bcceeb",
+  "terminal_id": "local_qualification:9bc1f768e86196314e4d20e2480a58ead94117e967dad405d878bdd687d19cc3",
+  "status": "failed_blocking",
+  "canonical_qualification_eligible": false,
+  "checks": {
+    "all_19_manifest_artifact_paths_safe_regular_and_hash_matched": true,
+    "bundle_id_recomputed": true,
+    "provider_request_canonical_and_hash_bound": true,
+    "raw_response_canonical_and_hash_bound_before_downstream_artifacts": true,
+    "raw_output_hash_matched_output_text": true,
+    "call_attempt_request_response_ids_consistent": true,
+    "pre_hardening_verifier_replay_with_nonexistent_repo_root_passed": true,
+    "current_cross_record_verifier_rejects_the_bundle": true,
+    "ten_archived_input_roles_content_addressed_and_hash_matched": true,
+    "config_runtime_prompt_parser_fixture_header_preflight_and_execution_records_bound": true,
+    "model_repo_and_40hex_revision_consistent_across_config_request_call_terminal": true,
+    "current_local_four_weight_shards_match_content_addressed_blob_hashes": true,
+    "lean_candidate_elaborated_as_one_prop_with_placeholder": true,
+    "required_candidate_representation_views_present": true,
+    "active_registry_hash_consistent_across_problem_preflight_and_screening": true,
+    "current_active_registry_recomputation_returned_zero_benchmark_hits": true,
+    "screening_record_reports_zero_benchmark_and_duplicate_hits": true,
+    "no_pair_record_file_persisted": true,
+    "no_nllean_record_file_persisted": true,
+    "no_resolved_label_file_persisted": true,
+    "semantic_labels_created_false": true,
+    "qualifies_for_gate5g_false": true,
+    "supervision_eligible_false": true,
+    "individual_bundle_records_rejected_by_release_guard_for_all_four_scientific_uses": true,
+    "terminal_materialization_outcome_matches_persisted_outcome": false,
+    "complete_execution_code_bundle_bound": false,
+    "screening_registry_bytes_archived_and_recomputed_during_bundle_replay": false,
+    "exact_model_snapshot_file_manifest_bound": false
+  },
+  "blocking_findings": [
+    {
+      "finding_id": "LF021-KIMINA-AUDIT-B001",
+      "severity": "blocker",
+      "title": "Terminal admission lineage does not match the persisted materialization outcome",
+      "evidence": {
+        "terminal_materialization_outcome_id": "real_output:3c8f48517d41e5b58f4eff3bc63ee26a81fae081fc863ea2c6fd12741f5fd061",
+        "persisted_materialization_outcome_id": "real_output:615d4cafb14a539f0da7a445891a58abe8fc20d52fe99d38a7d74f051cbbdff4",
+        "terminal_screening_id": "candidate_screen:4401e3cb1f07c9cc76a0a0924bc7c04e7848c4bdc2c56e7404f46dd875fd442a",
+        "persisted_materialization_screening_id": null,
+        "terminal_dry_run_pair_ids": [
+          "pair:19ce17dd1642c7978940ab309b370eb161f27bffa4060bc5cafc6c64fb1edbf3"
+        ],
+        "persisted_materialization_pair_ids": [],
+        "terminal_dry_run_nllean_id": "nllean:d060e5c4a98f63855404c9d9ef6552e2d17bc1dc0544f0a163e78e9d0057a531",
+        "persisted_materialization_nllean_id": null
+      },
+      "cause": "persist_local_qualification_bundle serialized result.materialized while LocalQualificationTerminal was constructed from result.admitted; the verifier used at run creation did not parse or cross-check the materialization, theorem, variant, representation, or screening records",
+      "required_correction": "Persist and bind the pre-screening materialization as the canonical materialization outcome, point terminal.materialization_outcome_id to it, and add a separate smoke-only admission dry-run receipt for derived pair/NLLean IDs. The verifier must parse and cross-check every record."
+    },
+    {
+      "finding_id": "LF021-KIMINA-AUDIT-B002",
+      "severity": "blocker",
+      "title": "The archived input bundle does not bind the code that orchestrated qualification",
+      "evidence": {
+        "archived_roles": [
+          "common_suffix",
+          "environment_lock",
+          "execution_input",
+          "fixture_preflight",
+          "fixture_source",
+          "import_header",
+          "parser_source",
+          "prompt_template",
+          "qualification_config",
+          "runtime_adapter"
+        ],
+        "missing_execution_bindings_include": [
+          "scripts/07_qualify_local_kimina.py",
+          "src/leanfaith/generation/local_qualification.py",
+          "src/leanfaith/generation/providers.py",
+          "src/leanfaith/generation/real_outputs.py",
+          "src/leanfaith/generation/candidate_screening.py",
+          "src/leanfaith/representations/pipeline.py",
+          "src/leanfaith/lean/leaninteract_backend.py",
+          "an immutable code-bundle manifest"
+        ]
+      },
+      "cause": "The nonexistent-repository replay uses the currently imported verifier implementation. It proves archived data-input integrity but cannot identify the exact execution semantics that generated, materialized, represented, screened, and persisted the run.",
+      "required_correction": "Bind an immutable content-addressed qualification code bundle and its ID/hash into QualificationInputBinding, LocalQualificationTerminal, and bundle verification."
+    },
+    {
+      "finding_id": "LF021-KIMINA-AUDIT-B003",
+      "severity": "blocker",
+      "title": "Benchmark and duplicate screening is recorded but not self-contained or recomputed by replay",
+      "evidence": {
+        "active_registry_hash": "eac1ab353cfc0108068ff3d6035281f08b52dc97d3b5cb536dd1781e49d05ca3",
+        "recorded_benchmark_hits": [],
+        "recorded_duplicate_candidate_theorem_ids": [],
+        "live_recomputed_benchmark_hits_at_audit": [],
+        "archived_registry_or_index_role_present": false,
+        "archived_prior_candidate_index_role_present": false
+      },
+      "cause": "The preflight and screening records bind a registry hash, but the qualification bundle does not archive the registry/index bytes and verify_local_qualification_bundle trusts the persisted screening record.",
+      "required_correction": "Archive the exact active registry/index and the prior-candidate identity index, reconstruct screening during replay, and require exact equality with the persisted screening record."
+    }
+  ],
+  "important_hardening": [
+    {
+      "finding_id": "LF021-KIMINA-AUDIT-H001",
+      "title": "The exact local model snapshot lacks a compact file-hash manifest",
+      "observed": "The run binds AI-MO/Kimina-Autoformalizer-7B at ddd47cb477d93b3ca990468e1c0d5ad6b60973dd, four metadata hashes, and the expected total checkpoint bytes. At audit time all four local safetensor shards matched their content-addressed Hugging Face blob names.",
+      "required_correction": "Bind a compact exact snapshot manifest covering weight shards, model index, tokenizer.json, tokenizer config, special tokens, vocab, and merges. Weight bytes need not be copied into the run bundle."
+    },
+    {
+      "finding_id": "LF021-KIMINA-AUDIT-H002",
+      "title": "Several derived records have no intrinsic smoke marker",
+      "observed": "Every record is individually rejected by the current release guard because it is smoke or lacks explicit production eligibility. Materialization, representation, screening, qualification-input, and bundle records do not themselves carry artifact_class=smoke.",
+      "required_correction": "Make the bundle and dry-run receipt explicitly smoke-only and require downstream training/release joins to the terminal/bundle lineage so a generic production wrapper cannot launder an unmarked derived record."
+    }
+  ],
+  "confirmed_nonclaims": {
+    "semantic_labels_created": 0,
+    "gate5g_credit": false,
+    "gate5_credit": false,
+    "pair_records_persisted": 0,
+    "nllean_records_persisted": 0,
+    "resolved_labels_persisted": 0,
+    "scientific_collection_authorized": false,
+    "training_eligibility": false,
+    "release_eligibility": false
+  },
+  "documentation_assessment": {
+    "milestone_run_must_not_be_called_canonical_until_repaired_and_rerun": true,
+    "milestone_no_label_no_gate_credit_no_persisted_pair_or_nllean_claims_confirmed": true,
+    "milestone_no_benchmark_hits_and_representation_claims_confirmed": true,
+    "milestone_nonexistent_repo_root_replay_claim_was_true_only_for_the_pre_hardening_input_and_provider_artifact_verifier": true,
+    "current_cross_record_verifier_rejects_the_run": true,
+    "readme_lf021_gate5g_and_gate5_open_claim_confirmed": true
+  },
+  "required_verifier_invariants": [
+    "Parse and canonical-byte validate every manifest record, not only terminal, call, attempt, and qualification inputs.",
+    "terminal.materialization_outcome_id equals the persisted pending-screening outcome ID.",
+    "The persisted pending outcome has semantic_pool_eligible=false, pair_ids empty, nl_lean_id null, and screening_id null.",
+    "A smoke AdmissionDryRunReceipt binds pending outcome, screening, theorem, representation, deterministic dry-run admitted outcome, pair IDs, and NLLean ID while hard-coding every scientific eligibility flag false.",
+    "The terminal references the dry-run receipt rather than presenting dry-run IDs as persisted admissions.",
+    "Theorem, variant, representation, screening, call, problem, context, parser, raw response, and generation hashes agree transitively.",
+    "The archived registry and prior-candidate index recompute the persisted screening record exactly.",
+    "The manifest contains no PairRecord, NLPLeanRecord, ResolvedLabel, annotation, or semantic-evidence artifact.",
+    "The archived qualification code bundle and exact model snapshot manifest match their terminal/input bindings."
+  ]
+}

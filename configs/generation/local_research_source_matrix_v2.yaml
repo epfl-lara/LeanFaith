@@ -1,0 +1,40 @@
+schema_version: 2
+matrix_id: local_research_source_matrix_v2
+status: pool_compatible_activation_external_to_matrix
+source: mathlib_gate3_docstrings_operational_v1
+problem_count: 40
+problem_pool_manifest_sha256: 229cf1dfcc7c8eee0de839c62b6beb708678ff2a2bea876803b704033de324d7
+private_source_content: false
+external_transmission_required: false
+semantic_labels_created: false
+gate_5g_credit_authorized: false
+collection_authorization_source: v2_config_and_replayed_qualification_overlap_evidence
+families:
+  - family_id: goedel_formalizer_v2_8b
+    model: Goedel-LM/Goedel-Formalizer-V2-8B
+    revision: fe2d362d899601abe79d7d5e95eaa7fe9883a0cb
+    role: supervision_candidate
+    transport: local
+    pool_compatible: true
+  - family_id: kimina_autoformalizer_7b
+    model: AI-MO/Kimina-Autoformalizer-7B
+    revision: ddd47cb477d93b3ca990468e1c0d5ad6b60973dd
+    role: supervision_candidate
+    transport: local
+    pool_compatible: true
+  - family_id: stepfun_formalizer_7b
+    model: stepfun-ai/StepFun-Formalizer-7B
+    revision: fb0dc612761fecd64ebbc489c2a3417e9ea01968
+    role: supervision_candidate
+    transport: local
+    pool_compatible: true
+heldout:
+  family_id: reform_8b
+  model: GuoxinChen/ReForm-8B
+  revision: 1589c832cfad679a280b222e694b987a33befd26
+  supervision_eligible: false
+rules:
+  - every model consumes the same exact 40 frozen public ProblemPoolRecord bytes
+  - this matrix records identities only; activation requires the v2 collection config and replayed evidence
+  - model output is never a semantic label or Gate claim
+  - ReForm remains absent from every training and weak-supervision path

@@ -1,0 +1,129 @@
+schema_version: 1
+config_id: lf021_rcp_qwen_qualification_v1
+frozen_at: "2026-07-24T03:20:00Z"
+status: one_problem_execution_authorized
+artifact_class: qualification
+
+transport:
+  transport_id: epfl_rcp_openai_compatible_qwen_v1
+  provenance: remote_on_prem_epfl_rcp
+  base_url_env: RCP_BASE_URL
+  api_key_env: RCP_API_KEY
+  expected_base_url: https://inference.rcp.epfl.ch/v1
+  catalog_path: /models
+  chat_completions_path: /chat/completions
+
+primary_model_id: Qwen/Qwen3.6-35B-A3B
+no_call_ablation_model_id: Qwen/Qwen3.5-397B-A17B
+provider_family: qwen3
+diversity_group: qwen3
+all_qwen_checkpoints_one_family: true
+
+problem:
+  records_artifact: data/parsed/real_outputs/public_research_v1/one_example_preflight_v1/problem_pool_records.jsonl
+  records_sha256: c8b0329b101269015d8e33cce6cb06d9c8b5dbb30a936f787a177f013fd4155c
+  reference_theorems_artifact: data/parsed/real_outputs/public_research_v1/one_example_preflight_v1/reference_theorems.jsonl
+  reference_theorems_sha256: a372fdb29ae0755db156f9f69e7cce435719c9656b0187d21a187ec91ce97663
+  expected_problem_record_id: problem:3f8bc3e9dc8bf7e7850557b75544d8d8ef892afcf0f8776012ebc5fa7af7a05b
+  required_private_source_content: false
+  required_external_provider_eligible: true
+  require_reference_hidden: true
+
+prompt:
+  artifact: prompts/autoformalizers/rcp_reference_blind_v1.txt
+  sha256: e84a699cd8b1cc4a16a99dfdf11dfe0ede46fad0b5b72906730cae1599a6f304
+  declaration_name: leanfaith_rcp_qwen_qualification_v1
+  system_message: You translate public mathematical statements into proof-free Lean 4 theorem statements.
+
+decoding:
+  temperature: 0.6
+  top_p: 0.95
+  top_k: 20
+  min_p: 0.0
+  presence_penalty: 0.0
+  repetition_penalty: 1.0
+  max_tokens: 4096
+  stream: false
+  chat_template_enable_thinking: true
+
+request_budget:
+  maximum_catalog_requests: 1
+  maximum_chat_completion_requests: 1
+  maximum_dedicated_capability_requests: 0
+  retries_with_removed_fields: 0
+  retry_attempts: 1
+  request_timeout_seconds: 600
+  catalog_timeout_seconds: 30
+
+capability_policy:
+  combined_generation_request_is_capability_observation: true
+  exact_application_proof_available: false
+  accepted_request_claim_only: true
+  unsupported_fields_fail_closed: true
+  silently_dropped_fields_forbidden: true
+  field_removal_retry_forbidden: true
+  required_wire_fields:
+    - temperature
+    - top_p
+    - top_k
+    - min_p
+    - presence_penalty
+    - repetition_penalty
+    - max_tokens
+    - stream
+    - chat_template_kwargs
+
+policy:
+  public_source_only: true
+  private_source_transmission_forbidden: true
+  reference_transmission_forbidden: true
+  primary_generation_authorized: true
+  ablation_generation_authorized: false
+  bulk_generation_authorized: false
+  all_qwen_variants_one_family: true
+  semantic_labels_created: false
+  semantic_faithfulness_assessed: false
+  supervision_eligible: false
+  gate_credit_claimed: false
+  gate_closed: false
+  checkpoint_revision_status: unavailable_from_rcp_route_ids
+  training_cutoff_status: unknown
+  contamination_status: unknown
+  unseen_claim_eligible: false
+  heldout_claim_eligible: false
+  evaluation_claim_eligible: false
+  allowed_use: supplemental_generator_candidates_only
+
+outputs:
+  root: data/raw/real_outputs/rcp_qwen_qualification_v1/v1
+  lean_raw_root: reports/generation/lf021_rcp_qwen_qualification_v1_lean_raw
+  audit_root: reports/generation/lf021_rcp_qwen_qualification_v1_audit
+
+bound_artifacts:
+  shared_transport_module:
+    artifact: src/leanfaith/generation/rcp_qualification_v1.py
+    sha256: 765b4d661fa1f78459bfc3e3f5ba4a80a80f61c08ab8b9248494266be52bd1a4
+  engine_module:
+    artifact: src/leanfaith/generation/rcp_qwen_qualification_v1.py
+    sha256: 20a049b8d676ec7370aa1e6256e13c4bd48cb083e6c16c0d9f60f719e29a6641
+  cli_script:
+    artifact: scripts/26_qualify_rcp_qwen_v1.py
+    sha256: aaa60857f2ece2ac401e7f116153c7806be485208d4eb036eba7c57ff9eebef2
+  prompt_template:
+    artifact: prompts/autoformalizers/rcp_reference_blind_v1.txt
+    sha256: e84a699cd8b1cc4a16a99dfdf11dfe0ede46fad0b5b72906730cae1599a6f304
+  response_contract:
+    artifact: configs/generation/rcp_qwen_response_contract_v1.json
+    sha256: 407ac57536d173f7712f7edc52a0ca23d36d6d730670090833508e48b6dde358
+  proposal:
+    artifact: configs/generation/rcp_qwen_qualification_proposal_v1.yaml
+    sha256: 93544e5f9a9339ec515e5d0e5668082762bc3c53b6df3e98ba2185f3530c38fc
+  execution_policy:
+    artifact: policies/rcp_qwen_qualification_v1.yaml
+    sha256: c00830e40026a9ea7aa41061c6a52e390b47ac6b5d475bbfdd92199f0ac6c417
+  provider_portfolio:
+    artifact: configs/generation/rcp_provider_portfolio_v1.yaml
+    sha256: 6f6a79159ff68a3cb4bec59fd52a21e84a7f84b721622521046c40d60557c298
+  remote_generation_policy:
+    artifact: policies/rcp_remote_generation_v1.yaml
+    sha256: c924efacdf2bd28373eed255c9b04b8e45cb56d430b2f4906b253ab63d661470

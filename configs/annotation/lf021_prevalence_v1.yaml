@@ -1,0 +1,205 @@
+schema_version: 1
+config_id: lf021_prevalence_annotation_config_v1
+campaign_id: lf021_prevalence_v1
+status: prepared_inactive_no_exports
+artifact_class: production
+
+purpose:
+  task: reference_assisted_nl_plus_lean_a_b
+  semantic_target: F1_same_mathematical_claim
+  prevalence_only: true
+  routine_model_supervision_created: false
+
+bindings:
+  frame_decision:
+    artifact: reports/generation/lf021_post_exhaustion_frame_v1/decisions/0574621043042ed62b486260de9bf633797f2471217f502be25b9aec3a46a19c.json
+    sha256: e780d3bc6150f2fafe576170be792b6f13e60d7ef35567912d27d03b63d8eabc
+    decision_id: lf021_extended_frame_freeze_decision_v1:0574621043042ed62b486260de9bf633797f2471217f502be25b9aec3a46a19c
+  frame:
+    artifact: reports/generation/lf021_post_exhaustion_frame_v1/frames/a07b352030a2c51fa51ebcabc00a3c1d1ecf2041318feabfe57a4c70fc365069.jsonl
+    sha256: a07b352030a2c51fa51ebcabc00a3c1d1ecf2041318feabfe57a4c70fc365069
+    frame_id: lf021_extended_prevalence_frame_v1:c4d248631456c45a05a6c4d929cda6a69c6b91e05e5e65ed4a8ca8eff0367312
+    item_count: 240
+  frame_materializer_policy:
+    artifact: configs/generation/lf021_post_exhaustion_frame_v1.yaml
+    sha256: f404e4a1cf62858171774541bab80fe1ccd13f45c9a136c08d9976e36ca280c1
+    policy_id: lf021_post_exhaustion_frame_materializer_v1
+  prevalence_policy:
+    artifact: policies/lf021_prevalence_design_v3.yaml
+    sha256: d00e096cf6c49224ffa45fc236f872daa57c0adcafe3f3fec4ffa39781a79504
+    policy_id: lf021_prevalence_design_v3
+    schema_version: 3
+  guideline:
+    artifact: annotation/guidelines_v1.md
+    sha256: 604eeade46c6328646bd71641f9a3c69cb0588462ac725c5eaf251a89a4b779f
+  codebook:
+    artifact: annotation/codebook_v1.yaml
+    sha256: b98404daba174c2ff70557fdf1e8bcfd13ba9c4990f992b63d2f5506eaeb7885
+  template:
+    artifact: annotation/templates/lf021_prevalence_v1.json
+    sha256: 33aa5161e61d56ea447eed70188b1663eee881c66ba9672a8400c89ee3dbc8af
+    template_id: lf021_prevalence_template_v1
+
+tooling:
+  selected_backend: null
+  permitted_existing_backends:
+    - argilla
+    - label_studio
+  fallback_backend: streamlit_only_after_documented_existing_tool_failure
+  backend_project_created: false
+  external_service_calls_allowed: false
+
+annotation_design:
+  annotations_per_item: 2
+  annotator_slots:
+    - slot_id: independent_annotator_1
+      assigned_annotator: null
+    - slot_id: independent_annotator_2
+      assigned_annotator: null
+  assignments_materialized: false
+  independent_before_lock: true
+  reveal_peer_identity: false
+  reveal_peer_response: false
+  fixed_side_semantics:
+    A: registered_reference_lean_statement
+    B: candidate_autoformalization_lean_statement
+    swap_sides_in_ui: false
+
+input_contract:
+  payload_mode: allowlist_only
+  task_mode: reference_assisted_nl_plus_lean_a_b
+  required_display_fields:
+    - natural_language_statement
+    - lean_a.headless
+    - lean_a.signature_pp
+    - lean_a.signature_explicit
+    - lean_b.headless
+    - lean_b.signature_pp
+    - lean_b.signature_explicit
+  required_views_per_lean_side:
+    - headless
+    - signature_pp
+    - signature_explicit
+  permitted_context_fields:
+    - minimal_import_text
+    - namespace_text
+    - local_notation_text
+    - required_type_information
+    - view_unavailable_notices
+  source_private_content_allowed: false
+  raw_frame_record_allowed: false
+  raw_proof_stripped_allowed: false
+  model_or_sampling_metadata_allowed: false
+
+response_contract:
+  schema_source: annotation/templates/lf021_prevalence_v1.json#response_schema
+  persisted_record_schema: src/leanfaith/schemas/annotation.py#AnnotationRecord
+  required_fields:
+    - same_claim
+    - relation
+    - confidence
+    - rationale
+    - reference_issue
+  optional_fields:
+    - error_types
+  semantic_relation_values:
+    - equivalent
+    - A_stronger
+    - B_stronger
+    - incomparable
+    - unrelated
+    - ambiguous
+  unresolved_semantic_relation: null
+  unknown_relation_spelling_allowed: false
+  cannot_assess_derivation:
+    same_claim: null
+    resolution_outcome: unresolved
+    relation: null
+    quality_tier: unknown
+    requires_adjudication: true
+    decision: REVIEW
+
+blinding:
+  mode: allowlist_display_fail_closed_recursive_denylist
+  applies_to: annotation_display_payload_before_annotator_access
+  does_not_apply_to:
+    - response_schema_field_names
+    - locked_response_records
+  denylist_source: annotation/codebook_v1.yaml#blinding
+  reject_unlisted_top_level_fields: true
+  reject_unlisted_nested_fields: true
+  reject_prohibited_fields_even_when_null: true
+  reject_prohibited_fields_even_when_redacted: true
+  hidden_categories:
+    - generator_model_checkpoint_provider
+    - prompt_decoding_reasoning
+    - tranche_invocation_pool_source_proxy
+    - sampling_stratum_probability_multiplicity
+    - frame_population_cluster_and_raw_identifiers
+    - existing_semantic_placeholders_expected_labels_and_gate_fields
+    - metric_scores_structural_scores_and_predictions
+    - proof_defeq_counterexample_and_other_symbolic_evidence
+    - llm_judgments_prior_human_votes_and_adjudication
+    - benchmark_split_denylist_and_contamination_metadata
+    - artifact_paths_hashes_context_ids_and_runtime_metadata
+    - nonpermitted_representation_views
+    - mutation_intentions_sci_and_E_code_provenance
+  audit_before_payload_materialization: required
+  audit_before_backend_import: required
+
+domain_separators:
+  frame_sampling:
+    value: leanfaith-lf021-frame-v3-hmac-sha256-v1
+    source: frozen_frame_decision
+  payload_content_id:
+    value: leanfaith-lf021-prevalence-annotation-payload-v1
+    message_encoding: utf8_domain_nul_frame_id_nul_frame_record_id_nul_payload_sha256_v1
+  opaque_item_token:
+    value: leanfaith-lf021-prevalence-annotation-item-token-v1
+    message_encoding: utf8_domain_nul_frame_id_nul_frame_record_id_v1
+  independent_assignment:
+    value: leanfaith-lf021-prevalence-annotation-assignment-v1
+    message_encoding: utf8_domain_nul_campaign_id_nul_round_id_nul_item_token_v1
+  display_order:
+    value: leanfaith-lf021-prevalence-annotation-order-v1
+    message_encoding: utf8_domain_nul_campaign_id_nul_round_id_nul_item_token_v1
+  response_record:
+    value: leanfaith-lf021-prevalence-annotation-response-v1
+    message_encoding: utf8_domain_nul_campaign_id_nul_item_token_nul_slot_id_nul_response_sha256_v1
+  adjudication_record:
+    value: leanfaith-lf021-prevalence-adjudication-v1
+    message_encoding: utf8_domain_nul_campaign_id_nul_item_token_nul_raw_response_ids_v1
+  contains_secret_material: false
+
+adjudication:
+  enabled: false
+  trigger_source: annotation/codebook_v1.yaml#adjudication_triggers
+  preserve_raw_responses: true
+  overwrite_raw_response: false
+
+outputs:
+  payload_export: null
+  assignment_manifest: null
+  annotation_records: null
+  adjudication_records: null
+  label_keys: null
+  prevalence_report: null
+
+launch_guard:
+  execution_enabled: false
+  backend_project_created: false
+  payloads_materialized: false
+  exports_materialized: false
+  assignments_materialized: false
+  annotator_keys_materialized: false
+  responses_materialized: false
+  semantic_labels_created: false
+  external_calls_performed: false
+  gate_5_closed: false
+  rules:
+    - this_configuration_alone_never_creates_a_label
+    - this_configuration_alone_never_creates_an_assignment
+    - this_configuration_alone_never_exports_frame_content
+    - no_external_call_is_authorized
+    - all_payloads_must_pass_the_recursive_blinding_audit
+    - both_independent_responses_must_lock_before_peer_reveal

@@ -1,0 +1,18 @@
+schema_version: 1
+smoke_profile_id: lf019_smoke_v1
+smoke_profile_version: 1.0.0
+artifact_class: smoke
+release_eligible: false
+model_selection_eligible: false
+positive_fixture_path: configs/transformations/lf019_positive_fixtures_v1.yaml
+negative_fixture_path: configs/transformations/lf018_pre_scale_v1.yaml
+record_timestamp_utc: "2026-07-23T00:00:00+00:00"
+split_seed: 19019
+inventory_only_statements:
+  - case_id: inventory_nat_reflexive
+    source_name: lf019_inventory_nat_reflexive
+    source_code: "theorem lf019_inventory_nat_reflexive (n : Nat) : n = n := by sorry"
+expected_failure_statements:
+  - case_id: malformed_expected_failure
+    source_name: lf019_malformed_expected_failure
+    source_code: "theorem lf019_malformed_expected_failure : := by sorry"

@@ -4,10 +4,19 @@ repos:
     hooks:
       - id: trailing-whitespace
         args: [--markdown-linebreak-ext=md]
+        # Frozen prompts may intentionally end a prefix with one space.
+        exclude: ^prompts/autoformalizers/goedel_card_chat_v1\.txt$
       - id: end-of-file-fixer
+        # Reports, frozen benchmark registries, and gate fixtures are
+        # content-addressed artifacts; byte-normalization would invalidate
+        # their recorded hashes.
+        exclude: ^(reports/|data/benchmarks/|tests/fixtures/gates/)
       - id: check-yaml
       - id: check-toml
       - id: check-added-large-files
+        # Frozen hash-only benchmark/frame artifacts are intentionally tracked;
+        # the largest current artifact is below 4 MiB and GitHub's file limit.
+        args: [--maxkb=5000]
       - id: check-merge-conflict
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.15.21

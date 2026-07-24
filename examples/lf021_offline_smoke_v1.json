@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "fixture_id": "lf021_offline_public_identity_v1",
+  "source": "lf021_offline_public_fixture",
+  "source_revision": "v1",
+  "source_split": "smoke",
+  "source_record_id": "public-identity-1",
+  "source_license": "CC0-1.0",
+  "problem_id": "lf021-public-identity",
+  "problem_group": "nl-problem:lf021-public-identity",
+  "nl_statement": "For every offline fixture token x, prove that x equals itself.",
+  "nl_source_link": "repo://examples/lf021_offline_smoke_v1.json",
+  "imports": "import LeanFaithFixtures.Basic\n",
+  "reference_name": "lf021_offline_reference_identity",
+  "reference_statement": "theorem lf021_offline_reference_identity (x : LeanFaithLF021OfflineToken) : x = x",
+  "generated_response": "```lean4\ntheorem lf021_offline_generated_identity (x : LeanFaithLF021OfflineToken) : x = x\n```\n"
+}

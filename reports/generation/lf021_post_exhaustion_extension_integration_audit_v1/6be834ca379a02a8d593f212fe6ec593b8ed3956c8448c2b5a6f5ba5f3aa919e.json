@@ -1,0 +1,266 @@
+{
+  "report_id": "lf021_post_exhaustion_extension_integration_audit_v1:6be834ca379a02a8d593f212fe6ec593b8ed3956c8448c2b5a6f5ba5f3aa919e",
+  "schema_version": 1,
+  "report_kind": "lf021_post_exhaustion_extension_integration_audit_v1",
+  "audit_scope": "post_exhaustion_extension_activation_sequence_family_isolation_and_frame_v3_gate5g_integration_boundary",
+  "audit_verdict": "PASS_SAFETY_FAIL_CLOSED_EXECUTION_ADAPTERS_REQUIRED",
+  "status_dimensions": {
+    "activation_safety": "PASS",
+    "extension_sequence_and_seed_binding": "PASS",
+    "remote_family_isolation": "PASS",
+    "read_only_frame_projection_adapter": "PASS",
+    "extension_collection_execution_readiness": "BLOCKED_FAIL_CLOSED",
+    "extended_frame_materialization_readiness": "BLOCKED_FAIL_CLOSED",
+    "direct_gate5g_compatibility": "BLOCKED_FAIL_CLOSED",
+    "current_safety_bug_found": false
+  },
+  "audited_artifacts": {
+    "extension_policy": {
+      "artifact": "configs/generation/lf021_post_exhaustion_extension_v1.yaml",
+      "sha256": "71f532ffd13e64404ab006c5b86a0d887ecf4f8ee76f85b933c557e44abb33f1"
+    },
+    "extension_implementation": {
+      "artifact": "src/leanfaith/generation/post_exhaustion_extension.py",
+      "sha256": "a2e42695427b888568993340ff524c09b2e3f9876b51818b46f3c6bfe7ef73a0"
+    },
+    "extension_cli": {
+      "artifact": "scripts/31_plan_lf021_post_exhaustion_extension.py",
+      "sha256": "9e227d9baa91e7fa9ac266c8a3f6a60b3f4e4cb03f66889b8043241e085b2239"
+    },
+    "extension_tests": {
+      "artifact": "tests/unit/test_lf021_post_exhaustion_extension.py",
+      "sha256": "5559527db71042b01d705810ab441144cf1cdd6de5dcd65768a934b8483c0501"
+    },
+    "extension_readiness_report": {
+      "artifact": "reports/generation/lf021_post_exhaustion_extension_v1_readiness.json",
+      "sha256": "e9efde0ed1cb2065ee7f2ab8dc13b3183636d032d845d2d87899ef6ca8b4fbaf"
+    },
+    "base_v1_policy": {
+      "artifact": "configs/generation/lf021_tranche_expansion_v1.yaml",
+      "sha256": "0c726e197ef5358ef4a7414e36622c10fb7ff19082199540b62e4bc170834e16"
+    },
+    "base_v1_implementation": {
+      "artifact": "src/leanfaith/generation/tranche_expansion.py",
+      "sha256": "33078832be9131cc85f7ac10e0e4da6374c768ffb6a0e4829a71b4e8f7fcbc67"
+    },
+    "base_v2_policy": {
+      "artifact": "configs/generation/lf021_tranche_expansion_v2.yaml",
+      "sha256": "ac16afa29eccbf072e88c3424eb9d717743710f8282d76bd8b217ff55d607b70"
+    },
+    "base_v2_implementation": {
+      "artifact": "src/leanfaith/generation/tranche_expansion_v2.py",
+      "sha256": "2e8a759c1882cb31fb1937c4584bcf258246d62307be09e74bca13446a2f32d0"
+    },
+    "algebra_source_matrix": {
+      "artifact": "configs/generation/local_research_source_matrix_v2.yaml",
+      "sha256": "6869ef8acde1327d42311552e0a3e62e28d8bea8d3859855d029ca084fdbb426"
+    },
+    "cross_domain_source_matrix": {
+      "artifact": "configs/generation/local_research_source_matrix_cross_domain_v3.yaml",
+      "sha256": "e6252802d61117acf34fc7844c3fcf3a72ceb17de7c7bc379310dc69d6080bde"
+    },
+    "collector_v5_implementation": {
+      "artifact": "src/leanfaith/generation/research_collection_v5.py",
+      "sha256": "720f23b7f0ae3c528b9d95cc8e7580421f366d2b7044d74c7f7fd98e0403c56b"
+    },
+    "collector_v5_cli": {
+      "artifact": "scripts/27_collect_research_tranche_v5.py",
+      "sha256": "e9332258836591d959cef101e480a5d3a6e052529cd86ccd402d130b33a3922f"
+    },
+    "frame_v3_policy": {
+      "artifact": "configs/generation/lf021_frame_freeze_v3.yaml",
+      "sha256": "5514f7bbb7620413f48d9c087657d3ae89980a8cb7e2dd802fc3af5b6716cc8f"
+    },
+    "frame_v3_implementation": {
+      "artifact": "src/leanfaith/generation/frame_freeze_v3.py",
+      "sha256": "a4d9e107cff84f3db4052ab4d7b2afd341e3c0e6fa6251d87a48efca18c3cec6"
+    },
+    "gate5g_policy": {
+      "artifact": "configs/generation/lf021_gate5g_finalizer_v1.yaml",
+      "sha256": "7d23d6c58792cf4e391e9f6cd3dd3165ceebed2372d0d5be5d20299c33a5206b"
+    },
+    "gate5g_implementation": {
+      "artifact": "src/leanfaith/generation/gate5g.py",
+      "sha256": "d6adc8a5bc9ebd3c97aeeb9bb3617ac21e2bc2101cc21cc2cd69624103cf2d57"
+    },
+    "gate5g_tests": {
+      "artifact": "tests/unit/test_lf021_gate5g_finalizer.py",
+      "sha256": "d895e7560246dac804364f3bc185dc532ba16093909a41274c2cc22fca37bfa7"
+    },
+    "independent_frame_gate5g_audit": {
+      "artifact": "reports/generation/lf021_prevalence_v3_gate5g_independent_audit_v1.json",
+      "sha256": "6e0927edfe46086cd3bf928d4aee29162c3e9f3a45770865192e50e9ee7c81cd"
+    }
+  },
+  "activation_audit": {
+    "required_original_observation_count": 12,
+    "exact_count_enforced": true,
+    "allowed_activation_actions": [
+      "freeze_reduced_frame",
+      "exhausted_without_frame"
+    ],
+    "next_tranche_must_be_null": true,
+    "final_preferred_eligibility_must_be_false": true,
+    "all_bound_original_observations_replayed_exactly": true,
+    "six_tranche_decision_rejected": true,
+    "all_twelve_prefixes_fail_preferred_eligibility": {
+      "result": true,
+      "evidence_kind": "implementation_invariant_inference",
+      "reason": "The verified exact 12-observation replay is nonpreferred. Problem-aware unique cluster count and every coverage contribution count used by the preferred predicate are monotone under prefix extension; preferred eligibility therefore cannot be true at an earlier eligible prefix and false at prefix 12.",
+      "explicit_per_prefix_replay_implemented": false,
+      "safety_conclusion": "SUFFICIENT",
+      "optional_hardening": "A future audit may replay each prefix explicitly for defense in depth; this is not required to correct a current safety bug."
+    }
+  },
+  "extension_sequence": [
+    {
+      "order": 12,
+      "tranche_id": "algebra_s6",
+      "pool_id": "algebra_gate3_docstrings_v1",
+      "expected_problem_count": 40,
+      "expected_invocations": 120,
+      "seeds_by_family": {
+        "goedel_formalizer_v2_8b": 36,
+        "kimina_autoformalizer_7b": 6,
+        "stepfun_formalizer_7b": 6
+      }
+    },
+    {
+      "order": 13,
+      "tranche_id": "cross_domain_s6",
+      "pool_id": "cross_domain_docstrings_v1",
+      "expected_problem_count": 20,
+      "expected_invocations": 60,
+      "seeds_by_family": {
+        "goedel_formalizer_v2_8b": 36,
+        "kimina_autoformalizer_7b": 6,
+        "stepfun_formalizer_7b": 6
+      }
+    },
+    {
+      "order": 14,
+      "tranche_id": "algebra_s7",
+      "pool_id": "algebra_gate3_docstrings_v1",
+      "expected_problem_count": 40,
+      "expected_invocations": 120,
+      "seeds_by_family": {
+        "goedel_formalizer_v2_8b": 37,
+        "kimina_autoformalizer_7b": 7,
+        "stepfun_formalizer_7b": 7
+      }
+    },
+    {
+      "order": 15,
+      "tranche_id": "cross_domain_s7",
+      "pool_id": "cross_domain_docstrings_v1",
+      "expected_problem_count": 20,
+      "expected_invocations": 60,
+      "seeds_by_family": {
+        "goedel_formalizer_v2_8b": 37,
+        "kimina_autoformalizer_7b": 7,
+        "stepfun_formalizer_7b": 7
+      }
+    }
+  ],
+  "family_isolation_audit": {
+    "required_family_count": 3,
+    "required_families_exact": [
+      {
+        "family_id": "goedel_formalizer_v2_8b",
+        "model": "Goedel-LM/Goedel-Formalizer-V2-8B",
+        "revision": "fe2d362d899601abe79d7d5e95eaa7fe9883a0cb",
+        "transport": "local"
+      },
+      {
+        "family_id": "kimina_autoformalizer_7b",
+        "model": "AI-MO/Kimina-Autoformalizer-7B",
+        "revision": "ddd47cb477d93b3ca990468e1c0d5ad6b60973dd",
+        "transport": "local"
+      },
+      {
+        "family_id": "stepfun_formalizer_7b",
+        "model": "stepfun-ai/StepFun-Formalizer-7B",
+        "revision": "fb0dc612761fecd64ebbc489c2a3417e9ea01968",
+        "transport": "local"
+      }
+    ],
+    "extension_tranche_family_keysets_exact": true,
+    "family_pin_set_exactly_validated_by_policy_model": true,
+    "transport_type_restricted_to_local": true,
+    "authorized_remote_family_count": 0,
+    "kimi_or_qwen_rcp_family_authorized": false,
+    "openai_or_codex_family_authorized": false,
+    "heldout_reform_present_in_source_matrix": true,
+    "heldout_reform_in_extension_required_families": false,
+    "heldout_reform_in_extension_tranches": false,
+    "remote_family_contamination_found": false
+  },
+  "integration_boundary_audit": {
+    "extension_planner": {
+      "status": "READY_FAIL_CLOSED",
+      "can_verify_original_exhaustion": true,
+      "can_plan_next_extension_tranche": true,
+      "can_verify_extended_preferred_stop": true
+    },
+    "collector_v5": {
+      "directly_compatible": false,
+      "reason": "research_collection_v5 parses only the v1 ExpansionDecision and TrancheExpansionPolicy, requires collect_next_tranche, and requires next_tranche.order to index the original policy. It cannot authorize PostExhaustionExtensionDecisionV1 orders 12 through 15.",
+      "future_component_required": "versioned extension-decision-to-collector authorization adapter or new collector implementation"
+    },
+    "read_only_frame_projection": {
+      "implemented": true,
+      "strict_replay": true,
+      "returns_exact_eligible_population_item_v3_rows_in_memory": true,
+      "writes_population": false,
+      "writes_sampling_seed": false,
+      "writes_frame": false,
+      "direct_frozen_v3_decision_compatible": false,
+      "declared_required_consumer": "separately_reviewed_extended_population_materializer_v1",
+      "sufficient_for_audit_only": true,
+      "sufficient_for_production_frame_creation": false
+    },
+    "frame_freeze_v3": {
+      "directly_compatible": false,
+      "reason": "EligiblePopulationManifestV3 and FrameFreezeDecisionV3 bind a v2 stop decision, and freeze_frame_v3/verify_frame_freeze_v3 strictly replay ExpansionDecisionV2. An extension decision cannot satisfy that lineage."
+    },
+    "gate5g": {
+      "directly_compatible": false,
+      "reason": "Gate5G requires a strict FrameFreezeDecisionV3 whose action and v2_stop_action both equal freeze_preferred_frame, then invokes strict verify_frame_freeze_v3. The read-only extension projection is not an accepted Gate5G input."
+    },
+    "materializer_required_if_extension_activates": true,
+    "required_future_reviewed_components": [
+      "an extension collection authorization/materialization path for orders 12 through 15",
+      "a versioned extended frame-freeze materializer/verifier that consumes the strict read-only projection and preserves lineage",
+      "a Gate5G policy/finalizer adapter that explicitly accepts and strictly replays the new extended frame lineage"
+    ],
+    "population_jsonl_only_is_sufficient": false,
+    "current_behavior_on_missing_components": "FAIL_CLOSED",
+    "future_materializer_implemented_by_this_audit": false,
+    "materializer_deferred_without_current_safety_regression": true
+  },
+  "verification": {
+    "focused_test_command": ".venv/bin/python -m pytest -q tests/unit/test_lf021_post_exhaustion_extension.py tests/unit/test_lf021_frame_freeze_v3.py tests/unit/test_lf021_gate5g_finalizer.py tests/unit/test_lf021_research_collection_v5.py",
+    "focused_tests_collected": 54,
+    "focused_tests_passed": 54,
+    "focused_tests_failed": 0,
+    "ruff_format_check": "PASS",
+    "ruff_check": "PASS",
+    "mypy_src_leanfaith": "PASS",
+    "policy_and_artifact_hashes_reverified": true
+  },
+  "negative_assertions": {
+    "semantic_labels_inspected": false,
+    "semantic_labels_created": false,
+    "model_generation_performed": false,
+    "extension_collection_performed": false,
+    "population_materialized": false,
+    "sampling_seed_obtained": false,
+    "frame_frozen": false,
+    "gate5g_credit_claimed": false,
+    "canonical_gate_report_written": false,
+    "plan_modified": false,
+    "documentation_modified": false,
+    "gate_file_modified": false,
+    "commit_created": false
+  }
+}

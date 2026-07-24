@@ -1,0 +1,33 @@
+adapter_version: formalrx_verdict_v1
+paper: arXiv:2607.04655v1
+paper_prompt_source: Appendix_J.1
+released_checkpoint_training_variant: undocumented_probe_required
+shared_task_inputs: [natural_language, candidate_lean]
+models:
+  formalrx_1_7b:
+    model_id: LARK-Lab/FormalRx-1.7b
+    revision: 27d253a46f901c02eded6bab567ca4a551eda924
+    model_card_present_at_probe: false
+  formalrx_4b:
+    model_id: LARK-Lab/FormalRx-4b
+    revision: 0d735b90a50e201325ed6a395c15429d425647a5
+    model_card_present_at_probe: false
+  formalrx_8b:
+    model_id: LARK-Lab/FormalRx-8b
+    revision: eefa5b016509c33c9496ce66833b1c3c047f0251
+    model_card_present_at_probe: false
+dataset:
+  dataset_id: LARK-Lab/FormalRx-Test
+  revision: 4b7c6b883e0859e9bd38620a539bdcef408f91b4
+  row_count_observed: 7030
+  observed_fields: [idx, header, informal_statement, formal_statement, diagnosis]
+  gold_labels_available_at_probe: false
+  card_counts: {aligned: 1791, misaligned: 5239}
+  paper_count_difference_must_be_reported: true
+probability_adapter:
+  method: teacher_forced_sequence_log_odds
+  frozen_prefix: "[ANSWER_BEGIN]\nSemantic Alignment: "
+  alternatives: ["Aligned\n", "Misaligned\n"]
+  require_validation_before_final_test: true
+  if_logits_unavailable: discrete_metrics_only
+required_runtime_modes: [official_full_diagnostic_generation, verdict_stop]

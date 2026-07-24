@@ -1,73 +1,84 @@
-# Phase 0 — Contract, sources, providers, environment (Gate 0 status)
+# Phase 0 — Contract, sources, providers, environment (Revision 4.1)
 
-**Date:** 2026-07-10
-**Decision:** Gate 0 PARTIALLY CLOSED — every item that does not require
-external data access or a user decision is locked; the three remaining items
-are enumerated under "Open items (data-collection boundary)" and block only
-the phases that consume them.
+**Updated:** 2026-07-18
+**Decision:** **PASS — internal-research scope only**
 
-## Locked (with artifacts)
+This gate does not grant redistribution, external-provider transmission, or
+release permission for the private `sft_classic` source.
 
-1. **Policies** (`policies/`): semantic_policy_v1.md (all §3.6 edge cases
-   decided with examples), error_ontology_v1.yaml (E01–E30),
-   label_resolution_v1.yaml (§14.6 precedence, §15.7 routes, F0–F2
-   derivation), transformation_promotion_v1.yaml (Gate 4A/4B numeric rules),
-   benchmark_denylist_v1.yaml (§19.7 registry + freeze timing),
-   evidence_policy_v1.yaml (§16), split_policy_v1.yaml (§19),
-   calibration_policy_v1.yaml (§21.10/§31.5), preregistration_v1.yaml
-   (H1–H6 numeric targets, Gate6/Gate7, statistics rules).
-2. **Environment lock** (`configs/environment.lock.yaml`, ADR-0001,
-   `leanfaith doctor --write-lock`): advertised_range mode; Lean
-   `v4.31.0-rc1`; `lean-interact==0.11.4` (advertised range
-   v4.8.0-rc1..v4.31.0-rc1; REPL fork augustepoiroux/repl v1.3.17); Python
-   `>=3.12,<3.13`. Doctor enforces it and is fully green.
-3. **Project pins** (`configs/projects/`): fixtures (local, v4.31.0-rc1,
-   builds + passes live REPL tests); mathlib4 tag `v4.31.0-rc1` =
-   `d568c8c09630de097a046763c17b9ea99f95f950` (toolchain matches lock
-   exactly); cslib pinned to last in-range revision `2f677bfc8ef7...`
-   (HEAD is on v4.32.0-rc1 — outside range, recorded); physlib pinned to
-   last in-range revision `f5242c99d796...` (v4.30.0; HEAD is stable
-   v4.31.0 — outside range; Phase 11 decision recorded in ADR-0001).
-4. **Source identities** (`configs/sources/`): sft_classic (private;
-   HF_TOKEN by name; fallback order per §9.1), sft_classic_numina
-   (~99,774 rows; §9.3 mapping), Lean-Workbook (synthetic weak only),
-   ProofNetVerif (frozen benchmark; §9.3 mapping), mathlib, cslib, physlib.
-5. **Benchmark registry** (`configs/benchmarks/registry.yaml` +
-   `policies/benchmark_denylist_v1.yaml`) registered before any generation.
-6. **ADRs**: 0001 environment lock (Accepted); 0002 annotation platform
-   (Proposed — Argilla default, finalizes at LF-023); 0003 data versioning
-   (Accepted — manifests authoritative, DVC at research_v1, bulk storage at
-   /storage/milikic); 0004 encoder/tokenizer (Proposed — ModernBERT-large
-   default, finalizes at LF-028 audit).
-7. **Doctor** (`leanfaith doctor`, `--write-lock`): implemented, green.
+## Locked decisions and evidence
 
-## Resolved 2026-07-10 (data collection approved by user)
+1. LeanInteract 0.11.4 remains the only production Python–Lean boundary.
+   The environment lock pins Lean/mathlib `v4.31.0-rc1` inside LeanInteract's
+   advertised range, and gate-facing commands verify the actual checkout
+   toolchain and Git revision rather than trusting registry text.
+2. `formalmathatepfl/sft_classic` access is verified at revision
+   `0bf9f424309f668c2c2dd214aef6ec5d1d5c042f` with 3,036,270 rows and the
+   archived 100-row input hash
+   `9913ae837d021d6e9857659346fe47088762c3ab19dc378551e77a5bc0be38cd`.
+3. Private-source authorization is fail closed:
 
-1. **Authenticated `sft_classic` probe — DONE.** Revision
-   `0bf9f424309f668c2c2dd214aef6ec5d1d5c042f`; 2,006,425 train + 1,029,845
-   test rows; 12-column schema verified; 100-row sample archived
-   (sha256 9913ae83…). NL lives in Lean docstrings of prompt-wrapped,
-   proof-stripped questions; per-row `data_source` provenance is mixed —
-   `nl_trust` is tagged per row by the LF-011 adapter (§9.4). All fallback
-   sources and Lean projects probed and pinned; mathlib checked out with
-   full build cache at `/storage/milikic/leanfaith/mathlib4`. See
-   `reports/source_probes/source_probes_2026_07_10.md` and
-   `reports/gates/gate_0.json`.
+   ```text
+   access_basis = authenticated private project access
+   institutional_policy_status = internal research only; release permission pending
+   license_status = undeclared
+   redistribution = false
+   external_transmission = false
+   release_eligibility = false
+   ```
 
-## Open items (need user account decisions; block Phases 5/6 only)
+4. `sft_classic` content may not be sent to external providers. All unresolved
+   external provider slots are explicitly disabled until the Phase-5 ADR.
+5. `configs/sources/public_replication.yaml` defines a public-source replication
+   profile so the scientific pipeline is not release-dependent on private data.
+6. The verified private probe is canonical; the stale top-level unresolved
+   probe state has been removed.
+7. F0/F1/F2, terminal relations, unresolved-review behavior, evidence tiers,
+   benchmark isolation, split grouping, calibration, and preregistered
+   hypotheses are versioned policies. Revision 4.1 migration readers preserve
+   legacy records while all new writers use schema version 2.
+8. FormalRx paper, dataset input revision, and available 1.7B/4B/8B checkpoint
+   revisions are pinned. FormalRx labels are currently withheld and its model
+   card is incomplete; artifact availability does not block the core project.
+9. Backbone selection is a preregistered four-candidate pilot with no hard
+   parameter ceiling. ModernBERT-base is only an implementation smoke fallback.
+10. No staffing, schedule, compensation, budget, or prescribed hardware
+    policy is introduced.
 
-2. **Provider slot resolution (Phase 0 task 4).**
-   `configs/generation/providers.yaml` declares the six §17.2 slots with
-   family-separation rules; exact provider/model IDs, API keys (by env-var
-   name), and the supervision-free primary judge family need the user's
-   account decisions.
-3. **§9.2 external-API approval decision.** Whether (and to which provider
-   set/scope) private `sft_classic` content — including NL statements — may
-   be sent. Recorded as `external_api_approved: null` until decided; all
-   Phase 5/6 code checks this flag before submitting prompts.
+## 2026-07-18 input revalidation
+
+The internal-only authorization was revalidated after the Gate-2/3 source and
+benchmark work. In particular, the gate now binds both sides of the benchmark
+registry contract and the canonical private-source config:
+
+| Input | SHA-256 |
+|---|---|
+| `configs/benchmarks/registry.yaml` | `ddc26730a647d75c5cf39052aa45d99cabc840dd84d774cb9e32cf3d116e929b` |
+| `policies/benchmark_denylist_v1.yaml` | `2b40201771d2d09b0a34bf193c63bc51a64af0c6a7bdb0921710a6cf531804d4` |
+| `data/benchmarks/frozen_ids.json` | `f213c1106fe41b0357608101af4d34cbf01e511c4ac54430bcde500eb00e15e4` |
+| `configs/sources/sft_classic.yaml` | `a98d0f9fe422a0766d77d95e0355f066976ab52604693bd8f9f44484d558ba63` |
+
+The source config records `probe_status: verified_private`, the exact pinned
+revision, undeclared license, and fail-closed release/transmission flags. The
+provider registry still disables every unresolved external slot. FormalRx
+artifact availability remains non-blocking for the primary Lean--Lean work.
+
+## Provider boundary
+
+The provider registry is resolved for Gate 0 by explicit disablement, not by
+guessing model IDs. Phase 5 may later enable approved public-source or locally
+served generation slots through its ADR. No later provider ADR may transmit
+private `sft_classic` content unless a separate source-authorization record
+supersedes the present prohibition.
 
 ## Consequences
 
-Phases 1 (closed), and code-only parts of 2–4 can proceed; any step that
-reads real source data (mathlib checkout/extraction, HF probes, provider
-calls) waits on the open items above.
+- Internal Gate-2/3 processing may proceed.
+- Public release artifacts must be reconstructable without private rows.
+- External generation remains blocked until its separate Phase-5 decision.
+- Gate 1 was rerun on 2026-07-18 after the current Revision 4.1 and Gate-2/3
+  implementation changes; its independent report records the result.
+- LF-016 remains blocked until Gates 2 and 3 close.
+
+This report is finalized before its hash is written into
+`reports/gates/gate_0.json`; any change requires regenerating that gate report.

@@ -1,0 +1,243 @@
+{
+  "schema_version": 1,
+  "report_kind": "lf021_prevalence_design_estimator_independent_audit_v1",
+  "created_at": "2026-07-24T03:38:44Z",
+  "verdict": "FAIL_CLOSED_REPAIRS_REQUIRED_BEFORE_FRAME_FREEZE_OR_REAL_REPORTING",
+  "semantic_labels_inspected": false,
+  "semantic_labels_created": false,
+  "gate_status_changed": false,
+  "scope": [
+    "frozen pre-label estimand and interval policy",
+    "FrameItemV2 projection and multiplicity compatibility",
+    "ambiguity and nonresponse treatment",
+    "source-proxy and three-family limitations",
+    "deterministic identifiers and immutable input bindings",
+    "report-prevalence CLI write boundary",
+    "absence of semantic-label, supervision, and Gate-closing behavior",
+    "focused unit, lint, type, CLI-help, and small-population interval validation"
+  ],
+  "audited_artifacts": [
+    {
+      "artifact": "policies/lf021_prevalence_design_v1.yaml",
+      "sha256": "312bc2905eec9e9c30679aaecf1d12a90f46b7fa01f6e01bdfffe132cc584a27"
+    },
+    {
+      "artifact": "reports/faithful_prevalence_design.md",
+      "sha256": "2a29c4679dd40c375a76e0c35188cbf4b24cf05e22bd32313345b90c8b240609"
+    },
+    {
+      "artifact": "src/leanfaith/evaluation/prevalence.py",
+      "sha256": "07d7874ee7d4c00be81becc72b34f14c933c91682d18473423464aa7eb39f9ad"
+    },
+    {
+      "artifact": "src/leanfaith/cli/report_prevalence.py",
+      "sha256": "561de91243aa644ab8a13aee9a95f762139a6f091db800fb117eb4716c5d6aff"
+    },
+    {
+      "artifact": "src/leanfaith/cli/app.py",
+      "sha256": "9dc26c7e6603388228680fae31c284f1ba1dabdc6d1de20cbaa8bc90b417e18f"
+    },
+    {
+      "artifact": "src/leanfaith/generation/tranche_expansion_v2.py",
+      "sha256": "2e8a759c1882cb31fb1937c4584bcf258246d62307be09e74bca13446a2f32d0"
+    },
+    {
+      "artifact": "configs/generation/lf021_tranche_expansion_v2.yaml",
+      "sha256": "ac16afa29eccbf072e88c3424eb9d717743710f8282d76bd8b217ff55d607b70"
+    },
+    {
+      "artifact": "tests/unit/test_lf021_prevalence_estimator.py",
+      "sha256": "50177f5e4a2128ff2101bfcfe6b08fc4565a8389e5a6f762ab943de917d137ad"
+    },
+    {
+      "artifact": "tests/unit/test_lf021_tranche_expansion_v2.py",
+      "sha256": "a3370f5c2ef4c04d5766a2ca3549a5958ac5169eb9a28d8def2271ab4d4c2e4d"
+    }
+  ],
+  "confirmed_blockers": [
+    {
+      "id": "PREV-B01",
+      "severity": "methodology_blocker_before_frame_freeze",
+      "problem": "The frame calls fixed literal-salt hash ranking simple random sampling without replacement and assigns inclusion probability n_h/N_h, but no actual random draw or random-seed provenance exists.",
+      "evidence": "sampling_hash_salt is the fixed phrase lf021-human-prevalence-problem-group-alpha-v2-frozen; selected units are a deterministic hash ordering. Conditional on the checked-in bytes, an item's actual inclusion is deterministic rather than a known-probability draw.",
+      "impact": "The claimed exact design-based hypergeometric coverage is not justified without an explicit hash-randomness model. Freezing before labels prevents outcome-driven selection but does not by itself create survey-design randomization.",
+      "required_correction": "Before any semantic labels and before the frame is frozen, freeze the eligible population, draw and archive a 256-bit CSPRNG seed or bind a precommitted external randomness beacon, rank units with the recorded seed, and bind seed provenance into the frame decision. Alternatively downgrade exact/design-based wording and treat intervals as descriptive under an explicit cryptographic-hash-as-random model.",
+      "labels_inspected_to_find": false
+    },
+    {
+      "id": "PREV-B02",
+      "severity": "provenance_blocker_before_real_reporting",
+      "problem": "The estimator accepts any self-consistent FrameItemV2 JSONL and trusts embedded N_h and n_h without requiring the ExpansionDecisionV2 or FrameBindingV2 that froze the selected frame.",
+      "evidence": "load_v2_frame_projection validates individual FrameItemV2 rows only. The CLI has no decision or frame-manifest argument. PrevalenceInputBinding stores the frame file hash but no expansion decision ID/hash, frame ID, expected artifact hash, or expected item count.",
+      "impact": "A newly constructed, content-addressed JSONL can choose arbitrary sampling totals and receive a valid prevalence report. The report therefore does not prove that its propensities came from the preregistered collection prefix.",
+      "required_correction": "Require a bound ExpansionDecisionV2 or immutable frame manifest; verify action is a frame-freeze action, frame artifact path/hash/item_count equal the supplied JSONL, the decision binds the frozen amendment and observation prefix, and persist those bindings in PrevalenceInputBinding."
+    },
+    {
+      "id": "PREV-B03",
+      "severity": "safety_blocker_before_cli_release",
+      "problem": "The report-prevalence output is unrestricted even though its API documentation promises that it cannot mutate Gate reports.",
+      "evidence": "run_report_prevalence passes an arbitrary output_path to write_prevalence_report. A synthetic audit invocation successfully created /tmp/.../reports/gates/gate_5.json.",
+      "impact": "The command can create a path that is operationally interpreted as a Gate report while merely embedding gate_5_closed=false in unrelated report content.",
+      "required_correction": "Constrain output to a dedicated prevalence-report root and explicitly reject reports/gates, label, annotation, supervision, split, and input paths. Add CLI/service regression tests."
+    },
+    {
+      "id": "PREV-B04",
+      "severity": "frame_schema_blocker_before_frame_freeze",
+      "problem": "FrameItemV2 content addressing does not enforce semantic coherence among cluster identity, representative fields, contributor sets, multiplicity maps, and sampling stratum.",
+      "evidence": "An adversarial FrameItemV2 with an arbitrary cluster_id, representative invocation/family/pool/source/problem absent from contributor sets, multiplicity-map keys different from contributing IDs, and arbitrary sampling_stratum validated after recomputing its frame_record_id.",
+      "impact": "The full-row validation advertised by load_v2_frame_projection does not fail closed against internally contradictory weights or provenance.",
+      "required_correction": "Recompute cluster_id from problem_group plus alpha; require representative values to occur in the corresponding contributor sets/maps; require positive map values and exact map-key equality with contributing families/proxies; require sampling_stratum to equal representative family|pool|source; add adversarial tests."
+    },
+    {
+      "id": "PREV-B05",
+      "severity": "fieldwork_protocol_blocker_before_real_reporting",
+      "problem": "The frozen policy requires every frame item to be attempted, but the estimator accepts absent adjudication rows and merges them indistinguishably with explicit unresolved adjudications.",
+      "evidence": "An empty adjudication projection is accepted for a nonempty frame. PrevalenceReportV1 exposes only total adjudication record count and terminal item count, not missing count versus explicit unresolved count.",
+      "impact": "The report cannot establish compliance with the attempted-every-item requirement or diagnose workflow nonresponse, although worst-case outcome bounds remain conservative.",
+      "required_correction": "Either require exactly one projection row per frame item, allowing explicit unresolved as nonresponse, or version the policy to permit missing records and report missing, attempted-unresolved, and terminal counts separately. Do not silently collapse the states."
+    },
+    {
+      "id": "PREV-B06",
+      "severity": "reproducibility_blocker_before_real_reporting",
+      "problem": "Frame and adjudication files are parsed first and hashed by reopening the paths afterward.",
+      "evidence": "estimate_prevalence_from_files calls load_v2_frame_projection and load_adjudication_projection before hash_file on each path.",
+      "impact": "A concurrent or accidental file change can produce estimates from one byte sequence bound to the SHA-256 of another.",
+      "required_correction": "Read each immutable input once into bytes, compute its SHA-256 from those bytes, and parse that same byte buffer; or copy inputs atomically into a content-addressed immutable staging area before parsing."
+    }
+  ],
+  "important_nonblocking_issues": [
+    {
+      "id": "PREV-N01",
+      "priority": "P1",
+      "problem": "A census whose terminal outcomes are all ambiguous yields faithful_nonambiguous point_estimate=null but an interval marked available with bounds [0,1].",
+      "correction": "When exact bounds establish F+U=0, return undefined_denominator with null bounds; add all-ambiguous census and all-nonresponse edge tests."
+    },
+    {
+      "id": "PREV-N02",
+      "priority": "P1",
+      "problem": "Zero-valued family/source-proxy entries are accepted by PrevalenceFrameUnitV2; the observed-family set can therefore appear complete even when a required family has zero invocation mass.",
+      "correction": "Require strictly positive sparse multiplicity-map values and positive total multiplicity for every required scalable family, or explicitly version a reduced-family report mode."
+    },
+    {
+      "id": "PREV-N03",
+      "priority": "P1",
+      "problem": "When nonresponse is present, primary category point estimates are respondent-only Hájek ratios but EstimandResult.estimator continues to say stratified Horvitz-Thompson known-population total.",
+      "correction": "Expose the respondent point-estimator name separately or switch the reported estimator label when point_estimate_scope is respondents_only_descriptive."
+    },
+    {
+      "id": "PREV-N04",
+      "priority": "P1",
+      "problem": "The adjudication projection has no content-addressed adjudication ID, full-annotation manifest binding, or uniqueness check across adjudication_id values.",
+      "correction": "Bind the projection to the immutable annotation/adjudication manifest and enforce deterministic unique projection IDs before scientific reporting."
+    },
+    {
+      "id": "PREV-N05",
+      "priority": "P2",
+      "problem": "The amendment records decision_inputs_used by copying a declared tuple rather than auditing the actual operational fields used for representative choice, ranking, multiplicities, artifact identity, and problem mapping.",
+      "correction": "Expand the declared list to the complete label-blind decision surface and test that forbidden semantic fields are absent from every loaded observation model."
+    },
+    {
+      "id": "PREV-N06",
+      "priority": "P2",
+      "problem": "No CLI-level tests cover anchored paths, missing inputs, divergent overwrite, output-boundary rejection, or exit codes.",
+      "correction": "Add Typer runner tests after PREV-B03 is fixed."
+    },
+    {
+      "id": "PREV-N07",
+      "priority": "P2",
+      "problem": "Secondary Taylor intervals will be unsupported whenever any noncertainty stratum has n_h=1, which is plausible under minimum-one allocation.",
+      "correction": "Keep the current fail-closed status, but forecast this before annotation and state prominently that secondary interval support may be absent; do not alter strata after labels."
+    }
+  ],
+  "validated_strengths": [
+    {
+      "id": "PREV-S01",
+      "result": "pass",
+      "description": "The primary unit correctly keeps equal Lean alpha identities separate across different problem groups."
+    },
+    {
+      "id": "PREV-S02",
+      "result": "pass",
+      "description": "Per-family and total retained-invocation point estimators correctly reuse one problem-aware cluster label and apply member multiplicity divided by inclusion probability."
+    },
+    {
+      "id": "PREV-S03",
+      "result": "pass",
+      "description": "Terminal ambiguity, explicit unresolved workflow state, and faithful/unfaithful outcomes are not semantically conflated."
+    },
+    {
+      "id": "PREV-S04",
+      "result": "pass",
+      "description": "Worst-case nonresponse bounds are directionally correct for the headline and ambiguous-as-unfaithful sensitivity estimands."
+    },
+    {
+      "id": "PREV-S05",
+      "result": "pass",
+      "description": "Small-population exhaustive checks through N=14 found no undercoverage in the single-stratum equal-tailed hypergeometric total inversion itself."
+    },
+    {
+      "id": "PREV-S06",
+      "result": "pass",
+      "description": "Bonferroni construction is conservative and mechanically simultaneous across category, missingness-assignment, and stratum inversions, conditional on a valid random sampling design."
+    },
+    {
+      "id": "PREV-S07",
+      "result": "pass",
+      "description": "The source_proxy wording consistently limits it to operational source-path coverage metadata and forbids semantic-domain prevalence claims."
+    },
+    {
+      "id": "PREV-S08",
+      "result": "pass",
+      "description": "The three-family collection-only limitation, lack of confirmatory D4/D5 eligibility, lack of held-out-generator eligibility, and lack of supplemental Gate credit match PLAN.md."
+    },
+    {
+      "id": "PREV-S09",
+      "result": "pass",
+      "description": "Estimator/report schemas force label creation, supervision changes, and Gate-closing flags to false; no semantic labels were inspected in this audit."
+    },
+    {
+      "id": "PREV-S10",
+      "result": "pass",
+      "description": "Report IDs and FrameItemV2 record IDs are deterministic hashes of serialized content, subject to the coherence and provenance blockers above."
+    }
+  ],
+  "validation": {
+    "focused_pytest": {
+      "command": "uv run pytest -q tests/unit/test_lf021_prevalence_estimator.py tests/unit/test_lf021_tranche_expansion_v2.py",
+      "collected": 12,
+      "passed": 12
+    },
+    "ruff_check": {
+      "command": "uv run ruff check src/leanfaith/evaluation/prevalence.py src/leanfaith/cli/report_prevalence.py src/leanfaith/generation/tranche_expansion_v2.py tests/unit/test_lf021_prevalence_estimator.py tests/unit/test_lf021_tranche_expansion_v2.py",
+      "passed": true
+    },
+    "mypy": {
+      "command": "uv run mypy src/leanfaith/evaluation/prevalence.py src/leanfaith/cli/report_prevalence.py src/leanfaith/generation/tranche_expansion_v2.py",
+      "passed": true
+    },
+    "cli_help": {
+      "command": "uv run leanfaith report-prevalence --help",
+      "passed": true
+    },
+    "small_population_exact_interval_enumeration": {
+      "population_range": "N=1..14, every n=1..N and M=0..N",
+      "minimum_nominal_coverage": 0.95,
+      "undercoverage_found": false
+    },
+    "adversarial_checks": {
+      "arbitrary_gate_output_path_accepted": true,
+      "empty_adjudication_projection_accepted": true,
+      "zero_mass_required_family_accepted": true,
+      "incoherent_full_frame_item_accepted": true,
+      "all_ambiguous_census_headline_status": "available_0_to_1_with_null_point"
+    }
+  },
+  "release_recommendation": {
+    "frame_freeze": "BLOCKED_BY_PREV_B01_AND_PREV_B04",
+    "real_prevalence_reporting": "BLOCKED_BY_PREV_B02_B03_B05_B06",
+    "continued_label_blind_collection": "NOT_BLOCKED_BY_THIS_AUDIT",
+    "semantic_annotation": "DO_NOT_START_FROM_THIS_FRAME_UNTIL_FRAME_FREEZE_BLOCKERS_ARE_FIXED",
+    "gate_5g": "NOT_CLOSED_BY_THIS_AUDIT",
+    "gate_5": "NOT_CLOSED_BY_THIS_AUDIT"
+  }
+}

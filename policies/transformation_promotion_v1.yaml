@@ -7,9 +7,10 @@
 # section 18.7); changing this policy requires a new policy_version.
 policy_version: transformation_promotion_v1
 plan_sections: ["15", "18.7", "phase-4 gates 4G/4A/4B"]
-# Gate 0 approval is recorded in reports/milestones/phase_0_contract.md,
-# not inside policy files.
-status: authored_pending_gate_0_review
+# Gate 0 approval is recorded in reports/gates/gate_0.json. This policy is
+# active only under the internal-research scope recorded there; the value is
+# descriptive and does not itself authorize data access or promotion.
+status: active_internal_research
 
 # Vocabulary is fixed by the PLAN.md section 11.1 enums. No other values
 # are legal; the strict loader and schema validation reject unknowns.

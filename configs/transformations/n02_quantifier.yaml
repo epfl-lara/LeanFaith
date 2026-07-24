@@ -1,0 +1,17 @@
+schema_version: 1
+rule_id: n02_quantifier
+rule_version: 1.0.0
+family_id: n02_quantifier
+implementation_key: n02_quantifier
+candidate_pool: typed_negative_candidate
+supported_declaration_kinds: [lemma, theorem]
+placeholder_forms: [by_sorry, sorry]
+mutations:
+  - mutation_id: exists_to_forall
+    source_token: "∃"
+    target_token: "∀"
+    intended_error_types: [E04, E05]
+  - mutation_id: forall_to_exists
+    source_token: "∀"
+    target_token: "∃"
+    intended_error_types: [E04, E05]

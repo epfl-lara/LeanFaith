@@ -1,0 +1,140 @@
+{
+  "schema_version": 1,
+  "report_id": "lf021_post_exhaustion_frame_gate5g_readiness_v1:6dfe6ea526985a5db36fa2e01717124c67945029f957f540bd7d1765ca8ab0be",
+  "report_kind": "lf021_post_exhaustion_frame_gate5g_readiness_v1",
+  "status": "PASS_IMPLEMENTATION_READY_FAIL_CLOSED_EXECUTION_ADAPTER_REQUIRED",
+  "scope": "separately_versioned_post_exhaustion_collection_authorization_population_entropy_frame_and_gate5g_integration",
+  "lineage_contract": {
+    "original_observation_count": 12,
+    "extension_orders": [
+      12,
+      13,
+      14,
+      15
+    ],
+    "preferred_stop_required": true,
+    "v2_stop_fabricated": false,
+    "v3_frame_decision_fabricated": false,
+    "frozen_v1_gate5g_modified": false,
+    "frozen_v3_frame_modified": false,
+    "frozen_v2_prevalence_design_modified": false
+  },
+  "artifacts": {
+    "collection_authorization_policy": {
+      "artifact": "configs/generation/lf021_post_exhaustion_collection_v1.yaml",
+      "sha256": "3acb29045d1afdd43ccc604d31669f2bb074f5c29705fa78a6e5b97176ea7281"
+    },
+    "collection_authorization_implementation": {
+      "artifact": "src/leanfaith/generation/post_exhaustion_collection_v1.py",
+      "sha256": "cad47d171dfa3a3b8ba11ee58800a87c4f52f774926122e9b24985761b0e0ddf"
+    },
+    "collection_authorization_tests": {
+      "artifact": "tests/unit/test_lf021_post_exhaustion_collection_v1.py",
+      "sha256": "c440d2a1d340d89d1cd4a7ca92626a9813405a374fd0954f67d6980fefef4524"
+    },
+    "collection_authorization_readiness": {
+      "artifact": "reports/generation/lf021_post_exhaustion_collection_v1_readiness.json",
+      "sha256": "677546ea3cb93a18ed056190d98166727493bbe3892f61775fae6f5604d87286"
+    },
+    "prevalence_design_v3": {
+      "artifact": "policies/lf021_prevalence_design_v3.yaml",
+      "sha256": "d00e096cf6c49224ffa45fc236f872daa57c0adcafe3f3fec4ffa39781a79504"
+    },
+    "prevalence_design_v3_implementation": {
+      "artifact": "src/leanfaith/evaluation/prevalence_design_v3.py",
+      "sha256": "7273236742e4fb69d5aba7e7ddd6f391214ddbf8faf356f82595d91f50daa78a"
+    },
+    "prevalence_design_v3_tests": {
+      "artifact": "tests/unit/test_lf021_prevalence_design_v3.py",
+      "sha256": "973a8e682b65c4c7aa32b837638d8c4f5169c6e56c931f7f8c8acd43b116df66"
+    },
+    "extended_frame_policy": {
+      "artifact": "configs/generation/lf021_post_exhaustion_frame_v1.yaml",
+      "sha256": "f404e4a1cf62858171774541bab80fe1ccd13f45c9a136c08d9976e36ca280c1"
+    },
+    "extended_frame_implementation": {
+      "artifact": "src/leanfaith/generation/post_exhaustion_frame_v1.py",
+      "sha256": "732bbcbf2a042cc90dff361515225faef75bcfe0df1f63279b8307e6ea032e47"
+    },
+    "extended_frame_cli": {
+      "artifact": "scripts/32_freeze_lf021_post_exhaustion_frame_v1.py",
+      "sha256": "c9c6bfed6b5cb13f83edc0bd33087cbd35496dae8711058e4fb2b760df88f55c"
+    },
+    "extended_frame_tests": {
+      "artifact": "tests/unit/test_lf021_post_exhaustion_frame_v1.py",
+      "sha256": "fc55c4ddb9821af86eb31681cd602ae74ceaae10739071955bd27650305fd28c"
+    },
+    "extended_gate5g_schema": {
+      "artifact": "src/leanfaith/schemas/gate5g_v2.py",
+      "sha256": "8430ab4a5f8cac0efe6136367593d44f742caf96decea125ca6628cd1d576814"
+    },
+    "extended_gate5g_policy": {
+      "artifact": "configs/generation/lf021_gate5g_finalizer_v2.yaml",
+      "sha256": "8945ad9b78febfc028957aa642beb9afac747f1db659ab7aa4a8356f5cf9bb59"
+    },
+    "extended_gate5g_implementation": {
+      "artifact": "src/leanfaith/generation/extended_gate5g.py",
+      "sha256": "3bb1017659715c02610d417970e55ac7396aeaa7833b7bb088a29d80960c08d2"
+    },
+    "extended_gate5g_tests": {
+      "artifact": "tests/unit/test_lf021_extended_gate5g_v2.py",
+      "sha256": "8e6ee134611d3c78aebcb01ad054ff621f21b6e3bc16267bda72ec090938163d"
+    }
+  },
+  "implemented_guards": {
+    "reviewed_per_tranche_collection_authorizations_required": true,
+    "authorization_sequence_replayed_exactly": true,
+    "three_local_family_inventory_frozen": true,
+    "remote_provider_family_contamination_rejected": true,
+    "complete_population_frozen_before_entropy": true,
+    "representative_family_coverage_checked_before_entropy": true,
+    "production_seed_source_is_os_csprng_or_bound_beacon": true,
+    "caller_seed_is_test_only": true,
+    "test_entropy_propagates_and_is_gate_ineligible": true,
+    "cross_population_seed_reuse_rejected": true,
+    "hmac_stratified_sampling_replayed": true,
+    "semantic_labels_forbidden": true,
+    "supervision_credit_forbidden": true,
+    "gate5g_v2_binds_prevalence_v3_to_unchanged_v2_and_v1": true,
+    "gate5g_v2_binds_activation_extension_authorizations_population_frame_and_seed": true
+  },
+  "verification": {
+    "focused_test_count": 75,
+    "focused_tests_passed": true,
+    "repository_test_count": 1571,
+    "repository_tests_passed": true,
+    "ruff_formatted_file_count": 340,
+    "ruff_format_passed": true,
+    "ruff_check_passed": true,
+    "mypy_source_file_count": 160,
+    "strict_mypy_passed": true,
+    "doctor_passed": true,
+    "lean_fixture_lake_build_passed": true,
+    "policy_lineage_load_passed": true,
+    "frame_test_replay_roundtrip_passed": true,
+    "extended_gate5g_fail_closed_test_passed": true
+  },
+  "current_execution_boundary": {
+    "collector_v6_executor_implemented": false,
+    "postprocess_v7_implemented": false,
+    "authorization_is_config_plan_only": true,
+    "gate5g_v2_currently_closable": false,
+    "blocking_reason": "reviewed_collector_v6_and_postprocess_v7_not_implemented",
+    "safety_result": "FAIL_CLOSED_BEFORE_EXTENSION_MODEL_EXECUTION_OR_GATE_CREDIT"
+  },
+  "negative_assertions": {
+    "model_execution_performed": false,
+    "population_frozen": false,
+    "sampling_seed_obtained": false,
+    "frame_frozen": false,
+    "semantic_labels_inspected": false,
+    "semantic_labels_created": false,
+    "supervision_eligible": false,
+    "remote_provider_content_used": false,
+    "gate_5g_closed": false,
+    "gate_5_closed": false,
+    "plan_modified": false,
+    "documentation_modified": false,
+    "commit_created": false
+  }
+}

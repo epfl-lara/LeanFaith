@@ -1,0 +1,194 @@
+{
+  "schema_version": 1,
+  "report_id": "lf021_prevalence_v3_gate5g_independent_audit_v1",
+  "audit_role": "independent_adversarial_implementation_and_publication_audit",
+  "audit_verdict": "PASS",
+  "canonical_gate_disposition": "HOLD",
+  "canonical_gate_hold_reasons": [
+    "no real production prevalence-v3 frame has been frozen",
+    "no complete real Gate-5G lineage package was supplied to this audit",
+    "no explicit canonical finalization was requested or performed"
+  ],
+  "audited_artifacts": {
+    "frame_v3_policy": {
+      "artifact": "configs/generation/lf021_frame_freeze_v3.yaml",
+      "sha256": "5514f7bbb7620413f48d9c087657d3ae89980a8cb7e2dd802fc3af5b6716cc8f"
+    },
+    "frame_v3_implementation": {
+      "artifact": "src/leanfaith/generation/frame_freeze_v3.py",
+      "sha256": "a4d9e107cff84f3db4052ab4d7b2afd341e3c0e6fa6251d87a48efca18c3cec6"
+    },
+    "frame_v3_cli": {
+      "artifact": "scripts/30_freeze_lf021_frame_v3.py",
+      "sha256": "05c584521b38c261bcfd6114881e9b6e0927a3afc794d51e9df0ef8f5c168532"
+    },
+    "prevalence_design_v1": {
+      "artifact": "policies/lf021_prevalence_design_v1.yaml",
+      "sha256": "312bc2905eec9e9c30679aaecf1d12a90f46b7fa01f6e01bdfffe132cc584a27"
+    },
+    "prevalence_design_v2": {
+      "artifact": "policies/lf021_prevalence_design_v2.yaml",
+      "sha256": "af8a6238c3dab0b54c14a32d4a83274270d3ebd6340d6f2601c94de0de02bfb0"
+    },
+    "prevalence_implementation": {
+      "artifact": "src/leanfaith/evaluation/prevalence.py",
+      "sha256": "4d5a7e67c9e555cabfd75d05161bc534bc037022e68aa545b6eacf7afd2f9494"
+    },
+    "prevalence_service": {
+      "artifact": "src/leanfaith/cli/report_prevalence.py",
+      "sha256": "1392cf69c29c9a99873fa1423babc321d0b48477be4099ab65c7e7e1440884da"
+    },
+    "gate5g_policy": {
+      "artifact": "configs/generation/lf021_gate5g_finalizer_v1.yaml",
+      "sha256": "7d23d6c58792cf4e391e9f6cd3dd3165ceebed2372d0d5be5d20299c33a5206b"
+    },
+    "gate5g_implementation": {
+      "artifact": "src/leanfaith/generation/gate5g.py",
+      "sha256": "d6adc8a5bc9ebd3c97aeeb9bb3617ac21e2bc2101cc21cc2cd69624103cf2d57"
+    },
+    "gate5g_schema": {
+      "artifact": "src/leanfaith/schemas/gate5g.py",
+      "sha256": "566447f1ddee0331e10bc6a29cdeb381a9bf5919d2fc0501f2a7e188385b5538"
+    },
+    "gate5g_cli_host": {
+      "artifact": "src/leanfaith/cli/app.py",
+      "sha256": "3f96d9623649dccca0916e81f752244cf4b1bfc7ab92e588f828d27cad907051"
+    }
+  },
+  "bound_v2_lineage": {
+    "policy": {
+      "artifact": "configs/generation/lf021_tranche_expansion_v2.yaml",
+      "sha256": "ac16afa29eccbf072e88c3424eb9d717743710f8282d76bd8b217ff55d607b70"
+    },
+    "implementation": {
+      "artifact": "src/leanfaith/generation/tranche_expansion_v2.py",
+      "sha256": "2e8a759c1882cb31fb1937c4584bcf258246d62307be09e74bca13446a2f32d0"
+    },
+    "frame_v3_policy_bindings_match_files": true,
+    "strict_recomputation_required": true,
+    "fixed_salt_v2_frame_reuse_forbidden": true
+  },
+  "confirmed_blocker_and_resolution": {
+    "blocker_id": "gate5g_publication_followed_symlinks",
+    "initial_status": "CONFIRMED",
+    "reproduction": {
+      "symlinked_parent_redirected_write_outside_namespace": true,
+      "equal_byte_symlinked_final_target_was_accepted": true
+    },
+    "resolution_status": "FIXED_AND_REGRESSION_TESTED",
+    "resolution": [
+      "walk and create publication parents through repository-rooted directory descriptors",
+      "open existing and staged files with O_NOFOLLOW",
+      "publish via no-follow hard link using directory descriptors",
+      "verify final lexical path and inode after publication",
+      "remove a just-published inode if a directory-swap race is detected"
+    ],
+    "canonical_reports_written_during_fix": false
+  },
+  "checks": [
+    {
+      "check": "production_entropy_rejection",
+      "outcome": "PASS",
+      "evidence": [
+        "caller-supplied seed bytes are rejected unless explicitly test/replay-only or bound to external-beacon provenance",
+        "the production CLI exposes no generic --seed-file path",
+        "Gate-5G rejects test_replay_only decisions and seed provenance",
+        "OS CSPRNG and external-beacon production paths are separately typed and replayed"
+      ]
+    },
+    {
+      "check": "v2_policy_and_implementation_binding",
+      "outcome": "PASS",
+      "evidence": [
+        "frame-v3 binds exact v2 policy and implementation hashes",
+        "the bound implementation must equal the imported module",
+        "the v2 stopping decision is recomputed from every bound observation",
+        "only verified preferred or reduced v2 stop actions can enter frame-v3"
+      ]
+    },
+    {
+      "check": "no_follow_publication",
+      "outcome": "PASS_AFTER_CONFIRMED_FIX",
+      "evidence": [
+        "prevalence output rejects symlinked namespace and final target",
+        "prevalence output rejects and cleans up a directory-swap race",
+        "Gate-5G validation and canonical report publication now reject symlinked parents and final targets",
+        "Gate-5G publication rejects and cleans up a directory-swap race"
+      ]
+    },
+    {
+      "check": "strict_v3_replay",
+      "outcome": "PASS",
+      "evidence": [
+        "population, seed lock, provenance, HMAC selection, frame rows, propensities, and content hashes replay strictly",
+        "Gate-5G invokes verify_frame_freeze_v3 and requires identical decision, decision binding, frame path, seed bytes, and frame rows",
+        "a forced strict-v3 replay failure writes neither validation nor canonical report"
+      ]
+    },
+    {
+      "check": "dry_run_and_canonical_gate_isolation",
+      "outcome": "PASS",
+      "evidence": [
+        "dry-run writes only a content-addressed report below reports/generation/lf021_gate5g_finalization_v1",
+        "dry-run never writes reports/gates/gate_5g.json",
+        "canonical publication requires finalize=true paired with an explicit finalized date",
+        "explicit finalization is confined to reports/gates/gate_5g.json"
+      ]
+    },
+    {
+      "check": "no_real_gate_closure_or_label_creation",
+      "outcome": "PASS",
+      "evidence": [
+        "reports/gates/gate_5g.json is absent",
+        "no production frame-v3 population, seed, frame, or decision artifact is present under reports/generation",
+        "no audited LF-021 generation or gate artifact contains gate_5g_closed=true",
+        "no audited LF-021 generation or gate artifact contains semantic_labels_created=true or a terminal same_claim/relation value"
+      ]
+    }
+  ],
+  "test_evidence": {
+    "command": "uv run pytest -q tests/unit/test_lf021_frame_freeze_v3.py tests/unit/test_lf021_prevalence_estimator.py tests/unit/test_lf021_gate5g_finalizer.py",
+    "collected": 52,
+    "passed": 52,
+    "failed": 0,
+    "test_artifacts": {
+      "frame_v3": {
+        "artifact": "tests/unit/test_lf021_frame_freeze_v3.py",
+        "sha256": "23f9ecaf0b89171734f8e08b9d7fcea9b9533e8e9e87467351f3cfa6c0fae8a7",
+        "collected": 19
+      },
+      "prevalence": {
+        "artifact": "tests/unit/test_lf021_prevalence_estimator.py",
+        "sha256": "0b2e606c9b12542cb15ce7a32a7afb122e9aae6b974df5d6694f77cd026e86f7",
+        "collected": 17
+      },
+      "gate5g": {
+        "artifact": "tests/unit/test_lf021_gate5g_finalizer.py",
+        "sha256": "d895e7560246dac804364f3bc185dc532ba16093909a41274c2cc22fca37bfa7",
+        "collected": 16
+      }
+    },
+    "ruff_check": "PASS",
+    "ruff_format_check": "PASS",
+    "mypy": "PASS"
+  },
+  "repository_state_assertions": {
+    "real_frame_v3_artifacts_present": false,
+    "real_gate5g_validation_present": false,
+    "canonical_gate5g_report_present": false,
+    "semantic_labels_created_by_audit": false,
+    "semantic_labels_inspected_by_audit": false,
+    "sampling_entropy_obtained_by_audit": false,
+    "supervision_eligibility_changed": false,
+    "gate_5g_closed_by_audit": false,
+    "gate_5_closed_by_audit": false,
+    "plan_modified_by_audit": false,
+    "documentation_modified_by_audit": false,
+    "canonical_gate_modified_by_audit": false,
+    "commit_created_by_audit": false
+  },
+  "interpretation": {
+    "PASS": "the audited implementations and fail-closed tests satisfy the requested mechanical hardening after the documented publication fix",
+    "HOLD": "canonical Gate-5G closure remains unauthorized until a real production v3 frame and its complete bound lineage are independently verified"
+  }
+}

@@ -1,8 +1,24 @@
 # Phase 1 — LeanInteract backend vertical slice (Gate 1)
 
-**Date:** 2026-07-10
+**Date:** 2026-07-18
 **Decision:** Gate 1 PASSED (with two explicitly deferred sub-items noted below).
 **Backlog items:** LF-005, LF-006, LF-007, LF-008, LF-009.
+
+Revision 4.1 revalidation passed all 460 collected tests, Ruff formatting and
+lint, strict mypy, the API probe, doctor, and the Lean fixture build. Gate 1's
+canonical backend contract is unchanged by the Gate-2/3 repairs.
+
+Exact current verification results:
+
+```text
+uv run pytest                 -> 460 passed
+uv run ruff check .           -> all checks passed
+uv run ruff format --check .  -> 104 files already formatted
+uv run mypy src               -> no issues in 59 source files
+uv run leanfaith probe-api    -> 14 symbols, 7 caveats, ok
+uv run leanfaith doctor       -> 7/7 checks passed, 0 warnings
+lake build (fixture project)  -> completed successfully (4 jobs)
+```
 
 ## §8.12 requirement-by-requirement evidence
 
@@ -37,3 +53,10 @@ byte-equivalence + AST-contract golden tests.
 
 Lean v4.31.0-rc1 (elan), fixture project `tests/lean_fixtures` builds, REPL
 fork v1.3.17 built; doctor fully green (see `reports/gates/doctor_latest.json`).
+The current evidence hashes are
+`abc464517712492f3aede7e5c626c9ce5ab18adfe26ec482b3030f0c3ef7a777`
+for the API report,
+`587fd3dae6c251c31244deb429d437dc241b94a8695ddb9b0485df7240dca706`
+for the doctor report, and
+`435656d329c3351089f012ca5348a790d881007c1828065fb119f27e39ed1a08`
+for the command-declaration golden fixture.

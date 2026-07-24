@@ -1,0 +1,56 @@
+{
+  "schema_version": 2,
+  "audit_id": "lf021_kimina_20260723T215416Z_audit_v2",
+  "audited_at": "2026-07-23T21:55:47Z",
+  "status": "passed",
+  "run_directory": "runs/lf021_local_qualification/kimina_autoformalizer_20260723T215416Z",
+  "bundle_manifest": {
+    "path": "runs/lf021_local_qualification/kimina_autoformalizer_20260723T215416Z/bundle_manifest.json",
+    "sha256": "27bd7d958b1e266b335d5c9f55e45341ee278f7c192f362dc307438481fb1312",
+    "bundle_id": "local_qualification_bundle:aeeadc7ce548d16ba66bd96d07da06f11c6b7eb201e814233d744262f93b78cc",
+    "artifact_count": 27
+  },
+  "terminal": {
+    "path": "runs/lf021_local_qualification/kimina_autoformalizer_20260723T215416Z/terminal.json",
+    "sha256": "e743c67f43aa2c5aa20ac3859e9a4a04c8bf8069ce29ef128b79a11eab36d88a",
+    "terminal_id": "local_qualification:291160be9b61afd57f8d8f3143a93df77e9e56ad9f0c7d3764c01d1f1d5b8410",
+    "status": "qualified_smoke"
+  },
+  "qualification_inputs": {
+    "path": "runs/lf021_local_qualification/kimina_autoformalizer_20260723T215416Z/qualification_inputs.json",
+    "sha256": "198e40fe90a4d08cd9bb0a5b65177292ae09d6323f02b3cba1efb3deea842465",
+    "checkpoint_file_count": 14,
+    "checkpoint_bytes": 15231271864,
+    "code_bundle_sha256": "0bc037ce7dda723823a2751a82824e8b0095ec057e996b76cf1710958721697d",
+    "code_tree_hash": "6569d959a9821c8d53cca77b809b0909788605860faf141ee1b304734be28178"
+  },
+  "lineage": {
+    "persisted_outcome_id": "real_output:8010a1fcff75def77c9ae577df977ba6bc38cb8c5df5ee019b708a572b655cf0",
+    "persisted_outcome": "materialized_pending_screening",
+    "screening_id": "candidate_screen:4401e3cb1f07c9cc76a0a0924bc7c04e7848c4bdc2c56e7404f46dd875fd442a",
+    "active_registry_hash": "eac1ab353cfc0108068ff3d6035281f08b52dc97d3b5cb536dd1781e49d05ca3",
+    "receipt_id": "smoke_admission_receipt:6225b8c720b2ec0ec497ddd718067e98ffd14d99c39e93b4a2a1f430e39cd915",
+    "dry_run_outcome_id": "real_output:54069fbfed07955efae10ca86a50c467904860844392ddef0832f613c6c904a0"
+  },
+  "checks": {
+    "all_manifest_artifact_hashes_match": true,
+    "archived_code_bundle_valid": true,
+    "checkpoint_manifest_matches_active_model": true,
+    "screening_recomputed_from_archived_registry": true,
+    "screening_status_clean": true,
+    "benchmark_hits_empty": true,
+    "duplicate_candidate_hits_empty": true,
+    "dry_run_admission_recomputed": true,
+    "working_tree_independent_replay": true,
+    "persisted_pair_records_absent": true,
+    "persisted_nl_lean_records_absent": true,
+    "semantic_labels_created": false,
+    "qualifies_for_gate5g": false,
+    "training_eligible": false,
+    "release_eligible": false,
+    "calibration_eligible": false,
+    "model_selection_eligible": false,
+    "scientific_evaluation_eligible": false
+  },
+  "conclusion": "Canonical public-fixture smoke qualification only. This run validates the pinned Kimina execution path and immutable replay bundle but creates no semantic supervision and earns no Gate 5G or Gate 5 credit."
+}

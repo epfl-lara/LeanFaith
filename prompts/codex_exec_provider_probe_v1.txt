@@ -1,0 +1,4 @@
+Return exactly the JSON object required by the output schema.
+
+Do not call tools, inspect files, browse, or run commands. This is a transport
+probe only.

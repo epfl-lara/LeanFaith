@@ -1,0 +1,149 @@
+schema_version: 1
+config_id: gate3_mathlib_docstring_operational_curation_v1
+frozen_at: "2026-07-23T23:02:46Z"
+
+inputs:
+  candidate_manifest:
+    path: /storage/milikic/leanfaith/lf021/problem_pool_gate3_mathlib_docstrings_v1/full/manifest.json
+    sha256: 5637f6f9423046ceb07e533e57f1f1430e1800c7211de6fc4ba816e12fb2239e
+  eligible_candidates:
+    path: /storage/milikic/leanfaith/lf021/problem_pool_gate3_mathlib_docstrings_v1/full/eligible_candidates.jsonl
+    sha256: 021aa7039d9dc1df5a4b21fc800960d2771461039f74b2922f71934570a87ad2
+  upstream_report:
+    path: reports/generation/lf021_gate3_mathlib_docstrings_v1.json
+    sha256: 59b71279766183424ca2d6c6097b7f5d89319f3f9e51a08d3dfa9858558e8610
+  theorem_records:
+    path: /storage/milikic/leanfaith/gate3/frozen/gate3_inputs.theorems.jsonl
+    sha256: 8eb75ffa0b9233c5a91492fa181f604e3c098a6f3970799bcb0406f8b517f09e
+  representation_records:
+    path: /storage/milikic/leanfaith/gate3/run_rev41_v3/run_a/records/gate3.jsonl
+    sha256: 0fa2e40b4504e647a9abbcf0c4745b29bf701839c99e36ea10c22091022381bf
+  expected_candidate_count: 57
+
+execution_context:
+  project_registry_key: mathlib
+  project_revision: d568c8c09630de097a046763c17b9ea99f95f950
+  context_id: ctx:0cd06826b8767b3bc951c0eb00c802424af95785b558f9f8a61f18694a86c4ce
+  environment_schema_version: 1
+  import_header:
+    path: examples/lf021_public_research_mathlib_header_v1.lean
+    sha256: 1015f8f4676a27ea63780b30cc916712232857097b2bdf635dc61cb949c107fb
+
+review:
+  reviewer_type: codex_agent
+  review_method: llm_assisted_operational_curation_v1
+  human_reviewed: false
+  semantic_gold_created: false
+  default_decision: standalone_sufficient
+  default_reason_code: affirmative_claim_without_required_external_exposition
+  default_rationale: >-
+    The contributor docstring states an affirmative mathematical claim or
+    result without requiring another theorem, module diagram, or
+    implementation note to identify the requested claim. Domain-specific
+    mathlib vocabulary is permitted because the pinned Lean context and exact
+    reference signature are retained.
+  exclusions:
+    - candidate_id: gate3_docstring_candidate:db252e585209f06eb1d6f1e28bab75bdd80ee799eb8e259d13bece75627ebfde
+      declaration_full_name: ULift.algebraMap_apply'
+      decision: referential_only
+      reason_code: only_references_named_instance
+      rationale: The text only says that another instance is being referenced and does not state the equality.
+    - candidate_id: gate3_docstring_candidate:78dfae5208c00214c76d5136a4e5e1365dfdb500cc48728d55a41b5baea761d2
+      declaration_full_name: LinearMap.injective_of_surjective_of_injective_of_right_exact
+      decision: external_context_required
+      reason_code: module_diagram_required
+      rationale: The text explicitly sends the reader to the module docstring for the variables and diagram.
+    - candidate_id: gate3_docstring_candidate:9598a3b76767bf8504c83a3f92f67e1182bdf91ecb56fd394c45eca4224e44b8
+      declaration_full_name: smul_finsum
+      decision: under_specified
+      reason_code: discusses_assumption_without_stating_result
+      rationale: The text explains why torsion-freeness is assumed but never states the scalar-finsum equality.
+    - candidate_id: gate3_docstring_candidate:92f31f70ecffe83376d6ab405583fdbe3e225cb7b46160bfa486e0315671a013
+      declaration_full_name: DirectSum.induction_on'
+      decision: under_specified
+      reason_code: relative_induction_description_only
+      rationale: The text says this is an alternative induction principle without identifying the object or complete induction rule.
+    - candidate_id: gate3_docstring_candidate:ef3e76cfccd3590daf5cdd6019a56c737459f5b999d2287b90a66a8e5fce6003
+      declaration_full_name: ModuleCat.extendScalars_assoc'
+      decision: internal_documentation_only
+      reason_code: implementation_specific_coherence_form
+      rationale: The text describes the exact implementation form needed by another internal definition rather than a standalone problem.
+    - candidate_id: gate3_docstring_candidate:121e2a7d889c3dc88e5e942d54d953d0eed701cb27e6b64e32ec8ccee7a2f842
+      declaration_full_name: LinearMap.bijective_of_bijective_of_injective_of_left_exact
+      decision: external_context_required
+      reason_code: module_diagram_required
+      rationale: The text explicitly requires the module docstring's diagram to identify the variables and maps.
+    - candidate_id: gate3_docstring_candidate:1f61f0b9f10aa5327411984a3ee13fb3d0fabdc709d8685a273e22ed22458e3a
+      declaration_full_name: one_le_finprod
+      decision: referential_only
+      reason_code: relative_variant_without_claim
+      rationale: The text identifies a variation of another lemma but does not independently state the inequality.
+    - candidate_id: gate3_docstring_candidate:e049253d18a1460041d51451075b3bdf1a4d31cf65720fd31a4b0bd85ec46398
+      declaration_full_name: finsum_smul
+      decision: under_specified
+      reason_code: discusses_assumption_without_stating_result
+      rationale: The text explains the torsion-free assumption but does not state the finsum-scalar equality.
+    - candidate_id: gate3_docstring_candidate:0c78c11e6817f3fa496047ca500ab77a9863c0aafef02572d363a40067d6c576
+      declaration_full_name: finprod_le_finprod
+      decision: under_specified
+      reason_code: generic_monotonicity_without_conditions
+      rationale: The phrase “Monotonicity of finprod” omits the functions, support assumptions, and inequality direction.
+    - candidate_id: gate3_docstring_candidate:7dd777809fc49bfba2b9ef61c73fce773ce62a708f67753578e619d36d1dd48b
+      declaration_full_name: Module.sum_neg_one_pow_finrank_eq_zero_of_exact_six
+      decision: internal_documentation_only
+      reason_code: implementation_motivation_without_full_claim
+      rationale: The text explains why an unrolled helper exists but does not state its six-term exact-sequence equation.
+    - candidate_id: gate3_docstring_candidate:f852fa082bf4eb98fb7ff5d3123e79f5078552dea34277ec62a57192616819e9
+      declaration_full_name: Finsupp.prod_congr_of_eq_on_union
+      decision: ambiguous_operational
+      reason_code: undefined_well_behaved_condition
+      rationale: “Well-behaved within the shared support” does not specify the two zero-to-one hypotheses.
+    - candidate_id: gate3_docstring_candidate:bcdc6cdbfcea15385e7c62ee50860aedc7d673bfbe6be83c2028b0222b2779ff
+      declaration_full_name: Finset.prod_eq_prod_extend
+      decision: referential_only
+      reason_code: cross_reference_only
+      rationale: The text contains only a pointer to another lemma.
+    - candidate_id: gate3_docstring_candidate:3870a8b16fe2dd27af53c0707453ed06cc077e7bf559fb5d89150f3069c816e6
+      declaration_full_name: AlgHom.eqOn_adjoin_iff
+      decision: ambiguous_operational
+      reason_code: terminology_reference_mismatch
+      rationale: The text says `Algebra.span s` while the pinned reference statement uses `adjoin R s`; this curation does not adjudicate whether that wording is interchangeable.
+    - candidate_id: gate3_docstring_candidate:0990eb9ff1705e7f77747df9d14ac8909ba9b7a6301943299c90a513f2ca3b34
+      declaration_full_name: Fin.prod_Icc_div
+      decision: under_specified
+      reason_code: generic_telescoping_description
+      rationale: “Telescopic product over Fin” does not state the interval, factors, assumptions, or resulting quotient.
+    - candidate_id: gate3_docstring_candidate:832081b52a411353701cf8145f54dbe16d116624557d215b1bc696016f92503f
+      declaration_full_name: Nat.cast_finprod'
+      decision: referential_only
+      reason_code: relative_variant_without_claim
+      rationale: The text contrasts assumptions with another version but never states the cast-finprod equality.
+    - candidate_id: gate3_docstring_candidate:3ad3d40a88dcb9a8c54ff94e52fa897800d112d874c1157ac0ad50a2aa7abe43
+      declaration_full_name: SemimoduleCat.hom_surjective
+      decision: referential_only
+      reason_code: convenience_alias_only
+      rationale: The text only identifies a shortcut to another theorem and does not state the surjectivity claim.
+    - candidate_id: gate3_docstring_candidate:f20d0aedba7f655cdf14346351a52448b2d674910777fcdbdf9d490c2a241e15
+      declaration_full_name: Algebra.isEpi_iff_forall_one_tmul_eq
+      decision: referential_only
+      reason_code: cross_reference_only
+      rationale: The text contains only a pointer to a related theorem.
+
+expected_counts:
+  reviewed: 57
+  admitted: 40
+  excluded: 17
+  ambiguous_exclusions: 2
+
+outputs:
+  root: /storage/milikic/leanfaith/lf021/problem_pool_gate3_mathlib_docstrings_curation_v1
+  report: reports/generation/lf021_gate3_mathlib_docstrings_curation_v1.json
+
+policy:
+  candidate_source_records_only: false
+  problem_pool_admitted_for_operational_collection: true
+  human_review_claimed: false
+  semantic_labels_created: false
+  gate_claimed: false
+  model_execution_performed: false
+  graph_required: false

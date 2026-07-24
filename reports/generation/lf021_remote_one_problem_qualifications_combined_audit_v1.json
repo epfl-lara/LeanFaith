@@ -1,0 +1,231 @@
+{
+  "schema_version": 1,
+  "audit_id": "lf021_remote_one_problem_qualifications_combined_audit_v1",
+  "audited_at": "2026-07-24T02:25:59Z",
+  "verdict": "PASS",
+  "scope": "independent_read_only_audit_of_one_problem_remote_qualification_bundles",
+  "confirmed_blocking_defects": [],
+  "confirmed_nonblocking_defects": [
+    {
+      "code": "QWEN_FROZEN_AT_METADATA_AFTER_EXECUTION",
+      "detail": "The bound Qwen config and execution policy contain frozen_at=2026-07-24T03:20:00Z, while the execution claim was persisted at 2026-07-24T02:18:56Z and the recorded live execution ran from 02:18:56Z to 02:19:05Z.",
+      "impact": "The timestamp metadata is inaccurate. It does not invalidate byte immutability because the execution claim binds the exact config SHA-256 and config hash, current bytes still match them, and filesystem mtimes place the bound config, policy, engine, and CLI before the execution claim.",
+      "remediation": "Do not mutate the bound evidence. Preserve the discrepancy in audit metadata and use a new version for any future correction."
+    }
+  ],
+  "audit_limitations": [
+    "Persisted attempt directories and immutable records establish the qualification-adapter invocation counts. They cannot prove the absence of unrelated interactive probes outside these qualification bundles.",
+    "For Codex exec, one external CLI process invocation is proven. The number of lower-level provider HTTP requests hidden behind the Codex CLI is not exposed by its JSONL protocol and is therefore not claimed.",
+    "LeanInteract elaboration with an explicit sorry is operational validity only and does not establish semantic faithfulness."
+  ],
+  "qualification_call_accounting": {
+    "kimi_version_history": {
+      "catalog_requests_persisted": 2,
+      "chat_completion_requests_persisted": 2,
+      "valid_qualification_chat_completions": 1,
+      "superseded_chat_completions": 1,
+      "moonshot_kimi_k2_6_chat_completions": 0,
+      "interpretation": "Kimi v1 made one catalog request and one K2.7 chat request but is superseded and not replay-valid evidence. Kimi v2 independently made one catalog request and one K2.7 chat request and is the only valid Kimi qualification."
+    },
+    "qwen_v1": {
+      "catalog_requests_persisted": 1,
+      "chat_completion_requests_persisted": 1,
+      "dedicated_capability_requests_persisted": 0,
+      "retries_persisted": 0,
+      "field_removal_retries_persisted": 0,
+      "qwen3_5_ablation_requests_persisted": 0
+    },
+    "codex_v1_and_v2": {
+      "external_codex_exec_process_invocations_persisted": 1,
+      "attempt_directories": 1,
+      "offline_v2_recovery_provider_calls": 0,
+      "second_qualification_call_performed": false
+    }
+  },
+  "qualifications": {
+    "kimi_k2_7": {
+      "verdict": "PASS",
+      "model_id": "moonshotai/Kimi-K2.7-Code",
+      "provider_family": "moonshot_kimi_k2",
+      "valid_version": 2,
+      "v1_status": "superseded_not_replay_valid",
+      "v1_invocation_id": "rcp_qualification_invocation:718a2fec516d7a8c17b8e94d65cea781ec9229fd826781527551406e3fa365e3",
+      "v1_terminal_id": "rcp_qualification_terminal:fd34cb6f6ab1572b1d251e776892aa9bab19c1a6503515cfd254f8cb47cc1910",
+      "v1_terminal_sha256": "b365bbd4be4ffab45bc4d8129476040333204ba5b8b1ceb29884a6aafbc4c855",
+      "v1_supersession_sha256": "59f8c711fa318edad13b8a99656853b4be6d698644ff9fdcab363cbfc721901a",
+      "v2_invocation_id": "rcp_qualification_invocation:7f5b578dd21cf696dd1222dcc176927383fc44e3b6fb10f7f96e2ff8c23dc497",
+      "v2_terminal_id": "rcp_qualification_terminal:8f78e28348ba5b85dcfca927bd1cab4c0de146bb0fa1f859baa164d1b1cae6a1",
+      "v2_terminal_sha256": "34364e7703261bb6ee10fc034a40e7cb73facc1189c539601fd617105dd129a4",
+      "v2_manifest_id": "rcp_qualification_manifest_v2:a7473c486c322c21eb849268da9cfb8ab4cd3a3009e68e34da0fa1323e821dc6",
+      "v2_manifest_sha256": "d71167b4221dec28d082cb8c0170053f75335db224c3df1e6df182461f9c2320",
+      "v2_verification_id": "rcp_qualification_verification_v2:67d5bdefa4b009774f19366a30a3ac10021922fab2eda3b2499e93d7d43c5eba",
+      "v2_verification_sha256": "9da3481526a383e3122217a5951f977bd161f413779cc8e7f6a136666ca31379",
+      "config_file_sha256": "683cb90d76fea7b6e67d8308bba81e8197e6465b2f7a50ff6427ef1939e69d89",
+      "semantic_config_hash": "13c15b3ce2e95a37b749df93dbd5d21ef7c12c0529f36f37461b358d64f6783c",
+      "bound_artifact_hashes_match_current_bytes": true,
+      "reference_hidden": true,
+      "private_source_transmission_performed": false,
+      "reference_transmission_performed": false,
+      "terminal_status": "raw_collected",
+      "lean_operational_status": "valid_with_sorry",
+      "lean_raw_sha256": "ba524c2aab462598bf2ac5c814671d3eb592c978fdaf55fef9213cbe2757c310",
+      "offline_replay_passed": true,
+      "offline_replay_provider_calls": 0,
+      "semantic_labels_created": false,
+      "semantic_faithfulness_assessed": false,
+      "supervision_eligible": false,
+      "gate_credit_claimed": false,
+      "unseen_claim_eligible": false,
+      "heldout_claim_eligible": false,
+      "evaluation_claim_eligible": false
+    },
+    "qwen3_6": {
+      "verdict": "PASS",
+      "model_id": "Qwen/Qwen3.6-35B-A3B",
+      "provider_family": "qwen3",
+      "invocation_id": "rcp_qwen_invocation:450e30e222419a566cbdb4550f48535d7db970cf79fa9fc6a569f55b549c2606",
+      "terminal_id": "rcp_qwen_terminal:f5a0338aef4c78b51a2b65f90a2046498af4b792cc6c74eeb129b8e962a59a33",
+      "terminal_sha256": "233939b45f8a16181b5686697b63d2f2222ff21c1926e506699dcf26bebaac4d",
+      "manifest_id": "rcp_qwen_manifest:654b85e49fc4c220041b92c34422a9c7d1ae92b31a74ab562f27694b997314ff",
+      "manifest_sha256": "9487ba4c858038de17d764172f231b9dd0e070095ff70cde8cd228568c0b7174",
+      "verification_id": "rcp_qwen_verification:d13fc7f29dae630d8e7f682dcd0469ddad7c63457067a81cec8506d54dbdba21",
+      "verification_sha256": "4cb673264334f02bf6a97b9f3b561452521dd84e4c25a86d8f3d220d4d622867",
+      "config_file_sha256": "9a6bc2ee1a983f9457c2b327df75f38e3937aa68bf4c1e6d0d756dcc1be7b2b1",
+      "semantic_config_hash": "373b3424795f612ff53caddd85c20a5c52eba119b8dfda26ac6de8488aaea81a",
+      "bound_artifact_hashes_match_current_bytes": true,
+      "reference_hidden": true,
+      "private_source_transmission_performed": false,
+      "reference_transmission_performed": false,
+      "terminal_status": "raw_collected",
+      "capability_claim": "route_accepted_complete_payload_application_unproven",
+      "combined_payload_accepted": true,
+      "individual_field_application_proven": false,
+      "fields_removed_or_retried": false,
+      "lean_operational_status": "valid_with_sorry",
+      "lean_raw_sha256": "30859f8f57e28d80ae4c3f8cf1aaba37ff9c4735aad5072859b6bd6900fa9528",
+      "offline_replay_passed": true,
+      "offline_replay_provider_calls": 0,
+      "semantic_labels_created": false,
+      "semantic_faithfulness_assessed": false,
+      "supervision_eligible": false,
+      "gate_credit_claimed": false,
+      "unseen_claim_eligible": false,
+      "heldout_claim_eligible": false,
+      "evaluation_claim_eligible": false
+    },
+    "codex_gpt_5_6_terra": {
+      "verdict": "PASS",
+      "model_id": "gpt-5.6-terra",
+      "provider_family": "openai_codex",
+      "codex_cli_version": "codex-cli 0.144.1",
+      "codex_binary_sha256": "a96f944d1a596dbfb7fdd84f482be5c50e34b04bb371126840d873e4ebf26902",
+      "request_id": "codex_exec_request_v1:99aa37656a69fd3963f8ef76c8851a6256bf46086a3b48452676da96ebae936f",
+      "request_sha256": "c5a135a441cbff733e192284077e1150a356842c02e251a1b6b53dc095d99363",
+      "attempt_id": "codex_exec_attempt_v1:8783260ed1b1828eefbe62988e20cd50945057e6da3f7693c47e7e6acff59d5b",
+      "v1_terminal_id": "codex_exec_terminal_v1:6f4a598f87dd3650d86a2652c175fc9bb9a00cfc20dd021a50a0cbfe88484e49",
+      "v1_terminal_status": "usage_missing_or_invalid",
+      "v1_terminal_sha256": "42f39cabdb27ec25ce1fc99beb36d8cb249c5851d025a5d535baa681eefa862c",
+      "v1_failed_closed": true,
+      "v2_recovery_id": "codex_exec_recovery_v2:f58430b26b02c81989d9bac394764b7d6fc532999bc28f7fb4d643b14e5e732c",
+      "v2_recovery_status": "operationally_parsed",
+      "v2_recovery_sha256": "161eca5ce8f5a178159d23fdbe2d242e79084544dc225857afedaf47a84f4987",
+      "v2_recovery_provider_calls": 0,
+      "second_qualification_call_performed": false,
+      "config_file_sha256": "b5d5a546b35e6a9e184f11931a1d38d9bd0d8d4649a37c6d59ad734c1e804017",
+      "bound_artifact_hashes_match_current_bytes": true,
+      "reference_hidden": true,
+      "public_source_only": true,
+      "private_source_transmission_performed": false,
+      "reference_transmission_performed": false,
+      "tool_calls_observed": 0,
+      "lean_operational_status": "valid_with_sorry",
+      "lean_raw_sha256": "fa7158fb37e8d56c32a5d985b0ae3de9e9d0df7b28607ace69970f658a09379e",
+      "offline_recovery_replay_passed": true,
+      "semantic_labels_created": false,
+      "semantic_faithfulness_assessed": false,
+      "supervision_eligible": false,
+      "gate_credit_claimed": false,
+      "heldout_or_unseen_claimed": false,
+      "contamination_status": "unknown_no_public_training_cutoff_or_immutable_revision"
+    }
+  },
+  "privacy_and_reference_guards": {
+    "problem_record_id": "problem:3f8bc3e9dc8bf7e7850557b75544d8d8ef892afcf0f8776012ebc5fa7af7a05b",
+    "source_is_public": true,
+    "source_license": "Apache-2.0",
+    "external_provider_eligible": true,
+    "private_source_content": false,
+    "kimi_reference_blind_audit_passed": true,
+    "qwen_reference_blind_audit_passed": true,
+    "codex_prompt_independent_reference_scan_passed": true,
+    "trusted_reference_declaration_names_in_provider_prompts": 0,
+    "trusted_reference_theorem_ids_in_provider_prompts": 0,
+    "trusted_reference_source_paths_in_provider_prompts": 0
+  },
+  "secret_scan": {
+    "files_scanned": 49,
+    "sensitive_environment_values_checked": 2,
+    "exact_secret_occurrences": 0,
+    "bearer_occurrences": 0,
+    "authorization_field_occurrences": 0,
+    "api_key_exposed": false
+  },
+  "family_accounting": {
+    "moonshot_kimi_k2": {
+      "models": [
+        "moonshotai/Kimi-K2.7-Code",
+        "moonshotai/Kimi-K2.6"
+      ],
+      "independent_family_count": 1,
+      "current_gate_family_credit": 0
+    },
+    "qwen3": {
+      "models": [
+        "Qwen/Qwen3-30B-A3B-Instruct-2507",
+        "Qwen/Qwen3-VL-235B-A22B-Thinking",
+        "Qwen/Qwen3.5-397B-A17B",
+        "Qwen/Qwen3.6-35B-A3B"
+      ],
+      "independent_family_count": 1,
+      "current_gate_family_credit": 0,
+      "vl_default_text_path_excluded": true
+    },
+    "openai_codex": {
+      "models": [
+        "gpt-5.6-terra"
+      ],
+      "independent_family_count": 1,
+      "current_gate_family_credit": 0
+    }
+  },
+  "offline_replay_commands": {
+    "kimi_exit_code": 0,
+    "qwen_exit_code": 0,
+    "codex_recovery_exit_code": 0,
+    "provider_calls_performed_during_audit": 0,
+    "network_requests_performed_during_audit": 0
+  },
+  "focused_tests": {
+    "result": "PASS",
+    "tests_passed": 35,
+    "test_files": [
+      "tests/unit/test_lf021_rcp_provider_portfolio_v1.py",
+      "tests/unit/test_lf021_rcp_kimi_qualification_v1.py",
+      "tests/unit/test_lf021_rcp_kimi_qualification_v2.py",
+      "tests/unit/test_lf021_rcp_kimi_qualification_verify_v2.py",
+      "tests/unit/test_lf021_rcp_qwen_qualification_proposal_v1.py",
+      "tests/unit/test_lf021_rcp_qwen_qualification_v1.py",
+      "tests/unit/test_codex_exec_provider_v1.py",
+      "tests/unit/test_codex_exec_recovery_v2.py"
+    ]
+  },
+  "research_use_constraints": {
+    "allowed_use": "supplemental_generator_candidates_only",
+    "semantic_labels_created": false,
+    "semantic_faithfulness_assessed": false,
+    "supervision_eligible": false,
+    "gate_credit_claimed": false,
+    "unseen_or_heldout_claim_eligible": false,
+    "admission_policy_required_for_later_training_or_gate_use": true
+  }
+}

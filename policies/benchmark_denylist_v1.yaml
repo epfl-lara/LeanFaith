@@ -1,12 +1,13 @@
 # Benchmark denylist v1 (PLAN.md sections 19.4, 19.6, 19.7, 23.6, 9.4, J.2, J.6).
 # Protected external evaluation benchmarks: nothing on this list, and nothing
 # matching its frozen signatures, may enter training, active learning,
-# calibration, or prompt construction. The machine-readable frozen registry
-# (exact IDs, hashes, signatures) lives at data/benchmarks/frozen_ids.json;
-# this policy defines what that registry must contain and when it is written.
+# calibration, or prompt construction. Phase-2 identity/text hashes live at
+# data/benchmarks/frozen_ids.json. The active matching registry, with additive
+# representation hashes, lives at
+# data/benchmarks/frozen_ids.representations_v1.json.
 # Loaded by the strict YAML loader: root mapping, no duplicate keys, no tabs.
 policy_version: benchmark_denylist_v1
-status: authored_pending_gate_0_review
+status: active_internal_research
 
 # ---------------------------------------------------------------------------
 # Global rules (PLAN.md 19.7, 23.6)
@@ -36,7 +37,9 @@ global_rules:
 # Freeze timing (PLAN.md 19.4)
 # ---------------------------------------------------------------------------
 freeze_timing:
-  frozen_registry_path: data/benchmarks/frozen_ids.json
+  identity_registry_path: data/benchmarks/frozen_ids.json
+  active_matching_registry_path: data/benchmarks/frozen_ids.representations_v1.json
+  representation_manifest_path: data/benchmarks/manifests/representation_signatures_v1.json
   phase2_freeze:
     deadline: before ANY Phase 4 generation
     frozen_fields:
@@ -73,7 +76,7 @@ benchmarks:
     display_name: ProofNetVerif
     identity: PAug/ProofNetVerif
     identity_kind: huggingface_dataset
-    revision: resolve_at_freeze
+    revision: 91183e5b12d64374827bf2782db629b5b0f8f319
     role: >-
       Frozen external benchmark; MVP adapter source (9.6); BEq+ protocol
       source (Poiroux et al., EMNLP 2025; arXiv:2406.07222). 3,752 rows
@@ -159,6 +162,16 @@ benchmarks:
       J.3).
     usage: evaluation_only
 
+  formalrx_test:
+    display_name: FormalRx-Test
+    identity: LARK-Lab/FormalRx-Test
+    revision: 4b7c6b883e0859e9bd38620a539bdcef408f91b4
+    role: >-
+      Evaluation-only inputs for FormalRx (arXiv:2607.04655v1). Gold
+      diagnoses were still withheld in the pinned artifact at the 2026-07-14
+      probe. Card/paper class-count disagreement is retained as provenance.
+    usage: evaluation_only
+
   minif2f_variants:
     display_name: miniF2F variants
     identity: identity_unresolved
@@ -201,10 +214,11 @@ special_rules:
 decisions:
   - "decision: the serialized usage value is exactly evaluation_only; no
     second spelling is allowed in code or manifests."
-  - "decision: data/benchmarks/frozen_ids.json (PLAN.md 19.4) is the sole
-    matching denylist used by code; configs/benchmarks/registry.yaml is the
-    identity/usage registry (a Phase 0 deliverable); this policy file is the
-    human-readable contract and is never consulted for matching."
+  - "decision: data/benchmarks/frozen_ids.json preserves the immutable
+    Phase-2 identity/text freeze; code performs matching through the
+    hash-verified active registry named by
+    data/benchmarks/manifests/representation_signatures_v1.json. This policy
+    file is the human-readable contract and is never consulted for matching."
   - "decision: an entry whose identity cannot be resolved at the Phase 2
     freeze is recorded as unavailable in the registry with the failed lookup
     evidence (PLAN.md J.6); the freeze still completes for the remaining
