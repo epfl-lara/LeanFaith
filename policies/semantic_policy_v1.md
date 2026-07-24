@@ -31,7 +31,7 @@ Each case states the decision, the canonical label fields, and an example.
 ### 2.1 Extra unused universally quantified variables — NOT same claim
 
 The theorem interface is part of the claim. `∀ n, n + 0 = n` vs
-`∀ n m, n + 0 = n`: `same_claim=false`, `relation=incomparable_near_miss`,
+`∀ n m, n + 0 = n`: `same_claim=false`, `relation=incomparable`,
 `error_types=[E21]` (Appendix C.5), even though truth conditions agree
 (F2 may be true).
 
@@ -48,7 +48,7 @@ typeclass instance the notation needs) is interface, not content.
 If a candidate's hypotheses are unsatisfiable or make the conclusion vacuous
 where the source's are not: `same_claim=false`, `E03`. Directional relations
 may NOT be certified through ex falso/vacuity (PLAN.md §16.3); such evidence
-is rejected and the relation stays `unknown` unless humanly resolved.
+is rejected and the relation stays null on the unresolved REVIEW route unless humanly resolved.
 
 ### 2.4 Subtype / set / typeclass reformulations — same claim only when the
 translation is the standard reversible one
@@ -69,7 +69,7 @@ unchanged. Quantifying over a different domain and coercing back is
 
 `∀ x : ℝ, 0 ≤ x^2` vs `∀ x : ℚ, 0 ≤ x^2`: `same_claim=false`; relation
 `A_stronger`/`B_stronger` only under a recorded binder alignment (§16.3 mode
-2) or expert judgment; otherwise `incomparable_near_miss` with `E19`/`E20`.
+2) or expert judgment; otherwise `incomparable` with `E19`/`E20`.
 
 ### 2.7 Answer-only versus full theorem statements — NOT same claim
 
@@ -81,7 +81,7 @@ and conclusion (PLAN.md §3.4).
 ### 2.8 Simplification to reflexivity or `True` — NOT same claim
 
 Any collapse to a trivial proposition (`True`, `x = x`, `0 = 0`) is semantic
-erasure: `same_claim=false`, `relation=incomparable_near_miss`, `E25`
+erasure: `same_claim=false`, `relation=incomparable`, `E25`
 (Appendix C.2/C.3). F2 may simultaneously be true; that never lifts F1.
 
 ### 2.9 Notation expansion versus abstraction change

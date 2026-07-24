@@ -118,6 +118,10 @@ def test_file_command_declarations(backend: LeanInteractBackend) -> None:
         "lf_add_comm",
         "lf_zero_add",
         "lf_trivial",
+        "lf_proof_body_a",
+        "lf_proof_body_b",
+        "LeanFaithLF021OfflineToken",
+        "hidden",
     ]
 
 

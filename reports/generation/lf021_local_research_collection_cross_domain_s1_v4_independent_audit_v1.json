@@ -1,0 +1,252 @@
+{
+  "schema_version": 1,
+  "audit_id": "lf021_local_research_collection_cross_domain_s1_v4_independent_audit_v1",
+  "audited_at": "2026-07-24T02:27:17Z",
+  "status": "passed_raw_collection_audit",
+  "scope": {
+    "collection_kind": "local_research_collection_v4",
+    "tranche_id": "cross_domain_s1",
+    "output_root": "data/raw/real_outputs/cross_domain_docstrings_operational_v1/v4/cross_domain_s1/local_collection/40860adfb4f149dbf357f3cc624a4df02bdae020be27cdb4f3f16ca4f9771100",
+    "raw_collector_tree_excludes": [
+      "postprocess_v5/**"
+    ],
+    "exclusion_reason": "postprocess_v5 is a separately versioned downstream artifact and is audited separately"
+  },
+  "bound_inputs": {
+    "config": {
+      "path": "configs/generation/local_research_collection_cross_domain_s1_v4.json",
+      "file_sha256": "4ccc37b5943059747578a049593816d4dcf81c4b2ac48a3e44e4a98496ae7fc2",
+      "canonical_config_hash": "345eb9c15965ffa4d75bf29f1930538b03e1985224b3214e4a62bdd68a5763a3"
+    },
+    "source_matrix": {
+      "path": "configs/generation/local_research_source_matrix_cross_domain_s1_v4.json",
+      "sha256": "761bae3371abf79c39ab9fffa8800be117678e2368f3e3a3e16f22f8b520dcc1"
+    },
+    "preflight": {
+      "path": "reports/generation/lf021_local_research_collection_preflight_cross_domain_s1_v4.json",
+      "sha256": "2fec1247c8e400165a9ecda6c27c5063fad9b9ca547c01ddae75ad84ae00e12f",
+      "all_15_checks_passed": true,
+      "execution_ready": true
+    },
+    "collector_module": {
+      "path": "src/leanfaith/generation/research_collection_v4.py",
+      "sha256": "6ac7c17c9ebdf66b458cd39079e467daee663e8cbc4eb7382a2d1a52fd31987b"
+    },
+    "collector_script": {
+      "path": "scripts/21_collect_research_tranche_v4.py",
+      "sha256": "465e8abd269edf6389f599a844dd88397b9f0f60b57021733a4b94443499442f"
+    },
+    "plan": {
+      "path": "data/raw/real_outputs/cross_domain_docstrings_operational_v1/v4/cross_domain_s1/local_collection/40860adfb4f149dbf357f3cc624a4df02bdae020be27cdb4f3f16ca4f9771100/plan.json",
+      "plan_id": "research_collection_plan_v4:40860adfb4f149dbf357f3cc624a4df02bdae020be27cdb4f3f16ca4f9771100",
+      "plan_hash": "5b4905ced0a650360ef808354d621acd96c32cc4d1a67df4f8a70e5bd54fcc0a",
+      "file_sha256": "f0e7a3ca02c0324ce526d6e040b76b7901022feda64d95f4dfdeb272530f5e28"
+    },
+    "problem_pool": {
+      "records_path": "data/parsed/real_outputs/cross_domain_docstrings_operational_v1/problem_pool_records.jsonl",
+      "records_sha256": "13111c14f2061acd8e9ceb9a2ffe937c6c5b72025f32a0c2a9e93e49934aebbf",
+      "manifest_path": "data/parsed/real_outputs/cross_domain_docstrings_operational_v1/problem_pool_manifest.json",
+      "manifest_sha256": "f7fdcdb9676148500ba4620bc12a4776192e8b4804ab6fc160571d4d8aef4122"
+    }
+  },
+  "expansion_authorization": {
+    "passed": true,
+    "policy_id": "lf021_compilation_only_tranche_expansion_v1",
+    "policy_path": "configs/generation/lf021_tranche_expansion_v1.yaml",
+    "policy_sha256": "0c726e197ef5358ef4a7414e36622c10fb7ff19082199540b62e4bc170834e16",
+    "decision_id": "lf021_expansion_decision:dd6f5bd78ea59d354ab8efd38274643bc97a967919ef762252b4e69eb1d58a8c",
+    "decision_path": "reports/generation/lf021_tranche_expansion_v1/decisions/dd6f5bd78ea59d354ab8efd38274643bc97a967919ef762252b4e69eb1d58a8c.json",
+    "decision_sha256": "5fd258de19b7c72b205e3eec018dac3fef12c160dfcab7f8b3c4b7f693f46c7c",
+    "observed_prefix_manifest_count": 3,
+    "observed_prefix_replay_byte_identical": true,
+    "selected_tranche": "cross_domain_s1",
+    "selected_problem_count": 20,
+    "selected_invocation_count": 60,
+    "selected_seeds": {
+      "goedel_formalizer_v2_8b": 31,
+      "kimina_autoformalizer_7b": 1,
+      "stepfun_formalizer_7b": 1
+    },
+    "semantic_labels_inspected": false,
+    "semantic_labels_created": false,
+    "gate_5g_credit_claimed": false,
+    "gate_5_closed": false
+  },
+  "model_pins": {
+    "goedel_formalizer_v2_8b": {
+      "model": "Goedel-LM/Goedel-Formalizer-V2-8B",
+      "revision": "fe2d362d899601abe79d7d5e95eaa7fe9883a0cb",
+      "seed": 31,
+      "overlap_artifact_sha256": "f86034b876f3cece14dc69fe368bffbe70fae17bd63e5c7618d7e9396d92fc14"
+    },
+    "kimina_autoformalizer_7b": {
+      "model": "AI-MO/Kimina-Autoformalizer-7B",
+      "revision": "ddd47cb477d93b3ca990468e1c0d5ad6b60973dd",
+      "seed": 1,
+      "overlap_artifact_sha256": "3d1864a9fab44dfecee4fd24f8fd71217f4d1bcb71c616690f25ccdd95453633"
+    },
+    "stepfun_formalizer_7b": {
+      "model": "stepfun-ai/StepFun-Formalizer-7B",
+      "revision": "fb0dc612761fecd64ebbc489c2a3417e9ea01968",
+      "seed": 1,
+      "overlap_artifact_sha256": "1362a6875e05a97bce8136684d5e0588ec0ecc7fbc37e7e1959691247c853d39"
+    }
+  },
+  "plan_audit": {
+    "passed": true,
+    "problem_count": 20,
+    "family_count": 3,
+    "seed_count_per_family": 1,
+    "expected_invocation_count": 60,
+    "unique_problem_count": 20,
+    "unique_invocation_id_count": 60,
+    "unique_expected_declaration_name_count": 60,
+    "invocation_count_by_family": {
+      "goedel_formalizer_v2_8b": 20,
+      "kimina_autoformalizer_7b": 20,
+      "stepfun_formalizer_7b": 20
+    },
+    "invocation_overlap_with_cross_domain_s0": 0,
+    "canonical_plan_bytes_replay": true,
+    "canonical_preflight_bytes_replay": true,
+    "all_bound_artifact_hashes_replayed": true,
+    "semantic_labels_created": false,
+    "gate_5_closed": false,
+    "gate_5g_credit_claimed": false
+  },
+  "manifest": {
+    "path": "data/raw/real_outputs/cross_domain_docstrings_operational_v1/v4/cross_domain_s1/local_collection/40860adfb4f149dbf357f3cc624a4df02bdae020be27cdb4f3f16ca4f9771100/manifest.json",
+    "manifest_id": "research_collection_manifest_v4:1cf46ce55a711d0f63f39a7e9011057efc8dd0fb5f5383acd5266c433b0038fc",
+    "sha256": "97c326a895a84103902a28c9c0bcb66bc5b4912f66231d3986a00e72a057d68c",
+    "expected_candidate_count": 60,
+    "terminal_candidate_count": 60,
+    "status_counts": {
+      "raw_collected": 60
+    },
+    "successful_family_count": 3,
+    "terminal_artifact_hash_map_matches": true,
+    "family_session_artifact_hash_map_matches": true,
+    "semantic_labels_created": false,
+    "gate_5_closed": false,
+    "gate_5g_credit_claimed": false
+  },
+  "terminal_artifact_audit": {
+    "passed": true,
+    "terminal_count": 60,
+    "terminal_count_by_family": {
+      "goedel_formalizer_v2_8b": 20,
+      "kimina_autoformalizer_7b": 20,
+      "stepfun_formalizer_7b": 20
+    },
+    "terminal_status": "raw_collected",
+    "canonical_schema_validation_count": 60,
+    "provider_request_validation_count": 60,
+    "provider_boundary_validation_count": 60,
+    "model_attempt_boundary_validation_count": 60,
+    "local_generation_result_validation_count": 60,
+    "llm_call_validation_count": 60,
+    "llm_attempt_validation_count": 60,
+    "provider_raw_response_validation_count": 60,
+    "unique_provider_request_hash_count": 60,
+    "unique_raw_output_hash_count": 60,
+    "raw_output_hashes_reconcile_across_records": true,
+    "artifact_paths_and_hashes_reconcile": true,
+    "local_execution_only": true,
+    "private_data_transmitted": false,
+    "denylist_clear": true,
+    "parsed_output_created": false,
+    "lean_validation_performed": false,
+    "semantic_admission_performed": false,
+    "semantic_labels_created": false,
+    "supervision_eligible": false,
+    "gate_credit_claimed": false
+  },
+  "family_sessions": {
+    "goedel_formalizer_v2_8b": {
+      "family_session_id": "research_family_session:5422d3ec6cca856a7048f2fd193ddcdac3f72c10fe38217534f77b2ce5dfc127",
+      "start_artifact_sha256": "8566959ece442633afc6c30e494c2082660831cdadc1b0dbbfe48edac48891f1",
+      "end_artifact_sha256": "846dba2ec5d8048314945b8eb3b0a51e23d9d27f0a2df56dd55b6e3f632f76a6",
+      "planned_invocation_count": 20,
+      "completed_invocation_count": 20,
+      "load_count": 1,
+      "unload_count": 1,
+      "timestamps_enclose_all_terminal_attempts": true
+    },
+    "kimina_autoformalizer_7b": {
+      "family_session_id": "research_family_session:b6367e1fdeb07da2433ac2fd0abacc21d8789f5967aee9cb5cee8ce5969ce15f",
+      "start_artifact_sha256": "5898fb5831219539a2c31829dd499052b016f4e39f10d0acd72bf04a6b947409",
+      "end_artifact_sha256": "4c5af8276f769f9df12e6d8a93fd67d1dceffc3de7992b1ea3414da5d7d4a862",
+      "planned_invocation_count": 20,
+      "completed_invocation_count": 20,
+      "load_count": 1,
+      "unload_count": 1,
+      "timestamps_enclose_all_terminal_attempts": true
+    },
+    "stepfun_formalizer_7b": {
+      "family_session_id": "research_family_session:06306586a3ba54d1461f47b80f14e27fcdc4ab71d8c46fe0c85926533140f3a6",
+      "start_artifact_sha256": "cd0de1e08ac61caf77451bd0ac30c8c8c147910481b56d9aa7b442eec8926f35",
+      "end_artifact_sha256": "c14e4db06e294b05935a49ccd9bffe9a5003078bf21577acef082b57c99e9431",
+      "planned_invocation_count": 20,
+      "completed_invocation_count": 20,
+      "load_count": 1,
+      "unload_count": 1,
+      "timestamps_enclose_all_terminal_attempts": true
+    }
+  },
+  "raw_collector_tree": {
+    "file_count": 488,
+    "plan_file_count": 1,
+    "manifest_file_count": 1,
+    "terminal_file_count": 60,
+    "invocation_file_count": 420,
+    "family_session_file_count": 6,
+    "symlink_count": 0,
+    "partial_file_count": 0,
+    "tree_hash_algorithm": "sha256(canonical compact JSON object mapping repository-relative file path to file sha256, with sorted keys)",
+    "tree_sha256": "b25cb4e156a61e82631adf83adc2ac599dc9dd2d76bda1990d63926bdac61537"
+  },
+  "resume_replay": {
+    "passed": true,
+    "command": "CUDA_VISIBLE_DEVICES='' NVIDIA_VISIBLE_DEVICES=void uv run python scripts/21_collect_research_tranche_v4.py --execute --config configs/generation/local_research_collection_cross_domain_s1_v4.json",
+    "gpu_visible": false,
+    "gpu_required_for_completed_replay": false,
+    "elapsed_ms": 2976,
+    "before_file_count": 488,
+    "after_file_count": 488,
+    "before_tree_sha256": "b25cb4e156a61e82631adf83adc2ac599dc9dd2d76bda1990d63926bdac61537",
+    "after_tree_sha256": "b25cb4e156a61e82631adf83adc2ac599dc9dd2d76bda1990d63926bdac61537",
+    "file_hash_map_byte_invariant": true,
+    "manifest_sha256_invariant": true,
+    "new_family_session_count": 0,
+    "new_invocation_count": 0,
+    "resume_invariance": true
+  },
+  "focused_checks": {
+    "pytest": {
+      "command": "uv run pytest -q tests/unit/test_lf021_research_collection_v4.py",
+      "passed": true,
+      "test_count": 2
+    },
+    "ruff": {
+      "passed": true
+    },
+    "ruff_format": {
+      "passed": true
+    },
+    "mypy_no_incremental": {
+      "command": "uv run mypy --no-incremental src/leanfaith/generation/research_collection_v4.py",
+      "passed": true,
+      "note": "The collector-v4 bytes remain unchanged. The two diagnostics captured in the Algebra s1 audit no longer reproduce after compatible dependency typing updates; that historical audit record remains preserved."
+    }
+  },
+  "hard_boundaries": {
+    "raw_collection_only": true,
+    "semantic_validity_claim": false,
+    "faithfulness_claim": false,
+    "supervision_admission_claim": false,
+    "heldout_or_unseen_claim": false,
+    "gate_5_credit_claim": false,
+    "gate_5_closure_claim": false,
+    "disposition": "The 60 terminal artifacts are complete, unique, hash-reconciled raw local generation evidence. They remain unparsed, unvalidated, semantically unlabeled, supervision-ineligible, and non-credit-bearing for Gate 5 or Gate 5G."
+  }
+}

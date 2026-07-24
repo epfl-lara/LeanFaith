@@ -1,0 +1,41 @@
+schema_version: 1
+matrix_id: local_research_source_matrix_v1
+status: pool_compatible_generation_disabled
+source: mathlib_post_formalrx_docstrings_v1
+private_source_content: false
+external_transmission_required: false
+semantic_labels_created: false
+gate_5g_credit_authorized: false
+families:
+  - family_id: kimina_autoformalizer_7b
+    model: AI-MO/Kimina-Autoformalizer-7B
+    revision: ddd47cb477d93b3ca990468e1c0d5ad6b60973dd
+    role: supervision_candidate
+    transport: local
+    pool_compatible: true
+    scientific_activation: disabled_pending_research_run_config_and_overlap_record
+  - family_id: goedel_formalizer_v2_8b
+    model: Goedel-LM/Goedel-Formalizer-V2-8B
+    revision: fe2d362d899601abe79d7d5e95eaa7fe9883a0cb
+    role: supervision_candidate
+    transport: local
+    pool_compatible: true
+    scientific_activation: disabled_pending_fixture_qualification_and_overlap_record
+  - family_id: stepfun_formalizer_7b
+    model: stepfun-ai/StepFun-Formalizer-7B
+    revision: fb0dc612761fecd64ebbc489c2a3417e9ea01968
+    role: supervision_candidate
+    transport: local
+    pool_compatible: true
+    scientific_activation: disabled_pending_fixture_qualification_and_overlap_record
+heldout:
+  family_id: reform_8b
+  model: GuoxinChen/ReForm-8B
+  revision: 1589c832cfad679a280b222e694b987a33befd26
+  supervision_eligible: false
+rules:
+  - every model consumes the same frozen public ProblemPoolRecord bytes
+  - no family is activated by this matrix
+  - model output is never a semantic label
+  - each family requires a separate overlap record and scientific run configuration
+  - ReForm remains absent from every training and weak-supervision path

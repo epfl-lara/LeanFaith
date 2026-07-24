@@ -1,0 +1,17 @@
+# Public-source replication profile for every releaseable LeanFaith result.
+profile_version: public_replication_v1
+status: required
+private_sources_allowed: false
+sources:
+  lean_inventory:
+    primary: mathlib
+    config: configs/sources/mathlib.yaml
+  nl_lean_training_candidates:
+    - sft_classic_numina
+    - lean_workbook
+  evaluation_only:
+    - proofnetverif
+rules:
+  - no artifact may contain or derive from formalmathatepfl/sft_classic
+  - every output manifest must declare profile=public_replication_v1
+  - evaluation benchmarks remain sealed and are never substituted for training data

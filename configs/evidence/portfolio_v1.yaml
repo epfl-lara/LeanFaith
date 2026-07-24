@@ -1,0 +1,60 @@
+schema_version: 1
+portfolio_id: portfolio_v1
+portfolio_version: 1.0.0
+default_timeout_seconds: 10.0
+allow_sorry: false
+certificate_policy:
+  replay_required: true
+  reject_unresolved_metavariables: true
+  reject_source_proof_constants: true
+  reject_candidate_proof_constants: true
+  reject_vacuity_or_ex_falso_for_claim_relations: true
+  allowed_standard_axioms:
+    - Classical.choice
+    - propext
+    - Quot.sound
+  forbidden_axioms:
+    - sorryAx
+methods:
+  - method_id: exact_assumption_v1
+    order: 10
+    enabled: true
+    comparison_modes:
+      - closed_truth
+      - binder_aligned_claim
+    tactic_body: |-
+      intro h
+      exact h
+    discovery_tactic: null
+    replay_policy: fixed_tactic
+    timeout_seconds: 2.0
+  - method_id: simpa_only_assumption_v1
+    order: 20
+    enabled: true
+    comparison_modes:
+      - closed_truth
+      - binder_aligned_claim
+    tactic_body: |-
+      intro h
+      simpa only [] using h
+    discovery_tactic: null
+    replay_policy: fixed_tactic
+    timeout_seconds: 4.0
+  - method_id: omega_v1
+    order: 30
+    enabled: true
+    comparison_modes:
+      - closed_truth
+    tactic_body: |-
+      intro h
+      omega
+    discovery_tactic: null
+    replay_policy: fixed_tactic
+    timeout_seconds: 10.0
+alignment_templates:
+  template_version: binder_alignment_v1
+  require_total_binder_map: true
+  require_total_premise_map: true
+  require_conclusion_role_map: true
+  reject_unused_mapped_premises: true
+  reject_inconsistent_source_premises: true

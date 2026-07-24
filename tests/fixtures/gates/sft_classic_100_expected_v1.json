@@ -1,0 +1,706 @@
+{
+  "dataset_id": "formalmathatepfl/sft_classic",
+  "expected_counts": {
+    "accepted_lean_code_fallback": 10,
+    "accepted_question_statement": 85,
+    "not_a_proposition": 1,
+    "source_non_elaboration": 4
+  },
+  "input_sha256": "9913ae837d021d6e9857659346fe47088762c3ab19dc378551e77a5bc0be38cd",
+  "revision": "0bf9f424309f668c2c2dd214aef6ec5d1d5c042f",
+  "rows": [
+    {
+      "declaration_name": "fruits_total",
+      "extraction_route": "lean_code_fallback",
+      "outcome": "accepted",
+      "row_index": 0,
+      "statement_content_hash": "34fa758fcea685bcf67c21e1701caca305ec2f1fa0142b44a4d3e75eb057f2c4"
+    },
+    {
+      "declaration_name": "OMR_problem_392625_0_gs2",
+      "extraction_route": "question_statement",
+      "outcome": "accepted",
+      "row_index": 1,
+      "statement_content_hash": "5e0ebc41ab16ba4fdba6382c1f24cc8a434fb76611b3275d00066919193d3515"
+    },
+    {
+      "failure_code": "source_non_elaboration",
+      "outcome": "failure",
+      "row_index": 2
+    },
+    {
+      "declaration_name": "lean_workbook_plus_27542",
+      "extraction_route": "question_statement",
+      "outcome": "accepted",
+      "row_index": 3,
+      "statement_content_hash": "6c18ae1fb7bc1453d6f94ffca6c94693c752868cae2b3ae00f90cf16ed44df23"
+    },
+    {
+      "declaration_name": "circle_center_proof",
+      "extraction_route": "question_statement",
+      "outcome": "accepted",
+      "row_index": 4,
+      "statement_content_hash": "e209bb26328a0122f09775e3801b03d75c96f55e1d24a4573303d2fb64cb61ee"
+    },
+    {
+      "declaration_name": "line_distance",
+      "extraction_route": "lean_code_fallback",
+      "outcome": "accepted",
+      "row_index": 5,
+      "statement_content_hash": "6094326125995e44eda4874ad3f0a357c233a957d1e5d3e39f0ca531da01e3fb"
+    },
+    {
+      "declaration_name": "OMR_problem_287437_0_gs2_f0_negation",
+      "extraction_route": "question_statement",
+      "outcome": "accepted",
+      "row_index": 6,
+      "statement_content_hash": "a4928538236a30cc0f543d4395cfe7eba96251b33d6ce4e223166782565b6420"
+    },
+    {
+      "declaration_name": "lean_workbook_plus_68474",
+      "extraction_route": "question_statement",
+      "outcome": "accepted",
+      "row_index": 7,
+      "statement_content_hash": "05a66a39d55e166d6aa7f405bd7a92d7b4ec153922b2a3f3d57c27ad9ecd6599"
+    },
+    {
+      "declaration_name": "OMR_problem_431553_0_gs2",
+      "extraction_route": "question_statement",
+      "outcome": "accepted",
+      "row_index": 8,
+      "statement_content_hash": "db1a31953e12c854c91a9ddb8ba816185fb0184c7580fa000c31336f71d8d282"
+    },
+    {
+      "declaration_name": "lean_workbook_plus_46753",
+      "extraction_route": "question_statement",
+      "outcome": "accepted",
+      "row_index": 9,
+      "statement_content_hash": "89abba82181e6886d3794405fb6c90f734c93787d9130089410e6814e1ad4dae"
+    },
+    {
+      "failure_code": "source_non_elaboration",
+      "outcome": "failure",
+      "row_index": 10
+    },
+    {
+      "declaration_name": "extracted_fda02b66_negation",
+      "extraction_route": "question_statement",
+      "outcome": "accepted",
+      "row_index": 11,
+      "statement_content_hash": "76020f0bf742364bce346389e24f76c88489c402a03abb2049bb58eb20cf233b"
+    },
+    {
+      "declaration_name": "lean_workbook_51541",
+      "extraction_route": "question_statement",
+      "outcome": "accepted",
+      "row_index": 12,
+      "statement_content_hash": "7742de051c8850d6ebcf7d7541795f992c4e3ea6b538cd433a18002c145aee9e"
+    },
+    {
+      "declaration_name": "lean_workbook_plus_10811",
+      "extraction_route": "question_statement",
+      "outcome": "accepted",
+      "row_index": 13,
+      "statement_content_hash": "80d1de5825d047419789c4353d6b49c01564c04949f2bd6e0dcda8ae0ae6a771"
+    },
+    {
+      "declaration_name": "pentagon_angle_equality",
+      "extraction_route": "question_statement",
+      "outcome": "accepted",
+      "row_index": 14,
+      "statement_content_hash": "205298d87c01ca96341da2be17bf32ac66926746a609fa14519eeca85d81a658"
+    },
+    {
+      "failure_code": "source_non_elaboration",
+      "outcome": "failure",
+      "row_index": 15
+    },
+    {
+      "declaration_name": "arithmetic_sequence_mean_after_removal",
+      "extraction_route": "lean_code_fallback",
+      "outcome": "accepted",
+      "row_index": 16,
+      "statement_content_hash": "76c4849a1819bab46e0bbe07f5609cf3ee77255617864b246c580dc2c4753b6e"
+    },
+    {
+      "declaration_name": "extracted_7674541c_negation",
+      "extraction_route": "question_statement",
+      "outcome": "accepted",
+      "row_index": 17,
+      "statement_content_hash": "9c46389e356ff40eea3fdd682757b786022209c51ced5fd4be6ac122887ed855"
+    },
+    {
+      "declaration_name": "lean_workbook_14244",
+      "extraction_route": "question_statement",
+      "outcome": "accepted",
+      "row_index": 18,
+      "statement_content_hash": "bb327abe96a19fef4a95684ab71f27742a658dcacfc3afa2c915d76efb3f0d53"
+    },
+    {
+      "declaration_name": "OMR_problem_120686_0_gs2_f0_gs2",
+      "extraction_route": "question_statement",
+      "outcome": "accepted",
+      "row_index": 19,
+      "statement_content_hash": "7e387f88ad1534051dbac836ba3a0c12789873b6e8374fb85ba6ed43e28ff500"
+    },
+    {
+      "declaration_name": "lean_workbook_plus_56839",
+      "extraction_route": "question_statement",
+      "outcome": "accepted",
+      "row_index": 20,
+      "statement_content_hash": "7b2a6a36009d7b57f9b3bf980383f12c4f08b5f62043d779e40879f6dd9e7f7d"
+    },
+    {
+      "declaration_name": "function_values_16",
+      "extraction_route": "question_statement",
+      "outcome": "accepted",
+      "row_index": 21,
+      "statement_content_hash": "3565b5ae098cf1caeaf48fdec6d888b60fd72facedca6ebb6f2af3bc8c37c38f"
+    },
+    {
+      "declaration_name": "salary_change",
+      "extraction_route": "question_statement",
+      "outcome": "accepted",
+      "row_index": 22,
+      "statement_content_hash": "d8f13b6608dd6dc75d1daf1cdbc29904eb32879731b46d8b424a316b93e20d50"
+    },
+    {
+      "declaration_name": "OMR_problem_496728",
+      "extraction_route": "question_statement",
+      "outcome": "accepted",
+      "row_index": 23,
+      "statement_content_hash": "f3261856fa139b2b4961a443846ed7fb874ecbaf8486cc636580c3d765c8fc8d"
+    },
+    {
+      "declaration_name": "OMR_problem_78445_0_gs2_f0_gs1",
+      "extraction_route": "question_statement",
+      "outcome": "accepted",
+      "row_index": 24,
+      "statement_content_hash": "08ea6da847aa8b926db060b2a6fc75981346ad0b6fbdea0d75392d86373bc0e1"
+    },
+    {
+      "declaration_name": "number_theory_24148",
+      "extraction_route": "question_statement",
+      "outcome": "accepted",
+      "row_index": 25,
+      "statement_content_hash": "e291f081921a98143c39d558b7f8837fdf0ea1a6aa227238889f6a86f84ddfbb"
+    },
+    {
+      "declaration_name": "lean_workbook_48796",
+      "extraction_route": "question_statement",
+      "outcome": "accepted",
+      "row_index": 26,
+      "statement_content_hash": "2fb311bab03a99acc63c72305db7773249ea843c61ca9c53945549d51c34b78d"
+    },
+    {
+      "declaration_name": "OMR_problem_165292_0_gs3_f0_negation",
+      "extraction_route": "question_statement",
+      "outcome": "accepted",
+      "row_index": 27,
+      "statement_content_hash": "3b5884433e0e3779ea64db011952c39d569cfa148a0d3644e40efd8501c77bf3"
+    },
+    {
+      "declaration_name": "OMR_problem_491566",
+      "extraction_route": "question_statement",
+      "outcome": "accepted",
+      "row_index": 28,
+      "statement_content_hash": "cc81442534672819521195baba6ead3db0b4bf013d301eda52d60d766cf6a319"
+    },
+    {
+      "declaration_name": "bicycle_revolutions",
+      "extraction_route": "lean_code_fallback",
+      "outcome": "accepted",
+      "row_index": 29,
+      "statement_content_hash": "ad05a826f4c2e1b5d9fcf2f25e781a218df3779f2697e74b6c88d55f6f8c74b9"
+    },
+    {
+      "declaration_name": "OMR_problem_207626",
+      "extraction_route": "question_statement",
+      "outcome": "accepted",
+      "row_index": 30,
+      "statement_content_hash": "046cffdf7a7aec44c2bff25ef6785aa91601f8dbdd5e1d7ab78e654f9917934c"
+    },
+    {
+      "declaration_name": "computer_cost",
+      "extraction_route": "question_statement",
+      "outcome": "accepted",
+      "row_index": 31,
+      "statement_content_hash": "181e1589cdba64f1e463fd630137961344bf057da1e26644cd882be22e81dba5"
+    },
+    {
+      "declaration_name": "lean_workbook_plus_26341",
+      "extraction_route": "question_statement",
+      "outcome": "accepted",
+      "row_index": 32,
+      "statement_content_hash": "e0c8b1de2f21014d9be48c5c8f3100316359c9f9d13b6d498248dfd8853e7e87"
+    },
+    {
+      "declaration_name": "dog_adoption_count",
+      "extraction_route": "lean_code_fallback",
+      "outcome": "accepted",
+      "row_index": 33,
+      "statement_content_hash": "5358111e8b0ce69457c070e41c4e43b347d6e6875df25b12d6f325919408863b"
+    },
+    {
+      "declaration_name": "lean_workbook_39613",
+      "extraction_route": "question_statement",
+      "outcome": "accepted",
+      "row_index": 34,
+      "statement_content_hash": "8966cd2549527b58e2fa9ca3a380b8f67c1af919356f29cb1e344e5028cf1eb1"
+    },
+    {
+      "declaration_name": "A17_254",
+      "extraction_route": "question_statement",
+      "outcome": "accepted",
+      "row_index": 35,
+      "statement_content_hash": "f1e322595620e766b5707c3b8353093f78c25e86e664c46bea87e927a932f89e"
+    },
+    {
+      "declaration_name": "OMR_problem_398657_0_gp1",
+      "extraction_route": "question_statement",
+      "outcome": "accepted",
+      "row_index": 36,
+      "statement_content_hash": "2ffc9309aa5e025c2c8eee13772de7c601c967f49127c9e0d1089f1abf68e025"
+    },
+    {
+      "declaration_name": "sqrt_subset_problem",
+      "extraction_route": "question_statement",
+      "outcome": "accepted",
+      "row_index": 37,
+      "statement_content_hash": "7dcca062635b42c9931b1ecca09e4495858fca3087cd720d4d7f74f073abf40c"
+    },
+    {
+      "declaration_name": "coprime_product_sum",
+      "extraction_route": "question_statement",
+      "outcome": "accepted",
+      "row_index": 38,
+      "statement_content_hash": "9c05dabe0ddfe6db5e5c023402c2daa9db3b775e4e2f3fe720bb268e8001c7db"
+    },
+    {
+      "declaration_name": "OMR_problem_298793_negation",
+      "extraction_route": "question_statement",
+      "outcome": "accepted",
+      "row_index": 39,
+      "statement_content_hash": "f246f9f4d06f0c221d1eb31b99b66a142df4cdb7380262e259a13acdf8b4b55c"
+    },
+    {
+      "declaration_name": "lean_workbook_plus_12121",
+      "extraction_route": "question_statement",
+      "outcome": "accepted",
+      "row_index": 40,
+      "statement_content_hash": "f216e311d9c2180c5a9ca4dd3ba0a79ff9883c2de008247862860d0bd1a10fc3"
+    },
+    {
+      "declaration_name": "OMR_problem_90935_0_gs2_f0_gs2",
+      "extraction_route": "question_statement",
+      "outcome": "accepted",
+      "row_index": 41,
+      "statement_content_hash": "767431bb519dd890fe8572864c6854bf0321cb480855cc34e4c0f4a6f3adb66a"
+    },
+    {
+      "declaration_name": "lean_workbook_plus_7054",
+      "extraction_route": "question_statement",
+      "outcome": "accepted",
+      "row_index": 42,
+      "statement_content_hash": "ce95c01ba0e78c26db1955fbffbdc2d2eadfa49153f8f98e6ae47f54a8a7fa03"
+    },
+    {
+      "declaration_name": "OMR_problem_290248",
+      "extraction_route": "question_statement",
+      "outcome": "accepted",
+      "row_index": 43,
+      "statement_content_hash": "7825bd4d371a498609bbc3002c02ac5c3ea9aec727891dcd5eb6718abf415663"
+    },
+    {
+      "declaration_name": "numina_COT_problem_237945_gp0",
+      "extraction_route": "question_statement",
+      "outcome": "accepted",
+      "row_index": 44,
+      "statement_content_hash": "98a5001c91ce2578b2844eca1a5765fa6381cc4d15f33a987415b10e09bfaf6f"
+    },
+    {
+      "declaration_name": "extracted_36f39eb4",
+      "extraction_route": "question_statement",
+      "outcome": "accepted",
+      "row_index": 45,
+      "statement_content_hash": "c9143696a8161a960fc69cfa69b47b058e711a8b3bcb29aa6e881af7b4be71ec"
+    },
+    {
+      "declaration_name": "OMR_problem_285599_0_gs2",
+      "extraction_route": "question_statement",
+      "outcome": "accepted",
+      "row_index": 46,
+      "statement_content_hash": "fcb97137fd1dd60b20c4c3bb56ee79b22dc01e0f66afaf0f3f68d4242e917fa1"
+    },
+    {
+      "declaration_name": "algebra_320734",
+      "extraction_route": "question_statement",
+      "outcome": "accepted",
+      "row_index": 47,
+      "statement_content_hash": "036b8746239438082a4a1bd6d516a8cddc162d8f23e59c4c688340ab08f52648"
+    },
+    {
+      "declaration_name": "lean_workbook_39421",
+      "extraction_route": "question_statement",
+      "outcome": "accepted",
+      "row_index": 48,
+      "statement_content_hash": "9e48e4df68c7ed1a15b1c7a811a5f7ed128b9395e3ecdfb88825128e83e150f2"
+    },
+    {
+      "declaration_name": "OMR_problem_453337",
+      "extraction_route": "question_statement",
+      "outcome": "accepted",
+      "row_index": 49,
+      "statement_content_hash": "a5466e4df62c51e5bcfe67f08b24644b8884d75cef62c2bed0b50657d4fd052d"
+    },
+    {
+      "declaration_name": "rectangle_area_with_given_perimeter_width",
+      "extraction_route": "question_statement",
+      "outcome": "accepted",
+      "row_index": 50,
+      "statement_content_hash": "5f8d6aa31d9d713512490f3dfc82907383df8e211048e08babfeb999c5159286"
+    },
+    {
+      "declaration_name": "lean_workbook_plus_3411",
+      "extraction_route": "question_statement",
+      "outcome": "accepted",
+      "row_index": 51,
+      "statement_content_hash": "66f33a5bc91590b9807e02cf7d8eb0e27a61078c4287a087b19d68fac30cde3a"
+    },
+    {
+      "declaration_name": "lean_workbook_44325",
+      "extraction_route": "question_statement",
+      "outcome": "accepted",
+      "row_index": 52,
+      "statement_content_hash": "8369f8e454cc865b04d4afa350154c0d13c3612df5f210d3dbde166ba26c62eb"
+    },
+    {
+      "declaration_name": "dot_product_minimum",
+      "extraction_route": "question_statement",
+      "outcome": "accepted",
+      "row_index": 53,
+      "statement_content_hash": "16a8bdfc7a596987a8f48f376d97ccd603863d9fefbaa61792d5692bd650ec83"
+    },
+    {
+      "declaration_name": "lean_workbook_39101",
+      "extraction_route": "question_statement",
+      "outcome": "accepted",
+      "row_index": 54,
+      "statement_content_hash": "d3fb651b4a2d6ca55ac3aa9bf4526468aa47974f453df0202940c3f2e038e601"
+    },
+    {
+      "declaration_name": "lean_workbook_plus_48913",
+      "extraction_route": "question_statement",
+      "outcome": "accepted",
+      "row_index": 55,
+      "statement_content_hash": "7d7f21811058a2d288bc3c544b65c17acb3815026db90de8ff56075ba2da1b0e"
+    },
+    {
+      "declaration_name": "lean_workbook_plus_75113",
+      "extraction_route": "question_statement",
+      "outcome": "accepted",
+      "row_index": 56,
+      "statement_content_hash": "12afa947321c653ae90c777b53a41b0cbd2e81ed8821bc6d775f50e536ca5d6c"
+    },
+    {
+      "declaration_name": "OMR_problem_402339",
+      "extraction_route": "question_statement",
+      "outcome": "accepted",
+      "row_index": 57,
+      "statement_content_hash": "e81e9ec4d4aeec550cab732dfd2eea0b3762243108bbd3c481f3739ecff22e35"
+    },
+    {
+      "declaration_name": "lean_workbook_1489",
+      "extraction_route": "question_statement",
+      "outcome": "accepted",
+      "row_index": 58,
+      "statement_content_hash": "96edeea5b502cee4628521ac088fe9dd91bc45f347f998f5c8da05770cc565b8"
+    },
+    {
+      "declaration_name": "triangle_area_is_twelve_point_five",
+      "extraction_route": "question_statement",
+      "outcome": "accepted",
+      "row_index": 59,
+      "statement_content_hash": "87905add03053183fbb86e716a200596ef7e39dcc8360f2ff54bc2ad356b4c8f"
+    },
+    {
+      "declaration_name": "parking_lot_wheels",
+      "extraction_route": "question_statement",
+      "outcome": "accepted",
+      "row_index": 60,
+      "statement_content_hash": "ec2c8b0d4e98fdddd1f9571d2100284c0cd645a129784b4268a54dbc5bd499af"
+    },
+    {
+      "declaration_name": "banana_distribution",
+      "extraction_route": "question_statement",
+      "outcome": "accepted",
+      "row_index": 61,
+      "statement_content_hash": "ee7c3e4c4b426a1a71487d65c28da25be19accd2fcbb3654438ec0385ee8db69"
+    },
+    {
+      "declaration_name": "OMR_problem_33616_0_gp5",
+      "extraction_route": "question_statement",
+      "outcome": "accepted",
+      "row_index": 62,
+      "statement_content_hash": "a20a721213d940380ade369d8c1377b819e14e8fb4dd83132ff718a566944f50"
+    },
+    {
+      "declaration_name": "OMR_problem_122322_0_gs1",
+      "extraction_route": "question_statement",
+      "outcome": "accepted",
+      "row_index": 63,
+      "statement_content_hash": "84b20ba5ba17b8210c36c7f1e02990d1f44e208c789ecc620ba3f9e9b82946f4"
+    },
+    {
+      "failure_code": "not_a_proposition",
+      "outcome": "failure",
+      "row_index": 64
+    },
+    {
+      "declaration_name": "OMR_problem_282001_0_gs3_f0_gs0_f0_negation",
+      "extraction_route": "question_statement",
+      "outcome": "accepted",
+      "row_index": 65,
+      "statement_content_hash": "c4700dcf24ea0426d7711161c5c0f5ea2e133bcf42bab642cbc0e9cf7b556151"
+    },
+    {
+      "declaration_name": "exercise_7_1_9",
+      "extraction_route": "question_statement",
+      "outcome": "accepted",
+      "row_index": 66,
+      "statement_content_hash": "b785815d947d0ef20b06da3bbebbf42faeee5d3547b782ea0848c8b327abc032"
+    },
+    {
+      "declaration_name": "intersection_value_m",
+      "extraction_route": "lean_code_fallback",
+      "outcome": "accepted",
+      "row_index": 67,
+      "statement_content_hash": "1b3ae5b8195164188c14ae70362b5f410d75bc121926b9cb272d73a9591b0bda"
+    },
+    {
+      "declaration_name": "algebra_p126773",
+      "extraction_route": "question_statement",
+      "outcome": "accepted",
+      "row_index": 68,
+      "statement_content_hash": "7abe4a769e9e1bcb6c9e8149d884fcd41853e6e635dabd4bf9521bcd92a91b78"
+    },
+    {
+      "declaration_name": "lean_workbook_plus_40169",
+      "extraction_route": "question_statement",
+      "outcome": "accepted",
+      "row_index": 69,
+      "statement_content_hash": "c14bae602d3337e5ca026ec50ddb1b41e76f42944a66739409b5560ff532e4a5"
+    },
+    {
+      "declaration_name": "lean_workbook_41455",
+      "extraction_route": "question_statement",
+      "outcome": "accepted",
+      "row_index": 70,
+      "statement_content_hash": "1ad680b75d03730b3fa8bbf3ef085d471732bfeb3324cc7aa57807ad51fefdb8"
+    },
+    {
+      "declaration_name": "touchdown_points_difference",
+      "extraction_route": "question_statement",
+      "outcome": "accepted",
+      "row_index": 71,
+      "statement_content_hash": "e68c601c8d6a55b2bf9f39e5b274b1f82092a0130225ee6d7978b00be39eb3fe"
+    },
+    {
+      "declaration_name": "baker_cakes",
+      "extraction_route": "question_statement",
+      "outcome": "accepted",
+      "row_index": 72,
+      "statement_content_hash": "e43458cb7d8c1259dca25ed7fba39c6f343c7900585aed8702cc7b6b0132e01f"
+    },
+    {
+      "declaration_name": "lean_workbook_plus_13716",
+      "extraction_route": "question_statement",
+      "outcome": "accepted",
+      "row_index": 73,
+      "statement_content_hash": "3696ce7a4a52d6db5a28f687f6f85f35e7c08fdfcf9bb9612061bb92c31d4700"
+    },
+    {
+      "declaration_name": "vector_parallel_sum",
+      "extraction_route": "lean_code_fallback",
+      "outcome": "accepted",
+      "row_index": 74,
+      "statement_content_hash": "754639b795886870c639c1ffc3d5c72e968aa0e0eae195e76782b6049b949320"
+    },
+    {
+      "declaration_name": "lean_workbook_plus_26910",
+      "extraction_route": "question_statement",
+      "outcome": "accepted",
+      "row_index": 75,
+      "statement_content_hash": "fdc7238fec35f174aef9ebbdc1f8d2d9277c5012e0ccc768fb96a32b6f449184"
+    },
+    {
+      "declaration_name": "shopping_mall_inventory",
+      "extraction_route": "lean_code_fallback",
+      "outcome": "accepted",
+      "row_index": 76,
+      "statement_content_hash": "412812b866c5cf2b6410ab45593bfb3fdd2c1082e30408d34d1af82cfa2cb212"
+    },
+    {
+      "declaration_name": "lean_workbook_plus_77118",
+      "extraction_route": "question_statement",
+      "outcome": "accepted",
+      "row_index": 77,
+      "statement_content_hash": "dcf92fa2dfdf65691368aa39d1ca7495ab34e1dbb270c172c4866bc22e4f6435"
+    },
+    {
+      "declaration_name": "count_valid_sequences",
+      "extraction_route": "lean_code_fallback",
+      "outcome": "accepted",
+      "row_index": 78,
+      "statement_content_hash": "186d73379bc53fab0afb6486cc03dea2b0fd03342811735e9dd38c20f2adea8d"
+    },
+    {
+      "declaration_name": "OMR_problem_108791_0_gp7",
+      "extraction_route": "question_statement",
+      "outcome": "accepted",
+      "row_index": 79,
+      "statement_content_hash": "2ded6301932cb78e354a42d458f0ab2b9c3d4f4b3d528c6b4a21e6214a639fc9"
+    },
+    {
+      "declaration_name": "OMR_problem_458011_0_gs3",
+      "extraction_route": "question_statement",
+      "outcome": "accepted",
+      "row_index": 80,
+      "statement_content_hash": "57c0e1e49c55a20e8afe3f9c040d31dc918ff4485f495b2c58a33274d1398858"
+    },
+    {
+      "failure_code": "source_non_elaboration",
+      "outcome": "failure",
+      "row_index": 81
+    },
+    {
+      "declaration_name": "extracted_cce99bbe_negation",
+      "extraction_route": "question_statement",
+      "outcome": "accepted",
+      "row_index": 82,
+      "statement_content_hash": "7714d788034a7225d69c52531982c5eaf6387509623e930e250a4422138eac6e"
+    },
+    {
+      "declaration_name": "OMR_problem_267959_0_gs3",
+      "extraction_route": "question_statement",
+      "outcome": "accepted",
+      "row_index": 83,
+      "statement_content_hash": "c10b9ab10ef7a9648e03c810a2c0c4468aa318f694057377be538cfb21c10364"
+    },
+    {
+      "declaration_name": "lean_workbook_plus_46255",
+      "extraction_route": "question_statement",
+      "outcome": "accepted",
+      "row_index": 84,
+      "statement_content_hash": "6bf29d676229b3d46b58494a0d54104f2bf10e13ea11bbe135e1f0e73782b3dd"
+    },
+    {
+      "declaration_name": "OMR_problem_111421_0_gp3",
+      "extraction_route": "question_statement",
+      "outcome": "accepted",
+      "row_index": 85,
+      "statement_content_hash": "06dc357794dc7c12e85d985dac556cedcc1c14cf0092e2295858170c12d885ab"
+    },
+    {
+      "declaration_name": "lean_workbook_428",
+      "extraction_route": "question_statement",
+      "outcome": "accepted",
+      "row_index": 86,
+      "statement_content_hash": "0c62327121f4f6ba32c8c011263840bac42cc52f361f8a13bfa9918ab15404ff"
+    },
+    {
+      "declaration_name": "lean_workbook_plus_214762",
+      "extraction_route": "question_statement",
+      "outcome": "accepted",
+      "row_index": 87,
+      "statement_content_hash": "b6f093cc7555223b9645cdbc705db3d472531e2c5744b2d249504614610460c5"
+    },
+    {
+      "declaration_name": "complex_number_problem",
+      "extraction_route": "lean_code_fallback",
+      "outcome": "accepted",
+      "row_index": 88,
+      "statement_content_hash": "f345353a13f872954d55e1574f7217a6c8216e0cf1ace065cb580a22ef856a1b"
+    },
+    {
+      "declaration_name": "lean_workbook_11658_2",
+      "extraction_route": "question_statement",
+      "outcome": "accepted",
+      "row_index": 89,
+      "statement_content_hash": "36e0db9839a11f84abed513e9a50a5ea128b2fdbc1fb1b719fab5b6bee58ca7c"
+    },
+    {
+      "declaration_name": "age_problem",
+      "extraction_route": "question_statement",
+      "outcome": "accepted",
+      "row_index": 90,
+      "statement_content_hash": "186367af7e60f30478ad662ec448ca7c128afb5aa715035a6cadd5b5d7e011b4"
+    },
+    {
+      "declaration_name": "hyperbola_equation_verification",
+      "extraction_route": "question_statement",
+      "outcome": "accepted",
+      "row_index": 91,
+      "statement_content_hash": "d2969db05e01b32ac358676eda86dafabd61c8829677c519ef616dd14968c706"
+    },
+    {
+      "declaration_name": "lean_workbook_plus_40448",
+      "extraction_route": "question_statement",
+      "outcome": "accepted",
+      "row_index": 92,
+      "statement_content_hash": "344e1e5a4c3381323bd2715c5aa459e4ffd828b44b9ffc3a6d45dc06cb329828"
+    },
+    {
+      "declaration_name": "lean_workbook_plus_54138",
+      "extraction_route": "question_statement",
+      "outcome": "accepted",
+      "row_index": 93,
+      "statement_content_hash": "ae320c81fc346abdbe9c4f5a6bed24bad9497ca54bd5e855c5fd3ac1c0095f95"
+    },
+    {
+      "declaration_name": "math_exercise_1_20185",
+      "extraction_route": "question_statement",
+      "outcome": "accepted",
+      "row_index": 94,
+      "statement_content_hash": "a9e1f867ce9d2b9c13905b80631c044952fb28d89f23c92afe2ae4571ed7cd69"
+    },
+    {
+      "declaration_name": "reading_time_difference",
+      "extraction_route": "question_statement",
+      "outcome": "accepted",
+      "row_index": 95,
+      "statement_content_hash": "c24d0850fb59049af07b7c7390ba54c1f185df38809e58ce1f71fc7c004e0982"
+    },
+    {
+      "declaration_name": "crab_median_in_interval",
+      "extraction_route": "question_statement",
+      "outcome": "accepted",
+      "row_index": 96,
+      "statement_content_hash": "aa30fa3d06d954acd4066dba1a3e1b4327f180479e76131fa2bacec800ff9352"
+    },
+    {
+      "declaration_name": "OMR_problem_393794_0_gp9",
+      "extraction_route": "question_statement",
+      "outcome": "accepted",
+      "row_index": 97,
+      "statement_content_hash": "696bf92d4e7c102b586e24e135122f1637427a1e83b306d9d2afc15292074fd5"
+    },
+    {
+      "declaration_name": "lean_workbook_plus_66902",
+      "extraction_route": "question_statement",
+      "outcome": "accepted",
+      "row_index": 98,
+      "statement_content_hash": "4faff970cdb7d0d982e7fddf1be0fdc556b7f8a09fecc5a50c3a316c4a301e00"
+    },
+    {
+      "declaration_name": "lean_workbook_plus_33218",
+      "extraction_route": "question_statement",
+      "outcome": "accepted",
+      "row_index": 99,
+      "statement_content_hash": "c2301a427297a9869ec9d0b4f68c4aa931861a809b8e79ced563a91a558ed131"
+    }
+  ],
+  "schema_version": 1,
+  "split": "train"
+}
+

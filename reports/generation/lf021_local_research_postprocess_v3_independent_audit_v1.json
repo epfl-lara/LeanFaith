@@ -1,0 +1,212 @@
+{
+  "schema_version": 1,
+  "audit_id": "lf021_local_research_postprocess_v3_independent_audit_v1",
+  "audited_at": "2026-07-24T00:51:00Z",
+  "status": "passed_postprocess_v3_audit",
+  "scope": {
+    "collection_plan_id": "research_collection_plan_v2:3801b405ec8b7008f8c38f449189a52fe5e74bea3a98f5e3e0abdaa75edac62c",
+    "collection_root": "data/raw/real_outputs/gate3_docstrings_operational_v1/v2/local_collection/3801b405ec8b7008f8c38f449189a52fe5e74bea3a98f5e3e0abdaa75edac62c",
+    "postprocess_root": "data/raw/real_outputs/gate3_docstrings_operational_v1/v2/local_collection/3801b405ec8b7008f8c38f449189a52fe5e74bea3a98f5e3e0abdaa75edac62c/postprocess_v3",
+    "postprocess_manifest_id": "research_postprocess_v3_manifest:273c635963e8a0fe50cf835ddc32fab6e62e1a5764a6b1d403ab1900b7c785b6",
+    "postprocess_manifest_sha256": "d5bef91b0667f6f9bbb7fa5fa350272f6336cfbfc90b6aa13d45ac434443bd20",
+    "input_binding_hash": "cb30ca5f3c0dca7c757e32387299f4cd50ff00a5fe7aa047efd9aabe9670fa2e"
+  },
+  "implementation_bindings": {
+    "postprocessor": {
+      "path": "src/leanfaith/generation/research_postprocess_v3.py",
+      "sha256": "aa8415663187b99558df25889df4809dd24d673515500dc21882e1a2e9e103e9"
+    },
+    "entrypoint": {
+      "path": "scripts/16_postprocess_research_outputs_v3.py",
+      "sha256": "816dc5d3ed99d935099b8ffc613a5d1bb94d2cb1a99111c0951618c80f895d31"
+    },
+    "recovery_parser": {
+      "path": "src/leanfaith/generation/local_output_recovery.py",
+      "parser_id": "lean_expected_declaration_recovery_v1",
+      "sha256": "34bd4757fdd06d119ccbc2c57692cf8e53c07447bbe2319ffc9dbec57b67d983"
+    }
+  },
+  "denominator_audit": {
+    "passed": true,
+    "problem_count": 40,
+    "family_count": 3,
+    "seed_count_by_family": {
+      "goedel_formalizer_v2_8b": 1,
+      "kimina_autoformalizer_7b": 1,
+      "stepfun_formalizer_7b": 1
+    },
+    "expected_invocations": 120,
+    "terminal_invocations": 120,
+    "unique_invocation_ids": 120,
+    "invocations_by_family": {
+      "goedel_formalizer_v2_8b": 40,
+      "kimina_autoformalizer_7b": 40,
+      "stepfun_formalizer_7b": 40
+    },
+    "post_freeze_denominator_filtering_detected": false
+  },
+  "hash_and_identity_audit": {
+    "passed": true,
+    "bound_input_and_collection_file_hashes_checked": 148,
+    "raw_lineage_entries_checked": 960,
+    "unique_raw_lineage_files_checked": 843,
+    "postprocess_terminal_hashes_checked": 120,
+    "postprocess_output_hashes_checked": 299,
+    "family_report_hashes_checked": 3,
+    "lean_raw_files_checked": 193,
+    "input_binding_hash_recomputed": true,
+    "manifest_id_recomputed": true,
+    "terminal_ids_recomputed": 120,
+    "family_report_ids_recomputed": 3,
+    "invocation_payload_hashes_recomputed": 120,
+    "collection_terminal_hashes_reconciled": 120,
+    "raw_lineage_maps_reconciled": 120,
+    "output_artifact_maps_reconciled": 120,
+    "missing_bound_files": 0,
+    "hash_mismatches": 0,
+    "symlink_count": 0,
+    "partial_file_count": 0
+  },
+  "terminal_accounting": {
+    "passed": true,
+    "status_counts": {
+      "admitted_unresolved": 23,
+      "parse_failed": 97
+    },
+    "admitted_pair_count": 23,
+    "admitted_nl_lean_count": 23,
+    "family_yields": {
+      "goedel_formalizer_v2_8b": 9,
+      "kimina_autoformalizer_7b": 7,
+      "stepfun_formalizer_7b": 7
+    },
+    "failure_terminals_have_no_semantic_outputs": true,
+    "all_terminals_execute_the_registered_parser": true
+  },
+  "primary_and_recovery_audit": {
+    "passed": true,
+    "recovery_status_counts": {
+      "failed": 64,
+      "not_eligible": 33,
+      "not_needed": 7,
+      "succeeded": 16
+    },
+    "primary_failure_counts": {
+      "declaration_count": 77,
+      "lean_invalid": 33,
+      "missing_final_fence": 2,
+      "none": 7,
+      "trailing_output": 1
+    },
+    "by_family": {
+      "goedel_formalizer_v2_8b": {
+        "failed": 31,
+        "succeeded": 9
+      },
+      "kimina_autoformalizer_7b": {
+        "failed": 33,
+        "succeeded": 7
+      },
+      "stepfun_formalizer_7b": {
+        "not_eligible": 33,
+        "not_needed": 7
+      }
+    },
+    "not_needed_provenance_coherent": 7,
+    "successful_recovery_provenance_coherent": 16,
+    "failed_recovery_provenance_coherent": 64,
+    "ineligible_recovery_provenance_coherent": 33,
+    "parser_success_count": 23,
+    "parser_success_equals_admitted_count": true
+  },
+  "lean_execution_evidence": {
+    "passed": true,
+    "record_count": 193,
+    "unique_request_ids": 193,
+    "unique_request_hashes": 177,
+    "stage_counts": {
+      "primary_stepfun_parse": 40,
+      "recovery": 107,
+      "materialization_validation": 23,
+      "representation": 23
+    },
+    "filename_request_hash_binding_count": 193,
+    "filename_request_id_digest_binding_count": 193,
+    "method_version": "leaninteract_backend_v2",
+    "persisted_response_count": 193,
+    "backend_error_count": 0,
+    "admitted_lean_result_ids_bound_to_raw_evidence": 23,
+    "admitted_representation_requests_bound": 23
+  },
+  "screening_and_uniqueness_audit": {
+    "passed": true,
+    "screening_records": 23,
+    "clean_screening_records": 23,
+    "benchmark_hit_records": 0,
+    "noncanonical_records": 0,
+    "duplicate_candidate_references": 0,
+    "unique_alpha_identity_fingerprints": 23,
+    "unique_candidate_theorem_ids": 23,
+    "unique_representation_ids": 23,
+    "unique_pair_ids": 23,
+    "unique_nl_lean_ids": 23,
+    "unique_admitted_raw_output_hashes": 23,
+    "all_model_visible_representation_views_present": true
+  },
+  "unresolved_schema_audit": {
+    "passed": true,
+    "terminal_records_checked": 23,
+    "pair_records_checked": 23,
+    "nl_lean_records_checked": 23,
+    "same_claim_is_null": true,
+    "relation_is_null": true,
+    "resolution_outcome": "unresolved",
+    "quality_tier": "unknown",
+    "requires_adjudication": true,
+    "decision": "REVIEW",
+    "resolved_label_ids_are_null": true,
+    "evidence_id_lists_are_empty": true,
+    "semantic_labels_created": false,
+    "supervision_eligible": false,
+    "gate_5g_credit_claimed": false,
+    "gate_5_closed": false
+  },
+  "verify_only_replay": {
+    "passed": true,
+    "command": "uv run python scripts/16_postprocess_research_outputs_v3.py --root /localhome/milikic/LeanFaith --collection-root /localhome/milikic/LeanFaith/data/raw/real_outputs/gate3_docstrings_operational_v1/v2/local_collection/3801b405ec8b7008f8c38f449189a52fe5e74bea3a98f5e3e0abdaa75edac62c --verify-only",
+    "elapsed_ms": 4156,
+    "before_file_count": 616,
+    "after_file_count": 616,
+    "tree_hash_algorithm": "sha256 of the sorted sha256sum stream over absolute postprocess_v3 file paths",
+    "before_tree_sha256": "f7e6c06256f784ad954e408aa2bfec7fc953d4c93fe39aad535297b1e269bf11",
+    "after_tree_sha256": "f7e6c06256f784ad954e408aa2bfec7fc953d4c93fe39aad535297b1e269bf11",
+    "replay_invariance": true,
+    "lean_execution_performed": false,
+    "writes_performed": false
+  },
+  "focused_checks": {
+    "pytest": {
+      "command": "uv run pytest -q tests/unit/test_lf021_research_postprocess_v3.py",
+      "passed": true,
+      "test_count": 4
+    },
+    "ruff_check": {
+      "passed": true
+    },
+    "ruff_format_check": {
+      "passed": true
+    },
+    "mypy": {
+      "passed": true
+    }
+  },
+  "hard_boundaries": {
+    "semantic_validity_claim": false,
+    "faithfulness_claim": false,
+    "resolved_label_claim": false,
+    "supervision_admission_claim": false,
+    "gate_5g_credit_claim": false,
+    "gate_5_closure_claim": false,
+    "disposition": "The 120 frozen Algebra outputs reconcile exactly to 23 Lean-elaborating, denylist-clean, alpha-unique candidates routed to unresolved REVIEW and 97 explicit parse failures. The bundle creates no semantic labels, admits no training supervision, and closes neither Gate 5G nor Gate 5."
+  }
+}

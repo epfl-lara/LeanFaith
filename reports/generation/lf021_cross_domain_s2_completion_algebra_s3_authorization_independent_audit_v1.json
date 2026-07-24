@@ -1,0 +1,388 @@
+{
+  "schema_version": 1,
+  "audit_id": "lf021_cross_domain_s2_completion_algebra_s3_authorization_independent_audit_v1",
+  "audited_at": "2026-07-24T04:07:19Z",
+  "verdict": "PASS_CROSS_DOMAIN_S2_COMPLETION__PASS_ALGEBRA_S3_PREEXECUTION_AUTHORIZATION__HOLD_ALGEBRA_S3_COMPLETION",
+  "scope": [
+    "completed cross_domain_s2 collector-v5 raw artifact accounting and lineage",
+    "completed cross_domain_s2 postprocess-v6 accounting and unresolved-only semantics",
+    "CUDA-hidden collector resume byte invariance",
+    "CUDA-hidden postprocess verify-only byte invariance",
+    "six-manifest problem-aware expansion-v2 exact replay",
+    "historical expansion-v1 versus scientific expansion-v2 authorization roles",
+    "algebra_s3 collector-v5 config, preflight, plan, seeds, and invocation overlap",
+    "pre-execution authorization distinguished from live execution completion"
+  ],
+  "completed_cross_domain_s2": {
+    "completion_verdict": "PASS",
+    "tranche_id": "cross_domain_s2",
+    "collection_root": "data/raw/real_outputs/cross_domain_docstrings_operational_v1/v5/cross_domain_s2/local_collection/9b3a912f2f98908eb31eba25d58e1df8f737a7aba48d042a50f69697c3209279",
+    "bound_inputs": {
+      "collection_config": {
+        "artifact": "configs/generation/local_research_collection_cross_domain_s2_v5.json",
+        "sha256": "8c2084217d8a733932204448be18a440207dcdaadb2a04aa7b3a4dbf71a76022"
+      },
+      "source_matrix": {
+        "artifact": "configs/generation/local_research_source_matrix_cross_domain_s2_v5.json",
+        "sha256": "4786eaee4aa3ae422497b37e214b4255595d18381c84462060150bd270cda9d2"
+      },
+      "preflight": {
+        "artifact": "reports/generation/lf021_local_research_collection_preflight_cross_domain_s2_v5.json",
+        "sha256": "98a45356ea4eb3f65246ca15ce83dc8a2a963ad1c4503d1e53ed3122eb0f7e79"
+      },
+      "preexecution_independent_audit": {
+        "artifact": "reports/generation/lf021_local_research_collection_cross_domain_s2_v5_independent_audit_v1.json",
+        "sha256": "ece3251a0bf2b628a5ff0dac4a48270a0df9488f780708a6f4686bb479220851"
+      }
+    },
+    "raw_collection": {
+      "passed": true,
+      "plan": {
+        "artifact": "data/raw/real_outputs/cross_domain_docstrings_operational_v1/v5/cross_domain_s2/local_collection/9b3a912f2f98908eb31eba25d58e1df8f737a7aba48d042a50f69697c3209279/plan.json",
+        "sha256": "0fe526e7baec2bf31b365b95a7eccba0ace9bfed8736e73b3b484e02b1fb11a4",
+        "plan_id": "research_collection_plan_v5:9b3a912f2f98908eb31eba25d58e1df8f737a7aba48d042a50f69697c3209279",
+        "plan_hash": "69ec7902124e9e03777e6977d9c7e3056ec3f5559394361f16e5b2d2554f08df"
+      },
+      "manifest": {
+        "artifact": "data/raw/real_outputs/cross_domain_docstrings_operational_v1/v5/cross_domain_s2/local_collection/9b3a912f2f98908eb31eba25d58e1df8f737a7aba48d042a50f69697c3209279/manifest.json",
+        "sha256": "e46f3f7e34fa07bd0b1d821c83ed890ca3f8614402b5fa3e6c04af2c18b857ad",
+        "manifest_id": "research_collection_manifest_v5:bc76e73184b15606c0433519192e0cee077568d6db476ba1610f33c3654a2239"
+      },
+      "expected_terminal_count": 60,
+      "actual_terminal_count": 60,
+      "unique_invocation_count": 60,
+      "status_counts": {
+        "raw_collected": 60
+      },
+      "terminal_count_by_family": {
+        "goedel_formalizer_v2_8b": 20,
+        "kimina_autoformalizer_7b": 20,
+        "stepfun_formalizer_7b": 20
+      },
+      "terminal_hashes_recomputed": 60,
+      "family_session_hashes_recomputed": 6,
+      "actual_collection_performed": true,
+      "parser_executed": false,
+      "semantic_labels_created": false,
+      "gate_5g_credit_claimed": false,
+      "gate_5_closed": false
+    },
+    "postprocess_v6": {
+      "passed": true,
+      "manifest": {
+        "artifact": "data/raw/real_outputs/cross_domain_docstrings_operational_v1/v5/cross_domain_s2/local_collection/9b3a912f2f98908eb31eba25d58e1df8f737a7aba48d042a50f69697c3209279/postprocess_v6/manifest.json",
+        "sha256": "be61f714f0e296da467e3839aa7ec9f61796192b9854b18205b44d436dcd9309",
+        "manifest_id": "research_postprocess_v6_manifest:03260b03efe425653294bc49ebdfcd09932a74b9417526623198a87fba613a5c",
+        "input_binding_hash": "91fea32494d553838d63e7def95167e5f768d20d64c4aa4554b368ac7771492c",
+        "shared_processing_input_binding_hash": "6d91d8ca7e30a4c103fbd3e57e89aade7580661aaa4c056667c73b5d4bb0cf02"
+      },
+      "expected_invocations": 60,
+      "terminal_invocations": 60,
+      "status_counts": {
+        "admitted_unresolved": 16,
+        "materialization_failed": 1,
+        "parse_failed": 43
+      },
+      "status_counts_by_family": {
+        "goedel_formalizer_v2_8b": {
+          "admitted_unresolved": 4,
+          "materialization_failed": 1,
+          "parse_failed": 15
+        },
+        "kimina_autoformalizer_7b": {
+          "admitted_unresolved": 8,
+          "parse_failed": 12
+        },
+        "stepfun_formalizer_7b": {
+          "admitted_unresolved": 4,
+          "parse_failed": 16
+        }
+      },
+      "admitted_pair_count": 16,
+      "admitted_nl_lean_count": 16,
+      "terminal_hashes_recomputed": 60,
+      "output_hashes_recomputed": 210,
+      "family_report_hashes_recomputed": 3,
+      "all_admitted_records": {
+        "same_claim": null,
+        "relation": null,
+        "resolution_outcome": "unresolved",
+        "quality_tier": "unknown",
+        "requires_adjudication": true,
+        "decision": "REVIEW"
+      },
+      "semantic_labels_created": false,
+      "supervision_eligible": false,
+      "gate_5g_credit_claimed": false,
+      "gate_5_closed": false
+    },
+    "cuda_hidden_resume_and_verify_invariance": {
+      "passed": true,
+      "tree_snapshot_algorithm": "sha256(compact sorted JSON mapping collection-root-relative file path to file sha256)",
+      "file_count_before": 879,
+      "tree_sha256_before": "4bab315de0989ec19440da57995b63e8da9b5444ff9060e9e6c7522046b02c9a",
+      "collector_resume": {
+        "command": "CUDA_VISIBLE_DEVICES='' NVIDIA_VISIBLE_DEVICES=void uv run python scripts/27_collect_research_tranche_v5.py --execute --root /localhome/milikic/LeanFaith --config configs/generation/local_research_collection_cross_domain_s2_v5.json",
+        "exit_code": 0,
+        "reported_terminal_candidates": 60,
+        "reported_status_counts": {
+          "raw_collected": 60
+        },
+        "reported_parser_executed": false
+      },
+      "file_count_after_resume": 879,
+      "tree_sha256_after_resume": "4bab315de0989ec19440da57995b63e8da9b5444ff9060e9e6c7522046b02c9a",
+      "postprocess_verify_only": {
+        "command": "CUDA_VISIBLE_DEVICES='' NVIDIA_VISIBLE_DEVICES=void uv run python scripts/28_postprocess_research_tranche_v6.py --verify-only --root /localhome/milikic/LeanFaith --collection-root /localhome/milikic/LeanFaith/data/raw/real_outputs/cross_domain_docstrings_operational_v1/v5/cross_domain_s2/local_collection/9b3a912f2f98908eb31eba25d58e1df8f737a7aba48d042a50f69697c3209279 --collection-config /localhome/milikic/LeanFaith/configs/generation/local_research_collection_cross_domain_s2_v5.json",
+        "exit_code": 0,
+        "reported_terminal_invocations": 60,
+        "reported_status_counts": {
+          "admitted_unresolved": 16,
+          "materialization_failed": 1,
+          "parse_failed": 43
+        }
+      },
+      "file_count_after_verify": 879,
+      "tree_sha256_after_verify": "4bab315de0989ec19440da57995b63e8da9b5444ff9060e9e6c7522046b02c9a",
+      "byte_invariant": true,
+      "gpu_visible": false
+    }
+  },
+  "problem_aware_expansion_v2": {
+    "scientific_decision_verdict": "PASS",
+    "decision": {
+      "artifact": "reports/generation/lf021_tranche_expansion_v2/decisions/4aea1d8756d14212350c75486d28d0e27a65f864edba3e7564537979876f0601.json",
+      "sha256": "5d8ff89b01fbc1b152e66a8f539990dd9c0605f99ecdcef835a54aef4214aa00",
+      "decision_id": "lf021_expansion_decision_v2:4aea1d8756d14212350c75486d28d0e27a65f864edba3e7564537979876f0601",
+      "action": "collect_next_tranche"
+    },
+    "exact_six_manifest_prefix": [
+      {
+        "tranche_id": "algebra_s0",
+        "manifest_sha256": "d5bef91b0667f6f9bbb7fa5fa350272f6336cfbfc90b6aa13d45ac434443bd20"
+      },
+      {
+        "tranche_id": "cross_domain_s0",
+        "manifest_sha256": "1b379edc653f661af28c2ce3d341b85368b38cb5bca00e29cfcb7e4e88cdf2a8"
+      },
+      {
+        "tranche_id": "algebra_s1",
+        "manifest_sha256": "cf4334a26db95415a20297a7e61fab09b03675f61640e2970bdc5d6ade7b792a"
+      },
+      {
+        "tranche_id": "cross_domain_s1",
+        "manifest_sha256": "54b0a1d07d3ee6d47aa1313a2e0b88e2653fcccad229266a07b7d750c4823bcc"
+      },
+      {
+        "tranche_id": "algebra_s2",
+        "manifest_sha256": "3107e0565c943aca68684343b44694b0f481fa10a2d656144cd3873bbb033f07"
+      },
+      {
+        "tranche_id": "cross_domain_s2",
+        "manifest_sha256": "be61f714f0e296da467e3839aa7ec9f61796192b9854b18205b44d436dcd9309"
+      }
+    ],
+    "counts": {
+      "total_invocations": 540,
+      "raw_collected_count": 540,
+      "parser_success_count": 112,
+      "compile_success_count": 109,
+      "benchmark_clear_compile_count": 109,
+      "problem_aware_unique_compiling_count": 96,
+      "duplicate_member_count": 13,
+      "observed_tranche_count": 6
+    },
+    "coverage_deficits": [
+      "source_proxy:Algebra/Category:0<1"
+    ],
+    "selected_next_tranche": {
+      "tranche_id": "algebra_s3",
+      "pool_id": "algebra_gate3_docstrings_v1",
+      "expected_problem_count": 40,
+      "expected_invocations": 120,
+      "seeds_by_family": {
+        "goedel_formalizer_v2_8b": 33,
+        "kimina_autoformalizer_7b": 3,
+        "stepfun_formalizer_7b": 3
+      }
+    },
+    "exact_replay": {
+      "passed": true,
+      "temporary_decision_json_byte_identical": true,
+      "temporary_decision_report_byte_identical": true,
+      "replayed_decision_json_sha256": "5d8ff89b01fbc1b152e66a8f539990dd9c0605f99ecdcef835a54aef4214aa00",
+      "replayed_decision_report_sha256": "6c025de3fb811bc660e251c4894901850499d98a206007066c52d428c4ea2308"
+    },
+    "semantic_labels_inspected": false,
+    "semantic_labels_created": false,
+    "supervision_eligible": false,
+    "gate_5g_credit_claimed": false,
+    "gate_5_closed": false,
+    "role": "authoritative problem-aware scientific expansion decision"
+  },
+  "historical_expansion_v1": {
+    "operational_authorization_verdict": "PASS",
+    "decision": {
+      "artifact": "reports/generation/lf021_tranche_expansion_v1/decisions/85cfcc7e3503873ec0214491f046a4338f0a1d816deff895230d01e09ba62f37.json",
+      "sha256": "811bb79a19470e28809b2c8abd0124d003270a6c39d786552b50f6ca669ed495",
+      "decision_id": "lf021_expansion_decision:85cfcc7e3503873ec0214491f046a4338f0a1d816deff895230d01e09ba62f37"
+    },
+    "same_operational_counts_as_v2": true,
+    "same_selected_algebra_s3_tranche_as_v2": true,
+    "collector_v5_binding_required": true,
+    "role": "historical collector-v5 execution authorization only; not the scientific identity or stopping decision"
+  },
+  "algebra_s3": {
+    "preexecution_authorization_verdict": "PASS",
+    "execution_completion_verdict": "HOLD",
+    "hold_reason": "The exact 120-terminal collector-v5 denominator and postprocess-v6 manifest did not yet exist at the audit observation time. Partial live artifacts are not completion evidence.",
+    "bound_inputs": {
+      "collection_config": {
+        "artifact": "configs/generation/local_research_collection_algebra_s3_v5.json",
+        "sha256": "d786672c18207edfa6dcb101fc9051ed1e361beb7494034e9c3d52f41d592ccf"
+      },
+      "source_matrix": {
+        "artifact": "configs/generation/local_research_source_matrix_algebra_s3_v5.json",
+        "sha256": "27b9187bf7bac1c77333e57857b52e75175bc16eb55738dd13744b0840df84c3"
+      },
+      "preflight": {
+        "artifact": "reports/generation/lf021_local_research_collection_preflight_algebra_s3_v5.json",
+        "sha256": "3a52a288d8c13364e2b0317afdd9de925629f9ecc095d36847e3cd0c174ff0a5"
+      }
+    },
+    "preflight_replay": {
+      "passed": true,
+      "saved_preflight_equals_in_memory_replay": true,
+      "saved_plan_equals_in_memory_replay": true,
+      "execution_ready": true
+    },
+    "plan": {
+      "artifact": "data/raw/real_outputs/gate3_docstrings_operational_v1/v5/algebra_s3/local_collection/efe1ac6c97016db54d940eac97a7863e1c44d733dc225ed4c69407b0591aa782/plan.json",
+      "sha256": "96a40a7af67a68bb2ea960a94b03e55832ed4f505f93165f2b4fb06cd3f5f086",
+      "plan_id": "research_collection_plan_v5:efe1ac6c97016db54d940eac97a7863e1c44d733dc225ed4c69407b0591aa782",
+      "plan_hash": "5b9581d1b382caa28a9443a803516d1e74c1741e25b5c31ed0506cc3b0b21ec1",
+      "problem_count": 40,
+      "expected_invocations": 120,
+      "unique_invocation_ids": 120,
+      "invocations_by_family": {
+        "goedel_formalizer_v2_8b": 40,
+        "kimina_autoformalizer_7b": 40,
+        "stepfun_formalizer_7b": 40
+      },
+      "seeds_by_family": {
+        "goedel_formalizer_v2_8b": [
+          33
+        ],
+        "kimina_autoformalizer_7b": [
+          3
+        ],
+        "stepfun_formalizer_7b": [
+          3
+        ]
+      },
+      "semantic_labels_created": false,
+      "gate_5g_credit_claimed": false,
+      "gate_5_closed": false
+    },
+    "prior_plan_overlap_audit": {
+      "passed": true,
+      "prior_plan_count": 7,
+      "prior_invocation_entries": 549,
+      "prior_unique_invocation_ids": 549,
+      "current_unique_invocation_ids": 120,
+      "overlap_count": 0
+    },
+    "live_execution_observation": {
+      "observed_at": "2026-07-24T04:07:19Z",
+      "collector_process_running": true,
+      "terminal_files_observed": 37,
+      "unique_terminal_invocation_ids_observed": 37,
+      "partial_status_counts": {
+        "raw_collected": 37
+      },
+      "partial_family_counts": {
+        "goedel_formalizer_v2_8b": 37
+      },
+      "all_observed_partials_have_no_semantic_label_or_gate_claim": true,
+      "collection_manifest_present": false,
+      "postprocess_v6_manifest_present": false,
+      "completion_claim_allowed": false
+    },
+    "completion_requirements": [
+      "collector-v5 process exits successfully",
+      "exactly 120 unique terminal artifacts exist and hash-bind through the immutable collection manifest",
+      "raw CUDA-hidden resume is byte invariant",
+      "postprocess-v6 completes or verify-only validates an existing immutable output",
+      "all postprocess terminal and output hashes reconcile",
+      "status counts sum to exactly 120",
+      "no semantic labels, training supervision, Gate 5G credit, or Gate 5 closure are claimed"
+    ]
+  },
+  "implementation_bindings": {
+    "collector_v5": {
+      "artifact": "src/leanfaith/generation/research_collection_v5.py",
+      "sha256": "720f23b7f0ae3c528b9d95cc8e7580421f366d2b7044d74c7f7fd98e0403c56b"
+    },
+    "collector_v5_cli": {
+      "artifact": "scripts/27_collect_research_tranche_v5.py",
+      "sha256": "e9332258836591d959cef101e480a5d3a6e052529cd86ccd402d130b33a3922f"
+    },
+    "postprocess_v6": {
+      "artifact": "src/leanfaith/generation/research_postprocess_v6.py",
+      "sha256": "a5f3fa6ce0da674973c5fbb9d32c7fe5516d65af91b725c20eb7873410c47fc9"
+    },
+    "postprocess_v6_cli": {
+      "artifact": "scripts/28_postprocess_research_tranche_v6.py",
+      "sha256": "fda22e75e0f77fe4156449ef1fd597c950c5641b893ec07eb8b15134f12493de"
+    },
+    "expansion_v2": {
+      "artifact": "src/leanfaith/generation/tranche_expansion_v2.py",
+      "sha256": "2e8a759c1882cb31fb1937c4584bcf258246d62307be09e74bca13446a2f32d0"
+    },
+    "expansion_v2_cli": {
+      "artifact": "scripts/29_plan_lf021_tranche_expansion_v2.py",
+      "sha256": "1594df039748c976d863abc431a60d9aecbfc84b6788659c028ced2c20904f53"
+    }
+  },
+  "validation": {
+    "focused_pytest": {
+      "command": "uv run pytest -q tests/unit/test_lf021_research_collection_v5.py tests/unit/test_lf021_research_postprocess_v6.py tests/unit/test_lf021_tranche_expansion_v2.py",
+      "collected": 26,
+      "passed": 26
+    },
+    "ruff_check": {
+      "passed": true,
+      "files_checked": 9
+    },
+    "ruff_format_check": {
+      "passed": true,
+      "files_checked": 9
+    },
+    "mypy": {
+      "passed": true,
+      "source_files_checked": 6
+    }
+  },
+  "hard_boundaries": {
+    "production_code_changed_by_auditor": false,
+    "documentation_changed_by_auditor": false,
+    "gate_status_changed_by_auditor": false,
+    "commit_created_by_auditor": false,
+    "semantic_labels_inspected": false,
+    "semantic_labels_created": false,
+    "faithfulness_claim": false,
+    "prevalence_claim": false,
+    "supervision_admission_claim": false,
+    "gate_5g_credit_claim": false,
+    "gate_5_closure_claim": false,
+    "cross_domain_s2_artifact_mechanics_claim": true,
+    "algebra_s3_preexecution_authorization_claim": true,
+    "algebra_s3_completion_claim": false
+  },
+  "defects_found": [],
+  "release_recommendation": {
+    "cross_domain_s2": "PASS: collector-v5 and postprocess-v6 are complete, hash-reconciled, byte-stable under CUDA-hidden resume/verify, and unresolved-only.",
+    "algebra_s3_preexecution": "PASS: the exact 120-invocation plan is replayable, selected by the authoritative six-manifest problem-aware v2 decision, operationally authorized by the historical v1 decision required by collector-v5, and has zero invocation overlap with all seven prior plans.",
+    "algebra_s3_completion": "HOLD: do not claim completion or launch downstream postprocess-dependent scientific decisions until the exact 120-terminal manifest and postprocess-v6 outputs receive a separate completion audit."
+  }
+}

@@ -8,6 +8,7 @@ stable-exception escape hatch; there are no silent overrides.
 
 from __future__ import annotations
 
+import subprocess
 from enum import StrEnum
 from pathlib import Path
 
@@ -142,6 +143,44 @@ class EnvironmentLock(StrictModel):
 
 class ToolchainViolation(RuntimeError):
     """Raised when a toolchain violates the §6.2 binding constraint."""
+
+
+def read_git_revision(project_dir: Path) -> str:
+    """Return the immutable revision of a checked-out Git project.
+
+    This is provenance inspection, not a Lean execution path.  Production
+    extraction must never construct a context from a registry pin while
+    actually running a different checkout.
+    """
+
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=project_dir,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+    except (OSError, subprocess.CalledProcessError) as exc:
+        raise ToolchainViolation(f"cannot determine Git revision for {project_dir}: {exc}") from exc
+    revision = result.stdout.strip()
+    if not revision:
+        raise ToolchainViolation(f"empty Git revision for {project_dir}")
+    return revision
+
+
+def check_project_revision(spec: ProjectSpec, project_dir: Path) -> str:
+    """Fail closed when a Git checkout differs from the registry pin."""
+
+    if spec.kind != ProjectKind.GIT:
+        return spec.revision
+    actual = read_git_revision(project_dir)
+    if actual != spec.revision:
+        raise ToolchainViolation(
+            f"project {spec.registry_key}: checkout revision {actual} does not match "
+            f"pinned revision {spec.revision}"
+        )
+    return actual
 
 
 def read_project_toolchain(project_dir: Path) -> LeanVersion:

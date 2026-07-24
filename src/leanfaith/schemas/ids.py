@@ -36,6 +36,8 @@ NL_LEAN_PREFIX = "nllean"
 DRAFT_PREFIX = "draft"
 AUDIT_PREFIX = "audit"
 LLM_CALL_PREFIX = "call"
+LLM_ATTEMPT_PREFIX = "call_attempt"
+PROBLEM_PREFIX = "problem"
 ANNOTATION_PREFIX = "ann"
 
 

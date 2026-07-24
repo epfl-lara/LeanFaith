@@ -134,6 +134,12 @@ class HFProbeConfig(StrictModel):
     nl_trust: NLTrust | None = None
     token: SecretRef | None = None
     external_api_approved: bool | None = None
+    access_basis: str | None = None
+    institutional_policy_status: str | None = None
+    license_status: str | None = None
+    redistribution_allowed: bool | None = None
+    external_transmission_allowed: bool | None = None
+    release_eligibility: bool | None = None
 
 
 class HFDatasetProber:
@@ -193,6 +199,12 @@ class HFDatasetProber:
             sample_hash=sample_hash,
             nl_trust=config.nl_trust,
             external_api_approved=config.external_api_approved,
+            access_basis=config.access_basis,
+            institutional_policy_status=config.institutional_policy_status,
+            license_status=config.license_status,
+            redistribution_allowed=config.redistribution_allowed,
+            external_transmission_allowed=config.external_transmission_allowed,
+            release_eligibility=config.release_eligibility,
         )
         return ProbeOutcome(
             source=config.source,
@@ -277,6 +289,12 @@ def hf_probe_config_from_yaml(paths: RepoPaths, source_name: str) -> HFProbeConf
         nl_trust=NLTrust(nl_trust_raw) if nl_trust_raw else None,
         token=token,
         external_api_approved=raw.get("external_api_approved"),
+        access_basis=raw.get("access_basis"),
+        institutional_policy_status=raw.get("institutional_policy_status"),
+        license_status=raw.get("license_status"),
+        redistribution_allowed=raw.get("redistribution"),
+        external_transmission_allowed=raw.get("external_transmission"),
+        release_eligibility=raw.get("release_eligibility"),
     )
 
 

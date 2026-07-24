@@ -1,0 +1,47 @@
+schema_version: 1
+config_id: real_outputs_v1
+status: disabled_until_phase_5_adr
+problem_pool_config: configs/generation/problem_pool_v1.yaml
+provider_registry: configs/generation/providers.yaml
+generation_enabled: false
+
+# No provider or replay execution is authorized by this checked-in foundation
+# config. A later immutable ADR must pin exact models/revisions, source x
+# provider permissions, prompt/parser versions, and the held-out family.
+execution:
+  external_provider_calls_enabled: false
+  local_provider_calls_enabled: false
+  replay_import_enabled: false
+  allowed_provider_slots: []
+
+prompt:
+  status: disabled
+  template_artifact: null
+  template_version: null
+  parser_version: null
+  strict_machine_parse: true
+
+retry:
+  max_attempts: 3
+  retry_statuses: [empty_response, timeout, provider_error, infrastructure_error]
+  append_only_attempt_artifacts: true
+
+# Full D4 plus a supervision-excluded held-out family requires four successful
+# families: three supervision-eligible and one held out.
+family_policy:
+  full_track_successful_families: 4
+  supervision_eligible_families: 3
+  heldout_families: 1
+  heldout_family: null
+
+safety:
+  private_source_external_transmission: false
+  failed_attempts_retained: true
+  noncompiling_outputs_semantic_pool_eligible: false
+  semantic_labels_created: false
+
+outputs:
+  raw: data/raw/real_outputs/
+  parsed: data/parsed/real_outputs/
+  validated: data/real_outputs/validated/
+  manifest: data/real_outputs/validated/manifest_v1.json

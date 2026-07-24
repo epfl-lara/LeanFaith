@@ -32,9 +32,19 @@ PROPOSITION_KINDS = frozenset({"theorem", "lemma"})
 
 PLACEHOLDER = " := by sorry"
 EXTRACT_NORMALIZATION_VERSION = "repr_v0_extract"
+EXTRACTION_SCHEMA_VERSION = "extract_v2"
 
 
 class ExtractionFailureCode(StrEnum):
+    SOURCE_NON_ELABORATION = "source_non_elaboration"
+    ELABORATING_NO_DECLARATIONS = "elaborating_no_declarations"
+    MISSING_LEAN_FENCE = "missing_lean_fence"
+    AMBIGUOUS_LEAN_FENCE = "ambiguous_lean_fence"
+    IMPORT_FAILURE = "import_failure"
+    TIMEOUT = "timeout"
+    WORKER_CRASH = "worker_crash"
+    UNSUPPORTED_STRUCTURE = "unsupported_structure"
+    DUPLICATE_DECLARATION_NAME = "duplicate_declaration_name"
     NOT_A_PROPOSITION = "not_a_proposition"
     MISSING_SIGNATURE_RANGE = "missing_signature_range"
     ANONYMOUS_DECLARATION = "anonymous_declaration"
@@ -51,6 +61,15 @@ class SourceIdentity:
     source_revision: str
     source_record: str  # file path (repo) or row id (dataset)
     context_id: str
+    source_record_id: str | None = None
+    upstream_uuid: str | None = None
+    raw_row_hash: str | None = None
+    question_hash: str | None = None
+    lean_code_hash: str | None = None
+    extraction_route: str | None = None
+    nl_pair_eligibility: str | None = None
+    question_lean_code_agreement: str | None = None
+    extraction_schema_version: str = EXTRACTION_SCHEMA_VERSION
     source_split: str | None = None
     source_file: str | None = None
     nl_source_link: str | None = None
@@ -63,6 +82,8 @@ class ExtractionFailure:
     declaration_name: str | None
     code: ExtractionFailureCode
     detail: str
+    outcome_level: str = "declaration"
+    extraction_route: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -134,15 +155,19 @@ def _statement_hash(source: str, declaration: dict[str, Any]) -> str:
 
 
 def _build_ids(
-    identity: SourceIdentity, declaration: dict[str, Any], statement_hash: str
+    identity: SourceIdentity,
+    declaration: dict[str, Any],
+    statement_hash: str,
+    declaration_ordinal: int,
 ) -> tuple[str, str]:
     full_name = declaration.get("full_name") or declaration.get("name")
+    source_locator = identity.source_record_id or identity.source_record
     ancestry_id = make_id(
         ANCESTRY_PREFIX,
         {
             "source": identity.source,
             "revision": identity.source_revision,
-            "source_record": identity.source_record,
+            "source_locator": source_locator,
             "declaration": full_name,
         },
     )
@@ -152,9 +177,10 @@ def _build_ids(
             "source": identity.source,
             "revision": identity.source_revision,
             "context_id": identity.context_id,
-            "source_record": identity.source_record,
-            "declaration": full_name,
-            "statement_hash": statement_hash,
+            "source_record_id": source_locator,
+            "declaration_ordinal": declaration_ordinal,
+            "extracted_signature_hash": statement_hash,
+            "extraction_schema_version": identity.extraction_schema_version,
         },
     )
     return theorem_id, ancestry_id
@@ -209,6 +235,7 @@ def build_theorem_record(
     created_at: datetime.datetime,
     lean_result_id: str | None = None,
     diagnostics: tuple[str, ...] = (),
+    declaration_ordinal: int = 0,
 ) -> ExtractedDeclaration | ExtractionFailure:
     """Build the TheoremRecord + minimal RepresentationRecord for one accepted
     source declaration (no parents; derived-variant ancestry is the transform
@@ -235,7 +262,7 @@ def build_theorem_record(
         return ExtractionFailure(identity.source_record, name, code, str(exc))
 
     statement_hash = _statement_hash(source, declaration)
-    theorem_id, ancestry_id = _build_ids(identity, declaration, statement_hash)
+    theorem_id, ancestry_id = _build_ids(identity, declaration, statement_hash, declaration_ordinal)
     decl_range = declaration.get("range") or {}
     source_range = None
     if decl_range:
@@ -252,12 +279,21 @@ def build_theorem_record(
         source_revision=identity.source_revision,
         source_split=identity.source_split,
         source_record=identity.source_record,
+        source_record_id=identity.source_record_id,
+        upstream_uuid=identity.upstream_uuid,
+        raw_row_hash=identity.raw_row_hash,
+        question_hash=identity.question_hash,
+        lean_code_hash=identity.lean_code_hash,
+        extraction_route=identity.extraction_route,
+        nl_pair_eligibility=identity.nl_pair_eligibility,
+        question_lean_code_agreement=identity.question_lean_code_agreement,
         source_file=identity.source_file,
         source_range=source_range,
         context_id=identity.context_id,
         declaration_kind=kind,
         declaration_name=name,
         declaration_full_name=full_name,
+        declaration_ordinal=declaration_ordinal,
         proof_stripped_declaration=proof_stripped,
         lean_result_id=lean_result_id,
         is_proposition=True,
@@ -348,9 +384,18 @@ def extract_from_declarations(
     accepted: list[ExtractedDeclaration] = []
     failures: list[ExtractionFailure] = []
     seen_names = [str(d.get("full_name") or d.get("name") or "") for d in declarations]
-    for declaration in declarations:
+    for declaration_ordinal, declaration in enumerate(declarations):
         kind = str(declaration.get("kind", ""))
         if kind not in accepted_kinds:
+            failures.append(
+                ExtractionFailure(
+                    identity.source_record,
+                    declaration.get("name"),
+                    ExtractionFailureCode.NOT_A_PROPOSITION,
+                    f"declaration kind {kind!r} is not proposition-valued",
+                    extraction_route=identity.extraction_route,
+                )
+            )
             continue
         # Multi-declaration ambiguity: a name appearing twice cannot be
         # unambiguously referenced; quarantine both (§12.3).
@@ -360,7 +405,7 @@ def extract_from_declarations(
                 ExtractionFailure(
                     identity.source_record,
                     declaration.get("name"),
-                    ExtractionFailureCode.ANONYMOUS_DECLARATION,
+                    ExtractionFailureCode.DUPLICATE_DECLARATION_NAME,
                     f"duplicate declaration name {full_name!r}",
                 )
             )
@@ -372,6 +417,7 @@ def extract_from_declarations(
             elaboration_status=elaboration_status,
             created_at=created_at,
             lean_result_id=lean_result_id,
+            declaration_ordinal=declaration_ordinal,
         )
         if isinstance(built, ExtractionFailure):
             failures.append(built)

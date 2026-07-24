@@ -1,0 +1,73 @@
+{
+  "schema_version": 1,
+  "decision_id": "lf_016_authorization",
+  "date": "2026-07-23",
+  "decision": "pass",
+  "evidence": "reports/milestones/post_gate_benchmark_freeze.md",
+  "evidence_sha256": "69ffc580d3ff37b63a6a51494a0ed097600c488abd99f7058c8f7bef2f2bf86a",
+  "prerequisites": {
+    "gate_2": {
+      "path": "reports/gates/gate_2.json",
+      "sha256": "4874318bc44092ddb3afb906b10576adcbdecdebca20324080ae29db454c7638",
+      "decision": "pass"
+    },
+    "gate_3": {
+      "path": "reports/gates/gate_3.json",
+      "sha256": "ef98fe2f3d45b6deb2c80d6c0c80d2f1c1b6b773ac58f08306f34c03faed2f44",
+      "decision": "pass"
+    },
+    "benchmark_representation_freeze": {
+      "manifest_path": "data/benchmarks/manifests/representation_signatures_v1.json",
+      "manifest_sha256": "4ffbd31dd0e10efb9dfe7e57fb815690f3e1d750e4640aeff959ca4cbdc911df",
+      "base_registry_sha256": "f213c1106fe41b0357608101af4d34cbf01e511c4ac54430bcde500eb00e15e4",
+      "active_registry_sha256": "613441d568b51a231efe653a2622d01e1aa5d7b31eb29d6b6f9ff17bbe30feed",
+      "detailed_index_sha256": "591bcda1031995ef0871bb398b32a00681074d92c39525d878fd3427620757a2",
+      "input_manifest_sha256": "02e3d10b9e7c067ff3183dec8d199274fcca1ad8f7041d2bd8fc5dfb70543b25",
+      "code_bundle_sha256": "8b8caafd3bc70810183204b91e1f14f7e54c5dcb0b874cf438e0b46966f15900",
+      "worker_exit_status": 0,
+      "attempted_records": 14534,
+      "persisted_records": 14534,
+      "resolved_benchmarks": [
+        "formalrx_test",
+        "proofnetverif"
+      ]
+    }
+  },
+  "completed_checks": {
+    "all_input_records_have_terminal_records": true,
+    "artifact_schema_valid": true,
+    "retrieval_indexes_reconcile": true,
+    "accounting_reconciles": true,
+    "input_and_output_record_ids_match": true,
+    "phase_2_identity_and_text_fields_preserved": true,
+    "active_registry_hash_verified": true,
+    "detailed_index_hash_verified": true,
+    "representation_signatures_appended": true,
+    "resolved_benchmarks_have_representation_hashes": true,
+    "missing_representations_fail_closed": true,
+    "historical_gate_3_report_preserved": true,
+    "full_test_suite_passed": true,
+    "ruff_passed": true,
+    "ruff_format_passed": true,
+    "mypy_passed": true,
+    "doctor_passed": true
+  },
+  "verification": {
+    "full_test_suite": {
+      "tests": 521,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "junit_uri": "/storage/milikic/leanfaith/gate3/run_rev41_v3/benchmark_signatures/full_test_suite.xml",
+      "junit_sha256": "7f70d3b63a29a9bd2170a355223f64bd02eab98fb4835e9d5de87418039ac872"
+    },
+    "ruff": "pass",
+    "ruff_format": "pass",
+    "mypy": "59 source files, zero issues",
+    "doctor_report_sha256": "587fd3dae6c251c31244deb429d437dc241b94a8695ddb9b0485df7240dca706"
+  },
+  "historical_status_note": "The false lf_016_authorized field in the immutable Gate-3 report records the state at Gate-3 closure. This later decision closes only its named post-gate prerequisite.",
+  "blocking_checks": [],
+  "lf_016_authorized": true,
+  "lf_016_authorization_reason": "Gates 2 and 3 passed, and the hash-verified additive benchmark representation-signature freeze is complete and active."
+}

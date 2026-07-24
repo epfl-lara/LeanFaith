@@ -1,0 +1,1 @@
+Return the final answer as one Lean 4 theorem or lemma declaration in one final Markdown fence labelled `lean4`. Use the registered theorem name. Do not invent a different import context. Explanatory reasoning may precede the final fence, but return no second Lean fence or alternative declaration.

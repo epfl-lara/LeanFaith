@@ -11,3 +11,20 @@ theorem lf_zero_add (n : Nat) : 0 + n = n := Nat.zero_add n
 
 /-- A trivially true proposition (fixture). -/
 theorem lf_trivial : True := trivial
+
+theorem lf_proof_body_a : True := by
+  have proofOnlySentinel : String := "LEANFAITH_PROOF_SENTINEL"
+  trivial
+
+theorem lf_proof_body_b : True := by
+  exact True.intro
+
+/-- Public type used only by the LF-021 offline collection smoke fixture. -/
+inductive LeanFaithLF021OfflineToken : Type where
+  | token
+
+namespace LeanFaithPrivateFixture
+
+private theorem hidden (n : Nat) : n = n := rfl
+
+end LeanFaithPrivateFixture

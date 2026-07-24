@@ -1,0 +1,162 @@
+{
+  "schema_version": 1,
+  "report_kind": "lf021_tranche_expansion_v2_sampling_addendum_v1",
+  "created_at": "2026-07-24T03:40:46Z",
+  "verdict": "PASS_FOR_COLLECTION_DECISIONS_ONLY_FRAME_FREEZE_BLOCKED",
+  "production_code_modified": false,
+  "semantic_labels_inspected": false,
+  "semantic_labels_created": false,
+  "gate_status_changed": false,
+  "triggering_evidence": {
+    "prevalence_audit": {
+      "artifact": "reports/generation/lf021_prevalence_design_estimator_independent_audit_v1.json",
+      "sha256": "e8726260f84965a95bbd288159f0fb0e3acb4585c7654d03887f987769509c9d"
+    },
+    "expansion_v2_audit": {
+      "artifact": "reports/generation/lf021_tranche_expansion_v2_independent_audit_v1.json",
+      "sha256": "f23d31c81f3a85ee8b0c0f1d4fc781928b34972102786c9015be2e89db7eff7d"
+    },
+    "confirmed_finding": "Revision 2 ranks frame units with a checked-in literal salt. This deterministically freezes a subset but does not instantiate the random sampling mechanism required for design-based inclusion probabilities n_h/N_h and exact hypergeometric coverage."
+  },
+  "option_review": {
+    "option_a_mutate_v2": {
+      "recommended": false,
+      "reasons": [
+        "Revision-2 policy and implementation bytes are already frozen and bound into historical collection decisions.",
+        "Mutating revision 2 would change its implementation/configuration hashes, decision IDs, and completed independent-audit bindings.",
+        "The existing b0bb67 decision has action collect_next_tranche and contains no frame, so the sampling defect does not invalidate that collection authorization.",
+        "A frame-only correction can be applied prospectively without rewriting label-blind collection history."
+      ]
+    },
+    "option_b_prospective_v3_frame_freeze_amendment": {
+      "recommended": true,
+      "decision": "ADOPT",
+      "reasons": [
+        "It preserves immutable v1/v2 collection lineage.",
+        "It separates collection stopping and eligible-population construction from the one-time probability sample draw.",
+        "It can bind the actual frozen population and fresh pre-label entropy before any semantic annotation.",
+        "It avoids implying that previously emitted deterministic fixed-salt rankings were probability samples."
+      ]
+    }
+  },
+  "revision_2_scope_after_addendum": {
+    "allowed": [
+      "verify the frozen revision-1 policy and implementation",
+      "load the exact unlabeled observation prefix",
+      "construct problem_group x alpha_identity_fingerprint scientific units",
+      "preserve same-problem duplicate invocation multiplicity",
+      "compute label-blind counts and coverage deficits",
+      "authorize an exact collect_next_tranche decision"
+    ],
+    "not_authorized": [
+      "freeze_preferred_frame",
+      "freeze_reduced_frame",
+      "claim simple random sampling without replacement",
+      "assign design-based inclusion probabilities to a fixed-salt subset",
+      "start semantic annotation from a revision-2 frame",
+      "support exact design-based prevalence reporting"
+    ],
+    "operational_stop_rule": "If revision 2 would emit a frame-freeze action, stop before persistence or annotation and require the prospective revision-3 frame-freeze amendment."
+  },
+  "current_collection_decision": {
+    "decision_id": "lf021_expansion_decision_v2:b0bb67b848e551ea13dfdb16187fb66559863dddff349adc1ac2984dd9d80a6a",
+    "artifact": "reports/generation/lf021_tranche_expansion_v2/decisions/b0bb67b848e551ea13dfdb16187fb66559863dddff349adc1ac2984dd9d80a6a.json",
+    "sha256": "305b535aaf7c89614ae5d1ad6ce06eb44e832a73e4ebb19bd0d76e19a0d0cf85",
+    "action": "collect_next_tranche",
+    "next_tranche": "cross_domain_s2",
+    "frame": null,
+    "remains_valid": true,
+    "gpu_collection_blocked_by_sampling_finding": false
+  },
+  "required_revision_3_frame_freeze_contract": {
+    "scope": "frame_freeze_only",
+    "must_be_frozen_before": [
+      "semantic-label inspection",
+      "human annotation",
+      "LLM judgment used as a semantic label",
+      "frame outcome inspection"
+    ],
+    "required_input_bindings": [
+      "exact revision-2 policy and implementation hashes",
+      "exact final label-blind observation-prefix manifest IDs and hashes",
+      "exact problem-pool record and manifest hashes",
+      "content-addressed eligible-population manifest",
+      "one unique population row per problem_group x alpha_identity_fingerprint",
+      "complete contributor multiplicities and artifact lineage",
+      "frozen stratum definitions, N_h values, target total, and n_h allocation"
+    ],
+    "eligible_population_freeze": {
+      "required": true,
+      "order": "population bytes and population SHA-256 are finalized before entropy is obtained",
+      "post_freeze_filtering": false,
+      "required_identity": "problem_group x alpha_identity_fingerprint",
+      "required_reconciliation": "population rows, stratum totals, contributor multiplicities, and observation-prefix candidates reconcile exactly"
+    },
+    "randomness": {
+      "entropy_bits": 256,
+      "source": "one fresh OS CSPRNG draw with archived provenance, or a precommitted public randomness beacon sampled after the population hash is frozen",
+      "single_draw": true,
+      "redraw_or_seed_selection": false,
+      "required_provenance": [
+        "seed or beacon value",
+        "seed artifact SHA-256",
+        "entropy-source identifier",
+        "draw timestamp",
+        "population SHA-256 committed before draw",
+        "domain-separation/version string",
+        "sampling implementation SHA-256"
+      ]
+    },
+    "selection_algorithm": {
+      "required": "versioned keyed cryptographic rank such as HMAC-SHA-256(seed, domain_separator || stratum || frame_unit_id)",
+      "within_stratum": true,
+      "select": "the n_h lowest unique ranks without replacement",
+      "tie_break": "frame_unit_id",
+      "deterministic_replay_after_seed": true,
+      "inclusion_probability": "n_h/N_h"
+    },
+    "output_bindings": [
+      "population manifest ID, artifact path, SHA-256, and item count",
+      "seed provenance ID, artifact path, and SHA-256",
+      "sampling implementation artifact and SHA-256",
+      "selected frame artifact, SHA-256, and item count",
+      "frame decision ID hashing every preceding binding"
+    ],
+    "immutability": [
+      "a second identical run is byte-identical",
+      "a different seed, population, allocation, implementation, or selected frame cannot overwrite the first decision",
+      "the prevalence estimator consumes and verifies the revision-3 decision/frame binding rather than an unbound JSONL"
+    ],
+    "hard_boundaries": {
+      "semantic_labels_created": false,
+      "supervision_eligible": false,
+      "gate_5g_credit_claimed": false,
+      "gate_5_closed": false
+    }
+  },
+  "statistical_interpretation": {
+    "with_revision_3_random_draw": "Conditional on the frozen stratified design and a correctly implemented one-time random draw, n_h/N_h design weights and exact finite-population hypergeometric inversion are methodologically supportable.",
+    "without_revision_3_random_draw": "Any fixed-salt frame is a deterministic purposive subset. Exact design-based confidence claims must be removed or downgraded to descriptive analysis under an explicitly stated hash-as-random heuristic."
+  },
+  "remaining_prevalence_boundaries": {
+    "frame_freeze_also_requires": [
+      "PREV-B04 frame-row semantic-coherence hardening"
+    ],
+    "real_reporting_also_requires": [
+      "PREV-B02 decision/frame provenance verification by the estimator",
+      "PREV-B03 output-path safety",
+      "PREV-B05 explicit attempted-item accounting",
+      "PREV-B06 single-read input hashing and parsing"
+    ],
+    "effect": "Revision 3 fixes the randomization defect but does not by itself close the other confirmed prevalence-audit blockers."
+  },
+  "recommendation": {
+    "choice": "B",
+    "preserve_revision_2_bytes": true,
+    "preserve_existing_collection_decisions_as_historical": true,
+    "continue_exact_cross_domain_s2_collection": true,
+    "create_revision_3_before_any_frame_freeze": true,
+    "start_annotation_from_revision_2_frame": false,
+    "claim_exact_prevalence_from_revision_2_frame": false
+  }
+}

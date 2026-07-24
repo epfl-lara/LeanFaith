@@ -1,0 +1,105 @@
+{
+  "actual_collection_performed": false,
+  "audit_kind": "lf021_local_research_collection_cross_domain_s2_v5_independent_audit",
+  "audit_version": 1,
+  "audited_at": "2026-07-24T03:26:56Z",
+  "audited_artifacts": {
+    "collector_cli": {
+      "artifact": "scripts/27_collect_research_tranche_v5.py",
+      "sha256": "e9332258836591d959cef101e480a5d3a6e052529cd86ccd402d130b33a3922f"
+    },
+    "collector_module": {
+      "artifact": "src/leanfaith/generation/research_collection_v5.py",
+      "sha256": "720f23b7f0ae3c528b9d95cc8e7580421f366d2b7044d74c7f7fd98e0403c56b"
+    },
+    "collection_config": {
+      "artifact": "configs/generation/local_research_collection_cross_domain_s2_v5.json",
+      "sha256": "8c2084217d8a733932204448be18a440207dcdaadb2a04aa7b3a4dbf71a76022"
+    },
+    "historical_v1_expansion_decision": {
+      "artifact": "reports/generation/lf021_tranche_expansion_v1/decisions/19f4309fd71d69f60af62174ad651bf61b140352f1191c4b639dcb922e333c54.json",
+      "decision_id": "lf021_expansion_decision:19f4309fd71d69f60af62174ad651bf61b140352f1191c4b639dcb922e333c54",
+      "sha256": "2ff4ac91367ea658f618ebec31563dfe01ed3f33a9dcbd62577dbd318fb6ac34"
+    },
+    "historical_v1_expansion_policy": {
+      "artifact": "configs/generation/lf021_tranche_expansion_v1.yaml",
+      "sha256": "0c726e197ef5358ef4a7414e36622c10fb7ff19082199540b62e4bc170834e16"
+    },
+    "preflight": {
+      "artifact": "reports/generation/lf021_local_research_collection_preflight_cross_domain_s2_v5.json",
+      "sha256": "98a45356ea4eb3f65246ca15ce83dc8a2a963ad1c4503d1e53ed3122eb0f7e79"
+    },
+    "source_matrix": {
+      "artifact": "configs/generation/local_research_source_matrix_cross_domain_s2_v5.json",
+      "sha256": "4786eaee4aa3ae422497b37e214b4255595d18381c84462060150bd270cda9d2"
+    }
+  },
+  "checks": {
+    "all_config_artifact_bindings_replayed": true,
+    "collector_v5_cli_hash_matches_config": true,
+    "collector_v5_module_hash_matches_config": true,
+    "cross_domain_pool_contains_exactly_twenty_records": true,
+    "cross_domain_pool_denylist_clear": true,
+    "cross_domain_pool_is_local_model_authorized": true,
+    "cross_domain_pool_is_public_and_release_eligible": true,
+    "cross_domain_pool_is_reference_hidden": true,
+    "current_invocation_ids_are_sorted_and_unique": true,
+    "exactly_sixty_invocations_planned": true,
+    "family_counts_are_twenty_each": true,
+    "gate_5_closed_is_false": true,
+    "gate_5g_credit_claimed_is_false": true,
+    "historical_v1_decision_replays_exact_five_tranche_prefix": true,
+    "historical_v1_decision_selects_cross_domain_s2": true,
+    "historical_v1_decision_uses_no_forbidden_label_inputs": true,
+    "historical_v1_seeds_match_config": true,
+    "no_external_provider_is_eligible": true,
+    "no_gpu_or_provider_execution_performed_by_preflight": true,
+    "no_semantic_gold_or_labels_created": true,
+    "preflight_is_byte_identical_to_in_memory_replay": true,
+    "prior_terminal_artifact_hashes_match_manifests": true,
+    "prior_terminal_invocation_ids_are_unique": true,
+    "sixty_current_ids_have_zero_overlap_with_489_prior_ids": true
+  },
+  "execution": {
+    "collector_v5_preflight_execution_ready": true,
+    "expected_root": "data/raw/real_outputs/cross_domain_docstrings_operational_v1/v5/cross_domain_s2/local_collection/9b3a912f2f98908eb31eba25d58e1df8f737a7aba48d042a50f69697c3209279",
+    "expected_root_absent_at_audit": true,
+    "gpu_execution_authorized_by_this_audit": false,
+    "hold_reason": "The corrected problem-group-plus-alpha expansion-v2 five-prefix replay must be frozen, hash-bound, and independently checked before GPU execution. The historical v1 decision remains valid authorization evidence but is not sufficient to bypass that prospective hold.",
+    "otherwise_ready": true,
+    "status": "hold_pending_v2_five_prefix_replay"
+  },
+  "historical_overlap_audit": {
+    "current_invocation_count": 60,
+    "current_unique_invocation_count": 60,
+    "overlap_count": 0,
+    "prior_manifest_terminal_counts": [
+      9,
+      120,
+      60,
+      120,
+      60,
+      120
+    ],
+    "prior_total_invocation_count": 489,
+    "prior_unique_invocation_count": 489
+  },
+  "plan": {
+    "family_invocation_counts": {
+      "goedel_formalizer_v2_8b": 20,
+      "kimina_autoformalizer_7b": 20,
+      "stepfun_formalizer_7b": 20
+    },
+    "plan_hash": "69ec7902124e9e03777e6977d9c7e3056ec3f5559394361f16e5b2d2554f08df",
+    "plan_id": "research_collection_plan_v5:9b3a912f2f98908eb31eba25d58e1df8f737a7aba48d042a50f69697c3209279",
+    "problem_count": 20,
+    "seed_by_family": {
+      "goedel_formalizer_v2_8b": 32,
+      "kimina_autoformalizer_7b": 2,
+      "stepfun_formalizer_7b": 2
+    }
+  },
+  "semantic_labels_created": false,
+  "status": "PASS_WITH_EXECUTION_HOLD",
+  "supervision_admission_created": false
+}

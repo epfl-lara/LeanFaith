@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import datetime
 import re
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import Field, model_validator
 
@@ -28,6 +28,11 @@ from leanfaith.schemas.ids import (
     id_pattern,
 )
 from leanfaith.schemas.manifest import require_utc
+from leanfaith.schemas.migrations import (
+    CURRENT_RECORD_SCHEMA_VERSION,
+    LEGACY_RECORD_SCHEMA_VERSION,
+    migrate_legacy_relation,
+)
 from leanfaith.schemas.variant import FAMILY_ID_PATTERN, _check_ecodes
 
 MetadataValue = str | int | float | bool | None
@@ -75,10 +80,24 @@ class ClaimAlignmentValue(StrictModel):
 class CounterexampleValue(StrictModel):
     kind: Literal["counterexample"] = "counterexample"
     outcome: Literal["found", "not_found", "unsupported"]
+    direction: Literal["A_to_B", "B_to_A", "equivalence_only"]
     domain: str | None = None
     encoding: str | None = None
     witness_artifact: str | None = None
     axioms: tuple[str, ...] = ()
+
+    @model_validator(mode="after")
+    def _counterexample_certificate_shape(self) -> CounterexampleValue:
+        if self.outcome == "found":
+            if not self.domain or not self.encoding or not self.witness_artifact:
+                raise ValueError(
+                    "found counterexample evidence requires domain, encoding, and witness"
+                )
+        elif self.witness_artifact is not None or self.axioms:
+            raise ValueError(
+                "not_found/unsupported counterexample outcomes cannot carry a certificate"
+            )
+        return self
 
 
 class JudgmentValue(StrictModel):
@@ -95,10 +114,9 @@ class JudgmentValue(StrictModel):
             "equivalent",
             "A_stronger",
             "B_stronger",
-            "incomparable_near_miss",
+            "incomparable",
             "unrelated",
             "ambiguous",
-            "unknown",
         ]
         | None
     ) = None
@@ -162,7 +180,7 @@ _PAIR_ONLY_KINDS = frozenset(
 class EvidenceRecord(StrictModel):
     """One evidence observation about one target (§11.7)."""
 
-    schema_version: int = 1
+    schema_version: Literal[2] = CURRENT_RECORD_SCHEMA_VERSION
     evidence_id: str = Field(pattern=id_pattern(EVIDENCE_PREFIX))
     target_kind: EvidenceTargetKind
     target_id: str
@@ -175,6 +193,28 @@ class EvidenceRecord(StrictModel):
     created_at: datetime.datetime
     metadata: dict[str, MetadataValue] = Field(default_factory=dict)
 
+    @model_validator(mode="before")
+    @classmethod
+    def _migrate_v1(cls, value: Any) -> Any:
+        if not isinstance(value, dict) or value.get("schema_version") != 1:
+            return value
+        data = dict(value)
+        evidence_value = data.get("value")
+        metadata = dict(data.get("metadata", {}))
+        if isinstance(evidence_value, dict) and evidence_value.get("kind") == "judgment":
+            nested = dict(evidence_value)
+            legacy_relation = nested.get("relation")
+            relation, provenance = migrate_legacy_relation(legacy_relation)
+            nested["relation"] = relation
+            data["value"] = nested
+            metadata["legacy_relation"] = str(legacy_relation)
+            if provenance:
+                metadata["near_miss"] = True
+        metadata["source_schema_version"] = LEGACY_RECORD_SCHEMA_VERSION
+        data["metadata"] = metadata
+        data["schema_version"] = CURRENT_RECORD_SCHEMA_VERSION
+        return data
+
     @model_validator(mode="after")
     def _consistent(self) -> EvidenceRecord:
         require_utc(self.created_at)
@@ -186,8 +226,20 @@ class EvidenceRecord(StrictModel):
             )
         if self.status == EvidenceExecutionStatus.SUCCESS and self.value is None:
             raise ValueError("successful evidence must carry a value (§11.7)")
-        if self.status == EvidenceExecutionStatus.NOT_RUN and self.value is not None:
-            raise ValueError("not_run evidence cannot carry a value")
+        if (
+            self.status
+            in {
+                EvidenceExecutionStatus.NOT_RUN,
+                EvidenceExecutionStatus.TIMEOUT,
+                EvidenceExecutionStatus.ERROR,
+                EvidenceExecutionStatus.ABSTAIN,
+            }
+            and self.value is not None
+        ):
+            raise ValueError(
+                f"{self.status.value} evidence cannot carry a semantic value; "
+                "timeouts, failures, and policy rejection remain unknown (§16.2)"
+            )
         if self.value is not None:
             expected = _KIND_TO_VALUE_TYPE[self.kind]
             if not isinstance(self.value, expected):
@@ -195,6 +247,27 @@ class EvidenceRecord(StrictModel):
                     f"evidence kind {self.kind} requires value type {expected.__name__}, "
                     f"got {type(self.value).__name__}"
                 )
+        if self.status == EvidenceExecutionStatus.UNSUPPORTED:
+            if isinstance(self.value, ClaimAlignmentValue):
+                if self.value.outcome != "unsupported":
+                    raise ValueError(
+                        "unsupported claim-alignment evidence must have outcome=unsupported"
+                    )
+            elif isinstance(self.value, CounterexampleValue):
+                if self.value.outcome != "unsupported":
+                    raise ValueError(
+                        "unsupported counterexample evidence must have outcome=unsupported"
+                    )
+            elif self.value is not None:
+                raise ValueError(
+                    "unsupported evidence may carry only an explicit unsupported "
+                    "claim-alignment or counterexample value"
+                )
+        if self.status == EvidenceExecutionStatus.SUCCESS:
+            if isinstance(self.value, ClaimAlignmentValue) and self.value.outcome == "unsupported":
+                raise ValueError("claim-alignment outcome=unsupported requires status=unsupported")
+            if isinstance(self.value, CounterexampleValue) and self.value.outcome == "unsupported":
+                raise ValueError("counterexample outcome=unsupported requires status=unsupported")
         if self.kind in _PAIR_ONLY_KINDS and self.target_kind != EvidenceTargetKind.LEAN_PAIR:
             raise ValueError(
                 f"evidence kind {self.kind} compares two sides and requires a lean_pair "

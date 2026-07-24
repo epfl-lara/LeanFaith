@@ -1,0 +1,13 @@
+schema_version: 1
+rule_id: p02_binders
+rule_version: 1.0.0
+family_id: p02_binders
+implementation_key: p02_binders
+candidate_pool: deterministic_positive_provisional
+supported_declaration_kinds: [lemma, theorem]
+supported_binder_kinds: [explicit, implicit, strict_implicit]
+instance_regroup_enabled: false
+currying_enabled: false
+require_exact_round_trip: true
+require_alpha_identity: true
+require_dependency_graph_identity: true

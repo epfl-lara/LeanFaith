@@ -20,9 +20,12 @@ candidate is evaluated against:
   explicitly marked; HIDE generator, transformation, intention, prior votes, split, and
   model scores.
 - **Schema (18.5):** `same_claim` (4-way including `cannot_assess_yet`), `relation`
-  (7-way), `error_types` (E01-E30 multi-label per `policies/error_ontology_v1.yaml`),
+  (6 terminal classes: equivalent, A stronger, B stronger, incomparable, unrelated,
+  or ambiguous), `error_types` (E01-E30 multi-label per
+  `policies/error_ontology_v1.yaml`),
   `confidence` (1-5), `rationale` (required for not-same/ambiguous), `reference_issue`
-  (3-way). `cannot_assess_yet` must route to unresolved review, not terminal ambiguity.
+  (3-way). `cannot_assess_yet` has `relation=null` and must route to unresolved
+  review, not become a semantic relation or terminal ambiguity.
 - **Protocol (18.6):** two independent expert labels with no discussion before first
   labels; adjudication of disagreement/low-confidence/policy triggers; raw labels and
   rationales preserved; versioned guideline attached to every label; agreement

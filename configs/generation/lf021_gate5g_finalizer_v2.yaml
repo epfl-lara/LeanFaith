@@ -1,0 +1,61 @@
+schema_version: 2
+policy_id: lf021_extended_gate5g_finalizer_v2
+status: frozen_prelabel
+
+# This policy consumes the distinct post-exhaustion schemas.  It never
+# re-identifies the extension stop as a v2 stop or the extended frame as v3.
+frame_materializer_policy:
+  artifact: configs/generation/lf021_post_exhaustion_frame_v1.yaml
+  sha256: f404e4a1cf62858171774541bab80fe1ccd13f45c9a136c08d9976e36ca280c1
+frame_materializer_implementation:
+  artifact: src/leanfaith/generation/post_exhaustion_frame_v1.py
+  sha256: 732bbcbf2a042cc90dff361515225faef75bcfe0df1f63279b8307e6ea032e47
+prevalence_design_v3:
+  artifact: policies/lf021_prevalence_design_v3.yaml
+  sha256: d00e096cf6c49224ffa45fc236f872daa57c0adcafe3f3fec4ffa39781a79504
+prevalence_design_v3_implementation:
+  artifact: src/leanfaith/evaluation/prevalence_design_v3.py
+  sha256: 7273236742e4fb69d5aba7e7ddd6f391214ddbf8faf356f82595d91f50daa78a
+lineage_builder_implementation:
+  artifact: src/leanfaith/generation/post_exhaustion_gate5g_lineage_v1.py
+  sha256: 393f1ea8cedbdbcdca67d4ff551840ad4c2c079941466e6bc7e2c56f34ac8692
+
+required_prevalence_design_policy_id: lf021_prevalence_design_v3
+required_frame_policy_id: lf021_post_exhaustion_frame_materializer_v1
+required_source_stop_action: preferred_eligible_stop
+required_action: freeze_preferred_frame
+required_original_observation_count: 12
+minimum_extension_observation_count: 1
+maximum_extension_observation_count: 4
+required_frame_size: 240
+required_sampling_method: problem_aware_stratified_csprng_srs_without_replacement_v2
+required_sampling_rank_algorithm: hmac_sha256_keyed_rank_v1
+allowed_production_seed_sources:
+  - external_randomness_beacon_256
+  - os_csprng_secrets_token_bytes_256
+
+required_scalable_family_ids:
+  - goedel_formalizer_v2_8b
+  - kimina_autoformalizer_7b
+  - stepfun_formalizer_7b
+
+required_scope_flags:
+  three_family_collection_only: true
+  reduced_data_ablation: true
+  confirmatory_d4_d5_eligible: false
+  heldout_generator_claim_eligible: false
+  supplemental_qualifications_count_for_gate_credit: false
+
+required_reduced_data_reasons:
+  - confirmatory_d4_d5_unavailable
+  - heldout_generator_claim_unavailable
+  - three_family_collection_only
+
+dry_run_output_root: reports/generation/lf021_extended_gate5g_finalization_v2
+canonical_gate_report: reports/gates/gate_5g.json
+
+semantic_labels_inspected_when_frozen: false
+semantic_labels_created: false
+supervision_eligible: false
+remote_provider_content_used: false
+gate_5_closed: false

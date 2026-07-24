@@ -1,0 +1,112 @@
+{
+  "audit_kind": "lf021_tranche_expansion_v1_problem_identity_audit",
+  "audit_version": 1,
+  "audited_at": "2026-07-24T03:06:01Z",
+  "result": "confirmed_blocker_before_prevalence_frame_freeze",
+  "scope": {
+    "semantic_labels_inspected": false,
+    "semantic_labels_created": false,
+    "frozen_v1_mutated": false,
+    "active_collection_stopped": false
+  },
+  "bindings": {
+    "implementation": {
+      "artifact": "src/leanfaith/generation/tranche_expansion.py",
+      "sha256": "33078832be9131cc85f7ac10e0e4da6374c768ffb6a0e4829a71b4e8f7fcbc67"
+    },
+    "policy": {
+      "artifact": "configs/generation/lf021_tranche_expansion_v1.yaml",
+      "sha256": "0c726e197ef5358ef4a7414e36622c10fb7ff19082199540b62e4bc170834e16"
+    },
+    "tests": {
+      "artifact": "tests/unit/test_lf021_tranche_expansion.py",
+      "sha256": "03acb9f06dfb84f14a54775d8be05455dee420ac1cfd1b11de477e8bc3b371d0"
+    },
+    "candidate_screening": {
+      "artifact": "src/leanfaith/generation/candidate_screening.py",
+      "sha256": "3809bbe242d5bbf56ec7d321cc12e7d056f90d6126f2af026f9731aa87439c2f"
+    },
+    "shared_postprocess": {
+      "artifact": "src/leanfaith/generation/research_postprocess_v3.py",
+      "sha256": "aa8415663187b99558df25889df4809dd24d673515500dc21882e1a2e9e103e9"
+    },
+    "plan_snapshot": {
+      "artifact": "PLAN.md",
+      "sha256": "3161809665974ee7d8b4049ce3e504a7e297e5509cc4ab33a8f5c55e1e5f3df0"
+    },
+    "four_tranche_decision": {
+      "artifact": "reports/generation/lf021_tranche_expansion_v1/decisions/024550993e73ef6532a29d0ec1a029b90c74de796e2863a99bde1c9405857365.json",
+      "sha256": "ba53146b4a2d86dcddb6fe1bd4b31a60aeff20ceb0943ffcb5ded752fd3190d3",
+      "decision_id": "lf021_expansion_decision:024550993e73ef6532a29d0ec1a029b90c74de796e2863a99bde1c9405857365"
+    }
+  },
+  "confirmed_code_behavior": {
+    "cluster_key": "alpha_identity_fingerprint_only",
+    "cluster_code_lines": "src/leanfaith/generation/tranche_expansion.py:932-975",
+    "frame_problem_behavior": "the frame retains only the hash-selected representative_problem_record_id even when a cluster could contain members from distinct problems",
+    "frame_code_lines": "src/leanfaith/generation/tranche_expansion.py:1127-1221",
+    "coverage_behavior": "one cross-problem alpha cluster can credit every contributing family, pool, and source proxy while counting as one frame unit",
+    "coverage_code_lines": "src/leanfaith/generation/tranche_expansion.py:1007-1017",
+    "candidate_screening_behavior": "PriorCandidateIdentity has no problem identity and duplicate comparison uses alpha alone",
+    "candidate_screening_code_lines": "src/leanfaith/generation/candidate_screening.py:20-24,40-75",
+    "postprocess_recovery_behavior": "materialization is persisted before global screening and screen-rejected terminals retain their materialization and screening hashes",
+    "postprocess_recovery_code_lines": "src/leanfaith/generation/research_postprocess_v3.py:1352-1429,1508-1567",
+    "expansion_loader_recovery_behavior": "the expansion loader consumes every screening-executed benchmark-clear candidate, including duplicate-screen-rejected candidates, from immutable terminal artifacts",
+    "expansion_loader_recovery_code_lines": "src/leanfaith/generation/tranche_expansion.py:856-904",
+    "test_encodes_global_cross_problem_collapse": "tests/unit/test_lf021_tranche_expansion.py:250-282"
+  },
+  "plan_evidence": {
+    "dedup_requirement": "PLAN.md:2005-2008 requires deduplication by raw/headless/alpha/problem IDs",
+    "prevalence_target": "PLAN.md:2043-2051 defines a human-labeled sample across generator/domain from compiling candidates",
+    "phase_task": "PLAN.md:2898-2908 requires candidate-reference records before freezing the human prevalence sampling frame"
+  },
+  "four_tranche_label_blind_replay": {
+    "candidate_members": 62,
+    "global_alpha_unique_units": 56,
+    "problem_record_and_alpha_unique_units": 56,
+    "problem_group_and_alpha_unique_units": 56,
+    "global_alpha_duplicate_members": 6,
+    "problem_record_and_alpha_duplicate_members": 6,
+    "problem_group_and_alpha_duplicate_members": 6,
+    "current_pool_problem_record_count": 60,
+    "current_pool_problem_group_count": 60,
+    "cross_problem_alpha_clusters": 0,
+    "action_under_frozen_v1": "collect_next_tranche",
+    "next_tranche_under_frozen_v1": "algebra_s2",
+    "ordering_effect": "none_on_this_exact_prefix"
+  },
+  "statistical_consequence": {
+    "target_unit": "candidate_statement_conditioned_on_its_NL_problem_or_problem_group",
+    "failure_mode": "the same Lean statement can be faithful for one problem and unfaithful for another, so a global statement cluster is not a label-homogeneous prevalence unit",
+    "frame_bias": "cross-problem collapse gives discarded problem-conditioned candidates zero frame inclusion probability and makes stratum population sizes and inclusion propensities target the wrong population",
+    "coverage_risk": "a single global cluster can satisfy multiple source-proxy coverage cells despite yielding only one representative problem in the frame",
+    "estimand_followup": "the plan must state whether prevalence targets unique candidate-problem units or generator-call outputs; representative-family strata support the former only and must not be presented as per-generator call prevalence without a separate design"
+  },
+  "recommended_fix": {
+    "versioning": "leave v1 immutable; add tranche-expansion policy, implementation, decisions, frame records, and collector authorization under v2 or successor versions",
+    "dedup_key": [
+      "problem_group",
+      "alpha_identity_fingerprint"
+    ],
+    "required_lineage": [
+      "problem_group",
+      "representative_problem_record_id",
+      "contributing_problem_record_ids"
+    ],
+    "required_tests": [
+      "same alpha and same problem_group collapses",
+      "same alpha and different problem_group remains two units",
+      "swap and observation order do not affect clusters",
+      "each frame item is label-homogeneous by problem_group",
+      "the exact four-manifest prefix replays to 56 units and algebra_s2"
+    ],
+    "active_run_disposition": "allow algebra_s2 raw collection to finish; do not use a v1 decision to freeze the prevalence frame or authorize the next tranche",
+    "generation_replay_required": false,
+    "offline_reprocessing_note": "immutable postprocess terminals retain parsed/materialized representations and screening records for screen-executed candidates, so v2 can replay them without new model calls; a versioned problem-conditioned re-admission step is required if an intra-tranche cross-problem duplicate was previously screen-rejected and lacks PairRecord/NLPLeanRecord artifacts"
+  },
+  "gate_effect": {
+    "gate_5g_closed": false,
+    "gate_5_closed": false,
+    "may_close_gate": false
+  }
+}

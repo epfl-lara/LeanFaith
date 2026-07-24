@@ -1,0 +1,112 @@
+# Separately versioned, model-free operational curation of the 24 candidates
+# selected by the cross-domain feasibility probe.  Admission is fail-closed:
+# explicit exclusions are not backfilled to satisfy per-proxy quotas.
+source_config_version: 1
+source: mathlib_cross_domain_docstrings_operational_v1
+kind: git_curated_docstrings
+repo_url: https://github.com/leanprover-community/mathlib4
+revision: d568c8c09630de097a046763c17b9ea99f95f950
+tag: v4.31.0-rc1
+license: Apache-2.0
+license_blob_sha1: 8dada3edaf50dbc082c9a125058f25def75e625a
+
+lf021_authorization:
+  source_revision: d568c8c09630de097a046763c17b9ea99f95f950
+  license_id: Apache-2.0
+  private_source: false
+  external_transmission: true
+  release_eligible: true
+
+feasibility_input:
+  config:
+    path: configs/generation/problem_pool_cross_domain_mathlib_docstrings_probe_v1.yaml
+    sha256: 7876e3e30f2561294e1392de5ea637ee7cd1f03ecebbf1303bae9b8950b03de1
+  report:
+    path: reports/generation/lf021_cross_domain_mathlib_docstring_feasibility_v1.json
+    sha256: 774046958e8d6311fb9a6cc0cbef9ebba0e2b46fc0cd564edc6b4550bae5c846
+  manifest:
+    path: /storage/milikic/leanfaith/lf021/cross_domain_mathlib_docstring_feasibility_v1/manifest.json
+    sha256: 7fe846e52547322e7f21386db168121a411a0b64b2975c44e4ce2cc93ab90fc1
+  selected_candidates:
+    path: /storage/milikic/leanfaith/lf021/cross_domain_mathlib_docstring_feasibility_v1/selected_candidates.jsonl
+    sha256: 2b5435fe3e4056be739d2d1a03b9f7a04a5dbc4ee7f4bf88ceeb3d1b76e0af22
+  expected_reviewed: 24
+  expected_domain_proxies:
+    - Analysis
+    - Combinatorics
+    - Geometry
+    - NumberTheory
+    - Probability
+    - Topology
+
+operational_curation:
+  reviewer_type: codex_agent
+  review_method: explicit_fail_closed_operational_curation_v1
+  default_decision: standalone_sufficient
+  default_reason_code: standalone_mathematical_claim
+  exclusions:
+    - candidate_id: cross_domain_candidate:71c20927b8e9cc5c5c9e59b236a4cb85161712e28de0ded56250219ffdbd7ecb
+      declaration_full_name: GeneralSchauderBasis.proj_apply_basis_mem
+      reason_code: incomplete_title_like_docstring
+      rationale: The docstring names an action but does not state its result, so it is not a standalone translation prompt.
+    - candidate_id: cross_domain_candidate:8a7a71e64ea7022fded9471668d55e51a26b3fbd316f8232a13e6cee43d4982e
+      declaration_full_name: Affine.Triangle.eq_excenter_singleton_of_oangle_eq_add_pi_of_oangle_eq_add_pi
+      reason_code: malformed_model_visible_headless_view
+      rationale: The headless view contains a serialized syntax AST rather than a Lean theorem signature.
+    - candidate_id: cross_domain_candidate:301f524f87fd081578442c9ed5f9071518cd35afb4e7cd45b188529d1f5d83b5
+      declaration_full_name: ProbabilityTheory.avgRisk_const_right'
+      reason_code: referential_docstring
+      rationale: The docstring only points to another theorem and does not state this claim.
+    - candidate_id: cross_domain_candidate:b624eab8a2fa4f1d6bba39c36af8e08e2a1764ce298f5bd58d2b0ba35b8bb558
+      declaration_full_name: ProbabilityTheory.bayesRisk_le_iInf
+      reason_code: referential_docstring
+      rationale: The docstring only points to another theorem and does not state this claim.
+  expected_admitted: 20
+  expected_excluded: 4
+
+canonical_context:
+  context:
+    path: data/extracted/contexts/0cd06826b8767b3bc951c0eb00c802424af95785b558f9f8a61f18694a86c4ce.json
+    sha256: d08d78779f9a3ea7c9c1779c982cc8359a309c94de2ea0b4c2c5a3df85ff51fc
+  import_header:
+    path: examples/lf021_public_research_mathlib_header_v1.lean
+    sha256: 1015f8f4676a27ea63780b30cc916712232857097b2bdf635dc61cb949c107fb
+  project_registry_key: mathlib
+  context_id: ctx:0cd06826b8767b3bc951c0eb00c802424af95785b558f9f8a61f18694a86c4ce
+  environment_schema_version: 1
+
+screening:
+  active_benchmark_registry_manifest:
+    path: data/benchmarks/manifests/representation_signatures_v1.json
+    sha256: 4ffbd31dd0e10efb9dfe7e57fb815690f3e1d750e4640aeff959ca4cbdc911df
+  rerun_problem_identity_and_nl: true
+  rerun_reference_lean: true
+  rerun_reference_representation: true
+  exact_normalized_nl_deduplication: true
+  supplied_ancestry_deduplication: true
+
+policy:
+  nl_trust: trusted
+  nl_trust_semantics: human_authored_provenance_only
+  domain_proxy_method: mathlib_source_path_first_segment_v1
+  domain_proxy_is_semantic_gold: false
+  cross_domain_proxy_coverage_established: true
+  semantic_domain_gold_created: false
+  model_collection_authorized: true
+  model_collection_scope: local_models_only
+  external_provider_collection_authorized: false
+  reference_visible_to_generator: false
+  human_review_claimed: false
+  semantic_labels_created: false
+  gate_claimed: false
+  model_execution_performed: false
+  generator_collection_plan_created: false
+
+outputs:
+  root: data/parsed/real_outputs/cross_domain_docstrings_operational_v1
+  records: data/parsed/real_outputs/cross_domain_docstrings_operational_v1/problem_pool_records.jsonl
+  failures: data/parsed/real_outputs/cross_domain_docstrings_operational_v1/problem_pool_failures.jsonl
+  manifest: data/parsed/real_outputs/cross_domain_docstrings_operational_v1/problem_pool_manifest.json
+  report: reports/generation/lf021_cross_domain_docstrings_operational_pool_v1.json
+  adequacy_report: reports/generation/lf021_cross_domain_docstrings_operational_source_adequacy_v1.json
+  adequacy_markdown: reports/generation/lf021_cross_domain_docstrings_operational_source_adequacy_v1.md

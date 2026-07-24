@@ -1,0 +1,88 @@
+{
+  "schema_version": 1,
+  "source": "mathlib_post_formalrx_docstrings_v1",
+  "repository": "https://github.com/leanprover-community/mathlib4",
+  "source_snapshot_revision": "c368140668f5fa16a1bd977448c1f665d48c3df4",
+  "formalrx_v1_submission_cutoff": "2026-07-06T00:00:00+00:00",
+  "frozen_at": "2026-07-23T21:58:39+00:00",
+  "records": [
+    {
+      "problem_id": "mathlib-post-formalrx-real-sin-ge-sub-cube-v1",
+      "original_declaration_name": "Real.sin_ge_sub_cube",
+      "generated_declaration_name": "lf021_public_research_sin_ge_sub_cube_v1",
+      "introduction_commit": "1082fe00c1d9aef84df818af79102460ba04ff85",
+      "introduction_commit_date": "2026-07-07T23:35:25+00:00",
+      "introduction_author": "Bhavik Mehta",
+      "source_path": "Mathlib/Analysis/SpecialFunctions/Trigonometric/Bounds.lean",
+      "source_blob_sha1": "561dc570aa772dcae8549f5ec45d7aa86d533f9a",
+      "formalrx_source_lineage_tag": "mathlib_docstring_theorem_pairs",
+      "temporal_provenance": "post_submission_commit",
+      "pretraining_contamination_status": "unknown",
+      "docstring_block": "/-- For 0 ≤ x we have x - x ^ 3 / 6 ≤ sin x.\n\nThis inequality is tight, in that the constant 6 is best possible. -/",
+      "nl_claim_span": "For 0 ≤ x we have x - x ^ 3 / 6 ≤ sin x.",
+      "nl_claim_selection": "exact_contiguous_claim_span_from_contributor_docstring",
+      "nl_statement_normalization": "markdown_delimiters_removed_and_whitespace_collapsed_v1",
+      "nl_statement": "For 0 ≤ x we have x - x ^ 3 / 6 ≤ sin x.",
+      "source_signature_anchor": "theorem sin_ge_sub_cube {x : ℝ} (hx : 0 ≤ x) : x - x ^ 3 / 6 ≤ Real.sin x := by",
+      "reference_statement": "theorem lf021_public_research_sin_ge_sub_cube_v1 {x : ℝ} (hx : 0 ≤ x) : x - x ^ 3 / 6 ≤ Real.sin x := by sorry",
+      "reference_derivation": "manual_namespace_and_section_expansion_from_source_signature",
+      "reference_equivalence_to_source_status": "textually_derived_cross_elaborated_not_kernel_compared_across_snapshot",
+      "domain": "real_analysis",
+      "near_duplicate_group_ids": [
+        "near-dup:mathlib:Real.sin_ge_sub_cube"
+      ]
+    },
+    {
+      "problem_id": "mathlib-post-formalrx-closed-interval-fixed-point-v1",
+      "original_declaration_name": "exists_mem_Icc_isFixedPt_of_surjOn",
+      "generated_declaration_name": "lf021_public_research_fixed_point_surjOn_v1",
+      "introduction_commit": "4de1b93c2153bdf5cdd365ef57af14905150446a",
+      "introduction_commit_date": "2026-07-10T22:03:58+00:00",
+      "introduction_author": "Francesco Vercellesi",
+      "source_path": "Mathlib/Topology/Order/IntermediateValue.lean",
+      "source_blob_sha1": "843b1fb9c18b9b29537881aac1c7e448d66a5a75",
+      "formalrx_source_lineage_tag": "mathlib_docstring_theorem_pairs",
+      "temporal_provenance": "post_submission_commit",
+      "pretraining_contamination_status": "unknown",
+      "docstring_block": "/-- If a closed interval is contained in its own image under a continuous map `f : α → α`,\nthen this map has a fixed point on this interval. -/",
+      "nl_claim_span": "If a closed interval is contained in its own image under a continuous map `f : α → α`,\nthen this map has a fixed point on this interval.",
+      "nl_claim_selection": "exact_contiguous_claim_span_from_contributor_docstring",
+      "nl_statement_normalization": "markdown_delimiters_removed_and_whitespace_collapsed_v1",
+      "nl_statement": "If a closed interval is contained in its own image under a continuous map f : α → α, then this map has a fixed point on this interval.",
+      "source_signature_anchor": "theorem exists_mem_Icc_isFixedPt_of_surjOn {a b : α} {f : α → α} (hf : ContinuousOn f (Icc a b))\n    (hle : a ≤ b) (h_surj : SurjOn f (Icc a b) (Icc a b)) : ∃ c ∈ Icc a b, IsFixedPt f c :=",
+      "reference_statement": "theorem lf021_public_research_fixed_point_surjOn_v1\n    {α : Type*} [ConditionallyCompleteLinearOrder α] [TopologicalSpace α]\n    [OrderTopology α] [DenselyOrdered α] {a b : α} {f : α → α}\n    (hf : ContinuousOn f (Set.Icc a b)) (hle : a ≤ b)\n    (h_surj : Set.SurjOn f (Set.Icc a b) (Set.Icc a b)) :\n    ∃ c ∈ Set.Icc a b, Function.IsFixedPt f c := by sorry",
+      "reference_derivation": "manual_namespace_and_section_expansion_from_source_signature",
+      "reference_equivalence_to_source_status": "textually_derived_cross_elaborated_not_kernel_compared_across_snapshot",
+      "domain": "topology_order",
+      "near_duplicate_group_ids": [
+        "near-dup:mathlib:exists_mem_Icc_isFixedPt_of_surjOn"
+      ]
+    },
+    {
+      "problem_id": "mathlib-post-formalrx-integral-test-summable-v1",
+      "original_declaration_name": "AntitoneOn.summable_of_integrableOn_Ioi",
+      "generated_declaration_name": "lf021_public_research_integral_test_summable_v1",
+      "introduction_commit": "87a6eccfb8c6cd5dfe4ebb2fc8178b697ac18cd0",
+      "introduction_commit_date": "2026-07-07T20:01:49+00:00",
+      "introduction_author": "ajirving",
+      "source_path": "Mathlib/Analysis/SumIntegralComparisons.lean",
+      "source_blob_sha1": "16026e45f2abf3f3becf42b15333505255bd6315",
+      "formalrx_source_lineage_tag": "mathlib_docstring_theorem_pairs",
+      "temporal_provenance": "post_submission_commit",
+      "pretraining_contamination_status": "unknown",
+      "docstring_block": "/-- **Integral test**: A function which is nonnegative, integrable and antitone\nfor sufficiently large `n` is summable. -/",
+      "nl_claim_span": "**Integral test**: A function which is nonnegative, integrable and antitone\nfor sufficiently large `n` is summable.",
+      "nl_claim_selection": "exact_contiguous_claim_span_from_contributor_docstring",
+      "nl_statement_normalization": "markdown_delimiters_removed_and_whitespace_collapsed_v1",
+      "nl_statement": "Integral test: A function which is nonnegative, integrable and antitone for sufficiently large n is summable.",
+      "source_signature_anchor": "theorem AntitoneOn.summable_of_integrableOn_Ioi {N : ℕ} (anti : AntitoneOn f (Ici (N : ℝ)))\n    (integrable : IntegrableOn f (Ioi (N : ℝ))) (nonneg : ∀ t ∈ Ioi (N : ℝ), 0 ≤ f t) :\n    Summable (fun (n : ℕ) ↦ f n) := by",
+      "reference_statement": "theorem lf021_public_research_integral_test_summable_v1 {f : ℝ → ℝ} {N : ℕ}\n    (anti : AntitoneOn f (Set.Ici (N : ℝ)))\n    (integrable : MeasureTheory.IntegrableOn f (Set.Ioi (N : ℝ)))\n    (nonneg : ∀ t ∈ Set.Ioi (N : ℝ), 0 ≤ f t) :\n    Summable (fun (n : ℕ) ↦ f n) := by sorry",
+      "reference_derivation": "manual_namespace_and_section_expansion_from_source_signature",
+      "reference_equivalence_to_source_status": "textually_derived_cross_elaborated_not_kernel_compared_across_snapshot",
+      "domain": "real_analysis",
+      "near_duplicate_group_ids": [
+        "near-dup:mathlib:AntitoneOn.summable_of_integrableOn_Ioi"
+      ]
+    }
+  ]
+}

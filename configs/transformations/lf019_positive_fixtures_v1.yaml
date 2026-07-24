@@ -1,0 +1,32 @@
+schema_version: 1
+fixture_profile_id: lf019_positive_fixtures_v1
+fixture_profile_version: 1.0.0
+artifact_class: smoke
+release_eligible: false
+model_selection_eligible: false
+resolution_policy: provisional_only
+project_dir: tests/lean_fixtures
+imports: "import LeanFaithFixtures"
+record_timestamp_utc: "2026-07-23T00:00:00+00:00"
+cases:
+  - case_id: p01_alpha_fixture
+    rule_id: p01_alpha
+    source_name: lf019_p01_alpha
+    source_code: "theorem lf019_p01_alpha (x : Nat) : x = x := by sorry"
+    seed: 19001
+    expected_candidate_fragment: "lf_alpha_"
+    expected_trace_operation: alpha_rename
+  - case_id: p02_binders_fixture
+    rule_id: p02_binders
+    source_name: lf019_p02_binders
+    source_code: "theorem lf019_p02_binders (x y : Nat) : x = x := by sorry"
+    seed: 19002
+    expected_candidate_fragment: "(x : Nat) (y : Nat)"
+    expected_trace_operation: replace_exact_span
+  - case_id: p04_notation_lite_fixture
+    rule_id: p04_notation_lite
+    source_name: lf019_p04_notation_lite
+    source_code: "theorem lf019_p04_notation_lite (x : Nat) : x = x := by sorry"
+    seed: 19004
+    expected_candidate_fragment: "(x : ℕ)"
+    expected_trace_operation: replace_notation_token_exact

@@ -52,7 +52,7 @@ def test_appendix_c2_claim_erasure_f2_true_f1_false() -> None:
     label = resolved_label(
         same_claim=False,
         resolution_outcome=ResolutionOutcome.NOT_SAME_CLAIM,
-        relation=RelationLabel.INCOMPARABLE_NEAR_MISS,
+        relation=RelationLabel.INCOMPARABLE,
         faithfulness_levels=FaithfulnessLevels(
             F0_representation_equivalent=False,
             F1_same_claim=False,
@@ -73,7 +73,7 @@ def test_appendix_c7_review_route() -> None:
     label = resolved_label(
         same_claim=None,
         resolution_outcome=ResolutionOutcome.UNRESOLVED,
-        relation=RelationLabel.UNKNOWN,
+        relation=None,
         faithfulness_levels=FaithfulnessLevels(),
         error_types=("E27",),
         quality_tier=QualityTier.UNKNOWN,
@@ -113,7 +113,7 @@ def test_outcome_same_claim_requires_true() -> None:
         resolved_label(
             same_claim=None,
             faithfulness_levels=FaithfulnessLevels(),
-            relation=RelationLabel.UNKNOWN,
+            relation=None,
         )
 
 
@@ -134,7 +134,7 @@ def test_unresolved_requires_unknown_tier_and_adjudication() -> None:
         resolved_label(
             same_claim=None,
             resolution_outcome=ResolutionOutcome.UNRESOLVED,
-            relation=RelationLabel.UNKNOWN,
+            relation=None,
             faithfulness_levels=FaithfulnessLevels(),
             quality_tier=QualityTier.GOLD_HUMAN,
             requires_adjudication=True,
@@ -161,7 +161,7 @@ def test_same_claim_true_requires_equivalent_relation() -> None:
 
 
 def test_same_claim_false_rejects_equivalent_relation() -> None:
-    with pytest.raises(ValueError, match="near-miss"):
+    with pytest.raises(ValueError, match="directional/incomparable/unrelated"):
         resolved_label(
             same_claim=False,
             resolution_outcome=ResolutionOutcome.NOT_SAME_CLAIM,
@@ -203,7 +203,7 @@ def test_unknown_tier_cannot_train() -> None:
         resolved_label(
             same_claim=None,
             resolution_outcome=ResolutionOutcome.UNRESOLVED,
-            relation=RelationLabel.UNKNOWN,
+            relation=None,
             faithfulness_levels=FaithfulnessLevels(),
             quality_tier=QualityTier.UNKNOWN,
             requires_adjudication=True,
@@ -319,9 +319,18 @@ def test_annotation_confidence_bounds() -> None:
 def test_annotation_cannot_assess_yet_is_valid_route() -> None:
     record = annotation_record(
         same_claim=AnnotationAnswer.CANNOT_ASSESS_YET,
-        relation=RelationLabel.UNKNOWN,
+        relation=None,
+        rationale="A required definition is unavailable in the displayed context.",
     )
     assert record.same_claim is AnnotationAnswer.CANNOT_ASSESS_YET
+
+
+def test_annotation_cannot_assess_yet_requires_rationale() -> None:
+    with pytest.raises(ValueError, match="rationale"):
+        annotation_record(
+            same_claim=AnnotationAnswer.CANNOT_ASSESS_YET,
+            relation=None,
+        )
 
 
 # --- PredictionRecord (§20.6) ---
@@ -357,9 +366,9 @@ def test_prediction_rejects_unknown_relation() -> None:
         _prediction(relation_scores={"sorta_equal": 0.5})
 
 
-def test_prediction_rejects_unknown_error_code() -> None:
-    with pytest.raises(ValueError, match="E99"):
-        _prediction(error_type_scores={"E99": 0.5})
+def test_prediction_legacy_error_scores_migrate_to_optional_auxiliary_scores() -> None:
+    prediction = _prediction(error_type_scores={"E99": 0.5})
+    assert prediction.optional_auxiliary_scores == {"E99": 0.5}
 
 
 def test_prediction_score_bounds() -> None:

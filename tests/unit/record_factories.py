@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import datetime
+import hashlib
 from typing import Any
 
 from leanfaith.schemas import (
@@ -52,6 +53,12 @@ NL_ID = make_id("nllean", {"problem": "p1", "candidate": THM_A})
 CALL_ID = make_id("call", {"n": 1})
 ANN_ID = make_id("ann", {"n": 1})
 VAR_ID = make_id("var", {"n": 1})
+REPR_A = make_id("repr", {"theorem": THM_A, "version": "repr_v2"})
+DRAFT_ID = make_id("draft", {"n": 1})
+ATTEMPT_ID = make_id("attempt", {"n": 1})
+AUDIT_ID = make_id("audit", {"n": 1})
+VAR_CANDIDATE = "theorem t2 : True := sorry"
+VAR_CANDIDATE_HASH = hashlib.sha256(VAR_CANDIDATE.encode("utf-8")).hexdigest()
 
 
 def context_record(**overrides: Any) -> ContextRecord:
@@ -94,9 +101,9 @@ def theorem_record(**overrides: Any) -> TheoremRecord:
 
 def representation_record(**overrides: Any) -> RepresentationRecord:
     payload: dict[str, Any] = {
-        "representation_id": make_id("repr", {"theorem": THM_A, "version": "repr_v1"}),
+        "representation_id": REPR_A,
         "theorem_id": THM_A,
-        "normalization_version": "repr_v1",
+        "normalization_version": "repr_v2",
         "context_id": CTX_ID,
         "raw_proof_stripped": "theorem t : True := sorry",
         "headless": ": True",
@@ -120,13 +127,23 @@ def variant_record(**overrides: Any) -> VariantRecord:
     payload: dict[str, Any] = {
         "variant_id": VAR_ID,
         "source_theorem_ids": (THM_A,),
+        "source_representation_ids": (REPR_A,),
+        "context_id": CTX_ID,
         "generator_kind": GeneratorKind.DETERMINISTIC_TRANSFORM,
         "generator_id": "p01_alpha",
         "generation_config_hash": "4" * 64,
         "seed": 7,
-        "extracted_statement": "theorem t2 : True := sorry",
+        "extracted_statement": VAR_CANDIDATE,
+        "candidate_code_hash": VAR_CANDIDATE_HASH,
+        "transformation_attempt_id": ATTEMPT_ID,
+        "draft_id": DRAFT_ID,
+        "audit_id": AUDIT_ID,
+        "family_id": "p01_alpha",
+        "rule_id": "p01_alpha",
+        "rule_version": "1.0.0",
         "intended_relation": IntendedRelation.EQUIVALENT,
         "candidate_pool": "main",
+        "transformation_trace": ({"operation": "rename"},),
     }
     payload.update(overrides)
     return VariantRecord.model_validate(payload)

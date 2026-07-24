@@ -1,0 +1,57 @@
+schema_version: 1
+policy_id: lf021_rcp_qwen_qualification_v1
+frozen_at: "2026-07-24T03:20:00Z"
+status: exactly_one_public_reference_hidden_qualification_authorized
+predecessor_proposal: configs/generation/rcp_qwen_qualification_proposal_v1.yaml
+inherits_privacy_constraints_from: policies/rcp_remote_generation_v1.yaml
+
+authorization:
+  primary_model: Qwen/Qwen3.6-35B-A3B
+  catalog_requests_authorized: 1
+  theorem_generation_requests_authorized: 1
+  dedicated_capability_requests_authorized: 0
+  retry_requests_authorized: 0
+  field_removal_retries_authorized: 0
+  upper_capacity_ablation_requests_authorized: 0
+  bulk_generation_authorized: false
+
+capability_interpretation:
+  send_complete_field_set_once: true
+  accepted_http_request_proves_route_acceptance_only: true
+  exact_field_application_proven: false
+  silently_dropped_fields_forbidden: true
+  no_success_claim_for_individual_fields: true
+  failure_must_not_trigger_field_removal: true
+
+scope:
+  public_sources_only: true
+  private_sft_classic_content_forbidden: true
+  trusted_lean_reference_transmission_forbidden: true
+  reference_hidden: true
+  semantic_labels_created: false
+  semantic_faithfulness_assessed: false
+  supervision_eligible: false
+  gate_credit_eligible: false
+  gate_closed: false
+
+family_accounting:
+  family_id: qwen3
+  diversity_group: qwen3
+  all_qwen_checkpoints_one_family: true
+  primary_and_ablation_count_as_two_families: false
+  current_gate_family_credit: 0
+
+research_status:
+  checkpoint_revision_status: unavailable_from_rcp_route_ids
+  training_cutoff_status: unknown
+  contamination_status: unknown
+  unseen_claim_eligible: false
+  heldout_claim_eligible: false
+  evaluation_claim_eligible: false
+  allowed_use: supplemental_generator_candidates_only
+
+immutability:
+  freeze_all_bound_bytes_before_catalog_request: true
+  partial_run_blocks_repeat_provider_requests: true
+  exact_offline_replay_required: true
+  runtime_credential_scan_required: true

@@ -223,8 +223,29 @@ __marimo__/
 !/data/benchmarks/
 /data/benchmarks/*
 !/data/benchmarks/frozen_ids.json
+!/data/benchmarks/frozen_ids.representations_v1.json
+!/data/benchmarks/manifests/
+/data/benchmarks/manifests/*
+!/data/benchmarks/manifests/representation_signatures_v1.json
+# except the tiny, public, hash-bound LF-021 source catalog used to reproduce
+# the model-free public research pool preflight
+!/data/raw/
+/data/raw/*
+!/data/raw/real_outputs/
+/data/raw/real_outputs/*
+!/data/raw/real_outputs/public_research_v1/
+/data/raw/real_outputs/public_research_v1/*
+!/data/raw/real_outputs/public_research_v1/mathlib_post_formalrx_docstrings_v1.json
 artifacts/
 runs/
+# Human annotation exports, assignments, raw responses, and blinding keys are
+# operational artifacts. Keep only guidelines/templates/configs in git.
+/annotation/exports/
+/annotation/assignments/
+/data/human/
+# Immutable LF-019 per-run reports are retained on disk but excluded from the
+# code-state denominator so Run A cannot make the independent Run B dirty.
+/reports/transformation_audits/lf019_smoke/
 
 # Lean build outputs and LeanInteract project locks
 .lake/

@@ -1,0 +1,337 @@
+{
+  "schema_version": 1,
+  "template_id": "lf021_prevalence_template_v1",
+  "status": "frozen_preannotation_specification",
+  "artifact_class": "production",
+  "campaign_id": "lf021_prevalence_v1",
+  "task_mode": "reference_assisted_nl_plus_lean_a_b",
+  "labels_created_by_this_artifact": false,
+  "assignments_created_by_this_artifact": false,
+  "exports_created_by_this_artifact": false,
+  "bindings": {
+    "frame_decision": {
+      "artifact": "reports/generation/lf021_post_exhaustion_frame_v1/decisions/0574621043042ed62b486260de9bf633797f2471217f502be25b9aec3a46a19c.json",
+      "sha256": "e780d3bc6150f2fafe576170be792b6f13e60d7ef35567912d27d03b63d8eabc",
+      "decision_id": "lf021_extended_frame_freeze_decision_v1:0574621043042ed62b486260de9bf633797f2471217f502be25b9aec3a46a19c"
+    },
+    "frame": {
+      "artifact": "reports/generation/lf021_post_exhaustion_frame_v1/frames/a07b352030a2c51fa51ebcabc00a3c1d1ecf2041318feabfe57a4c70fc365069.jsonl",
+      "sha256": "a07b352030a2c51fa51ebcabc00a3c1d1ecf2041318feabfe57a4c70fc365069",
+      "frame_id": "lf021_extended_prevalence_frame_v1:c4d248631456c45a05a6c4d929cda6a69c6b91e05e5e65ed4a8ca8eff0367312",
+      "item_count": 240
+    },
+    "prevalence_policy": {
+      "artifact": "policies/lf021_prevalence_design_v3.yaml",
+      "sha256": "d00e096cf6c49224ffa45fc236f872daa57c0adcafe3f3fec4ffa39781a79504",
+      "policy_id": "lf021_prevalence_design_v3"
+    },
+    "guideline": {
+      "artifact": "annotation/guidelines_v1.md",
+      "sha256": "604eeade46c6328646bd71641f9a3c69cb0588462ac725c5eaf251a89a4b779f"
+    },
+    "codebook": {
+      "artifact": "annotation/codebook_v1.yaml",
+      "sha256": "b98404daba174c2ff70557fdf1e8bcfd13ba9c4990f992b63d2f5506eaeb7885"
+    }
+  },
+  "annotation_slots": {
+    "count": 2,
+    "slot_ids": [
+      "independent_annotator_1",
+      "independent_annotator_2"
+    ],
+    "assignments_materialized": false,
+    "show_other_slot_response": false,
+    "show_other_slot_identity": false
+  },
+  "side_semantics": {
+    "A": "registered_reference_lean_statement",
+    "B": "candidate_autoformalization_lean_statement",
+    "swap_sides_in_ui": false
+  },
+  "display_payload_schema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "LF-021 blinded prevalence annotation display payload v1",
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "opaque_item_token",
+      "natural_language_statement",
+      "lean_a",
+      "lean_b",
+      "permitted_context"
+    ],
+    "properties": {
+      "opaque_item_token": {
+        "type": "string",
+        "minLength": 1,
+        "description": "Opaque annotation UI token; never a frame, theorem, invocation, or generator identifier."
+      },
+      "natural_language_statement": {
+        "type": "string",
+        "minLength": 1,
+        "description": "Trusted natural-language claim shown as reference assistance."
+      },
+      "lean_a": {
+        "$ref": "#/$defs/lean_views",
+        "description": "Registered reference statement A."
+      },
+      "lean_b": {
+        "$ref": "#/$defs/lean_views",
+        "description": "Candidate autoformalization statement B."
+      },
+      "permitted_context": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "minimal_import_text",
+          "namespace_text",
+          "local_notation_text",
+          "required_type_information"
+        ],
+        "properties": {
+          "minimal_import_text": {
+            "type": "string"
+          },
+          "namespace_text": {
+            "type": "string"
+          },
+          "local_notation_text": {
+            "type": "string"
+          },
+          "required_type_information": {
+            "type": "string"
+          },
+          "view_unavailable_notices": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "uniqueItems": true
+          }
+        }
+      }
+    },
+    "$defs": {
+      "lean_views": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "headless",
+          "signature_pp",
+          "signature_explicit"
+        ],
+        "properties": {
+          "headless": {
+            "type": "string",
+            "minLength": 1
+          },
+          "signature_pp": {
+            "type": "string",
+            "minLength": 1
+          },
+          "signature_explicit": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    }
+  },
+  "response_schema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "LF-021 independent semantic annotation response v1",
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "same_claim",
+      "relation",
+      "confidence",
+      "rationale",
+      "reference_issue"
+    ],
+    "properties": {
+      "same_claim": {
+        "type": "string",
+        "enum": [
+          "same_claim",
+          "not_same_claim",
+          "ambiguous",
+          "cannot_assess_yet"
+        ]
+      },
+      "relation": {
+        "oneOf": [
+          {
+            "type": "string",
+            "enum": [
+              "equivalent",
+              "A_stronger",
+              "B_stronger",
+              "incomparable",
+              "unrelated",
+              "ambiguous"
+            ]
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "confidence": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 5
+      },
+      "rationale": {
+        "type": "string"
+      },
+      "reference_issue": {
+        "type": "string",
+        "enum": [
+          "none",
+          "suspected",
+          "definite"
+        ]
+      },
+      "error_types": {
+        "type": "array",
+        "description": "Optional E01-E30 analysis metadata; never determines the semantic answer.",
+        "items": {
+          "type": "string",
+          "pattern": "^E(0[1-9]|[12][0-9]|30)$"
+        },
+        "uniqueItems": true
+      }
+    },
+    "allOf": [
+      {
+        "if": {
+          "properties": {
+            "same_claim": {
+              "const": "same_claim"
+            }
+          },
+          "required": [
+            "same_claim"
+          ]
+        },
+        "then": {
+          "properties": {
+            "relation": {
+              "const": "equivalent"
+            }
+          }
+        }
+      },
+      {
+        "if": {
+          "properties": {
+            "same_claim": {
+              "const": "not_same_claim"
+            }
+          },
+          "required": [
+            "same_claim"
+          ]
+        },
+        "then": {
+          "properties": {
+            "relation": {
+              "type": "string",
+              "enum": [
+                "A_stronger",
+                "B_stronger",
+                "incomparable",
+                "unrelated"
+              ]
+            },
+            "rationale": {
+              "type": "string",
+              "pattern": ".*\\S.*"
+            }
+          }
+        }
+      },
+      {
+        "if": {
+          "properties": {
+            "same_claim": {
+              "const": "ambiguous"
+            }
+          },
+          "required": [
+            "same_claim"
+          ]
+        },
+        "then": {
+          "properties": {
+            "relation": {
+              "const": "ambiguous"
+            },
+            "rationale": {
+              "type": "string",
+              "pattern": ".*\\S.*"
+            }
+          }
+        }
+      },
+      {
+        "if": {
+          "properties": {
+            "same_claim": {
+              "const": "cannot_assess_yet"
+            }
+          },
+          "required": [
+            "same_claim"
+          ]
+        },
+        "then": {
+          "properties": {
+            "relation": {
+              "type": "null"
+            },
+            "rationale": {
+              "type": "string",
+              "pattern": ".*\\S.*"
+            }
+          }
+        }
+      }
+    ]
+  },
+  "blinding": {
+    "mode": "allowlist_display_fail_closed_recursive_denylist",
+    "applies_to": "annotation_display_payload_before_annotator_access",
+    "does_not_apply_to": [
+      "response_schema_field_names",
+      "locked_response_records"
+    ],
+    "denylist_source": "annotation/codebook_v1.yaml#blinding",
+    "show_only_display_payload_schema_fields": true,
+    "reject_unlisted_or_nested_fields": true,
+    "reject_prohibited_fields_even_when_null_or_redacted": true,
+    "show_raw_frame_record": false,
+    "show_artifact_paths_or_hashes": false,
+    "show_generator_or_sampling_metadata": false,
+    "show_scores_evidence_prior_votes_or_expected_labels": false
+  },
+  "domain_separators": {
+    "frame_sampling": "leanfaith-lf021-frame-v3-hmac-sha256-v1",
+    "payload_content_id": "leanfaith-lf021-prevalence-annotation-payload-v1",
+    "opaque_item_token": "leanfaith-lf021-prevalence-annotation-item-token-v1",
+    "independent_assignment": "leanfaith-lf021-prevalence-annotation-assignment-v1",
+    "display_order": "leanfaith-lf021-prevalence-annotation-order-v1",
+    "response_record": "leanfaith-lf021-prevalence-annotation-response-v1",
+    "adjudication_record": "leanfaith-lf021-prevalence-adjudication-v1"
+  },
+  "launch_guard": {
+    "annotation_execution_enabled": false,
+    "assignments_materialized": false,
+    "payload_exports_materialized": false,
+    "keys_or_seeds_materialized": false,
+    "external_calls_allowed": false,
+    "semantic_labels_created": false
+  }
+}

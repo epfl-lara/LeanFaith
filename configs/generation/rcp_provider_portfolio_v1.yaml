@@ -1,0 +1,95 @@
+schema_version: 1
+portfolio_id: lf021_rcp_provider_portfolio_v1
+frozen_at: "2026-07-24T01:25:30Z"
+status: prospective_qualification_only
+transport: remote_on_prem_epfl_rcp_openai_compatible
+base_url_env: RCP_BASE_URL
+api_key_env: RCP_API_KEY
+expected_base_url: https://inference.rcp.epfl.ch/v1
+
+catalog_observation:
+  observed_at: "2026-07-24T01:25:30.616942Z"
+  endpoint: https://inference.rcp.epfl.ch/v1/models
+  http_status: 200
+  raw_response_sha256: 0f98154b24af983bcdb22e6248bf98cbe5456fa9cd78932d280262777877dd66
+  observed_model_count: 284
+  meaning: service_catalog_observation_not_checkpoint_revision
+
+models:
+  - model_id: moonshotai/Kimi-K2.7-Code
+    provider_family: moonshot_kimi_k2
+    diversity_group: moonshot_kimi_k2
+    role: primary_remote_generator
+    execution_status: one_problem_qualification_authorized
+    judge_eligible: false
+    counts_as_additional_family_within_group: false
+    current_gate_family_credit: false
+  - model_id: moonshotai/Kimi-K2.6
+    provider_family: moonshot_kimi_k2
+    diversity_group: moonshot_kimi_k2
+    role: moonshot_fallback_and_ablation
+    execution_status: explicit_fallback_qualification_only
+    judge_eligible: false
+    counts_as_additional_family_within_group: false
+    current_gate_family_credit: false
+  - model_id: Qwen/Qwen3.6-35B-A3B
+    provider_family: qwen3
+    diversity_group: qwen3
+    role: preferred_distinct_family_backup_generator
+    execution_status: prospective_not_authorized_by_kimi_qualification
+    judge_eligible: false
+    counts_as_additional_family_within_group: false
+    current_gate_family_credit: false
+  - model_id: Qwen/Qwen3.5-397B-A17B
+    provider_family: qwen3
+    diversity_group: qwen3
+    role: upper_capacity_generator_ablation
+    execution_status: prospective_not_authorized_by_kimi_qualification
+    judge_eligible: false
+    counts_as_additional_family_within_group: false
+    current_gate_family_credit: false
+  - model_id: Qwen/Qwen3-30B-A3B-Instruct-2507
+    provider_family: qwen3
+    diversity_group: qwen3
+    role: cheap_qwen_generator_fallback
+    execution_status: prospective_not_authorized_by_kimi_qualification
+    judge_eligible: false
+    counts_as_additional_family_within_group: false
+    current_gate_family_credit: false
+  - model_id: Qwen/Qwen3-VL-235B-A22B-Thinking
+    provider_family: qwen3
+    diversity_group: qwen3
+    role: excluded_text_only_path
+    execution_status: excluded
+    judge_eligible: false
+    counts_as_additional_family_within_group: false
+    current_gate_family_credit: false
+
+reasoning:
+  chat_template_kwargs:
+    enable_thinking: true
+  reasoning_effort: high
+
+contamination_policy:
+  checkpoint_revision_status: unavailable_from_rcp_route_ids
+  training_cutoff_status: unknown
+  contamination_status: unknown
+  unseen_claim_eligible: false
+  heldout_claim_eligible: false
+  evaluation_claim_eligible: false
+  allowed_use: supplemental_generator_candidates_only
+
+rules:
+  - The two Moonshot checkpoints are one generator family, never two independent diversity families.
+  - The three text-only Qwen checkpoints are one Qwen generator family, never three independent diversity families.
+  - Qwen3.6-35B-A3B is the preferred prospective second-family backup to Kimi-K2.7-Code.
+  - Qwen3.5-397B-A17B is an upper-capacity ablation, not the default.
+  - Qwen3-30B-A3B-Instruct-2507 is the cheaper Qwen fallback.
+  - The VL checkpoint is excluded from the default text-only theorem-generation path.
+  - No listed generator is a judge; proposer and judge families remain separate.
+  - Remote outputs are supplemental and cannot modify the frozen v1 tranche-expansion stopping decision.
+  - No bulk remote execution is authorized by this portfolio.
+  - No remote output is a semantic label or Gate artifact.
+  - RCP route IDs do not establish an immutable checkpoint revision or training cutoff.
+  - Contamination is unknown; no unseen, held-out, or evaluation-independence claim is authorized.
+  - A separately versioned admission policy is required before training, diversity, supervision, or Gate credit.

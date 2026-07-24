@@ -17,7 +17,7 @@ import contextlib
 import json
 import time
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
 
@@ -47,7 +47,13 @@ from leanfaith.lean.response_normalization import (
 )
 from leanfaith.lean.session_policy import ServerMode
 
-METHOD_VERSION = "leaninteract_backend_v1"
+METHOD_VERSION = "leaninteract_backend_v2"
+
+_CORE_ENVIRONMENT_SECONDARY_ERRORS = (
+    "Unknown constant `CoeFun`",
+    "Unknown constant `Lean.ParserDescr`",
+    "The expected type of `.default`\n  BinderInfo",
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -63,6 +69,7 @@ class BackendSettings:
     memory_hard_limit_mb: int | None = None
     method_version: str = METHOD_VERSION
     verbose: bool = False
+    enable_incremental_optimization: bool = True
 
 
 class LeanInteractBackend:
@@ -92,7 +99,32 @@ class LeanInteractBackend:
         return LeanREPLConfig(
             project=LocalProject(directory=self._settings.project_dir),
             memory_hard_limit_mb=self._settings.memory_hard_limit_mb,
+            enable_incremental_optimization=self._settings.enable_incremental_optimization,
             verbose=self._settings.verbose,
+        )
+
+    @staticmethod
+    def _core_environment_is_corrupted(request: LeanRequest, raw: dict[str, Any]) -> bool:
+        """Detect the impossible core-import failure observed in Gate 3.
+
+        LeanInteract's incremental REPL optimization can occasionally reuse a
+        damaged prefix environment: a command beginning with ``import Lean``
+        then reports that the ``Lean`` namespace and core constants do not
+        exist. This is an infrastructure/session failure, not a theorem
+        verdict. Keep the detector deliberately narrow so ordinary invalid
+        Lean programs are never retried as infrastructure failures.
+        """
+
+        code = request.code
+        if code is None or not code.lstrip("\ufeff \t\r\n").startswith("import Lean\n"):
+            return False
+        errors = "\n".join(
+            str(message.get("data", ""))
+            for message in raw.get("messages") or ()
+            if message.get("severity") == "error"
+        )
+        return "unknown namespace `Lean`" in errors and any(
+            marker in errors for marker in _CORE_ENVIRONMENT_SECONDARY_ERRORS
         )
 
     def _ensure_server(self) -> LeanServer:
@@ -273,6 +305,25 @@ class LeanInteractBackend:
 
         raw = response.model_dump(mode="json")
         raw_path = self._persist_raw(request, request_hash, raw, None)
+        if request.metadata.get(
+            "core_environment_recovery"
+        ) != "1" and self._core_environment_is_corrupted(request, raw):
+            # Preserve the corrupt raw response, discard the poisoned REPL,
+            # and retry exactly once on a fresh process. Attempt metadata is
+            # excluded from the request hash but gives the retry a distinct,
+            # append-only raw-artifact path.
+            self._drop_server()
+            attempt = str(request.metadata.get("attempt", "0"))
+            recovery_request = replace(
+                request,
+                metadata={
+                    **dict(request.metadata),
+                    "attempt": f"{attempt}-core-recovery",
+                    "core_environment_recovery": "1",
+                },
+            )
+            recovered = self.run(recovery_request)
+            return replace(recovered, elapsed_ms=elapsed_ms + recovered.elapsed_ms)
         return normalize_response(
             request,
             raw,

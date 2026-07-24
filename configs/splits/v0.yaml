@@ -1,0 +1,26 @@
+split_config_version: split_v0_revision_4_1
+assignment_unit: connected_component
+component_edges:
+  - theorem_root_ancestry
+  - both_pair_side_ancestries
+  - nl_problem_group
+human_products:
+  training_gold:
+    allowed_uses: [weight_training]
+    forbidden_uses: [model_selection, calibration, final_evaluation]
+  selection_gold:
+    allowed_uses: [backbone_selection, mixture_selection, representation_selection,
+                   checkpoint_selection]
+    forbidden_uses: [weight_training, calibration, final_evaluation]
+  calibration_gold:
+    distribution: compiling_real_outputs
+    allowed_uses: [calibrator_fit, decision_threshold_fit]
+    forbidden_uses: [weight_training, model_selection, final_evaluation]
+  final_human_test:
+    sealed: true
+    allowed_uses: [final_evaluation]
+    forbidden_uses: [weight_training, model_selection, calibration, prompt_tuning]
+invariants:
+  component_cross_partition_overlap: 0
+  assignment_is_atomic: true
+  benchmark_and_external_tests_evaluation_only: true

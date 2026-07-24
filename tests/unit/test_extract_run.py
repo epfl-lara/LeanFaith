@@ -5,7 +5,12 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from leanfaith.lean.extract_run import extract_dataset_snippets, extract_repository_files
+from leanfaith.lean.extract_run import (
+    ExtractStats,
+    extract_dataset_snippets,
+    extract_repository_files,
+    extract_sft_classic_rows,
+)
 from leanfaith.lean.protocol import LeanRequest, LeanResult, LeanStatus
 
 _CTX = "ctx:" + "e" * 64
@@ -23,6 +28,21 @@ _DECL = {
     "type": {"pp": "x + y = y + x"},
 }
 _SNIPPET = "theorem t_ok (x y : Nat) : x + y = y + x := by omega"
+
+
+def test_extract_stats_marker_round_trip() -> None:
+    stats = ExtractStats(
+        sources_processed=2,
+        declarations_seen=3,
+        accepted=2,
+        failures=1,
+        partial_declarations_reported=4,
+    )
+    stats.row_outcomes["accepted"] = 2
+    stats.declaration_outcomes["accepted"] = 2
+    stats.declaration_outcomes["failed_or_skipped"] = 1
+    restored = ExtractStats.from_dict(stats.as_dict())
+    assert restored.as_dict() == stats.as_dict()
 
 
 class FakeBackend:
@@ -90,6 +110,43 @@ def test_dataset_extraction_drops_failed_revalidation(tmp_path: Path) -> None:
     failures = (tmp_path / "failures" / "sft_classic.jsonl").read_text().strip().splitlines()
     assert len(failures) == 1
     assert json.loads(failures[0])["code"] == "revalidation_failed"
+
+
+def test_sft_invalid_partial_declarations_are_diagnostic_only(tmp_path: Path) -> None:
+    backend = FakeBackend(decl_status=LeanStatus.INVALID, reval_status=LeanStatus.INVALID)
+    row = {
+        "uuid": "partial-row",
+        "data_source": "Goedel-LM/Goedel-Pset-v1",
+        "question": (
+            "```lean4\n/-- A diagnostic-only partial declaration. -/\n"
+            "theorem t_ok : True := by sorry\n```"
+        ),
+        "lean_code": "theorem t_ok : True := by trivial",
+        "valid": False,
+        "proof_repair": False,
+    }
+
+    stats = extract_sft_classic_rows(
+        backend,  # type: ignore[arg-type]
+        [row],
+        source_revision="0bf9",
+        split="train",
+        row_offset=0,
+        context_id=_CTX,
+        out_dir=tmp_path,
+    )
+
+    assert stats.sources_processed == 1
+    assert stats.declarations_seen == 0
+    assert stats.declaration_outcomes == {}
+    assert stats.partial_declarations_reported == 1
+    failures = [
+        json.loads(line)
+        for line in (tmp_path / "failures" / "sft_classic.jsonl").read_text().splitlines()
+    ]
+    assert len(failures) == 1
+    assert failures[0]["outcome_level"] == "row"
+    assert "partial_declarations_reported=1" in failures[0]["detail"]
 
 
 def test_dataset_extraction_counts_non_elaborating_source(tmp_path: Path) -> None:

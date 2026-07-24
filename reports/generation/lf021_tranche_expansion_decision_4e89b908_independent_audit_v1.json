@@ -1,0 +1,484 @@
+{
+  "schema_version": 1,
+  "audit_id": "lf021_tranche_expansion_decision_4e89b908_independent_audit_v1",
+  "artifact_class": "independent_operational_audit",
+  "created_at_utc": "2026-07-24T01:18:09Z",
+  "status": "pass",
+  "scope": {
+    "decision_id": "lf021_expansion_decision:4e89b908916de794221493de0d254a649ed5e4b76fc9bf5e773da831bbf733cc",
+    "observed_tranches": [
+      "algebra_s0",
+      "cross_domain_s0"
+    ],
+    "claims_audited": [
+      "exact completed-manifest denominators and admitted counts",
+      "cumulative global alpha-unique count",
+      "family, pool, family-pool, and declared-source-proxy coverage",
+      "complete preregistered prefix ordering",
+      "frozen compilation-only decision surface",
+      "absence of semantic-label reads",
+      "exact next-tranche and seed selection",
+      "exact replay and byte invariance"
+    ]
+  },
+  "method": {
+    "independent_recomputation": true,
+    "implementation_reused_for_independent_counts": false,
+    "raw_inputs": [
+      "the two decision-bound postprocess manifests",
+      "all 180 manifest-bound processing terminals",
+      "all 392 terminal-bound postprocess output artifacts",
+      "the two policy-bound problem-pool record files",
+      "the two policy-bound problem-pool manifests",
+      "the frozen expansion policy"
+    ],
+    "checks": [
+      "recomputed SHA-256 for every consumed binding",
+      "recomputed status, stage, admission, alpha-deduplication, family, pool, cell, and proxy counts directly from JSON",
+      "compared the observed manifest sequence to the consecutive frozen policy prefix",
+      "reviewed the expansion evaluator dataflow and performed an AST literal-key-access audit",
+      "recomputed the content-addressed decision ID from canonical JSON",
+      "ran postprocess-v3 verify-only, postprocess-v4 verify-only, and the exact expansion CLI replay",
+      "compared complete per-file SHA-256 inventories before and after every replay"
+    ]
+  },
+  "bound_artifact_hashes": {
+    "policy": {
+      "artifact": "configs/generation/lf021_tranche_expansion_v1.yaml",
+      "expected_sha256": "0c726e197ef5358ef4a7414e36622c10fb7ff19082199540b62e4bc170834e16",
+      "observed_sha256": "0c726e197ef5358ef4a7414e36622c10fb7ff19082199540b62e4bc170834e16",
+      "match": true
+    },
+    "implementation": {
+      "artifact": "src/leanfaith/generation/tranche_expansion.py",
+      "expected_sha256": "33078832be9131cc85f7ac10e0e4da6374c768ffb6a0e4829a71b4e8f7fcbc67",
+      "observed_sha256": "33078832be9131cc85f7ac10e0e4da6374c768ffb6a0e4829a71b4e8f7fcbc67",
+      "match": true
+    },
+    "algebra_postprocess_v3_manifest": {
+      "artifact": "data/raw/real_outputs/gate3_docstrings_operational_v1/v2/local_collection/3801b405ec8b7008f8c38f449189a52fe5e74bea3a98f5e3e0abdaa75edac62c/postprocess_v3/manifest.json",
+      "expected_sha256": "d5bef91b0667f6f9bbb7fa5fa350272f6336cfbfc90b6aa13d45ac434443bd20",
+      "observed_sha256": "d5bef91b0667f6f9bbb7fa5fa350272f6336cfbfc90b6aa13d45ac434443bd20",
+      "match": true
+    },
+    "cross_domain_s0_postprocess_v4_manifest": {
+      "artifact": "data/raw/real_outputs/cross_domain_docstrings_operational_v1/v3/cross_domain_s0/local_collection/b5080892f0b71e43735dfe3a1f3bf4e227f7988c362196ea7a09ea703db3846c/postprocess_v4/manifest.json",
+      "expected_sha256": "1b379edc653f661af28c2ce3d341b85368b38cb5bca00e29cfcb7e4e88cdf2a8",
+      "observed_sha256": "1b379edc653f661af28c2ce3d341b85368b38cb5bca00e29cfcb7e4e88cdf2a8",
+      "match": true
+    },
+    "algebra_pool_records": {
+      "artifact": "data/parsed/real_outputs/gate3_docstrings_operational_v1/problem_pool_records.jsonl",
+      "expected_sha256": "6f45ebf158fcbb23f7b9833f2c433fb335cda7e66c061c0436aab68702330c6f",
+      "observed_sha256": "6f45ebf158fcbb23f7b9833f2c433fb335cda7e66c061c0436aab68702330c6f",
+      "match": true
+    },
+    "algebra_pool_manifest": {
+      "artifact": "data/parsed/real_outputs/gate3_docstrings_operational_v1/problem_pool_manifest.json",
+      "expected_sha256": "229cf1dfcc7c8eee0de839c62b6beb708678ff2a2bea876803b704033de324d7",
+      "observed_sha256": "229cf1dfcc7c8eee0de839c62b6beb708678ff2a2bea876803b704033de324d7",
+      "match": true
+    },
+    "cross_domain_pool_records": {
+      "artifact": "data/parsed/real_outputs/cross_domain_docstrings_operational_v1/problem_pool_records.jsonl",
+      "expected_sha256": "13111c14f2061acd8e9ceb9a2ffe937c6c5b72025f32a0c2a9e93e49934aebbf",
+      "observed_sha256": "13111c14f2061acd8e9ceb9a2ffe937c6c5b72025f32a0c2a9e93e49934aebbf",
+      "match": true
+    },
+    "cross_domain_pool_manifest": {
+      "artifact": "data/parsed/real_outputs/cross_domain_docstrings_operational_v1/problem_pool_manifest.json",
+      "expected_sha256": "f7fdcdb9676148500ba4620bc12a4776192e8b4804ab6fc160571d4d8aef4122",
+      "observed_sha256": "f7fdcdb9676148500ba4620bc12a4776192e8b4804ab6fc160571d4d8aef4122",
+      "match": true
+    },
+    "decision_json": {
+      "artifact": "reports/generation/lf021_tranche_expansion_v1/decisions/4e89b908916de794221493de0d254a649ed5e4b76fc9bf5e773da831bbf733cc.json",
+      "observed_sha256": "0c7386e12dbff0906ec4b7afe50ee568c5e29b131efce2d329e85d4af00d074b"
+    },
+    "decision_markdown": {
+      "artifact": "reports/generation/lf021_tranche_expansion_v1/decisions/4e89b908916de794221493de0d254a649ed5e4b76fc9bf5e773da831bbf733cc.md",
+      "observed_sha256": "2342569526b8689e593c8274cd3d203c32ae50b789a503413c88bae9b3262ee8"
+    },
+    "cli": {
+      "artifact": "scripts/18_plan_lf021_tranche_expansion.py",
+      "observed_sha256": "90bbdd6cb34ebf9a241849660ce919f3b371dfa08269eb8b1b0039c7b5742851"
+    },
+    "preregistration": {
+      "artifact": "reports/generation/lf021_tranche_expansion_preregistration_v1.md",
+      "observed_sha256": "50c5acac91ceb4486f5fad6ea0c16d34cbd9117d8999827bde06b335f65165e3"
+    }
+  },
+  "manifest_audits": [
+    {
+      "order": 0,
+      "tranche_id": "algebra_s0",
+      "pool_id": "algebra_gate3_docstrings_v1",
+      "schema_version": 3,
+      "manifest_id": "research_postprocess_v3_manifest:273c635963e8a0fe50cf835ddc32fab6e62e1a5764a6b1d403ab1900b7c785b6",
+      "input_binding_hash": "cb30ca5f3c0dca7c757e32387299f4cd50ff00a5fe7aa047efd9aabe9670fa2e",
+      "problem_count": 40,
+      "family_count": 3,
+      "expected_invocations": 120,
+      "terminal_invocations": 120,
+      "terminal_denominator_complete": true,
+      "terminal_artifact_hashes_checked": 120,
+      "terminal_artifact_hash_mismatches": 0,
+      "terminal_output_artifact_hashes_checked": 299,
+      "terminal_output_artifact_hash_mismatches": 0,
+      "invocations_by_family": {
+        "goedel_formalizer_v2_8b": 40,
+        "kimina_autoformalizer_7b": 40,
+        "stepfun_formalizer_7b": 40
+      },
+      "every_problem_has_all_three_family_invocations": true,
+      "actual_seed_by_family": {
+        "goedel_formalizer_v2_8b": 30,
+        "kimina_autoformalizer_7b": 0,
+        "stepfun_formalizer_7b": 0
+      },
+      "status_counts": {
+        "admitted_unresolved": 23,
+        "parse_failed": 97
+      },
+      "policy_parser_success_count": 23,
+      "policy_compile_success_count": 23,
+      "benchmark_rejected_count": 0,
+      "admitted_nl_lean_count": 23,
+      "admitted_pair_count": 23,
+      "admitted_alpha_unique_count": 23,
+      "admitted_by_family": {
+        "goedel_formalizer_v2_8b": 9,
+        "kimina_autoformalizer_7b": 7,
+        "stepfun_formalizer_7b": 7
+      },
+      "admitted_by_declared_source_proxy": {
+        "Algebra/AffineMonoid": 2,
+        "Algebra/Algebra": 2,
+        "Algebra/BigOperators": 9,
+        "Algebra/Category": 0,
+        "Algebra/Exact": 0,
+        "Algebra/Group": 8,
+        "Algebra/other": 2
+      },
+      "unlabeled_non_gating_manifest_flags": {
+        "semantic_labels_created": false,
+        "supervision_eligible": false,
+        "gate_5g_credit_claimed": false,
+        "gate_5_closed": false
+      },
+      "result": "pass"
+    },
+    {
+      "order": 1,
+      "tranche_id": "cross_domain_s0",
+      "pool_id": "cross_domain_docstrings_v1",
+      "schema_version": 4,
+      "manifest_id": "research_postprocess_v4_manifest:f7df4ea666de96d4a74a0c331a505a844ad6e25b7592125db4afc296a6f34383",
+      "input_binding_hash": "2cbbf48500e2871fce30d65bf14e8a79d30aea2cfbaedf841d6c996cd46916e4",
+      "problem_count": 20,
+      "family_count": 3,
+      "expected_invocations": 60,
+      "terminal_invocations": 60,
+      "terminal_denominator_complete": true,
+      "terminal_artifact_hashes_checked": 60,
+      "terminal_artifact_hash_mismatches": 0,
+      "terminal_output_artifact_hashes_checked": 93,
+      "terminal_output_artifact_hash_mismatches": 0,
+      "invocations_by_family": {
+        "goedel_formalizer_v2_8b": 20,
+        "kimina_autoformalizer_7b": 20,
+        "stepfun_formalizer_7b": 20
+      },
+      "every_problem_has_all_three_family_invocations": true,
+      "actual_seed_by_family": {
+        "goedel_formalizer_v2_8b": 30,
+        "kimina_autoformalizer_7b": 0,
+        "stepfun_formalizer_7b": 0
+      },
+      "status_counts": {
+        "admitted_unresolved": 7,
+        "materialization_failed": 1,
+        "parse_failed": 52
+      },
+      "policy_parser_success_count": 8,
+      "policy_compile_success_count": 7,
+      "benchmark_rejected_count": 0,
+      "admitted_nl_lean_count": 7,
+      "admitted_pair_count": 7,
+      "admitted_alpha_unique_count": 7,
+      "admitted_by_family": {
+        "goedel_formalizer_v2_8b": 0,
+        "kimina_autoformalizer_7b": 4,
+        "stepfun_formalizer_7b": 3
+      },
+      "admitted_by_declared_source_proxy": {
+        "Analysis": 0,
+        "Combinatorics": 0,
+        "Geometry": 1,
+        "NumberTheory": 3,
+        "Probability": 0,
+        "Topology": 3
+      },
+      "unlabeled_non_gating_manifest_flags": {
+        "semantic_labels_created": false,
+        "supervision_eligible": false,
+        "gate_5g_credit_claimed": false,
+        "gate_5_closed": false
+      },
+      "result": "pass"
+    }
+  ],
+  "cumulative_counts": {
+    "total_invocations": 180,
+    "raw_collected_count": 180,
+    "parser_success_count": 31,
+    "compile_success_count": 30,
+    "benchmark_rejected_count": 0,
+    "benchmark_clear_compile_count_before_global_dedup": 30,
+    "admitted_unresolved_manifest_sum": 30,
+    "admitted_pair_manifest_sum": 30,
+    "duplicate_member_count": 0,
+    "global_alpha_unique_count": 30,
+    "counts_reconcile": true,
+    "decision_counts_match": true
+  },
+  "global_alpha_dedup_audit": {
+    "candidate_members": 30,
+    "distinct_alpha_identity_fingerprints": 30,
+    "clusters_with_more_than_one_member": 0,
+    "duplicate_members_removed": 0,
+    "cross_tranche_duplicate_clusters": 0,
+    "result": "pass"
+  },
+  "coverage_audit": {
+    "minimums": {
+      "unique_contribution_per_family": 20,
+      "unique_per_pool": {
+        "algebra_gate3_docstrings_v1": 40,
+        "cross_domain_docstrings_v1": 30
+      },
+      "unique_per_family_pool_cell": 5,
+      "unique_per_declared_source_proxy": 1
+    },
+    "unique_contribution_by_family": {
+      "goedel_formalizer_v2_8b": 9,
+      "kimina_autoformalizer_7b": 11,
+      "stepfun_formalizer_7b": 10
+    },
+    "unique_contribution_by_pool": {
+      "algebra_gate3_docstrings_v1": 23,
+      "cross_domain_docstrings_v1": 7
+    },
+    "unique_contribution_by_family_pool": {
+      "goedel_formalizer_v2_8b|algebra_gate3_docstrings_v1": 9,
+      "goedel_formalizer_v2_8b|cross_domain_docstrings_v1": 0,
+      "kimina_autoformalizer_7b|algebra_gate3_docstrings_v1": 7,
+      "kimina_autoformalizer_7b|cross_domain_docstrings_v1": 4,
+      "stepfun_formalizer_7b|algebra_gate3_docstrings_v1": 7,
+      "stepfun_formalizer_7b|cross_domain_docstrings_v1": 3
+    },
+    "unique_contribution_by_declared_source_proxy": {
+      "Algebra/AffineMonoid": 2,
+      "Algebra/Algebra": 2,
+      "Algebra/BigOperators": 9,
+      "Algebra/Category": 0,
+      "Algebra/Exact": 0,
+      "Algebra/Group": 8,
+      "Algebra/other": 2,
+      "Analysis": 0,
+      "Combinatorics": 0,
+      "Geometry": 1,
+      "NumberTheory": 3,
+      "Probability": 0,
+      "Topology": 3
+    },
+    "coverage_deficits": [
+      "family:goedel_formalizer_v2_8b:9<20",
+      "family:kimina_autoformalizer_7b:11<20",
+      "family:stepfun_formalizer_7b:10<20",
+      "family_pool:goedel_formalizer_v2_8b|cross_domain_docstrings_v1:0<5",
+      "family_pool:kimina_autoformalizer_7b|cross_domain_docstrings_v1:4<5",
+      "family_pool:stepfun_formalizer_7b|cross_domain_docstrings_v1:3<5",
+      "pool:algebra_gate3_docstrings_v1:23<40",
+      "pool:cross_domain_docstrings_v1:7<30",
+      "source_proxy:Algebra/Category:0<1",
+      "source_proxy:Algebra/Exact:0<1",
+      "source_proxy:Analysis:0<1",
+      "source_proxy:Combinatorics:0<1",
+      "source_proxy:Probability:0<1"
+    ],
+    "decision_coverage_maps_match": true,
+    "decision_coverage_deficits_match": true,
+    "preferred_frame_stop_rule_satisfied": false,
+    "result": "pass"
+  },
+  "prefix_audit": {
+    "frozen_policy_prefix_for_two_observations": [
+      {
+        "order": 0,
+        "tranche_id": "algebra_s0",
+        "pool_id": "algebra_gate3_docstrings_v1",
+        "seeds_by_family": {
+          "goedel_formalizer_v2_8b": 30,
+          "kimina_autoformalizer_7b": 0,
+          "stepfun_formalizer_7b": 0
+        }
+      },
+      {
+        "order": 1,
+        "tranche_id": "cross_domain_s0",
+        "pool_id": "cross_domain_docstrings_v1",
+        "seeds_by_family": {
+          "goedel_formalizer_v2_8b": 30,
+          "kimina_autoformalizer_7b": 0,
+          "stepfun_formalizer_7b": 0
+        }
+      }
+    ],
+    "decision_observation_order": [
+      "algebra_s0",
+      "cross_domain_s0"
+    ],
+    "observed_manifest_ids_unique": true,
+    "orders_consecutive_from_zero": true,
+    "no_skipped_tranche": true,
+    "no_substituted_pool": true,
+    "actual_seeds_match_policy": true,
+    "result": "pass"
+  },
+  "decision_surface_audit": {
+    "frozen_allowlist": [
+      "parse_status",
+      "compile_status",
+      "dedup_identity",
+      "benchmark_screen",
+      "family_id",
+      "pool_id",
+      "source_proxy"
+    ],
+    "decision_record_inputs_used": [
+      "parse_status",
+      "compile_status",
+      "dedup_identity",
+      "benchmark_screen",
+      "family_id",
+      "pool_id",
+      "source_proxy"
+    ],
+    "exact_allowlist_match": true,
+    "frozen_forbidden_inputs": [
+      "same_claim",
+      "relation",
+      "faithfulness_judgment",
+      "llm_judgment",
+      "human_label",
+      "proof_search_result"
+    ],
+    "decision_record_forbidden_inputs_used": [],
+    "ast_literal_accesses_to_forbidden_inputs": [],
+    "ast_literal_accesses_to_other_semantic_disposition_fields": [],
+    "other_semantic_disposition_fields_checked": [
+      "decision",
+      "quality_tier",
+      "resolution_outcome",
+      "requires_adjudication",
+      "semantic_pool_admitted"
+    ],
+    "terminal_label_field_scan": {
+      "terminal_count": 180,
+      "same_claim_present_count": 180,
+      "same_claim_non_null_count": 0,
+      "relation_present_count": 180,
+      "relation_non_null_count": 0,
+      "faithfulness_judgment_present_count": 0,
+      "llm_judgment_present_count": 0,
+      "human_label_present_count": 0,
+      "proof_search_result_present_count": 0
+    },
+    "static_dataflow_result": "The selection action and coverage thresholds depend only on the completed prefix plus compilation-only parse, compile, benchmark, alpha-identity, family, pool, and proxy observations. Hashes, schema fields, seeds, denominators, IDs, and unlabeled/non-gating flags are used only for fail-closed integrity, lineage, and policy-prefix validation; they do not supply a semantic selection metric.",
+    "semantic_labels_inspected": false,
+    "semantic_labels_created": false,
+    "supervision_eligible": false,
+    "gate_5g_credit_claimed": false,
+    "gate_5_closed": false,
+    "result": "pass"
+  },
+  "decision_content_address_audit": {
+    "recorded_decision_id": "lf021_expansion_decision:4e89b908916de794221493de0d254a649ed5e4b76fc9bf5e773da831bbf733cc",
+    "independently_recomputed_decision_id": "lf021_expansion_decision:4e89b908916de794221493de0d254a649ed5e4b76fc9bf5e773da831bbf733cc",
+    "match": true,
+    "recorded_action": "collect_next_tranche",
+    "independently_expected_action": "collect_next_tranche",
+    "action_match": true,
+    "reason": "Both mandatory tranches are complete, but 30 unique candidates is below 240 and the recorded coverage deficits remain."
+  },
+  "next_tranche_audit": {
+    "policy_order": 2,
+    "tranche_id": "algebra_s1",
+    "pool_id": "algebra_gate3_docstrings_v1",
+    "expected_problem_count": 40,
+    "expected_invocations": 120,
+    "mandatory_before_stopping": false,
+    "seeds_by_family": {
+      "goedel_formalizer_v2_8b": 31,
+      "kimina_autoformalizer_7b": 1,
+      "stepfun_formalizer_7b": 1
+    },
+    "decision_matches_normalized_policy_row": true,
+    "result": "pass"
+  },
+  "exact_replay_audit": {
+    "algebra_postprocess_v3_verify_only": {
+      "command": ".venv/bin/python scripts/16_postprocess_research_outputs_v3.py --root . --collection-root data/raw/real_outputs/gate3_docstrings_operational_v1/v2/local_collection/3801b405ec8b7008f8c38f449189a52fe5e74bea3a98f5e3e0abdaa75edac62c --verify-only",
+      "exit_code": 0,
+      "replayed_manifest_id": "research_postprocess_v3_manifest:273c635963e8a0fe50cf835ddc32fab6e62e1a5764a6b1d403ab1900b7c785b6",
+      "file_count_before": 616,
+      "file_count_after": 616,
+      "total_bytes_before": 2981722,
+      "total_bytes_after": 2981722,
+      "complete_sha256_inventory_invariant": true
+    },
+    "cross_domain_s0_postprocess_v4_verify_only": {
+      "command": ".venv/bin/python scripts/20_postprocess_research_outputs_v4.py --root . --collection-root data/raw/real_outputs/cross_domain_docstrings_operational_v1/v3/cross_domain_s0/local_collection/b5080892f0b71e43735dfe3a1f3bf4e227f7988c362196ea7a09ea703db3846c --verify-only",
+      "exit_code": 0,
+      "replayed_manifest_id": "research_postprocess_v4_manifest:f7df4ea666de96d4a74a0c331a505a844ad6e25b7592125db4afc296a6f34383",
+      "file_count_before": 246,
+      "file_count_after": 246,
+      "total_bytes_before": 1863116,
+      "total_bytes_after": 1863116,
+      "complete_sha256_inventory_invariant": true
+    },
+    "expansion_decision_replay": {
+      "command": ".venv/bin/python scripts/18_plan_lf021_tranche_expansion.py --root . --postprocess-manifest data/raw/real_outputs/gate3_docstrings_operational_v1/v2/local_collection/3801b405ec8b7008f8c38f449189a52fe5e74bea3a98f5e3e0abdaa75edac62c/postprocess_v3/manifest.json --postprocess-manifest data/raw/real_outputs/cross_domain_docstrings_operational_v1/v3/cross_domain_s0/local_collection/b5080892f0b71e43735dfe3a1f3bf4e227f7988c362196ea7a09ea703db3846c/postprocess_v4/manifest.json",
+      "exit_code": 0,
+      "replayed_decision_id": "lf021_expansion_decision:4e89b908916de794221493de0d254a649ed5e4b76fc9bf5e773da831bbf733cc",
+      "replayed_action": "collect_next_tranche",
+      "replayed_next_tranche": "algebra_s1",
+      "file_count_before": 8,
+      "file_count_after": 8,
+      "total_bytes_before": 21449,
+      "total_bytes_after": 21449,
+      "complete_sha256_inventory_invariant": true
+    },
+    "bound_artifacts_modified": false,
+    "result": "pass"
+  },
+  "validation": {
+    "json_parse": "pass",
+    "internal_cross_checks": "pass",
+    "unit_test_command": ".venv/bin/pytest -q tests/unit/test_lf021_tranche_expansion.py",
+    "unit_test_result": "8 passed"
+  },
+  "defects": [],
+  "conclusion": {
+    "manifest_completion": "pass",
+    "count_reconciliation": "pass",
+    "coverage_reconciliation": "pass",
+    "prefix_ordering": "pass",
+    "allowlist_and_label_blindness": "pass",
+    "next_tranche_selection": "pass",
+    "exact_replay": "pass",
+    "byte_invariance": "pass",
+    "overall": "pass"
+  }
+}

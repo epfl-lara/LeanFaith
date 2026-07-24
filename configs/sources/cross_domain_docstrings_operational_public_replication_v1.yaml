@@ -1,0 +1,11 @@
+profile_version: cross_domain_docstrings_operational_public_replication_v1
+description: Public reproduction profile for the model-free LF-021 cross-domain operational pool.
+sources:
+  - source: mathlib_cross_domain_docstrings_operational_v1
+    config: configs/sources/mathlib_cross_domain_docstrings_operational_v1.yaml
+limitations:
+  - top-level Mathlib paths are deterministic domain proxies, not adjudicated semantic-domain labels
+  - contributor-authored docstrings are not human faithfulness labels
+  - strict temporal provenance does not prove absence from model pretraining
+  - reference statements are retained for scoring and hidden from generator inputs
+  - the pool creates no semantic label and claims no Gate credit

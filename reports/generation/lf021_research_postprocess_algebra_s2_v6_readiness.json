@@ -1,0 +1,50 @@
+{
+  "schema_version": 6,
+  "report_kind": "lf021_research_postprocess_v6_readiness",
+  "tranche_id": "algebra_s2",
+  "status": "ready_pending_final_collector_v5_manifest",
+  "collector_schema_version": 5,
+  "postprocess_schema_version": 6,
+  "collection_config": {
+    "artifact": "configs/generation/local_research_collection_algebra_s2_v5.json",
+    "sha256": "1602d3a6f35114b4369d185fe23a83abcb24ee65cd2ad54f6a1d75780e744bf1"
+  },
+  "collection_plan": {
+    "artifact": "data/raw/real_outputs/gate3_docstrings_operational_v1/v5/algebra_s2/local_collection/9dc8113d3a1529b8e9bfa20bec1f2593a254d2359df0305ecd89521179be6af4/plan.json",
+    "plan_id": "research_collection_plan_v5:9dc8113d3a1529b8e9bfa20bec1f2593a254d2359df0305ecd89521179be6af4",
+    "plan_hash": "75cc2ee65f77c94ee7969d0c58d403acc418dbd2f14d6f1c3945e3ee4363bf13",
+    "sha256": "1b2485667fd41b6bc75b0a0aea165a2d53d2bd4831614182419ae26f40c1bcf9"
+  },
+  "collector_implementation": {
+    "artifact": "src/leanfaith/generation/research_collection_v5.py",
+    "sha256": "720f23b7f0ae3c528b9d95cc8e7580421f366d2b7044d74c7f7fd98e0403c56b"
+  },
+  "postprocess_implementation": {
+    "artifact": "src/leanfaith/generation/research_postprocess_v6.py",
+    "sha256": "a5f3fa6ce0da674973c5fbb9d32c7fe5516d65af91b725c20eb7873410c47fc9"
+  },
+  "postprocess_cli": {
+    "artifact": "scripts/28_postprocess_research_tranche_v6.py",
+    "sha256": "fda22e75e0f77fe4156449ef1fd597c950c5641b893ec07eb8b15134f12493de"
+  },
+  "focused_test": {
+    "artifact": "tests/unit/test_lf021_research_postprocess_v6.py",
+    "sha256": "2af337378053d908cd18e3b9fb10e8a37d49e96e52ba8404717928f4aaf12601"
+  },
+  "default_output_root": "data/raw/real_outputs/gate3_docstrings_operational_v1/v5/algebra_s2/local_collection/9dc8113d3a1529b8e9bfa20bec1f2593a254d2359df0305ecd89521179be6af4/postprocess_v6",
+  "run_command": "uv run python scripts/28_postprocess_research_tranche_v6.py --run --root /localhome/milikic/LeanFaith --collection-root data/raw/real_outputs/gate3_docstrings_operational_v1/v5/algebra_s2/local_collection/9dc8113d3a1529b8e9bfa20bec1f2593a254d2359df0305ecd89521179be6af4 --collection-config configs/generation/local_research_collection_algebra_s2_v5.json --mathlib-project-dir /storage/milikic/leanfaith/mathlib4",
+  "verify_command": "uv run python scripts/28_postprocess_research_tranche_v6.py --verify-only --root /localhome/milikic/LeanFaith --collection-root data/raw/real_outputs/gate3_docstrings_operational_v1/v5/algebra_s2/local_collection/9dc8113d3a1529b8e9bfa20bec1f2593a254d2359df0305ecd89521179be6af4 --collection-config configs/generation/local_research_collection_algebra_s2_v5.json",
+  "execution_performed": false,
+  "semantic_labels_created": false,
+  "supervision_eligible": false,
+  "gate_5g_credit_claimed": false,
+  "gate_5_closed": false,
+  "rules": [
+    "do not execute before the collector-v5 manifest is final",
+    "the frozen implementation, CLI, and focused-test hashes must match before execution",
+    "collector-v4 inputs are rejected and belong to postprocess-v5",
+    "unknown collector versions are rejected without inference",
+    "each invocation remains the materialization-isolation unit",
+    "postprocessing creates no semantic labels, supervision admission, or Gate claim"
+  ]
+}

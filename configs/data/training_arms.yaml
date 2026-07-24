@@ -1,0 +1,25 @@
+protocol_version: training_arms_v1
+batch_class_balance:
+  positive: 0.5
+  negative: 0.5
+negative_arms:
+  D0: {G_rule: 1.0}
+  D1: {G_rule: 0.5, G_sci: 0.5}
+  D2: {G_rule: 0.5, G_open: 0.5}
+  D3: {G_rule: 0.5, G_real: 0.5}
+  D4: {G_rule: 0.2, G_sci: 0.25, G_open: 0.25, G_real: 0.3}
+  D5: {base_arm: D4, include_training_gold: true, human_gold_loss_weight: 2.0}
+full_arm_positive_mix:
+  certified_positive: 0.5
+  human_or_promoted_faithful_real: 0.3
+  promoted_llm_equivalent: 0.2
+caps:
+  deterministic_family_fraction_of_all_negative: 0.05
+  minimum_llm_proposer_families: 3
+  maximum_one_llm_family_fraction_of_llm_negative: 0.4
+  minimum_real_generator_families: 3
+  maximum_one_real_family_fraction_of_real_negative: 0.4
+  unique_variants_per_ancestry_per_epoch: 4
+  ancestry_normalized_total_loss_weight: 1.0
+  duplicate_additional_effective_weight: 0.0
+missing_source_behavior: reduced_data_ablation

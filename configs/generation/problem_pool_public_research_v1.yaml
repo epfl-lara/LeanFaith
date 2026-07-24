@@ -1,0 +1,41 @@
+schema_version: 1
+config_id: problem_pool_v1
+status: ready
+selection_seed: lf021_public_research_mathlib_docstrings_v1
+
+# This additive research-pool config does not alter the canonical fail-closed
+# configs/generation/problem_pool_v1.yaml. It authorizes only the three
+# public, contributor-authored records in the exact source snapshot below.
+sources:
+  - source: mathlib_post_formalrx_docstrings_v1
+    source_config: configs/sources/mathlib_post_formalrx_docstrings_v1.yaml
+    source_config_sha256: a8028a7aef45176d857bf366656f4fec30d46fcd17e09203c54d22d0896e660c
+    authorization:
+      source_revision: c368140668f5fa16a1bd977448c1f665d48c3df4
+      license_id: Apache-2.0
+      private_source: false
+      external_transmission: true
+      release_eligible: true
+    enabled: true
+    private_source: false
+    external_provider_eligible: true
+    allowed_trust: [trusted]
+    require_reference_theorem: true
+
+active_benchmark_registry_manifest: data/benchmarks/manifests/representation_signatures_v1.json
+active_benchmark_registry_manifest_sha256: 4ffbd31dd0e10efb9dfe7e57fb815690f3e1d750e4640aeff959ca4cbdc911df
+benchmark_preflight_required: true
+normalized_nl_exact_dedup: true
+near_duplicate:
+  status: frozen
+  method: supplied_group_ids
+  method_version: v1
+  threshold: 1.0
+private_source_external_transmission: false
+public_replication_profile: configs/sources/public_research_replication_v1.yaml
+
+outputs:
+  records: data/parsed/real_outputs/public_research_v1/problem_pool_records.jsonl
+  failures: data/parsed/real_outputs/public_research_v1/problem_pool_failures.jsonl
+  manifest: data/parsed/real_outputs/public_research_v1/problem_pool_manifest.json
+  coverage_report: reports/generation/lf021_public_research_pool_v1.json

@@ -16,7 +16,7 @@ import re
 
 from leanfaith.config.hashing import hash_canonical, sha256_hex
 
-NORMALIZATION_VERSION = "repr_v1"
+NORMALIZATION_VERSION = "repr_v2"
 
 #: §13.4 pinned options, inline form (``set_option X in`` chains before a
 #: ``#check``). signature_pp keeps implicits readable with stable full names;
@@ -30,6 +30,7 @@ PP_EXPLICIT_INLINE = (
 )
 
 _WS = re.compile(r"\s+")
+_PP_UNIVERSE_PLACEHOLDER = re.compile(r"\bu_\d+\b")
 _NESTED_BLOCK_COMMENT = re.compile(r"/-.*?-/", re.DOTALL)
 _LINE_COMMENT = re.compile(r"--[^\n]*")
 _MODIFIERS = re.compile(r"^\s*(?:protected|private|noncomputable|scoped|local)\s+")
@@ -153,3 +154,24 @@ def signature_near_dup_hash(signature: str) -> str:
     """Whitespace-collapsed hash of an elaborated signature for near-duplicate
     detection (§19.4). Full-name/explicit pins make this robust to notation."""
     return sha256_hex(_WS.sub(" ", signature).strip().encode("utf-8"))
+
+
+def normalize_pp_universe_placeholders(signature: str) -> str:
+    """Alpha-normalize Lean-generated ``u_<n>`` names in pretty output.
+
+    ``#check`` chooses fresh numeric suffixes independently in each command,
+    so raw ``signature_explicit`` text is not stable across otherwise
+    equivalent name-based and inline inspections. Only the generated
+    ``u_<n>`` spelling is rewritten; user universe names and universe
+    expression structure are preserved.
+    """
+
+    names: dict[str, str] = {}
+
+    def replace(match: re.Match[str]) -> str:
+        token = match.group(0)
+        if token not in names:
+            names[token] = f"u_{len(names)}"
+        return names[token]
+
+    return _PP_UNIVERSE_PLACEHOLDER.sub(replace, signature)

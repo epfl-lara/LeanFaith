@@ -8,11 +8,13 @@ precedence lives in the LF-024 resolver.
 from __future__ import annotations
 
 import re
+from typing import Any, Literal
 
 from pydantic import Field, model_validator
 
 from leanfaith.config.models import StrictModel
 from leanfaith.schemas.enums import (
+    Decision,
     QualityTier,
     RelationLabel,
     ResolutionOutcome,
@@ -24,6 +26,11 @@ from leanfaith.schemas.ids import (
     NL_LEAN_PREFIX,
     PAIR_PREFIX,
     id_pattern,
+)
+from leanfaith.schemas.migrations import (
+    CURRENT_RECORD_SCHEMA_VERSION,
+    LEGACY_RECORD_SCHEMA_VERSION,
+    migrate_legacy_relation,
 )
 from leanfaith.schemas.variant import _check_ecodes
 
@@ -38,9 +45,8 @@ _RELATIONS_FOR_NOT_SAME = frozenset(
     {
         RelationLabel.A_STRONGER,
         RelationLabel.B_STRONGER,
-        RelationLabel.INCOMPARABLE_NEAR_MISS,
+        RelationLabel.INCOMPARABLE,
         RelationLabel.UNRELATED,
-        RelationLabel.UNKNOWN,
     }
 )
 
@@ -58,13 +64,13 @@ class FaithfulnessLevels(StrictModel):
 class ResolvedLabel(StrictModel):
     """The single label artifact for one pair or NL-Lean record (§11.8)."""
 
-    schema_version: int = 1
+    schema_version: Literal[2] = CURRENT_RECORD_SCHEMA_VERSION
     label_id: str = Field(pattern=id_pattern(LABEL_PREFIX))
     target_kind: SemanticLabelTargetKind
     target_id: str
     same_claim: bool | None
     resolution_outcome: ResolutionOutcome
-    relation: RelationLabel
+    relation: RelationLabel | None
     faithfulness_levels: FaithfulnessLevels
     truth_A_implies_B: bool | None = None
     truth_B_implies_A: bool | None = None
@@ -77,6 +83,49 @@ class ResolvedLabel(StrictModel):
     train_eligibility: bool
     eval_eligibility: bool
     policy_version: str
+    decision: Decision | None = None
+    relation_provenance: tuple[str, ...] = ()
+    migration_metadata: dict[str, MetadataValue] = Field(default_factory=dict)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _migrate_v1(cls, value: Any) -> Any:
+        if not isinstance(value, dict):
+            return value
+        data = dict(value)
+        if data.get("schema_version") == LEGACY_RECORD_SCHEMA_VERSION:
+            legacy_relation = data.get("relation")
+            relation, provenance = migrate_legacy_relation(legacy_relation)
+            data["schema_version"] = CURRENT_RECORD_SCHEMA_VERSION
+            data["relation"] = relation
+            if provenance:
+                existing = tuple(data.get("relation_provenance", ()))
+                data["relation_provenance"] = tuple(dict.fromkeys((*existing, *provenance)))
+            metadata = dict(data.get("migration_metadata", {}))
+            metadata.update(
+                {
+                    "source_schema_version": LEGACY_RECORD_SCHEMA_VERSION,
+                    "legacy_relation": str(legacy_relation),
+                }
+            )
+            data["migration_metadata"] = metadata
+            if relation is None:
+                data.update(
+                    {
+                        "same_claim": None,
+                        "resolution_outcome": ResolutionOutcome.UNRESOLVED,
+                        "quality_tier": QualityTier.UNKNOWN,
+                        "requires_adjudication": True,
+                        "train_eligibility": False,
+                        "eval_eligibility": False,
+                    }
+                )
+                levels = dict(data.get("faithfulness_levels", {}))
+                levels["F1_same_claim"] = None
+                data["faithfulness_levels"] = levels
+        if data.get("resolution_outcome") == ResolutionOutcome.UNRESOLVED:
+            data.setdefault("decision", Decision.REVIEW)
+        return data
 
     @model_validator(mode="after")
     def _invariants(self) -> ResolvedLabel:
@@ -110,11 +159,13 @@ class ResolvedLabel(StrictModel):
 
         # review route vs terminal ambiguity (§3.5)
         if outcome == ResolutionOutcome.UNRESOLVED and (
-            self.quality_tier != QualityTier.UNKNOWN or not self.requires_adjudication
+            self.quality_tier != QualityTier.UNKNOWN
+            or not self.requires_adjudication
+            or self.decision != Decision.REVIEW
         ):
             raise ValueError(
                 "unresolved review route requires quality_tier=unknown and "
-                "requires_adjudication=true (§3.5)"
+                "requires_adjudication=true and decision=REVIEW (§3.5)"
             )
         if outcome == ResolutionOutcome.AMBIGUOUS and (
             self.quality_tier not in _AMBIGUOUS_TIERS or self.requires_adjudication
@@ -129,12 +180,12 @@ class ResolvedLabel(StrictModel):
             raise ValueError("same_claim=true requires relation=equivalent")
         if self.same_claim is False and self.relation not in _RELATIONS_FOR_NOT_SAME:
             raise ValueError(
-                "same_claim=false requires a directional/near-miss/unrelated/unknown relation"
+                "same_claim=false requires a directional/incomparable/unrelated relation"
             )
         if outcome == ResolutionOutcome.AMBIGUOUS and self.relation != RelationLabel.AMBIGUOUS:
             raise ValueError("terminal ambiguity requires relation=ambiguous")
-        if outcome == ResolutionOutcome.UNRESOLVED and self.relation != RelationLabel.UNKNOWN:
-            raise ValueError("unresolved review route requires relation=unknown")
+        if outcome == ResolutionOutcome.UNRESOLVED and self.relation is not None:
+            raise ValueError("unresolved review route requires relation=null")
 
         # F2 derives mechanically from accepted truth evidence (§14.7)
         f2 = self.faithfulness_levels.F2_truth_equivalent

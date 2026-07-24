@@ -1,0 +1,246 @@
+{
+  "schema_version": 1,
+  "report_kind": "lf021_collector_v5_independent_audit_v1",
+  "created_at": "2026-07-24T02:33:14Z",
+  "verdict": "PASS",
+  "audited_before_live_use": true,
+  "scope": [
+    "frozen collector-v4 byte preservation",
+    "collector-v5 runtime equivalence and version separation",
+    "module, CLI, config, policy, decision, and observed-prefix bindings",
+    "both closed public-pool dialects",
+    "prospective post-cross_domain_s1 algebra_s2 derivation",
+    "tamper rejection, immutable resume, and denominator accounting",
+    "absence of semantic labels, supervision admission, and Gate claims",
+    "focused and repository-wide tests, Ruff, formatting, and mypy"
+  ],
+  "frozen_collector_v4": {
+    "unchanged": true,
+    "artifacts": [
+      {
+        "artifact": "src/leanfaith/generation/research_collection_v4.py",
+        "sha256": "6ac7c17c9ebdf66b458cd39079e467daee663e8cbc4eb7382a2d1a52fd31987b"
+      },
+      {
+        "artifact": "scripts/21_collect_research_tranche_v4.py",
+        "sha256": "465e8abd269edf6389f599a844dd88397b9f0f60b57021733a4b94443499442f"
+      },
+      {
+        "artifact": "configs/generation/local_research_collection_algebra_s1_v4.json",
+        "sha256": "09bc01258404548c1bf7bae826da689af1783204472b185937f4f6832f9c3e37"
+      },
+      {
+        "artifact": "configs/generation/local_research_source_matrix_algebra_s1_v4.json",
+        "sha256": "4f6f5ab0119cfdd8c6f0ba3c47112cc83a4c0ce61b8a3ae40e2c5009a4828ce4"
+      },
+      {
+        "artifact": "configs/generation/local_research_collection_cross_domain_s1_v4.json",
+        "sha256": "4ccc37b5943059747578a049593816d4dcf81c4b2ac48a3e44e4a98496ae7fc2"
+      },
+      {
+        "artifact": "configs/generation/local_research_source_matrix_cross_domain_s1_v4.json",
+        "sha256": "761bae3371abf79c39ab9fffa8800be117678e2368f3e3a3e16f22f8b520dcc1"
+      }
+    ]
+  },
+  "collector_v5_candidate": {
+    "artifacts": [
+      {
+        "artifact": "src/leanfaith/generation/research_collection_v5.py",
+        "sha256": "720f23b7f0ae3c528b9d95cc8e7580421f366d2b7044d74c7f7fd98e0403c56b"
+      },
+      {
+        "artifact": "scripts/27_collect_research_tranche_v5.py",
+        "sha256": "e9332258836591d959cef101e480a5d3a6e052529cd86ccd402d130b33a3922f"
+      },
+      {
+        "artifact": "tests/unit/test_lf021_research_collection_v5.py",
+        "sha256": "20f23002816d3ff60d4b40c8538c23698863c7162cdf9adbf0b69b6a04017ea5"
+      },
+      {
+        "artifact": "pyproject.toml",
+        "sha256": "0d7d6700c1ab75b158cab1a53619acdca1e2354190416d2c2571de477874f84e"
+      }
+    ],
+    "schema_version": 5,
+    "plan_id_prefix": "research_collection_plan_v5:",
+    "manifest_id_prefix": "research_collection_manifest_v5:",
+    "matrix_id_prefix": "local_research_source_matrix_v5:",
+    "shared_execution_record_schema": "lf021_research_execution_records_v1",
+    "runtime_execution_ast_equal_to_v4_after_version_normalization": true
+  },
+  "prospective_algebra_s2_replay": {
+    "passed": true,
+    "decision_artifact": {
+      "artifact": "reports/generation/lf021_tranche_expansion_v1/decisions/024550993e73ef6532a29d0ec1a029b90c74de796e2863a99bde1c9405857365.json",
+      "sha256": "ba53146b4a2d86dcddb6fe1bd4b31a60aeff20ceb0943ffcb5ded752fd3190d3"
+    },
+    "decision_id": "lf021_expansion_decision:024550993e73ef6532a29d0ec1a029b90c74de796e2863a99bde1c9405857365",
+    "policy_artifact": {
+      "artifact": "configs/generation/lf021_tranche_expansion_v1.yaml",
+      "sha256": "0c726e197ef5358ef4a7414e36622c10fb7ff19082199540b62e4bc170834e16"
+    },
+    "decision_implementation_artifact": {
+      "artifact": "src/leanfaith/generation/tranche_expansion.py",
+      "sha256": "33078832be9131cc85f7ac10e0e4da6374c768ffb6a0e4829a71b4e8f7fcbc67"
+    },
+    "observed_prefix": [
+      "algebra_s0",
+      "cross_domain_s0",
+      "algebra_s1",
+      "cross_domain_s1"
+    ],
+    "cross_domain_s1_postprocess_manifest": {
+      "artifact": "data/raw/real_outputs/cross_domain_docstrings_operational_v1/v4/cross_domain_s1/local_collection/40860adfb4f149dbf357f3cc624a4df02bdae020be27cdb4f3f16ca4f9771100/postprocess_v5/manifest.json",
+      "sha256": "54b0a1d07d3ee6d47aa1313a2e0b88e2653fcccad229266a07b7d750c4823bcc"
+    },
+    "base_config": {
+      "artifact": "configs/generation/local_research_collection_v2.yaml",
+      "sha256": "dbc1ce6c0eca76eaba03e26d8619c0caf63a34dcc468aa53803f4ca526ff7403"
+    },
+    "next_tranche": {
+      "tranche_id": "algebra_s2",
+      "order": 4,
+      "pool_id": "algebra_gate3_docstrings_v1",
+      "pool_dialect": "gate3_algebra_operational_v1",
+      "problem_count": 40,
+      "expected_candidates": 120,
+      "seeds_by_family": {
+        "goedel_formalizer_v2_8b": 32,
+        "kimina_autoformalizer_7b": 2,
+        "stepfun_formalizer_7b": 2
+      }
+    },
+    "derived_output_root": "data/raw/real_outputs/gate3_docstrings_operational_v1/v5/algebra_s2/local_collection",
+    "derived_preflight_report": "reports/generation/lf021_local_research_collection_preflight_algebra_s2_v5.json",
+    "ephemeral_audit_config_sha256": "7d1efe60bfc1ca3f7ddbb565712178a220f2a20b790cc13d953f1e4771c59375",
+    "ephemeral_audit_source_matrix_sha256": "9af7812b90ef33be2630b608c2b086ec91c928a8d0009bff81ead8958f8e46e5",
+    "ephemeral_audit_plan_id": "research_collection_plan_v5:e3a202b747dbdf3045add85abcf6326a0771a6fe11a61d3258e3a3d9ac188c03",
+    "ephemeral_artifacts_deleted_after_replay": true,
+    "execution_ready": true,
+    "semantic_labels_created": false,
+    "gate_5g_credit_claimed": false,
+    "gate_5_closed": false
+  },
+  "checks": [
+    {
+      "id": "V5-A01",
+      "result": "pass",
+      "description": "Frozen collector-v4 module, CLI, Algebra s1 config/matrix, and cross-domain s1 config/matrix retain their recorded hashes."
+    },
+    {
+      "id": "V5-A02",
+      "result": "pass",
+      "description": "Collector-v5 execution is AST-equivalent to collector-v4 after normalizing only versioned identifiers and schema markers."
+    },
+    {
+      "id": "V5-A03",
+      "result": "pass",
+      "description": "Both Algebra overlap-v2 and cross-domain overlap-v3 pool dialects derive, replay, and preflight through one v5 boundary."
+    },
+    {
+      "id": "V5-A04",
+      "result": "pass",
+      "description": "The config and plan bind exact v5 module and CLI hashes; loader replay resolves and re-hashes both artifacts."
+    },
+    {
+      "id": "V5-A05",
+      "result": "pass",
+      "description": "Output and preflight paths must equal the exact dialect-derived v5 tranche paths; shared path validation also rejects absolute and parent traversal paths."
+    },
+    {
+      "id": "V5-A06",
+      "result": "pass",
+      "description": "The expansion decision is recomputed from the exact bound policy and observed postprocess prefix; rehashed next-tranche and operational-count tampering are rejected."
+    },
+    {
+      "id": "V5-A07",
+      "result": "pass",
+      "description": "The post-cross_domain_s1 decision replays four observations and derives exactly algebra_s2 with G32/K2/S2, 40 problems, and 120 invocations."
+    },
+    {
+      "id": "V5-A08",
+      "result": "pass",
+      "description": "Fake execution writes exactly one terminal per invocation and a second run makes zero executor calls while preserving terminal and manifest bytes."
+    },
+    {
+      "id": "V5-A09",
+      "result": "pass",
+      "description": "Config, matrix, plan, preflight, and manifest schemas force semantic-label and Gate-credit fields to false."
+    },
+    {
+      "id": "V5-A10",
+      "result": "pass",
+      "description": "The mypy exception is scoped only to leanfaith.generation.research_collection_v4 and only error codes return-value and assignment."
+    }
+  ],
+  "defects_found_and_fixed_before_pass": [
+    {
+      "id": "V5-F01",
+      "severity": "blocking_before_live_use",
+      "defect": "A wrong but repository-relative output root containing v5 and the tranche name could pass preflight.",
+      "correction": "Require the exact pool-dialect-derived collection root and preflight report path in the v5 config validator.",
+      "regression_tested": true,
+      "v4_modified": false
+    },
+    {
+      "id": "V5-F02",
+      "severity": "blocking_before_live_use",
+      "defect": "A content-rehashed decision could alter the next tranche or operational counts because v5 replayed observations but not the complete expansion decision.",
+      "correction": "Recompute the complete label-blind expansion decision from the bound policy and exact observation paths and require model equality.",
+      "regression_tested": true,
+      "v4_modified": false
+    }
+  ],
+  "nonblocking_follow_on": [
+    {
+      "id": "V5-N01",
+      "description": "The frozen postprocess-v5 envelope intentionally accepts collector-v4 only. A separately versioned postprocessor that binds collector-v5 is required before algebra_s2 raw outputs can enter the next expansion observation; this does not invalidate or block the raw collector-v5 run."
+    }
+  ],
+  "validation": {
+    "focused_pytest": {
+      "command": "uv run pytest -q tests/unit/test_lf021_research_collection_v4.py tests/unit/test_lf021_research_collection_v5.py",
+      "collected": 14,
+      "passed": 14
+    },
+    "full_pytest": {
+      "command": "uv run pytest -q",
+      "collected": 1465,
+      "passed": 1465
+    },
+    "ruff_check": {
+      "command": "uv run ruff check .",
+      "passed": true
+    },
+    "ruff_format": {
+      "command": "uv run ruff format --check .",
+      "files_checked": 311,
+      "passed": true
+    },
+    "mypy": {
+      "command": "uv run mypy",
+      "source_files_checked": 145,
+      "passed": true
+    },
+    "v4_unsuppressed_diagnostics": [
+      {
+        "line": 128,
+        "code": "return-value"
+      },
+      {
+        "line": 1174,
+        "code": "assignment"
+      }
+    ],
+    "git_diff_check": true,
+    "ephemeral_audit_artifacts_remaining": 0
+  },
+  "authorization": {
+    "safe_to_prepare_and_execute_algebra_s2_with_exact_audited_v5_bytes": true,
+    "semantic_labels_created": false,
+    "supervision_eligible": false,
+    "gate_5g_credit_claimed": false,
+    "gate_5_closed": false
+  }
+}

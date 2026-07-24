@@ -1,0 +1,53 @@
+schema_version: 2
+config_id: lf021_rcp_kimi_qualification_v2
+frozen_at: "2026-07-24T01:45:00Z"
+status: qualification_ready
+artifact_class: qualification
+shared_execution_record_schema: lf021_rcp_qualification_records_v1
+
+engine_config:
+  artifact: configs/generation/rcp_kimi_qualification_v1.yaml
+  sha256: 9bfe99f9a2a370540c69ec8cf1704f6e8e6a720751bd79e9c54839319ee71c20
+engine_module:
+  artifact: src/leanfaith/generation/rcp_qualification_v1.py
+  sha256: 765b4d661fa1f78459bfc3e3f5ba4a80a80f61c08ab8b9248494266be52bd1a4
+wrapper_module:
+  artifact: src/leanfaith/generation/rcp_qualification_v2.py
+  sha256: add9a8b533c41a6d70187547d33b99b4c397b70809cbbc0827f730394fdb3233
+cli_script:
+  artifact: scripts/24_qualify_rcp_kimi_v2.py
+  sha256: a14384b26eb7a2518b923897bb984e3076c275d3c837d6ea2ef5462ebd9d874b
+prompt_template:
+  artifact: prompts/autoformalizers/rcp_reference_blind_v1.txt
+  sha256: e84a699cd8b1cc4a16a99dfdf11dfe0ede46fad0b5b72906730cae1599a6f304
+provider_portfolio:
+  artifact: configs/generation/rcp_provider_portfolio_v1.yaml
+  sha256: 6f6a79159ff68a3cb4bec59fd52a21e84a7f84b721622521046c40d60557c298
+remote_generation_policy:
+  artifact: policies/rcp_remote_generation_v1.yaml
+  sha256: c924efacdf2bd28373eed255c9b04b8e45cb56d430b2f4906b253ab63d661470
+
+outputs:
+  root: data/raw/real_outputs/rcp_kimi_qualification_v2/v2
+  preflight_root: reports/generation/lf021_rcp_kimi_preflight_v2
+
+primary_model_id: moonshotai/Kimi-K2.7-Code
+fallback_model_id: moonshotai/Kimi-K2.6
+primary_role: generator
+fallback_role: fallback_and_ablation_generator
+one_moonshot_diversity_family: true
+bulk_execution_available: false
+
+contamination:
+  checkpoint_revision_status: unavailable_from_rcp_route_ids
+  training_cutoff_status: unknown
+  contamination_status: unknown
+  unseen_claim_eligible: false
+  heldout_claim_eligible: false
+  evaluation_claim_eligible: false
+  allowed_use: supplemental_generator_candidates_only
+
+semantic_labels_created: false
+supervision_eligible: false
+gate_credit_claimed: false
+gate_closed: false

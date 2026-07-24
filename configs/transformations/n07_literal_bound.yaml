@@ -1,0 +1,25 @@
+schema_version: 1
+rule_id: n07_literal_bound
+rule_version: 1.0.0
+family_id: n07_literal_bound
+implementation_key: n07_literal_bound
+candidate_pool: typed_negative_candidate
+supported_declaration_kinds: [lemma, theorem]
+placeholder_forms: [by_sorry, sorry]
+comparison_operators: ["<", ">", "≤", "≥"]
+require_direct_comparison_operand: true
+require_source_candidate_elaboration: true
+failed_proof_search_is_negative_evidence: false
+mutations:
+  - mutation_id: one_to_zero
+    source_literal: "1"
+    target_literal: "0"
+    source_atom: "lit:nat:1"
+    target_atom: "lit:nat:0"
+    intended_error_types: [E17]
+  - mutation_id: zero_to_one
+    source_literal: "0"
+    target_literal: "1"
+    source_atom: "lit:nat:0"
+    target_atom: "lit:nat:1"
+    intended_error_types: [E17]

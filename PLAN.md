@@ -1,32 +1,31 @@
-# LeanFaith: Foolproof Research and Implementation Plan
+# LeanFaith: A Lightweight, Calibrated, and Reference-Aware Metric for Autoformalization Faithfulness
 
-**Working title:** *Learning a Calibrated Faithfulness Metric for Lean 4 Autoformalization*  
+**Working title:** *LeanFaith: A Lightweight, Calibrated, and Reference-Aware Metric for Autoformalization Faithfulness*
 **Document purpose:** implementation specification for a coding agent and research roadmap for the project team  
-**Status:** coding-agent ready after Gate 0 policy/source/environment lock  
-**Revision:** 4.0  
-**Last revised:** 2026-07-10  
+**Status:** Gates 0 (internal research only), 1, 2, 3, 4G, and the mechanical Gate 5G passed; the additive benchmark-signature and overlap freeze passed; LF-019 and LF-020 are complete; Gates 4A and 4B remain open; LF-021 completed 16 replay-verified scalable tranches (1,440 terminal invocations), yielding 299 compile-and-benchmark-clear members and 250 unique problem-aware eligible units; the production CSPRNG froze a 240-item, 31-stratum human prevalence frame and the reference-aware blinded two-annotator export is operationally materialized; no semantic labels or supervision records were created, so Gate 5 remains open pending genuine human adjudication; the fail-closed training-data audit is `NOT_READY` with zero human terminal labels, no LF-022 SCI/open artifacts, no frozen training inventory, and zero of four gold products
+**Revision:** 4.1
+**Last revised:** 2026-07-24
 **Canonical filename:** `PLAN.md`  
 **Primary Python–Lean interface:** [LeanInteract](https://github.com/augustepoiroux/LeanInteract)  
 **Initial LeanInteract pin:** `lean-interact==0.11.4`  
 
-### Revision 4.0 changes
+### Revision 4.1 changes
 
-1. Reconciles backend requests/results/statuses into one canonical Appendix A.5 contract.
-2. Regenerates the repository tree, config inventory, phase deliverables, and command map as one path authority.
-3. Makes LeanInteract's advertised Lean range a binding constraint on the Lean/mathlib lock.
-4. Corrects LeanInteract imports, permissive `allow_sorry` default, batch error semantics, experimental server status, REPL fork, and Linux per-process memory caveat.
-5. Corrects the public identities and schemas of ProofNetVerif, `sft_classic_numina`, Lean Workbook, ReForm, CSLib, and Physlib; records private `sft_classic` as token-gated with schema unverified until probed.
-6. Adds CriticLean, Con-NF/BEq, LeanScorer, ConsistencyCheck, DriftBench, COVCAL, EPLA/TransTED, GTED, and FormalAlign to related work and evaluation.
-7. Defines F0/F1/F2, terminal ambiguity, operational review routing, canonical relation labels, and E01–E30 mappings without aliases.
-8. Adds versioned `RepresentationRecord`, canonical split-group connected components, and reference-normalized NL–Lean records.
-9. Fixes audit gates with mechanically satisfiable sample/interval rules and separates generation from promotion.
-10. Adds `development_gold`, `calibration_gold`, a sealed final human set, and a real-output prevalence study.
-11. Adds design/deployment weighting, group bootstrap, multiple-testing control, calibration restrictions, and numeric H1–H6 targets.
-12. Refreshes generator families and enforces proposer/judge/primary-baseline family separation.
-13. Selects ModernBERT-large as the default candidate subject to a tokenizer audit and recorded pilot comparison.
-14. Scopes v1 sources and transformation families while retaining explicit deferred stubs.
-15. Retains the no-staffing/no-calendar/no-dollar-budget/no-hardware-envelope decision.
-16. Applies final review amendments: private-source access and external-API approval rules, backlog reordering, restored incident procedure and replacement table, and data-path disambiguation.
+1. Repositions LeanFaith after FormalRx as a lightweight, non-generative, calibrated Lean–Lean claim-relation metric, not the first learned autoformalization critic.
+2. Makes FormalRx a mandatory verdict baseline only on the shared `N + candidate Lean` M4-NL task; M2/M3 use Lean–Lean baselines.
+3. Adds sealed structural anti-shortcut quadrants and correct/equivalent-alternative/unrelated-reference value tests.
+4. Migrates terminal relations to `equivalent`, `A_stronger`, `B_stronger`, `incomparable`, `unrelated`, and `ambiguous`; unresolved is a null relation routed to REVIEW.
+5. Requires backward-compatible readers for legacy `incomparable_near_miss` and `unknown`, while new writers reject both spellings.
+6. Specifies synchronous, weight-shared bidirectional matching and exactly swap-invariant/equivariant M2 outputs.
+7. Replaces the ModernBERT-large default with a preregistered four-backbone pilot and no parameter ceiling.
+8. Splits human gold into ancestry-disjoint `training_gold`, `selection_gold`, `calibration_gold`, and sealed `final_human_test` products.
+9. Adds identifiable deterministic, SCI-conditioned, open-ended, real-output, and human-gold data arms with feasible family caps.
+10. Records private `sft_classic` as internal-only with external transmission prohibited and a public-source replication profile required.
+11. Separates immutable source-row identity from content hashes and makes question-first extraction with an explicitly unverified fallback route mandatory.
+12. Replaces aggregate Gate-2 tolerances with per-row regression expectations, exact terminal accounting, and 100% deterministic replay.
+13. Makes independent per-theorem LeanInteract requests the Gate-3 correctness primitive and fixes all representation denominators before execution.
+14. Requires a binder-normalized identity fingerprint, alpha-invariance, collision, proof-leakage, and name-versus-inline audits without making graphs a blocker.
+15. Keeps localization, generated repair, graph work, staffing, schedules, compensation, budgets, and hardware prescriptions outside the flagship path.
 
 ---
 ## 0. How this document must be used
@@ -70,7 +69,6 @@ Output:
 
 - probability that `A` and `B` express the same claim;
 - directional relation between them;
-- likely error categories;
 - calibrated uncertainty and an abstention decision;
 - optional symbolic evidence such as definitional equality or a checked proof attempt.
 
@@ -85,7 +83,6 @@ Input:
 Output:
 
 - probability that `C` is faithful to `N`;
-- likely mismatch categories;
 - calibrated acceptance, review, or rejection decision;
 - optional reference-aware Lean–Lean score when `R` exists.
 
@@ -97,7 +94,7 @@ The project is not complete after reporting pair-classification metrics. It must
 2. typecheck them;
 3. score and rerank them with LeanFaith;
 4. demonstrate an improvement in faithful top-1 selection over strong baselines;
-5. optionally use predicted error types to prompt a repair model.
+5. demonstrate selective escalation to an expensive critic or human without requiring localization or repair generation from LeanFaith.
 
 ---
 
@@ -141,7 +138,7 @@ Persisted resolution fields are:
 same_claim: true | false | null
 resolution_outcome: same_claim | not_same_claim | ambiguous | unresolved
 relation: equivalent | A_stronger | B_stronger |
-          incomparable_near_miss | unrelated | ambiguous | unknown
+          incomparable | unrelated | ambiguous | null
 ```
 
 `null` never means false. It means either a terminal expert decision of genuine ambiguity or an unresolved process route, distinguished by `resolution_outcome`.
@@ -166,10 +163,14 @@ When `same_claim=false`, label the best-supported **claim-level** relation:
 
 - `A_stronger`: after aligning corresponding binders, hypotheses, and mathematical roles, A makes a strictly stronger claim than B;
 - `B_stronger`: the reverse;
-- `incomparable_near_miss`: materially related but neither is an accepted faithful restatement or one-way strengthening;
+- `incomparable`: materially related but neither is an accepted faithful restatement or one-way strengthening;
 - `unrelated`: no substantive claim match;
-- `unknown`: evidence is insufficient;
 - `ambiguous`: terminal expert/policy ambiguity.
+
+`unknown` is not a semantic relation. Insufficient evidence uses `relation=null`,
+`resolution_outcome=unresolved`, `quality_tier=unknown`,
+`requires_adjudication=true`, and deployment decision `REVIEW`. `near_miss` is
+retained only as transformation provenance or evaluation-slice metadata.
 
 Do not define this field by mutual provability of the two closed theorem types. Closed propositions can collapse through theorem truth, vacuity, inconsistent assumptions, or ex falso. Whole-proposition directional proof search populates F2 only. A symbolic claim-strength certificate must use an explicit binder/hypothesis alignment and a policy-approved local comparison; otherwise relation is supplied by trusted annotation/resolution. Failed search is never evidence of nonimplication.
 
@@ -184,8 +185,10 @@ Operational review route:
 ```text
 same_claim = null
 resolution_outcome = unresolved
+relation = null
 quality_tier = unknown
 requires_adjudication = true
+decision = REVIEW
 ```
 
 Terminal ambiguity:
@@ -228,6 +231,7 @@ The project must be positioned against:
 - **BEq+** from Poiroux et al., *Reliable Evaluation and Benchmarks for Statement Autoformalization* (EMNLP 2025) and ProofNetVerif;
 - **FormalAlign** (ICLR 2025), a learned alignment/evaluation method;
 - **CriticLean/CriticLeanGPT/CriticLeanBench** (arXiv:2507.06181), the closest learned NL→Lean faithfulness critic line;
+- **FormalRx** (arXiv:2607.04655v1), the closest generative NL→Lean diagnostic critic: it emits verdict, SCI category, location, and correction; the paper reports verdict F1 `0.881` for joint training and `0.899` for progressive training;
 - **GTED** (arXiv:2507.07399);
 - **ASSESS/TransTED and EPLA** (arXiv:2509.22246);
 - **Mathesis/LeanScorer/Gaokao-Formal** (arXiv:2506.07047);
@@ -237,19 +241,30 @@ The project must be positioned against:
 
 Typed generation is informed by Semantic Fusion (PLDI 2020), OpFuzz/type-aware operator mutation (OOPSLA 2020), TypeFuzz/generative type-aware mutation (OOPSLA 2021), and *Validating SMT Solvers for Correctness and Performance via Grammar-based Enumeration* (OOPSLA 2024; DOI `10.1145/3689795`). These motivate generation methodology, not same-claim labels.
 
+FormalRx reports a random `8:1:1` item split after generating several variants
+from positive seeds. Sibling variants crossing splits are therefore a plausible
+risk, not a confirmed defect absent lineage identifiers. The current
+`LARK-Lab/FormalRx-Test` card says diagnoses remain withheld and reports class
+counts that differ from the paper; all comparisons must pin and inspect the
+actual artifact. The public `LARK-Lab/FormalRx-8b` weights currently lack a
+model card, so the prompt, decoding, parser, and checkpoint identity must be
+reconstructed from primary artifacts and frozen before evaluation.
+
 ### 4.2 Defensible novelty claim
 
-The core contribution is not “another LLM judge.” It is the joint system:
+The project does not claim the first learned critic, taxonomy-conditioned
+mutation pipeline, diagnostic model, localization method, or repair system.
+Reference-aware comparison by itself is also not novel. The defensible core is:
 
 1. a versioned benchmark/data pipeline combining conservative certified transformations, hard type-aware mutations, realistic autoformalizer outputs, multi-model weak supervision, and expert labels;
-2. a calibrated Lean–Lean same-claim/relation model over raw and elaborated representations;
-3. explicit evidence/label separation, abstention, and error diagnosis;
-4. leakage-safe tests over unseen generators, projects, transformations, adversarial minimal pairs, and post-cutoff novel items;
-5. a frozen downstream autoformalization reranking demonstration.
+2. a lightweight non-autoregressive, calibrated Lean–Lean same-claim/relation model over raw and elaborated representations;
+3. explicit evidence/label separation, F0/F1/F2 separation, and precision-controlled abstention;
+4. ancestry-disjoint anti-shortcut tests over unseen generators, projects, transformations, adversarial minimal pairs, and post-cutoff novel items;
+5. a quality–latency–memory–throughput Pareto evaluation and frozen reranking/selective-escalation demonstration.
 
 ### 4.3 Originality risk
 
-The work is weak if it trains a binary classifier on LLM-produced labels and evaluates on the same synthetic family. It becomes publishable when the data-generation contribution is independently audited, the closest learned critics are compared fairly, calibration is distribution-specific, and real-output reranking improves under a sealed protocol.
+The work is weak if it trains a binary classifier on LLM-produced labels and evaluates on the same synthetic family, or if reference-aware accuracy is explained by edit-distance and namespace shortcuts. It becomes publishable when data generation is independently audited, the closest learned critics receive identical inputs in direct comparisons, calibration is distribution-specific, the anti-shortcut panel succeeds, and real-output reranking improves under a sealed protocol.
 
 ---
 
@@ -269,7 +284,7 @@ Candidate generation
   ├── scoped conservative positives
   ├── typed provisional mutations
   ├── fresh multi-generator autoformalizations
-  └── LLM controlled variants/repairs
+  └── LLM controlled variants
         │
         ▼
 Lean validation + deduplication + ancestry grouping
@@ -303,7 +318,7 @@ Baselines and models
 Calibration, selective decisions, sealed evaluation
         │
         ▼
-Candidate reranking and optional repair
+Candidate reranking and selective escalation
 ```
 
 ### 5.1 Artifact-boundary rules
@@ -361,7 +376,14 @@ A direct shell command is allowed only in a quarantined doctor/CI diagnostic and
 
 ### 6.4 Encoder/tokenizer decision
 
-Default candidate: **ModernBERT-large**. Compare against CodeT5+ encoder and DeBERTa-v3-large on a fixed pilot. Before non-smoke training, audit Unicode/token fragmentation for `∀ ∃ → ↔ ≤ ≥ ⊆ ∈ ∉ ⟨ ⟩`, namespaces, subscripts, common constants, and explicit signatures. Special-token additions require measured benefit and ADR-0004.
+No backbone is the scientific default and no hard parameter ceiling is imposed.
+Freeze exact revisions of `answerdotai/ModernBERT-base`,
+`answerdotai/ModernBERT-large`, the encoder branch of
+`Salesforce/codet5p-220m`, and `microsoft/deberta-v3-large`; select among
+eligible candidates by the preregistered §21.2 protocol. ModernBERT-base is a
+smoke fallback only. “Lightweight” means non-autoregressive routine inference
+and a measured quality–latency–memory–throughput Pareto position, not a
+parameter threshold.
 
 ### 6.5 Annotation tooling
 
@@ -404,6 +426,10 @@ leanfaith/
     split_policy_v1.yaml
     calibration_policy_v1.yaml
     preregistration_v1.yaml
+    private_source_use.yaml
+    model_selection.yaml
+    formalrx_comparison.yaml
+    formalrx_sci_crosswalk_v1.yaml
 
   examples/
     semantic_contract_v1.jsonl
@@ -440,11 +466,12 @@ leanfaith/
       proofnetverif.yaml
       cslib.yaml
       physlib.yaml
+      public_replication.yaml
     generation/
       providers.yaml
-      problem_pool.yaml
-      real_outputs.yaml
-      llm_variants.yaml
+      problem_pool_v1.yaml
+      real_outputs_v1.yaml
+      llm_variants_v1.yaml
     judges/
       weak_supervision.yaml
       primary_eval.yaml
@@ -452,6 +479,9 @@ leanfaith/
       registry.yaml
       v1.yaml
       replacement_table_v1.yaml
+      lf018_pre_scale_v1.yaml
+      lf019_positive_fixtures_v1.yaml
+      lf019_smoke_v1.yaml
       p01_alpha.yaml
       p02_binders.yaml
       p04_notation_lite.yaml
@@ -472,6 +502,7 @@ leanfaith/
       v0.yaml
     benchmarks/
       registry.yaml
+      formalrx_lineages.yaml
     baselines/
       lexical.yaml
       beq.yaml
@@ -483,13 +514,19 @@ leanfaith/
       leanscorer.yaml
       covcal.yaml
       llm_judges.yaml
+      formalrx.yaml
     models/
+      backbone_registry.yaml
+      backbone_pilot.yaml
+      training_data_readiness_v1.yaml
       m0.yaml
       m1.yaml
       m2.yaml
       m3.yaml
       m4.yaml
       m5.yaml
+    data/
+      training_arms.yaml
     evaluation/
       primary.yaml
       external.yaml
@@ -519,6 +556,7 @@ leanfaith/
       __init__.py
       app.py
       doctor.py
+      pipeline.py
       probe.py
       extract.py
       represent.py
@@ -558,6 +596,7 @@ leanfaith/
       annotation.py
       manifest.py
       prediction.py
+      migrations.py
     lean/
       __init__.py
       protocol.py
@@ -567,6 +606,7 @@ leanfaith/
       commands.py
       session_policy.py
       extraction.py
+      extraction_regression.py
       typecheck.py
       proof_search.py
       counterexample.py
@@ -585,6 +625,7 @@ leanfaith/
       cslib.py
       physlib.py
       llm_candidates.py
+      gate2_sampling.py
     representations/
       __init__.py
       pipeline.py
@@ -596,6 +637,7 @@ leanfaith/
       semantic_atoms.py
       operator_tree.py
       fingerprints.py
+      audit.py
     transforms/
       __init__.py
       protocol.py
@@ -647,8 +689,20 @@ leanfaith/
       sampling.py
       freeze.py
       cards.py
+    generation/
+      __init__.py
+      config.py
+      providers.py
+      prompts.py
+      problem_pool.py
+      real_outputs.py
     baselines/
+      __init__.py
+      formalrx.py
     models/
+      relation_head.py
+      selection.py
+      data_readiness.py
       m0_dual_encoder.py
       m1_cross_encoder.py
       m2_bidirectional_cross_attention.py
@@ -694,13 +748,18 @@ leanfaith/
     golden/
     end_to_end/
     lean_fixtures/
+    fixtures/
+      gates/
+        sft_classic_100_expected_v1.json
 
   data/
     source_manifests/
     benchmarks/
       frozen_ids.json
+      frozen_ids.representations_v1.json
       source_registry.yaml
       manifests/
+        representation_signatures_v1.json
     raw/
       sources/
       real_outputs/
@@ -725,9 +784,10 @@ leanfaith/
     human/
       pilot_raw/
       pilot_adjudicated/
-      development_gold/
+      training_gold/
+      selection_gold/
       calibration_gold/
-      final_test_frozen/
+      final_human_test/
     split_manifests/
       train.json
       validation.json
@@ -810,7 +870,6 @@ leanfaith/
     external_benchmarks.md
     statistics_primary.md
     reranking.md
-    repair_application.md
     graph_extension.md
     release_validation.md
 
@@ -839,7 +898,8 @@ leanfaith/
 | `PairRecord` | `src/leanfaith/schemas/pair.py` |
 | `EvidenceRecord` and kind-specific values | `src/leanfaith/schemas/evidence.py` |
 | `ResolvedLabel` | `src/leanfaith/schemas/label.py` |
-| `NLPLeanRecord` | `src/leanfaith/schemas/nl_lean.py` |
+| `ProblemPoolRecord`, `NLPLeanRecord` | `src/leanfaith/schemas/nl_lean.py` |
+| `LLMCallRecord`, `LLMAttemptRecord` | `src/leanfaith/schemas/llm.py` |
 | shared enums | `src/leanfaith/schemas/enums.py` |
 
 Definitions are never duplicated; `schemas/__init__.py` may re-export them.
@@ -850,8 +910,9 @@ Definitions are never duplicated; `schemas/__init__.py` may re-export them.
 |---|---|---|
 | 0–1 | `leanfaith doctor` | `00_doctor.py` |
 | 2 | `probe`, `extract`, `freeze-benchmarks` | `01`, `02`, `04` |
-| 3 | `represent` | `03_build_representations.py` |
-| 4 | `generate-deterministic` | `05_generate_deterministic.py` |
+| 2 gate audit | `sample-gate2`, `sample-gate2-arrow`, `audit-extraction-regression`, `audit-extraction-replay`, `audit-gate2-scale`, `freeze-gate3-inputs` | stable `cli/pipeline.py` commands |
+| 3 | `represent`, `audit-representations`, `audit-representation-replay`, `audit-alpha-invariance`, `audit-representation-cross-path` | `03_build_representations.py` plus stable audit commands |
+| 4 | `generate-deterministic`, `close-gate4g` | `05_generate_deterministic.py` plus the fail-closed Gate-4G finalizer |
 | 5 | `collect-real-outputs` | `06_collect_real_outputs.py` |
 | 6 | `generate-llm-variants` | `07_generate_llm_variants.py` |
 | 4–6 | `collect-evidence` | `08_collect_symbolic_evidence.py` |
@@ -1035,7 +1096,7 @@ Gate 1 requires:
 | Source | Canonical identity | Role/constraint |
 |---|---|---|
 | mathlib | `leanprover-community/mathlib4`, exact revision | main theorem inventory; toolchain constrained by §6.2 |
-| requested private source | `formalmathatepfl/sft_classic` | private Hugging Face dataset; anonymous access returns 401 but the project HF token loads it; license/schema/counts remain unverified until the Phase 0 authenticated probe |
+| private internal source | `formalmathatepfl/sft_classic` at `0bf9f424309f668c2c2dd214aef6ec5d1d5c042f` | verified private HF access; train 2,006,425/test 1,029,845; license undeclared; internal research only, nonredistributable, no external-provider transmission, not release eligible |
 | public fallback 1 | `formalmathatepfl/sft_classic_numina` | current public sibling, 99,774-row scale; fields include `uuid`, `question`, `answer`, `lean_code`; verify pinned schema |
 | public fallback 2 | `internlm/Lean-Workbook` | about 57k machine-generated/synthetic NL–Lean pairs; weak supervision/problem pool only |
 | public fallback 3 | permitted `PAug/ProofNetVerif` train partition | only if manifest explicitly designates trainable rows |
@@ -1055,7 +1116,8 @@ accessible sft_classic variant
 
 ### 9.2 Gate 0 primary-source lock
 
-The `sft_classic` probe runs with the project HF token (`HF_TOKEN`, supplied via environment/secret manager and referenced by name in `configs/sources/sft_classic.yaml`; never stored in configs or manifests). Archive for the selected primary source:
+The authenticated `sft_classic` probe is complete. Its project HF token remains
+environment/secret-manager only and is never stored. Archive and keep canonical:
 
 ```text
 resolved ID and immutable revision
@@ -1068,7 +1130,14 @@ phase5_pool_candidate_count by source/domain/trust/dedup reason
 
 Gate 0 fails without this artifact. Do not guess `sft_classic` fields from ProofNetVerif.
 
-**Private-data boundary:** content from a private or gated source — including its natural-language statements — may not be sent to any external LLM provider without a recorded approval decision (an ADR or an `external_api_approved` flag in the source manifest naming the provider set and scope). Phase 5/6 provider calls check this flag before submitting any prompt containing private-source content.
+**Private-data boundary:** the current decision is fail-closed, not pending
+approval. `sft_classic` content, including NL statements, may not be sent to any
+external provider. Record `access_basis`, `institutional_policy_status`,
+`license_status=undeclared`, `redistribution=false`,
+`external_transmission=false`, and `release_eligibility=false`. Provider slots
+remain disabled until the later Phase-5 ADR, which cannot relax this source
+boundary without an explicit superseding authorization. Maintain an executable
+public-source replication profile independent of `sft_classic`.
 
 ### 9.3 Verified/fallback mappings
 
@@ -1153,10 +1222,9 @@ class RelationLabel(StrEnum):
     EQUIVALENT = "equivalent"
     A_STRONGER = "A_stronger"
     B_STRONGER = "B_stronger"
-    INCOMPARABLE_NEAR_MISS = "incomparable_near_miss"
+    INCOMPARABLE = "incomparable"
     UNRELATED = "unrelated"
     AMBIGUOUS = "ambiguous"
-    UNKNOWN = "unknown"
 
 class IntendedRelation(StrEnum):
     EQUIVALENT = "equivalent"
@@ -1210,7 +1278,24 @@ class EvidenceTargetKind(StrEnum):
     TRANSFORMATION_FAMILY = "transformation_family"
 ```
 
-`near_miss` is intention-only; resolved labels use `incomparable_near_miss`.
+`near_miss` and intended `unknown` are generation/provenance values only.
+`RelationLabel` has no `unknown`: unresolved labels persist `relation=null`.
+Evidence statuses and evidence values may still use `unknown` where their own
+contract permits it.
+
+#### 11.1.1 Revision-4.1 relation migration
+
+Schema version 2 writers emit only the six terminal `RelationLabel` values.
+Readers accept schema-version-1 records through an explicit migration layer:
+
+| Legacy value | Version-2 value | Additional migration state |
+|---|---|---|
+| `incomparable_near_miss` | `incomparable` | append `near_miss` to relation provenance/slice metadata |
+| `unknown` | `null` | set `resolution_outcome=unresolved`, `same_claim=null`, `quality_tier=unknown`, `requires_adjudication=true` |
+
+Migration is idempotent and preserves the original schema version and legacy
+value in migration metadata. New-record validation rejects both legacy
+spellings. Round-trip tests cover all mappings.
 
 ### 11.2 `ContextRecord`
 
@@ -1230,13 +1315,20 @@ normalized header text/hash
 ```text
 schema_version; theorem_id; ancestry_id; root_ancestry_ids;
 parent_theorem_ids; source identity/revision/split/record/file/range;
-context_id; declaration kind/name/full name; raw-declaration artifact pointer/hash;
-proof-stripped declaration; declaration-info artifact; Lean result ID; proposition-valued flag;
+source_record_id; upstream UUID; raw-row/question/Lean-code hashes;
+context_id; declaration kind/name/full name/ordinal; raw-declaration artifact pointer/hash;
+proof-stripped declaration; non-model inline-elaboration source; declaration-info artifact;
+Lean result ID; proposition-valued flag;
 elaboration status/diagnostics; statement content hash;
 NL source link; reference trust; metadata
 ```
 
 It contains source/declaration identity only; normalized views live in `RepresentationRecord`. The immutable raw-source artifact is access-controlled for audit and extraction replay, but proof bodies are never admitted as representation fields or model inputs.
+`inline_elaboration_source` may preserve commands preceding a dataset theorem so
+Lean can recreate its local command context. It is execution-only, may contain
+earlier proof text, and is categorically excluded from every representation
+view, tokenizer input, and model artifact. `proof_stripped_declaration` remains
+the sole source for `raw_proof_stripped` and `headless`.
 
 ### 11.4 `RepresentationRecord`
 
@@ -1257,6 +1349,7 @@ Optional failed views are null with explicit status; successful views are never 
 variant_id; source_theorem_ids; generator_kind/id; config hash/seed;
 prompt/raw-output artifacts; extracted statement;
 intended_relation; intended_error_types; candidate_pool;
+formalrx_sci_requested/validated/validation_status/proposer_family/validator_family;
 transformation/inverse traces; validation_status; validation evidence ID;
 derived theorem ID; quality_tier=provisional until resolution;
 polarity_metadata=positive|negative|mixed|unknown; metadata
@@ -1301,8 +1394,8 @@ LLM/human: canonical answer/confidence/rationale/audit fields
 ### 11.8 `ResolvedLabel`
 
 ```text
-label_id; target_kind=lean_pair|nl_lean; target_id;
-same_claim: bool|null; resolution_outcome; relation;
+schema_version=2; label_id; target_kind=lean_pair|nl_lean; target_id;
+same_claim: bool|null; resolution_outcome; relation: RelationLabel|null;
 faithfulness_levels {F0_representation_equivalent,
 F1_same_claim, F2_truth_equivalent}; truth_A_implies_B;
 truth_B_implies_A; error_types; quality_tier; resolution_method;
@@ -1317,7 +1410,7 @@ Invariants:
 - `F1_same_claim == same_claim`;
 - resolved yes/no outcomes match `same_claim`;
 - ambiguous/unresolved require null;
-- unresolved review route requires `quality_tier=unknown` and `requires_adjudication=true`;
+- unresolved review route requires `relation=null`, `quality_tier=unknown`, and `requires_adjudication=true`;
 - terminal human ambiguity uses `quality_tier=gold_human` (or benchmark when source-defined), no binary target;
 - truth false requires accepted separating evidence; failed search produces null;
 - F0/F2 derive mechanically from accepted representation/truth evidence.
@@ -1365,7 +1458,37 @@ Every accepted declaration yields immutable source identity, `ContextRecord`, `T
 
 ### 12.3 Dataset-string extraction
 
-Preserve/hash the original row; remove only versioned outer wrappers; combine exact source header and Lean field; elaborate complete snippet with declarations; select intended declaration by adapter rule; use ranges to proof-strip; re-elaborate in the same context; quarantine multi-declaration ambiguity.
+For Hugging Face rows, immutable locator identity is independent of mutable
+content:
+
+```text
+source_record_id = SHA256(
+  "hf-row:v1" || dataset_id || immutable_revision || split || row_index
+)
+```
+
+Persist `upstream_uuid`, `raw_row_hash`, `question_hash`, and `lean_code_hash`
+separately. For `sft_classic`, preserve the complete fenced Lean block from
+`question` and completed `lean_code`; attempt the proof-free question statement
+first. Before attempting the `lean_code` fallback, replace its top-level theorem
+proof with an explicit placeholder using the versioned, bracket/comment-aware
+statement stripper; dataset proof tactics are never executed by the extraction
+pipeline. Unsupported proof forms fail closed. If both stripped routes
+elaborate, compare their binder-normalized fingerprints and record agreement.
+A fallback-only theorem is valid Lean-only inventory with
+`nl_pair_eligibility=unverified`; it is not trusted NL–Lean supervision. A
+mismatching fallback never silently replaces an elaborating question statement.
+For an accepted inline theorem, persist the reconstructed proof-stripped
+declaration plus its required preceding command context separately as
+`inline_elaboration_source`. Representation requests execute that field but
+derive model-visible views only from the isolated proof-stripped declaration;
+proof-sentinel fixtures enforce this separation.
+
+Every row and every attempted declaration receives one terminal outcome.
+Malformed/multiple fences, source non-elaboration, no declarations, missing or
+invalid ranges, duplicate names, non-`Prop` declarations, import failure,
+timeout, worker crash, revalidation failure, and unsupported structures are
+persisted under distinct stable codes.
 
 ### 12.4 Proof stripping
 
@@ -1388,10 +1511,13 @@ Then SHA256 and `ctx:` prefix as in §8.11. Changing payload schema increments `
 
 ### 12.6 Theorem and ancestry identity
 
-Source theorem ID hashes source/revision, context, stable declaration identity/range, and statement hash.
+Source theorem ID hashes `source_record_id`, declaration ordinal, extracted
+signature hash, extraction-schema version, and registered context. Content
+changes therefore do not change the row locator but do produce a new theorem
+identity and a machine-readable old/new diff.
 
 ```text
-ancestry_id = "anc:" + SHA256(source + revision + source_record + declaration_identity)
+ancestry_id = "anc:" + SHA256(source_record_id + declaration_identity)
 ```
 
 One-parent variants inherit root ancestries; multi-parent variants use the sorted union and hash it for their derived ancestry; NL-only candidates receive a generator-call/problem-derived ancestry while the pair also includes the problem group. Ancestry never changes after labeling/splitting.
@@ -1405,6 +1531,11 @@ Retain proposition-valued declarations that re-elaborate in registered context. 
 - research_v1: repeat at ≥100,000 before large-scale identity claims.
 
 “Reload” means reparsing immutable raw data reproduces byte-identical IDs/content hashes; re-elaboration is a separate nightly compatibility check.
+
+Gate-closing reload requires 100% reproduction of source IDs, raw/content
+hashes, parser outcomes, and final normalized terminal outcomes after the fixed
+retry policy. The 99.5% re-elaboration rate is reported only as a non-gating
+nightly stability metric.
 
 ---
 
@@ -1458,9 +1589,60 @@ Atoms include quantifiers, binder types/dependencies, structures/typeclasses, pr
 
 ### 13.7 Tokenizer audit
 
-Compare ModernBERT-large, CodeT5+ encoder, and DeBERTa-v3-large on fixed extracted strata. Report sequence/truncation statistics and Unicode fragmentation; test special-token changes only on pilot; record ADR-0004 before non-smoke training.
+Compare the four §21.2 candidates on the exact frozen Gate-3 manifest. Report
+Unicode/namespace fragmentation, per-semantic-section lengths, and whether
+binders, typeclass binders, hypotheses, and conclusions survive at 512 and
+1,024 tokens. Context-length eligibility and backbone selection follow §21.2;
+special-token changes are separate preregistered ablations and cannot be made
+after seeing selection results.
 
 ### 13.8 Representation ablations
+
+### 13.9 Gate-3 orchestration and identity fingerprint
+
+The canonical orchestration contract is:
+
+```text
+RepresentationBatch:
+  context_id
+  import_header
+  ordered_theorem_inputs
+
+RepresentationBatchResult:
+  ordered_representation_records
+  per_theorem_failures
+```
+
+Empty input returns an empty result and mixed contexts fail before Lean
+execution. The MVP correctness primitive is one independent LeanInteract
+request per theorem, computing that theorem's applicable views together and
+retrying a failed view independently when needed. Multiple theorem checks are
+not concatenated; recursive bisection is reserved for a later batching
+optimization. Inline dataset statements are declared and inspected within the
+same request. One theorem failure can never erase sibling results.
+
+Every combined theorem request and every independently isolated view request
+uses the same bounded top-level retry policy: `max_attempts=2`, with retries
+only for `CRASH`, `INTERNAL_ERROR`, or `TIMEOUT`. `INVALID` and `SETUP_ERROR`
+are terminal. Isolated view probes are distinct correctness requests, not
+semantic retries, and each starts with exactly one `import Lean` followed by
+the registered context imports. Any backend-internal one-shot server recovery
+remains infrastructure recovery and cannot change these status semantics or
+create a semantic label.
+
+Scale orchestration processes those independent requests in bounded worker
+chunks. Completed-chunk markers are bound to theorem inputs, context,
+normalization version, code tree, code bundle, and relevant execution
+configuration. Resume with any mismatch fails closed, and final partitions
+are atomically merged in exact frozen-manifest order.
+
+Gate 3 also builds a non-model binder-normalized identity fingerprint from the
+elaborated expression: local binders use de-Bruijn-style identities; binder
+metadata and types are retained; universe placeholders are normalized; fully
+qualified constants, literals, and application structure are retained; proof
+or value fields are excluded. This fingerprint is required for identity,
+alpha-invariance, near-duplicate, and collision audits. It is not the deferred
+`alpha_structural` model view and is not a graph.
 
 Compare raw, headless, signature, combinations, explicit signature, text+atoms/scalars, and M5 text+graph. H3 is assessed on hard near misses and held-out transformation/project slices, not aggregate accuracy alone.
 
@@ -1545,7 +1727,9 @@ UI:
 same claim | not same claim | ambiguous | cannot assess yet
 ```
 
-`cannot assess yet` creates the review route. The explanatory UI phrase “related, neither directional claim” serializes as `incomparable_near_miss`.
+`cannot assess yet` creates the review route with a null relation. The
+explanatory UI phrase “related, neither directional claim” serializes as
+`incomparable`; `near_miss` remains separate slice/provenance metadata.
 
 ### 14.5 Quality tiers
 
@@ -1684,7 +1868,9 @@ Unrestricted `simp`, `ring_nf`, `linarith`, `omega`, `aesop`, theorem lookup, mu
 
 - **N01:** type-compatible relation/operator mutation.
 - **N02:** quantifier/order/dependency mutation.
-- **N03:** substantive hypothesis deletion with type-correct repair.
+- **N03:** substantive hypothesis deletion with only the minimal type-correct
+  syntactic adjustment required for re-elaboration; this is mutation
+  construction, not generated theorem repair.
 - **N07:** literal, bound, index, or argument-order mutation.
 - **N10:** high-overlap nearby theorem/component substitution; both source ancestries enter split groups.
 
@@ -1773,7 +1959,7 @@ Include pair/theorem ID, kind/version, context ID, `environment_schema_version`,
 
 ### 17.1 Roles and boundary
 
-Models may autoformalize, propose controlled variants, repair diagnostics, or judge. Model output/votes are evidence, never automatic gold.
+Models may autoformalize, propose controlled variants, or judge. Model output/votes are evidence, never automatic gold.
 
 ### 17.2 Provider slots
 
@@ -1792,21 +1978,35 @@ Exact IDs/revisions are frozen at run start. Secret credentials stay outside con
 
 ### 17.3 Generator families
 
-Use 3–4 materially distinct successful families; hard floor three for Gate 5. Candidate families: ReForm-32B/8B, Kimina-Autoformalizer-7B, Goedel-Formalizer-V2, StepFun-Formalizer, Herald, ATLAS, and a capable frontier family. Exact availability/license/overlap is probed first.
+The Phase-5 generation checkpoint requires at least three materially distinct
+successful families. A confirmatory D4/D5 run that both enforces the
+per-family `G_real` cap and reserves a clean `heldout_generator_test` family
+requires at least four successful families: at least three supervision-eligible
+families plus one fully held-out family. A three-family collection is valid for
+the collection checkpoint and source-ablation work, but is explicitly
+`reduced_data_ablation` for the full-mixture and held-out-generator claims.
+Candidate families: ReForm-32B/8B, Kimina-Autoformalizer-7B,
+Goedel-Formalizer-V2, StepFun-Formalizer, Herald, ATLAS, and a capable
+frontier family. Exact availability/license/overlap is probed first.
 
-One family may be reserved from the same 3–4 for `heldout_generator_test`; none of its outputs/judgments enters supervision.
+The reserved family contributes no output, judgment, pseudo-label, prompt
+demonstration, or distilled signal to supervision.
 
 ### 17.4 Early real-output collection carve-out
 
-Collection may begin after Gate 2, but outputs stay under raw/parsed quarantine until Phase 5/6 policies exist. For each trusted NL problem request multiple independent candidates across families/seeds. Preserve noncompiling outputs for repair/failure analysis; only compiling proposition candidates enter semantic pair pools.
+Collection may begin after Gate 2, but outputs stay under raw/parsed quarantine until Phase 5/6 policies exist. For each trusted NL problem request multiple independent candidates across families/seeds. Preserve noncompiling outputs for failure analysis; only compiling proposition candidates enter semantic pair pools.
 
 ### 17.5 Prompt families
 
-Version direct autoformalization, diagnostic repair, equivalent reformulation, single-E-code near miss, stronger/weaker, adversarial minimal edit, and critique/revise prompts. Require strict machine-parsable output and retain raw failures.
+Version direct autoformalization, SCI-conditioned semantic mutation,
+open-ended adversarial mutation, equivalent reformulation, stronger/weaker,
+adversarial minimal edit, and critique/revise prompts. Require strict
+machine-parsable output and retain raw failures. The flagship does not train a
+localization or repair-generation task.
 
 ### 17.6 Validation/deduplication
 
-Parse under versioned extractor; validate through LeanInteract; create variant/theorem/representation records; apply denylist/near-duplicate checks; deduplicate by raw/headless/alpha/problem IDs; retain repair lineage and failed attempts.
+Parse under versioned extractor; validate through LeanInteract; create variant/theorem/representation records; apply denylist/near-duplicate checks; deduplicate by raw/headless/alpha/problem IDs; retain generation lineage and failed attempts.
 
 ### 17.7 Blinded judges and circularity control
 
@@ -1815,6 +2015,22 @@ Judges see only registered Lean/NL views and allowed evidence condition—not pr
 ### 17.8 Silver promotion
 
 Require schema parse, family independence, no proposer–judge shortcut in primary data, canonical agreement, no conflict with accepted evidence, and audited stratum precision. Store `silver_consensus`; disagreement/low confidence/semantic-erasure suspicion/malformed output routes to review.
+
+For SCI-conditioned generation, store the requested and validated values
+without overwriting either:
+
+```text
+formalrx_sci_requested
+formalrx_sci_validated
+formalrx_sci_validation_status
+formalrx_sci_proposer_family
+formalrx_sci_validator_family
+```
+
+SCI and E01–E30 are provenance, annotation, and analysis metadata. They are
+not flagship inputs or mandatory prediction heads. Proposer and validator are
+materially distinct model families, and at least one proposer/judge family is
+excluded from every training signal.
 
 ### 17.9 Capped stratified audit
 
@@ -1828,7 +2044,13 @@ Allocate preregistered per-stratum minimums **inside** that base sample. If the 
 
 ### 17.10 Real-output prevalence
 
-Before freezing `real_output_test`, human-label a 200–300-item stratified sample across generator/domain from compiling candidates. Estimate faithful prevalence with confidence intervals and sampling propensities. Use it for power/headroom, test composition, and reranking expectations—not as an automatic training shortcut.
+Before freezing `real_output_test`, human-label a 200–300-item stratified
+sample across generator/domain from compiling candidates. Phase 5 freezes the
+sampling frame and propensities; the annotation track supplies and adjudicates
+the labels before final Gate 5 closure. Estimate faithful prevalence with
+confidence intervals and sampling propensities. Use it for power/headroom,
+test composition, and reranking expectations—not as an automatic training
+shortcut.
 
 ### 17.11 Active learning and token policy
 
@@ -1846,9 +2068,16 @@ Annotation tooling/guidelines may start after Gate 3 in parallel with generation
 | Product | Purpose | Use |
 |---|---|---|
 | policy pilot | definitions/UI/mapping refinement | no final metric |
-| `development_gold` | training/error analysis | training allowed |
+| `training_gold` | human-gold weight training | weight training only |
+| `selection_gold` | backbone/mixture/representation/checkpoint choice | selection only |
 | `calibration_gold` | final calibration/thresholds on real outputs | no weight training |
 | `final_human_test` | primary claims | sealed evaluation |
+
+All four products are ancestry/NL-problem connected-component disjoint.
+`selection_gold` never enters gradient updates; `calibration_gold` is accessed
+only after architecture/checkpoint selection; `final_human_test` remains
+sealed. The legacy name `development_gold` appears only in the versioned
+migration note and maps to separately frozen training and selection manifests.
 
 Rounds: first 100 Lean–Lean workflow items; then cumulative 200–400 Lean–Lean plus 100–200 NL–Lean; then Phase 7b main campaign.
 
@@ -1867,7 +2096,7 @@ Show proof-stripped statements, elaborated signatures, minimal context/import su
 ```text
 same_claim: same_claim | not_same_claim | ambiguous | cannot_assess_yet
 relation: equivalent | A_stronger | B_stronger |
-          incomparable_near_miss | unrelated | ambiguous | unknown
+          incomparable | unrelated | ambiguous
 error_types: E01–E30 multi-label
 confidence: 1–5
 rationale: required for not-same/ambiguous
@@ -1933,8 +2162,8 @@ For each pair, `split_group_ids` is the union of both sides' root ancestries, NL
 | Split | Label source | Target-count rule | Relation to `human_test` | v0/track |
 |---|---|---|---|---|
 | `train` | permitted gold/silver under policy | build-profile/config count after component assignment | disjoint | mandatory |
-| `validation` | development labels | frozen development fraction/component count | disjoint | mandatory |
-| `calibration` | pair-level development labels for method comparison only | frozen development fraction/component count | disjoint | mandatory |
+| `validation` | `selection_gold` plus allowed non-human development labels | frozen selection fraction/component count | disjoint | mandatory |
+| `calibration` | pair-level nondeployment development labels for method diagnostics only | frozen component count | disjoint | mandatory |
 | `internal_test` | frozen internal gold/diagnostic labels | fixed in `configs/splits/v0.yaml` before model selection | disjoint | mandatory |
 | `human_test` | sealed expert adjudication | ≥500 eligible main-task items unless preregistration declares the corresponding operating-point claim unsupported | identity | final claims |
 | `benchmark_test` | frozen external benchmark labels | all eligible rows after environment migration/exclusions | disjoint after denylist/near-duplicate filtering | when adapters ready |
@@ -1987,7 +2216,13 @@ Typecheck; defeq; directional `portfolio_v1`; certificate-or-abstain; original *
 
 ### 20.3 Structural/learned critics
 
-Operator-tree edit, GTED, ASSESS/TransTED, FormalAlign-compatible evaluator, CriticLean/CriticLeanGPT, LeanScorer/Mathesis condition, generic code cross-encoder. If code/protocol is unavailable, document it; do not publish an approximation under the method's name.
+Operator-tree edit, GTED, ASSESS/TransTED, FormalAlign-compatible evaluator, CriticLean/CriticLeanGPT, LeanScorer/Mathesis condition, generic code cross-encoder, and FormalRx verdict. If code/protocol is unavailable, document it; do not publish an approximation under the method's name.
+
+M0–M3 compare directly only with Lean–Lean methods receiving reference and
+candidate Lean. FormalRx is a direct quality baseline only for M4-NL when both
+systems receive exactly `N + candidate Lean` and share human labels.
+Reference-aware M4 versus FormalRx is an explicitly unequal-information
+systems comparison, not evidence of architectural superiority.
 
 ### 20.4 LLM judge conditions
 
@@ -2004,11 +2239,15 @@ Report wall-clock/compute class, provider tokens/calls/cost, Lean requests and a
   "record_id": "pair:... or nllean:...",
   "method": "...",
   "method_version": "...",
-  "score_same_claim": 0.0,
-  "score_ambiguous": 0.0,
+  "same_claim_probability": 0.0,
+  "ambiguity_probability": 0.0,
   "decision": "ACCEPT | REVIEW | REJECT",
   "relation_scores": {},
-  "error_type_scores": {},
+  "optional_auxiliary_scores": {},
+  "model_version": "...",
+  "tokenizer_version": "...",
+  "representation_version": "...",
+  "calibration_version": "...",
   "elapsed_ms": 0,
   "cost": {},
   "evidence_ids": [],
@@ -2033,7 +2272,44 @@ M5 optional text + elaborated Expr graph
 
 ### 21.2 Encoder decision
 
-ModernBERT-large default candidate, subject to §13.7 comparison with CodeT5+ encoder and DeBERTa-v3-large. ADR freezes tokenizer/special tokens/max lengths/truncation before non-smoke training.
+Freeze exact checkpoint and tokenizer revisions for:
+
+- `answerdotai/ModernBERT-base`;
+- `answerdotai/ModernBERT-large`;
+- `Salesforce/codet5p-220m`, encoder branch only;
+- `microsoft/deberta-v3-large`.
+
+No candidate is the default and there is no parameter ceiling. ADR-0004 first
+freezes the protocol and later records the winner without changing the rule.
+
+Run a data-only tokenizer/context audit over the frozen Gate-3 10,000-theorem
+manifest before training. Use 512 tokens only if every conclusion and at least
+99% of all complete binder/typeclass-binder/hypothesis sets survive the frozen
+section-budgeting policy. Otherwise use 1,024 and exclude candidates without
+native support at that length unless their pretrained positional architecture
+is unchanged. Preserve excluded examples under `long_input`.
+
+Every eligible candidate receives the same 50,000 ancestry-disjoint training
+pairs, or all pairs if fewer; 50/50 positive-negative batches; identical
+representation content; equal example exposure/effective batch size; AdamW;
+learning rates `{5e-6,1e-5,2e-5}`; weight decay `{0.01,0.1}`; one tuning seed;
+and three independent confirmation seeds.
+
+`selection_gold` must contain at least 100 faithful and 100 unfaithful
+ancestry/NL groups and 50 groups for every class included in the confirmatory
+relation metric. Estimate AUPRC and relation macro-F1 with a hierarchical
+paired bootstrap over seeds and ancestry/NL groups. Use simultaneous one-sided
+95% bounds across all candidates to account for selecting the empirical best.
+Retain a candidate only when the simultaneous upper bound on its AUPRC deficit
+is ≤0.01 and then the upper bound on its relation-macro-F1 deficit is ≤0.02.
+
+Among survivors, select the highest median cached-reference batch-32
+throughput. Differences below 5% break ties by lower peak memory, then fewer
+loaded parameters, then lexicographically smaller model ID. Use 20 warmup and
+100 timed batches in the identical frozen environment, report tokenization
+separately and end-to-end, and include uncertainty intervals. ModernBERT-base
+is only an implementation smoke fallback if the pilot cannot run; it is not a
+scientific winner until selected by this rule.
 
 ### 21.3 M0
 
@@ -2041,30 +2317,72 @@ Shared separate encoders; normalized embeddings; symmetric head over cosine, abs
 
 ### 21.4 M1
 
-Concatenate tagged A/B headless/signature views; predict same-claim, ambiguity, relation, masked directional truth, and E01–E30.
+Concatenate tagged A/B headless/signature views; predict same-claim, ambiguity,
+relation, and optional masked F0/F2 auxiliaries. E01–E30 prediction is an
+optional diagnostic ablation, disabled for the flagship.
 
 ### 21.5 M2 bidirectional matching
 
-Encode A/B with shared encoder; run L blocks where A attends to B and B to A; pool symmetric/directional features; apply heads. Enforce swap augmentation/consistency:
+The backbone-pilot input bundle is exactly:
 
 ```text
-p_same(A,B) ≈ p_same(B,A)
-p_A_stronger(A,B) ≈ p_B_stronger(B,A)
+[HEADLESS] ...
+[SIGNATURE_EXPLICIT] ...
+```
+
+Encode A and B independently with one shared encoder. Apply exactly two
+synchronous bidirectional matching layers: in layer `l`, both directional
+updates read only `H_A^(l-1)` and `H_B^(l-1)`, and the A←B/B←A matcher
+parameters are shared. Only the base reference encoding is cacheable;
+candidate-dependent cross-attention is recomputed.
+
+Build the same-claim and ambiguity inputs exclusively from commutative
+features such as `mA+mB`, `abs(mA-mB)`, `mA*mB`, and symmetric alignment
+statistics. Directional logits are swap-equivariant:
+
+```text
+A_stronger_logit = g(mA, mB)
+B_stronger_logit = g(mB, mA)       # the same g
+incomparable_logit = h_inc(symmetric_features)
+unrelated_logit    = h_unr(symmetric_features)
+```
+
+Factor the distribution coherently:
+
+```text
+p_ambiguous
+p_equivalent_given_nonambiguous
+q_non_equivalent = softmax(A_stronger, B_stronger, incomparable, unrelated)
+
+P(ambiguous)  = p_ambiguous
+P(equivalent) = (1-p_ambiguous) * p_equivalent_given_nonambiguous
+P(r)          = (1-p_ambiguous) * (1-p_equivalent_given_nonambiguous) * q[r]
+same_claim_probability = P(equivalent)
+```
+
+Checkpoint tests require exact numerical-tolerance behavior under swapping:
+
+```text
+P_equivalent(A,B) == P_equivalent(B,A)
+P_ambiguous(A,B) == P_ambiguous(B,A)
+P_A_stronger(A,B) == P_B_stronger(B,A)
+P_incomparable(A,B) == P_incomparable(B,A)
+P_unrelated(A,B) == P_unrelated(B,A)
 ```
 
 This is the intended decoder-like cross-attention, not autoregressive decoding.
 
 ### 21.6 M3 hybrid
 
-Fuse defeq, directional proof/counterexample state, GTED/tree score, atom/constant overlap, binder/typeclass/context/lexical features. Compare feature concatenation, calibrated meta-model, and certified-override→neural-fallback. Failed proof search is encoded unknown, not negative. `configs/models/m3.yaml` is mandatory.
+Fuse defeq, directional proof/counterexample state, GTED/tree score, atom/constant overlap, binder/typeclass/context/lexical features with an explicit missingness mask for every evidence feature. Compare feature concatenation, calibrated meta-model, and certified-override→neural-fallback. Failed proof search is encoded unknown/missing evidence, not negative. `configs/models/m3.yaml` is mandatory.
 
 ### 21.7 Heads and ambiguity
 
-- binary same-claim; ambiguous/unresolved masked;
-- separate ambiguity head;
-- seven-way relation head with unknown masking;
+- symmetric same-claim/equivalence head; ambiguous/unresolved masked from binary loss;
+- separate symmetric ambiguity head;
+- conditional six-terminal-class relation distribution with no `unknown` target;
 - masked A→B/B→A auxiliaries;
-- E01–E30 multi-label errors.
+- optional F0 auxiliary.
 
 Primary training masks terminal ambiguity from BCE. A three-class model is a preregistered ablation.
 
@@ -2072,8 +2390,8 @@ Primary training masks terminal ambiguity from BCE. A three-class model is a pre
 
 ```text
 L = λeq BCE(same) + λamb BCE(ambiguity) + λrel CE(relation)
-  + λdir masked directional BCE + λerr multilabel BCE
-  + λswap swap consistency + optional λrank ranking
+  + λdir masked directional BCE + λswap swap consistency
+  + optional λrank ranking
 ```
 
 Unknown fields are masked. Quality weights/loss weights select on validation only.
@@ -2153,11 +2471,24 @@ Prevalence, AUROC, AUPRC, macro-F1, same-claim precision/recall/F1, Brier, ECE/r
 
 ### 23.3 Relation/error metrics
 
-Relation macro-F1/confusion; directional accuracy only on non-null certified/human truth; E01–E30 micro/macro/per-code P/R/F1 and exact match; swap consistency; ambiguity separately.
+Relation macro-F1/confusion; directional accuracy only on non-null certified/human truth; swap consistency; ambiguity separately. E01–E30 analysis is reported for data provenance/annotation and any explicitly optional diagnostic ablation, not as a flagship-head requirement.
 
 ### 23.4 Robustness
 
 A/B swap, binder/theorem renaming, whitespace/comments, safe regrouping, unseen transforms, held-out projects/generators, long statements, low-overlap positives, high-overlap negatives, semantic-erasure traps, context changes, reference defects, ambiguous NL. Gate 6 swapped-order agreement ≥90% after direction remap.
+
+The sealed anti-shortcut panel crosses faithfulness with structural distance:
+
+| | structurally close | structurally distant |
+|---|---:|---:|
+| faithful | faithful-close | faithful-distant |
+| unfaithful | unfaithful-close | unfaithful-distant |
+
+It contains real autoformalizer outputs, human labels, equivalent alternative
+references, same-reference candidate sets, ancestry-disjoint sources, and no
+theorem-name/source-file leakage. Report every quadrant and run reference-value
+ablations: Lean–Lean correct/equivalent-alternative/unrelated reference, and M4
+`N+C`, `R+C`, and `N+R+C` on identical candidates.
 
 ### 23.5 Sampling/weighting
 
@@ -2165,22 +2496,24 @@ Store propensities. Report raw counts/groups plus unweighted/design-weighted met
 
 ### 23.6 External registry
 
-ProofNetVerif, ProofNet#, RLM25, Con-NF, EPLA, CriticLeanBench, ConsistencyCheck, Gaokao-Formal, DriftBench, and compatible miniF2F variants. Run released protocols where possible; document imports/exclusions/migrations/mappings. No test label affects selection/calibration/prompts.
+ProofNetVerif, ProofNet#, RLM25, Con-NF, EPLA, CriticLeanBench, ConsistencyCheck, Gaokao-Formal, DriftBench, FormalRx-Test, and compatible miniF2F variants. Pin the observed FormalRx-Test revision/schema/class counts and label availability rather than copying paper/card counts. Run released protocols where possible; document imports/exclusions/migrations/mappings. No test label affects selection/calibration/prompts.
 
 ### 23.7 Reranking
 
 Generate K → Lean validate → score compiling → optional cluster → select/REVIEW. Compare first, first compiling, random, generator score, clean LLM judge, judge+symbolic, symbolic/reference methods, M4/M3. Metrics: faithful@1/@k, MRR/nDCG when graded, coverage at 95% precision, no-compiling, abstention, tokens/calls/Lean evidence/latency.
 
-### 23.8 Repair
+### 23.8 Selective escalation
 
-On a frozen eligible subset provide predicted errors/minimal mismatch to a repair generator; revalidate; measure faithful repair, regression/false repair, and cost. Repair outputs receive new ancestry/groups.
+On a frozen eligible subset, route REVIEW/REJECT cases to an expensive held-out
+critic or human and measure final faithful coverage, escalation rate, latency,
+and provider calls. LeanFaith does not localize errors or generate repairs.
 
 ### 23.9 Statistics and test-size limits
 
 - bootstrap by ancestry connected component/NL problem, never pair;
 - report block count/effective class counts;
 - paired block bootstrap method differences;
-- Holm–Bonferroni α=0.05 for primary H1–H6;
+- Holm–Bonferroni α=0.05 for the powered primary H1–H7 family;
 - BH FDR q=0.10 for exploratory slices;
 - report effect sizes/CIs;
 - Wilson/Clopper–Pearson for operating points.
@@ -2191,7 +2524,7 @@ A roughly 500-item test supports aggregate/95%-precision claims only with enough
 
 Freeze judge×supervision matrix; primary comparison uses supervision-free family. Report same-family cells only as circular diagnostics. Pair calibration is development-only; deployment thresholds use `calibration_gold`. Conformal claims state exchangeability and shift caveats.
 
-### 23.11 Preregistered H1–H6 targets
+### 23.11 Preregistered H1–H7 targets
 
 Default `policies/preregistration_v1.yaml`; changing before test unseal requires ADR/new version.
 
@@ -2203,10 +2536,42 @@ Default `policies/preregistration_v1.yaml`; changing before test unseal requires
 | H4/Gate10 | selected model calibration | ECE≤0.05; ACCEPT coverage≥40% at point estimate≥95% precision with interval reported |
 | H5 | reranker vs first-compiling and strongest clean baseline | faithful@1 +0.05 vs first-compiling and positive paired-block CI vs strongest clean |
 | H6 | held-out generator/project | +0.03 macro-F1 over best clean nontrained baseline on each powered setting |
+| H7 (M4-NL only) | M4-NL vs FormalRx-8B on shared human-labeled `N+C` | simultaneous one-sided 95% lower bound for AUPRC difference ≥-0.02; efficiency superiority requires higher median throughput and lower measured peak memory |
 | Gate6 | swapped LLM/silver audit | ≥90% agreement after remap |
 | Gate7 | annotation pilot | κ≥0.60 and raw≥80%; otherwise revise/repeat |
 
 Underpowered/deferred hypotheses are reported unsupported, not redefined.
+
+H7 is confirmatory only if the frozen test has sufficient ancestry/NL groups
+for the interval width to support a 0.02 margin. Otherwise it is descriptive.
+No fixed throughput multiplier is required; report the measured ratio.
+
+### 23.12 FormalRx verdict protocol
+
+Direct comparison uses identical natural-language statement `N`, candidate
+Lean `C`, and human aligned/misaligned labels for FormalRx-8B, available
+1.7B/4B checkpoints, M4-NL, LeanScorer, and a held-out LLM judge.
+
+Pin checkpoint/tokenizer SHAs, the paper prompt, parser, Transformers version,
+decoding/stopping parameters, and adapter hash before final-test access.
+Preferred probability extraction teacher-forces the exact continuations
+`Aligned\n` and `Misaligned\n` after the fixed verdict prefix and normalizes
+their sequence log probabilities. Validate the adapter against generated
+verdicts before final-test access. If logits are unavailable, report only
+discrete verdict metrics; do not manufacture probabilities.
+
+Fit a separate calibrator for each continuous-score system on the same
+`calibration_gold`. Primary metrics are AUPRC, accepted precision/coverage,
+risk–coverage, and balanced accuracy; additionally report macro-F1, MCC,
+AUROC, Brier, NLL, and ECE where supported. Bootstrap ancestry/NL groups.
+
+Measure FormalRx full diagnostic generation and verdict-stop modes, LeanFaith
+uncached pairs, and LeanFaith cached-reference reranking. In one frozen
+environment and supported numeric precision, report batch 1 and 32, 20 warmup
+and 100 timed batches, tokenization separately and end-to-end, latency,
+throughput, peak memory, loaded parameters, and checkpoint size. Full
+diagnostic generation is a systems cost reference; LeanFaith does not
+implement category, localization, or correction outputs.
 
 ---
 ## 24. Implementation roadmap with hard stage gates
@@ -2224,14 +2589,35 @@ Ordering carve-outs:
 - Phase 6 may be marked `deferred (strong-paper track)` by ADR for an MVP that consumes none of it;
 - final tests remain sealed until model/prompt/calibration/threshold freeze.
 
+### 24.0.1 Revision-4.1 next-execution order
+
+1. freeze this Revision 4.1, schema migration, source identity, private-data,
+   representation API, FormalRx, and backbone-pilot policies;
+2. probe/pin backbone and available FormalRx artifacts;
+3. close internal-only Gate 0 and rerun Gate 1, stopping on failure;
+4. implement Gate-2 repairs, pass the per-row 100-row regression, then the
+   frozen 20,000-row audit;
+5. freeze the exact 5,000+5,000 Gate-3 manifest and close Gate 2;
+6. implement Gate-3 isolation/fingerprint/audits, pass fixed regressions, then
+   the exact 10,000-theorem audit and close Gate 3;
+7. update README status and freeze the benchmark/FormalRx-lineage registry;
+8. only then begin LF-016–LF-020;
+9. collect real outputs/prevalence before LLM mutations and gold partitions;
+10. resolve/split/freeze data, run baselines/pilot/M0–M3/calibration/sealed
+    Lean–Lean evaluation, then M4 and direct FormalRx comparison;
+11. run M5 only after stable text models and preregistered structural evidence.
+
+Each gate is an explicit stop/go condition; a milestone report or fixture-only
+run is not gate closure.
+
 ### Phase 0 — Lock semantics, sources, providers, and environment
 
 **Tasks**
 
 1. Approve/version all files in `policies/`.
 2. Create exact project/source/provider/benchmark configs; no executable placeholder remains.
-3. Probe `sft_classic` with the project HF token (authenticated access is expected to succeed); archive ID/revision/license/schema/100-row sample; apply the fixed fallback order only if the authenticated probe fails.
-4. Resolve provider slots, including supervision-free primary judge, and record the §9.2 external-API approval decision for private-source content.
+3. Canonicalize the verified private `sft_classic` revision, schema, counts, and archived 100-row sample; record its undeclared license and internal-only restrictions.
+4. Disable unresolved external provider slots until the Phase-5 ADR; private-source content is never transmitted externally under the current policy.
 5. Register benchmark identities/usage before generation.
 6. Choose one §6.2 mode: a matching in-range Lean/mathlib pair (default) or a matching stable-`v4.31.0` exception pair after the full probe; reject silent toolchain overrides and mathlib `v4.32.0-rc1`.
 7. Record environment schema, source choice, encoder pilot, annotation tool, and deferral policy in ADRs.
@@ -2249,6 +2635,10 @@ policies/evidence_policy_v1.yaml
 policies/split_policy_v1.yaml
 policies/calibration_policy_v1.yaml
 policies/preregistration_v1.yaml
+policies/private_source_use.yaml
+policies/model_selection.yaml
+policies/formalrx_comparison.yaml
+policies/formalrx_sci_crosswalk_v1.yaml
 configs/environment.lock.yaml
 configs/projects/
 configs/sources/
@@ -2261,7 +2651,25 @@ reports/milestones/phase_0_contract.md
 
 **Gate 0**
 
-Pass when canonical enums/policies are complete; one primary NL source has exact access/license/schema/sample; fallback and pool count are recorded; provider slots are resolved/explicitly disabled with fallback; exact Lean/project toolchains satisfy the supported range or tested ADR exception; benchmark registry exists; no semantic/schema/provider choice is left to implementation code.
+Gate 0 may close for internal research only after the source record contains:
+
+```text
+access_basis
+institutional_policy_status
+license_status = undeclared
+redistribution = false
+external_transmission = false
+release_eligibility = false
+```
+
+The verified private revision is canonical, stale `probe_status` is removed,
+unresolved providers are disabled, `sft_classic` content cannot be sent to an
+external provider, and a public-source replication profile exists. Exact
+Lean/project locks, benchmark registry, source schema/counts/sample, and pool
+adequacy are recorded. FormalRx artifact availability does not block this
+gate. Gate artifacts are finalized first, then the phase report, then its
+hash, then the gate report; changing any input invalidates and regenerates the
+gate.
 
 ### Phase 1 — LeanInteract backend vertical slice
 
@@ -2303,8 +2711,8 @@ All §8.12 tests pass; every request has one terminal ordered result; explicit p
 2. Implement full adapters for mathlib, selected primary NL source, ProofNetVerif.
 3. Probe CSLib/Physlib revisions, roots, toolchains; defer full adapters.
 4. Archive raw and parsed partitions.
-5. Extract/revalidate declarations through LeanInteract; keep failures.
-6. Compute context/theorem/ancestry/content IDs.
+5. Implement locator-only source IDs, question-first extraction, fallback eligibility, and complete row/declaration terminal accounting.
+6. Extract/revalidate declarations through LeanInteract; persist every failure and compute context/theorem/ancestry/content IDs separately.
 7. Compute Phase-5 pool adequacy.
 8. Freeze benchmark IDs, normalized-NL hashes, and raw-text hashes before Phase 4 (representation-hash signatures are appended in Phase 3 per §19.4).
 9. Run reload test and configure separate nightly re-elaboration.
@@ -2328,7 +2736,41 @@ reports/milestones/phase_2_extraction.md
 
 **Gate 2**
 
-Each MVP source has exact manifest/mapping; ≥99.5% checked records reproduce byte-identical IDs/content hashes when reparsed, all differences explained; proof-stripped records meet the configured supported rate with explicit exclusions; frozen IDs executable; CSLib/Physlib probe exact; nightly re-elaboration distinguished from reload.
+Unit tests cover locator identity, duplicate upstream UUIDs, content changes,
+question-first routing, fallback-only NL ineligibility, question/fallback
+mismatch, malformed/multiple/missing fences, deterministic declaration
+selection, all execution failures, row/declaration terminal accounting,
+non-null trust/source links, dirty-code rejection, and stable extraction,
+benchmark-freezing, and representation CLI commands.
+
+The immutable archived 100-row regression requires the registered input hash,
+100 terminal outcomes, exactly 85 question-route theorem successes, 10
+fallback-only theorem successes, and five terminal failures. One failure is
+the elaborating but non-`Prop` `def` at archived row 64; the Gate must not
+count it as a theorem merely to reproduce the earlier 96-row elaboration
+union. A versioned per-row expected-outcome file controls changes; no success
+or signature may drift silently.
+
+The scale audit uses a frozen hash-selected 20,000-row sample stratified only
+by pre-extraction fields: split, `valid`, recorded NL provenance, token/tactic
+bands, docstring presence, and duplicate-UUID status. Extraction route is an
+outcome, never a sampling stratum. Require 100% replay of source IDs, raw and
+content hashes, parser outcomes, and final normalized outcomes after the
+fixed retry policy; exact row/declaration reconciliation; nonempty
+input/output/failure/config/environment/code hashes; and non-null trust/source
+links on every accepted record. The 99.5% re-elaboration statistic remains a
+separate non-gating nightly report.
+
+Gate 2 closes only after unit/fixed/scale checks pass and an immutable manifest
+freezes exactly 5,000 mathlib plus 5,000 `sft_classic` transform-eligible
+theorems. No post-freeze denominator change is allowed. Gate-closing code is
+clean or archived as a complete content-addressed source bundle, and the final
+phase-report hash precedes the gate report. **STOP: LF-016 remains prohibited.**
+
+Scale extraction uses content-bound completed-chunk markers. A resumed chunk
+must match its frozen rows/files, context, adapter version, code tree, code
+bundle, and relevant execution configuration exactly; otherwise resume fails
+closed. Completed partitions merge only in frozen input order.
 
 ### Phase 3 — Representations and identity stress tests
 
@@ -2337,11 +2779,12 @@ Each MVP source has exact manifest/mapping; ≥99.5% checked records reproduce b
 1. Implement required RepresentationRecord views/statuses.
 2. Implement Lean helpers only through LeanInteract.
 3. Implement semantic atoms/operator tree/serialization/hashes.
-4. Implement a property-test-only renamer distinct from P01.
-5. Run ≥10,000 eligible statements for MVP collision/invariance audit.
-6. Audit proof leakage, atom loss, round trip, context attachment.
-7. Append representation-based near-duplicate signatures (headless/signature/alpha) to the frozen benchmark registry (§19.4).
-8. Start annotation tooling/guidelines after gate.
+4. Implement `RepresentationBatch`/`RepresentationBatchResult`, per-theorem request isolation, inline inspection, and independent view retry.
+5. Implement a property-test-only renamer distinct from P01 and the binder-normalized identity fingerprint.
+6. Run the exact frozen 10,000-theorem manifest for collision/invariance/coverage audit with no denominator filtering.
+7. Audit proof leakage, lossy collisions, name-versus-inline exact-type alias paths, non-gating pretty-print round-trip diagnostics, and context attachment.
+8. Append representation-based near-duplicate signatures to the frozen benchmark registry (§19.4).
+9. Start annotation tooling/guidelines after gate.
 
 **Deliverables**
 
@@ -2358,7 +2801,40 @@ reports/milestones/phase_3_representations.md
 
 **Gate 3**
 
-Required views round-trip; alpha hashes stable under the distinct test renamer; no audited material loss/proof leakage; failure categories explicit; 10k collision report complete. Repeat ≥100k before research_v1 identity claims.
+API/unit regressions require empty success, pre-execution mixed-context
+rejection, valid-plus-nonexistent sibling preservation, deterministic
+theorem/view request IDs, independent view failures, same-request inline
+declaration/inspection, and explicit per-view failure records. The MVP uses
+one independent LeanInteract request per theorem; it does not concatenate
+multiple theorem checks. Recursive bisection is a later optimization only.
+
+Fixed fixtures cover valid/nonexistent, malformed, empty/mixed context, inline
+and name-based, identical-signature/different-proof, unique proof sentinel,
+and alpha-renamed declarations. Proof differences must yield byte-identical
+model views and the sentinel must occur in none.
+
+On the exact frozen 10,000 records, per source and overall require:
+
+```text
+raw_proof_stripped 100%    headless 100%
+signature_pp ≥99%          signature_explicit ≥99%
+semantic_atoms ≥99%       operator_tree ≥98%
+```
+
+Every missing view remains an explicit failure/missingness record. Require
+1,000/1,000 alpha-renaming fingerprint invariance; zero cryptographic or
+canonical-alpha-byte collisions; all lossy-view clusters enumerated with
+deterministic reason codes and `min(200, cluster_count)` manually audited;
+zero proof leakage; 500 mathlib name-versus-inline comparisons using audit-only exact-type aliases, with identical alpha fingerprints and explicit signatures after first-occurrence normalization of Lean-generated ``u_<n>`` placeholders; and 100% representation-ID/hash replay. The pretty-printed explicit view is not treated as a lossless Lean serialization. Full `alpha_structural` and graph views remain deferred. The final
+phase-report hash precedes the gate report. **STOP: LF-016 remains prohibited
+until this gate and Gate 2 both close.**
+
+For the current Gate-3 closure evidence, the frozen execution profile is one
+worker, sequential Run A then Run B, chunk size 500, and a Linux per-REPL
+`memory_hard_limit_mb` of 49,152. Both replay runs must be homogeneous under
+the same code bundle and execution configuration; chunks from earlier failed
+profiles cannot be reused. These values document this measured gate-closing
+run and are not a universal worker-count, RAM, or hardware prescription.
 
 ### Phase 4 — Deterministic generation and promotion
 
@@ -2389,6 +2865,26 @@ reports/milestones/phase_4_transforms.md
 
 Active families are deterministic, elaborating, provenance-complete; disabled stubs cannot execute; N10 includes both ancestries; no intention is resolved label; every candidate has validation/audit status.
 
+Gate 4G closes only after one persisted integrated run exercises all eight
+active v1 families, re-elaborates every accepted candidate, links every pair
+to transformation-audit evidence, preserves N10's two source ancestries, and
+passes deterministic replay and the smoke release/selection guards. The
+integrated run must use at least ten accepted fixture-source statements, must
+persist every expected failure, and must demonstrate zero protected-benchmark
+overlap and zero connected-component split leakage. The LF-019 smoke
+exemption may resolve only P01 alpha-renaming pairs through
+`smoke_alpha_certificate`; P02, P04-lite, and all five negative-family pairs
+remain unresolved. Intentions never become labels, no gold label or family
+promotion is created, and the gate-closing report must bind the current
+effective registry snapshot. A clean-checkout replay is required.
+
+**Current status:** Gate 4G passed on 2026-07-23. The fail-closed report is
+`reports/gates/gate_4g.json` (SHA-256
+`5c1f2e86230a8b7ebf884d9f10369a504bc5cbda4bc472321076c178a2cf43f7`).
+It binds two clean, semantically identical LF-019 replay runs and the finalized
+milestones. Gates 4A and 4B remain open; no gold label or family promotion was
+created.
+
 **Gate 4A — positive gold promotion**
 
 After annotation pilot, each family/version has blinded `n≥200`, point precision≥99%, 95% Clopper–Pearson lower bound≥95%, all invariants, no recurrent semantic erasure, and held-out source/domain audit. Else remain silver/experimental/disabled.
@@ -2402,18 +2898,22 @@ After pilot, each promoted item uses exactly one §15.7 route and corresponding 
 **Tasks**
 
 1. Build trusted problem pool excluding denylist/near duplicates.
-2. Configure 3–4 distinct families, reserve one held-out.
-3. Generate multiple candidates/seeds/prompts; archive calls/repairs.
+2. Configure at least three distinct successful families for collection; use
+   at least four for a confirmatory run that reserves one held-out while
+   retaining three supervision-eligible families.
+3. Generate multiple candidates/seeds/prompts; archive calls/retries.
 4. Parse/Lean-validate/cluster/deduplicate.
-5. Keep noncompiling only for repair analysis.
+5. Keep noncompiling only for failure analysis.
 6. Build candidate-reference PairRecords and NLPLeanRecords.
-7. Draw 200–300 human prevalence sample across generator/domain.
+7. Freeze the 200–300-item human prevalence sampling frame and propensities
+   across generator/domain; the annotation track supplies adjudicated labels.
 8. Report coverage/diversity/leakage/pool adequacy.
 
 **Deliverables**
 
 ```text
-configs/generation/real_outputs.yaml
+configs/generation/problem_pool_v1.yaml
+configs/generation/real_outputs_v1.yaml
 data/raw/real_outputs/
 data/parsed/real_outputs/
 data/real_outputs/validated/
@@ -2422,9 +2922,45 @@ reports/faithful_prevalence_design.md
 reports/milestones/phase_5_real_outputs.md
 ```
 
-**Gate 5**
+**Gate 5G — generation checkpoint**
 
-At least three successful families; reserved family absent from supervision; configured per-stratum unique-compiling coverage met; calls replayable; benchmark/ReForm×Lean-Workbook checks pass; prevalence design/sample complete and used for test/headroom planning.
+At least three successful families; configured per-stratum unique-compiling
+coverage met; calls replayable; benchmark/ReForm×Lean-Workbook checks pass;
+and the prevalence frame, strata, and sampling propensities are frozen. If
+only three families are available, the output is marked
+`reduced_data_ablation` for the confirmatory D4/D5 and
+`heldout_generator_test` claims.
+
+**Gate 5 — final real-output gate**
+
+Gate 5G has passed; the prevalence frame has 200–300 adjudicated human labels
+and a frozen prevalence report; and downstream test/headroom planning binds
+that report. A confirmatory D4/D5 or held-out-generator claim additionally
+requires at least four successful families, with at least three
+supervision-eligible families satisfying the per-family cap and one fully
+reserved family absent from all supervision. Generation completion alone
+cannot close the human-label portion of Gate 5.
+
+**Current implementation status (2026-07-24):** LF-021 mechanical collection
+and Gate 5G are complete. The exact mixed lineage covers 12 original and 4
+post-exhaustion tranches, with 1,440 terminal invocations, 299
+compile-and-benchmark-clear members, 49 duplicate members, and 250 unique
+problem-aware eligible units. The frozen prevalence frame contains 240
+unresolved `REVIEW` items over 31 strata: 67 Goedel, 108 Kimina, and 65
+StepFun; 149 are from the algebra pool and 91 from the cross-domain pool. The
+lineage is
+`lf021_gate5g_lineage:ddac5e106c92b263ed96c9974eeadcef25f4980f1e777b06bca75de133b0aa1d`
+with SHA-256
+`a2bb9dba960a7906057647162a6ba00e17f26d0aa89180940e9e6112138ca761`.
+Gate 5G established mechanical collection, replay, lineage, and benchmark
+clearance only; it created and inspected no semantic labels and grants no
+supervision eligibility. Supplemental public Kimi/Qwen/Codex qualifications
+remain non-gating. The next scientific step is human annotation and
+adjudication of the frozen frame, followed by the prevalence report and Gate
+5 closure. Do not collect another tranche. Canonical evidence is in
+`reports/generation_coverage.md`,
+`reports/milestones/phase_5_real_outputs.md`, and
+`reports/gates/gate_5g.json`.
 
 ### Phase 6 — LLM variants and silver supervision
 
@@ -2445,7 +2981,7 @@ May be deferred for MVP by ADR; no LLM-silver claim then.
 ```text
 prompts/proposers/
 prompts/judges/
-configs/generation/llm_variants.yaml
+configs/generation/llm_variants_v1.yaml
 configs/judges/weak_supervision.yaml
 data/generated/llm/
 data/raw/judgments/
@@ -2493,18 +3029,20 @@ Raw agreement≥80%, κ≥0.60, required rationales/fields complete, recurring d
 **Tasks**
 
 1. Freeze frames/propensities.
-2. Produce `development_gold`.
-3. Produce real-output-only `calibration_gold`.
-4. Construct/seal final test including SRS real-output subpanel.
-5. Maintain reference/ambiguity audits.
-6. Publish label-source/overlap manifests without exposing labels.
+2. Produce ancestry-disjoint `training_gold` for weight training only.
+3. Produce ancestry-disjoint `selection_gold` for model/data/representation/checkpoint selection only.
+4. Produce real-output-only `calibration_gold` for calibrator/threshold fitting only.
+5. Construct/seal `final_human_test`, including an SRS real-output subpanel.
+6. Maintain reference/ambiguity audits.
+7. Publish label-source/overlap manifests without exposing labels.
 
 **Deliverables**
 
 ```text
-data/human/development_gold/
+data/human/training_gold/
+data/human/selection_gold/
 data/human/calibration_gold/
-data/human/final_test_frozen/
+data/human/final_human_test/
 annotation/adjudication/
 reports/annotation_main.md
 reports/milestones/phase_7b_main_annotation.md
@@ -2512,7 +3050,7 @@ reports/milestones/phase_7b_main_annotation.md
 
 **Gate 7b**
 
-All records have groups/provenance/propensities/adjudication/canonical ambiguity. `development_gold` may enter training by design; `calibration_gold` and `human_test` are disjoint from every weight-training record and from each other. Calibration is restricted to the real-output distribution, final labels are sealed, and all subset/disjoint relations match §19.6 manifests.
+All records have groups/provenance/propensities/adjudication/canonical ambiguity. `training_gold`, `selection_gold`, `calibration_gold`, and `final_human_test` are connected-component disjoint and used only for their declared purposes. Calibration is restricted to the real-output distribution, final labels are sealed, and all subset/disjoint relations match §19.6 manifests.
 
 ### Phase 8 — Resolve labels, split, freeze dataset v0
 
@@ -2552,7 +3090,12 @@ No connected/prohibited duplicate leakage; every supervised record has allowed t
 
 **Tasks**
 
-Implement simple/scalar/symbolic/structural/embedding; distinct BEq/BEq+; reproducible GTED/TransTED/FormalAlign/CriticLean/LeanScorer; freeze primary LLM and judge+symbolic prompts; measure quality/coverage/calibration/cost; emit common output.
+Implement simple/scalar/symbolic/structural/embedding; distinct BEq/BEq+;
+reproducible GTED/TransTED/FormalAlign/CriticLean/LeanScorer; freeze the
+FormalRx verdict adapter and primary LLM/judge+symbolic prompts; measure
+quality/coverage/calibration/cost; emit common output. FormalRx predictions in
+this phase are produced only for records with the shared `N+C` inputs and are
+not a direct M0–M3 quality comparison.
 
 **Deliverables**
 
@@ -2572,15 +3115,16 @@ Common contract/frozen IDs; naming/provenance explicit; primary judge supervisio
 
 **Tasks**
 
-1. Tokenizer audit/ADR.
-2. Train M0/M1/M2/M3.
-3. Include `configs/models/m3.yaml` and amortized evidence cost.
-4. Run mixture learning curves/hard-negative mining on nonfrozen pools.
-5. Train ambiguity/relation/error heads and three-class ablation.
-6. Run swap/H3 slice tests.
-7. Compare calibration on development split.
-8. K-fold `calibration_gold`, fit/freeze deployment calibration/thresholds.
-9. Freeze checkpoint/tokenizer/prompts/policy before final tests.
+1. Freeze the tokenizer/backbone pilot inputs and protocol in ADR-0004.
+2. Run the four-candidate audit/pilot and record the deterministic winner.
+3. Train M0/M1/M2/M3 using the selected backbone where applicable.
+4. Include `configs/models/m3.yaml` and amortized evidence cost.
+5. Run D0–D5 learning curves/hard-negative mining on nonfrozen pools.
+6. Train ambiguity/relation heads, optional F0/F2 auxiliaries, and three-class ablation.
+7. Run exact swap-invariance/equivariance and H3 slice tests.
+8. Select models/checkpoints using `selection_gold` only.
+9. K-fold `calibration_gold`, fit/freeze deployment calibration/thresholds.
+10. Freeze checkpoint/tokenizer/prompts/policy before final tests.
 
 **Deliverables**
 
@@ -2628,7 +3172,7 @@ Predictions match frozen manifests/configs; ambiguity/weights/groups/corrections
 
 **Tasks**
 
-Build reference-free/reference-aware M4; train allowed data only; freeze problem/candidate manifests; compare §23.7 baselines; measure prevalence/headroom/faithful@1/coverage/no-compiling/abstention/cost; optional frozen repair.
+Build M4-NL on `N+C` and reference-aware M4 on `N+R+C`; train allowed data only; freeze problem/candidate manifests; compare §23.7 baselines; perform the §23.12 direct FormalRx verdict comparison only for shared `N+C`; run the reference-value experiment; measure prevalence/headroom/faithful@1/coverage/no-compiling/abstention/selective-escalation/cost.
 
 **Deliverables**
 
@@ -2637,13 +3181,13 @@ configs/models/m4.yaml
 artifacts/checkpoints/m4/
 artifacts/predictions/reranking/
 reports/reranking.md
-reports/repair_application.md
+reports/selective_escalation.md
 reports/milestones/phase_12_nl_lean_reranking.md
 ```
 
 **Gate 12**
 
-H5 evaluated as preregistered; generation/selection labels disjoint; reference-free has no reference leakage; prevalence/headroom/cost complete; failure reported without candidate-set changes.
+H5 and, when powered, H7 are evaluated as preregistered; generation/selection labels are disjoint; M4-NL has no reference leakage; FormalRx shares exact `N+C` inputs/labels; reference-aware comparison is marked unequal-information; prevalence/headroom/cost complete; failure is reported without candidate-set changes.
 
 ### Phase 13 — M5 Expr graph
 
@@ -2729,9 +3273,9 @@ Each item closes only with code, tests, artifacts, and acceptance evidence. Item
 16. **LF-016 — transform protocol:** Applicability/VariantDraft/Audit/registry/promotion.
 17. **LF-017 — scoped positives:** P01/P02/P04-lite + invariants/round trips.
 18. **LF-018 — scoped negatives:** N01/N02/N03/N07/N10 with the curated replacement table; produces the pre-scale audit slice.
-19. **LF-019 — smoke vertical slice:** fixture→records→provisional pair→tiny model; release guard; runs only after LF-016–LF-018 exist.
-20. **LF-020 — evidence pipeline:** defeq/directional/counterexample/certificate/axiom cache.
-21. **LF-021 — real-output collection:** provider slots, pool, parse/validate/dedup/prevalence frame.
+19. **LF-019 — smoke vertical slice:** all-eight-family fixture→records→pair/evidence→P01-only smoke resolution→connected split→tiny model; release guard; runs only after LF-016–LF-018 exist.
+20. **LF-020 — evidence pipeline:** defeq/directional/counterexample/certificate/axiom cache. Complete with a two-run, clean-cache semantic replay bound by `reports/evidence/lf020_smoke_replay_v1.json`; no labels or promotions were created.
+21. **LF-021 — real-output collection:** mechanical collection and Gate 5G complete; 16 immutable tranches contain 1,440 terminal invocations, 299 compile-and-benchmark-clear members, 49 duplicates, and 250 unique problem-aware units. A 240-item, 31-stratum frame is frozen under the three-family reduced-scope policy. LF-021 remains open only for genuine human annotation, adjudication, prevalence reporting, and Gate 5 closure. No further collection tranche is authorized.
 22. **LF-022 — LLM variants/judges:** prompts/parsers/family separation/call records.
 23. **LF-023 — annotation integration:** blind templates/export/import/adjudication/agreement.
 24. **LF-024 — resolver:** precedence/conflicts/review/F0-F2/quality tiers.
@@ -2739,7 +3283,7 @@ Each item closes only with code, tests, artifacts, and acceptance evidence. Item
 26. **LF-026 — dataset freeze:** views/cards/checksums/rebuild and contamination report.
 27. **LF-027 — baseline suite:** common output, symbolic/structural/critics/clean LLM.
 28. **LF-028 — M0–M3:** tokenizer audit, models, heads, swap, hybrid, calibration development.
-29. **LF-029 — M4/application:** NL–Lean, final calibration, frozen reranking/repair.
+29. **LF-029 — M4/application:** NL–Lean, final calibration, frozen reranking and selective escalation.
 30. **LF-030 — M5/external/release:** graph experiment, CSLib/Physlib adapters + `heldout_project_test` construction (strong-paper track), sealed suites, statistics, artifact assembly.
 
 Acceptance for every LF item: declared paths exist; unit/integration/golden/property tests relevant to scope pass; mypy/Ruff pass on touched core; command writes manifest; failure paths tested; milestone/gate report updated; no forbidden label inference.
@@ -2794,6 +3338,8 @@ sources/{mathlib,sft_classic,sft_classic_numina,lean_workbook,
 generation/{providers,problem_pool,real_outputs,llm_variants}.yaml
 judges/{weak_supervision,primary_eval}.yaml
 transformations/{registry,v1,replacement_table_v1,
+                 lf018_pre_scale_v1,lf019_positive_fixtures_v1,
+                 lf019_smoke_v1,
                  p01_alpha,p02_binders,p04_notation_lite,
                  n01_operator,n02_quantifier,n03_drop_hypothesis,
                  n07_literal_bound,n10_nearby_theorem}.yaml
@@ -2905,7 +3451,7 @@ Underpowered held-out/error groups receive descriptive intervals/counts and no H
 
 ### 30.7 Application
 
-If M4 fails faithful@1, test whether reference-aware clustering/triage or repair prioritization still has preregistered measurable value under a new sealed version.
+If M4 fails faithful@1, test whether reference-aware clustering or review prioritization still has preregistered measurable value under a new sealed version.
 
 ---
 
@@ -2934,15 +3480,26 @@ All emit §20.6.
 
 ### 31.2 Data mixtures for H2
 
-```text
-D0 promoted deterministic
-D1 D0 + LLM silver (if active)
-D2 D0 + real outputs
-D3 all permitted weak
-D4 D3 + development_gold
-```
+All arms share one positive pool and use 50/50 positive-negative batches.
 
-Compare under matched architecture/training schedule.
+| Arm | Negative-source composition |
+|---|---|
+| D0 | 100% `G_rule` |
+| D1 | 50% `G_rule`, 50% `G_sci` |
+| D2 | 50% `G_rule`, 50% `G_open` |
+| D3 | 50% `G_rule`, 50% `G_real` |
+| D4 | 20% `G_rule`, 25% `G_sci`, 25% `G_open`, 30% `G_real` |
+| D5 | D4 plus `training_gold`, human-gold loss weight 2, no ancestry oversampling |
+
+D4/D5 positive slots are 50% certified positives, 30% human/promoted faithful
+real outputs, and 20% promoted LLM-proposed equivalent variants. A
+deterministic family occupies at most 5% of negative slots. Use at least three
+LLM proposer families, each at most 40% of combined `G_sci+G_open`, and at
+least three real generator families, each at most 40% of `G_real`. At most
+four unique variants from one ancestry appear per epoch; ancestry-normalized
+total loss weight is one and duplicates add no weight. Missing required
+sources produce a `reduced_data_ablation`, never silent substitution. Fixed
+ratios are confirmatory; ratio sweeps are exploratory.
 
 ### 31.3 Representations for H3
 
@@ -2962,7 +3519,7 @@ M4 reference-free; M4 reference-aware; M3 reference Lean+candidate; frozen ensem
 
 ### 31.7 Hypothesis mapping
 
-H1: M1–M3 vs B0/S0/T0/T1/J0. H2: D0–D4. H3: representation slices/M5. H4: calibration. H5: frozen reranking. H6: clean held-out generator/project. Every paper row maps to config/prediction/hypothesis or is exploratory.
+H1: M1–M3 vs B0/S0/T0/T1/J0. H2: D0–D5. H3: representation slices/M5. H4: calibration. H5: frozen reranking. H6: clean held-out generator/project. Every paper row maps to config/prediction/hypothesis or is exploratory.
 
 ---
 ## 32. Minimum viable project, strong-paper track, and stretch result
@@ -2991,7 +3548,7 @@ Promoted LLM silver; more diverse outputs; full external registry; held-out tran
 
 ### 32.4 Stretch
 
-Useful M5 gains, reliable error-guided repair, generator-stratified risk control, broadly reusable benchmark/generation release.
+Useful M5 gains, generator-stratified risk control, and a broadly reusable benchmark/generation release.
 
 ### 32.5 Deferral records
 
@@ -3294,7 +3851,7 @@ sources:
 
 ```yaml
 representations:
-  normalization_version: repr_v1
+  normalization_version: repr_v2
   views: [raw_proof_stripped, headless, signature_pp, signature_explicit,
           alpha_structural, notation_light, semantic_atoms, operator_tree]
   pretty_options:
@@ -3375,7 +3932,7 @@ resolution_method: p01_alpha_certificate
 ```yaml
 same_claim: false
 resolution_outcome: not_same_claim
-relation: incomparable_near_miss
+relation: incomparable
 error_types: [E25]
 faithfulness_levels: {F0_representation_equivalent: false, F1_same_claim: false, F2_truth_equivalent: true}
 quality_tier: gold_human
@@ -3391,7 +3948,7 @@ quality_tier: gold_human
 ```yaml
 same_claim: false
 resolution_outcome: not_same_claim
-relation: incomparable_near_miss
+relation: incomparable
 error_types: [E01, E25]
 quality_tier: gold_human
 ```
@@ -3425,7 +3982,7 @@ The relation is claim-level under the recorded `x↔x, y↔y` alignment. It is n
 ```yaml
 same_claim: false
 resolution_outcome: not_same_claim
-relation: incomparable_near_miss
+relation: incomparable
 error_types: [E21]
 faithfulness_levels: {F0_representation_equivalent: false, F1_same_claim: false, F2_truth_equivalent: true}
 quality_tier: gold_human
@@ -3443,7 +4000,7 @@ Under the project policy this is theorem-interface unfaithful even if truth cond
 ```yaml
 same_claim: false
 resolution_outcome: not_same_claim
-relation: incomparable_near_miss
+relation: incomparable
 error_types: [E06]
 quality_tier: gold_human
 ```
@@ -3453,7 +4010,7 @@ quality_tier: gold_human
 ```yaml
 same_claim: null
 resolution_outcome: unresolved
-relation: unknown
+relation: null
 error_types: [E27]
 faithfulness_levels: {F0_representation_equivalent: null, F1_same_claim: null, F2_truth_equivalent: null}
 quality_tier: unknown
@@ -3533,8 +4090,8 @@ OPTIONAL_NL: [NL_OR_NULL]
 SAME-CLAIM ANSWERS
  same_claim | not_same_claim | ambiguous | uncertain
 RELATIONS
- equivalent | A_stronger | B_stronger | incomparable_near_miss |
- unrelated | ambiguous | unknown
+ equivalent | A_stronger | B_stronger | incomparable |
+ unrelated | ambiguous | null
 DIRECTIONAL
  yes | no | unknown
 ERRORS
@@ -3622,12 +4179,16 @@ Adjudicator reproduces context, inspects independent labels/evidence without tre
 
 This slice is backlog item LF-019 and runs only after LF-016–LF-018 exist.
 
-Inputs: fixture project, ≥10 statements, P01 plus one provisional negative, no protected benchmark.
+Inputs: fixture project, at least ten accepted source statements, one
+configured case for each active family
+P01/P02/P04-lite/N01/N02/N03/N07/N10, at least one explicit expected-failure
+case, and no protected benchmark.
 
 ```text
 doctor/API probe → extract → Context/Theorem → Representation
-→ P01/provisional draft → Lean validation → Pair/Evidence
-→ smoke-only alpha resolution → connected smoke split
+→ all-eight-family drafts → Lean validation → Pair/Evidence
+→ P01-only smoke alpha resolution; every other pair unresolved
+→ connected smoke split
 → tiny nonproduction classifier → predictions/metrics/manifest
 ```
 
@@ -3639,7 +4200,21 @@ release_eligible: false
 model_selection_eligible: false
 ```
 
-Alpha pairs may use `quality_tier=provisional`, `resolution_method=smoke_alpha_certificate`. Acceptance: deterministic extraction/views, explicit placeholder behavior, P01 ancestry, provisional negative not gold, zero split leakage, batch exception tests, clean-checkout run, release guard rejects smoke.
+Only P01 alpha pairs may use `quality_tier=provisional` with
+`resolution_method=smoke_alpha_certificate`. P02, P04-lite, and all negative
+pairs retain null semantic relations and remain unresolved; `near_miss` stays
+provenance only. Acceptance requires deterministic extraction and
+model-visible views; explicit placeholder behavior; complete
+attempt→draft→audit→variant→pair lineage; evidence linked to every pair; all
+eight active families executed; N10 dual ancestry; every candidate
+re-elaborated; at least ten accepted fixture sources; persisted expected
+failures; zero intention-to-label inference; zero gold labels and promotions;
+zero protected-benchmark overlap; zero connected split leakage; deterministic
+semantic replay; batch-failure isolation; a tiny plumbing-only classifier
+whose predictions route to REVIEW; a clean-checkout run; and release,
+calibration, model-selection, and scientific-table guards that reject every
+smoke artifact. The accepted run and Gate 4G report must bind the current
+registry snapshot.
 
 ---
 
@@ -3660,6 +4235,7 @@ Alpha pairs may use `quality_tier=provisional`, `resolution_method=smoke_alpha_c
 - synthetic `internlm/Lean-Workbook`;
 - `PAug/ProofNetVerif`;
 - ProofNet#, RLM25, Con-NF, EPLA, CriticLeanBench, ReForm ConsistencyCheck, Gaokao-Formal, DriftBench, miniF2F variants.
+- `LARK-Lab/FormalRx-Test` at a pinned immutable revision; inputs are evaluation-only and labels may be unavailable, which disables but does not block the direct comparison.
 
 ### J.3 Methods
 
@@ -3673,6 +4249,7 @@ Alpha pairs may use `quality_tier=provisional`, `resolution_method=smoke_alpha_c
 - ReForm/ConsistencyCheck (arXiv:2510.24592; 859 expert-annotated validation items).
 - *The Faithfulness Gap*/DriftBench (arXiv:2606.16541).
 - COVCAL (arXiv:2605.28365).
+- FormalRx, *Rectify and eXamine Semantic Failures in Autoformalization* (arXiv:2607.04655v1); pin `LARK-Lab/FormalRx-8b` and available 1.7B/4B checkpoints, paper prompt, and verdict parser.
 
 ### J.4 Candidate generators
 

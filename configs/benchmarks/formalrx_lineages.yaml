@@ -1,0 +1,20 @@
+registry_version: formalrx_lineages_v1
+paper: arXiv:2607.04655v1
+status: overlap_tagging_not_global_exclusion
+evaluation_artifact:
+  dataset_id: LARK-Lab/FormalRx-Test
+  revision: 4b7c6b883e0859e9bd38620a539bdcef408f91b4
+source_lineages_to_tag:
+  - Formal-MATH
+  - FIMO
+  - Compfiles
+  - PutnamBench
+  - ProverBench
+  - CombiBench
+  - Gaokao-Formal
+  - mathlib_docstring_theorem_pairs
+rules:
+  exclude_exact_and_near_duplicate_evaluation_lineages_from_supervision: true
+  exclude_all_mathlib: false
+  report_clean_nonoverlap_subset: true
+  tune_on_formalrx_test: false

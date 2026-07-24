@@ -218,7 +218,7 @@ def test_evidence_pair_only_kinds_require_pair_target() -> None:
 
 
 def test_evidence_value_type_checked_even_on_failure_statuses() -> None:
-    with pytest.raises(ValueError, match="requires value type"):
+    with pytest.raises(ValueError, match="cannot carry a semantic value"):
         evidence_record(
             target_kind=EvidenceTargetKind.LEAN_PAIR,
             target_id=PAIR_ID,

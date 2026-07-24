@@ -15,7 +15,7 @@ from pathlib import Path
 
 from pydantic import Field, ValidationError, field_validator
 
-from leanfaith.config.hashing import canonical_json_bytes, hash_file
+from leanfaith.config.hashing import canonical_json_bytes, hash_canonical, hash_file, sha256_hex
 from leanfaith.config.models import StrictModel
 from leanfaith.config.paths import RepoPaths
 from leanfaith.schemas.enums import ArtifactClass, DataStage
@@ -46,6 +46,10 @@ class CodeState(StrictModel):
 
     git_revision: str = Field(pattern=_HEX40)
     git_dirty: bool
+    base_git_commit: str | None = Field(default=None, pattern=_HEX40)
+    code_tree_hash: str | None = Field(default=None, pattern=_HEX64)
+    tracked_diff_hash: str | None = Field(default=None, pattern=_HEX64)
+    untracked_files: tuple[str, ...] = ()
 
 
 class RunManifest(StrictModel):
@@ -101,21 +105,43 @@ class OutputManifest(StrictModel):
     config_hash: str = Field(pattern=_HEX64)
     record_schema_version: int
     row_count: int = Field(ge=0)
+    attempted_row_count: int | None = Field(default=None, ge=0)
+    declaration_count: int | None = Field(default=None, ge=0)
+    terminal_outcome_counts: dict[str, int] = Field(default_factory=dict)
     shard_ids: tuple[str, ...] = ()
     file_checksums: dict[str, str] = Field(default_factory=dict)
     input_manifest_hashes: dict[str, str] = Field(default_factory=dict)
+    input_partition_checksums: dict[str, str] = Field(default_factory=dict)
+    output_partition_checksums: dict[str, str] = Field(default_factory=dict)
+    failure_partition_checksums: dict[str, str] = Field(default_factory=dict)
+    environment_hash: str | None = Field(default=None, pattern=_HEX64)
+    context_hash: str | None = Field(default=None, pattern=_HEX64)
+    code_tree_hash: str | None = Field(default=None, pattern=_HEX64)
     code: CodeState
     created_at: datetime.datetime
     notes: str = ""
 
     _utc = field_validator("created_at")(_require_utc)
 
-    @field_validator("file_checksums", "input_manifest_hashes")
+    @field_validator(
+        "file_checksums",
+        "input_manifest_hashes",
+        "input_partition_checksums",
+        "output_partition_checksums",
+        "failure_partition_checksums",
+    )
     @classmethod
     def _hex_digests(cls, value: dict[str, str]) -> dict[str, str]:
         for name, digest in value.items():
             if len(digest) != 64 or any(c not in "0123456789abcdef" for c in digest):
                 raise ValueError(f"checksum for {name!r} is not a sha256 hex digest")
+        return value
+
+    @field_validator("terminal_outcome_counts")
+    @classmethod
+    def _nonnegative_counts(cls, value: dict[str, int]) -> dict[str, int]:
+        if any(count < 0 for count in value.values()):
+            raise ValueError("terminal outcome counts must be nonnegative")
         return value
 
 
@@ -227,6 +253,44 @@ def collect_code_state(root: Path) -> CodeState:
             text=True,
             check=True,
         ).stdout
+        listed = subprocess.run(
+            ["git", "ls-files", "-co", "--exclude-standard", "-z"],
+            cwd=root,
+            capture_output=True,
+            check=True,
+        ).stdout
+        diff = subprocess.run(
+            ["git", "diff", "--binary", "HEAD", "--"],
+            cwd=root,
+            capture_output=True,
+            check=True,
+        ).stdout
+        staged = subprocess.run(
+            ["git", "diff", "--binary", "--cached", "--"],
+            cwd=root,
+            capture_output=True,
+            check=True,
+        ).stdout
+        untracked = subprocess.run(
+            ["git", "ls-files", "--others", "--exclude-standard", "-z"],
+            cwd=root,
+            capture_output=True,
+            check=True,
+        ).stdout
     except (OSError, subprocess.CalledProcessError) as exc:
         raise ManifestError(f"cannot determine git code state at {root}: {exc}") from exc
-    return CodeState(git_revision=revision, git_dirty=bool(status.strip()))
+    relative_paths = sorted(path.decode("utf-8") for path in listed.split(b"\0") if path)
+    tree_entries: list[tuple[str, str]] = []
+    for relative in relative_paths:
+        path = root / relative
+        if path.is_file():
+            tree_entries.append((relative, hash_file(path)))
+    untracked_files = tuple(sorted(path.decode("utf-8") for path in untracked.split(b"\0") if path))
+    return CodeState(
+        git_revision=revision,
+        git_dirty=bool(status.strip()),
+        base_git_commit=revision,
+        code_tree_hash=hash_canonical(tree_entries),
+        tracked_diff_hash=sha256_hex(diff + staged),
+        untracked_files=untracked_files,
+    )

@@ -1,0 +1,11 @@
+policy_version: private_source_use_v1
+source: formalmathatepfl/sft_classic
+revision: 0bf9f424309f668c2c2dd214aef6ec5d1d5c042f
+access_basis: authenticated_private_dataset_access
+institutional_policy_status: internal_research_only_pending_explicit_release_permission
+license_status: undeclared
+redistribution: false
+external_transmission: false
+release_eligibility: false
+external_api_use: false
+public_replication_profile: configs/sources/public_replication.yaml

@@ -14,21 +14,32 @@ import Lean
 
 open Lean Elab Command Meta
 
+/-- Stable binder metadata without depending on a `ToString BinderInfo`
+    instance (which is not provided by all supported Lean releases). -/
+def lfBinderInfoTag : BinderInfo → String
+  | .default => "default"
+  | .implicit => "implicit"
+  | .strictImplicit => "strictImplicit"
+  | .instImplicit => "instImplicit"
+
 /-- Serialize an `Expr` to a compact JSON tree of node kinds, constant names,
     de Bruijn indices, and literals. Implicit/instance arguments are retained
     (they carry the elaborated content); pruning is a Python-side concern. -/
 partial def lfExprJson (e : Expr) : MetaM Json := do
   match e with
-  | .forallE _ d b _ =>
-    return Json.mkObj [("k", "forall"), ("dom", ← lfExprJson d), ("body", ← lfExprJson b)]
-  | .lam _ d b _ =>
-    return Json.mkObj [("k", "lam"), ("dom", ← lfExprJson d), ("body", ← lfExprJson b)]
+  | .forallE _ d b bi =>
+    return Json.mkObj [("k", "forall"), ("bi", lfBinderInfoTag bi),
+                       ("dom", ← lfExprJson d), ("body", ← lfExprJson b)]
+  | .lam _ d b bi =>
+    return Json.mkObj [("k", "lam"), ("bi", lfBinderInfoTag bi),
+                       ("dom", ← lfExprJson d), ("body", ← lfExprJson b)]
   | .app f a =>
     return Json.mkObj [("k", "app"), ("fn", ← lfExprJson f), ("arg", ← lfExprJson a)]
-  | .const n _ => return Json.mkObj [("k", "const"), ("n", n.toString)]
+  | .const n us =>
+    return Json.mkObj [("k", "const"), ("n", n.toString), ("us", toString us)]
   | .fvar _ => return Json.mkObj [("k", "fvar")]
   | .bvar i => return Json.mkObj [("k", "bvar"), ("i", i)]
-  | .sort _ => return Json.mkObj [("k", "sort")]
+  | .sort u => return Json.mkObj [("k", "sort"), ("u", toString u)]
   | .lit (.natVal v) => return Json.mkObj [("k", "lit"), ("nat", toString v)]
   | .lit (.strVal s) => return Json.mkObj [("k", "lit"), ("str", s)]
   | .mvar _ => return Json.mkObj [("k", "mvar")]

@@ -7,15 +7,53 @@ Raw partitions are append-only; adapter fixes create new parsed partitions.
 from __future__ import annotations
 
 import datetime
+from typing import Literal
 
 from pydantic import Field, model_validator
 
+from leanfaith.config.hashing import sha256_hex
 from leanfaith.config.models import StrictModel
 from leanfaith.schemas.enums import AccessStatus, NLTrust, SourceKind
 from leanfaith.schemas.ids import HEX64_PATTERN
 from leanfaith.schemas.manifest import require_utc
 
 MetadataValue = str | int | float | bool | None
+
+HF_ROW_IDENTITY_VERSION = "hf-row:v1"
+
+
+def make_hf_source_record_id(dataset_id: str, revision: str, split: str, row_index: int) -> str:
+    """Stable row-locator ID; source content deliberately does not enter it."""
+
+    if row_index < 0:
+        raise ValueError("row_index must be nonnegative")
+    payload = "\0".join((HF_ROW_IDENTITY_VERSION, dataset_id, revision, split, str(row_index)))
+    return sha256_hex(payload.encode("utf-8"))
+
+
+class HFSourceRecordIdentity(StrictModel):
+    """Location identity and independent content hashes for one HF row."""
+
+    schema_version: Literal[1] = 1
+    identity_version: Literal["hf-row:v1"] = "hf-row:v1"
+    source_record_id: str = Field(pattern=HEX64_PATTERN)
+    dataset_id: str = Field(min_length=1)
+    revision: str = Field(min_length=1)
+    split: str = Field(min_length=1)
+    row_index: int = Field(ge=0)
+    upstream_uuid: str | None = None
+    raw_row_hash: str = Field(pattern=HEX64_PATTERN)
+    question_hash: str = Field(pattern=HEX64_PATTERN)
+    lean_code_hash: str = Field(pattern=HEX64_PATTERN)
+
+    @model_validator(mode="after")
+    def _locator_matches(self) -> HFSourceRecordIdentity:
+        expected = make_hf_source_record_id(
+            self.dataset_id, self.revision, self.split, self.row_index
+        )
+        if self.source_record_id != expected:
+            raise ValueError("source_record_id must depend only on immutable HF row location")
+        return self
 
 
 class SourceManifest(StrictModel):
@@ -40,9 +78,14 @@ class SourceManifest(StrictModel):
     project_toolchain: str | None = None
     nl_trust: NLTrust | None = None
     phase5_eligible_count: int | None = Field(default=None, ge=0)
+    access_basis: str | None = None
+    institutional_policy_status: str | None = None
+    license_status: str | None = None
     external_api_approved: bool | None = None
     approved_providers: tuple[str, ...] = ()
     redistribution_allowed: bool | None = None
+    external_transmission_allowed: bool | None = None
+    release_eligibility: bool | None = None
     notes: str = ""
 
     @model_validator(mode="after")
@@ -58,4 +101,31 @@ class SourceManifest(StrictModel):
             raise ValueError(
                 "approved_providers requires external_api_approved=true (§9.2 approval record)"
             )
+        if self.access_status == AccessStatus.PRIVATE_AUTHENTICATED:
+            required = {
+                "access_basis": self.access_basis,
+                "institutional_policy_status": self.institutional_policy_status,
+                "license_status": self.license_status,
+                "redistribution_allowed": self.redistribution_allowed,
+                "external_transmission_allowed": self.external_transmission_allowed,
+                "release_eligibility": self.release_eligibility,
+            }
+            missing = sorted(name for name, value in required.items() if value is None)
+            if missing:
+                raise ValueError(
+                    "private source manifests require explicit Gate-0 policy fields: "
+                    + ", ".join(missing)
+                )
+            if self.external_api_approved is not False or self.approved_providers:
+                raise ValueError(
+                    "Revision 4.1 private sources cannot be approved for external APIs"
+                )
+            if any(
+                (
+                    self.redistribution_allowed,
+                    self.external_transmission_allowed,
+                    self.release_eligibility,
+                )
+            ):
+                raise ValueError("private source policy must be internal-only and non-releasable")
         return self

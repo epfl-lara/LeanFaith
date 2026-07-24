@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:leanfaith:lf021:rcp-qwen-response-contract:v1",
+  "title": "LF-021 RCP Qwen qualification response contract",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "format",
+    "declaration_name",
+    "proof_forbidden",
+    "semantic_label_created"
+  ],
+  "properties": {
+    "format": {
+      "const": "exactly_one_markdown_lean4_fence_with_one_theorem"
+    },
+    "declaration_name": {
+      "const": "leanfaith_rcp_qwen_qualification_v1"
+    },
+    "proof_forbidden": {
+      "const": true
+    },
+    "semantic_label_created": {
+      "const": false
+    }
+  }
+}

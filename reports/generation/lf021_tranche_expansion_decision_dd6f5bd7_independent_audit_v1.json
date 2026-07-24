@@ -1,0 +1,100 @@
+{
+  "schema_version": 1,
+  "audit_id": "lf021_tranche_expansion_decision_dd6f5bd7_independent_audit_v1",
+  "audited_at": "2026-07-24T02:26:28Z",
+  "status": "passed_expansion_and_cross_domain_s1_preflight_audit",
+  "decision": {
+    "decision_id": "lf021_expansion_decision:dd6f5bd78ea59d354ab8efd38274643bc97a967919ef762252b4e69eb1d58a8c",
+    "path": "reports/generation/lf021_tranche_expansion_v1/decisions/dd6f5bd78ea59d354ab8efd38274643bc97a967919ef762252b4e69eb1d58a8c.json",
+    "sha256": "5fd258de19b7c72b205e3eec018dac3fef12c160dfcab7f8b3c4b7f693f46c7c",
+    "markdown_sha256": "8de5e226db60fdf09556fb767efdf535b747fdd6af322844651248ca546bd839",
+    "action": "collect_next_tranche",
+    "selected_tranche": "cross_domain_s1",
+    "selected_pool": "cross_domain_docstrings_v1",
+    "selected_problem_count": 20,
+    "selected_invocation_count": 60,
+    "selected_seeds": {
+      "goedel_formalizer_v2_8b": 31,
+      "kimina_autoformalizer_7b": 1,
+      "stepfun_formalizer_7b": 1
+    }
+  },
+  "observed_prefix": [
+    {
+      "order": 0,
+      "tranche_id": "algebra_s0",
+      "manifest_id": "research_postprocess_v3_manifest:273c635963e8a0fe50cf835ddc32fab6e62e1a5764a6b1d403ab1900b7c785b6",
+      "manifest_sha256": "d5bef91b0667f6f9bbb7fa5fa350272f6336cfbfc90b6aa13d45ac434443bd20"
+    },
+    {
+      "order": 1,
+      "tranche_id": "cross_domain_s0",
+      "manifest_id": "research_postprocess_v4_manifest:f7df4ea666de96d4a74a0c331a505a844ad6e25b7592125db4afc296a6f34383",
+      "manifest_sha256": "1b379edc653f661af28c2ce3d341b85368b38cb5bca00e29cfcb7e4e88cdf2a8"
+    },
+    {
+      "order": 2,
+      "tranche_id": "algebra_s1",
+      "manifest_id": "research_postprocess_v5_manifest:1d3e6fee3c9b56b82bc0e912361d9486fb82bcfb0c3c7b4b37462ba19a0953af",
+      "manifest_sha256": "cf4334a26db95415a20297a7e61fab09b03675f61640e2970bdc5d6ade7b792a"
+    }
+  ],
+  "independent_replay": {
+    "passed": true,
+    "policy_path": "configs/generation/lf021_tranche_expansion_v1.yaml",
+    "policy_sha256": "0c726e197ef5358ef4a7414e36622c10fb7ff19082199540b62e4bc170834e16",
+    "implementation_path": "src/leanfaith/generation/tranche_expansion.py",
+    "implementation_sha256": "33078832be9131cc85f7ac10e0e4da6374c768ffb6a0e4829a71b4e8f7fcbc67",
+    "entrypoint_sha256": "90bbdd6cb34ebf9a241849660ce919f3b371dfa08269eb8b1b0039c7b5742851",
+    "observations_loaded_from_exact_three_manifest_prefix": true,
+    "decision_model_dump_byte_equivalent_to_persisted_json": true,
+    "decision_id_recomputed": true,
+    "frame_created": false,
+    "total_invocations": 300,
+    "parser_success_count": 53,
+    "compile_success_count": 52,
+    "benchmark_rejected_count": 0,
+    "duplicate_member_count": 5,
+    "unique_compiling_count": 47,
+    "semantic_labels_inspected": false,
+    "semantic_labels_created": false,
+    "supervision_eligible": false,
+    "gate_5g_credit_claimed": false,
+    "gate_5_closed": false
+  },
+  "cross_domain_s1_preflight": {
+    "path": "reports/generation/lf021_local_research_collection_preflight_cross_domain_s1_v4.json",
+    "sha256": "2fec1247c8e400165a9ecda6c27c5063fad9b9ca547c01ddae75ad84ae00e12f",
+    "passed": true,
+    "execution_ready": true,
+    "check_count": 15,
+    "checks_passed": 15,
+    "blocking_prerequisites": [],
+    "plan_id": "research_collection_plan_v4:40860adfb4f149dbf357f3cc624a4df02bdae020be27cdb4f3f16ca4f9771100",
+    "plan_hash": "5b4905ced0a650360ef808354d621acd96c32cc4d1a67df4f8a70e5bd54fcc0a",
+    "config_path": "configs/generation/local_research_collection_cross_domain_s1_v4.json",
+    "config_sha256": "4ccc37b5943059747578a049593816d4dcf81c4b2ac48a3e44e4a98496ae7fc2",
+    "canonical_config_hash": "345eb9c15965ffa4d75bf29f1930538b03e1985224b3214e4a62bdd68a5763a3",
+    "source_matrix_sha256": "761bae3371abf79c39ab9fffa8800be117678e2368f3e3a3e16f22f8b520dcc1",
+    "canonical_plan_replay": true,
+    "canonical_preflight_replay": true,
+    "exact_problem_family_seed_cartesian_product": true,
+    "problem_count": 20,
+    "family_count": 3,
+    "invocation_count": 60,
+    "unique_invocation_ids": 60,
+    "unique_expected_declaration_names": 60,
+    "invocation_overlap_with_cross_domain_s0": 0,
+    "semantic_labels_created": false,
+    "gate_5g_credit_claimed": false,
+    "gate_5_closed": false
+  },
+  "hard_boundaries": {
+    "decision_uses_only_compilation_operational_inputs": true,
+    "semantic_validity_claim": false,
+    "faithfulness_claim": false,
+    "supervision_admission_claim": false,
+    "gate_5_credit_claim": false,
+    "gate_5_closure_claim": false
+  }
+}

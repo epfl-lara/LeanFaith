@@ -23,10 +23,9 @@ class RelationLabel(StrEnum):
     EQUIVALENT = "equivalent"
     A_STRONGER = "A_stronger"
     B_STRONGER = "B_stronger"
-    INCOMPARABLE_NEAR_MISS = "incomparable_near_miss"
+    INCOMPARABLE = "incomparable"
     UNRELATED = "unrelated"
     AMBIGUOUS = "ambiguous"
-    UNKNOWN = "unknown"
 
 
 class IntendedRelation(StrEnum):
@@ -181,6 +180,29 @@ class ParseStatus(StrEnum):
     PARSED = "parsed"
     PARSE_FAILED = "parse_failed"
     EMPTY = "empty"
+
+
+class LLMCallStatus(StrEnum):
+    """Terminal state of one logical provider call.
+
+    ``COMPLETED`` means a provider response was received; parsing may still
+    fail. ``EXHAUSTED`` means the fixed retry policy ended without a response.
+    These operational states never imply a semantic label.
+    """
+
+    COMPLETED = "completed"
+    EXHAUSTED = "exhausted"
+    CANCELLED = "cancelled"
+
+
+class LLMAttemptStatus(StrEnum):
+    """Terminal state of one append-only provider attempt."""
+
+    RESPONSE_RECEIVED = "response_received"
+    EMPTY_RESPONSE = "empty_response"
+    TIMEOUT = "timeout"
+    PROVIDER_ERROR = "provider_error"
+    INFRASTRUCTURE_ERROR = "infrastructure_error"
 
 
 class AnnotationAnswer(StrEnum):

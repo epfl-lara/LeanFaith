@@ -1,0 +1,142 @@
+{
+  "schema_version": 1,
+  "audit_id": "lf021_stepfun_20260723T223533Z_audit_v1",
+  "audited_at": "2026-07-23T22:39:34Z",
+  "status": "passed_canonical_smoke_bundle",
+  "run_directory": "runs/lf021_local_qualification/stepfun_final_v1_20260723T223533Z",
+  "bundle": {
+    "path": "runs/lf021_local_qualification/stepfun_final_v1_20260723T223533Z/bundle_manifest.json",
+    "sha256": "34395af5629fc17dd07886fad2a0479fc12a1cff5da0d19903f1356a4bb4c520",
+    "bundle_id": "local_qualification_bundle:63f1a77dc62ee882e1a88f8d2956dac835486a408645be843e761af0b803dbb6",
+    "manifest_schema_version": 2,
+    "artifact_count": 27,
+    "archived_input_count": 17,
+    "persisted_record_count": 10,
+    "all_manifest_artifact_hashes_match": true
+  },
+  "replay": {
+    "passed": true,
+    "verifier": "verify_local_qualification_bundle",
+    "repo_root": "/localhome/milikic/LeanFaith/.audit-nonexistent-repo-root-stepfun-223533",
+    "repo_root_existed_before": false,
+    "repo_root_exists_after": false,
+    "working_tree_independent": true
+  },
+  "fixture_binding": {
+    "fixture_artifact": "examples/lf021_stepfun_mathlib_nat_comm_20260723_v1.json",
+    "fixture_sha256": "f0e71d20e2036a9bff5de22be92c68fd0ec89c8a8489ec60f9174f394378095d",
+    "fixture_bytes": 1175,
+    "import_header_artifact": "examples/lf021_stepfun_mathlib_nat_header_v1.lean",
+    "import_header_sha256": "1015f8f4676a27ea63780b30cc916712232857097b2bdf635dc61cb949c107fb",
+    "import_header_bytes": 15,
+    "execution_input_sha256": "dd5b635543ec902945a870a798716c1b4662e5b50f70b1b70d0c34e7809da8ce",
+    "problem_record_id": "problem:754393dec9d0e59b4dd2a24a6107ce40d0127e097cf7d2a699a993a9d2663797",
+    "reference_theorem_id": "thm:9991a6c5dd78ec70a6f1c322f133c7427db7fe1dc7df3e34d612b1ee35194ac5",
+    "expected_generated_declaration_name": "lf021_stepfun_generated_nat_comm_20260723",
+    "project_registry_key": "mathlib",
+    "project_revision": "d568c8c09630de097a046763c17b9ea99f95f950",
+    "fixture_imports_equal_archived_header": true,
+    "execution_header_equal_archived_header": true,
+    "context_header_hash_matches": true,
+    "problem_source_hash_matches_fixture": true,
+    "problem_reference_lineage_matches": true,
+    "kimina_fixture_or_declaration_lineage_present": false
+  },
+  "parser_stability": {
+    "base_v1_v2_v3_parser_artifact": "src/leanfaith/generation/local_output_adapter.py",
+    "base_v1_v2_v3_parser_sha256": "e02e67675810b81effbb97740dd4a27070be9ef0eef2627b25fb4b9b749d1da4",
+    "base_parser_live_hash_matches": true,
+    "base_parser_archived_code_bundle_hash_matches": true,
+    "goedel_v3_config_pin_unchanged": true,
+    "kimina_v2_config_pin_unchanged": true,
+    "legacy_v1_config_pin_unchanged": true,
+    "stepfun_adapter_artifact": "src/leanfaith/generation/local_output_adapter_stepfun.py",
+    "stepfun_adapter_sha256": "22c92a5060819e3b4632668fd8d84c6bf3876e7715f53b3fbae7cc56d72ad872",
+    "stepfun_adapter_live_hash_matches": true,
+    "stepfun_adapter_archived_code_bundle_hash_matches": true,
+    "normalization_contract": "Remove exactly one terminal </think> prefix only when it is immediately adjacent to the authoritative Lean fence opener; delegate all remaining checks to unchanged v3."
+  },
+  "model_and_code_binding": {
+    "model": "stepfun-ai/StepFun-Formalizer-7B",
+    "model_revision": "fb0dc612761fecd64ebbc489c2a3417e9ea01968",
+    "qualification_config_file_sha256": "a34644682b38e54a2e952c6307214f494608c00c99af12f4e6a2c6e88c79d687",
+    "qualification_config_hash": "c0da23d692aeef621746a2d470bafbda5b372762a288250cc0dc725cb821e925",
+    "checkpoint_verification_artifact_sha256": "8865f21f436297565ef180847626fe964c5f21e1e4835734e9cbd4a7cc7ce0fd",
+    "checkpoint_file_count": 8,
+    "checkpoint_bytes": 15231271960,
+    "code_bundle_sha256": "cea4e31571bdb3173945122871d7c88ec3b424bebd291e50991b7bca502bf705",
+    "code_tree_hash": "51520b7e551a105f9978ac7eed218097787960ed3973eb3a11c60cf47392d03d"
+  },
+  "provider_lineage": {
+    "provider_request_hash": "e3ee8fa70411f1a9cd18f6d27519f6ba328108deb3e96967c8562a6f2c989799",
+    "provider_request_artifact_sha256": "fd67990a1a426217c1969311c0055e0faab855ed47dba5366079ed866cdda80f",
+    "call_id": "call:a760105cbb68d9bdc68fc65d33fba225e473645df73e71e7727c8c921757e603",
+    "attempt_id": "call_attempt:6db0e6d4b30d614cea5e316492c4a79a5b39bdbfd4f0e13a7c2a5b0412dfd04e",
+    "provider_attempt_id": "provider-attempt:41ed13bacaf7fab0d6d8f43cf4b52c9b7113e62e0186985ed969d596052480a9",
+    "raw_response_sha256": "ba1ff1e8c7730e242da82937b7b9544d4b409408ff701dd96b9d0c76c83f63b6",
+    "raw_output_sha256": "53bfde9e8611989327b19486cde34af56fd61f4ac78d6390fcb26202d74412c7",
+    "raw_output_char_count": 6001,
+    "lean_fence_opener_count": 3,
+    "parser_id": "lean_stepfun_think_terminal_fence_v1",
+    "parser_source_sha256": "22c92a5060819e3b4632668fd8d84c6bf3876e7715f53b3fbae7cc56d72ad872"
+  },
+  "qualification_lineage": {
+    "terminal_id": "local_qualification:7da9d8b6b5d2ee36e001f903e4bea958d2c0be9f6374c81514ad8a964a16f8f9",
+    "terminal_sha256": "54cc0a49fd5093a674d14f43315fe872fee50428f2ee5ba95e2ba0d089b47e8d",
+    "terminal_status": "qualified_smoke",
+    "materialization_outcome_id": "real_output:db4982e54a55bc7afe5a688f76671cccb0edc4bf6c3ce329c94350c44d24a02a",
+    "candidate_theorem_id": "thm:7a7c82445bec275a37859ca79e0f08966a8b96c6e1281ebe4337f3d0116229a9",
+    "representation_id": "repr:479eb44b5eca17fac44c73be0eb123c5fb94c293341ee7c3c71647c18b663b66",
+    "variant_id": "var:d0e4a94ea35c07107450bc6e275b75c494a49882b320f3fb0e41b44aa90c2cdc",
+    "screening_id": "candidate_screen:c212d138fb78320ce3d5331110c8e7817034acdaa91c389f9c8e6c06cac0e588",
+    "admission_receipt_id": "smoke_admission_receipt:e08002833e97e87cd25330292d7e6fac3ef3420be9d65a16f79375e4f1fe41ad",
+    "dry_run_admitted_outcome_id": "real_output:91763174444b18dd30701e59fa0d82d10c1d17bbd1d6cf5367452ad3b471005a",
+    "candidate_statement": "theorem lf021_stepfun_generated_nat_comm_20260723 : ∀ n : ℕ, n + 20260723 = 20260723 + n",
+    "validation_status": "elaborates_with_placeholder"
+  },
+  "screening": {
+    "status": "clean",
+    "active_registry_hash": "eac1ab353cfc0108068ff3d6035281f08b52dc97d3b5cb536dd1781e49d05ca3",
+    "benchmark_hit_count": 0,
+    "duplicate_candidate_count": 0
+  },
+  "semantic_record_audit": {
+    "persisted_pair_record_count": 0,
+    "persisted_nl_lean_record_count": 0,
+    "persisted_label_record_count": 0,
+    "terminal_admitted_pair_ids": [],
+    "terminal_admitted_nl_lean_id": null,
+    "pending_outcome_pair_ids": [],
+    "pending_outcome_nl_lean_id": null,
+    "receipt_dry_run_pair_ids": [
+      "pair:300a82e307fb49fb1a06d491d15bbf8d6917cf1737633ce4158db824b509d20b"
+    ],
+    "receipt_dry_run_nl_lean_id": "nllean:11c38a69d1a7cfe55653a828b3f1e7c3c8c10088fadc61e0004dbe569690c473",
+    "receipt_persistence_allowed": false,
+    "receipt_semantic_pool_eligible": false,
+    "semantic_labels_created": false
+  },
+  "hard_false_eligibility": {
+    "qualifies_for_gate5g": false,
+    "semantic_labels_created": false,
+    "supervision_eligible": false,
+    "training_eligible": false,
+    "release_eligible": false,
+    "calibration_eligible": false,
+    "model_selection_eligible": false,
+    "scientific_evaluation_eligible": false
+  },
+  "preserved_failed_attempt": {
+    "run_directory": "runs/lf021_local_qualification/stepfun_v3_20260723T221907Z",
+    "bundle_id": "local_qualification_bundle:aaa0a70d981fb2bcdfbe03384136c22d87b107e53d3618e5450cede9090f0374",
+    "terminal_id": "local_qualification:1ff369ac42148fb228f8b24c7ccec1e62a6c56b273c5945233165d6ef1851af4",
+    "status": "parse_failed",
+    "error_code": "malformed_fence",
+    "error_detail": "malformed_fence: unclosed fence at line 82",
+    "replay_verified": true,
+    "qualifies_for_gate5g": false,
+    "semantic_labels_created": false,
+    "disposition": "Preserved diagnostic evidence. It used the Kimina-named fixture and the stable v3 parser before the StepFun-specific wrapper contract was introduced; it is not canonical StepFun qualification evidence."
+  },
+  "disposition": "Canonical replayable StepFun fixture-qualification smoke evidence only. It creates no semantic label, persists no PairRecord or NLPLeanRecord, and earns no Gate 5G or Gate 5 credit."
+}

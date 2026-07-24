@@ -1,0 +1,14 @@
+schema_version: 1
+rule_id: n03_drop_hypothesis
+rule_version: 1.0.0
+family_id: n03_drop_hypothesis
+implementation_key: n03_drop_hypothesis
+candidate_pool: typed_negative_candidate
+supported_declaration_kinds: [lemma, theorem]
+placeholder_forms: [by_sorry, sorry]
+supported_hypothesis_binder_kind: explicit
+proposition_domain_policy: direct_declared_prop_variable
+require_no_later_dependency: true
+require_exact_expr_erasure: true
+intended_error_types: [E01]
+failed_proof_search_is_negative_evidence: false

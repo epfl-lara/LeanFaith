@@ -1,6 +1,6 @@
 # Preregistration v1 (PLAN.md sections 2, 23.1-23.11, 31). Freezes the
 # primary comparisons, numeric success thresholds, gate criteria, statistical
-# rules, and experiment conditions for H1-H6 before any test data is unsealed.
+# rules, and experiment conditions for H1-H7 before any test data is unsealed.
 # Method IDs (M2, M3, B0, S0, T0, T1, J0, ...) are defined in PLAN.md section
 # 31.1; every confirmatory result must cite the version of this file that was
 # in force. See amendment_rule for the only permitted way to change anything
@@ -95,6 +95,23 @@ hypotheses:
       each adequately powered held-out setting; underpowered settings are
       reported as unsupported (see amendment_rule), never dropped silently.
     experiment: "PLAN.md section 31.7 (H6 row)"
+  H7:
+    statement: >-
+      On a shared human-labeled N+C task, the lightweight non-generative
+      M4-NL metric is quality-noninferior to FormalRx-8B and occupies a
+      superior measured efficiency point.
+    primary_comparison: >-
+      M4-NL versus FormalRx-8B with identical N+C inputs and labels. M2/M3
+      and reference-aware M4 are excluded from this direct comparison.
+    success_threshold: >-
+      Simultaneous one-sided 95% lower confidence bound for the AUPRC
+      difference is at least -0.02. Efficiency superiority additionally
+      requires higher median throughput and lower measured peak memory.
+      No fixed throughput multiplier is required.
+    experiment: "PLAN.md sections 23.11-23.12"
+    power_rule: >-
+      Confirmatory only if the frozen group count supports the 0.02 margin;
+      otherwise descriptive with the observed interval and Pareto ratios.
 
 # ---------------------------------------------------------------------------
 # 2. Preregistered gates tied to evaluation validity (PLAN.md section 23.11).
@@ -137,7 +154,7 @@ statistics:
     Every interval is reported with its block count and effective per-class
     counts.
   primary_multiplicity: >-
-    Holm-Bonferroni at alpha=0.05 across the primary H1-H6 family.
+    Holm-Bonferroni at alpha=0.05 across the powered primary H1-H7 family.
   exploratory_multiplicity: >-
     Benjamini-Hochberg FDR at q=0.10 for exploratory slices. Exploratory
     results are labeled as exploratory and are never promoted to
@@ -163,16 +180,31 @@ h2_data_mixtures:
   rule: >-
     All mixtures are compared under a matched architecture and training
     schedule; only the data mixture varies between runs.
-  D0: "promoted deterministic pairs only"
-  D1: "D0 plus LLM silver labels (only if the silver channel is active)"
-  D2: "D0 plus real autoformalizer outputs"
-  D3: "all permitted weak supervision"
-  D4: "D3 plus development_gold"
-  d1_contingency: >-
-    If the silver channel is inactive (Gate6 not passed or the channel
-    switched off), D1 is reported as not run and H2 is evaluated on the
-    remaining mixtures; D1 is never silently merged into another mixture or
-    replaced by a substitute source.
+  batch_balance: "50% common positive pool, 50% negative"
+  D0: {G_rule: 1.00}
+  D1: {G_rule: 0.50, G_sci: 0.50}
+  D2: {G_rule: 0.50, G_open: 0.50}
+  D3: {G_rule: 0.50, G_real: 0.50}
+  D4: {G_rule: 0.20, G_sci: 0.25, G_open: 0.25, G_real: 0.30}
+  D5:
+    base: D4
+    add: training_gold
+    human_gold_loss_weight: 2
+    ancestry_oversampling: false
+  positive_pool:
+    certified_positive: 0.50
+    human_or_promoted_faithful_real: 0.30
+    promoted_llm_equivalent: 0.20
+  caps:
+    deterministic_family_of_negative_slots: 0.05
+    minimum_llm_proposer_families: 3
+    each_llm_family_of_generated_negatives: 0.40
+    minimum_real_generator_families: 3
+    each_real_family_of_real_negatives: 0.40
+    unique_variants_per_ancestry_per_epoch: 4
+    ancestry_normalized_loss_weight: 1
+    duplicate_additional_weight: 0
+  missing_source_rule: reduced_data_ablation
 
 # ---------------------------------------------------------------------------
 # 5. Representation conditions for H3 (PLAN.md section 31.3).

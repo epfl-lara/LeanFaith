@@ -1,0 +1,8 @@
+Please autoformalize the following problem in Lean 4 with a header. Use the following theorem names: {{THEOREM_NAME}}.
+
+{{NL_STATEMENT}}
+
+The registered Lean header is:
+{{REGISTERED_HEADER}}
+
+{{COMMON_SUFFIX}}

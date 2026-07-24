@@ -1,0 +1,16 @@
+schema_version: 1
+profile_id: v1
+profile_version: 1.0.0
+registry_id: leanfaith_transformations
+registry_version: 1.0.0
+active_family_ids:
+  - n01_operator
+  - n02_quantifier
+  - n03_drop_hypothesis
+  - n07_literal_bound
+  - n10_nearby_theorem
+  - p01_alpha
+  - p02_binders
+  - p04_notation_lite
+disabled_family_ids:
+  - p00_cosmetic

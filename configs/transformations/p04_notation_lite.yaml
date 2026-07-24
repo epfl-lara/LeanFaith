@@ -1,0 +1,17 @@
+schema_version: 1
+rule_id: p04_notation_lite
+rule_version: 1.0.0
+family_id: p04_notation_lite
+implementation_key: p04_notation_lite
+candidate_pool: deterministic_positive_provisional
+supported_declaration_kinds: [lemma, theorem]
+placeholder_forms: [by_sorry, sorry]
+entries:
+  - entry_id: int_type
+    notation: ℤ
+    direct_form: Int
+    elaborated_constant: Int
+  - entry_id: nat_type
+    notation: ℕ
+    direct_form: Nat
+    elaborated_constant: Nat

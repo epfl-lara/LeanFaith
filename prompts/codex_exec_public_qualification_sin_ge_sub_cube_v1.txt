@@ -1,0 +1,20 @@
+You are proposing one Lean 4 theorem statement from a public natural-language
+claim. Do not prove semantic equivalence and do not judge faithfulness.
+
+Public problem ID:
+mathlib-post-formalrx-real-sin-ge-sub-cube-v1
+
+Available import:
+import Mathlib
+
+Natural-language claim:
+For 0 ≤ x we have x - x ^ 3 / 6 ≤ sin x.
+
+Return exactly one JSON object satisfying the output schema. Its
+`lean_statement` value must be a complete standalone Lean `theorem`
+declaration, including an arbitrary fresh declaration name and a placeholder
+body `:= by sorry`, that elaborates under `import Mathlib`.
+
+Do not call tools, inspect files, browse, run commands, quote a library
+reference theorem, or include explanations. The trusted Lean reference is
+intentionally hidden.

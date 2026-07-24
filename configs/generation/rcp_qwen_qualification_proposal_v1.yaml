@@ -1,0 +1,155 @@
+schema_version: 1
+proposal_id: lf021_rcp_qwen_qualification_proposal_v1
+frozen_at: "2026-07-24T02:15:00Z"
+status: proposed_not_execution_authorized
+artifact_class: qualification_proposal
+
+transport:
+  transport_id: epfl_rcp_openai_compatible_v1
+  provenance: remote_on_prem_epfl_rcp
+  base_url_env: RCP_BASE_URL
+  api_key_env: RCP_API_KEY
+  expected_base_url: https://inference.rcp.epfl.ch/v1
+  catalog_path: /models
+  chat_completions_path: /chat/completions
+
+catalog_evidence:
+  source: previously_persisted_kimi_v2_catalog_observation
+  artifact: data/raw/real_outputs/rcp_kimi_qualification_v2/v2/7f5b578dd21cf696dd1222dcc176927383fc44e3b6fb10f7f96e2ff8c23dc497/catalog_observation.json
+  artifact_sha256: 747975b0c3b03b5a8792df6ffaefa53d748d27071a1c312c5b6f30e9b2dd7a80
+  raw_response_sha256: 0f98154b24af983bcdb22e6248bf98cbe5456fa9cd78932d280262777877dd66
+  observed_model_count: 284
+  meaning: service_catalog_presence_not_checkpoint_revision
+
+models:
+  primary:
+    model_id: Qwen/Qwen3.6-35B-A3B
+    provider_family: qwen3
+    diversity_group: qwen3
+    role: proposed_primary_text_generator
+    judge_eligible: false
+    counts_as_independent_family_within_qwen: false
+    execution_authorized: false
+  upper_capacity_ablation:
+    model_id: Qwen/Qwen3.5-397B-A17B
+    provider_family: qwen3
+    diversity_group: qwen3
+    role: proposed_upper_capacity_text_generator_ablation
+    judge_eligible: false
+    counts_as_independent_family_within_qwen: false
+    execution_authorized: false
+  excluded_default_text_route:
+    model_id: Qwen/Qwen3-VL-235B-A22B-Thinking
+    provider_family: qwen3
+    diversity_group: qwen3
+    role: excluded_multimodal_checkpoint
+    judge_eligible: false
+    counts_as_independent_family_within_qwen: false
+    execution_authorized: false
+
+family_policy:
+  all_registered_qwen_models_one_family: true
+  family_id: qwen3
+  diversity_group: qwen3
+  checkpoints_do_not_create_independent_family_credit: true
+  current_family_credit: 0
+  later_admitted_family_credit_maximum: 1
+
+input_and_prompt:
+  default_route_modalities: [text]
+  multimodal_route_enabled: false
+  prompt_artifact: prompts/autoformalizers/rcp_reference_blind_v1.txt
+  prompt_sha256: e84a699cd8b1cc4a16a99dfdf11dfe0ede46fad0b5b72906730cae1599a6f304
+  problem_records_artifact: data/parsed/real_outputs/public_research_v1/one_example_preflight_v1/problem_pool_records.jsonl
+  problem_records_sha256: c8b0329b101269015d8e33cce6cb06d9c8b5dbb30a936f787a177f013fd4155c
+  reference_theorems_artifact: data/parsed/real_outputs/public_research_v1/one_example_preflight_v1/reference_theorems.jsonl
+  reference_theorems_sha256: a372fdb29ae0755db156f9f69e7cce435719c9656b0187d21a187ec91ce97663
+  reference_transmission_forbidden: true
+  private_source_transmission_forbidden: true
+
+model_specific_decoding:
+  primary:
+    model_id: Qwen/Qwen3.6-35B-A3B
+    mode: thinking_default_precise_coding
+    official_source:
+      repository_revision: 995ad96eacd98c81ed38be0c5b274b04031597b0
+      model_card_url: https://huggingface.co/Qwen/Qwen3.6-35B-A3B/blob/995ad96eacd98c81ed38be0c5b274b04031597b0/README.md
+      model_card_sha256: c4ddaa065649ff6352648f64747a16eda31726f3e34add94ce04abb461c77b75
+      source_statement: precise_coding_thinking_recommendation
+    proposed_sampling:
+      temperature: 0.6
+      top_p: 0.95
+      top_k: 20
+      min_p: 0.0
+      presence_penalty: 0.0
+      repetition_penalty: 1.0
+    thinking_behavior: model_card_says_thinking_is_default
+  upper_capacity_ablation:
+    model_id: Qwen/Qwen3.5-397B-A17B
+    mode: thinking_default
+    official_source:
+      repository_revision: 8472618112abcbd45acbcdc58436aff4233c23f7
+      model_card_url: https://huggingface.co/Qwen/Qwen3.5-397B-A17B/blob/8472618112abcbd45acbcdc58436aff4233c23f7/README.md
+      model_card_sha256: bda4b24e975f65ac677985306ddbad33362e65064637660654c8bb7dea7edf50
+      generation_config_url: https://huggingface.co/Qwen/Qwen3.5-397B-A17B/blob/8472618112abcbd45acbcdc58436aff4233c23f7/generation_config.json
+      generation_config_sha256: 303aba891d66ab63908a7b3cc9163bcb835fdf8b9f6301c73216f3f1eb3992dd
+      source_statement: thinking_mode_recommendation
+    proposed_sampling:
+      temperature: 0.6
+      top_p: 0.95
+      top_k: 20
+      min_p: 0.0
+      presence_penalty: 0.0
+      repetition_penalty: 1.0
+    thinking_behavior: model_card_says_thinking_is_default
+  project_output_contract:
+    max_tokens: 4096
+    stream: false
+    output: exactly_one_proof_free_lean_declaration
+  rcp_capability_status:
+    status: unverified_for_exact_model_routes
+    no_sampling_field_is_assumed_supported: true
+    fields_requiring_bounded_capability_probe:
+      - temperature
+      - top_p
+      - top_k
+      - min_p
+      - presence_penalty
+      - repetition_penalty
+      - seed
+      - reasoning_effort
+      - chat_template_kwargs
+    unsupported_fields_must_fail_closed: true
+    silently_dropped_fields_forbidden: true
+    note: Official model-card recommendations do not establish EPFL RCP route support.
+
+contamination_policy:
+  checkpoint_revision_status: unavailable_from_rcp_route_ids
+  training_cutoff_status: unknown
+  contamination_status: unknown
+  unseen_claim_eligible: false
+  heldout_claim_eligible: false
+  evaluation_claim_eligible: false
+  allowed_use_if_later_qualified: supplemental_generator_candidates_only
+
+execution_policy:
+  live_catalog_requests_authorized: false
+  live_generation_requests_authorized: false
+  provider_calls_permitted_by_this_proposal: 0
+  bulk_execution_available: false
+  semantic_labels_created: false
+  supervision_eligible: false
+  gate_credit_claimed: false
+  gate_closed: false
+
+required_before_any_live_qwen_call:
+  - Add a separately versioned provider-generic RCP execution schema without changing Kimi v2 bound bytes.
+  - Bind the generic engine, CLI, this proposal, prompt, problem record, policy, and output roots by exact SHA-256.
+  - Revalidate the exact primary and ablation model IDs with a zero-call catalog preflight.
+  - Run a bounded model-specific RCP capability probe for every proposed sampling and thinking field.
+  - Do not inherit Kimi temperature=0.0 or reasoning fields; use the pinned Qwen recommendations only after RCP support is observed.
+  - Fail closed rather than silently dropping any unsupported model-specific field.
+  - Grant an explicit one-problem authorization in a successor policy.
+  - Preserve request, raw response, attempt, terminal, redaction, and offline replay artifacts.
+  - Keep both Qwen checkpoints in one qwen3 family and outside all judge roles.
+  - Perform no bulk execution until a separate admission policy is approved.

@@ -1,0 +1,225 @@
+schema_version: 1
+registry_id: leanfaith_transformations
+registry_version: 1.0.0
+promotion_policy_version: transformation_promotion_v1
+profile_path: configs/transformations/v1.yaml
+unlisted_family_status: disabled
+disabled_families_non_executable: true
+intention_is_never_resolved_label: true
+families:
+  - family_id: n01_operator
+    family_version: 1.0.0
+    polarity: negative
+    profile_id: v1
+    status: experimental
+    allowed_intentions: [near_miss]
+    allowed_error_types: [E10, E11, E12, E13]
+    invariants:
+      - source and candidate remain propositions in one pinned context
+      - replacement is admitted by the versioned type-compatible table
+    required_evidence:
+      - source and candidate elaboration evidence
+      - exact operator diff
+    policy_decision: v1 finite type-aware operator table available; outputs remain provisional
+    rules:
+      - rule_id: n01_operator
+        rule_version: 1.0.0
+        family_id: n01_operator
+        polarity: negative
+        implementation_key: n01_operator
+        implementation_status: available
+        allowed_intentions: [near_miss]
+        allowed_error_types: [E10, E11, E12, E13]
+
+  - family_id: n02_quantifier
+    family_version: 1.0.0
+    polarity: negative
+    profile_id: v1
+    status: experimental
+    allowed_intentions: [near_miss]
+    allowed_error_types: [E04, E05, E22]
+    invariants:
+      - source and candidate remain propositions in one pinned context
+      - mutation trace identifies the quantifier and dependency change
+    required_evidence:
+      - source and candidate elaboration evidence
+      - exact quantifier diff
+    policy_decision: v1 exact Unicode quantifier mutation available; outputs remain provisional
+    rules:
+      - rule_id: n02_quantifier
+        rule_version: 1.0.0
+        family_id: n02_quantifier
+        polarity: negative
+        implementation_key: n02_quantifier
+        implementation_status: available
+        allowed_intentions: [near_miss]
+        allowed_error_types: [E04, E05, E22]
+
+  - family_id: n03_drop_hypothesis
+    family_version: 1.0.0
+    polarity: negative
+    profile_id: v1
+    status: experimental
+    allowed_intentions: [near_miss]
+    allowed_error_types: [E01]
+    invariants:
+      - source and candidate remain propositions in one pinned context
+      - trace records the removed substantive hypothesis
+    required_evidence:
+      - source and candidate elaboration evidence
+      - binder dependency audit
+    policy_decision: v1 independent explicit Prop-hypothesis deletion available; outputs remain provisional
+    rules:
+      - rule_id: n03_drop_hypothesis
+        rule_version: 1.0.0
+        family_id: n03_drop_hypothesis
+        polarity: negative
+        implementation_key: n03_drop_hypothesis
+        implementation_status: available
+        allowed_intentions: [near_miss]
+        allowed_error_types: [E01]
+
+  - family_id: n07_literal_bound
+    family_version: 1.0.0
+    polarity: negative
+    profile_id: v1
+    status: experimental
+    allowed_intentions: [near_miss]
+    allowed_error_types: [E12, E16, E17, E30]
+    invariants:
+      - source and candidate remain propositions in one pinned context
+      - one literal bound index or argument-order site changes
+    required_evidence:
+      - source and candidate elaboration evidence
+      - exact literal or argument diff
+    policy_decision: v1 finite direct numeric-bound mutation available; outputs remain provisional
+    rules:
+      - rule_id: n07_literal_bound
+        rule_version: 1.0.0
+        family_id: n07_literal_bound
+        polarity: negative
+        implementation_key: n07_literal_bound
+        implementation_status: available
+        allowed_intentions: [near_miss]
+        allowed_error_types: [E12, E16, E17, E30]
+
+  - family_id: n10_nearby_theorem
+    family_version: 1.0.0
+    polarity: negative
+    profile_id: v1
+    status: experimental
+    allowed_intentions: [near_miss]
+    allowed_error_types: [E09, E26]
+    invariants:
+      - source and candidate remain propositions in one pinned context
+      - both source ancestries are recorded
+    required_evidence:
+      - source and candidate elaboration evidence
+      - dual-ancestry lineage audit
+    policy_decision: v1 curated dual-source nearby-component mutation available; outputs remain provisional
+    rules:
+      - rule_id: n10_nearby_theorem
+        rule_version: 1.0.0
+        family_id: n10_nearby_theorem
+        polarity: negative
+        implementation_key: n10_nearby_theorem
+        implementation_status: available
+        allowed_intentions: [near_miss]
+        allowed_error_types: [E09, E26]
+
+  - family_id: p00_cosmetic
+    family_version: 1.0.0
+    polarity: positive
+    profile_id: v1
+    status: disabled
+    allowed_intentions: [equivalent]
+    allowed_error_types: []
+    invariants:
+      - fixture-only cosmetic output is never admitted to training
+    required_evidence:
+      - property-test fixture provenance
+    policy_decision: disabled fixture family under transformation_promotion_v1
+    rules:
+      - rule_id: p00_cosmetic
+        rule_version: 1.0.0
+        family_id: p00_cosmetic
+        polarity: positive
+        implementation_key: p00_cosmetic_fixture
+        implementation_status: disabled
+        allowed_intentions: [equivalent]
+        allowed_error_types: []
+
+  - family_id: p01_alpha
+    family_version: 1.0.0
+    polarity: positive
+    profile_id: v1
+    status: experimental
+    allowed_intentions: [equivalent]
+    allowed_error_types: []
+    invariants:
+      - capture-avoiding binder rename
+      - alpha identity fingerprint preserved
+    required_evidence:
+      - source and candidate elaboration evidence
+      - alpha identity certificate
+      - capture and dependency property tests
+    policy_decision: v1 capture-avoiding alpha implementation available; outputs remain provisional
+    rules:
+      - rule_id: p01_alpha
+        rule_version: 1.0.0
+        family_id: p01_alpha
+        polarity: positive
+        implementation_key: p01_alpha
+        implementation_status: available
+        allowed_intentions: [equivalent]
+        allowed_error_types: []
+
+  - family_id: p02_binders
+    family_version: 1.0.0
+    polarity: positive
+    profile_id: v1
+    status: experimental
+    allowed_intentions: [equivalent]
+    allowed_error_types: []
+    invariants:
+      - binder dependency graph preserved
+      - conservative typed-binder regroup only; currying and uncurrying disabled in v1
+    required_evidence:
+      - source and candidate elaboration evidence
+      - round-trip or inverse trace
+      - binder dependency certificate
+    policy_decision: v1 regroup-only implementation available; outputs remain provisional
+    rules:
+      - rule_id: p02_binders
+        rule_version: 1.0.0
+        family_id: p02_binders
+        polarity: positive
+        implementation_key: p02_binders
+        implementation_status: available
+        allowed_intentions: [equivalent]
+        allowed_error_types: []
+
+  - family_id: p04_notation_lite
+    family_version: 1.0.0
+    polarity: positive
+    profile_id: v1
+    status: experimental
+    allowed_intentions: [equivalent]
+    allowed_error_types: []
+    invariants:
+      - exact approved notation-table entry only
+      - elaborated constant identity preserved
+    required_evidence:
+      - source and candidate elaboration evidence
+      - exact-constant match
+      - rule-specific certificate
+    policy_decision: v1 exact-table implementation available; outputs remain provisional
+    rules:
+      - rule_id: p04_notation_lite
+        rule_version: 1.0.0
+        family_id: p04_notation_lite
+        polarity: positive
+        implementation_key: p04_notation_lite
+        implementation_status: available
+        allowed_intentions: [equivalent]
+        allowed_error_types: []

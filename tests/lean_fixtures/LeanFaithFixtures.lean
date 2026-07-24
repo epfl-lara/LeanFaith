@@ -1,1 +1,2 @@
 import LeanFaithFixtures.Basic
+import LeanFaithFixtures.P04Notation

@@ -1,0 +1,376 @@
+schema_version: 2
+portfolio_id: lf021_remote_provider_portfolio_v2
+frozen_at: "2026-07-24T05:30:00Z"
+status: prospective_fail_disabled
+
+predecessor_portfolio:
+  artifact: configs/generation/rcp_provider_portfolio_v1.yaml
+  sha256: 6f6a79159ff68a3cb4bec59fd52a21e84a7f84b721622521046c40d60557c298
+predecessor_policy:
+  artifact: policies/rcp_remote_generation_v1.yaml
+  sha256: c924efacdf2bd28373eed255c9b04b8e45cb56d430b2f4906b253ab63d661470
+qualification_audit:
+  artifact: reports/generation/lf021_remote_one_problem_qualifications_combined_audit_v1.json
+  sha256: e815141eab7493a90d966a1d617df6739ea0f5f6ec6b52ab24317a5e057496f0
+catalog_evidence:
+  artifact: data/raw/real_outputs/rcp_qwen_qualification_v1/v1/27e514645a6c67475ea341c90db6037717b3f2884661d02a789c3ae097234bb0/catalog_wire_response.json
+  sha256: 0f98154b24af983bcdb22e6248bf98cbe5456fa9cd78932d280262777877dd66
+
+global_guards:
+  route_execution_authorized: false
+  additional_qualification_calls_authorized: false
+  proposal_generation_authorized: false
+  bulk_generation_authorized: false
+  semantic_labels_created: false
+  semantic_label_eligible: false
+  supervision_eligible: false
+  training_eligible: false
+  gate_credit_eligible: false
+  heldout_claim_eligible: false
+  unseen_claim_eligible: false
+  evaluation_independence_claim_eligible: false
+  public_sources_only: true
+  reference_hidden_required: true
+  trusted_lean_reference_transmission_forbidden: true
+  private_sft_classic_transmission_forbidden: true
+  alternate_precision_route_substitution_forbidden: true
+  separately_versioned_admission_required: true
+
+family_groups:
+  - family_id: moonshot_kimi_k2
+    route_ids:
+      - moonshotai/Kimi-K2.7-Code
+      - moonshotai/Kimi-K2.6
+    independent_family_count: 1
+    current_gate_family_credit: 0
+  - family_id: qwen3
+    route_ids:
+      - Qwen/Qwen3.6-35B-A3B
+      - Qwen/Qwen3.5-397B-A17B
+      - Qwen/Qwen3-30B-A3B-Instruct-2507
+      - Qwen/Qwen3-VL-235B-A22B-Thinking
+    independent_family_count: 1
+    current_gate_family_credit: 0
+  - family_id: openai_codex
+    route_ids:
+      - gpt-5.6-terra
+    independent_family_count: 1
+    current_gate_family_credit: 0
+
+prospective_route_order:
+  - moonshotai/Kimi-K2.7-Code
+  - Qwen/Qwen3.6-35B-A3B
+  - gpt-5.6-terra
+  - moonshotai/Kimi-K2.6
+  - Qwen/Qwen3.5-397B-A17B
+  - Qwen/Qwen3-30B-A3B-Instruct-2507
+
+routes:
+  - route_id: moonshotai/Kimi-K2.7-Code
+    family_id: moonshot_kimi_k2
+    transport: rcp_openai_compatible
+    role: primary_remote_generator
+    execution_status: disabled_pending_separately_reviewed_admission
+    purpose_if_later_admitted: routine_public_reference_hidden_proposals
+    text_only_path_eligible: true
+    judge_eligible: false
+    public_source_only: true
+    reference_hidden_required: true
+    trusted_reference_transmission_forbidden: true
+    private_source_transmission_forbidden: true
+    route_substitution_forbidden: true
+    decoding_contract:
+      contract_id: kimi_k2_7_forced_thinking_v2
+      max_completion_tokens: 4096
+      temperature: 1.0
+      top_p: 0.95
+      top_k: null
+      min_p: null
+      presence_penalty: null
+      repetition_penalty: null
+      thinking_mode: forced_thinking
+      reasoning_effort: high
+      chat_template_enable_thinking: true
+      chat_template_thinking: null
+      thinking_fields_forbidden: false
+    codex_contract: null
+    qualification:
+      status: one_problem_operational_only
+      request_contract_payload_matched: false
+      individual_field_application_proven: false
+      reference_hidden: true
+      public_source_only: true
+      private_source_transmission_performed: false
+      trusted_reference_transmission_performed: false
+      semantic_faithfulness_assessed: false
+      semantic_labels_created: false
+      supervision_eligible: false
+      gate_credit_claimed: false
+      evidence:
+        - artifact: reports/generation/lf021_remote_one_problem_qualifications_combined_audit_v1.json
+          sha256: e815141eab7493a90d966a1d617df6739ea0f5f6ec6b52ab24317a5e057496f0
+        - artifact: configs/generation/rcp_kimi_qualification_v2.yaml
+          sha256: 683cb90d76fea7b6e67d8308bba81e8197e6465b2f7a50ff6427ef1939e69d89
+        - artifact: data/raw/real_outputs/rcp_kimi_qualification_v2/v2/7f5b578dd21cf696dd1222dcc176927383fc44e3b6fb10f7f96e2ff8c23dc497/qualification_manifest_v2.json
+          sha256: d71167b4221dec28d082cb8c0170053f75335db224c3df1e6df182461f9c2320
+        - artifact: data/raw/real_outputs/rcp_kimi_qualification_v2/v2/7f5b578dd21cf696dd1222dcc176927383fc44e3b6fb10f7f96e2ff8c23dc497/terminal.json
+          sha256: 34364e7703261bb6ee10fc034a40e7cb73facc1189c539601fd617105dd129a4
+
+  - route_id: moonshotai/Kimi-K2.6
+    family_id: moonshot_kimi_k2
+    transport: rcp_openai_compatible
+    role: same_family_fallback
+    execution_status: disabled_pending_separately_reviewed_admission
+    purpose_if_later_admitted: moonshot_fallback_and_within_family_ablation
+    text_only_path_eligible: true
+    judge_eligible: false
+    public_source_only: true
+    reference_hidden_required: true
+    trusted_reference_transmission_forbidden: true
+    private_source_transmission_forbidden: true
+    route_substitution_forbidden: true
+    decoding_contract:
+      contract_id: kimi_k2_6_thinking_v2
+      max_completion_tokens: 4096
+      temperature: 1.0
+      top_p: 0.95
+      top_k: null
+      min_p: null
+      presence_penalty: null
+      repetition_penalty: null
+      thinking_mode: enabled
+      reasoning_effort: high
+      chat_template_enable_thinking: null
+      chat_template_thinking: true
+      thinking_fields_forbidden: false
+    codex_contract: null
+    qualification:
+      status: catalog_only
+      request_contract_payload_matched: false
+      individual_field_application_proven: false
+      reference_hidden: true
+      public_source_only: true
+      private_source_transmission_performed: false
+      trusted_reference_transmission_performed: false
+      semantic_faithfulness_assessed: false
+      semantic_labels_created: false
+      supervision_eligible: false
+      gate_credit_claimed: false
+      evidence: []
+
+  - route_id: Qwen/Qwen3.6-35B-A3B
+    family_id: qwen3
+    transport: rcp_openai_compatible
+    role: distinct_family_backup
+    execution_status: disabled_pending_separately_reviewed_admission
+    purpose_if_later_admitted: preferred_qwen_public_reference_hidden_proposals
+    text_only_path_eligible: true
+    judge_eligible: false
+    public_source_only: true
+    reference_hidden_required: true
+    trusted_reference_transmission_forbidden: true
+    private_source_transmission_forbidden: true
+    route_substitution_forbidden: true
+    decoding_contract:
+      contract_id: qwen3_6_thinking_code_v2
+      max_completion_tokens: 4096
+      temperature: 0.6
+      top_p: 0.95
+      top_k: 20
+      min_p: 0.0
+      presence_penalty: 0.0
+      repetition_penalty: 1.0
+      thinking_mode: enabled
+      reasoning_effort: high
+      chat_template_enable_thinking: true
+      chat_template_thinking: null
+      thinking_fields_forbidden: false
+    codex_contract: null
+    qualification:
+      status: one_problem_payload_accepted_application_unproven
+      request_contract_payload_matched: true
+      individual_field_application_proven: false
+      reference_hidden: true
+      public_source_only: true
+      private_source_transmission_performed: false
+      trusted_reference_transmission_performed: false
+      semantic_faithfulness_assessed: false
+      semantic_labels_created: false
+      supervision_eligible: false
+      gate_credit_claimed: false
+      evidence:
+        - artifact: reports/generation/lf021_remote_one_problem_qualifications_combined_audit_v1.json
+          sha256: e815141eab7493a90d966a1d617df6739ea0f5f6ec6b52ab24317a5e057496f0
+        - artifact: configs/generation/rcp_qwen_qualification_v1.yaml
+          sha256: 9a6bc2ee1a983f9457c2b327df75f38e3937aa68bf4c1e6d0d756dcc1be7b2b1
+        - artifact: data/raw/real_outputs/rcp_qwen_qualification_v1/v1/27e514645a6c67475ea341c90db6037717b3f2884661d02a789c3ae097234bb0/qualification_manifest.json
+          sha256: 9487ba4c858038de17d764172f231b9dd0e070095ff70cde8cd228568c0b7174
+        - artifact: data/raw/real_outputs/rcp_qwen_qualification_v1/v1/27e514645a6c67475ea341c90db6037717b3f2884661d02a789c3ae097234bb0/terminal.json
+          sha256: 233939b45f8a16181b5686697b63d2f2222ff21c1926e506699dcf26bebaac4d
+
+  - route_id: Qwen/Qwen3.5-397B-A17B
+    family_id: qwen3
+    transport: rcp_openai_compatible
+    role: upper_capacity_ablation
+    execution_status: disabled_pending_separately_reviewed_admission
+    purpose_if_later_admitted: qwen_capacity_ablation_only
+    text_only_path_eligible: true
+    judge_eligible: false
+    public_source_only: true
+    reference_hidden_required: true
+    trusted_reference_transmission_forbidden: true
+    private_source_transmission_forbidden: true
+    route_substitution_forbidden: true
+    decoding_contract:
+      contract_id: qwen3_5_thinking_code_v2
+      max_completion_tokens: 4096
+      temperature: 0.6
+      top_p: 0.95
+      top_k: 20
+      min_p: 0.0
+      presence_penalty: 0.0
+      repetition_penalty: 1.0
+      thinking_mode: enabled
+      reasoning_effort: high
+      chat_template_enable_thinking: true
+      chat_template_thinking: null
+      thinking_fields_forbidden: false
+    codex_contract: null
+    qualification:
+      status: catalog_only
+      request_contract_payload_matched: false
+      individual_field_application_proven: false
+      reference_hidden: true
+      public_source_only: true
+      private_source_transmission_performed: false
+      trusted_reference_transmission_performed: false
+      semantic_faithfulness_assessed: false
+      semantic_labels_created: false
+      supervision_eligible: false
+      gate_credit_claimed: false
+      evidence: []
+
+  - route_id: Qwen/Qwen3-30B-A3B-Instruct-2507
+    family_id: qwen3
+    transport: rcp_openai_compatible
+    role: cheap_non_thinking_fallback
+    execution_status: disabled_pending_separately_reviewed_admission
+    purpose_if_later_admitted: lower_cost_qwen_non_thinking_fallback
+    text_only_path_eligible: true
+    judge_eligible: false
+    public_source_only: true
+    reference_hidden_required: true
+    trusted_reference_transmission_forbidden: true
+    private_source_transmission_forbidden: true
+    route_substitution_forbidden: true
+    decoding_contract:
+      contract_id: qwen3_30b_non_thinking_v2
+      max_completion_tokens: 4096
+      temperature: 0.7
+      top_p: 0.8
+      top_k: 20
+      min_p: 0.0
+      presence_penalty: null
+      repetition_penalty: null
+      thinking_mode: non_thinking
+      reasoning_effort: null
+      chat_template_enable_thinking: null
+      chat_template_thinking: null
+      thinking_fields_forbidden: true
+    codex_contract: null
+    qualification:
+      status: catalog_only
+      request_contract_payload_matched: false
+      individual_field_application_proven: false
+      reference_hidden: true
+      public_source_only: true
+      private_source_transmission_performed: false
+      trusted_reference_transmission_performed: false
+      semantic_faithfulness_assessed: false
+      semantic_labels_created: false
+      supervision_eligible: false
+      gate_credit_claimed: false
+      evidence: []
+
+  - route_id: Qwen/Qwen3-VL-235B-A22B-Thinking
+    family_id: qwen3
+    transport: rcp_openai_compatible
+    role: excluded_multimodal_route
+    execution_status: excluded_default_text_only
+    purpose_if_later_admitted: separately_scoped_multimodal_experiment_only
+    text_only_path_eligible: false
+    judge_eligible: false
+    public_source_only: true
+    reference_hidden_required: true
+    trusted_reference_transmission_forbidden: true
+    private_source_transmission_forbidden: true
+    route_substitution_forbidden: true
+    decoding_contract: null
+    codex_contract: null
+    qualification:
+      status: excluded_catalog_only
+      request_contract_payload_matched: false
+      individual_field_application_proven: false
+      reference_hidden: true
+      public_source_only: true
+      private_source_transmission_performed: false
+      trusted_reference_transmission_performed: false
+      semantic_faithfulness_assessed: false
+      semantic_labels_created: false
+      supervision_eligible: false
+      gate_credit_claimed: false
+      evidence: []
+
+  - route_id: gpt-5.6-terra
+    family_id: openai_codex
+    transport: codex_exec
+    role: selective_high_value_proposer
+    execution_status: disabled_pending_separately_reviewed_admission
+    purpose_if_later_admitted: high_value_public_reference_hidden_proposals_only
+    text_only_path_eligible: true
+    judge_eligible: false
+    public_source_only: true
+    reference_hidden_required: true
+    trusted_reference_transmission_forbidden: true
+    private_source_transmission_forbidden: true
+    route_substitution_forbidden: true
+    decoding_contract: null
+    codex_contract:
+      contract_id: codex_exec_public_isolated_xhigh_v2
+      reasoning_effort: xhigh
+      prompt_transport: stdin
+      working_directory: isolated_empty_directory
+      sandbox: read-only
+      web_search_enabled: false
+      inherit_environment: false
+      strict_output_schema: true
+      selective_high_value_only: true
+    qualification:
+      status: one_problem_codex_operational_only
+      request_contract_payload_matched: true
+      individual_field_application_proven: false
+      reference_hidden: true
+      public_source_only: true
+      private_source_transmission_performed: false
+      trusted_reference_transmission_performed: false
+      semantic_faithfulness_assessed: false
+      semantic_labels_created: false
+      supervision_eligible: false
+      gate_credit_claimed: false
+      evidence:
+        - artifact: reports/generation/lf021_remote_one_problem_qualifications_combined_audit_v1.json
+          sha256: e815141eab7493a90d966a1d617df6739ea0f5f6ec6b52ab24317a5e057496f0
+        - artifact: configs/generation/codex_exec_public_qualification_v1.json
+          sha256: b5d5a546b35e6a9e184f11931a1d38d9bd0d8d4649a37c6d59ad734c1e804017
+        - artifact: "data/raw/real_outputs/codex_exec_public_qualification_v1/codex_exec_request_v1:99aa37656a69fd3963f8ef76c8851a6256bf46086a3b48452676da96ebae936f/attempts/0000-8783260ed1b1828eefbe62988e20cd50945057e6da3f7693c47e7e6acff59d5b/terminal.json"
+          sha256: 42f39cabdb27ec25ce1fc99beb36d8cb249c5851d025a5d535baa681eefa862c
+        - artifact: reports/generation/codex_exec_public_qualification_v1/recovery_v2.json
+          sha256: 161eca5ce8f5a178159d23fdbe2d242e79084544dc225857afedaf47a84f4987
+
+contamination_policy:
+  checkpoint_revision_status: unavailable_from_route_ids
+  training_cutoff_status: unknown
+  contamination_status: unknown
+  unseen_claim_eligible: false
+  heldout_claim_eligible: false
+  evaluation_independence_claim_eligible: false

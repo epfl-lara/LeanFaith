@@ -1,0 +1,67 @@
+{
+  "schema_version": 1,
+  "report_id": "lf021_post_exhaustion_collection_v1_readiness",
+  "status": "AUTHORIZATION_AND_CONFIG_PLAN_READY_EXECUTION_FAIL_CLOSED",
+  "scope": "reviewed_post_exhaustion_extension_collection_authorization_and_nonexecuting_v6_config_plan",
+  "artifacts": {
+    "policy": {
+      "artifact": "configs/generation/lf021_post_exhaustion_collection_v1.yaml",
+      "sha256": "3acb29045d1afdd43ccc604d31669f2bb074f5c29705fa78a6e5b97176ea7281"
+    },
+    "implementation": {
+      "artifact": "src/leanfaith/generation/post_exhaustion_collection_v1.py",
+      "sha256": "cad47d171dfa3a3b8ba11ee58800a87c4f52f774926122e9b24985761b0e0ddf"
+    },
+    "tests": {
+      "artifact": "tests/unit/test_lf021_post_exhaustion_collection_v1.py",
+      "sha256": "c440d2a1d340d89d1cd4a7ca92626a9813405a374fd0954f67d6980fefef4524"
+    }
+  },
+  "lineage": {
+    "extension_policy_sha256": "71f532ffd13e64404ab006c5b86a0d887ecf4f8ee76f85b933c557e44abb33f1",
+    "extension_implementation_sha256": "a2e42695427b888568993340ff524c09b2e3f9876b51818b46f3c6bfe7ef73a0",
+    "collector_v5_implementation_sha256": "720f23b7f0ae3c528b9d95cc8e7580421f366d2b7044d74c7f7fd98e0403c56b",
+    "postprocess_v6_implementation_sha256": "a5f3fa6ce0da674973c5fbb9d32c7fe5516d65af91b725c20eb7873410c47fc9",
+    "collector_v5_modified": false,
+    "postprocess_v6_modified": false
+  },
+  "implemented": {
+    "strict_collect_next_decision_replay": true,
+    "one_tranche_content_addressed_authorization": true,
+    "ordered_preferred_stop_authorization_verifier": true,
+    "exact_local_family_and_source_matrix_check": true,
+    "content_addressed_v6_config_plan_adapter": true,
+    "existing_local_invocation_planning_primitives_reused": true,
+    "model_execution_adapter_present": false,
+    "postprocess_v7_present": false
+  },
+  "verification": {
+    "focused_test_count": 13,
+    "focused_tests_passed": true,
+    "ruff_format_passed": true,
+    "ruff_check_passed": true,
+    "mypy_passed": true,
+    "python_compile_passed": true,
+    "frame_adapter_api_alignment_passed": true
+  },
+  "execution_boundary": {
+    "collector_schema_version_planned": 6,
+    "required_postprocess_schema_version": 7,
+    "collector_v5_directly_compatible": false,
+    "postprocess_v6_directly_compatible": false,
+    "execution_enabled": false,
+    "execution_blocker": "reviewed_collector_v6_and_postprocess_v7_not_implemented"
+  },
+  "negative_assertions": {
+    "model_execution_performed": false,
+    "external_endpoint_used": false,
+    "semantic_labels_inspected": false,
+    "semantic_labels_created": false,
+    "supervision_eligible": false,
+    "gate_5g_credit_claimed": false,
+    "gate_5_closed": false,
+    "plan_modified": false,
+    "documentation_modified": false,
+    "commit_created": false
+  }
+}
