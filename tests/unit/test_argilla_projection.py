@@ -83,11 +83,16 @@ def _item_bindings() -> tuple[ArgillaRecordItemBindingV1, ...]:
     )
 
 
+def _public_bundle_tokens() -> frozenset[str]:
+    return frozenset(item.opaque_item_token for item in _item_bindings())
+
+
 def _projection_binding() -> ArgillaProjectionBindingManifestV1:
     return make_argilla_projection_binding_manifest(
         assignment=_assignment(),
         pin=PIN,
         item_bindings=_item_bindings(),
+        public_bundle_tokens=_public_bundle_tokens(),
     )
 
 
@@ -371,6 +376,7 @@ def test_projection_binding_requires_sorted_complete_unique_allocation() -> None
             assignment=assignment,
             pin=PIN,
             item_bindings=tuple(items),
+            public_bundle_tokens=_public_bundle_tokens(),
         )
 
     with pytest.raises(ValidationError, match="cover all 240"):
@@ -378,6 +384,7 @@ def test_projection_binding_requires_sorted_complete_unique_allocation() -> None
             assignment=assignment,
             pin=PIN,
             item_bindings=_item_bindings()[:-1],
+            public_bundle_tokens=_public_bundle_tokens(),
         )
 
 

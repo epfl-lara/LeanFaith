@@ -5,11 +5,13 @@ from __future__ import annotations
 import datetime
 from collections import Counter
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
 
 from leanfaith.cli import pipeline
+from leanfaith.config.paths import RepoPaths
 from leanfaith.lean.extract_run import ExtractStats
 
 
@@ -166,6 +168,151 @@ def test_single_worker_constructs_and_closes_one_backend_per_chunk(
 
     pipeline._extract_sft_parallel(**kwargs)
     assert (constructed, closed, active, maximum_active) == (3, 3, 0, 1)
+
+
+def test_run_extract_replays_exact_mathlib_file_frame(monkeypatch: Any, tmp_path: Path) -> None:
+    observed: dict[str, Any] = {}
+    context_id = "ctx:" + "a" * 64
+    frame_path = tmp_path / "frame.json"
+    frame_path.write_text("{}\n", encoding="utf-8")
+
+    monkeypatch.setattr(
+        pipeline,
+        "build_mathlib_context",
+        lambda paths, project_dir: (
+            SimpleNamespace(context_id=context_id, context_fingerprint="a" * 64),
+            "b" * 64,
+        ),
+    )
+    monkeypatch.setattr(
+        pipeline,
+        "_mathlib_spec",
+        lambda paths: SimpleNamespace(
+            revision="c" * 40,
+            root_module="Mathlib",
+            globs=("Mathlib/**/*.lean",),
+        ),
+    )
+
+    def fake_inventory(*args: Any, **kwargs: Any) -> object:
+        observed["inventory_limit"] = kwargs.get("limit")
+        return object()
+
+    monkeypatch.setattr(pipeline, "build_inventory", fake_inventory)
+    fake_frame = SimpleNamespace(
+        frame_id="mathlib_file_frame_v1:" + "d" * 64,
+        members=(
+            SimpleNamespace(relative_path="Mathlib/Topology/B.lean"),
+            SimpleNamespace(relative_path="Mathlib/Algebra/A.lean"),
+        ),
+        model_dump=lambda mode: {"frame_id": "mathlib_file_frame_v1:" + "d" * 64},
+    )
+    monkeypatch.setattr(
+        pipeline,
+        "load_and_verify_mathlib_file_frame",
+        lambda *args, **kwargs: fake_frame,
+    )
+    monkeypatch.setattr(
+        pipeline,
+        "collect_code_state",
+        lambda root: SimpleNamespace(code_tree_hash="e" * 64),
+    )
+    monkeypatch.setattr(pipeline, "hash_file", lambda path: "f" * 64)
+
+    def fake_extract(**kwargs: Any) -> ExtractStats:
+        observed["rel_paths"] = kwargs["rel_paths"]
+        return _terminal_stats(len(kwargs["rel_paths"]))
+
+    monkeypatch.setattr(pipeline, "_extract_mathlib_parallel", fake_extract)
+
+    def fake_manifest(stats: ExtractStats, **kwargs: Any) -> Path:
+        observed["manifest_kwargs"] = kwargs
+        return tmp_path / "manifest.json"
+
+    monkeypatch.setattr(pipeline, "write_extraction_manifest", fake_manifest)
+
+    manifest, stats = pipeline.run_extract(
+        paths=RepoPaths(root=tmp_path),
+        source="mathlib",
+        project_dir=tmp_path / "mathlib",
+        input_path=None,
+        out_dir=tmp_path / "out",
+        limit=None,
+        split="train",
+        row_offset=0,
+        workers=1,
+        chunk_size=10,
+        resume_work_dir=tmp_path / "work",
+        mathlib_file_frame_path=frame_path,
+        mathlib_frame_selection_seed="frame-seed",
+    )
+
+    assert manifest == tmp_path / "manifest.json"
+    assert stats["sources_processed"] == 2
+    assert observed["inventory_limit"] is None
+    assert observed["rel_paths"] == [
+        "Mathlib/Topology/B.lean",
+        "Mathlib/Algebra/A.lean",
+    ]
+    manifest_kwargs = observed["manifest_kwargs"]
+    assert frame_path in manifest_kwargs["input_paths"]
+    assert manifest_kwargs["config_payload"]["mathlib_file_frame_id"] == (
+        "mathlib_file_frame_v1:" + "d" * 64
+    )
+    assert manifest_kwargs["config_payload"]["mathlib_file_frame_sha256"] == (
+        pipeline.sha256_hex(
+            pipeline.canonical_json_bytes(fake_frame.model_dump(mode="json")) + b"\n"
+        )
+    )
+
+
+@pytest.mark.parametrize(
+    ("source", "frame_path", "seed", "previous_frame_path", "limit", "message"),
+    [
+        ("mathlib", Path("frame.json"), None, None, None, "must be provided together"),
+        ("mathlib", None, "seed", None, None, "must be provided together"),
+        ("mathlib", Path("frame.json"), "seed", None, 1, "mutually exclusive"),
+        (
+            "mathlib",
+            None,
+            None,
+            Path("previous.json"),
+            None,
+            "requires --mathlib-file-frame",
+        ),
+        (
+            "sft_classic",
+            Path("frame.json"),
+            "seed",
+            None,
+            None,
+            "require source=mathlib",
+        ),
+    ],
+)
+def test_run_extract_rejects_invalid_mathlib_frame_option_combinations(
+    tmp_path: Path,
+    source: str,
+    frame_path: Path | None,
+    seed: str | None,
+    previous_frame_path: Path | None,
+    limit: int | None,
+    message: str,
+) -> None:
+    with pytest.raises(ValueError, match=message):
+        pipeline.run_extract(
+            paths=RepoPaths(root=tmp_path),
+            source=source,
+            project_dir=tmp_path,
+            input_path=None,
+            out_dir=tmp_path / "out",
+            limit=limit,
+            split="train",
+            row_offset=0,
+            mathlib_file_frame_path=frame_path,
+            mathlib_frame_selection_seed=seed,
+            mathlib_previous_file_frame_path=previous_frame_path,
+        )
 
 
 def test_representation_worker_reuses_only_the_common_incremental_prefix(

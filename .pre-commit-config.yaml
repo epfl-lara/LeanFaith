@@ -8,9 +8,10 @@ repos:
         exclude: ^prompts/autoformalizers/goedel_card_chat_v1\.txt$
       - id: end-of-file-fixer
         # Reports, frozen benchmark registries, raw provider/replay artifacts,
-        # and gate fixtures are content-addressed; byte-normalization would
-        # invalidate their recorded hashes.
-        exclude: ^(reports/|data/benchmarks/|data/raw/llm_variants/|tests/fixtures/gates/)
+        # generated LF-022 freeze artifacts, and gate fixtures are
+        # content-addressed; byte-normalization would invalidate their
+        # recorded hashes.
+        exclude: ^(reports/|data/benchmarks/|data/raw/llm_variants/|tests/fixtures/gates/|configs/generation/lf022_(codex_catalog_snapshot_v1|rcp_catalog_snapshot_v1|production_family_matrix_v1)\.json$)
       - id: check-yaml
       - id: check-toml
       - id: check-added-large-files

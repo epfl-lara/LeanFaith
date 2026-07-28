@@ -132,6 +132,25 @@ dataset probe (PLAN.md §9.2).
   deployment, and family-separation artifacts for later production scaling;
   it authorizes no network call or label. See
   `reports/milestones/phase_6_llm_data.md`.
+- **Public LF-022 scale-out preparation is deterministic and still
+  non-executable:** a pinned, progressively expandable mathlib file frame
+  feeds exact extraction and representation runs. The production pool admits
+  only public, denylist-clear, fully represented source theorems whose
+  representation hashes and Lean contexts replay against the approved source
+  revision. It requires 15,000 recomputed, distinct root ancestries and plans
+  one `G_sci` plus one `G_open` task per source. The largest confirmatory arm
+  needs 12,500 unique valid outputs from either distribution, so the plan has
+  a 20% task buffer. This is not a yield guarantee: failed/duplicate outputs
+  do not count, and capacity is recomputed over final connected split
+  components. Source capacity creates no label and does not change the
+  `NOT_READY` training decision.
+- **Generation identities are frozen but scientific execution remains
+  blocked:** Kimi-K2.7-Code, Qwen3.5-397B, and GLM-5.2 are the proposed
+  proposer families; DeepSeek is the required fourth supervision family and
+  Codex is fully held out. The offline freeze preserves the failed DeepSeek
+  structured-output qualification instead of silently authorizing it. Gate 5
+  human adjudication and a separately reviewed execution admission are still
+  required.
 
 Stable gate-facing commands are available through `leanfaith`:
 
@@ -140,6 +159,7 @@ uv run leanfaith freeze-code-bundle --help
 uv run leanfaith sample-gate2 --help
 uv run leanfaith sample-gate2-arrow --help
 uv run leanfaith extract --help
+uv run leanfaith freeze-mathlib-file-frame --help
 uv run leanfaith audit-extraction-regression --help
 uv run leanfaith audit-extraction-replay --help
 uv run leanfaith audit-gate2-scale --help
@@ -167,6 +187,8 @@ uv run leanfaith import-annotation --help
 uv run leanfaith write-annotation-agreement --help
 uv run leanfaith write-adjudication-queue --help
 uv run leanfaith validate-lf022 --help
+uv run leanfaith freeze-lf022-family-matrix
+uv run leanfaith materialize-lf022-public-pool --help
 uv run leanfaith lf022-rcp-smoke --help
 uv run leanfaith audit-training-readiness --report-only
 ```

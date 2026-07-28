@@ -23,7 +23,7 @@ from leanfaith.config.hashing import canonical_json_bytes, hash_canonical, hash_
 from leanfaith.config.models import StrictModel
 from leanfaith.datasets.denylist import DenylistIndex, FrozenRegistry
 from leanfaith.generation.real_outputs import candidate_benchmark_hits
-from leanfaith.schemas.enums import ValidationStatus, ViewStatus
+from leanfaith.schemas.enums import ArtifactClass, DataStage, ValidationStatus, ViewStatus
 from leanfaith.schemas.ids import (
     CONTEXT_PREFIX,
     HEX64_PATTERN,
@@ -32,8 +32,10 @@ from leanfaith.schemas.ids import (
     id_pattern,
     make_id,
 )
+from leanfaith.schemas.manifest import OutputManifest
 from leanfaith.schemas.source import make_git_declaration_source_locator_id
 from leanfaith.schemas.theorem import ContextRecord, RepresentationRecord, TheoremRecord
+from leanfaith.sources.mathlib_frame import MathlibFileFrame
 
 LF022Distribution = Literal["G_sci", "G_open"]
 LF022PlanProfile = Literal[
@@ -52,9 +54,10 @@ _PRIVATE_SOURCE_PATTERNS = (
 _PROFILE_MINIMUM_SOURCES: dict[LF022PlanProfile, int] = {
     "diagnostic_scaffold": 1,
     "pilot_scaffold": 12,
-    # The accepted plan targets at least 10k unique compiling examples from
-    # each of G_sci and G_open.  Each admitted source creates one task per arm.
-    "scientific_production_scaffold": 10_000,
+    # The accepted scale-out policy allocates one G_sci and one G_open task for
+    # each of 15k distinct public source ancestries.  A later yield audit, not
+    # this source count, decides whether 12.5k unique valid outputs exist.
+    "scientific_production_scaffold": 15_000,
 }
 
 
@@ -436,6 +439,13 @@ class LF022PublicSourceAuthorization(StrictModel):
     source_revision: str = Field(pattern=_IMMUTABLE_REVISION_PATTERN)
     license_id: str = Field(min_length=1)
     license_evidence_uri: str = Field(min_length=1)
+    context_project_uri: str = Field(min_length=1)
+    upstream_theorem_records: LF022JSONLArtifactBinding
+    upstream_context_records: LF022JSONLArtifactBinding
+    upstream_extraction_output_manifest: LF022ArtifactBinding
+    upstream_representation_records: LF022JSONLArtifactBinding
+    upstream_representation_output_manifest: LF022ArtifactBinding
+    mathlib_source_frame: LF022ArtifactBinding
     extraction_manifest: LF022ArtifactBinding
     license_status: Literal["approved_public_research_compatible"]
     source_is_public: Literal[True] = True
@@ -492,6 +502,13 @@ def make_lf022_public_source_authorization(
     source_revision: str,
     license_id: str,
     license_evidence_uri: str,
+    context_project_uri: str,
+    upstream_theorem_records: LF022JSONLArtifactBinding,
+    upstream_context_records: LF022JSONLArtifactBinding,
+    upstream_extraction_output_manifest: LF022ArtifactBinding,
+    upstream_representation_records: LF022JSONLArtifactBinding,
+    upstream_representation_output_manifest: LF022ArtifactBinding,
+    mathlib_source_frame: LF022ArtifactBinding,
     extraction_manifest: LF022ArtifactBinding,
 ) -> LF022PublicSourceAuthorization:
     payload: dict[str, object] = {
@@ -499,6 +516,17 @@ def make_lf022_public_source_authorization(
         "source_revision": source_revision,
         "license_id": license_id,
         "license_evidence_uri": license_evidence_uri,
+        "context_project_uri": context_project_uri,
+        "upstream_theorem_records": upstream_theorem_records.model_dump(mode="json"),
+        "upstream_context_records": upstream_context_records.model_dump(mode="json"),
+        "upstream_extraction_output_manifest": (
+            upstream_extraction_output_manifest.model_dump(mode="json")
+        ),
+        "upstream_representation_records": upstream_representation_records.model_dump(mode="json"),
+        "upstream_representation_output_manifest": (
+            upstream_representation_output_manifest.model_dump(mode="json")
+        ),
+        "mathlib_source_frame": mathlib_source_frame.model_dump(mode="json"),
         "extraction_manifest": extraction_manifest.model_dump(mode="json"),
         "license_status": "approved_public_research_compatible",
         "source_is_public": True,
@@ -946,6 +974,22 @@ def _load_jsonl[RecordT: StrictModel](
     return tuple(records)
 
 
+def _manifest_checksum_matches_binding(
+    *,
+    repo_root: Path,
+    checksums: dict[str, str],
+    binding: LF022JSONLArtifactBinding,
+) -> bool:
+    """Accept the run writer's repository-relative or absolute path spelling."""
+
+    candidates = {
+        binding.path,
+        str((repo_root.resolve() / PurePosixPath(binding.path)).resolve()),
+    }
+    observed = tuple(checksums[key] for key in sorted(candidates) if key in checksums)
+    return bool(observed) and all(value == binding.sha256 for value in observed)
+
+
 def _unique_index[RecordT: StrictModel](
     records: tuple[RecordT, ...],
     *,
@@ -1051,6 +1095,7 @@ def _validate_source_binding(
     if (
         context.context_fingerprint != source_record.context_fingerprint
         or context.header_hash != source_record.context_header_hash
+        or context.project_uri != authorization.context_project_uri
     ):
         raise LF022ProductionPlanError(
             f"context binding mismatch for source admission {source_record.admission_record_id}"
@@ -1189,7 +1234,118 @@ def build_lf022_production_plan(
         (item.source, item.source_revision): item for item in source_registry.authorizations
     }
     extraction_members: dict[str, set[tuple[str, str, str]]] = {}
+    source_frame_members: dict[str, frozenset[str]] = {}
+    representation_manifests: dict[str, OutputManifest] = {}
+    upstream_representation_indexes: dict[str, dict[str, RepresentationRecord]] = {}
     for authorized_source in source_registry.authorizations:
+        upstream_theorems_path = _resolve_bound_file(
+            repo_root,
+            authorized_source.upstream_theorem_records,
+        )
+        upstream_context_path = _resolve_bound_file(
+            repo_root,
+            authorized_source.upstream_context_records,
+        )
+        upstream_representations_path = _resolve_bound_file(
+            repo_root,
+            authorized_source.upstream_representation_records,
+        )
+        upstream_manifest = _load_json(
+            repo_root,
+            authorized_source.upstream_extraction_output_manifest,
+            OutputManifest,
+        )
+        representation_manifest = _load_json(
+            repo_root,
+            authorized_source.upstream_representation_output_manifest,
+            OutputManifest,
+        )
+        source_frame = _load_json(
+            repo_root,
+            authorized_source.mathlib_source_frame,
+            MathlibFileFrame,
+        )
+        if (
+            upstream_manifest.stage is not DataStage.ELABORATED
+            or upstream_manifest.source != authorized_source.source
+            or upstream_manifest.source_revision != authorized_source.source_revision
+            or upstream_manifest.row_count
+            != authorized_source.upstream_theorem_records.record_count
+            or source_frame.source != authorized_source.source
+            or source_frame.revision != authorized_source.source_revision
+            or upstream_manifest.context_hash != authorized_source.upstream_context_records.sha256
+        ):
+            raise LF022ProductionPlanError(
+                f"upstream extraction/frame source mismatch for "
+                f"{authorized_source.authorization_id}"
+            )
+        expected_theorem_path = authorized_source.upstream_theorem_records.path
+        if (
+            upstream_manifest.output_partition_checksums.get(expected_theorem_path)
+            != authorized_source.upstream_theorem_records.sha256
+            or upstream_manifest.file_checksums.get(expected_theorem_path)
+            != authorized_source.upstream_theorem_records.sha256
+            or hash_file(upstream_theorems_path)
+            != authorized_source.upstream_theorem_records.sha256
+            or hash_file(upstream_context_path) != authorized_source.upstream_context_records.sha256
+            or upstream_manifest.input_partition_checksums.get(
+                authorized_source.mathlib_source_frame.path
+            )
+            != authorized_source.mathlib_source_frame.sha256
+        ):
+            raise LF022ProductionPlanError(
+                f"upstream extraction/frame hash mismatch for {authorized_source.authorization_id}"
+            )
+        if (
+            representation_manifest.stage is not DataStage.REPRESENTED
+            or representation_manifest.artifact_class is not ArtifactClass.PRODUCTION
+            or representation_manifest.source_revision != "from_theorem_partition"
+            or representation_manifest.row_count
+            != authorized_source.upstream_representation_records.record_count
+            or representation_manifest.attempted_row_count
+            != authorized_source.upstream_theorem_records.record_count
+            or representation_manifest.environment_hash is None
+            or representation_manifest.environment_hash != upstream_manifest.environment_hash
+            or representation_manifest.code_tree_hash is None
+            or representation_manifest.code.code_tree_hash is None
+            or representation_manifest.code_tree_hash != representation_manifest.code.code_tree_hash
+            or representation_manifest.code_tree_hash != upstream_manifest.code_tree_hash
+            or representation_manifest.code != upstream_manifest.code
+            or not _manifest_checksum_matches_binding(
+                repo_root=repo_root,
+                checksums=representation_manifest.output_partition_checksums,
+                binding=authorized_source.upstream_representation_records,
+            )
+            or not _manifest_checksum_matches_binding(
+                repo_root=repo_root,
+                checksums=representation_manifest.file_checksums,
+                binding=authorized_source.upstream_representation_records,
+            )
+            or not _manifest_checksum_matches_binding(
+                repo_root=repo_root,
+                checksums=representation_manifest.input_partition_checksums,
+                binding=authorized_source.upstream_theorem_records,
+            )
+            or hash_file(upstream_representations_path)
+            != authorized_source.upstream_representation_records.sha256
+        ):
+            raise LF022ProductionPlanError(
+                f"upstream representation provenance mismatch for "
+                f"{authorized_source.authorization_id}"
+            )
+        representation_manifests[authorized_source.authorization_id] = representation_manifest
+        upstream_representation_indexes[authorized_source.authorization_id] = _unique_index(
+            _load_jsonl(
+                repo_root,
+                authorized_source.upstream_representation_records,
+                RepresentationRecord,
+            ),
+            attribute="representation_id",
+            kind="upstream representation",
+        )
+        source_frame_members[authorized_source.authorization_id] = frozenset(
+            member.relative_path for member in source_frame.members
+        )
         extraction = _load_json(
             repo_root,
             authorized_source.extraction_manifest,
@@ -1306,10 +1462,12 @@ def build_lf022_production_plan(
                 f"source/revision is absent from public authorization registry: "
                 f"{source_record.source}@{source_record.source_revision}"
             )
+        theorem = theorem_index[source_record.theorem_id]
+        representation = representation_index[source_record.representation_id]
         _validate_source_binding(
             source_record=source_record,
-            theorem=theorem_index[source_record.theorem_id],
-            representation=representation_index[source_record.representation_id],
+            theorem=theorem,
+            representation=representation,
             context=context_index[source_record.context_id],
             authorization=authorization,
             extraction_members=extraction_members[authorization.authorization_id],
@@ -1318,6 +1476,27 @@ def build_lf022_production_plan(
             active_registry_binding=admission.artifacts.active_benchmark_registry,
             denylist_index=denylist_index,
         )
+        upstream_representation = upstream_representation_indexes[
+            authorization.authorization_id
+        ].get(source_record.representation_id)
+        if upstream_representation is None or upstream_representation != representation:
+            raise LF022ProductionPlanError(
+                f"selected representation is absent or differs from the exact upstream "
+                f"representation run: {source_record.representation_id}"
+            )
+        if representation_manifests[authorization.authorization_id].context_hash != (
+            hash_canonical({"context_id": source_record.context_id})
+        ):
+            raise LF022ProductionPlanError(
+                f"upstream representation context mismatch for {source_record.admission_record_id}"
+            )
+        if (
+            theorem.source_file is None
+            or theorem.source_file not in source_frame_members[authorization.authorization_id]
+        ):
+            raise LF022ProductionPlanError(
+                f"theorem source file is absent from authorized mathlib frame: {theorem.theorem_id}"
+            )
 
     tasks: list[LF022ProductionTask] = []
     pins_by_id = family_matrix.pins_by_id

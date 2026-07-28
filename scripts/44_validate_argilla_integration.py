@@ -37,7 +37,7 @@ FIXTURE_VALUES = {
     "relation": {"value": "equivalent"},
     "confidence": {"value": 5},
     "rationale": {"value": "Disposable integration fixture only."},
-    "reference_issue": {"value": "no_issue"},
+    "reference_issue": {"value": "none"},
 }
 
 
@@ -107,7 +107,7 @@ def _settings(rg: Any) -> Any:
             rg.LabelQuestion(
                 name="reference_issue",
                 title="Does the reference have an issue?",
-                labels=["no_issue", "possible_issue", "definite_issue"],
+                labels=["none", "suspected", "definite"],
             ),
         ],
         guidelines=(

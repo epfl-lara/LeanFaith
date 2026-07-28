@@ -108,6 +108,7 @@ from leanfaith.schemas.source import (
     SourceManifest,
     make_git_declaration_source_locator_id,
     make_hf_source_record_id,
+    make_source_ancestry_id,
 )
 from leanfaith.schemas.theorem import (
     CANONICAL_VIEW_NAMES,
@@ -234,6 +235,7 @@ __all__ = [
     "make_llm_attempt_id",
     "make_llm_call_id",
     "make_problem_record_id",
+    "make_source_ancestry_id",
     "make_weak_consensus_id",
     "manifest_hash",
     "new_run_id",

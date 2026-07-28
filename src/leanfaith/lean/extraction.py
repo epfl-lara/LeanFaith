@@ -19,7 +19,8 @@ from typing import Any
 
 from leanfaith.config.hashing import hash_canonical, sha256_hex
 from leanfaith.schemas.enums import NLTrust, ValidationStatus, ViewStatus
-from leanfaith.schemas.ids import ANCESTRY_PREFIX, REPRESENTATION_PREFIX, THEOREM_PREFIX, make_id
+from leanfaith.schemas.ids import REPRESENTATION_PREFIX, THEOREM_PREFIX, make_id
+from leanfaith.schemas.source import make_source_ancestry_id
 from leanfaith.schemas.theorem import (
     CANONICAL_VIEW_NAMES,
     RepresentationRecord,
@@ -162,14 +163,11 @@ def _build_ids(
 ) -> tuple[str, str]:
     full_name = declaration.get("full_name") or declaration.get("name")
     source_locator = identity.source_record_id or identity.source_record
-    ancestry_id = make_id(
-        ANCESTRY_PREFIX,
-        {
-            "source": identity.source,
-            "revision": identity.source_revision,
-            "source_locator": source_locator,
-            "declaration": full_name,
-        },
+    ancestry_id = make_source_ancestry_id(
+        source=identity.source,
+        revision=identity.source_revision,
+        source_locator=source_locator,
+        declaration_full_name=str(full_name),
     )
     theorem_id = make_id(
         THEOREM_PREFIX,

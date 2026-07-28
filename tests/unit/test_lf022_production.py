@@ -19,6 +19,7 @@ from leanfaith.generation.lf022_production import (
     LF022ProductionFamilyMatrix,
     LF022ProductionPlanError,
     LF022ProviderDeployment,
+    LF022PublicSourceAuthorizationRegistry,
     build_lf022_production_plan,
     canonical_model_family,
     lf022_source_locator_id,
@@ -34,9 +35,17 @@ from leanfaith.generation.lf022_production import (
     make_lf022_public_source_authorization_registry,
     write_lf022_production_plan,
 )
-from leanfaith.schemas.enums import ValidationStatus, ViewStatus
+from leanfaith.schemas.enums import ArtifactClass, DataStage, ValidationStatus, ViewStatus
 from leanfaith.schemas.ids import make_id
+from leanfaith.schemas.manifest import CodeState, OutputManifest
 from leanfaith.schemas.theorem import ContextRecord, RepresentationRecord, TheoremRecord
+from leanfaith.sources.mathlib_frame import (
+    MathlibDomainAllocation,
+    MathlibFileFrame,
+    MathlibFrameMember,
+    make_mathlib_frame_id,
+    mathlib_domain,
+)
 
 REVISION = "a" * 40
 NOW = datetime.datetime(2026, 7, 28, tzinfo=datetime.UTC)
@@ -241,11 +250,150 @@ def _fixture(
         "data/lf022/extraction.json",
         extraction.model_dump(mode="json"),
     )
+    upstream_theorems_binding = _write_jsonl(
+        root,
+        "data/lf022/upstream_theorems.jsonl",
+        [theorem.model_dump(mode="json") for theorem in theorems],
+    )
+    upstream_context_binding = _write_jsonl(
+        root,
+        "data/lf022/upstream_contexts.jsonl",
+        [context.model_dump(mode="json")],
+    )
+    upstream_representations_binding = _write_jsonl(
+        root,
+        "data/lf022/upstream_representations.jsonl",
+        [representation.model_dump(mode="json") for representation in representations],
+    )
+    frame_members = tuple(
+        sorted(
+            (
+                MathlibFrameMember(
+                    relative_path=theorem.source_file or "",
+                    sha256=hash_canonical({"source": theorem.source_file}),
+                    domain=mathlib_domain(theorem.source_file or ""),
+                    selection_rank_sha256=hash_canonical({"rank": theorem.source_file}),
+                )
+                for theorem in theorems
+            ),
+            key=lambda member: member.relative_path,
+        )
+    )
+    frame_allocations = tuple(
+        MathlibDomainAllocation(
+            domain=domain,
+            inventory_file_count=1,
+            selected_file_count=1,
+        )
+        for domain in sorted(member.domain for member in frame_members)
+    )
+    frame_payload: dict[str, object] = {
+        "schema_version": 1,
+        "selection_algorithm": "mathlib_domain_progressive_proportional_hash_v1",
+        "source": "mathlib",
+        "revision": REVISION,
+        "private_source": False,
+        "release_eligible": True,
+        "inventory_adapter_version": "mathlib_adapter_v1",
+        "inventory_id": f"mathlib_repo_inventory_v1:{'6' * 64}",
+        "inventory_file_count": len(frame_members),
+        "eligible_file_count": len(frame_members),
+        "excluded_file_count": 0,
+        "excluded_domains": [],
+        "target_file_count": len(frame_members),
+        "selected_file_count": len(frame_members),
+        "selection_seed_sha256": "7" * 64,
+        "domain_allocations": [
+            allocation.model_dump(mode="json") for allocation in frame_allocations
+        ],
+        "members": [member.model_dump(mode="json") for member in frame_members],
+    }
+    frame = MathlibFileFrame.model_validate(
+        {**frame_payload, "frame_id": make_mathlib_frame_id(frame_payload)}
+    )
+    frame_binding = _write_json(
+        root,
+        "data/lf022/mathlib_source_frame.json",
+        frame.model_dump(mode="json"),
+    )
+    code = CodeState(
+        git_revision="9" * 40,
+        git_dirty=False,
+        base_git_commit="9" * 40,
+        code_tree_hash="a" * 64,
+    )
+    environment_hash = "b" * 64
+    upstream_manifest = OutputManifest(
+        stage=DataStage.ELABORATED,
+        artifact_class=ArtifactClass.PRODUCTION,
+        run_id="run_20260728T000000Z_12345678",
+        source="mathlib",
+        source_revision=REVISION,
+        config_hash="8" * 64,
+        record_schema_version=1,
+        row_count=len(theorems),
+        file_checksums={upstream_theorems_binding.path: upstream_theorems_binding.sha256},
+        input_partition_checksums={frame_binding.path: frame_binding.sha256},
+        output_partition_checksums={
+            upstream_theorems_binding.path: upstream_theorems_binding.sha256
+        },
+        context_hash=upstream_context_binding.sha256,
+        environment_hash=environment_hash,
+        code_tree_hash=code.code_tree_hash,
+        code=code,
+        created_at=NOW,
+    )
+    upstream_manifest_binding = _write_json(
+        root,
+        "data/lf022/upstream_extraction_manifest.json",
+        upstream_manifest.model_dump(mode="json"),
+    )
+    representation_manifest = OutputManifest(
+        stage=DataStage.REPRESENTED,
+        artifact_class=ArtifactClass.PRODUCTION,
+        run_id="run_20260728T000000Z_87654321",
+        source="mathlib_public_fixture",
+        source_revision="from_theorem_partition",
+        config_hash="c" * 64,
+        record_schema_version=1,
+        row_count=len(representations),
+        attempted_row_count=len(theorems),
+        terminal_outcome_counts={
+            "represented": len(representations),
+            "view_failures": 0,
+        },
+        file_checksums={
+            upstream_representations_binding.path: upstream_representations_binding.sha256
+        },
+        input_partition_checksums={
+            upstream_theorems_binding.path: upstream_theorems_binding.sha256
+        },
+        output_partition_checksums={
+            upstream_representations_binding.path: upstream_representations_binding.sha256
+        },
+        environment_hash=environment_hash,
+        context_hash=hash_canonical({"context_id": context.context_id}),
+        code_tree_hash=code.code_tree_hash,
+        code=code,
+        created_at=NOW,
+    )
+    representation_manifest_binding = _write_json(
+        root,
+        "data/lf022/upstream_representation_manifest.json",
+        representation_manifest.model_dump(mode="json"),
+    )
     source_authorization = make_lf022_public_source_authorization(
         source="mathlib",
         source_revision=REVISION,
         license_id="Apache-2.0",
         license_evidence_uri="https://github.com/leanprover-community/mathlib4/blob/master/LICENSE",
+        context_project_uri=context.project_uri,
+        upstream_theorem_records=upstream_theorems_binding,
+        upstream_context_records=upstream_context_binding,
+        upstream_extraction_output_manifest=upstream_manifest_binding,
+        upstream_representation_records=upstream_representations_binding,
+        upstream_representation_output_manifest=representation_manifest_binding,
+        mathlib_source_frame=frame_binding,
         extraction_manifest=extraction_binding,
     )
     source_registry = make_lf022_public_source_authorization_registry(
@@ -730,7 +878,7 @@ def test_scientific_profile_cannot_be_claimed_by_small_diagnostic_plan(
         count=12,
         profile="scientific_production_scaffold",
     )
-    with pytest.raises(LF022ProductionPlanError, match="at least 10000"):
+    with pytest.raises(LF022ProductionPlanError, match="at least 15000"):
         build_lf022_production_plan(
             repo_root=tmp_path,
             admission=fixture.admission,
@@ -751,6 +899,110 @@ def test_family_matrix_artifact_is_required_and_replayed(tmp_path: Path) -> None
         build_lf022_production_plan(
             repo_root=tmp_path,
             admission=admission,
+            family_matrix=fixture.matrix,
+        )
+
+
+def test_plan_rejects_selected_representation_absent_from_upstream_run(
+    tmp_path: Path,
+) -> None:
+    fixture = _fixture(tmp_path, count=1)
+    registry_path = tmp_path / fixture.artifacts.public_source_authorization_registry.path
+    registry = LF022PublicSourceAuthorizationRegistry.model_validate(
+        json.loads(registry_path.read_text(encoding="utf-8"))
+    )
+    original_authorization = registry.authorizations[0]
+    selected_representation_path = tmp_path / fixture.artifacts.representation_records.path
+    selected_representation = RepresentationRecord.model_validate(
+        json.loads(selected_representation_path.read_text(encoding="utf-8").splitlines()[0])
+    )
+    alternate_representation = selected_representation.model_copy(
+        update={
+            "representation_id": f"repr:{'f' * 64}",
+            "normalization_version": "alternate_representation_v1",
+        }
+    )
+    alternate_binding = _write_jsonl(
+        tmp_path,
+        "data/lf022/alternate_upstream_representations.jsonl",
+        [alternate_representation.model_dump(mode="json")],
+    )
+    original_manifest_path = (
+        tmp_path / original_authorization.upstream_representation_output_manifest.path
+    )
+    original_manifest = OutputManifest.model_validate(
+        json.loads(original_manifest_path.read_text(encoding="utf-8"))
+    )
+    alternate_manifest = original_manifest.model_copy(
+        update={
+            "file_checksums": {alternate_binding.path: alternate_binding.sha256},
+            "output_partition_checksums": {alternate_binding.path: alternate_binding.sha256},
+        }
+    )
+    alternate_manifest_binding = _write_json(
+        tmp_path,
+        "data/lf022/alternate_upstream_representation_manifest.json",
+        alternate_manifest.model_dump(mode="json"),
+    )
+    alternate_authorization = make_lf022_public_source_authorization(
+        source=original_authorization.source,
+        source_revision=original_authorization.source_revision,
+        license_id=original_authorization.license_id,
+        license_evidence_uri=original_authorization.license_evidence_uri,
+        context_project_uri=original_authorization.context_project_uri,
+        upstream_theorem_records=original_authorization.upstream_theorem_records,
+        upstream_context_records=original_authorization.upstream_context_records,
+        upstream_extraction_output_manifest=(
+            original_authorization.upstream_extraction_output_manifest
+        ),
+        upstream_representation_records=alternate_binding,
+        upstream_representation_output_manifest=alternate_manifest_binding,
+        mathlib_source_frame=original_authorization.mathlib_source_frame,
+        extraction_manifest=original_authorization.extraction_manifest,
+    )
+    alternate_registry = make_lf022_public_source_authorization_registry(
+        policy_version=registry.policy_version,
+        authorizations=(alternate_authorization,),
+    )
+    alternate_registry_binding = _write_json(
+        tmp_path,
+        "data/lf022/alternate_public_source_registry.json",
+        alternate_registry.model_dump(mode="json"),
+    )
+    source_pool_path = tmp_path / fixture.artifacts.source_pool.path
+    source_pool_payload = json.loads(source_pool_path.read_text(encoding="utf-8").splitlines()[0])
+    source_pool_payload["public_source_authorization_id"] = alternate_authorization.authorization_id
+    source_pool_without_id = {
+        key: value for key, value in source_pool_payload.items() if key != "admission_record_id"
+    }
+    source_pool_payload["admission_record_id"] = make_id(
+        "lf022_source_admission",
+        source_pool_without_id,
+    )
+    alternate_source_pool_binding = _write_jsonl(
+        tmp_path,
+        "data/lf022/alternate_source_pool.jsonl",
+        [source_pool_payload],
+    )
+    alternate_artifacts = fixture.artifacts.model_copy(
+        update={
+            "public_source_authorization_registry": alternate_registry_binding,
+            "source_pool": alternate_source_pool_binding,
+        }
+    )
+    alternate_admission = make_lf022_production_admission(
+        family_matrix=fixture.matrix,
+        artifacts=alternate_artifacts,
+        profile="diagnostic_scaffold",
+    )
+
+    with pytest.raises(
+        LF022ProductionPlanError,
+        match="absent or differs from the exact upstream representation run",
+    ):
+        build_lf022_production_plan(
+            repo_root=tmp_path,
+            admission=alternate_admission,
             family_matrix=fixture.matrix,
         )
 

@@ -15,7 +15,7 @@ from typing import Any
 from huggingface_hub import hf_hub_download
 
 from leanfaith.config.code_bundle import validate_code_bundle
-from leanfaith.config.hashing import hash_canonical, hash_file
+from leanfaith.config.hashing import canonical_json_bytes, hash_canonical, hash_file, sha256_hex
 from leanfaith.config.loading import load_config
 from leanfaith.config.paths import RepoPaths
 from leanfaith.datasets.denylist import (
@@ -67,6 +67,12 @@ from leanfaith.schemas import (
     write_manifest,
 )
 from leanfaith.sources.mathlib import build_inventory
+from leanfaith.sources.mathlib_frame import (
+    build_mathlib_file_frame,
+    load_and_verify_mathlib_file_frame,
+    mathlib_frame_additions,
+    write_mathlib_file_frame,
+)
 
 FORMALRX_DATASET = "LARK-Lab/FormalRx-Test"
 FORMALRX_REVISION = "4b7c6b883e0859e9bd38620a539bdcef408f91b4"
@@ -652,6 +658,9 @@ def run_extract(
     memory_hard_limit_mb: int | None = None,
     code_bundle_path: Path | None = None,
     resume_work_dir: Path | None = None,
+    mathlib_file_frame_path: Path | None = None,
+    mathlib_frame_selection_seed: str | None = None,
+    mathlib_previous_file_frame_path: Path | None = None,
 ) -> tuple[Path, dict[str, object]]:
     """Execute the stable `leanfaith extract` command."""
 
@@ -659,6 +668,20 @@ def run_extract(
         raise ValueError("MVP extraction source must be mathlib or sft_classic")
     if workers < 1:
         raise ValueError("workers must be positive")
+    if source != "mathlib" and (
+        mathlib_file_frame_path is not None
+        or mathlib_frame_selection_seed is not None
+        or mathlib_previous_file_frame_path is not None
+    ):
+        raise ValueError("mathlib file-frame options require source=mathlib")
+    if (mathlib_file_frame_path is None) != (mathlib_frame_selection_seed is None):
+        raise ValueError(
+            "--mathlib-file-frame and --mathlib-frame-selection-seed must be provided together"
+        )
+    if mathlib_file_frame_path is not None and limit is not None:
+        raise ValueError("--mathlib-file-frame and --limit are mutually exclusive")
+    if mathlib_previous_file_frame_path is not None and mathlib_file_frame_path is None:
+        raise ValueError("--mathlib-previous-file-frame requires --mathlib-file-frame")
     context, context_hash = build_mathlib_context(paths, project_dir)
     code = collect_code_state(paths.root)
     code_bundle_hash: str | None = None
@@ -670,17 +693,57 @@ def run_extract(
     created_at = datetime.datetime.now(tz=datetime.UTC)
     run_id = new_run_id(created_at)
     raw_response_dir = paths.data / "raw" / "lean_extract" / run_id
+    mathlib_frame_id: str | None = None
+    mathlib_frame_sha256: str | None = None
+    mathlib_previous_frame_id: str | None = None
+    mathlib_previous_frame_sha256: str | None = None
     if source == "mathlib":
         spec = _mathlib_spec(paths)
-        inventory = build_inventory(
-            project_dir,
-            source="mathlib",
-            revision=spec.revision,
-            root_module=spec.root_module or "Mathlib",
-            globs=spec.globs,
-            limit=limit,
-        )
-        rel_paths = [entry.relative_path for entry in inventory.files]
+        if mathlib_file_frame_path is None:
+            inventory = build_inventory(
+                project_dir,
+                source="mathlib",
+                revision=spec.revision,
+                root_module=spec.root_module or "Mathlib",
+                globs=spec.globs,
+                limit=limit,
+            )
+            rel_paths = [entry.relative_path for entry in inventory.files]
+        else:
+            inventory = build_inventory(
+                project_dir,
+                source="mathlib",
+                revision=spec.revision,
+                root_module=spec.root_module or "Mathlib",
+                globs=spec.globs,
+            )
+            if mathlib_frame_selection_seed is None:  # guarded above; narrows for mypy
+                raise AssertionError("mathlib frame selection seed is missing")
+            frame = load_and_verify_mathlib_file_frame(
+                mathlib_file_frame_path,
+                inventory=inventory,
+                expected_revision=spec.revision,
+                selection_seed=mathlib_frame_selection_seed,
+            )
+            mathlib_frame_id = frame.frame_id
+            mathlib_frame_sha256 = sha256_hex(
+                canonical_json_bytes(frame.model_dump(mode="json")) + b"\n"
+            )
+            if mathlib_previous_file_frame_path is None:
+                selected_members = frame.members
+            else:
+                previous = load_and_verify_mathlib_file_frame(
+                    mathlib_previous_file_frame_path,
+                    inventory=inventory,
+                    expected_revision=spec.revision,
+                    selection_seed=mathlib_frame_selection_seed,
+                )
+                selected_members = mathlib_frame_additions(previous, frame)
+                mathlib_previous_frame_id = previous.frame_id
+                mathlib_previous_frame_sha256 = sha256_hex(
+                    canonical_json_bytes(previous.model_dump(mode="json")) + b"\n"
+                )
+            rel_paths = [member.relative_path for member in selected_members]
         if workers == 1 and resume_work_dir is None:
             backend = LeanInteractBackend(
                 BackendSettings(
@@ -720,7 +783,40 @@ def run_extract(
                 code_tree_hash=code.code_tree_hash,
                 code_bundle_hash=code_bundle_hash,
             )
+        if mathlib_file_frame_path is not None:
+            # Recheck the exact pinned tree and immutable frame after Lean has
+            # consumed every selected file. This prevents a long extraction
+            # from being finalized if checkout or frame bytes drifted during
+            # execution.
+            post_inventory = build_inventory(
+                project_dir,
+                source="mathlib",
+                revision=spec.revision,
+                root_module=spec.root_module or "Mathlib",
+                globs=spec.globs,
+            )
+            post_frame = load_and_verify_mathlib_file_frame(
+                mathlib_file_frame_path,
+                inventory=post_inventory,
+                expected_revision=spec.revision,
+                selection_seed=mathlib_frame_selection_seed or "",
+            )
+            if post_frame != frame:
+                raise ValueError("mathlib file frame changed during extraction")
+            if mathlib_previous_file_frame_path is not None:
+                post_previous = load_and_verify_mathlib_file_frame(
+                    mathlib_previous_file_frame_path,
+                    inventory=post_inventory,
+                    expected_revision=spec.revision,
+                    selection_seed=mathlib_frame_selection_seed or "",
+                )
+                if post_previous != previous:
+                    raise ValueError("previous mathlib file frame changed during extraction")
         input_paths = tuple(project_dir / relative for relative in rel_paths)
+        if mathlib_file_frame_path is not None:
+            input_paths = (*input_paths, mathlib_file_frame_path)
+        if mathlib_previous_file_frame_path is not None:
+            input_paths = (*input_paths, mathlib_previous_file_frame_path)
         revision = spec.revision
     else:
         if input_path is None:
@@ -805,9 +901,65 @@ def run_extract(
             "memory_hard_limit_mb": memory_hard_limit_mb,
             "code_bundle_sha256": code_bundle_hash,
             "resumable_chunk_markers": resume_work_dir is not None,
+            "mathlib_file_frame_id": mathlib_frame_id,
+            "mathlib_file_frame_sha256": mathlib_frame_sha256,
+            "mathlib_previous_file_frame_id": mathlib_previous_frame_id,
+            "mathlib_previous_file_frame_sha256": mathlib_previous_frame_sha256,
+            "mathlib_frame_selection_seed_sha256": (
+                hash_canonical(
+                    {
+                        "schema": "mathlib_file_frame_selection_seed_v1",
+                        "selection_seed": mathlib_frame_selection_seed,
+                    }
+                )
+                if mathlib_frame_selection_seed is not None
+                else None
+            ),
         },
     )
     return manifest, stats.as_dict()
+
+
+def run_freeze_mathlib_file_frame(
+    *,
+    paths: RepoPaths,
+    project_dir: Path,
+    target_file_count: int,
+    selection_seed: str,
+    excluded_domains: tuple[str, ...],
+    output_path: Path,
+) -> tuple[Path, str, dict[str, object]]:
+    """Freeze one replayable public mathlib extraction frame."""
+
+    spec = _mathlib_spec(paths)
+    inventory = build_inventory(
+        project_dir,
+        source="mathlib",
+        revision=spec.revision,
+        root_module=spec.root_module or "Mathlib",
+        globs=spec.globs,
+    )
+    frame = build_mathlib_file_frame(
+        inventory,
+        expected_revision=spec.revision,
+        target_file_count=target_file_count,
+        selection_seed=selection_seed,
+        excluded_domains=excluded_domains,
+    )
+    digest = write_mathlib_file_frame(frame, output_path)
+    return (
+        output_path,
+        digest,
+        {
+            "frame_id": frame.frame_id,
+            "inventory_id": frame.inventory_id,
+            "inventory_file_count": frame.inventory_file_count,
+            "eligible_file_count": frame.eligible_file_count,
+            "excluded_file_count": frame.excluded_file_count,
+            "selected_file_count": frame.selected_file_count,
+            "domain_count": len(frame.domain_allocations),
+        },
+    )
 
 
 def _formalrx_rows(path: Path | None) -> list[dict[str, Any]]:

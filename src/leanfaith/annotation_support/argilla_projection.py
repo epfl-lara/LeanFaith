@@ -42,6 +42,7 @@ _BLIND_ITEM_ID = r"^lf023_blind_item_v1:[0-9a-f]{64}$"
 _BUNDLE_MANIFEST_ID = r"^lf023_blinded_bundle_manifest_v1:[0-9a-f]{64}$"
 _ASSIGNMENT_ID = r"^lf023_human_assignment_v1:[0-9a-f]{64}$"
 _PIN_ID = r"^lf023_argilla_backend_pin_v1:[0-9a-f]{64}$"
+_CAPTURE_MANIFEST_ID = r"^lf023_argilla_capture_manifest_v1:[0-9a-f]{64}$"
 _BINDING_MANIFEST_ID = r"^lf023_argilla_projection_binding_v1:[0-9a-f]{64}$"
 _PROJECTION_MANIFEST_ID = r"^lf023_argilla_projection_manifest_v1:[0-9a-f]{64}$"
 
@@ -73,6 +74,7 @@ class ArgillaProjectionBindingContentV1(StrictModel):
     assignment_id: str = Field(pattern=_ASSIGNMENT_ID)
     backend_pin_id: str = Field(pattern=_PIN_ID)
     bundle_manifest_id: str = Field(pattern=_BUNDLE_MANIFEST_ID)
+    public_bundle_manifest: ArtifactBinding
     guideline: ArtifactBinding
     value_mapping_version: Literal["lf023_argilla_values_v1"]
     item_count: Literal[240] = 240
@@ -138,6 +140,7 @@ def make_argilla_projection_binding_manifest(
     assignment: HumanAnnotationAssignmentEnvelopeV1,
     pin: ArgillaBackendPinV1,
     item_bindings: tuple[ArgillaRecordItemBindingV1, ...],
+    public_bundle_tokens: frozenset[str],
 ) -> ArgillaProjectionBindingManifestV1:
     """Create a label-free record allocation for later operator attestation."""
 
@@ -153,10 +156,16 @@ def make_argilla_projection_binding_manifest(
         assignment_id=assignment.assignment_id,
         backend_pin_id=pin.pin_id,
         bundle_manifest_id=assignment.bundle_manifest_id,
+        public_bundle_manifest=assignment.public_bundle_manifest,
         guideline=assignment.guideline,
         value_mapping_version="lf023_argilla_values_v1",
         item_bindings=item_bindings,
     )
+    mapped_tokens = {item.opaque_item_token for item in content.item_bindings}
+    if mapped_tokens != public_bundle_tokens:
+        raise ArgillaProjectionError(
+            "Argilla projection item mapping differs from the exact public bundle"
+        )
     return ArgillaProjectionBindingManifestV1(
         manifest_id=make_argilla_projection_binding_id(content),
         **content.model_dump(mode="python"),
@@ -171,6 +180,7 @@ class ArgillaProjectionManifestContentV1(StrictModel):
     binding_manifest_id: str = Field(pattern=_BINDING_MANIFEST_ID)
     assignment_id: str = Field(pattern=_ASSIGNMENT_ID)
     backend_pin_id: str = Field(pattern=_PIN_ID)
+    capture_manifest_id: str | None = Field(default=None, pattern=_CAPTURE_MANIFEST_ID)
     receipt_ids: tuple[str, ...]
     locked_response_ids: tuple[str, ...]
     item_count: Literal[240] = 240
@@ -463,6 +473,7 @@ def project_captured_argilla_responses(
     binding_manifest: ArgillaProjectionBindingManifestV1,
     receipts: tuple[ArgillaDirectFetchReceiptV1, ...],
     raw_record_payloads: Mapping[str, bytes],
+    capture_manifest_id: str | None = None,
 ) -> ArgillaProjectionRun:
     """Project backend-origin snapshots into canonical locked raw votes.
 
@@ -484,6 +495,10 @@ def project_captured_argilla_responses(
         "bundle_manifest_id": (
             binding_manifest.bundle_manifest_id,
             assignment.bundle_manifest_id,
+        ),
+        "public_bundle_manifest": (
+            binding_manifest.public_bundle_manifest,
+            assignment.public_bundle_manifest,
         ),
         "guideline": (binding_manifest.guideline, assignment.guideline),
     }
@@ -540,6 +555,7 @@ def project_captured_argilla_responses(
         binding_manifest_id=binding_manifest.manifest_id,
         assignment_id=assignment.assignment_id,
         backend_pin_id=pin.pin_id,
+        capture_manifest_id=capture_manifest_id,
         receipt_ids=tuple(receipt.receipt_id for receipt in ordered_receipts),
         locked_response_ids=tuple(response.response_id for response in ordered_responses),
         response_count=len(ordered_responses),

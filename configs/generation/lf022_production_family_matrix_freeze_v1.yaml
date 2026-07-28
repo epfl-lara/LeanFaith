@@ -1,0 +1,39 @@
+schema_version: 1
+config_id: lf022_production_family_matrix_freeze_v1
+status: proposal_fail_closed_no_execution
+
+# This file binds only already-persisted public/offline evidence. Loading or
+# freezing it performs no provider call and creates no semantic label.
+rcp_catalog_wire:
+  path: data/raw/real_outputs/rcp_qwen_qualification_v1/v1/27e514645a6c67475ea341c90db6037717b3f2884661d02a789c3ae097234bb0/catalog_wire_response.json
+  sha256: 0f98154b24af983bcdb22e6248bf98cbe5456fa9cd78932d280262777877dd66
+remote_portfolio:
+  path: configs/generation/rcp_provider_portfolio_v2.yaml
+  sha256: 729bb9c56e4787906bcdf4ffec2e70365523e1e6fe0de59c6d3e6ddc0aedfbe3
+successful_lf022_smoke_config:
+  path: configs/generation/lf022_rcp_public_smoke_v3.yaml
+  sha256: 25113c8a43be33e91a3d20d6a73956ae680e7f0989d68503aa97d659f04312ca
+lf022_smoke_report:
+  path: reports/generation/lf022_rcp_public_smoke_qualification_v1.json
+  sha256: 8d952a9bb6e61b056858946404ef19714b7f90ce5e7541d11396e429ffcdfbbb
+failed_fourth_family_smoke_config:
+  path: configs/generation/lf022_rcp_public_smoke_v2.yaml
+  sha256: 551c4f56b8d89dc02be87238f917ef748ae8028dd4de5e382dba28c66cda02d5
+codex_qualification:
+  path: configs/generation/codex_exec_public_qualification_v1.json
+  sha256: b5d5a546b35e6a9e184f11931a1d38d9bd0d8d4649a37c6d59ad734c1e804017
+local_generator_matrix:
+  path: configs/generation/local_research_source_matrix_v2.yaml
+  sha256: 6869ef8acde1327d42311552e0a3e62e28d8bea8d3859855d029ca084fdbb426
+
+outputs:
+  rcp_catalog: configs/generation/lf022_rcp_catalog_snapshot_v1.json
+  codex_catalog: configs/generation/lf022_codex_catalog_snapshot_v1.json
+  family_matrix: configs/generation/lf022_production_family_matrix_v1.json
+  freeze_report: reports/generation/lf022_production_family_matrix_freeze_v1.json
+
+route_execution_authorized: false
+semantic_labels_created: false
+supervision_eligible: false
+training_eligible: false
+gate_credit_eligible: false

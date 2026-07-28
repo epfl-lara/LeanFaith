@@ -24,6 +24,10 @@ def _load_script() -> ModuleType:
 SCRIPT = _load_script()
 
 
+def test_disposable_fixture_uses_canonical_reference_issue_value() -> None:
+    assert SCRIPT.FIXTURE_VALUES["reference_issue"] == {"value": "none"}
+
+
 def _report(completed_at: str) -> dict[str, object]:
     return {
         "schema_version": 2,

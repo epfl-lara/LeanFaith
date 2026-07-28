@@ -242,6 +242,30 @@ def extract_command(
     ] = None,
     code_bundle_path: Annotated[Path | None, typer.Option("--code-bundle")] = None,
     resume_work_dir: Annotated[Path | None, typer.Option("--resume-work-dir")] = None,
+    mathlib_file_frame_path: Annotated[
+        Path | None,
+        typer.Option(
+            "--mathlib-file-frame",
+            help="Replay-verified public mathlib file-frame JSON; incompatible with --limit.",
+        ),
+    ] = None,
+    mathlib_frame_selection_seed: Annotated[
+        str | None,
+        typer.Option(
+            "--mathlib-frame-selection-seed",
+            help="Exact non-secret seed used to freeze --mathlib-file-frame.",
+        ),
+    ] = None,
+    mathlib_previous_file_frame_path: Annotated[
+        Path | None,
+        typer.Option(
+            "--mathlib-previous-file-frame",
+            help=(
+                "Replay-verified smaller cumulative frame. When set, extract only "
+                "the exact additive members in --mathlib-file-frame."
+            ),
+        ),
+    ] = None,
     root_dir: Annotated[Path | None, typer.Option("--root")] = None,
 ) -> None:
     """Extract theorem statements with exact provenance and terminal accounting."""
@@ -263,9 +287,73 @@ def extract_command(
         memory_hard_limit_mb=memory_hard_limit_mb,
         code_bundle_path=code_bundle_path,
         resume_work_dir=resume_work_dir,
+        mathlib_file_frame_path=(
+            mathlib_file_frame_path
+            if mathlib_file_frame_path is None or mathlib_file_frame_path.is_absolute()
+            else paths.root / mathlib_file_frame_path
+        ),
+        mathlib_frame_selection_seed=mathlib_frame_selection_seed,
+        mathlib_previous_file_frame_path=(
+            mathlib_previous_file_frame_path
+            if mathlib_previous_file_frame_path is None
+            or mathlib_previous_file_frame_path.is_absolute()
+            else paths.root / mathlib_previous_file_frame_path
+        ),
     )
     typer.echo(f"manifest={manifest}")
     typer.echo(json.dumps(stats, sort_keys=True))
+
+
+@app.command("freeze-mathlib-file-frame")
+def freeze_mathlib_file_frame_command(
+    target_file_count: Annotated[int, typer.Option("--target-file-count", min=1)],
+    selection_seed: Annotated[
+        str,
+        typer.Option("--selection-seed", help="Stable non-secret selection seed."),
+    ],
+    output_path: Annotated[Path, typer.Option("--output")],
+    excluded_domains: Annotated[
+        list[str] | None,
+        typer.Option(
+            "--exclude-domain",
+            help=(
+                "Repeatable explicit domain exclusion. Defaults to the six "
+                "non-mathematical infrastructure roots used by LF-022."
+            ),
+        ),
+    ] = None,
+    project_dir: Annotated[Path | None, typer.Option("--project-dir")] = None,
+    root_dir: Annotated[Path | None, typer.Option("--root")] = None,
+) -> None:
+    """Freeze a deterministic progressive public mathlib extraction frame."""
+    from leanfaith.cli.pipeline import (
+        default_mathlib_checkout,
+        run_freeze_mathlib_file_frame,
+    )
+    from leanfaith.config.paths import RepoPaths
+
+    paths = RepoPaths.discover(root_dir) if root_dir is None else RepoPaths(root=root_dir)
+    exclusions = tuple(
+        sorted(
+            excluded_domains
+            if excluded_domains is not None
+            else ("Deprecated", "Init", "Lean", "Tactic", "Testing", "Util")
+        )
+    )
+    try:
+        path, digest, summary = run_freeze_mathlib_file_frame(
+            paths=paths,
+            project_dir=project_dir or default_mathlib_checkout(),
+            target_file_count=target_file_count,
+            selection_seed=selection_seed,
+            excluded_domains=exclusions,
+            output_path=output_path if output_path.is_absolute() else paths.root / output_path,
+        )
+    except (OSError, ValueError) as exc:
+        typer.echo(f"Mathlib file-frame freeze rejected: {exc}", err=True)
+        raise typer.Exit(code=2) from exc
+    typer.echo(f"frame={path} sha256={digest}")
+    typer.echo(json.dumps(summary, sort_keys=True))
 
 
 @app.command("freeze-code-bundle")
@@ -1354,6 +1442,213 @@ def report_prevalence_command(
     )
 
 
+@app.command("provision-argilla-prevalence")
+def provision_argilla_prevalence_command(
+    authentication_key_path: Annotated[
+        Path,
+        typer.Option(
+            "--authentication-key",
+            help="Mode-0600 HMAC key authenticating both pre-response assignments.",
+        ),
+    ],
+    endpoint: Annotated[
+        str,
+        typer.Option("--endpoint", help="Self-hosted HTTPS Argilla origin."),
+    ],
+    owner_api_key_env: Annotated[
+        str,
+        typer.Option(
+            "--owner-api-key-env",
+            help="Environment-variable name containing the Argilla owner key.",
+        ),
+    ],
+    slot_1_assignment: Annotated[
+        Path,
+        typer.Option("--slot-1-assignment", help="Authenticated slot-1 assignment."),
+    ],
+    slot_2_assignment: Annotated[
+        Path,
+        typer.Option("--slot-2-assignment", help="Authenticated slot-2 assignment."),
+    ],
+    slot_1_bundle_manifest: Annotated[
+        Path,
+        typer.Option(
+            "--slot-1-bundle-manifest",
+            help="Exact frozen slot-1 public bundle manifest.",
+        ),
+    ],
+    slot_2_bundle_manifest: Annotated[
+        Path,
+        typer.Option(
+            "--slot-2-bundle-manifest",
+            help="Exact frozen slot-2 public bundle manifest.",
+        ),
+    ],
+    slot_1_workspace: Annotated[
+        str,
+        typer.Option("--slot-1-workspace", help="New isolated slot-1 workspace name."),
+    ],
+    slot_2_workspace: Annotated[
+        str,
+        typer.Option("--slot-2-workspace", help="New isolated slot-2 workspace name."),
+    ],
+    slot_1_dataset: Annotated[
+        str,
+        typer.Option("--slot-1-dataset", help="New slot-1 dataset name."),
+    ],
+    slot_2_dataset: Annotated[
+        str,
+        typer.Option("--slot-2-dataset", help="New slot-2 dataset name."),
+    ],
+    slot_1_annotator_backend_id: Annotated[
+        str,
+        typer.Option("--slot-1-annotator-id", help="Existing slot-1 Argilla user UUID."),
+    ],
+    slot_2_annotator_backend_id: Annotated[
+        str,
+        typer.Option("--slot-2-annotator-id", help="Existing slot-2 Argilla user UUID."),
+    ],
+    slot_1_api_key_env: Annotated[
+        str,
+        typer.Option(
+            "--slot-1-api-key-env",
+            help="Environment-variable name containing the slot-1 Argilla key.",
+        ),
+    ],
+    slot_2_api_key_env: Annotated[
+        str,
+        typer.Option(
+            "--slot-2-api-key-env",
+            help="Environment-variable name containing the slot-2 Argilla key.",
+        ),
+    ],
+    adjudication_workspace: Annotated[
+        str,
+        typer.Option(
+            "--adjudication-workspace",
+            help="New owner-only adjudication workspace name.",
+        ),
+    ],
+    provisioned_at: Annotated[
+        str,
+        typer.Option("--provisioned-at", help="Explicit ISO-8601 UTC provisioning time."),
+    ],
+    output_root: Annotated[
+        Path,
+        typer.Option(
+            "--output-root",
+            help="New operator-chosen private root for all provisioning bindings.",
+        ),
+    ],
+    root_dir: Annotated[
+        Path | None,
+        typer.Option("--root", help="Repository root override."),
+    ] = None,
+) -> None:
+    """Provision the two exact 240-item Argilla datasets without creating votes."""
+    from leanfaith.cli.argilla_provisioning_operations import (
+        ArgillaProvisioningOperationError,
+        ArgillaProvisioningSlotInput,
+        provision_argilla_prevalence_round,
+    )
+    from leanfaith.config.paths import RepoPaths
+
+    paths = RepoPaths.discover(root_dir) if root_dir is None else RepoPaths(root=root_dir)
+
+    def anchored(path: Path) -> Path:
+        return path if path.is_absolute() else paths.root / path
+
+    try:
+        timestamp = datetime.datetime.fromisoformat(provisioned_at.replace("Z", "+00:00"))
+        result = provision_argilla_prevalence_round(
+            repo_root=paths.root,
+            authentication_key_path=anchored(authentication_key_path),
+            endpoint=endpoint,
+            owner_api_key_env=owner_api_key_env,
+            adjudication_workspace_name=adjudication_workspace,
+            slot_inputs=(
+                ArgillaProvisioningSlotInput(
+                    annotator_slot="independent_annotator_1",
+                    assignment_path=anchored(slot_1_assignment),
+                    public_bundle_manifest_path=anchored(slot_1_bundle_manifest),
+                    workspace_name=slot_1_workspace,
+                    dataset_name=slot_1_dataset,
+                    annotator_backend_id=slot_1_annotator_backend_id,
+                    annotator_api_key_env=slot_1_api_key_env,
+                ),
+                ArgillaProvisioningSlotInput(
+                    annotator_slot="independent_annotator_2",
+                    assignment_path=anchored(slot_2_assignment),
+                    public_bundle_manifest_path=anchored(slot_2_bundle_manifest),
+                    workspace_name=slot_2_workspace,
+                    dataset_name=slot_2_dataset,
+                    annotator_backend_id=slot_2_annotator_backend_id,
+                    annotator_api_key_env=slot_2_api_key_env,
+                ),
+            ),
+            provisioned_at=timestamp,
+            output_root=anchored(output_root),
+        )
+    except (ArgillaProvisioningOperationError, OSError, ValueError) as exc:
+        typer.echo(f"Argilla prevalence provisioning rejected: {exc}", err=True)
+        raise typer.Exit(code=2) from exc
+    typer.echo(
+        f"runtime_manifest_id={result.manifest.manifest_id} "
+        f"runtime_manifest={result.manifest_path} output_root={result.output_root} "
+        f"recovery_journal={result.recovery_journal_path} "
+        "datasets=2 records_per_dataset=240 response_count=0 "
+        "peer_isolation_verified=true semantic_labels_created=0 "
+        "gold_labels_created=0 human_gold_eligible=false training_eligible=0"
+    )
+
+
+@app.command("cleanup-argilla-provisioning")
+def cleanup_argilla_provisioning_command(
+    recovery_journal: Annotated[
+        Path,
+        typer.Option(
+            "--recovery-journal",
+            help="Private crash-recovery journal emitted before remote provisioning.",
+        ),
+    ],
+    owner_api_key_env: Annotated[
+        str,
+        typer.Option(
+            "--owner-api-key-env",
+            help="Environment-variable name containing the owner API key.",
+        ),
+    ],
+    root_dir: Annotated[
+        Path | None,
+        typer.Option("--root", help="Repository root override."),
+    ] = None,
+) -> None:
+    """Verify and remove an unpublished Argilla crash-recovery attempt."""
+    from leanfaith.cli.argilla_provisioning_operations import (
+        ArgillaProvisioningOperationError,
+        cleanup_argilla_provisioning_recovery,
+    )
+    from leanfaith.config.paths import RepoPaths
+
+    paths = RepoPaths.discover(root_dir) if root_dir is None else RepoPaths(root=root_dir)
+    journal_path = (
+        recovery_journal if recovery_journal.is_absolute() else paths.root / recovery_journal
+    )
+    try:
+        result = cleanup_argilla_provisioning_recovery(
+            journal_path=journal_path,
+            owner_api_key_env=owner_api_key_env,
+        )
+    except (ArgillaProvisioningOperationError, OSError, ValueError) as exc:
+        typer.echo(f"Argilla provisioning cleanup rejected: {exc}", err=True)
+        raise typer.Exit(code=2) from exc
+    typer.echo(
+        f"state={result.journal.state} "
+        f"deleted_datasets={result.deleted_dataset_count} "
+        f"deleted_workspaces={result.deleted_workspace_count}"
+    )
+
+
 @app.command("write-argilla-backend-pin")
 def write_argilla_backend_pin_command(
     endpoint: Annotated[
@@ -1479,6 +1774,164 @@ def capture_argilla_responses_command(
         "submitted_snapshot_only=true backend_immutability_verified=false "
         "project_logical_lock_included=false semantic_labels_created=0 "
         "gold_labels_created=0 human_gold_eligible=false training_eligible=0"
+    )
+
+
+@app.command("write-argilla-projection-binding")
+def write_argilla_projection_binding_command(
+    assignment_path: Annotated[
+        Path,
+        typer.Option(
+            "--human-assignment",
+            help="Private operator-authenticated assignment created before responses.",
+        ),
+    ],
+    public_bundle_manifest_path: Annotated[
+        Path,
+        typer.Option(
+            "--public-bundle-manifest",
+            help="Exact public blinded-bundle manifest bound by the assignment.",
+        ),
+    ],
+    pin_path: Annotated[
+        Path,
+        typer.Option("--pin", help="Content-addressed Argilla backend pin JSON."),
+    ],
+    mapping_path: Annotated[
+        Path,
+        typer.Option(
+            "--record-mapping",
+            help="Private label-free 240-item token-to-record allocation JSON.",
+        ),
+    ],
+    output_root: Annotated[
+        Path,
+        typer.Option(
+            "--output-root",
+            help="Private root for the content-addressed pre-response binding.",
+        ),
+    ],
+    root_dir: Annotated[
+        Path | None,
+        typer.Option("--root", help="Repository root override."),
+    ] = None,
+) -> None:
+    """Freeze a pre-response Argilla record allocation without reading votes."""
+    from leanfaith.cli.argilla_projection_operations import (
+        ArgillaProjectionOperationError,
+        write_argilla_projection_binding,
+    )
+    from leanfaith.config.paths import RepoPaths
+
+    paths = RepoPaths.discover(root_dir) if root_dir is None else RepoPaths(root=root_dir)
+
+    def anchored(path: Path) -> Path:
+        return path if path.is_absolute() else paths.root / path
+
+    try:
+        result = write_argilla_projection_binding(
+            repo_root=paths.root,
+            assignment_path=anchored(assignment_path),
+            public_bundle_manifest_path=anchored(public_bundle_manifest_path),
+            pin_path=anchored(pin_path),
+            mapping_path=anchored(mapping_path),
+            output_root=anchored(output_root),
+        )
+    except (ArgillaProjectionOperationError, OSError, ValueError) as exc:
+        typer.echo(f"Argilla projection binding rejected: {exc}", err=True)
+        raise typer.Exit(code=2) from exc
+    typer.echo(
+        f"binding_manifest_id={result.manifest.manifest_id} "
+        f"binding_path={result.path} sha256={result.sha256} "
+        "pre_response_allocation_only=true response_values_included=false "
+        "assignment_hmac_verified=false semantic_labels_created=0 "
+        "gold_labels_created=0 human_gold_eligible=false training_eligible=0"
+    )
+
+
+@app.command("project-argilla-capture")
+def project_argilla_capture_command(
+    assignment_path: Annotated[
+        Path,
+        typer.Option(
+            "--human-assignment",
+            help="Private assignment bound before Argilla responses were observed.",
+        ),
+    ],
+    pin_path: Annotated[
+        Path,
+        typer.Option("--pin", help="Content-addressed Argilla backend pin JSON."),
+    ],
+    binding_manifest_path: Annotated[
+        Path,
+        typer.Option(
+            "--projection-binding",
+            help="Private content-addressed pre-response record-allocation binding.",
+        ),
+    ],
+    capture_root: Annotated[
+        Path,
+        typer.Option(
+            "--capture-root",
+            help="Private root created by capture-argilla-responses.",
+        ),
+    ],
+    capture_manifest_path: Annotated[
+        Path,
+        typer.Option(
+            "--capture-manifest",
+            help="Content-addressed backend-origin capture manifest JSON.",
+        ),
+    ],
+    output_root: Annotated[
+        Path,
+        typer.Option(
+            "--output-root",
+            help="Private root for canonical locked raw-vote JSONL and manifest.",
+        ),
+    ],
+    root_dir: Annotated[
+        Path | None,
+        typer.Option("--root", help="Repository root override."),
+    ] = None,
+) -> None:
+    """Project reverified Argilla snapshots into immutable raw-vote JSONL."""
+    from leanfaith.cli.argilla_projection_operations import (
+        ArgillaProjectionOperationError,
+        project_and_persist_argilla_capture,
+    )
+    from leanfaith.config.paths import RepoPaths
+
+    paths = RepoPaths.discover(root_dir) if root_dir is None else RepoPaths(root=root_dir)
+
+    def anchored(path: Path) -> Path:
+        return path if path.is_absolute() else paths.root / path
+
+    try:
+        result = project_and_persist_argilla_capture(
+            repo_root=paths.root,
+            assignment_path=anchored(assignment_path),
+            pin_path=anchored(pin_path),
+            binding_manifest_path=anchored(binding_manifest_path),
+            capture_root=anchored(capture_root),
+            capture_manifest_path=anchored(capture_manifest_path),
+            output_root=anchored(output_root),
+        )
+    except (ArgillaProjectionOperationError, OSError, ValueError) as exc:
+        typer.echo(f"Argilla capture projection rejected: {exc}", err=True)
+        raise typer.Exit(code=2) from exc
+    typer.echo(
+        f"projection_manifest_id={result.run.manifest.manifest_id} "
+        f"capture_manifest_id={result.capture_manifest.manifest_id} "
+        f"projection_manifest_path={result.manifest_path} "
+        f"locked_responses_path={result.locked_responses_path} "
+        f"response_count={result.run.manifest.response_count} "
+        f"missing_item_count={result.run.manifest.missing_item_count} "
+        f"complete={str(result.run.manifest.complete).lower()} "
+        "backend_origin_verified=true submitted_snapshot_only=true "
+        "assignment_hmac_verified=false import_logical_lock_created=false "
+        "semantic_labels_created=0 gold_labels_created=0 "
+        "human_gold_eligible=false training_eligible=0 gate_5_closed=false"
     )
 
 
@@ -2066,6 +2519,154 @@ def validate_lf022_command(
         f"sha256={result.report_sha256} {replay_summary} "
         "live_calls=0 semantic_labels_created=0 silver_records_created=0"
     )
+
+
+@app.command("freeze-lf022-family-matrix")
+def freeze_lf022_family_matrix_command(
+    config_path: Annotated[
+        Path,
+        typer.Option(
+            "--config",
+            help="Offline LF-022 production-family freeze configuration.",
+        ),
+    ] = Path("configs/generation/lf022_production_family_matrix_freeze_v1.yaml"),
+    write: Annotated[
+        bool,
+        typer.Option(
+            "--write",
+            help="Immutably create the configured outputs; default is replay verification.",
+        ),
+    ] = False,
+    root_dir: Annotated[
+        Path | None,
+        typer.Option("--root", help="Repository root override."),
+    ] = None,
+) -> None:
+    """Freeze or replay provider identities without calls, labels, or execution."""
+    from leanfaith.config.paths import RepoPaths
+    from leanfaith.generation.lf022_family_matrix_freeze import (
+        LF022FamilyMatrixFreezeError,
+        verify_lf022_family_matrix_freeze,
+        write_lf022_family_matrix_freeze,
+    )
+
+    paths = RepoPaths.discover(root_dir) if root_dir is None else RepoPaths(root=root_dir)
+    config = config_path if config_path.is_absolute() else paths.root / config_path
+    try:
+        bundle = (
+            write_lf022_family_matrix_freeze(repo_root=paths.root, config_path=config)
+            if write
+            else verify_lf022_family_matrix_freeze(
+                repo_root=paths.root,
+                config_path=config,
+            )
+        )
+    except (LF022FamilyMatrixFreezeError, OSError, ValueError) as exc:
+        typer.echo(f"LF-022 family-matrix freeze rejected: {exc}", err=True)
+        raise typer.Exit(code=2) from exc
+    typer.echo(
+        f"status={bundle.report.status} matrix_id={bundle.family_matrix.matrix_id} "
+        "network_requests=0 semantic_labels_created=0 training_eligible=false"
+    )
+
+
+@app.command("materialize-lf022-public-pool")
+def materialize_lf022_public_pool_command(
+    theorem_records: Annotated[Path, typer.Option("--theorems")],
+    representation_records: Annotated[Path, typer.Option("--representations")],
+    context_records: Annotated[Path, typer.Option("--contexts")],
+    extraction_output_manifest: Annotated[
+        Path,
+        typer.Option(
+            "--extraction-manifest",
+            help="Exact upstream extraction OutputManifest JSON.",
+        ),
+    ],
+    representation_output_manifest: Annotated[
+        Path,
+        typer.Option(
+            "--representation-manifest",
+            help="Exact upstream representation OutputManifest JSON.",
+        ),
+    ],
+    mathlib_source_frame: Annotated[
+        Path,
+        typer.Option(
+            "--mathlib-source-frame",
+            help="Exact canonical MathlibFileFrame JSON used by extraction.",
+        ),
+    ],
+    active_registry: Annotated[
+        Path,
+        typer.Option("--active-registry", help="Frozen active benchmark registry JSON."),
+    ],
+    family_matrix: Annotated[
+        Path,
+        typer.Option("--family-matrix", help="Frozen LF-022 family-matrix JSON."),
+    ] = Path("configs/generation/lf022_production_family_matrix_v1.json"),
+    approved_sources: Annotated[
+        Path,
+        typer.Option("--approved-sources", help="Reviewed public-source authorization YAML/JSON."),
+    ] = Path("configs/sources/lf022_public_sources_v1.yaml"),
+    output_directory: Annotated[
+        Path,
+        typer.Option("--out-dir", help="Repository-local immutable output directory."),
+    ] = Path("artifacts/generation/lf022_public_pool_v1"),
+    requested_count: Annotated[
+        int,
+        typer.Option("--requested-count", min=1),
+    ] = 15_000,
+    profile: Annotated[
+        str,
+        typer.Option(
+            "--profile",
+            help=("diagnostic_scaffold, pilot_scaffold, or scientific_production_scaffold."),
+        ),
+    ] = "scientific_production_scaffold",
+    root_dir: Annotated[
+        Path | None,
+        typer.Option("--root", help="Repository root override."),
+    ] = None,
+) -> None:
+    """Materialize a public, denylist-cleared, non-executable LF-022 pool."""
+    from typing import cast
+
+    from leanfaith.cli.lf022_public_pool_operations import (
+        LF022PublicPoolOperationError,
+        run_materialize_lf022_public_pool,
+    )
+    from leanfaith.config.paths import RepoPaths
+    from leanfaith.generation.lf022_production import LF022PlanProfile
+
+    allowed_profiles = {
+        "diagnostic_scaffold",
+        "pilot_scaffold",
+        "scientific_production_scaffold",
+    }
+    if profile not in allowed_profiles:
+        typer.echo("--profile is not a canonical LF-022 plan profile", err=True)
+        raise typer.Exit(code=2)
+    paths = RepoPaths.discover(root_dir) if root_dir is None else RepoPaths(root=root_dir)
+    try:
+        result = run_materialize_lf022_public_pool(
+            paths=paths,
+            theorem_records_path=theorem_records,
+            representation_records_path=representation_records,
+            context_records_path=context_records,
+            extraction_output_manifest_path=extraction_output_manifest,
+            representation_output_manifest_path=representation_output_manifest,
+            mathlib_source_frame_path=mathlib_source_frame,
+            active_registry_path=active_registry,
+            family_matrix_path=family_matrix,
+            approved_sources_path=approved_sources,
+            output_directory=output_directory,
+            requested_count=requested_count,
+            profile=cast(LF022PlanProfile, profile),
+        )
+    except LF022PublicPoolOperationError as exc:
+        typer.echo(exc.failure.model_dump_json(), err=True)
+        raise typer.Exit(code=2) from exc
+    typer.echo(result.summary.model_dump_json())
 
 
 @app.command("lf022-rcp-smoke")

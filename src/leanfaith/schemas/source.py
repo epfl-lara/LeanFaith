@@ -15,7 +15,7 @@ from pydantic import Field, model_validator
 from leanfaith.config.hashing import hash_canonical, sha256_hex
 from leanfaith.config.models import StrictModel
 from leanfaith.schemas.enums import AccessStatus, NLTrust, SourceKind
-from leanfaith.schemas.ids import HEX64_PATTERN
+from leanfaith.schemas.ids import ANCESTRY_PREFIX, HEX64_PATTERN, make_id
 from leanfaith.schemas.manifest import require_utc
 
 MetadataValue = str | int | float | bool | None
@@ -71,6 +71,40 @@ def make_git_declaration_source_locator_id(
             "source_file": source_file,
             "declaration_full_name": declaration_full_name,
         }
+    )
+
+
+def make_source_ancestry_id(
+    *,
+    source: str,
+    revision: str,
+    source_locator: str,
+    declaration_full_name: str,
+) -> str:
+    """Recompute the canonical root ancestry for an extracted declaration.
+
+    Root ancestry is source identity, not mutable theorem metadata.  Keeping
+    this constructor beside the source-locator constructors lets downstream
+    admission code verify extractor output instead of trusting serialized
+    ``ancestry_id`` fields.
+    """
+
+    for field, value in (
+        ("source", source),
+        ("revision", revision),
+        ("source_locator", source_locator),
+        ("declaration_full_name", declaration_full_name),
+    ):
+        if not value or value != value.strip():
+            raise ValueError(f"{field} must be nonempty with no surrounding whitespace")
+    return make_id(
+        ANCESTRY_PREFIX,
+        {
+            "source": source,
+            "revision": revision,
+            "source_locator": source_locator,
+            "declaration": declaration_full_name,
+        },
     )
 
 
