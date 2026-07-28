@@ -3,6 +3,7 @@ from __future__ import annotations
 import datetime
 import json
 import stat
+from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
@@ -40,6 +41,10 @@ from leanfaith.cli.argilla_projection_operations import (
     write_argilla_projection_binding,
 )
 from leanfaith.config.hashing import canonical_json_bytes, hash_canonical, hash_file, sha256_hex
+from tests.argilla_public_fixture import (
+    ArgillaPublicFixture,
+    build_argilla_public_fixture,
+)
 
 UTC = datetime.UTC
 KEY = b"lf023-argilla-projection-operations-key!" * 2
@@ -47,10 +52,29 @@ WORKSPACE_ID = "11111111-1111-4111-8111-111111111111"
 DATASET_ID = "22222222-2222-4222-8222-222222222222"
 ANNOTATOR_ID = "33333333-3333-4333-8333-333333333333"
 ROOT = Path(__file__).resolve().parents[2]
+SOURCE_ROOT = ROOT
 PUBLIC_BUNDLE_MANIFEST = (
     ROOT / "annotation/exports/lf021_prevalence_v1/annotator_manifests/"
     "acffa0f85555b50776b1d1964d96671edf63f1c619ddbca913f1b5ad3a2a7168.json"
 )
+
+
+@pytest.fixture(scope="module", autouse=True)
+def _public_fixture(
+    tmp_path_factory: pytest.TempPathFactory,
+) -> Iterator[ArgillaPublicFixture]:
+    global ROOT, PUBLIC_BUNDLE_MANIFEST
+    previous_root = ROOT
+    previous_manifest = PUBLIC_BUNDLE_MANIFEST
+    fixture = build_argilla_public_fixture(
+        repo_root=tmp_path_factory.mktemp("argilla-public-fixture-repo"),
+        source_repo_root=SOURCE_ROOT,
+    )
+    ROOT = fixture.repo_root
+    PUBLIC_BUNDLE_MANIFEST = ROOT / fixture.bundle_manifests["independent_annotator_1"][0]
+    yield fixture
+    ROOT = previous_root
+    PUBLIC_BUNDLE_MANIFEST = previous_manifest
 
 
 def _record_id(index: int) -> str:

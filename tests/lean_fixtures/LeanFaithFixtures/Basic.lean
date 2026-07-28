@@ -27,4 +27,14 @@ namespace LeanFaithPrivateFixture
 
 private theorem hidden (n : Nat) : n = n := rfl
 
+universe u
+
+private theorem hiddenComplex {α : Type u} [Inhabited α] (x : α)
+    (h : ∀ y : α, y = y) : ((fun z => z) x = x) ∧ x = x := by
+  exact ⟨rfl, h x⟩
+
+theorem publicComplex {α : Type u} [Inhabited α] (x : α)
+    (h : ∀ y : α, y = y) : ((fun z => z) x = x) ∧ x = x := by
+  exact ⟨rfl, h x⟩
+
 end LeanFaithPrivateFixture

@@ -4,6 +4,7 @@ import datetime
 import os
 import stat
 import uuid
+from collections.abc import Iterator
 from dataclasses import replace
 from pathlib import Path
 
@@ -45,11 +46,38 @@ from leanfaith.cli.argilla_provisioning_operations import (
     provision_argilla_prevalence_round,
 )
 from leanfaith.config.hashing import canonical_json_bytes, sha256_hex
+from tests.argilla_public_fixture import (
+    ArgillaPublicFixture,
+    build_argilla_public_fixture,
+)
 
 ROOT = Path(__file__).parents[2]
+SOURCE_ROOT = ROOT
 KEY = b"k" * 32
 SLOT_1_USER_ID = "11111111-1111-4111-8111-111111111111"
 SLOT_2_USER_ID = "22222222-2222-4222-8222-222222222222"
+
+
+@pytest.fixture(scope="module", autouse=True)
+def _public_fixture(
+    tmp_path_factory: pytest.TempPathFactory,
+) -> Iterator[ArgillaPublicFixture]:
+    global ROOT, CANONICAL_PUBLIC_BUNDLE_MANIFESTS
+    previous_root = ROOT
+    previous_registry = CANONICAL_PUBLIC_BUNDLE_MANIFESTS
+    fixture = build_argilla_public_fixture(
+        repo_root=tmp_path_factory.mktemp("argilla-public-fixture-repo"),
+        source_repo_root=SOURCE_ROOT,
+    )
+    ROOT = fixture.repo_root
+    CANONICAL_PUBLIC_BUNDLE_MANIFESTS = fixture.bundle_manifests  # type: ignore[assignment]
+    argilla_provisioning_operations.CANONICAL_PUBLIC_BUNDLE_MANIFESTS = (
+        fixture.bundle_manifests  # type: ignore[assignment]
+    )
+    yield fixture
+    ROOT = previous_root
+    CANONICAL_PUBLIC_BUNDLE_MANIFESTS = previous_registry
+    argilla_provisioning_operations.CANONICAL_PUBLIC_BUNDLE_MANIFESTS = previous_registry
 
 
 def _public_manifest(slot: str) -> tuple[Path, BlindedBundleManifestV1]:

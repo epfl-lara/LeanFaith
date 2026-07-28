@@ -1,9 +1,11 @@
 """Lean-backed representation builder (PLAN.md §13, LF-014).
 
 Supersedes the minimal ``repr_v0_extract`` record from extraction with a
-``repr_v2`` multi-view record: the three required v0 views plus the
-elaborated ``signature_explicit``, obtained by batched ``#check @name`` under
-pinned pp options. Batching loads the environment once per option set.
+``repr_v3`` multi-view record: the three required v0 views plus the
+elaborated ``signature_explicit``. Both signature views are pretty-printed
+directly from the declaration's ``ConstantInfo.type`` under ``Options.empty``;
+this isolates them from ambient core and extension ``pp.*`` settings, including
+private environment-only names that Lean syntax cannot address.
 """
 
 from __future__ import annotations
@@ -24,6 +26,9 @@ from leanfaith.lean.session_policy import RetryPolicy, run_with_retries
 from leanfaith.representations.atoms import (
     operator_tree,
     parse_lfjson_line,
+    parse_lfjson_payload,
+    parse_lfsignature_payload,
+    parse_lftree_payload,
     semantic_atoms,
 )
 from leanfaith.representations.views import (
@@ -309,14 +314,14 @@ def _combined_command(
     lines = [_imports_with_lean("\n".join((imports, inline_imports))), _expr_json_helper()]
     if theorem.inline_declaration:
         lines.append(inline_body)
-    if not _requires_environment_only_lookup(theorem):
-        lines.extend(
-            (
-                f"{PP_SIGNATURE_INLINE} #check @{theorem.full_name}",
-                f"{PP_EXPLICIT_INLINE} #check @{theorem.full_name}",
-            )
+    lookup_literal = json.dumps(_expr_lookup_name(theorem), ensure_ascii=False)
+    lines.extend(
+        (
+            f"lfDumpSignaturePP {lookup_literal}",
+            f"lfDumpSignatureExplicit {lookup_literal}",
         )
-    lines.append(f"lfDump {json.dumps(_expr_lookup_name(theorem), ensure_ascii=False)}")
+    )
+    lines.append(f"lfDumpTree {json.dumps(_expr_lookup_name(theorem), ensure_ascii=False)}")
     return "\n".join(line for line in lines if line)
 
 
@@ -325,6 +330,7 @@ def _parse_combined_result(
     full_name: str,
     *,
     dump_name: str | None = None,
+    allow_environment_signatures: bool = False,
 ) -> tuple[str | None, str | None, dict[str, Any] | None]:
     parsed_checks = [
         parsed
@@ -334,13 +340,56 @@ def _parse_combined_result(
     signature_pp = parsed_checks[0] if parsed_checks else None
     signature_explicit = parsed_checks[1] if len(parsed_checks) > 1 else None
     tree: dict[str, Any] | None = None
+    environment_signature_pp: str | None = None
+    environment_signature_explicit: str | None = None
     for message in result.messages:
         for candidate in str(message.get("data", "")).splitlines():
-            if "LFJSON " not in candidate:
+            expected_name = dump_name or full_name
+            if "LFSIGPPJSON " in candidate:
+                parsed_name, parsed_signature = parse_lfsignature_payload(
+                    candidate,
+                    prefix="LFSIGPPJSON ",
+                    field="signature_pp",
+                )
+                if parsed_name == expected_name:
+                    environment_signature_pp = parsed_signature
                 continue
-            parsed_name, parsed_tree = parse_lfjson_line(candidate)
-            if parsed_name == (dump_name or full_name) and parsed_tree is not None:
-                tree = parsed_tree
+            if "LFSIGEXPLICITJSON " in candidate:
+                parsed_name, parsed_signature = parse_lfsignature_payload(
+                    candidate,
+                    prefix="LFSIGEXPLICITJSON ",
+                    field="signature_explicit",
+                )
+                if parsed_name == expected_name:
+                    environment_signature_explicit = parsed_signature
+                continue
+            if "LFTREEJSON " in candidate:
+                parsed_name, parsed_tree = parse_lftree_payload(candidate)
+                if parsed_name == expected_name:
+                    tree = parsed_tree
+                continue
+            if "LFJSON " in candidate:
+                (
+                    parsed_name,
+                    parsed_tree,
+                    parsed_environment_pp,
+                    parsed_environment_explicit,
+                ) = parse_lfjson_payload(candidate)
+                if parsed_name == expected_name:
+                    tree = tree or parsed_tree
+                    environment_signature_pp = environment_signature_pp or parsed_environment_pp
+                    environment_signature_explicit = (
+                        environment_signature_explicit or parsed_environment_explicit
+                    )
+    if allow_environment_signatures:
+        # repr_v3's option-isolated ConstantInfo helper is authoritative.
+        # Inline source may itself contain arbitrary ``#check`` commands whose
+        # info messages inherit hostile ambient pp options. Those diagnostics
+        # must never override (or stand in for) a missing canonical helper
+        # payload. A missing helper view remains missing and is retried through
+        # its independent command below.
+        signature_pp = environment_signature_pp
+        signature_explicit = environment_signature_explicit
     return signature_pp, signature_explicit, tree
 
 
@@ -359,14 +408,31 @@ def _single_check_command(
     return "\n".join(lines)
 
 
-def _single_dump_command(imports: str, theorem: TheoremForRepresentation) -> str:
+def _single_tree_command(imports: str, theorem: TheoremForRepresentation) -> str:
     inline_imports, inline_body = _hoist_inline_imports(
         (theorem.inline_source or theorem.proof_stripped) if theorem.inline_declaration else ""
     )
     lines = [_imports_with_lean("\n".join((imports, inline_imports))), _expr_json_helper()]
     if theorem.inline_declaration:
         lines.append(inline_body)
-    lines.append(f"lfDump {json.dumps(_expr_lookup_name(theorem), ensure_ascii=False)}")
+    lines.append(f"lfDumpTree {json.dumps(_expr_lookup_name(theorem), ensure_ascii=False)}")
+    return "\n".join(lines)
+
+
+def _single_environment_signature_command(
+    imports: str,
+    theorem: TheoremForRepresentation,
+    *,
+    explicit: bool,
+) -> str:
+    inline_imports, inline_body = _hoist_inline_imports(
+        (theorem.inline_source or theorem.proof_stripped) if theorem.inline_declaration else ""
+    )
+    lines = [_imports_with_lean("\n".join((imports, inline_imports))), _expr_json_helper()]
+    if theorem.inline_declaration:
+        lines.append(inline_body)
+    command = "lfDumpSignatureExplicit" if explicit else "lfDumpSignaturePP"
+    lines.append(f"{command} {json.dumps(_expr_lookup_name(theorem), ensure_ascii=False)}")
     return "\n".join(lines)
 
 
@@ -496,7 +562,70 @@ def _retry_check_views(
     return recovered
 
 
-def _retry_expr_views(
+def _retry_environment_signature_views(
+    backend: LeanInteractBackend,
+    theorems: list[TheoremForRepresentation],
+    imports: str,
+    *,
+    explicit: bool,
+) -> dict[str, str]:
+    view = "signature_explicit" if explicit else "signature_pp"
+    prefix = "LFSIGEXPLICITJSON " if explicit else "LFSIGPPJSON "
+    field = "signature_explicit" if explicit else "signature_pp"
+    requests = [
+        LeanRequest(
+            request_id=(
+                f"repr-{theorem.theorem_id.removeprefix('thm:')[:16]}-"
+                f"{NORMALIZATION_VERSION}-{view}"
+            ),
+            context_id=theorem.context_id,
+            code=_single_environment_signature_command(
+                imports,
+                theorem,
+                explicit=explicit,
+            ),
+            allow_sorry=theorem.inline_declaration,
+            timeout_seconds=300.0,
+        )
+        for theorem in theorems
+    ]
+    recovered: dict[str, str] = {}
+    for theorem, result in zip(
+        theorems, _run_representation_requests(backend, requests), strict=True
+    ):
+        if result.status not in (LeanStatus.VALID, LeanStatus.VALID_WITH_SORRY):
+            continue
+        expected_name = _expr_lookup_name(theorem)
+        selected_signature: str | None = None
+        saw_expected_or_malformed_payload = False
+        for message in result.messages:
+            for candidate in str(message.get("data", "")).splitlines():
+                if prefix not in candidate:
+                    continue
+                parsed_name, signature = parse_lfsignature_payload(
+                    candidate,
+                    prefix=prefix,
+                    field=field,
+                )
+                if parsed_name == expected_name:
+                    # Commands execute after inline source, so the last
+                    # matching payload is the authoritative helper outcome.
+                    # A later notfound/missing-field payload intentionally
+                    # clears an earlier source-authored spoof.
+                    selected_signature = signature
+                    saw_expected_or_malformed_payload = True
+                elif not parsed_name:
+                    # A truncated/malformed later helper payload cannot name
+                    # the theorem. Fail closed rather than retaining a prior
+                    # source-authored marker.
+                    selected_signature = None
+                    saw_expected_or_malformed_payload = True
+        if saw_expected_or_malformed_payload and selected_signature is not None:
+            recovered[theorem.theorem_id] = selected_signature
+    return recovered
+
+
+def _retry_tree_views(
     backend: LeanInteractBackend,
     theorems: list[TheoremForRepresentation],
     imports: str,
@@ -507,7 +636,7 @@ def _retry_expr_views(
                 f"repr-{theorem.theorem_id.removeprefix('thm:')[:16]}-{NORMALIZATION_VERSION}-expr"
             ),
             context_id=theorem.context_id,
-            code=_single_dump_command(imports, theorem),
+            code=_single_tree_command(imports, theorem),
             allow_sorry=theorem.inline_declaration,
             timeout_seconds=600.0,
         )
@@ -519,13 +648,22 @@ def _retry_expr_views(
     ):
         if result.status not in (LeanStatus.VALID, LeanStatus.VALID_WITH_SORRY):
             continue
-        _, _, tree = _parse_combined_result(
-            result,
-            theorem.full_name,
-            dump_name=_expr_lookup_name(theorem),
-        )
-        if tree is not None:
-            recovered[theorem.theorem_id] = tree
+        expected_name = _expr_lookup_name(theorem)
+        selected_tree: dict[str, Any] | None = None
+        saw_expected_or_malformed_payload = False
+        for message in result.messages:
+            for candidate in str(message.get("data", "")).splitlines():
+                if "LFTREEJSON " not in candidate:
+                    continue
+                parsed_name, tree = parse_lftree_payload(candidate)
+                if parsed_name == expected_name:
+                    selected_tree = tree
+                    saw_expected_or_malformed_payload = True
+                elif not parsed_name:
+                    selected_tree = None
+                    saw_expected_or_malformed_payload = True
+        if saw_expected_or_malformed_payload and selected_tree is not None:
+            recovered[theorem.theorem_id] = selected_tree
     return recovered
 
 
@@ -577,35 +715,34 @@ def build_representation_batch(
                 result,
                 theorem.full_name,
                 dump_name=_expr_lookup_name(theorem),
+                allow_environment_signatures=True,
             )
         parsed[theorem.theorem_id] = values
 
     missing_signature_pp = [
-        theorem
-        for theorem in theorems
-        if parsed[theorem.theorem_id][0] is None and not _requires_environment_only_lookup(theorem)
+        theorem for theorem in theorems if parsed[theorem.theorem_id][0] is None
     ]
     missing_signature_explicit = [
-        theorem
-        for theorem in theorems
-        if parsed[theorem.theorem_id][1] is None and not _requires_environment_only_lookup(theorem)
+        theorem for theorem in theorems if parsed[theorem.theorem_id][1] is None
     ]
-    missing_expr = [theorem for theorem in theorems if parsed[theorem.theorem_id][2] is None]
-    recovered_pp = _retry_check_views(
+    missing_tree_views = [theorem for theorem in theorems if parsed[theorem.theorem_id][2] is None]
+    recovered_pp = _retry_environment_signature_views(
         backend,
         missing_signature_pp,
         batch.import_header,
-        PP_SIGNATURE_INLINE,
-        "signature_pp",
+        explicit=False,
     )
-    recovered_explicit = _retry_check_views(
+    recovered_explicit = _retry_environment_signature_views(
         backend,
         missing_signature_explicit,
         batch.import_header,
-        PP_EXPLICIT_INLINE,
-        "signature_explicit",
+        explicit=True,
     )
-    recovered_expr = _retry_expr_views(backend, missing_expr, batch.import_header)
+    recovered_tree = _retry_tree_views(
+        backend,
+        missing_tree_views,
+        batch.import_header,
+    )
 
     records: list[RepresentationRecord] = []
     failures: list[RepresentationFailure] = []
@@ -613,7 +750,7 @@ def build_representation_batch(
         signature_pp, signature_explicit, tree = parsed[theorem.theorem_id]
         signature_pp = signature_pp or recovered_pp.get(theorem.theorem_id)
         signature_explicit = signature_explicit or recovered_explicit.get(theorem.theorem_id)
-        tree = tree or recovered_expr.get(theorem.theorem_id)
+        tree = tree or recovered_tree.get(theorem.theorem_id)
         record = _build_record(
             theorem,
             signature_pp,
@@ -624,15 +761,7 @@ def build_representation_batch(
         records.append(record)
         for view, status in record.view_status.items():
             if status == ViewStatus.FAILED:
-                if view in {"signature_pp", "signature_explicit"} and (
-                    _requires_environment_only_lookup(theorem)
-                ):
-                    detail = (
-                        "signature view is unavailable for a source-qualified "
-                        "private environment name"
-                    )
-                else:
-                    detail = "combined request and independent view retry did not recover view"
+                detail = "combined request and independent view retry did not recover view"
                 failures.append(
                     RepresentationFailure(
                         theorem_id=theorem.theorem_id,
@@ -718,8 +847,12 @@ def _build_record(
         alpha_identity_fingerprint=identity_fingerprint,
         view_status=view_status,
         option_profile={
-            "signature_pins": PP_SIGNATURE_INLINE,
-            "explicit_pins": PP_EXPLICIT_INLINE,
+            "signature_source": "ConstantInfo.type",
+            "signature_option_base": "Options.empty",
+            "signature_profile": "lfPpType(explicit=false,universes=false)",
+            "explicit_profile": "lfPpType(explicit=true,universes=true)",
+            "legacy_check_signature_pins": PP_SIGNATURE_INLINE,
+            "legacy_check_explicit_pins": PP_EXPLICIT_INLINE,
         },
         content_hash=representation_content_hash(views_full),
         created_at=created_at,

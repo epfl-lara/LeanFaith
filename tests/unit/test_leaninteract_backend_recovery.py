@@ -159,11 +159,17 @@ def _representation_fixture() -> tuple[str, TheoremForRepresentation]:
 
 def test_representation_combined_crash_retries_with_attempt_lineage() -> None:
     messages = (
-        {"severity": "info", "data": "@fixture : True"},
-        {"severity": "info", "data": "@fixture : True"},
         {
             "severity": "info",
-            "data": 'LFJSON {"name":"fixture","tree":{"k":"const","n":"True","us":"[]"}}',
+            "data": 'LFSIGPPJSON {"name":"fixture","signature_pp":"True"}',
+        },
+        {
+            "severity": "info",
+            "data": ('LFSIGEXPLICITJSON {"name":"fixture","signature_explicit":"True"}'),
+        },
+        {
+            "severity": "info",
+            "data": ('LFTREEJSON {"name":"fixture","tree":{"k":"const","n":"True","us":"[]"}}'),
         },
     )
 
@@ -196,13 +202,21 @@ def test_representation_combined_crash_retries_with_attempt_lineage() -> None:
 
 def test_representation_single_check_crash_retries_with_attempt_lineage() -> None:
     combined_messages = (
-        {"severity": "info", "data": "@fixture : True"},
         {
             "severity": "info",
-            "data": 'LFJSON {"name":"fixture","tree":{"k":"const","n":"True","us":"[]"}}',
+            "data": 'LFSIGPPJSON {"name":"fixture","signature_pp":"True"}',
+        },
+        {
+            "severity": "info",
+            "data": ('LFTREEJSON {"name":"fixture","tree":{"k":"const","n":"True","us":"[]"}}'),
         },
     )
-    explicit_messages = ({"severity": "info", "data": "@fixture : True"},)
+    explicit_messages = (
+        {
+            "severity": "info",
+            "data": ('LFSIGEXPLICITJSON {"name":"fixture","signature_explicit":"True"}'),
+        },
+    )
 
     class CheckCrashThenValidBackend:
         def __init__(self) -> None:

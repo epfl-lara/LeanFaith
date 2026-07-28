@@ -402,9 +402,9 @@ def test_gate3_audit_rejects_stale_normalization_version() -> None:
         source_by_theorem={theorem.theorem_id: "mathlib"},
     )
 
-    assert report["expected_normalization_version"] == "repr_v2"
+    assert report["expected_normalization_version"] == "repr_v3"
     assert report["normalization_version_errors"] == [
-        f"normalization version mismatch: {theorem.theorem_id}:repr_v1!=repr_v2"
+        f"normalization version mismatch: {theorem.theorem_id}:repr_v1!=repr_v3"
     ]
     assert not report["mechanical_pass"]
 

@@ -10,6 +10,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from leanfaith.representations.views import collapse_lean_whitespace
+
 ATOM_VERSION = "atoms_v1"
 
 #: Expr node kinds that contribute a substantive atom token (§13.6). Structural
@@ -87,21 +89,97 @@ def operator_tree(tree: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def parse_lfjson_line(line: str) -> tuple[str, dict[str, Any] | None]:
-    """Parse an ``LFJSON {"name":..., "tree":...|"notfound":true}`` emit line
-    into (name, tree-or-None). The name lives inside the JSON so names
-    containing spaces (guillemet identifiers) are unambiguous."""
+def parse_lfjson_payload(
+    line: str,
+) -> tuple[str, dict[str, Any] | None, str | None, str | None]:
+    """Parse one current or legacy ``LFJSON`` payload.
+
+    ``signature_pp`` and ``signature_explicit`` were added in ``repr_v3``.
+    Their absence remains valid for replaying historical ``repr_v2`` helper
+    output. The name lives inside the JSON so names containing spaces
+    (guillemet identifiers) are unambiguous.
+    """
     import json
 
     payload = line.split("LFJSON ", 1)[1] if "LFJSON " in line else line
     try:
         obj = json.loads(payload.strip())
     except json.JSONDecodeError:
-        return "", None
+        return "", None, None, None
     if not isinstance(obj, dict):
+        return "", None, None, None
+    name = str(obj.get("name", ""))
+    tree = obj.get("tree")
+    signature_pp = obj.get("signature_pp")
+    signature_explicit = obj.get("signature_explicit")
+    # Match ``parse_check_type``: Lean may pretty-print a long type over
+    # several lines, but representation signatures are stored in a canonical
+    # whitespace-collapsed form regardless of whether they came from
+    # ``#check`` or direct environment pretty-printing.
+    parsed_pp = collapse_lean_whitespace(signature_pp) if isinstance(signature_pp, str) else None
+    parsed_explicit = (
+        collapse_lean_whitespace(signature_explicit)
+        if isinstance(signature_explicit, str)
+        else None
+    )
+    if obj.get("notfound"):
+        return name, None, None, None
+    return (
+        name,
+        tree if isinstance(tree, dict) else None,
+        parsed_pp or None,
+        parsed_explicit or None,
+    )
+
+
+def _parse_prefixed_json(line: str, prefix: str) -> dict[str, Any] | None:
+    """Parse one helper-emitted, prefix-delimited compact JSON object."""
+
+    import json
+
+    payload = line.split(prefix, 1)[1] if prefix in line else line
+    try:
+        obj = json.loads(payload.strip())
+    except json.JSONDecodeError:
+        return None
+    return obj if isinstance(obj, dict) else None
+
+
+def parse_lfsignature_payload(
+    line: str,
+    *,
+    prefix: str,
+    field: str,
+) -> tuple[str, str | None]:
+    """Parse one independently emitted private-signature helper response."""
+
+    obj = _parse_prefixed_json(line, prefix)
+    if obj is None:
+        return "", None
+    name = str(obj.get("name", ""))
+    if obj.get("notfound"):
+        return name, None
+    signature = obj.get(field)
+    if not isinstance(signature, str):
+        return name, None
+    return name, collapse_lean_whitespace(signature) or None
+
+
+def parse_lftree_payload(line: str) -> tuple[str, dict[str, Any] | None]:
+    """Parse one independently emitted expression-tree helper response."""
+
+    obj = _parse_prefixed_json(line, "LFTREEJSON ")
+    if obj is None:
         return "", None
     name = str(obj.get("name", ""))
     tree = obj.get("tree")
     if obj.get("notfound") or not isinstance(tree, dict):
         return name, None
+    return name, tree
+
+
+def parse_lfjson_line(line: str) -> tuple[str, dict[str, Any] | None]:
+    """Parse an ``LFJSON`` line into the legacy ``(name, tree)`` API."""
+
+    name, tree, _signature_pp, _signature_explicit = parse_lfjson_payload(line)
     return name, tree

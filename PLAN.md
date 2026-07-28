@@ -2,7 +2,7 @@
 
 **Working title:** *LeanFaith: A Lightweight, Calibrated, and Reference-Aware Metric for Autoformalization Faithfulness*
 **Document purpose:** implementation specification for a coding agent and research roadmap for the project team  
-**Status:** Gates 0 (internal research only), 1, 2, 3, 4G, and the mechanical Gate 5G passed; the additive benchmark-signature and overlap freeze passed; LF-019 and LF-020 are complete; Gates 4A and 4B remain open; LF-021 completed 16 replay-verified scalable tranches (1,440 terminal invocations), yielding 299 compile-and-benchmark-clear members and 250 unique problem-aware eligible units; the production CSPRNG froze a 240-item, 31-stratum human prevalence frame and the reference-aware blinded two-annotator export is operationally materialized; LF-022 now has a fail-closed software foundation and one complete public-source Kimi/Qwen/GLM smoke with exact offline replay, but that smoke created no label, promotion, supervision, training, evaluation, or gate-credit record; Gate 5 remains open pending genuine human adjudication and Gates 6G/6 remain open pending admitted production collection and promotion; the hardened fail-closed training-data audit is `NOT_READY` with zero safe F1 labels, no production LF-022 SCI/open artifacts, no frozen training inventory, and zero of four gold products
+**Status:** Gates 0 (internal research only), 1, 2, historical Gate 3 (`repr_v2`), 4G, and the mechanical Gate 5G passed; current `repr_v3` still requires its fresh frozen 10,000-record Gate-3 audit/replay before scientific use; the additive benchmark-signature and overlap freeze passed; LF-019 and LF-020 are complete; Gates 4A and 4B remain open; LF-021 completed 16 replay-verified scalable tranches (1,440 terminal invocations), yielding 299 compile-and-benchmark-clear members and 250 unique problem-aware eligible units; the production CSPRNG froze a 240-item, 31-stratum human prevalence frame and the reference-aware blinded two-annotator export is operationally materialized; LF-022 now has a fail-closed software foundation and one complete public-source Kimi/Qwen/GLM smoke with exact offline replay, but that smoke created no label, promotion, supervision, training, evaluation, or gate-credit record; Gate 5 remains open pending genuine human adjudication and Gates 6G/6 remain open pending admitted production collection and promotion; the hardened fail-closed training-data audit is `NOT_READY` with zero safe F1 labels, no production LF-022 SCI/open artifacts, no frozen training inventory, and zero of four gold products
 **Revision:** 4.1
 **Last revised:** 2026-07-28
 **Canonical filename:** `PLAN.md`  
@@ -1566,18 +1566,34 @@ Deterministic under lock; no proof-body leakage; theorem/binder renaming invaria
 
 ### 13.4 Pretty-print options
 
-Audit and pin candidates such as:
+For `repr_v3`, both signature views are printed directly from the elaborated
+`ConstantInfo.type` under a fresh `Options.empty` map. This is the canonical
+path for public, private, and inline declarations. It prevents ambient core,
+Mathlib, or future extension `pp.*` options from changing representation
+bytes. Universe parameters are positionally renamed to `u_0`, `u_1`, ... before
+printing so the resulting proposition text can be re-elaborated by the
+symbolic-evidence aliases.
+
+The two view-specific overrides are equivalent to:
 
 ```lean
-set_option pp.explicit true
-set_option pp.universes true
 set_option pp.fullNames true
 set_option pp.proofs false
 set_option pp.proofs.withType false
 set_option pp.mvars false
+-- signature_pp:
+set_option pp.explicit false
+set_option pp.universes false
+-- signature_explicit:
+set_option pp.explicit true
+set_option pp.universes true
 ```
 
-The required `pp.explicit`, `pp.universes`, `pp.fullNames`, and `pp.proofs` options exist under the target toolchain but must still be smoke-tested. `pp.proofs=false` is default and may render proofs as `⋯`; this is expected. Probe `pp.proofs.withType` and `pp.mvars` as additional diagnostic candidates, not as justification to include proof payloads.
+Legacy `#check` recovery profiles explicitly pin all 75 core Lean-4.31
+`pp.*` options, but they are not authoritative representation producers
+because imported libraries may register additional options. `pp.proofs=false`
+may render proofs as `⋯`; this is expected and is never justification to
+include proof payloads.
 
 ### 13.5 Structural representation
 
@@ -1639,6 +1655,15 @@ exist, the parent process performs one LeanInteract-owned project/REPL
 preflight; chunk workers use the prepared environment with project and REPL
 rebuilding disabled. The setup mode is bound into chunk hashes and final
 manifests.
+
+Normalization-version evidence is immutable and version-specific. The closed
+`repr_v2` Gate-3 reports, configs, and artifacts remain historical evidence and
+must never be rewritten or relabeled as `repr_v3`. Before `repr_v3` records may
+be used as scientifically gate-validated inputs, the exact frozen 10,000-record
+denominator must be rebuilt under `repr_v3` and pass the complete Gate-3 audit
+and deterministic replay in new versioned artifacts. Focused tests and smoke
+runs may validate implementation behavior, but cannot substitute for that
+scale closure.
 
 Gate 3 also builds a non-model binder-normalized identity fingerprint from the
 elaborated expression: local binders use de-Bruijn-style identities; binder
@@ -3855,17 +3880,21 @@ sources:
 
 ```yaml
 representations:
-  normalization_version: repr_v2
+  normalization_version: repr_v3
   views: [raw_proof_stripped, headless, signature_pp, signature_explicit,
           alpha_structural, notation_light, semantic_atoms, operator_tree]
   pretty_options:
-    pp.all: false
-    pp.universes: true
-    pp.explicit: true
-    pp.fullNames: true
-    pp.proofs: false
-    pp.proofs.withType: false
-    pp.mvars: false
+    source: "ConstantInfo.type"
+    ambient_profile: "Options.empty; ambient core and extension pp.* values ignored"
+    universe_parameter_policy: "positionally canonicalize to u_0,u_1,..."
+    common:
+      pp.fullNames: true
+      pp.proofs: false
+      pp.proofs.withType: false
+      pp.mvars: false
+    signature_pp: {pp.universes: false, pp.explicit: false}
+    signature_explicit: {pp.universes: true, pp.explicit: true}
+    legacy_check_profile: "all 75 Lean-4.31 core pp.* options pinned; non-authoritative"
   note: "An ellipsis under pp.proofs=false is expected."
 evidence:
   sampling_policy: evidence_sampling_v1
