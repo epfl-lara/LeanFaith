@@ -8,7 +8,8 @@ annotation handoff:
 
 * an assignment is fixed before responses are created;
 * a trusted local operator authenticates the assignment with a private key;
-* a second authenticated record binds the exact backend response export; and
+* a second authenticated record binds the exact project-captured backend
+  response export; and
 * import verifies both records before it may describe a response as human.
 
 The authentication construction is domain-separated HMAC-SHA256 from the
@@ -189,7 +190,12 @@ def verify_human_assignment(
 
 
 class HumanSubmissionAttestationContentV1(StrictModel):
-    """Trusted binding of an assignment to one exact backend export."""
+    """Trusted binding of an assignment to one exact response-export snapshot.
+
+    ``backend_export_locked`` is the version-1 serialized spelling for a
+    project-owned immutable export artifact. It does not claim that the
+    mutable backend response row itself is locked.
+    """
 
     schema_version: Literal[1] = 1
     assignment_id: str = Field(pattern=_ASSIGNMENT_ID)

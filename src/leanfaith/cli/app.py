@@ -1525,7 +1525,10 @@ def attest_human_submission_command(
     ],
     response_path: Annotated[
         Path,
-        typer.Option("--responses", help="Mode-0600 exact locked backend export JSONL."),
+        typer.Option(
+            "--responses",
+            help="Mode-0600 exact frozen response-export snapshot JSONL.",
+        ),
     ],
     authentication_key_path: Annotated[
         Path,
@@ -1533,7 +1536,10 @@ def attest_human_submission_command(
     ],
     backend_export_id: Annotated[
         str,
-        typer.Option("--backend-export-id", help="Immutable backend export identifier."),
+        typer.Option(
+            "--backend-export-id",
+            help="Immutable project snapshot identifier for the backend response export.",
+        ),
     ],
     verifier_id: Annotated[
         str,
@@ -1561,7 +1567,10 @@ def attest_human_submission_command(
         bool,
         typer.Option(
             "--confirm-backend-export-locked",
-            help="Required explicit confirmation that the exact export is locked.",
+            help=(
+                "Required confirmation that the project-owned response-export snapshot "
+                "is frozen; this does not assert backend-row immutability."
+            ),
         ),
     ] = False,
     root_dir: Annotated[

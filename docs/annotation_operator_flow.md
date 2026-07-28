@@ -54,12 +54,13 @@ Registered production backend IDs are `argilla`, `label_studio`, and
 `streamlit_documented_fallback`. The assignment is authenticated and immutable.
 Create it before granting the annotator access to the response form.
 
-## 3. Export and normalize locked responses
+## 3. Export and freeze submitted-response snapshots
 
-Export the backend submission once, lock it in the backend, and project it to
-canonical `LockedAnnotationResponseEnvelopeV1` JSONL. The JSONL must be
-mode-0600, nonempty, newline terminated, and use canonical JSON on each line.
-Every row remains a raw vote.
+Export each submitted backend response once and project it to canonical
+`LockedAnnotationResponseEnvelopeV1` JSONL. The JSONL is the project-owned
+logical lock: it must be mode-0600, nonempty, newline terminated, immutable
+after capture, and use canonical JSON on each line. Argilla's submitted
+response object is not assumed to be immutable. Every row remains a raw vote.
 
 The backend adapter must preserve its immutable submission ID in
 `backend_submission_id`. It must not infer or add semantic outcomes.
@@ -67,8 +68,10 @@ The backend adapter must preserve its immutable submission ID in
 ## 4. Attest the exact export
 
 The trusted verifier checks that the assigned person produced the responses
-and that the backend export is locked. Both confirmations are deliberately
-required flags:
+and that the exact local export snapshot has been frozen. Both confirmations
+are deliberately required flags. The legacy flag spelling
+`--confirm-backend-export-locked` refers to that project-owned snapshot; it
+does not assert backend-row immutability:
 
 ```bash
 uv run leanfaith attest-human-submission \

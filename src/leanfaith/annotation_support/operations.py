@@ -277,12 +277,12 @@ def attest_human_submission(
     confirm_backend_export_locked: bool,
     output_path: Path,
 ) -> SubmissionAttestationRun:
-    """Bind an authenticated production assignment to one exact backend export."""
+    """Bind an authenticated assignment to one frozen response-export snapshot."""
 
     if not confirm_operator_human_origin_assertion or not confirm_backend_export_locked:
         raise AnnotationOperationError(
-            "operator must explicitly confirm its human-origin assertion and the locked "
-            "backend export"
+            "operator must explicitly confirm its human-origin assertion and the frozen "
+            "project export snapshot"
         )
     require_utc(attested_at)
     repo_root = repo_root.resolve(strict=True)

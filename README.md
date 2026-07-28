@@ -109,6 +109,16 @@ dataset probe (PLAN.md §9.2).
   become ready from manifest presence alone. See
   `reports/model_selection/training_data_readiness_v1.md`. Training must not
   begin until that audit authorizes it.
+- **Argilla integration validated, without claiming human labels:** the pinned
+  self-hosted Argilla 2.8 deployment passed a disposable live integration run
+  with two isolated annotator workspaces, direct peer-access denial, submitted
+  response identity checks, exact HTTP-byte retention, and a separate
+  adjudication workspace. The validator and production direct-fetch adapter
+  cannot create semantic labels, gold labels, or training records. Real expert
+  accounts, authenticated assignments, independent responses, adjudication,
+  and Gate 5 closure are still pending. Argilla dependencies use the isolated
+  lock under `annotation/platforms/argilla/`; the frozen root `uv.lock` remains
+  byte-identical for LF-021 replay.
 - **Qualified operationally, not scientifically:** LF-022 now has strict
   proposer/judge parsing, family separation, blinded swapped judging,
   candidate-only aggregation, and a complete public-source RCP smoke. The
@@ -117,7 +127,11 @@ dataset probe (PLAN.md §9.2).
   fail-closed attempts are preserved as terminal artifacts. Every resulting
   record is smoke-quarantined and contributes zero labels, training examples,
   evaluation examples, silver promotion, or gate credit. Gates 6G and 6 remain
-  open; see `reports/milestones/phase_6_llm_data.md`.
+  open. A new non-executable allocation planner can bind exact public-source
+  authorization, extraction, representation, benchmark-clearance, provider
+  deployment, and family-separation artifacts for later production scaling;
+  it authorizes no network call or label. See
+  `reports/milestones/phase_6_llm_data.md`.
 
 Stable gate-facing commands are available through `leanfaith`:
 
