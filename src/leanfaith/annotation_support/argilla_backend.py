@@ -22,6 +22,7 @@ import os
 import re
 import stat
 import uuid
+from contextlib import suppress
 from dataclasses import dataclass
 from pathlib import Path
 from typing import ClassVar, Literal, Protocol, Self
@@ -58,6 +59,20 @@ class ArgillaBackendPinV1(StrictModel):
     dataset_id: str = Field(pattern=_UUID)
     annotator_id: str = Field(pattern=_UUID)
     api_key_env: str = Field(pattern=r"^[A-Z][A-Z0-9_]*$")
+
+    @field_validator("schema_version", mode="before")
+    @classmethod
+    def _exact_schema_version(cls, value: object) -> object:
+        if type(value) is not int or value != 1:
+            raise ValueError("Argilla backend pin schema_version must be the JSON integer 1")
+        return value
+
+    @field_validator("self_hosted", mode="before")
+    @classmethod
+    def _exact_self_hosted(cls, value: object) -> object:
+        if value is not True:
+            raise ValueError("Argilla backend pin self_hosted must be the JSON boolean true")
+        return value
 
     @field_validator("endpoint")
     @classmethod
@@ -123,6 +138,13 @@ class ArgillaExpectedResponseV1(StrictModel):
     backend_record_id: str = Field(pattern=_UUID)
     backend_response_id: str = Field(pattern=_UUID)
     backend_submission_id: str = Field(pattern=_UUID)
+
+    @field_validator("schema_version", mode="before")
+    @classmethod
+    def _exact_schema_version(cls, value: object) -> object:
+        if type(value) is not int or value != 1:
+            raise ValueError("Argilla expected response schema_version must be the JSON integer 1")
+        return value
 
     @model_validator(mode="after")
     def _argilla_response_is_submission(self) -> Self:
@@ -609,7 +631,7 @@ def _validate_transport_result(
 
 
 def _absolute_without_resolve(path: Path) -> Path:
-    return path if path.is_absolute() else Path.cwd() / path
+    return Path(os.path.abspath(os.fspath(path)))
 
 
 def _reject_symlink_chain(path: Path) -> None:
@@ -627,22 +649,114 @@ def _reject_symlink_chain(path: Path) -> None:
         current = current.parent
 
 
+def _open_directory_chain(
+    path: Path,
+    *,
+    create: bool,
+    require_private_leaf: bool,
+) -> int:
+    """Open an absolute directory one component at a time without following links."""
+
+    absolute = _absolute_without_resolve(path)
+    components = absolute.parts[1:]
+    directory_flags = (
+        os.O_RDONLY
+        | getattr(os, "O_DIRECTORY", 0)
+        | getattr(os, "O_NOFOLLOW", 0)
+        | getattr(os, "O_CLOEXEC", 0)
+    )
+    try:
+        current = os.open("/", directory_flags)
+    except OSError as exc:  # pragma: no cover - a functioning POSIX process has a root
+        raise ArgillaBackendError("Argilla path root cannot be opened safely") from exc
+    try:
+        for component in components:
+            try:
+                child = os.open(component, directory_flags, dir_fd=current)
+            except FileNotFoundError:
+                if not create:
+                    raise
+                with suppress(FileExistsError):
+                    os.mkdir(component, mode=0o700, dir_fd=current)
+                child = os.open(component, directory_flags, dir_fd=current)
+            os.close(current)
+            current = child
+        metadata = os.fstat(current)
+        if not stat.S_ISDIR(metadata.st_mode):
+            raise ArgillaBackendError(f"Argilla path is not a directory: {absolute}")
+        if require_private_leaf and stat.S_IMODE(metadata.st_mode) & 0o077:
+            raise ArgillaBackendError(
+                f"existing Argilla output directory is not private: {absolute}"
+            )
+        return current
+    except OSError as exc:
+        os.close(current)
+        raise ArgillaBackendError(
+            f"Argilla directory path cannot be opened without following links: {absolute}"
+        ) from exc
+    except BaseException:
+        os.close(current)
+        raise
+
+
+def read_argilla_regular_file_nofollow(path: Path) -> tuple[Path, bytes]:
+    """Read one stable regular file through descriptor-relative path traversal."""
+
+    absolute = _absolute_without_resolve(path)
+    if not absolute.name:
+        raise ArgillaBackendError(f"Argilla artifact is not a file path: {absolute}")
+    try:
+        parent_descriptor = _open_directory_chain(
+            absolute.parent,
+            create=False,
+            require_private_leaf=False,
+        )
+    except ArgillaBackendError:
+        raise
+    flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_CLOEXEC", 0)
+    try:
+        descriptor = os.open(absolute.name, flags, dir_fd=parent_descriptor)
+    except OSError as exc:
+        os.close(parent_descriptor)
+        raise ArgillaBackendError(
+            f"Argilla artifact cannot be opened without following links: {absolute}"
+        ) from exc
+    os.close(parent_descriptor)
+    try:
+        opened = os.fstat(descriptor)
+        if not stat.S_ISREG(opened.st_mode):
+            raise ArgillaBackendError(f"Argilla artifact is not a regular file: {absolute}")
+        chunks: list[bytes] = []
+        while chunk := os.read(descriptor, 1024 * 1024):
+            chunks.append(chunk)
+        return absolute, b"".join(chunks)
+    finally:
+        os.close(descriptor)
+
+
 def _prepare_private_output_root(output_root: Path) -> Path:
     absolute = _absolute_without_resolve(output_root)
-    _reject_symlink_chain(absolute)
-    absolute.mkdir(parents=True, exist_ok=True, mode=0o700)
-    _reject_symlink_chain(absolute)
-    if not absolute.is_dir():
-        raise ArgillaBackendError(f"Argilla output root is not a directory: {absolute}")
-    os.chmod(absolute, 0o700, follow_symlinks=False)
+    try:
+        descriptor = _open_directory_chain(
+            absolute,
+            create=True,
+            require_private_leaf=True,
+        )
+    except ArgillaBackendError:
+        raise
+    os.close(descriptor)
     return absolute
 
 
-def _write_private_immutable(path: Path, payload: bytes) -> None:
-    _reject_symlink_chain(path.parent)
-    path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
-    _reject_symlink_chain(path.parent)
-    os.chmod(path.parent, 0o700, follow_symlinks=False)
+def write_argilla_private_immutable(path: Path, payload: bytes) -> None:
+    absolute = _absolute_without_resolve(path)
+    if not absolute.name:
+        raise ArgillaBackendError(f"Argilla artifact is not a file path: {absolute}")
+    parent_descriptor = _open_directory_chain(
+        absolute.parent,
+        create=True,
+        require_private_leaf=True,
+    )
     flags = (
         os.O_WRONLY
         | os.O_CREAT
@@ -651,24 +765,52 @@ def _write_private_immutable(path: Path, payload: bytes) -> None:
         | getattr(os, "O_CLOEXEC", 0)
     )
     try:
-        descriptor = os.open(path, flags, 0o600)
+        descriptor = os.open(absolute.name, flags, 0o600, dir_fd=parent_descriptor)
     except FileExistsError:
-        if path.is_symlink() or not path.is_file() or path.read_bytes() != payload:
-            raise ArgillaBackendError(f"immutable Argilla artifact differs: {path}") from None
-        if stat.S_IMODE(path.stat(follow_symlinks=False).st_mode) & 0o077:
+        try:
+            retained_descriptor = os.open(
+                absolute.name,
+                os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_CLOEXEC", 0),
+                dir_fd=parent_descriptor,
+            )
+        except OSError:
+            os.close(parent_descriptor)
+            raise ArgillaBackendError(f"immutable Argilla artifact differs: {absolute}") from None
+        try:
+            metadata = os.fstat(retained_descriptor)
+            if not stat.S_ISREG(metadata.st_mode):
+                raise ArgillaBackendError(f"immutable Argilla artifact differs: {absolute}")
+            chunks: list[bytes] = []
+            while chunk := os.read(retained_descriptor, 1024 * 1024):
+                chunks.append(chunk)
+        finally:
+            os.close(retained_descriptor)
+            os.close(parent_descriptor)
+        if b"".join(chunks) != payload:
+            raise ArgillaBackendError(f"immutable Argilla artifact differs: {absolute}") from None
+        if stat.S_IMODE(metadata.st_mode) & 0o077:
             raise ArgillaBackendError(
-                f"private Argilla artifact is not mode-0600: {path}"
+                f"private Argilla artifact is not mode-0600: {absolute}"
             ) from None
         return
+    except OSError as exc:
+        os.close(parent_descriptor)
+        raise ArgillaBackendError(
+            f"immutable Argilla artifact cannot be created: {absolute}"
+        ) from exc
     try:
+        opened = os.fstat(descriptor)
+        if not stat.S_ISREG(opened.st_mode) or stat.S_IMODE(opened.st_mode) & 0o077:
+            raise ArgillaBackendError(f"private Argilla artifact mode is unsafe: {absolute}")
         view = memoryview(payload)
         while view:
             written = os.write(descriptor, view)
             view = view[written:]
         os.fsync(descriptor)
+        os.fsync(parent_descriptor)
     finally:
         os.close(descriptor)
-    os.chmod(path, 0o600, follow_symlinks=False)
+        os.close(parent_descriptor)
 
 
 def _make_receipt(
@@ -781,8 +923,8 @@ def fetch_argilla_responses(
 
     unresolved_root = _absolute_without_resolve(output_root)
     _reject_symlink_chain(unresolved_root)
-    if unresolved_root.exists() and not unresolved_root.is_dir():
-        raise ArgillaBackendError(f"Argilla output root is not a directory: {unresolved_root}")
+    if unresolved_root.exists():
+        _prepare_private_output_root(unresolved_root)
     fetched: list[tuple[ArgillaExpectedResponseV1, ArgillaTransportResult]] = []
     for expected in expected_responses:
         result = transport.fetch_response(
@@ -819,7 +961,7 @@ def fetch_argilla_responses(
         dataset_filename = sha256_hex(pin.dataset_id.encode("utf-8"))
         dataset_relative = Path("raw") / "datasets" / f"{dataset_filename}.json"
         dataset_path = root / dataset_relative
-        _write_private_immutable(dataset_path, result.raw_dataset_payload)
+        write_argilla_private_immutable(dataset_path, result.raw_dataset_payload)
         raw_dataset_binding = ArtifactBinding(
             artifact=dataset_relative.as_posix(),
             sha256=sha256_hex(result.raw_dataset_payload),
@@ -827,7 +969,7 @@ def fetch_argilla_responses(
         record_filename = sha256_hex(expected.backend_response_id.encode("utf-8"))
         record_relative = Path("raw") / "records" / f"{record_filename}.json"
         record_path = root / record_relative
-        _write_private_immutable(record_path, result.raw_record_payload)
+        write_argilla_private_immutable(record_path, result.raw_record_payload)
         raw_record_binding = ArtifactBinding(
             artifact=record_relative.as_posix(),
             sha256=sha256_hex(result.raw_record_payload),
@@ -846,7 +988,7 @@ def fetch_argilla_responses(
         receipt_bytes = canonical_json_bytes(receipt.model_dump(mode="json")) + b"\n"
         if api_key.encode("utf-8") in receipt_bytes:
             raise ArgillaBackendError("Argilla API key entered receipt bytes")
-        _write_private_immutable(receipt_path, receipt_bytes)
+        write_argilla_private_immutable(receipt_path, receipt_bytes)
         receipts.append(receipt)
         receipt_paths.append(receipt_path)
         raw_dataset_paths.append(dataset_path)

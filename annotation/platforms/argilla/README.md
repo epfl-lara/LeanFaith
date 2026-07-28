@@ -85,3 +85,54 @@ docker compose \
 The integration validator deletes only the disposable Argilla users,
 workspaces, datasets, records, and responses it creates. It does not stop the
 Docker Compose deployment and its report states that explicitly.
+
+## Production backend-origin handoff
+
+Run production Argilla commands from this directory's pinned environment. The
+API key is accepted only through the environment-variable name stored in the
+backend pin; there is no CLI option that accepts an API-key value.
+
+Create the backend pin after the production workspace, dataset, and annotator
+UUIDs are known:
+
+```bash
+uv run --frozen --project annotation/platforms/argilla \
+  leanfaith write-argilla-backend-pin \
+  --endpoint https://argilla.example.internal \
+  --workspace-id <workspace-uuid> \
+  --dataset-id <dataset-uuid> \
+  --annotator-id <annotator-uuid> \
+  --api-key-env LF_ARGILLA_ANNOTATOR_1_API_KEY \
+  --output-dir annotation/argilla-backend-pins/annotator-1
+```
+
+The output filename is derived from the content-addressed pin ID. The file
+contains the environment-variable name, never its value, and is written mode
+0600.
+
+The direct-fetch command consumes a strict, label-free expected-response
+manifest bound to that exact `backend_pin_id`. Its `expected_responses` array
+contains only Argilla record, response, and submission UUIDs; the manifest
+also fixes `semantic_labels_included`, `human_gold_eligible`, and
+`training_eligible` to `false`.
+
+After exporting the named key into the process environment, capture the
+submitted backend snapshots with:
+
+```bash
+uv run --frozen --project annotation/platforms/argilla \
+  leanfaith capture-argilla-responses \
+  --pin annotation/argilla-backend-pins/annotator-1/<pin-hash>.json \
+  --expected-responses annotation/responses/annotator-1-expected.json \
+  --output-root annotation/responses/annotator-1-backend-origin
+```
+
+This command always uses the concrete production REST transport. It retains
+exact raw dataset and record response bytes plus backend-origin receipts. Its
+private content-addressed capture manifest binds exact copies of the backend
+pin and expected-response manifest to every ordered receipt and raw payload.
+The command rejects existing output directories that are accessible by group
+or other users instead of changing their permissions. Its status explicitly
+remains non-gold and non-training: a submitted Argilla
+snapshot is mutable, contains no project logical lock, and still requires
+separate operator integrity evidence and adjudication.

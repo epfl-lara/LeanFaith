@@ -7,11 +7,12 @@ Raw partitions are append-only; adapter fixes create new parsed partitions.
 from __future__ import annotations
 
 import datetime
+from pathlib import PurePosixPath
 from typing import Literal
 
 from pydantic import Field, model_validator
 
-from leanfaith.config.hashing import sha256_hex
+from leanfaith.config.hashing import hash_canonical, sha256_hex
 from leanfaith.config.models import StrictModel
 from leanfaith.schemas.enums import AccessStatus, NLTrust, SourceKind
 from leanfaith.schemas.ids import HEX64_PATTERN
@@ -20,6 +21,7 @@ from leanfaith.schemas.manifest import require_utc
 MetadataValue = str | int | float | bool | None
 
 HF_ROW_IDENTITY_VERSION = "hf-row:v1"
+GIT_DECLARATION_IDENTITY_VERSION = "git-declaration:v1"
 
 
 def make_hf_source_record_id(dataset_id: str, revision: str, split: str, row_index: int) -> str:
@@ -29,6 +31,47 @@ def make_hf_source_record_id(dataset_id: str, revision: str, split: str, row_ind
         raise ValueError("row_index must be nonnegative")
     payload = "\0".join((HF_ROW_IDENTITY_VERSION, dataset_id, revision, split, str(row_index)))
     return sha256_hex(payload.encode("utf-8"))
+
+
+def make_git_declaration_source_locator_id(
+    *,
+    source: str,
+    revision: str,
+    source_file: str,
+    declaration_full_name: str,
+) -> str:
+    """Stable content-independent locator for one declaration at a Git revision.
+
+    A repository file can contain many proposition declarations, so its path is
+    not sufficient as LF-022 source identity.  The fully qualified declaration
+    name is unique in a successful Lean environment.  Source ranges,
+    declaration ordinals, declaration kinds, and statement content are
+    deliberately excluded because they are extraction outputs rather than
+    immutable Git locations.
+    """
+
+    for field, value in (
+        ("source", source),
+        ("revision", revision),
+        ("source_file", source_file),
+        ("declaration_full_name", declaration_full_name),
+    ):
+        if not value or value != value.strip():
+            raise ValueError(f"{field} must be nonempty with no surrounding whitespace")
+    if len(revision) not in (40, 64) or any(char not in "0123456789abcdef" for char in revision):
+        raise ValueError("revision must be an immutable 40- or 64-character lowercase hex ID")
+    path = PurePosixPath(source_file)
+    if path.is_absolute() or ".." in path.parts or "\\" in source_file or str(path) != source_file:
+        raise ValueError("source_file must be a normalized repository-relative POSIX path")
+    return hash_canonical(
+        {
+            "identity_version": GIT_DECLARATION_IDENTITY_VERSION,
+            "source": source,
+            "revision": revision,
+            "source_file": source_file,
+            "declaration_full_name": declaration_full_name,
+        }
+    )
 
 
 class HFSourceRecordIdentity(StrictModel):

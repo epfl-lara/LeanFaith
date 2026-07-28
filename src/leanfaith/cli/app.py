@@ -1354,6 +1354,134 @@ def report_prevalence_command(
     )
 
 
+@app.command("write-argilla-backend-pin")
+def write_argilla_backend_pin_command(
+    endpoint: Annotated[
+        str,
+        typer.Option(
+            "--endpoint",
+            help="Pinned self-hosted HTTPS Argilla origin, without an API path.",
+        ),
+    ],
+    workspace_id: Annotated[
+        str,
+        typer.Option("--workspace-id", help="Pinned Argilla workspace UUID."),
+    ],
+    dataset_id: Annotated[
+        str,
+        typer.Option("--dataset-id", help="Pinned Argilla dataset UUID."),
+    ],
+    annotator_id: Annotated[
+        str,
+        typer.Option("--annotator-id", help="Pinned Argilla annotator UUID."),
+    ],
+    api_key_env: Annotated[
+        str,
+        typer.Option(
+            "--api-key-env",
+            help="Environment-variable name containing the API key; never the key itself.",
+        ),
+    ],
+    output_dir: Annotated[
+        Path,
+        typer.Option(
+            "--output-dir",
+            help="Private directory for the content-addressed backend pin.",
+        ),
+    ],
+    root_dir: Annotated[
+        Path | None,
+        typer.Option("--root", help="Repository root override."),
+    ] = None,
+) -> None:
+    """Write one content-addressed Argilla backend identity pin without a secret."""
+    from leanfaith.cli.argilla_operations import (
+        ArgillaCliInputError,
+        write_argilla_backend_pin,
+    )
+    from leanfaith.config.paths import RepoPaths
+
+    paths = RepoPaths.discover(root_dir) if root_dir is None else RepoPaths(root=root_dir)
+    anchored_output = output_dir if output_dir.is_absolute() else paths.root / output_dir
+    try:
+        result = write_argilla_backend_pin(
+            endpoint=endpoint,
+            workspace_id=workspace_id,
+            dataset_id=dataset_id,
+            annotator_id=annotator_id,
+            api_key_env=api_key_env,
+            output_dir=anchored_output,
+        )
+    except (ArgillaCliInputError, OSError, ValueError) as exc:
+        typer.echo(f"Argilla backend pin rejected: {exc}", err=True)
+        raise typer.Exit(code=2) from exc
+    typer.echo(
+        f"pin_id={result.pin.pin_id} path={result.path} sha256={result.sha256} "
+        "api_key_persisted=false semantic_labels_created=0 "
+        "human_gold_eligible=false training_eligible=0"
+    )
+
+
+@app.command("capture-argilla-responses")
+def capture_argilla_responses_command(
+    pin_path: Annotated[
+        Path,
+        typer.Option("--pin", help="Content-addressed Argilla backend pin JSON."),
+    ],
+    expected_manifest_path: Annotated[
+        Path,
+        typer.Option(
+            "--expected-responses",
+            help="Label-free expected-response identity manifest JSON.",
+        ),
+    ],
+    output_root: Annotated[
+        Path,
+        typer.Option(
+            "--output-root",
+            help="Private output root for exact payloads and backend-origin receipts.",
+        ),
+    ],
+    root_dir: Annotated[
+        Path | None,
+        typer.Option("--root", help="Repository root override."),
+    ] = None,
+) -> None:
+    """Capture exact submitted snapshots; do not create labels or training data."""
+    from leanfaith.annotation_support.argilla_backend import ArgillaBackendError
+    from leanfaith.cli.argilla_operations import (
+        ArgillaCliInputError,
+        capture_argilla_submitted_responses,
+    )
+    from leanfaith.config.paths import RepoPaths
+
+    paths = RepoPaths.discover(root_dir) if root_dir is None else RepoPaths(root=root_dir)
+
+    def anchored(path: Path) -> Path:
+        return path if path.is_absolute() else paths.root / path
+
+    try:
+        result = capture_argilla_submitted_responses(
+            pin_path=anchored(pin_path),
+            expected_manifest_path=anchored(expected_manifest_path),
+            output_root=anchored(output_root),
+        )
+    except (ArgillaBackendError, ArgillaCliInputError, OSError, ValueError) as exc:
+        typer.echo(f"Argilla response capture rejected: {exc}", err=True)
+        raise typer.Exit(code=2) from exc
+    typer.echo(
+        f"backend_origin_receipts={len(result.run.receipts)} "
+        f"output_root={result.output_root} "
+        f"pin_sha256={result.pin_sha256} "
+        f"expected_manifest_sha256={result.expected_manifest_sha256} "
+        f"capture_manifest_id={result.manifest.manifest_id} "
+        f"capture_manifest_path={result.manifest_path} "
+        "submitted_snapshot_only=true backend_immutability_verified=false "
+        "project_logical_lock_included=false semantic_labels_created=0 "
+        "gold_labels_created=0 human_gold_eligible=false training_eligible=0"
+    )
+
+
 @app.command("export-annotation")
 def export_annotation_command(
     frame_path: Annotated[

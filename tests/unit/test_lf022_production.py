@@ -21,6 +21,7 @@ from leanfaith.generation.lf022_production import (
     LF022ProviderDeployment,
     build_lf022_production_plan,
     canonical_model_family,
+    lf022_source_locator_id,
     load_lf022_production_plan,
     make_lf022_authorized_extraction_manifest,
     make_lf022_benchmark_registry_manifest,
@@ -118,7 +119,12 @@ def _context() -> ContextRecord:
     )
 
 
-def _theorem(index: int, context: ContextRecord) -> TheoremRecord:
+def _theorem(
+    index: int,
+    context: ContextRecord,
+    *,
+    include_dataset_style_locator: bool = True,
+) -> TheoremRecord:
     theorem_id = f"thm:{index + 1:064x}"
     ancestry_id = f"anc:{index + 1:064x}"
     statement = f"theorem public_fixture_{index} (n : Nat) : n = n"
@@ -132,7 +138,7 @@ def _theorem(index: int, context: ContextRecord) -> TheoremRecord:
         source_revision=REVISION,
         source_split="public_lf022_fixture",
         source_record=f"Mathlib/PublicFixture{index}.lean",
-        source_record_id=source_locator,
+        source_record_id=source_locator if include_dataset_style_locator else None,
         source_file=f"Mathlib/PublicFixture{index}.lean",
         context_id=context.context_id,
         declaration_kind="theorem",
@@ -197,10 +203,18 @@ def _fixture(
     *,
     count: int = 4,
     profile: str = "diagnostic_scaffold",
+    legacy_mathlib_records: bool = False,
 ) -> ProductionFixture:
     matrix = _matrix()
     context = _context()
-    theorems = tuple(_theorem(index, context) for index in range(count))
+    theorems = tuple(
+        _theorem(
+            index,
+            context,
+            include_dataset_style_locator=not legacy_mathlib_records,
+        )
+        for index in range(count)
+    )
     representations = tuple(
         _representation(index, theorem, context) for index, theorem in enumerate(theorems)
     )
@@ -215,12 +229,11 @@ def _fixture(
         source_revision=REVISION,
         members=tuple(
             LF022AuthorizedExtractionMember(
-                source_locator_id=theorem.source_record_id,
+                source_locator_id=lf022_source_locator_id(theorem),
                 theorem_id=theorem.theorem_id,
                 statement_content_hash=theorem.statement_content_hash,
             )
             for theorem in theorems
-            if theorem.source_record_id is not None
         ),
     )
     extraction_binding = _write_json(
@@ -271,12 +284,12 @@ def _fixture(
     clearances = []
     source_records = []
     for theorem, representation in zip(theorems, representations, strict=True):
-        assert theorem.source_record_id is not None
+        source_locator_id = lf022_source_locator_id(theorem)
         clearance = make_lf022_denylist_clearance_record(
             benchmark_manifest_id=benchmark_manifest.manifest_id,
             active_registry_file_sha256=active_registry_binding.sha256,
             active_registry_content_hash=denylist_index.registry_content_hash,
-            source_locator_id=theorem.source_record_id,
+            source_locator_id=source_locator_id,
             theorem_id=theorem.theorem_id,
             theorem_statement_content_hash=theorem.statement_content_hash,
             representation_id=representation.representation_id,
@@ -287,7 +300,7 @@ def _fixture(
         clearances.append(clearance)
         source_records.append(
             make_lf022_production_source_record(
-                source_locator_id=theorem.source_record_id,
+                source_locator_id=source_locator_id,
                 source=theorem.source,
                 source_revision=theorem.source_revision,
                 theorem_id=theorem.theorem_id,
@@ -390,6 +403,84 @@ def test_plan_is_deterministic_rotated_and_explicitly_non_executable(
         (("deepseek", "kimi_k2"), "qwen3"),
         (("deepseek", "qwen3"), "glm5"),
     ]
+
+
+def test_legacy_gate3_mathlib_theorems_without_source_record_id_are_admitted(
+    tmp_path: Path,
+) -> None:
+    fixture = _fixture(tmp_path, count=2, legacy_mathlib_records=True)
+    assert all(theorem.source_record_id is None for theorem in fixture.theorems)
+
+    plan = build_lf022_production_plan(
+        repo_root=fixture.root,
+        admission=fixture.admission,
+        family_matrix=fixture.matrix,
+    )
+
+    assert plan.unique_source_count == 2
+    assert {task.source_locator_id for task in plan.tasks} == {
+        lf022_source_locator_id(theorem) for theorem in fixture.theorems
+    }
+
+
+def test_git_declaration_locator_ignores_content_and_extraction_outputs() -> None:
+    theorem = _theorem(0, _context(), include_dataset_style_locator=False).model_copy(
+        update={"source_range": (20, 21), "declaration_ordinal": 17}
+    )
+    locator = lf022_source_locator_id(theorem)
+    changed_extraction = theorem.model_copy(
+        update={
+            "proof_stripped_declaration": "theorem changed (n : Nat) : n = n",
+            "statement_content_hash": "f" * 64,
+            "source_range": (200, 240),
+            "declaration_ordinal": 999,
+            "declaration_kind": "lemma",
+            "source_split": "changed_nonidentity_metadata",
+        }
+    )
+
+    assert lf022_source_locator_id(changed_extraction) == locator
+    assert changed_extraction.theorem_id == theorem.theorem_id
+    assert changed_extraction.ancestry_id == theorem.ancestry_id
+    assert (
+        lf022_source_locator_id(
+            theorem.model_copy(update={"source_file": "Mathlib/OtherFixture.lean"})
+        )
+        != locator
+    )
+    assert (
+        lf022_source_locator_id(
+            theorem.model_copy(update={"declaration_full_name": "LeanFaith.Public.other"})
+        )
+        != locator
+    )
+    assert (
+        lf022_source_locator_id(theorem.model_copy(update={"source_revision": "b" * 40})) != locator
+    )
+
+
+def test_dataset_source_record_locator_is_used_verbatim() -> None:
+    theorem = _theorem(0, _context())
+    assert theorem.source_record_id is not None
+    assert lf022_source_locator_id(theorem) == theorem.source_record_id
+
+
+@pytest.mark.parametrize(
+    "updates",
+    (
+        {"source_file": None},
+        {"declaration_full_name": None},
+        {"source_revision": "mutable-tag"},
+    ),
+)
+def test_git_declaration_locator_fails_closed_without_immutable_identity(
+    updates: dict[str, object],
+) -> None:
+    theorem = _theorem(0, _context(), include_dataset_style_locator=False).model_copy(
+        update=updates
+    )
+    with pytest.raises(LF022ProductionPlanError, match="stable source locator"):
+        lf022_source_locator_id(theorem)
 
 
 def test_plan_canonical_writer_and_loader_round_trip(tmp_path: Path) -> None:

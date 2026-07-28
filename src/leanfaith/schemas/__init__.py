@@ -103,8 +103,10 @@ from leanfaith.schemas.nl_lean import (
 from leanfaith.schemas.pair import PairRecord, check_pair_groups
 from leanfaith.schemas.prediction import PredictionRecord
 from leanfaith.schemas.source import (
+    GIT_DECLARATION_IDENTITY_VERSION,
     HFSourceRecordIdentity,
     SourceManifest,
+    make_git_declaration_source_locator_id,
     make_hf_source_record_id,
 )
 from leanfaith.schemas.theorem import (
@@ -140,6 +142,7 @@ __all__ = [
     "DRAFT_PREFIX",
     "ECODE_PATTERN",
     "EVIDENCE_PREFIX",
+    "GIT_DECLARATION_IDENTITY_VERSION",
     "HEX64_PATTERN",
     "LABEL_PREFIX",
     "LLM_ATTEMPT_PREFIX",
@@ -225,6 +228,7 @@ __all__ = [
     "id_pattern",
     "id_prefix",
     "is_valid_id",
+    "make_git_declaration_source_locator_id",
     "make_hf_source_record_id",
     "make_id",
     "make_llm_attempt_id",

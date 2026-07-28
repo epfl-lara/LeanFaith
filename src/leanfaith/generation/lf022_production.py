@@ -32,6 +32,7 @@ from leanfaith.schemas.ids import (
     id_pattern,
     make_id,
 )
+from leanfaith.schemas.source import make_git_declaration_source_locator_id
 from leanfaith.schemas.theorem import ContextRecord, RepresentationRecord, TheoremRecord
 
 LF022Distribution = Literal["G_sci", "G_open"]
@@ -59,6 +60,36 @@ _PROFILE_MINIMUM_SOURCES: dict[LF022PlanProfile, int] = {
 
 class LF022ProductionPlanError(ValueError):
     """An LF-022 allocation input failed a fail-closed admission check."""
+
+
+def lf022_source_locator_id(theorem: TheoremRecord) -> str:
+    """Return the stable source locator used by LF-022 authorization records.
+
+    Dataset adapters already provide a locator-only ``source_record_id``. Git
+    library extraction predates that field and identifies a declaration by its
+    immutable revision, repository-relative file, and fully qualified
+    declaration name. The fallback deliberately excludes statement content and
+    extraction-derived ranges/ordinals so later parser or normalization changes
+    do not change source identity.
+    """
+
+    if theorem.source_record_id is not None:
+        return theorem.source_record_id
+    if theorem.source_file is None or theorem.declaration_full_name is None:
+        raise LF022ProductionPlanError(
+            f"theorem lacks a stable source locator: {theorem.theorem_id}"
+        )
+    try:
+        return make_git_declaration_source_locator_id(
+            source=theorem.source,
+            revision=theorem.source_revision,
+            source_file=theorem.source_file,
+            declaration_full_name=theorem.declaration_full_name,
+        )
+    except ValueError as exc:
+        raise LF022ProductionPlanError(
+            f"theorem lacks a stable source locator: {theorem.theorem_id}: {exc}"
+        ) from exc
 
 
 def _repo_relative(value: str, *, field: str) -> str:
@@ -972,7 +1003,7 @@ def _validate_source_binding(
     active_registry_binding: LF022ArtifactBinding,
     denylist_index: DenylistIndex,
 ) -> None:
-    if theorem.source_record_id != source_record.source_locator_id:
+    if lf022_source_locator_id(theorem) != source_record.source_locator_id:
         raise LF022ProductionPlanError(
             f"theorem/source locator mismatch for {source_record.theorem_id}"
         )
@@ -1454,6 +1485,7 @@ __all__ = [
     "LF022PublicSourceAuthorizationRegistry",
     "build_lf022_production_plan",
     "canonical_model_family",
+    "lf022_source_locator_id",
     "load_lf022_production_plan",
     "make_lf022_authorized_extraction_manifest",
     "make_lf022_benchmark_registry_manifest",
