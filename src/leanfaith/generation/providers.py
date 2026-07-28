@@ -23,6 +23,7 @@ from leanfaith.config.hashing import (
     hash_canonical,
     hash_file,
     sha256_hex,
+    to_canonical,
 )
 from leanfaith.config.models import StrictModel
 from leanfaith.schemas.enums import (
@@ -898,6 +899,284 @@ def bridge_provider_result_to_llm_lineage(
     return ProviderLLMLineage(attempt=attempt, call=call)
 
 
+def verify_generic_llm_call_artifacts(
+    *,
+    call: LLMCallRecord,
+    expected_role: LLMRole,
+    expected_input_ids: tuple[str, ...],
+    private_source_content: bool,
+    denylist_checked: bool,
+    denylist_hits: tuple[str, ...],
+    artifact_root: Path,
+) -> ProviderRawResponse:
+    """Verify a completed proposer/judge call against immutable artifacts.
+
+    Autoformalizer calls retain the stronger ``ProblemPoolRecord``-bound
+    verifier above.  This role-generic verifier exists for LF-022 theorem and
+    pair tasks whose semantic input IDs are not problem-pool IDs.
+    """
+
+    if expected_role is LLMRole.AUTOFORMALIZER:
+        raise ProviderError("autoformalizer calls require verify_llm_call_artifacts")
+    if (
+        call.schema_version != 2
+        or call.role is not expected_role
+        or call.terminal_status is not LLMCallStatus.COMPLETED
+    ):
+        raise ProviderError(
+            "generic artifact verification requires a completed schema-v2 call "
+            "with the expected non-autoformalizer role"
+        )
+    required = {
+        "request_artifact": call.request_artifact,
+        "raw_output_artifact": call.raw_output_artifact,
+        "provider_request_hash": call.provider_request_hash,
+        "request_artifact_sha256": call.request_artifact_sha256,
+        "raw_response_sha256": call.raw_response_sha256,
+        "model_revision": call.model_revision,
+    }
+    missing = sorted(name for name, value in required.items() if value is None)
+    if missing:
+        raise ProviderError("completed call lacks artifact bindings: " + ", ".join(missing))
+    if call.input_ids != expected_input_ids:
+        raise ProviderError("call input IDs differ from the registered LF-022 task")
+    if (
+        call.private_source_content != private_source_content
+        or call.denylist_checked != denylist_checked
+        or call.denylist_hits != denylist_hits
+    ):
+        raise ProviderError("call privacy/denylist provenance differs")
+
+    assert call.request_artifact is not None
+    assert call.raw_output_artifact is not None
+    request_path = _resolve_repository_artifact(
+        call.request_artifact,
+        artifact_root=artifact_root,
+        field="request_artifact",
+    )
+    raw_path = _resolve_repository_artifact(
+        call.raw_output_artifact,
+        artifact_root=artifact_root,
+        field="raw_output_artifact",
+    )
+    request = load_provider_request(request_path)
+    response = _load_raw_response(raw_path)
+    _validate_response_binding(response, request)
+    if hash_file(request_path) != call.request_artifact_sha256:
+        raise ReplayArtifactError("request artifact SHA-256 differs from LLMCallRecord")
+    if hash_file(raw_path) != call.raw_response_sha256:
+        raise ReplayArtifactError("raw response SHA-256 differs from LLMCallRecord")
+    if request.request_hash != call.provider_request_hash:
+        raise ReplayArtifactError("provider request hash differs from LLMCallRecord")
+    expected_request_values = (
+        call.provider,
+        call.model,
+        call.model_revision,
+        call.prompt_template_hash,
+        call.prompt_render_hash,
+        call.decoding,
+        call.input_ids,
+        call.private_source_content,
+    )
+    observed_request_values = (
+        request.provider,
+        request.model,
+        request.revision,
+        request.prompt_template_hash,
+        request.prompt_render_hash,
+        request.decoding,
+        request.input_ids,
+        request.private_source_content,
+    )
+    if observed_request_values != expected_request_values:
+        raise ReplayArtifactError("persisted provider request differs from call payload")
+    if response.status != "success" or not response.output_text:
+        raise ReplayArtifactError("completed LF-022 call lacks a nonempty response")
+    return response
+
+
+def bridge_provider_result_to_generic_llm_lineage(
+    *,
+    request: ProviderRequest,
+    result: ProviderResult,
+    request_artifact_path: Path,
+    artifact_root: Path,
+    role: LLMRole,
+    provider_slot: str,
+    model_family: str,
+    prompt_template_id: str,
+    prompt_template_version: str,
+    execution_mode: LLMExecutionMode,
+    parse_status: ParseStatus,
+    parsed_output: Mapping[str, object] | None,
+    private_source_content: bool,
+    denylist_checked: bool,
+    denylist_hits: tuple[str, ...],
+    started_at: datetime.datetime,
+    completed_at: datetime.datetime,
+    supervision_eligible: bool,
+    metadata: Mapping[str, DecodingValue] | None = None,
+) -> ProviderLLMLineage:
+    """Create hash-bound schema-v2 lineage for one LF-022 proposer/judge call."""
+
+    if role is LLMRole.AUTOFORMALIZER:
+        raise ProviderError("autoformalizer calls require bridge_provider_result_to_llm_lineage")
+    if request.attempt_index != 0:
+        raise ProviderError("single-attempt generic lineage bridge requires attempt_index=0")
+    if request.private_source_content != private_source_content:
+        raise PrivateContentTransmissionError(
+            "registered private_source_content must match ProviderRequest"
+        )
+    if execution_mode == "external" and private_source_content:
+        raise PrivateContentTransmissionError(
+            "external LF-022 execution cannot contain private-source content"
+        )
+    if not denylist_checked or denylist_hits:
+        raise ProviderError("LF-022 calls require a completed denylist check with zero hits")
+    if role is LLMRole.PRIMARY_EVAL_JUDGE and supervision_eligible:
+        raise ProviderError("primary evaluation judge cannot be supervision eligible")
+
+    if parsed_output is not None:
+        canonical = to_canonical(parsed_output)
+        if not isinstance(canonical, dict):
+            raise ProviderError("parsed_output must be a canonical JSON object")
+        parsed_output_dict: dict[str, object] | None = dict(canonical)
+    else:
+        parsed_output_dict = None
+
+    persisted_request = load_provider_request(request_artifact_path)
+    if persisted_request != request:
+        raise ReplayArtifactError("persisted provider request differs from in-memory request")
+    request_artifact_sha256 = hash_file(request_artifact_path)
+    persisted_response = _load_raw_response(result.raw_response_path)
+    _validate_response_binding(persisted_response, request)
+    if persisted_response != result.response:
+        raise ReplayArtifactError("persisted raw response differs from ProviderResult")
+    if hash_file(result.raw_response_path) != result.raw_response_sha256:
+        raise ReplayArtifactError("ProviderResult raw_response_sha256 does not match artifact")
+
+    if result.response.status == "success":
+        output_text = result.response.output_text or ""
+        attempt_status = (
+            LLMAttemptStatus.RESPONSE_RECEIVED if output_text else LLMAttemptStatus.EMPTY_RESPONSE
+        )
+        terminal_status = (
+            LLMCallStatus.COMPLETED
+            if attempt_status is LLMAttemptStatus.RESPONSE_RECEIVED
+            else LLMCallStatus.EXHAUSTED
+        )
+        error_code = None
+        error_detail = None
+        retryable = attempt_status is LLMAttemptStatus.EMPTY_RESPONSE
+        if parse_status is ParseStatus.PARSED and parsed_output_dict is None:
+            raise ProviderError("parse_status=parsed requires parsed_output")
+        if parse_status is not ParseStatus.PARSED and parsed_output_dict is not None:
+            raise ProviderError("non-parsed provider result cannot carry parsed_output")
+        if not output_text and parse_status is not ParseStatus.EMPTY:
+            raise ProviderError("empty provider response requires parse_status=empty")
+    else:
+        attempt_status = LLMAttemptStatus.PROVIDER_ERROR
+        terminal_status = LLMCallStatus.EXHAUSTED
+        error_code = result.response.error_type or "provider_error"
+        error_detail = result.response.error_detail
+        retryable = False
+        if parse_status is not ParseStatus.EMPTY or parsed_output_dict is not None:
+            raise ProviderError("provider-error result requires empty parse state")
+
+    request_artifact = _repository_artifact(
+        request_artifact_path,
+        artifact_root=artifact_root,
+        field="request_artifact_path",
+    )
+    raw_response_artifact = _repository_artifact(
+        result.raw_response_path,
+        artifact_root=artifact_root,
+        field="raw_response_path",
+    )
+    metadata_dict = dict(metadata or {})
+    metadata_dict.update(
+        {
+            "provider_protocol": "provider_v1",
+            "provider_request_hash": request.request_hash,
+            "provider_attempt_id": request.attempt_id,
+            "request_artifact_sha256": request_artifact_sha256,
+            "raw_response_sha256": result.raw_response_sha256,
+        }
+    )
+    call_id = make_llm_call_id(
+        provider=request.provider,
+        provider_slot=provider_slot,
+        model=request.model,
+        model_family=model_family,
+        model_revision=request.revision,
+        role=role,
+        problem_record_id=None,
+        prompt_template_hash=request.prompt_template_hash,
+        prompt_render_hash=request.prompt_render_hash,
+        input_ids=request.input_ids,
+        decoding=request.decoding,
+    )
+    attempt_id = make_llm_attempt_id(call_id, request.attempt_index)
+    latency_ms = max(0, int((completed_at - started_at).total_seconds() * 1000))
+    attempt = LLMAttemptRecord(
+        attempt_id=attempt_id,
+        call_id=call_id,
+        attempt_index=request.attempt_index,
+        execution_mode=execution_mode,
+        started_at=started_at,
+        completed_at=completed_at,
+        request_artifact=request_artifact,
+        raw_response_artifact=raw_response_artifact,
+        status=attempt_status,
+        error_code=error_code,
+        error_detail=error_detail,
+        retryable=retryable,
+        latency_ms=latency_ms,
+        provider_request_hash=request.request_hash,
+        provider_attempt_id=request.attempt_id,
+        request_artifact_sha256=request_artifact_sha256,
+        raw_response_sha256=result.raw_response_sha256,
+        metadata=metadata_dict,
+    )
+    call = LLMCallRecord(
+        schema_version=2,
+        call_id=call_id,
+        provider=request.provider,
+        provider_slot=provider_slot,
+        model=request.model,
+        model_family=model_family,
+        role=role,
+        model_revision=request.revision,
+        request_date=started_at,
+        started_at=started_at,
+        completed_at=completed_at,
+        execution_mode=execution_mode,
+        prompt_template_id=prompt_template_id,
+        prompt_template_version=prompt_template_version,
+        prompt_template_hash=request.prompt_template_hash,
+        prompt_render_hash=request.prompt_render_hash,
+        request_artifact=request_artifact,
+        input_ids=request.input_ids,
+        decoding=request.decoding,
+        raw_output_artifact=raw_response_artifact,
+        parsed_output=parsed_output_dict,
+        parse_status=parse_status,
+        retry_count=0,
+        supervision_eligible=supervision_eligible,
+        private_source_content=private_source_content,
+        denylist_checked=denylist_checked,
+        denylist_hits=denylist_hits,
+        terminal_status=terminal_status,
+        attempt_ids=(attempt_id,),
+        latency_ms=latency_ms,
+        provider_request_hash=request.request_hash,
+        request_artifact_sha256=request_artifact_sha256,
+        raw_response_sha256=result.raw_response_sha256,
+        metadata=metadata_dict,
+    )
+    return ProviderLLMLineage(attempt=attempt, call=call)
+
+
 class DeterministicFixtureProvider:
     """Local deterministic provider that persists exact raw responses."""
 
@@ -995,10 +1274,12 @@ __all__ = [
     "RawResponseConflictError",
     "ReplayArtifactError",
     "ReplayProvider",
+    "bridge_provider_result_to_generic_llm_lineage",
     "bridge_provider_result_to_llm_lineage",
     "create_provider_request_for_problem",
     "load_provider_request",
     "persist_provider_raw_response",
     "persist_provider_request",
+    "verify_generic_llm_call_artifacts",
     "verify_llm_call_artifacts",
 ]

@@ -1,0 +1,65 @@
+protocol_version: llm_variants_v1
+status: foundation_ready_generation_not_admitted
+plan_sections: ["17.5", "17.7", "24.phase_6", "Appendix_D"]
+
+source_policy:
+  public_sources_only: true
+  private_sft_classic_transmission_forbidden: true
+  external_transmission_requires_explicit_source_permission: true
+  benchmark_denylist_clear_required: true
+
+prompt:
+  template_id: lean_variant
+  template_version: v1
+  path: prompts/proposers/lean_variant_v1.txt
+  sha256: 0f7b74aab06659e745980879cf9a13cdbcdd29927c1ddbb7ca47c6840e541f36
+  parser_id: strict_llm_variant_json_v1
+  strict_json_only: true
+  proof_free_declarations_only: true
+
+generation_distributions:
+  G_sci:
+    sci_conditioned: true
+    store_requested_and_validated_sci_separately: true
+  G_open:
+    sci_conditioned: false
+    open_ended_adversarial: true
+
+requested_strata:
+  - equivalent
+  - A_stronger
+  - B_stronger
+  - near_miss
+  - semantic_erasure
+  - minimal_edit
+
+validation:
+  persist_raw_before_parse: true
+  retain_parse_failures: true
+  reject_proof_bearing_candidates: true
+  reject_duplicate_normalized_candidates: true
+  elaboration_required_for_candidate_pool: true
+  failed_proof_search_is_negative: false
+  intention_is_label: false
+
+outputs:
+  provisional_variants: data/generated/llm/variants/
+  raw_calls: data/raw/llm_variants/
+  failures: data/generated/llm/failures/
+  semantic_labels_created: false
+  silver_promotion_enabled: false
+
+family_controls:
+  minimum_proposer_families_for_confirmatory_D4_D5: 3
+  maximum_one_family_fraction_of_G_sci_plus_G_open: 0.40
+  proposer_must_differ_from_sci_validator: true
+  unavailable_family_behavior: reduced_data_ablation
+
+admission:
+  live_calls_authorized: false
+  required_before_live_calls:
+    - separately_versioned_provider_admission
+    - exact_model_and_revision_pin
+    - public_source_transmission_check
+    - frozen_prompt_and_decoding
+    - immutable_raw_artifact_directory

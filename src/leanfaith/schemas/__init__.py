@@ -59,6 +59,7 @@ from leanfaith.schemas.ids import (
     REPRESENTATION_PREFIX,
     THEOREM_PREFIX,
     VARIANT_PREFIX,
+    WEAK_CONSENSUS_PREFIX,
     InvalidIdError,
     id_pattern,
     id_prefix,
@@ -124,6 +125,11 @@ from leanfaith.schemas.variant import (
     VariantRecord,
     check_deterministic_variant_lineage,
 )
+from leanfaith.schemas.weak_supervision import (
+    WeakConsensusCandidateRecord,
+    WeakConsensusStatus,
+    make_weak_consensus_id,
+)
 
 __all__ = [
     "ANCESTRY_PREFIX",
@@ -145,6 +151,7 @@ __all__ = [
     "REQUIRED_V0_VIEWS",
     "THEOREM_PREFIX",
     "VARIANT_PREFIX",
+    "WEAK_CONSENSUS_PREFIX",
     "AccessStatus",
     "AnnotationAnswer",
     "AnnotationRecord",
@@ -207,6 +214,8 @@ __all__ = [
     "VariantDraft",
     "VariantRecord",
     "ViewStatus",
+    "WeakConsensusCandidateRecord",
+    "WeakConsensusStatus",
     "check_deterministic_variant_lineage",
     "check_label_target_link",
     "check_llm_call_attempt_lineage",
@@ -221,6 +230,7 @@ __all__ = [
     "make_llm_attempt_id",
     "make_llm_call_id",
     "make_problem_record_id",
+    "make_weak_consensus_id",
     "manifest_hash",
     "new_run_id",
     "parse_id",

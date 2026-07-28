@@ -1,0 +1,144 @@
+schema_version: 1
+config_id: lf022_rcp_public_smoke_v3
+frozen_at: "2026-07-28T12:20:00Z"
+status: executable_one_public_item_only
+artifact_class: smoke
+
+# V3 is a new admission, not a retry of v2. V2 preserved a DeepSeek response
+# whose final field contained a non-JSON token inside a numeric value. V3 keeps
+# the successful Kimi settings and replaces only that judge family with a
+# catalog-pinned Qwen route suggested for this project.
+transport:
+  transport_id: epfl_rcp_openai_compatible_v1
+  base_url_env: RCP_BASE_URL
+  api_key_env: RCP_API_KEY
+  expected_base_url: https://inference.rcp.epfl.ch/v1
+  catalog_path: /models
+  chat_completions_path: /chat/completions
+  catalog_timeout_seconds: 60
+  request_timeout_seconds: 1200
+
+source:
+  problem_records:
+    artifact: data/parsed/real_outputs/public_research_v1/one_example_preflight_v1/problem_pool_records.jsonl
+    sha256: c8b0329b101269015d8e33cce6cb06d9c8b5dbb30a936f787a177f013fd4155c
+  reference_theorems:
+    artifact: data/parsed/real_outputs/public_research_v1/one_example_preflight_v1/reference_theorems.jsonl
+    sha256: a372fdb29ae0755db156f9f69e7cce435719c9656b0187d21a187ec91ce97663
+  reference_representations:
+    artifact: data/parsed/real_outputs/public_research_v1/one_example_preflight_v1/reference_representations.jsonl
+    sha256: b2fa3eeeb32423d7df4d0256f109e4608ec5631a44dbc50512314a2532f3768e
+  import_header:
+    artifact: examples/lf021_public_research_mathlib_header_v1.lean
+    sha256: 1015f8f4676a27ea63780b30cc916712232857097b2bdf635dc61cb949c107fb
+  expected_problem_record_id: problem:3f8bc3e9dc8bf7e7850557b75544d8d8ef892afcf0f8776012ebc5fa7af7a05b
+  expected_theorem_id: thm:eaf451e39ccaf0723e4cd5721e78a8d6a988eac904abe8aa6d752a8a3a462cbe
+  expected_representation_id: repr:4da02d3cc13764af8ba28328d94e85b32252448d127a225b2d350fbcc7f7f1dd
+  expected_source: mathlib_post_formalrx_docstrings_v1
+  expected_source_license: Apache-2.0
+
+prompts:
+  proposer:
+    artifact: prompts/proposers/lean_variant_v1.txt
+    sha256: 0f7b74aab06659e745980879cf9a13cdbcdd29927c1ddbb7ca47c6840e541f36
+    template_id: lean_variant
+    template_version: v1
+  judge:
+    artifact: prompts/judges/lean_pair_blinded_v1.txt
+    sha256: 6515abda33e18cc3a805f5ff8ec60029412e47e0e7b0852b71bef0659b912223
+    template_id: lean_pair_blinded
+    template_version: v1
+
+providers:
+  proposer:
+    provider_slot: proposer_kimi_rcp_public_smoke_v3
+    provider: epfl_rcp
+    model_id: moonshotai/Kimi-K2.7-Code
+    family_id: moonshot_kimi_k2
+    role: proposer
+    transport: rcp_openai_compatible
+    enabled_for_this_smoke: true
+    decoding:
+      temperature: 1.0
+      top_p: 0.95
+      max_tokens: 16384
+      seed: 42
+      stream: false
+      reasoning_effort: high
+      chat_template_enable_thinking: true
+  judge_A:
+    provider_slot: judge_A
+    provider: epfl_rcp
+    model_id: Qwen/Qwen3.5-397B-A17B
+    family_id: qwen_3_5
+    role: judge
+    transport: rcp_openai_compatible
+    enabled_for_this_smoke: true
+    decoding:
+      temperature: 0.0
+      top_p: 1.0
+      max_tokens: 8192
+      seed: 42
+      stream: false
+      reasoning_effort: high
+      chat_template_enable_thinking: true
+  judge_B:
+    provider_slot: judge_B
+    provider: epfl_rcp
+    model_id: zai-org/GLM-5.2
+    family_id: glm_5
+    role: judge
+    transport: rcp_openai_compatible
+    enabled_for_this_smoke: true
+    decoding:
+      temperature: 0.0
+      top_p: 1.0
+      max_tokens: 8192
+      seed: 42
+      stream: false
+      reasoning_effort: high
+      chat_template_enable_thinking: true
+  primary_eval_judge:
+    provider_slot: primary_eval_openai_codex_heldout_v1
+    provider: openai_codex
+    model_id: gpt-5.6-terra
+    family_id: openai_codex
+    role: primary_eval_judge
+    transport: codex_exec
+    enabled_for_this_smoke: false
+    decoding: null
+
+generation:
+  distribution: G_open
+  proposal_count: 1
+  requested_relations:
+    - near_miss
+  requested_error_types: []
+  requested_sci_categories: []
+
+budget:
+  catalog_get_max: 1
+  chat_completion_max: 5
+  proposer_calls: 1
+  judge_calls: 4
+  attempts_per_call: 1
+
+outputs:
+  raw_root: data/raw/llm_variants/lf022_rcp_public_smoke_v3
+  preflight_root: reports/generation/lf022_rcp_public_smoke_v3
+
+policy:
+  public_source_only: true
+  private_source_transmission_forbidden: true
+  sft_classic_transmission_forbidden: true
+  denylist_clearance_required: true
+  g_open_only: true
+  sci_conditioning_performed: false
+  semantic_labels_created: false
+  silver_records_created: false
+  training_eligible: false
+  evaluation_eligible: false
+  supervision_eligible: false
+  gate_credit_claimed: false
+  primary_eval_judge_called: false
+  execute_requires_explicit_flag: true

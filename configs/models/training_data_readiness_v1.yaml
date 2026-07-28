@@ -1,18 +1,36 @@
 policy_id: training_data_readiness_v1
 schema_version: 1
+artifact_class: production
+human_gold_admission_enabled: false
 
 inputs:
   prevalence_frame: reports/generation/lf021_post_exhaustion_frame_v1/frames/a07b352030a2c51fa51ebcabc00a3c1d1ecf2041318feabfe57a4c70fc365069.jsonl
   prevalence_human_labels: data/human/prevalence_frame/adjudicated_labels_v1.jsonl
   training_inventory: data/releases/v0/manifests/training_readiness_inventory_v1.jsonl
+  training_ambiguity_inventory: data/releases/v0/manifests/training_ambiguity_inventory_v1.jsonl
+  generator_holdout_manifest: data/releases/v0/manifests/generator_holdout_v1.json
   human_products:
     training_gold: data/human/training_gold/readiness_manifest_v1.json
     selection_gold: data/human/selection_gold/readiness_manifest_v1.json
     calibration_gold: data/human/calibration_gold/readiness_manifest_v1.json
     final_human_test: data/human/final_human_test/readiness_manifest_v1.json
   lf022_required_artifacts:
-    - data/generated/llm/G_sci/readiness_manifest_v1.json
-    - data/generated/llm/G_open/readiness_manifest_v1.json
+    G_sci: data/generated/llm/G_sci/readiness_manifest_v1.json
+    G_open: data/generated/llm/G_open/readiness_manifest_v1.json
+  lineage:
+    theorem_records: data/releases/v0/manifests/training_theorem_records_v1.jsonl
+    pair_records: data/releases/v0/manifests/training_pair_records_v1.jsonl
+    resolved_labels: data/releases/v0/manifests/training_resolved_labels_v1.jsonl
+    evidence_records: data/releases/v0/manifests/training_evidence_records_v1.jsonl
+    promotion_decisions: data/releases/v0/manifests/training_promotion_decisions_v1.jsonl
+    annotation_records: data/releases/v0/manifests/training_annotation_records_v1.jsonl
+    adjudication_records: data/releases/v0/manifests/training_adjudication_records_v1.jsonl
+    human_authentication_key: data/private/annotation/operator_authentication.key
+    allow_test_fixture_human_provenance: false
+    split_assignments: data/releases/v0/manifests/training_split_assignments_v1.jsonl
+    source_manifests:
+      - data/source_manifests/mathlib.json
+      - data/source_manifests/sft_classic.json
 
 prevalence:
   minimum_frame_items: 200
@@ -31,6 +49,19 @@ selection_gold_minimum_groups:
   faithful: 100
   unfaithful: 100
   per_included_relation_class: 50
+
+d5:
+  training_gold_required: true
+  human_gold_loss_weight: 2.0
+  ancestry_oversampling: false
+
+statistical_adequacy:
+  calibration_gold_minimum_groups: 200
+  final_human_test_minimum_groups: 500
+  calibration_required_claim: H4_Gate10
+  final_required_claim: main_task_aggregate_95_precision
+  calibration_design_method: calibration_gold_kfold_selective_risk_v1
+  final_design_method: final_human_test_group_precision_v1
 
 negative_arms:
   D0: {G_rule: 1.0}
@@ -59,7 +90,8 @@ label_policy:
     - certified_conservative_transformation
     - human_promoted_transformation
     - human_promoted_llm_variant
-    - trusted_human_dataset_label
+    - promoted_independent_consensus
+    - accepted_kernel_separator
   forbidden_label_bases:
     - compilation
     - type_correct_mutation

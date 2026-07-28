@@ -1,0 +1,62 @@
+protocol_version: weak_supervision_v1
+status: foundation_ready_judging_not_admitted
+plan_sections: ["17.7", "17.8", "17.9", "23.10", "24.phase_6", "Appendix_E"]
+
+prompt:
+  template_id: lean_pair_blinded
+  template_version: v1
+  path: prompts/judges/lean_pair_blinded_v1.txt
+  sha256: 6515abda33e18cc3a805f5ff8ec60029412e47e0e7b0852b71bef0659b912223
+  parser_id: strict_blinded_judgment_json_v1
+  strict_json_only: true
+
+blinding:
+  hide_proposer_family: true
+  hide_generation_intention: true
+  hide_gold_and_silver_labels: true
+  hide_symbolic_evidence_by_default: true
+  hide_other_judge_votes: true
+  require_forward_and_swapped_copy: true
+  randomize_dispatch_order: true
+
+family_controls:
+  require_two_distinct_weak_judge_families: true
+  judge_must_differ_from_item_proposer: true
+  primary_eval_judge_supervision_excluded: true
+  primary_eval_judge_family: null
+  judge_A_family: null
+  judge_B_family: null
+
+aggregation:
+  retain_disagreement: true
+  disagreement_route: human_adjudication
+  uncertain_route: human_adjudication
+  ambiguous_route: human_adjudication
+  exact_swapped_semantic_agreement_required: true
+  exact_cross_family_semantic_agreement_required: true
+  output_record: WeakConsensusCandidateRecordV1
+  output_quality_tier: provisional
+  automatic_silver_promotion: false
+
+promotion:
+  gate_6_generation_only: true
+  human_pilot_required_before_promotion: true
+  capped_audit_required: true
+  swapped_agreement_minimum: 0.90
+  final_tier_after_policy_only: silver_consensus
+
+outputs:
+  raw_calls: data/raw/judgments/
+  judgment_evidence: data/generated/llm/judgment_evidence/
+  weak_consensus_candidates: data/generated/llm/weak_consensus_candidates/
+  promoted_silver: data/labels/silver/
+  promoted_silver_write_enabled: false
+
+admission:
+  live_calls_authorized: false
+  required_before_live_calls:
+    - separately_versioned_judge_admission
+    - exact_model_and_revision_pins
+    - frozen_judge_x_supervision_matrix
+    - primary_eval_family_exclusion_check
+    - immutable_raw_artifact_directory

@@ -90,17 +90,34 @@ dataset probe (PLAN.md §9.2).
   and Gate 5 remains open pending genuine human adjudication. See
   `reports/generation_coverage.md` and
   `reports/milestones/phase_5_real_outputs.md`.
-- **Ready for human annotation, not model training:** the exact 240-item frame
+- **Annotation bundles ready; authenticated human assignment still pending,
+  not model training:** the exact 240-item frame
   has two independently randomized, reference-aware blinded bundles generated
   under the ignored `annotation/exports/lf021_prevalence_v1/` operational
   directory. The tracked codebook, template, and exporter show annotators only
   the natural-language claim plus proof-free reference Lean A and candidate
   Lean B views; private linkage and randomization keys are not committed.
+  Production response import additionally requires a mode-0600,
+  HMAC-authenticated pre-response assignment and an authenticated attestation
+  binding the exact locked backend export. Test fixtures are explicitly
+  non-human, non-gold, and non-training; a self-authored response file alone is
+  rejected.
   The fail-closed readiness audit reports `NOT_READY`: there are currently zero
-  human terminal labels, no LF-022 SCI/open data, no frozen training inventory,
-  and none of the four purpose-restricted gold products. See
+  human terminal labels, no promoted production LF-022 SCI/open data, no frozen
+  training inventory, and none of the four purpose-restricted gold products.
+  The audit now verifies full label/evidence/promotion/source lineage and cannot
+  become ready from manifest presence alone. See
   `reports/model_selection/training_data_readiness_v1.md`. Training must not
   begin until that audit authorizes it.
+- **Qualified operationally, not scientifically:** LF-022 now has strict
+  proposer/judge parsing, family separation, blinded swapped judging,
+  candidate-only aggregation, and a complete public-source RCP smoke. The
+  successful lineage used Kimi-K2.7-Code, Qwen3.5-397B, and GLM-5.2 for exactly
+  five calls and replays offline. Two preceding, separately versioned
+  fail-closed attempts are preserved as terminal artifacts. Every resulting
+  record is smoke-quarantined and contributes zero labels, training examples,
+  evaluation examples, silver promotion, or gate credit. Gates 6G and 6 remain
+  open; see `reports/milestones/phase_6_llm_data.md`.
 
 Stable gate-facing commands are available through `leanfaith`:
 
@@ -130,6 +147,13 @@ uv run leanfaith collect-evidence --help
 uv run leanfaith collect-real-outputs --validate-foundation
 uv run leanfaith collect-real-outputs --run-offline-smoke
 uv run leanfaith export-annotation --help
+uv run leanfaith create-human-assignment --help
+uv run leanfaith attest-human-submission --help
+uv run leanfaith import-annotation --help
+uv run leanfaith write-annotation-agreement --help
+uv run leanfaith write-adjudication-queue --help
+uv run leanfaith validate-lf022 --help
+uv run leanfaith lf022-rcp-smoke --help
 uv run leanfaith audit-training-readiness --report-only
 ```
 

@@ -1428,6 +1428,599 @@ def export_annotation_command(
     )
 
 
+@app.command("create-human-assignment")
+def create_human_assignment_command(
+    public_bundle_manifest_path: Annotated[
+        Path,
+        typer.Option("--bundle-manifest", help="Public manifest for one blinded slot."),
+    ],
+    private_linkage_manifest_path: Annotated[
+        Path,
+        typer.Option(
+            "--private-linkage-manifest",
+            help="Mode-0600 private linkage manifest from export-annotation.",
+        ),
+    ],
+    authentication_key_path: Annotated[
+        Path,
+        typer.Option("--authentication-key", help="Mode-0600 LF-023 HMAC key."),
+    ],
+    round_id: Annotated[str, typer.Option("--round-id", help="Frozen annotation round ID.")],
+    annotator_slot: Annotated[
+        str,
+        typer.Option("--annotator-slot", help="One registered independent annotator slot."),
+    ],
+    annotator_id: Annotated[
+        str,
+        typer.Option("--annotator-id", help="Pseudonymous annotator identifier."),
+    ],
+    annotator_principal_hash: Annotated[
+        str,
+        typer.Option(
+            "--annotator-principal-hash",
+            help=(
+                "Operator-declared pseudonymous principal hash used to check stated "
+                "annotator independence; the HMAC does not prove identity."
+            ),
+        ),
+    ],
+    backend_id: Annotated[
+        str,
+        typer.Option(
+            "--backend-id",
+            help="Registered backend: argilla, label_studio, or documented Streamlit fallback.",
+        ),
+    ],
+    assigned_at: Annotated[
+        str,
+        typer.Option("--assigned-at", help="Explicit ISO-8601 UTC assignment timestamp."),
+    ],
+    output_path: Annotated[
+        Path,
+        typer.Option("--output", help="New mode-0600 immutable assignment JSON."),
+    ],
+    root_dir: Annotated[
+        Path | None,
+        typer.Option("--root", help="Repository root override."),
+    ] = None,
+) -> None:
+    """Authenticate one assignment before the human can create responses."""
+    from leanfaith.annotation_support import AnnotationImportError, AnnotationOperationError
+    from leanfaith.cli.annotation_operations import run_create_human_assignment
+    from leanfaith.config.paths import RepoPaths
+
+    paths = RepoPaths.discover(root_dir) if root_dir is None else RepoPaths(root=root_dir)
+
+    def anchored(path: Path) -> Path:
+        return path if path.is_absolute() else paths.root / path
+
+    try:
+        result = run_create_human_assignment(
+            paths=paths,
+            public_bundle_manifest_path=anchored(public_bundle_manifest_path),
+            private_linkage_manifest_path=anchored(private_linkage_manifest_path),
+            authentication_key_path=anchored(authentication_key_path),
+            round_id=round_id,
+            annotator_slot=annotator_slot,
+            annotator_id=annotator_id,
+            annotator_principal_hash=annotator_principal_hash,
+            backend_id=backend_id,
+            assigned_at=assigned_at,
+            output_path=anchored(output_path),
+        )
+    except (AnnotationImportError, AnnotationOperationError, OSError, ValueError) as exc:
+        typer.echo(f"Human assignment rejected: {exc}", err=True)
+        raise typer.Exit(code=2) from exc
+    typer.echo(
+        f"assignment_id={result.assignment.assignment_id} path={result.path} "
+        "response_not_yet_observed=true semantic_labels_created=0"
+    )
+
+
+@app.command("attest-human-submission")
+def attest_human_submission_command(
+    human_assignment_path: Annotated[
+        Path,
+        typer.Option("--human-assignment", help="Authenticated pre-response assignment."),
+    ],
+    response_path: Annotated[
+        Path,
+        typer.Option("--responses", help="Mode-0600 exact locked backend export JSONL."),
+    ],
+    authentication_key_path: Annotated[
+        Path,
+        typer.Option("--authentication-key", help="Mode-0600 LF-023 HMAC key."),
+    ],
+    backend_export_id: Annotated[
+        str,
+        typer.Option("--backend-export-id", help="Immutable backend export identifier."),
+    ],
+    verifier_id: Annotated[
+        str,
+        typer.Option("--verifier-id", help="Trusted operator/verifier identifier."),
+    ],
+    attested_at: Annotated[
+        str,
+        typer.Option("--attested-at", help="Explicit ISO-8601 UTC attestation timestamp."),
+    ],
+    output_path: Annotated[
+        Path,
+        typer.Option("--output", help="New mode-0600 immutable attestation JSON."),
+    ],
+    confirm_operator_human_origin_assertion: Annotated[
+        bool,
+        typer.Option(
+            "--confirm-operator-assertion",
+            help=(
+                "Required operator assertion about human origin; HMAC authenticates "
+                "the assertion but does not independently prove it."
+            ),
+        ),
+    ] = False,
+    confirm_backend_export_locked: Annotated[
+        bool,
+        typer.Option(
+            "--confirm-backend-export-locked",
+            help="Required explicit confirmation that the exact export is locked.",
+        ),
+    ] = False,
+    root_dir: Annotated[
+        Path | None,
+        typer.Option("--root", help="Repository root override."),
+    ] = None,
+) -> None:
+    """Operator-attest one exact response export; create no semantic label."""
+    from leanfaith.annotation_support import AnnotationImportError, AnnotationOperationError
+    from leanfaith.cli.annotation_operations import run_attest_human_submission
+    from leanfaith.config.paths import RepoPaths
+
+    paths = RepoPaths.discover(root_dir) if root_dir is None else RepoPaths(root=root_dir)
+
+    def anchored(path: Path) -> Path:
+        return path if path.is_absolute() else paths.root / path
+
+    try:
+        result = run_attest_human_submission(
+            paths=paths,
+            human_assignment_path=anchored(human_assignment_path),
+            response_path=anchored(response_path),
+            authentication_key_path=anchored(authentication_key_path),
+            backend_export_id=backend_export_id,
+            verifier_id=verifier_id,
+            attested_at=attested_at,
+            confirm_operator_human_origin_assertion=(confirm_operator_human_origin_assertion),
+            confirm_backend_export_locked=confirm_backend_export_locked,
+            output_path=anchored(output_path),
+        )
+    except (AnnotationImportError, AnnotationOperationError, OSError, ValueError) as exc:
+        typer.echo(f"Human submission attestation rejected: {exc}", err=True)
+        raise typer.Exit(code=2) from exc
+    typer.echo(
+        f"attestation_id={result.attestation.attestation_id} path={result.path} "
+        "origin_assurance=operator_attested operator_attestation_verified=true "
+        "backend_origin_verified=false human_gold_eligible=false semantic_labels_created=0"
+    )
+
+
+@app.command("import-annotation")
+def import_annotation_command(
+    public_bundle_manifest_path: Annotated[
+        Path,
+        typer.Option(
+            "--bundle-manifest",
+            help="Public blinded-bundle manifest for exactly one annotator slot.",
+        ),
+    ],
+    private_linkage_manifest_path: Annotated[
+        Path,
+        typer.Option(
+            "--private-linkage-manifest",
+            help="Mode-0600 private linkage manifest created by export-annotation.",
+        ),
+    ],
+    human_assignment_path: Annotated[
+        Path,
+        typer.Option(
+            "--human-assignment",
+            help="Mode-0600 authenticated assignment fixed before human responses.",
+        ),
+    ],
+    human_submission_attestation_path: Annotated[
+        Path,
+        typer.Option(
+            "--human-submission-attestation",
+            help="Mode-0600 authenticated attestation binding the exact response export.",
+        ),
+    ],
+    authentication_key_path: Annotated[
+        Path,
+        typer.Option(
+            "--authentication-key",
+            help="Mode-0600 private LF-023 HMAC key; never committed.",
+        ),
+    ],
+    response_path: Annotated[
+        Path,
+        typer.Option(
+            "--responses",
+            help="Mode-0600 canonical JSONL of locked annotation responses.",
+        ),
+    ],
+    output_root: Annotated[
+        Path | None,
+        typer.Option(
+            "--output-root",
+            help="Private import root; defaults under ignored data/human/pilot_raw/.",
+        ),
+    ] = None,
+    root_dir: Annotated[
+        Path | None,
+        typer.Option("--root", help="Repository root override."),
+    ] = None,
+) -> None:
+    """Import one locked blinded response set without adjudicating or promoting it."""
+    from leanfaith.annotation_support import AnnotationImportError
+    from leanfaith.cli.import_annotation import run_import_annotation
+    from leanfaith.config.paths import RepoPaths
+
+    paths = RepoPaths.discover(root_dir) if root_dir is None else RepoPaths(root=root_dir)
+
+    def anchored(path: Path | None) -> Path | None:
+        if path is None or path.is_absolute():
+            return path
+        return paths.root / path
+
+    try:
+        result = run_import_annotation(
+            paths=paths,
+            public_bundle_manifest_path=anchored(public_bundle_manifest_path)
+            or public_bundle_manifest_path,
+            private_linkage_manifest_path=anchored(private_linkage_manifest_path)
+            or private_linkage_manifest_path,
+            human_assignment_path=anchored(human_assignment_path) or human_assignment_path,
+            human_submission_attestation_path=anchored(human_submission_attestation_path)
+            or human_submission_attestation_path,
+            authentication_key_path=anchored(authentication_key_path) or authentication_key_path,
+            response_path=anchored(response_path) or response_path,
+            output_root=anchored(output_root),
+        )
+    except (AnnotationImportError, OSError, ValueError) as exc:
+        typer.echo(f"Annotation import rejected: {exc}", err=True)
+        raise typer.Exit(code=2) from exc
+
+    typer.echo(
+        f"slot={result.manifest.annotator_slot} "
+        f"responses={result.manifest.response_count}/240 "
+        f"complete={str(result.manifest.complete).lower()} "
+        f"manifest={result.manifest_path} "
+        "adjudications_created=0 promoted_labels_created=0 gate_5_closed=false"
+    )
+
+
+@app.command("write-annotation-agreement")
+def write_annotation_agreement_command(
+    first_import_manifest_path: Annotated[
+        Path,
+        typer.Option("--first-import-manifest", help="First authenticated import manifest."),
+    ],
+    second_import_manifest_path: Annotated[
+        Path,
+        typer.Option("--second-import-manifest", help="Second authenticated import manifest."),
+    ],
+    authentication_key_path: Annotated[
+        Path,
+        typer.Option("--authentication-key", help="Mode-0600 LF-023 HMAC key."),
+    ],
+    output_path: Annotated[
+        Path,
+        typer.Option("--output", help="New mode-0600 immutable agreement artifact."),
+    ],
+    root_dir: Annotated[
+        Path | None,
+        typer.Option("--root", help="Repository root override."),
+    ] = None,
+) -> None:
+    """Reauthenticate two complete raw imports and write agreement statistics."""
+    from leanfaith.annotation_support import (
+        AnnotationAgreementError,
+        AnnotationImportError,
+        AnnotationOperationError,
+    )
+    from leanfaith.cli.annotation_operations import run_write_annotation_agreement
+    from leanfaith.config.paths import RepoPaths
+
+    paths = RepoPaths.discover(root_dir) if root_dir is None else RepoPaths(root=root_dir)
+
+    def anchored(path: Path) -> Path:
+        return path if path.is_absolute() else paths.root / path
+
+    try:
+        result = run_write_annotation_agreement(
+            paths=paths,
+            first_import_manifest_path=anchored(first_import_manifest_path),
+            second_import_manifest_path=anchored(second_import_manifest_path),
+            authentication_key_path=anchored(authentication_key_path),
+            output_path=anchored(output_path),
+        )
+    except (
+        AnnotationAgreementError,
+        AnnotationImportError,
+        AnnotationOperationError,
+        OSError,
+        ValueError,
+    ) as exc:
+        typer.echo(f"Annotation agreement rejected: {exc}", err=True)
+        raise typer.Exit(code=2) from exc
+    typer.echo(
+        f"report_id={result.artifact.report.report_id} path={result.path} "
+        "raw_annotations_only=true resolved_labels_created=0"
+    )
+
+
+@app.command("write-adjudication-queue")
+def write_adjudication_queue_command(
+    first_import_manifest_path: Annotated[
+        Path,
+        typer.Option("--first-import-manifest", help="First authenticated import manifest."),
+    ],
+    second_import_manifest_path: Annotated[
+        Path,
+        typer.Option("--second-import-manifest", help="Second authenticated import manifest."),
+    ],
+    authentication_key_path: Annotated[
+        Path,
+        typer.Option("--authentication-key", help="Mode-0600 LF-023 HMAC key."),
+    ],
+    output_path: Annotated[
+        Path,
+        typer.Option("--output", help="New mode-0600 immutable routing artifact."),
+    ],
+    policy_trigger_set_path: Annotated[
+        Path | None,
+        typer.Option(
+            "--policy-trigger-set",
+            help="Optional mode-0600 canonical versioned trigger-set JSON.",
+        ),
+    ] = None,
+    root_dir: Annotated[
+        Path | None,
+        typer.Option("--root", help="Repository root override."),
+    ] = None,
+) -> None:
+    """Route raw disagreements to future humans; never adjudicate automatically."""
+    from leanfaith.annotation_support import (
+        AdjudicationRoutingError,
+        AnnotationImportError,
+        AnnotationOperationError,
+    )
+    from leanfaith.cli.annotation_operations import run_write_adjudication_queue
+    from leanfaith.config.paths import RepoPaths
+
+    paths = RepoPaths.discover(root_dir) if root_dir is None else RepoPaths(root=root_dir)
+
+    def anchored(path: Path) -> Path:
+        return path if path.is_absolute() else paths.root / path
+
+    try:
+        result = run_write_adjudication_queue(
+            paths=paths,
+            first_import_manifest_path=anchored(first_import_manifest_path),
+            second_import_manifest_path=anchored(second_import_manifest_path),
+            authentication_key_path=anchored(authentication_key_path),
+            output_path=anchored(output_path),
+            policy_trigger_set_path=(
+                None if policy_trigger_set_path is None else anchored(policy_trigger_set_path)
+            ),
+        )
+    except (
+        AdjudicationRoutingError,
+        AnnotationImportError,
+        AnnotationOperationError,
+        OSError,
+        ValueError,
+    ) as exc:
+        typer.echo(f"Adjudication routing rejected: {exc}", err=True)
+        raise typer.Exit(code=2) from exc
+    typer.echo(
+        f"queue_id={result.artifact.queue.queue_id} path={result.path} "
+        f"routed={result.artifact.queue.routed_target_count} "
+        "semantic_labels_created=0 adjudications_created=0"
+    )
+
+
+@app.command("validate-lf022")
+def validate_lf022_command(
+    variants_config_path: Annotated[
+        Path,
+        typer.Option(
+            "--variants-config",
+            help="Fail-closed LF-022 proposer foundation config.",
+        ),
+    ] = Path("configs/generation/llm_variants_v1.yaml"),
+    judges_config_path: Annotated[
+        Path,
+        typer.Option(
+            "--judges-config",
+            help="Fail-closed LF-022 weak-supervision foundation config.",
+        ),
+    ] = Path("configs/judges/weak_supervision.yaml"),
+    replay_kind: Annotated[
+        str | None,
+        typer.Option(
+            "--replay-kind",
+            help="Optional strict parser replay kind: proposer or judge.",
+        ),
+    ] = None,
+    request_path: Annotated[
+        Path | None,
+        typer.Option(
+            "--request",
+            help="Canonical persisted ProviderRequest for a network-free replay.",
+        ),
+    ] = None,
+    raw_response_root: Annotated[
+        Path | None,
+        typer.Option(
+            "--raw-response-root",
+            help="Immutable provider raw-response root matching --request.",
+        ),
+    ] = None,
+    report_path: Annotated[
+        Path,
+        typer.Option(
+            "--report",
+            help="Validation report path.",
+        ),
+    ] = Path("reports/milestones/lf022_foundation_validation.json"),
+    root_dir: Annotated[
+        Path | None,
+        typer.Option("--root", help="Repository root override."),
+    ] = None,
+) -> None:
+    """Validate LF-022 configs or replay one response; never call a provider."""
+    from leanfaith.cli.lf022 import run_lf022_validation
+    from leanfaith.config.paths import RepoPaths
+    from leanfaith.generation.lf022_config import ReplayKind
+    from leanfaith.generation.providers import ProviderError
+
+    paths = RepoPaths.discover(root_dir) if root_dir is None else RepoPaths(root=root_dir)
+
+    def anchored(path: Path | None) -> Path | None:
+        if path is None or path.is_absolute():
+            return path
+        return paths.root / path
+
+    if replay_kind not in {None, "proposer", "judge"}:
+        typer.echo("--replay-kind must be proposer or judge", err=True)
+        raise typer.Exit(code=2)
+    typed_replay_kind: ReplayKind | None
+    if replay_kind == "proposer":
+        typed_replay_kind = "proposer"
+    elif replay_kind == "judge":
+        typed_replay_kind = "judge"
+    else:
+        typed_replay_kind = None
+    try:
+        result = run_lf022_validation(
+            paths=paths,
+            variants_config_path=anchored(variants_config_path) or variants_config_path,
+            judges_config_path=anchored(judges_config_path) or judges_config_path,
+            report_path=anchored(report_path) or report_path,
+            replay_kind=typed_replay_kind,
+            request_path=anchored(request_path),
+            raw_response_root=anchored(raw_response_root),
+        )
+    except (OSError, ProviderError, ValueError) as exc:
+        typer.echo(f"LF-022 validation rejected: {exc}", err=True)
+        raise typer.Exit(code=2) from exc
+
+    replay = result.report.replay
+    replay_summary = (
+        "replay=none"
+        if replay is None
+        else (
+            f"replay={replay.replay_kind} "
+            f"parsed_items={replay.parsed_item_count} "
+            f"raw_sha256={replay.raw_response_sha256}"
+        )
+    )
+    typer.echo(
+        f"LF-022 foundation validated: report={result.report_path} "
+        f"sha256={result.report_sha256} {replay_summary} "
+        "live_calls=0 semantic_labels_created=0 silver_records_created=0"
+    )
+
+
+@app.command("lf022-rcp-smoke")
+def lf022_rcp_smoke_command(
+    config_path: Annotated[
+        Path,
+        typer.Option(
+            "--config",
+            help="Exact public-only LF-022 RCP smoke admission.",
+        ),
+    ] = Path("configs/generation/lf022_rcp_public_smoke_v1.yaml"),
+    execute_public_smoke: Annotated[
+        bool,
+        typer.Option(
+            "--execute-public-smoke",
+            help="Explicitly permit the capped one-proposer/four-judge live smoke.",
+        ),
+    ] = False,
+    replay_manifest: Annotated[
+        Path | None,
+        typer.Option(
+            "--replay-manifest",
+            help="Verify one completed smoke locally; performs no network requests.",
+        ),
+    ] = None,
+    replay_failure_manifest: Annotated[
+        Path | None,
+        typer.Option(
+            "--replay-failure-manifest",
+            help=("Verify one terminal partial smoke locally; performs no network requests."),
+        ),
+    ] = None,
+    mathlib_project_dir: Annotated[
+        Path | None,
+        typer.Option(
+            "--mathlib-project-dir",
+            help="Pinned mathlib project used only for explicit live candidate validation.",
+        ),
+    ] = None,
+    root_dir: Annotated[
+        Path | None,
+        typer.Option("--root", help="Repository root override."),
+    ] = None,
+) -> None:
+    """Preflight by default; live inference requires an explicit smoke flag."""
+    from leanfaith.cli.lf022_rcp_smoke import run_lf022_rcp_smoke
+    from leanfaith.config.paths import RepoPaths
+    from leanfaith.generation.lf022_rcp_smoke_v1 import (
+        LF022RCPSmokeError,
+        LF022RCPSmokeFailureManifest,
+        LF022RCPSmokeManifest,
+    )
+
+    paths = RepoPaths.discover(root_dir) if root_dir is None else RepoPaths(root=root_dir)
+
+    def anchored(path: Path | None) -> Path | None:
+        if path is None or path.is_absolute():
+            return path
+        return paths.root / path
+
+    try:
+        result = run_lf022_rcp_smoke(
+            paths=paths,
+            config_path=anchored(config_path) or config_path,
+            execute_public_smoke_flag=execute_public_smoke,
+            replay_manifest_path=anchored(replay_manifest),
+            replay_failure_manifest_path=anchored(replay_failure_manifest),
+            mathlib_project_dir=anchored(mathlib_project_dir),
+        )
+    except (LF022RCPSmokeError, OSError, ValueError) as exc:
+        typer.echo(f"LF-022 RCP smoke rejected: {exc}", err=True)
+        raise typer.Exit(code=2) from exc
+
+    network_calls_this_run = 6 if result.mode == "live" else 1 if result.mode == "preflight" else 0
+    if isinstance(result.manifest, LF022RCPSmokeFailureManifest):
+        persisted_chat_completion_attempts = result.manifest.chat_completion_attempts
+    elif isinstance(result.manifest, LF022RCPSmokeManifest):
+        persisted_chat_completion_attempts = (
+            result.manifest.proposer_call_count + result.manifest.judge_call_count
+        )
+    else:
+        persisted_chat_completion_attempts = 0
+    typer.echo(
+        f"LF-022 RCP smoke {result.mode}: artifact={result.artifact_path} "
+        f"network_calls_this_run={network_calls_this_run} "
+        f"persisted_chat_completion_attempts={persisted_chat_completion_attempts} "
+        "semantic_labels_created=0 "
+        "silver_records_created=0 supervision_eligible=false "
+        "training_eligible=false evaluation_eligible=false gate_credit_claimed=false"
+    )
+
+
 @app.command("audit-training-readiness")
 def audit_training_readiness_command(
     config_path: Annotated[
