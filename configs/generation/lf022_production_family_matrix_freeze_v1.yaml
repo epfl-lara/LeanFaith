@@ -5,7 +5,7 @@ status: proposal_fail_closed_no_execution
 # This file binds only already-persisted public/offline evidence. Loading or
 # freezing it performs no provider call and creates no semantic label.
 rcp_catalog_wire:
-  path: data/raw/real_outputs/rcp_qwen_qualification_v1/v1/27e514645a6c67475ea341c90db6037717b3f2884661d02a789c3ae097234bb0/catalog_wire_response.json
+  path: reports/generation/lf022_rcp_public_smoke_v3/catalog/0f98154b24af983bcdb22e6248bf98cbe5456fa9cd78932d280262777877dd66.json
   sha256: 0f98154b24af983bcdb22e6248bf98cbe5456fa9cd78932d280262777877dd66
 remote_portfolio:
   path: configs/generation/rcp_provider_portfolio_v2.yaml

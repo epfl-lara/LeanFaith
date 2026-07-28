@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import shutil
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -9,7 +10,8 @@ from typer.testing import CliRunner
 
 from leanfaith.cli.app import app
 from leanfaith.config.hashing import canonical_json_bytes, hash_file
-from leanfaith.config.loading import load_config
+from leanfaith.config.loading import load_config, load_yaml_mapping
+from leanfaith.generation import remote_provider_portfolio_v2 as remote_portfolio
 from leanfaith.generation.lf022_family_matrix_freeze import (
     LF022FamilyMatrixFreezeConfig,
     LF022FamilyMatrixFreezeError,
@@ -20,6 +22,38 @@ from leanfaith.generation.lf022_family_matrix_freeze import (
 
 ROOT = Path(__file__).resolve().parents[2]
 CONFIG = ROOT / "configs/generation/lf022_production_family_matrix_freeze_v1.yaml"
+
+
+def test_canonical_freeze_inputs_are_tracked_for_clean_checkout_replay() -> None:
+    loaded = load_config(CONFIG, LF022FamilyMatrixFreezeConfig).config
+    bindings = (
+        loaded.rcp_catalog_wire,
+        loaded.remote_portfolio,
+        loaded.successful_lf022_smoke_config,
+        loaded.lf022_smoke_report,
+        loaded.failed_fourth_family_smoke_config,
+        loaded.codex_qualification,
+        loaded.local_generator_matrix,
+    )
+    paths = [CONFIG.relative_to(ROOT).as_posix()]
+    paths.extend(binding.path for binding in bindings)
+    portfolio_path = ROOT / loaded.remote_portfolio.path
+    portfolio_config = remote_portfolio.RemoteProviderPortfolioV2.model_validate(
+        load_yaml_mapping(portfolio_path)
+    )
+    paths.extend(
+        binding.artifact for binding in remote_portfolio._iter_portfolio_bindings(portfolio_config)
+    )
+
+    result = subprocess.run(
+        ["git", "ls-files", "--error-unmatch", "--", *paths],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
 
 
 def test_family_matrix_freeze_cli_replays_without_network() -> None:
