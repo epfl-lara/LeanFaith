@@ -366,6 +366,73 @@ def test_auto_mode_falls_back_to_stable_server(
     assert backend.auto_fallback_active
 
 
+def test_prepared_environment_disables_project_and_repl_rebuilds(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    import leanfaith.lean.leaninteract_backend as backend_module
+    from leanfaith.lean.leaninteract_backend import BackendSettings, LeanInteractBackend
+
+    projects: list[dict[str, object]] = []
+    configs: list[dict[str, object]] = []
+
+    class FakeProject:
+        def __init__(self, **kwargs: object) -> None:
+            projects.append(kwargs)
+
+    class FakeConfig:
+        def __init__(self, **kwargs: object) -> None:
+            configs.append(kwargs)
+
+    monkeypatch.setattr(backend_module, "LocalProject", FakeProject)
+    monkeypatch.setattr(backend_module, "LeanREPLConfig", FakeConfig)
+    backend = LeanInteractBackend(
+        BackendSettings(
+            project_dir=tmp_path,
+            context_fingerprint="0" * 64,
+            environment_schema_version=1,
+            raw_response_dir=tmp_path / "raw",
+            environment_is_prepared=True,
+        )
+    )
+
+    backend._repl_config()
+
+    assert projects == [{"directory": tmp_path, "auto_build": False}]
+    assert configs[0]["build_repl"] is False
+
+
+def test_environment_preflight_keeps_builds_enabled(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    import leanfaith.lean.leaninteract_backend as backend_module
+    from leanfaith.lean.leaninteract_backend import BackendSettings, LeanInteractBackend
+
+    projects: list[dict[str, object]] = []
+    configs: list[dict[str, object]] = []
+
+    class FakeProject:
+        def __init__(self, **kwargs: object) -> None:
+            projects.append(kwargs)
+
+    class FakeConfig:
+        def __init__(self, **kwargs: object) -> None:
+            configs.append(kwargs)
+
+    monkeypatch.setattr(backend_module, "LocalProject", FakeProject)
+    monkeypatch.setattr(backend_module, "LeanREPLConfig", FakeConfig)
+    settings = BackendSettings(
+        project_dir=tmp_path,
+        context_fingerprint="0" * 64,
+        environment_schema_version=1,
+        raw_response_dir=tmp_path / "raw",
+    )
+
+    LeanInteractBackend.prepare_environment(settings)
+
+    assert projects == [{"directory": tmp_path, "auto_build": True}]
+    assert configs[0]["build_repl"] is True
+
+
 def test_label_link_detects_target_id_mismatch() -> None:
     from leanfaith.schemas import check_label_target_link
     from tests.unit.record_factories import LABEL_ID, THM_A, THM_B, pair_record

@@ -77,6 +77,28 @@ from leanfaith.sources.mathlib_frame import (
 FORMALRX_DATASET = "LARK-Lab/FormalRx-Test"
 FORMALRX_REVISION = "4b7c6b883e0859e9bd38620a539bdcef408f91b4"
 SFT_CLASSIC_REVISION = "0bf9f424309f668c2c2dd214aef6ec5d1d5c042f"
+SCALE_ENVIRONMENT_SETUP_VERSION = "parent_prebuilt_v1"
+DEFAULT_ENVIRONMENT_SETUP_VERSION = "backend_default_v1"
+
+
+def _prepare_scale_lean_environment(
+    *,
+    project_dir: Path,
+    context_fingerprint: str,
+    raw_response_dir: Path,
+    memory_hard_limit_mb: int | None,
+) -> None:
+    """Build the shared project and REPL once before chunk workers start."""
+
+    LeanInteractBackend.prepare_environment(
+        BackendSettings(
+            project_dir=project_dir,
+            context_fingerprint=context_fingerprint,
+            environment_schema_version=1,
+            raw_response_dir=raw_response_dir / "_environment_preflight",
+            memory_hard_limit_mb=memory_hard_limit_mb,
+        )
+    )
 
 
 def _extract_sft_chunk(
@@ -92,6 +114,7 @@ def _extract_sft_chunk(
     out_dir: Path,
     memory_hard_limit_mb: int | None,
     job_hash: str,
+    environment_is_prepared: bool = False,
 ) -> ExtractStats:
     """Process-safe extraction unit with one stable LeanInteract server."""
 
@@ -102,6 +125,7 @@ def _extract_sft_chunk(
             environment_schema_version=1,
             raw_response_dir=raw_response_dir,
             memory_hard_limit_mb=memory_hard_limit_mb,
+            environment_is_prepared=environment_is_prepared,
         )
     )
     try:
@@ -224,6 +248,7 @@ def _extract_sft_parallel(
                 "row_offset": row_offset + start,
                 "out_dir": work_root / f"chunk-{chunk_index:05d}",
                 "memory_hard_limit_mb": memory_hard_limit_mb,
+                "environment_is_prepared": True,
                 "job_hash": hash_canonical(
                     {
                         "source": "sft_classic",
@@ -241,6 +266,7 @@ def _extract_sft_parallel(
                         "code_tree_hash": code_tree_hash,
                         "code_bundle_hash": code_bundle_hash,
                         "memory_hard_limit_mb": memory_hard_limit_mb,
+                        "leaninteract_environment_setup": SCALE_ENVIRONMENT_SETUP_VERSION,
                         "workers": workers,
                         "chunk_size": chunk_size,
                     }
@@ -261,6 +287,13 @@ def _extract_sft_parallel(
                 pending.append((index, job))
             else:
                 chunk_stats[index] = ExtractStats.from_dict(marker)
+        if pending:
+            _prepare_scale_lean_environment(
+                project_dir=project_dir,
+                context_fingerprint=context_fingerprint,
+                raw_response_dir=raw_response_dir,
+                memory_hard_limit_mb=memory_hard_limit_mb,
+            )
         if pending and workers == 1:
             for index, job in pending:
                 chunk_stats[index] = _extract_sft_chunk(**job)
@@ -301,6 +334,7 @@ def _extract_mathlib_chunk(
     out_dir: Path,
     memory_hard_limit_mb: int | None,
     job_hash: str,
+    environment_is_prepared: bool = False,
 ) -> ExtractStats:
     """Process-safe mathlib file extraction unit."""
 
@@ -311,6 +345,7 @@ def _extract_mathlib_chunk(
             environment_schema_version=1,
             raw_response_dir=raw_response_dir,
             memory_hard_limit_mb=memory_hard_limit_mb,
+            environment_is_prepared=environment_is_prepared,
         )
     )
     try:
@@ -368,6 +403,7 @@ def _extract_mathlib_parallel(
                 "source_revision": source_revision,
                 "out_dir": work_root / f"chunk-{chunk_index:05d}",
                 "memory_hard_limit_mb": memory_hard_limit_mb,
+                "environment_is_prepared": True,
                 "job_hash": hash_canonical(
                     {
                         "source": "mathlib",
@@ -378,6 +414,7 @@ def _extract_mathlib_parallel(
                         "code_tree_hash": code_tree_hash,
                         "code_bundle_hash": code_bundle_hash,
                         "memory_hard_limit_mb": memory_hard_limit_mb,
+                        "leaninteract_environment_setup": SCALE_ENVIRONMENT_SETUP_VERSION,
                         "workers": workers,
                         "chunk_size": chunk_size,
                     }
@@ -397,6 +434,13 @@ def _extract_mathlib_parallel(
                 pending.append((index, job))
             else:
                 chunk_stats[index] = ExtractStats.from_dict(marker)
+        if pending:
+            _prepare_scale_lean_environment(
+                project_dir=project_dir,
+                context_fingerprint=context_fingerprint,
+                raw_response_dir=raw_response_dir,
+                memory_hard_limit_mb=memory_hard_limit_mb,
+            )
         if pending and workers == 1:
             for index, job in pending:
                 chunk_stats[index] = _extract_mathlib_chunk(**job)
@@ -475,6 +519,7 @@ def _represent_chunk(
     source: str,
     memory_hard_limit_mb: int | None,
     job_hash: str,
+    environment_is_prepared: bool = False,
 ) -> dict[str, int]:
     """Process-safe representation unit with one bounded Lean server lifetime."""
 
@@ -485,6 +530,7 @@ def _represent_chunk(
             environment_schema_version=1,
             raw_response_dir=raw_response_dir,
             memory_hard_limit_mb=memory_hard_limit_mb,
+            environment_is_prepared=environment_is_prepared,
             # Theorems remain independent LeanInteract requests. Incremental
             # mode only reuses the common import/helper prefix, which keeps
             # memory and latency bounded at Gate-3 scale. The backend detects
@@ -879,6 +925,7 @@ def run_extract(
     if code_bundle_path is not None:
         input_paths = (*input_paths, code_bundle_path)
     environment_path = paths.configs / "environment.lock.yaml"
+    chunked_environment_setup = workers != 1 or resume_work_dir is not None
     manifest = write_extraction_manifest(
         stats,
         source=source,
@@ -899,6 +946,11 @@ def run_extract(
             "workers": workers,
             "chunk_size": chunk_size,
             "memory_hard_limit_mb": memory_hard_limit_mb,
+            "leaninteract_environment_setup": (
+                SCALE_ENVIRONMENT_SETUP_VERSION
+                if chunked_environment_setup
+                else DEFAULT_ENVIRONMENT_SETUP_VERSION
+            ),
             "code_bundle_sha256": code_bundle_hash,
             "resumable_chunk_markers": resume_work_dir is not None,
             "mathlib_file_frame_id": mathlib_frame_id,
@@ -1123,6 +1175,7 @@ def run_represent(
                 "out_dir": partition,
                 "source": source,
                 "memory_hard_limit_mb": memory_hard_limit_mb,
+                "environment_is_prepared": True,
                 "job_hash": hash_canonical(
                     {
                         "source": source,
@@ -1132,6 +1185,7 @@ def run_represent(
                         "code_bundle_hash": code_bundle_hash,
                         "memory_hard_limit_mb": memory_hard_limit_mb,
                         "incremental_optimization": True,
+                        "leaninteract_environment_setup": SCALE_ENVIRONMENT_SETUP_VERSION,
                         "workers": workers,
                         "chunk_size": chunk_size,
                         "theorems": [
@@ -1168,6 +1222,13 @@ def run_represent(
                         raise ValueError(f"representation chunk count {key} must be an integer")
                     parsed_counts[str(key)] = value
                 chunk_counts[index] = parsed_counts
+        if pending:
+            _prepare_scale_lean_environment(
+                project_dir=project_dir,
+                context_fingerprint=context_fingerprint,
+                raw_response_dir=raw_response_dir,
+                memory_hard_limit_mb=memory_hard_limit_mb,
+            )
         if pending and workers == 1:
             for index, job in pending:
                 chunk_counts[index] = _represent_chunk(**job)
@@ -1205,6 +1266,7 @@ def run_represent(
                 "chunk_size": chunk_size,
                 "memory_hard_limit_mb": memory_hard_limit_mb,
                 "incremental_optimization": True,
+                "leaninteract_environment_setup": SCALE_ENVIRONMENT_SETUP_VERSION,
                 "code_bundle_sha256": code_bundle_hash,
                 "frozen_manifest_sha256": (
                     hash_file(frozen_manifest_path) if frozen_manifest_path is not None else None

@@ -196,3 +196,7 @@ uv run leanfaith audit-training-readiness --report-only
 Scale extraction and representation runs accept `--resume-work-dir`. Each
 completed chunk is bound to its exact input, context, code tree, code bundle,
 and relevant execution configuration; mismatched resume state fails closed.
+When unfinished chunks exist, the parent process lets LeanInteract prepare
+the pinned project and REPL once; chunk workers then reuse that prepared
+environment with project and REPL rebuilding disabled. The setup mode is
+included in chunk and final-manifest provenance.

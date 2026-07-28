@@ -70,6 +70,7 @@ class BackendSettings:
     method_version: str = METHOD_VERSION
     verbose: bool = False
     enable_incremental_optimization: bool = True
+    environment_is_prepared: bool = False
 
 
 class LeanInteractBackend:
@@ -96,12 +97,37 @@ class LeanInteractBackend:
         return self._auto_fallback_active
 
     def _repl_config(self) -> LeanREPLConfig:
+        # Scale pipelines prepare the immutable project and REPL once in the
+        # parent process before starting workers. Child chunks must not run
+        # ``lake exe cache get`` / ``lake build`` for the project or rebuild
+        # the same cached REPL. Other callers retain LeanInteract's safe
+        # build-on-first-use defaults.
+        build_environment = not self._settings.environment_is_prepared
         return LeanREPLConfig(
-            project=LocalProject(directory=self._settings.project_dir),
+            project=LocalProject(
+                directory=self._settings.project_dir,
+                auto_build=build_environment,
+            ),
+            build_repl=build_environment,
             memory_hard_limit_mb=self._settings.memory_hard_limit_mb,
             enable_incremental_optimization=self._settings.enable_incremental_optimization,
             verbose=self._settings.verbose,
         )
+
+    @classmethod
+    def prepare_environment(cls, settings: BackendSettings) -> None:
+        """Build and validate one project's LeanInteract environment.
+
+        This is intentionally a setup-only operation: it does not start a
+        server or submit a Lean request. Scale orchestrators call it once in
+        the parent process, then construct chunk backends with
+        ``environment_is_prepared=True``. LeanInteract therefore retains sole
+        ownership of project/REPL setup while avoiding redundant builds.
+        """
+
+        if settings.environment_is_prepared:
+            raise ValueError("environment preparation requires build-enabled settings")
+        cls(settings)._repl_config()
 
     @staticmethod
     def _core_environment_is_corrupted(request: LeanRequest, raw: dict[str, Any]) -> bool:

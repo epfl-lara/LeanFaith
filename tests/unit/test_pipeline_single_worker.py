@@ -15,6 +15,13 @@ from leanfaith.config.paths import RepoPaths
 from leanfaith.lean.extract_run import ExtractStats
 
 
+@pytest.fixture(autouse=True)
+def _stub_scale_environment_preflight(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Unit tests must not build a real Lake project."""
+
+    monkeypatch.setattr(pipeline, "_prepare_scale_lean_environment", lambda **_kwargs: None)
+
+
 def _terminal_stats(count: int) -> ExtractStats:
     return ExtractStats(
         sources_processed=count,
@@ -28,6 +35,7 @@ def test_single_worker_sft_chunks_run_sequentially_and_resume(
     calls: list[Path] = []
 
     def fake_chunk(**job: Any) -> ExtractStats:
+        assert job["environment_is_prepared"] is True
         out_dir = Path(job["out_dir"])
         calls.append(out_dir)
         stats = _terminal_stats(len(job["rows"]))
@@ -73,6 +81,7 @@ def test_single_worker_mathlib_chunks_run_sequentially(monkeypatch: Any, tmp_pat
     calls: list[Path] = []
 
     def fake_chunk(**job: Any) -> ExtractStats:
+        assert job["environment_is_prepared"] is True
         out_dir = Path(job["out_dir"])
         calls.append(out_dir)
         stats = _terminal_stats(len(job["rel_paths"]))
@@ -103,6 +112,91 @@ def test_single_worker_mathlib_chunks_run_sequentially(monkeypatch: Any, tmp_pat
     )
     assert stats.sources_processed == 3
     assert [path.name for path in calls] == ["chunk-00000", "chunk-00001"]
+
+
+def test_scale_preflight_runs_once_and_chunks_skip_redundant_builds(
+    monkeypatch: Any, tmp_path: Path
+) -> None:
+    preflights: list[dict[str, Any]] = []
+    chunk_build_modes: list[bool] = []
+
+    monkeypatch.setattr(
+        pipeline,
+        "_prepare_scale_lean_environment",
+        lambda **kwargs: preflights.append(kwargs),
+    )
+
+    def fake_chunk(**job: Any) -> ExtractStats:
+        chunk_build_modes.append(bool(job["environment_is_prepared"]))
+        stats = _terminal_stats(len(job["rel_paths"]))
+        pipeline._write_chunk_marker(
+            Path(job["out_dir"]),
+            job_hash=str(job["job_hash"]),
+            payload=stats.as_dict(),
+        )
+        return stats
+
+    monkeypatch.setattr(pipeline, "_extract_mathlib_chunk", fake_chunk)
+    monkeypatch.setattr(pipeline, "merge_extraction_partitions", lambda *args, **kwargs: None)
+    kwargs = {
+        "project_dir": tmp_path,
+        "context_fingerprint": "a" * 64,
+        "context_id": "ctx:" + "a" * 64,
+        "raw_response_dir": tmp_path / "raw",
+        "rel_paths": ["Mathlib/A.lean", "Mathlib/B.lean", "Mathlib/C.lean"],
+        "source_revision": "revision",
+        "out_dir": tmp_path / "out",
+        "workers": 1,
+        "chunk_size": 1,
+        "run_id": "run:preflight",
+        "memory_hard_limit_mb": None,
+        "resume_work_dir": tmp_path / "work-preflight",
+        "code_tree_hash": "b" * 64,
+        "code_bundle_hash": "c" * 64,
+    }
+
+    pipeline._extract_mathlib_parallel(**kwargs)
+    assert len(preflights) == 1
+    assert chunk_build_modes == [True, True, True]
+
+    pipeline._extract_mathlib_parallel(**kwargs)
+    assert len(preflights) == 1
+    assert chunk_build_modes == [True, True, True]
+
+
+def test_scale_preflight_failure_starts_no_chunk(monkeypatch: Any, tmp_path: Path) -> None:
+    chunk_calls = 0
+
+    def fail_preflight(**_kwargs: Any) -> None:
+        raise RuntimeError("preflight failed")
+
+    def fake_chunk(**_job: Any) -> ExtractStats:
+        nonlocal chunk_calls
+        chunk_calls += 1
+        return _terminal_stats(1)
+
+    monkeypatch.setattr(pipeline, "_prepare_scale_lean_environment", fail_preflight)
+    monkeypatch.setattr(pipeline, "_extract_sft_chunk", fake_chunk)
+    with pytest.raises(RuntimeError, match="preflight failed"):
+        pipeline._extract_sft_parallel(
+            project_dir=tmp_path,
+            context_fingerprint="a" * 64,
+            context_id="ctx:" + "a" * 64,
+            raw_response_dir=tmp_path / "raw",
+            rows=[{"row": 0}],
+            source_row_indices=[0],
+            split="train",
+            row_offset=0,
+            out_dir=tmp_path / "out",
+            workers=1,
+            chunk_size=1,
+            run_id="run:preflight-failure",
+            memory_hard_limit_mb=None,
+            resume_work_dir=tmp_path / "work-preflight-failure",
+            code_tree_hash="b" * 64,
+            code_bundle_hash="c" * 64,
+        )
+    assert chunk_calls == 0
 
 
 def test_chunk_marker_rejects_modified_partition(tmp_path: Path) -> None:
@@ -264,6 +358,9 @@ def test_run_extract_replays_exact_mathlib_file_frame(monkeypatch: Any, tmp_path
             pipeline.canonical_json_bytes(fake_frame.model_dump(mode="json")) + b"\n"
         )
     )
+    assert manifest_kwargs["config_payload"]["leaninteract_environment_setup"] == (
+        pipeline.SCALE_ENVIRONMENT_SETUP_VERSION
+    )
 
 
 @pytest.mark.parametrize(
@@ -348,7 +445,9 @@ def test_representation_worker_reuses_only_the_common_incremental_prefix(
         source="fixture",
         memory_hard_limit_mb=None,
         job_hash="b" * 64,
+        environment_is_prepared=True,
     )
 
     assert len(observed_settings) == 1
     assert observed_settings[0].enable_incremental_optimization is True
+    assert observed_settings[0].environment_is_prepared is True

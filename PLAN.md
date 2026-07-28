@@ -1634,7 +1634,11 @@ Scale orchestration processes those independent requests in bounded worker
 chunks. Completed-chunk markers are bound to theorem inputs, context,
 normalization version, code tree, code bundle, and relevant execution
 configuration. Resume with any mismatch fails closed, and final partitions
-are atomically merged in exact frozen-manifest order.
+are atomically merged in exact frozen-manifest order. When unfinished chunks
+exist, the parent process performs one LeanInteract-owned project/REPL
+preflight; chunk workers use the prepared environment with project and REPL
+rebuilding disabled. The setup mode is bound into chunk hashes and final
+manifests.
 
 Gate 3 also builds a non-model binder-normalized identity fingerprint from the
 elaborated expression: local binders use de-Bruijn-style identities; binder
