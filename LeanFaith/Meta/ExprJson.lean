@@ -22,6 +22,14 @@ older callers while they migrate to the independent messages.
 -/
 import Lean
 
+/- Keep every helper-only `open` declaration lexically contained.  This file's
+   import-stripped body is injected *before* inline dataset source, so a global
+   `open Lean` would otherwise add names such as `Lean.log` to the user's name
+   resolution and can make an originally valid `open Real; ... log ...`
+   statement ambiguous.  Command syntax registered below remains available
+   after the namespace closes, while the opened namespaces do not. -/
+namespace LeanFaith.ReprV3.ExprJsonHelper
+
 open Lean Elab Command Meta
 
 /-- Stable binder metadata without depending on a `ToString BinderInfo`
@@ -161,3 +169,5 @@ elab "lfDump " s:str : command => do
     | none =>
       let obj := Json.mkObj [("name", Json.str s.getString), ("notfound", Json.bool true)]
       IO.println s!"LFJSON {obj.compress}"
+
+end LeanFaith.ReprV3.ExprJsonHelper
