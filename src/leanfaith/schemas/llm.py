@@ -353,13 +353,17 @@ def check_llm_call_attempt_lineage(
             and attempt.provider_request_hash != call.provider_request_hash
         ):
             violations.append("provider_request_hash_mismatch")
-        if (
-            call.request_artifact_sha256 is not None
-            and attempt.request_artifact_sha256 != call.request_artifact_sha256
-        ):
-            violations.append("request_artifact_sha256_mismatch")
     if attempts:
         first, final = attempts[0], attempts[-1]
+        if (
+            call.request_artifact_sha256 is not None
+            and final.request_artifact_sha256 != call.request_artifact_sha256
+        ):
+            # Retry attempts have distinct append-only ProviderRequest bytes
+            # because attempt_index/provider_attempt_id differ.  The logical
+            # call binds the final request artifact while provider_request_hash
+            # above remains stable across all attempts.
+            violations.append("final_request_artifact_sha256_mismatch")
         if call.started_at is not None and first.started_at < call.started_at:
             violations.append("first_attempt_precedes_call")
         if call.completed_at is not None and final.completed_at > call.completed_at:

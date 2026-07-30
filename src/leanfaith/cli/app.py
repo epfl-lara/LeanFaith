@@ -2759,6 +2759,74 @@ def lf022_rcp_smoke_command(
     )
 
 
+@app.command("run-lf022-public-provisional")
+def run_lf022_public_provisional_command(
+    admission_path: Annotated[
+        Path,
+        typer.Option(
+            "--admission",
+            help="Content-addressed public G_open execution admission JSON.",
+        ),
+    ],
+    task_path: Annotated[
+        Path,
+        typer.Option(
+            "--task",
+            help="One allocation-bound public G_open execution task JSON.",
+        ),
+    ],
+    output_root: Annotated[
+        Path,
+        typer.Option(
+            "--output-root",
+            help="Repository-local resumable task root.",
+        ),
+    ],
+    execute_public_provisional: Annotated[
+        bool,
+        typer.Option(
+            "--execute-public-provisional",
+            help="Explicitly permit public proposer inference; omitted means offline preflight.",
+        ),
+    ] = False,
+    root_dir: Annotated[
+        Path | None,
+        typer.Option("--root", help="Repository root override."),
+    ] = None,
+) -> None:
+    """Preflight by default; collect only provisional G_open candidates when explicit."""
+    from leanfaith.cli.lf022_executor import run_lf022_public_provisional
+    from leanfaith.config.paths import RepoPaths
+    from leanfaith.generation.lf022_executor import LF022ExecutorError
+
+    paths = RepoPaths.discover(root_dir) if root_dir is None else RepoPaths(root=root_dir)
+
+    def anchored(path: Path) -> Path:
+        return path if path.is_absolute() else paths.root / path
+
+    try:
+        result = run_lf022_public_provisional(
+            repo_root=paths.root,
+            admission_path=anchored(admission_path),
+            task_path=anchored(task_path),
+            output_root=anchored(output_root),
+            execute_public_provisional=execute_public_provisional,
+        )
+    except (LF022ExecutorError, OSError, ValueError) as exc:
+        typer.echo(f"LF-022 public provisional execution rejected: {exc}", err=True)
+        raise typer.Exit(code=2) from exc
+    mode = "replay" if result.replayed else "live" if result.terminal is not None else "preflight"
+    typer.echo(
+        f"mode={mode} preflight_id={result.preflight.preflight_id} "
+        f"terminal_id={result.terminal.terminal_id if result.terminal else 'none'} "
+        f"network_calls_this_run={result.network_calls_this_run} "
+        f"provisional_variants="
+        f"{result.terminal.provisional_variant_count if result.terminal else 0} "
+        "semantic_labels_created=0 silver_records_created=0 "
+        "training_eligible=false evaluation_eligible=false gate_credit_claimed=false"
+    )
+
+
 @app.command("audit-training-readiness")
 def audit_training_readiness_command(
     config_path: Annotated[
