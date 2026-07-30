@@ -36,6 +36,7 @@ from leanfaith.representations import (
     build_representation_batch,
 )
 from leanfaith.schemas import (
+    CONTEXT_PREFIX,
     ArtifactClass,
     CodeState,
     DataStage,
@@ -620,6 +621,14 @@ def _elaborate_dataset_route(
     created_at: datetime.datetime,
     timeout_seconds: float,
 ) -> tuple[LeanResult, ExtractionResult]:
+    context_prefix = f"{CONTEXT_PREFIX}:"
+    context_fingerprint = (
+        context_id[len(context_prefix) :] if context_id.startswith(context_prefix) else ""
+    )
+    if len(context_fingerprint) != 64 or any(
+        character not in "0123456789abcdef" for character in context_fingerprint
+    ):
+        raise ValueError("context_id must have canonical form 'ctx:' + 64 lowercase hex digits")
     request_id = f"{source}-{parsed.source_record_id[:16]}-{route}"
     if not snippet.strip():
         # An absent question fence or a fallback whose completed proof could
@@ -641,7 +650,7 @@ def _elaborate_dataset_route(
                     }
                 ),
                 context_id=context_id,
-                context_fingerprint=context_id.removeprefix("ctx:"),
+                context_fingerprint=context_fingerprint,
                 status=LeanStatus.UNSUPPORTED,
             ),
             ExtractionResult(),
@@ -789,7 +798,20 @@ def extract_sft_classic_rows(
         question_has_declarations = question_result.status in _VALID and bool(
             question_result.declarations
         )
-        if question_extraction.accepted or question_has_declarations:
+        if question_extraction.accepted:
+            chosen_snippet = question_snippet
+            chosen = question_extraction
+            chosen_result = question_result
+            route = "question_statement"
+        elif fallback_extraction.accepted:
+            chosen_snippet = fallback_snippet
+            chosen = fallback_extraction
+            chosen_result = fallback_result
+            route = "lean_code_fallback"
+        elif question_has_declarations:
+            # Preserve a valid-but-unusable question route as the canonical
+            # diagnostic only after confirming that no proposition-valued
+            # fallback was accepted.
             chosen_snippet = question_snippet
             chosen = question_extraction
             chosen_result = question_result
@@ -842,7 +864,7 @@ def extract_sft_classic_rows(
 
         if not chosen.accepted:
             status = chosen_result.status
-            if not question_snippet:
+            if parsed.parse_status == "no_fence":
                 code = ExtractionFailureCode.MISSING_LEAN_FENCE
             elif chosen.failures:
                 code = chosen.failures[0].code
