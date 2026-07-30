@@ -865,6 +865,24 @@ def test_exact_resume_replay_rejects_self_consistent_non_rule_candidate() -> Non
         _require_exact_resume_replay(forged, expected)
 
 
+def test_exact_resume_replay_rejects_rehashed_forged_signature_view() -> None:
+    _, _, expected = _accepted_source_shard()
+    accepted = expected.rule_results[0].draft_results[0]
+    assert accepted.candidate_representation is not None
+    forged_representation = accepted.candidate_representation.model_copy(
+        update={"signature_pp": "False"}
+    )
+    forged_representation = forged_representation.model_copy(
+        update={"content_hash": _representation_payload_hash(forged_representation)}
+    )
+    forged_result = accepted.model_copy(update={"candidate_representation": forged_representation})
+    forged_rule = expected.rule_results[0].model_copy(update={"draft_results": (forged_result,)})
+    forged_shard = expected.model_copy(update={"rule_results": (forged_rule,)})
+
+    with pytest.raises(DeterministicScaleError, match="exact Lean-backed"):
+        _require_exact_resume_replay(forged_shard, expected)
+
+
 def test_protected_candidate_raw_artifacts_are_purged_without_touching_accepted(
     tmp_path: Path,
 ) -> None:
