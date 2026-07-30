@@ -445,6 +445,7 @@ class LF022PublicSourceAuthorization(StrictModel):
     upstream_extraction_output_manifest: LF022ArtifactBinding
     upstream_representation_records: LF022JSONLArtifactBinding
     upstream_representation_output_manifest: LF022ArtifactBinding
+    extraction_reuse_attestation: LF022ArtifactBinding | None = None
     mathlib_source_frame: LF022ArtifactBinding
     extraction_manifest: LF022ArtifactBinding
     license_status: Literal["approved_public_research_compatible"]
@@ -455,7 +456,14 @@ class LF022PublicSourceAuthorization(StrictModel):
     @model_validator(mode="after")
     def _canonical(self) -> Self:
         _reject_private_source(self.source)
-        expected = _content_id("lf022_public_source", self, id_field="authorization_id")
+        expected = make_id(
+            "lf022_public_source",
+            self.model_dump(
+                mode="json",
+                exclude={"authorization_id"},
+                exclude_none=True,
+            ),
+        )
         if self.authorization_id != expected:
             raise ValueError("authorization_id does not match canonical source authorization")
         return self
@@ -474,7 +482,8 @@ class LF022PublicSourceAuthorizationRegistry(StrictModel):
         keys = [(item.source, item.source_revision) for item in self.authorizations]
         if len(keys) != len(set(keys)) or list(keys) != sorted(keys):
             raise ValueError("public-source authorizations must be sorted and unique")
-        expected = _content_id("lf022_public_source_registry", self, id_field="registry_id")
+        payload = self.model_dump(mode="json", exclude={"registry_id"}, exclude_none=True)
+        expected = make_id("lf022_public_source_registry", payload)
         if self.registry_id != expected:
             raise ValueError("registry_id does not match canonical authorization registry")
         return self
@@ -489,7 +498,7 @@ def make_lf022_public_source_authorization_registry(
     payload: dict[str, object] = {
         "schema_version": 1,
         "policy_version": policy_version,
-        "authorizations": [item.model_dump(mode="json") for item in ordered],
+        "authorizations": [item.model_dump(mode="json", exclude_none=True) for item in ordered],
     }
     return LF022PublicSourceAuthorizationRegistry.model_validate(
         {**payload, "registry_id": make_id("lf022_public_source_registry", payload)}
@@ -510,6 +519,7 @@ def make_lf022_public_source_authorization(
     upstream_representation_output_manifest: LF022ArtifactBinding,
     mathlib_source_frame: LF022ArtifactBinding,
     extraction_manifest: LF022ArtifactBinding,
+    extraction_reuse_attestation: LF022ArtifactBinding | None = None,
 ) -> LF022PublicSourceAuthorization:
     payload: dict[str, object] = {
         "source": source,
@@ -533,6 +543,10 @@ def make_lf022_public_source_authorization(
         "redistribution_allowed": True,
         "external_transmission_allowed": True,
     }
+    if extraction_reuse_attestation is not None:
+        payload["extraction_reuse_attestation"] = extraction_reuse_attestation.model_dump(
+            mode="json"
+        )
     return LF022PublicSourceAuthorization.model_validate(
         {**payload, "authorization_id": make_id("lf022_public_source", payload)}
     )
@@ -1265,6 +1279,51 @@ def build_lf022_production_plan(
             authorized_source.mathlib_source_frame,
             MathlibFileFrame,
         )
+        reuse_verified = False
+        if authorized_source.extraction_reuse_attestation is not None:
+            from leanfaith.generation.lf022_extraction_reuse import (
+                LF022ExtractionReuseArtifactBinding,
+                LF022ExtractionReuseAttestationV1,
+                verify_lf022_extraction_reuse_attestation,
+            )
+
+            reuse_attestation = _load_json(
+                repo_root,
+                authorized_source.extraction_reuse_attestation,
+                LF022ExtractionReuseAttestationV1,
+            )
+            verify_lf022_extraction_reuse_attestation(
+                repo_root=repo_root,
+                attestation=reuse_attestation,
+                attestation_binding=LF022ExtractionReuseArtifactBinding.model_validate(
+                    authorized_source.extraction_reuse_attestation.model_dump(mode="json")
+                ),
+                extraction_manifest=upstream_manifest,
+                extraction_manifest_binding=(
+                    LF022ExtractionReuseArtifactBinding.model_validate(
+                        authorized_source.upstream_extraction_output_manifest.model_dump(
+                            mode="json"
+                        )
+                    )
+                ),
+                theorem_records_binding=LF022ExtractionReuseArtifactBinding.model_validate(
+                    authorized_source.upstream_theorem_records.model_dump(mode="json")
+                ),
+                representation_manifest=representation_manifest,
+                representation_manifest_binding=(
+                    LF022ExtractionReuseArtifactBinding.model_validate(
+                        authorized_source.upstream_representation_output_manifest.model_dump(
+                            mode="json"
+                        )
+                    )
+                ),
+                representation_records_binding=(
+                    LF022ExtractionReuseArtifactBinding.model_validate(
+                        authorized_source.upstream_representation_records.model_dump(mode="json")
+                    )
+                ),
+            )
+            reuse_verified = True
         if (
             upstream_manifest.stage is not DataStage.ELABORATED
             or upstream_manifest.source != authorized_source.source
@@ -1296,6 +1355,30 @@ def build_lf022_production_plan(
             raise LF022ProductionPlanError(
                 f"upstream extraction/frame hash mismatch for {authorized_source.authorization_id}"
             )
+        representation_provenance_exact = (
+            representation_manifest.environment_hash is not None
+            and representation_manifest.environment_hash == upstream_manifest.environment_hash
+            and representation_manifest.code_tree_hash is not None
+            and representation_manifest.code.code_tree_hash is not None
+            and representation_manifest.code_tree_hash
+            == representation_manifest.code.code_tree_hash
+            and representation_manifest.code_tree_hash == upstream_manifest.code_tree_hash
+            and representation_manifest.code == upstream_manifest.code
+        )
+        representation_output_binding_exact = _manifest_checksum_matches_binding(
+            repo_root=repo_root,
+            checksums=representation_manifest.output_partition_checksums,
+            binding=authorized_source.upstream_representation_records,
+        ) and _manifest_checksum_matches_binding(
+            repo_root=repo_root,
+            checksums=representation_manifest.file_checksums,
+            binding=authorized_source.upstream_representation_records,
+        )
+        representation_input_binding_exact = _manifest_checksum_matches_binding(
+            repo_root=repo_root,
+            checksums=representation_manifest.input_partition_checksums,
+            binding=authorized_source.upstream_theorem_records,
+        )
         if (
             representation_manifest.stage is not DataStage.REPRESENTED
             or representation_manifest.artifact_class is not ArtifactClass.PRODUCTION
@@ -1304,28 +1387,9 @@ def build_lf022_production_plan(
             != authorized_source.upstream_representation_records.record_count
             or representation_manifest.attempted_row_count
             != authorized_source.upstream_theorem_records.record_count
-            or representation_manifest.environment_hash is None
-            or representation_manifest.environment_hash != upstream_manifest.environment_hash
-            or representation_manifest.code_tree_hash is None
-            or representation_manifest.code.code_tree_hash is None
-            or representation_manifest.code_tree_hash != representation_manifest.code.code_tree_hash
-            or representation_manifest.code_tree_hash != upstream_manifest.code_tree_hash
-            or representation_manifest.code != upstream_manifest.code
-            or not _manifest_checksum_matches_binding(
-                repo_root=repo_root,
-                checksums=representation_manifest.output_partition_checksums,
-                binding=authorized_source.upstream_representation_records,
-            )
-            or not _manifest_checksum_matches_binding(
-                repo_root=repo_root,
-                checksums=representation_manifest.file_checksums,
-                binding=authorized_source.upstream_representation_records,
-            )
-            or not _manifest_checksum_matches_binding(
-                repo_root=repo_root,
-                checksums=representation_manifest.input_partition_checksums,
-                binding=authorized_source.upstream_theorem_records,
-            )
+            or (not representation_provenance_exact and not reuse_verified)
+            or (not representation_output_binding_exact and not reuse_verified)
+            or (not representation_input_binding_exact and not reuse_verified)
             or hash_file(upstream_representations_path)
             != authorized_source.upstream_representation_records.sha256
         ):
