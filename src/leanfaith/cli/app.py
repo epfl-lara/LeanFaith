@@ -897,6 +897,16 @@ def generate_deterministic_command(
             ),
         ),
     ] = False,
+    merge_scale_shards: Annotated[
+        bool,
+        typer.Option(
+            "--merge-scale-shards",
+            help=(
+                "Audit a complete deterministic shard set and write one "
+                "content-addressed merged manifest."
+            ),
+        ),
+    ] = False,
     freeze_scale_inventory: Annotated[
         bool,
         typer.Option(
@@ -978,9 +988,42 @@ def generate_deterministic_command(
         int | None,
         typer.Option("--max-sources", min=1, help="Deterministic source-prefix smoke/scale limit."),
     ] = None,
+    shard_count: Annotated[
+        int,
+        typer.Option(
+            "--shard-count",
+            min=1,
+            help="Number of deterministic root-component source shards.",
+        ),
+    ] = 1,
+    shard_index: Annotated[
+        int,
+        typer.Option(
+            "--shard-index",
+            min=0,
+            help="Zero-based deterministic source shard to materialize.",
+        ),
+    ] = 0,
+    shard_output_dirs: Annotated[
+        list[Path] | None,
+        typer.Option(
+            "--shard-output-dir",
+            help="Producer output directory; repeat once for every shard during merge.",
+        ),
+    ] = None,
     resume: Annotated[
         bool,
         typer.Option("--resume", help="Resume the exact hash-bound append-only scale journal."),
+    ] = False,
+    fast_resume: Annotated[
+        bool,
+        typer.Option(
+            "--fast-resume",
+            help=(
+                "With --resume, trust only canonical hash-chain journal receipts and "
+                "skip Lean replay for completed source shards."
+            ),
+        ),
     ] = False,
     memory_hard_limit_mb: Annotated[
         int | None,
@@ -1004,6 +1047,7 @@ def generate_deterministic_command(
                 run_negative_pre_scale,
                 run_smoke_vertical_slice,
                 materialize_scale,
+                merge_scale_shards,
                 freeze_scale_inventory,
             )
         )
@@ -1012,13 +1056,67 @@ def generate_deterministic_command(
         typer.echo(
             "--validate-only, --validate-positives, --validate-negatives, and "
             "--run-negative-pre-scale/--run-smoke-vertical-slice/"
-            "--materialize-scale/--freeze-scale-inventory are mutually exclusive",
+            "--materialize-scale/--merge-scale-shards/"
+            "--freeze-scale-inventory are mutually exclusive",
             err=True,
         )
         raise typer.Exit(code=2)
     if code_bundle is not None and not run_smoke_vertical_slice:
         typer.echo("--code-bundle is supported only with --run-smoke-vertical-slice", err=True)
         raise typer.Exit(code=2)
+    if merge_scale_shards:
+        if report_path is not None:
+            typer.echo("--report is not accepted with --merge-scale-shards", err=True)
+            raise typer.Exit(code=2)
+        if output_dir is None or not shard_output_dirs:
+            typer.echo(
+                "--merge-scale-shards requires --output-dir and repeated --shard-output-dir",
+                err=True,
+            )
+            raise typer.Exit(code=2)
+        forbidden = [
+            name
+            for name, used in (
+                ("--theorems", theorem_jsonl is not None),
+                ("--representations", representation_jsonl is not None),
+                ("--source-inventory-manifest", source_inventory_manifest is not None),
+                ("--project-dir", project_dir is not None),
+                ("--scale-config", scale_config is not None),
+                ("--max-sources", max_sources is not None),
+                ("--resume", resume),
+                ("--fast-resume", fast_resume),
+                ("--shard-count", shard_count != 1),
+                ("--shard-index", shard_index != 0),
+            )
+            if used
+        ]
+        if forbidden:
+            typer.echo(
+                "--merge-scale-shards does not accept " + ", ".join(forbidden),
+                err=True,
+            )
+            raise typer.Exit(code=2)
+        from leanfaith.transforms.scale_materializer import DeterministicScaleError
+        from leanfaith.transforms.scale_merge import merge_deterministic_scale_shards
+
+        try:
+            merged_artifacts = merge_deterministic_scale_shards(
+                paths=paths,
+                shard_output_dirs=shard_output_dirs,
+                output_dir=output_dir,
+            )
+        except DeterministicScaleError as exc:
+            typer.echo(f"deterministic scale shard merge FAILED: {exc}", err=True)
+            raise typer.Exit(code=1) from exc
+        typer.echo(
+            "deterministic scale shard merge OK; "
+            f"output={merged_artifacts.output_dir} "
+            f"manifest={merged_artifacts.manifest_path} "
+            f"manifest_sha256={merged_artifacts.manifest_sha256} "
+            f"merged_manifest_hash={merged_artifacts.merged_manifest_hash} "
+            "resolved_semantic_labels=0 promoted_items=0 output_tier=provisional"
+        )
+        return
     if run_smoke_vertical_slice:
         if report_path is not None or output_dir is not None:
             typer.echo(
@@ -1109,6 +1207,18 @@ def generate_deterministic_command(
         if report_path is not None:
             typer.echo("--report is not accepted with --materialize-scale", err=True)
             raise typer.Exit(code=2)
+        if shard_output_dirs:
+            typer.echo(
+                "--shard-output-dir is supported only with --merge-scale-shards",
+                err=True,
+            )
+            raise typer.Exit(code=2)
+        if shard_index >= shard_count:
+            typer.echo("--shard-index must be smaller than --shard-count", err=True)
+            raise typer.Exit(code=2)
+        if fast_resume and not resume:
+            typer.echo("--fast-resume requires --resume", err=True)
+            raise typer.Exit(code=2)
         missing = [
             name
             for name, value in (
@@ -1137,7 +1247,7 @@ def generate_deterministic_command(
         assert project_dir is not None
         assert output_dir is not None
         try:
-            artifacts = run_deterministic_scale_materialization(
+            scale_artifacts = run_deterministic_scale_materialization(
                 paths=paths,
                 theorem_jsonl=theorem_jsonl,
                 representation_jsonl=representation_jsonl,
@@ -1146,7 +1256,10 @@ def generate_deterministic_command(
                 output_dir=output_dir,
                 config_path=scale_config,
                 max_sources=max_sources,
+                shard_count=shard_count,
+                shard_index=shard_index,
                 resume=resume,
+                fast_resume=fast_resume,
                 memory_hard_limit_mb=memory_hard_limit_mb,
             )
         except DeterministicScaleError as exc:
@@ -1154,10 +1267,10 @@ def generate_deterministic_command(
             raise typer.Exit(code=1) from exc
         typer.echo(
             "deterministic scale materialization OK; "
-            f"output={artifacts.output_dir} "
-            f"run_spec={artifacts.run_spec_path} "
-            f"manifest={artifacts.manifest_path} "
-            f"manifest_sha256={artifacts.manifest_sha256} "
+            f"output={scale_artifacts.output_dir} "
+            f"run_spec={scale_artifacts.run_spec_path} "
+            f"manifest={scale_artifacts.manifest_path} "
+            f"manifest_sha256={scale_artifacts.manifest_sha256} "
             "resolved_semantic_labels=0 promoted_items=0 output_tier=provisional"
         )
         return
