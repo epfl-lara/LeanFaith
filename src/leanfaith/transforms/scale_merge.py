@@ -16,15 +16,37 @@ from leanfaith.config.hashing import hash_canonical, hash_file
 from leanfaith.config.loading import load_config
 from leanfaith.config.models import StrictModel
 from leanfaith.config.paths import RepoPaths
-from leanfaith.schemas.enums import QualityTier
-from leanfaith.schemas.pair import PairRecord
-from leanfaith.schemas.theorem import TheoremRecord
-from leanfaith.schemas.variant import VariantRecord
+from leanfaith.representations import NORMALIZATION_VERSION
+from leanfaith.schemas.enums import QualityTier, ValidationStatus, ViewStatus
+from leanfaith.schemas.ids import REPRESENTATION_PREFIX, make_id
+from leanfaith.schemas.manifest import collect_code_state
+from leanfaith.schemas.pair import PairRecord, check_pair_groups
+from leanfaith.schemas.theorem import RepresentationRecord, TheoremRecord
+from leanfaith.schemas.variant import (
+    TransformationAttempt,
+    TransformationAudit,
+    VariantDraft,
+    VariantRecord,
+    check_deterministic_variant_lineage,
+)
+from leanfaith.transforms.materialize import (
+    build_derived_theorem_record,
+    build_deterministic_pair_record,
+)
+from leanfaith.transforms.protocol import (
+    build_deterministic_variant_record,
+    verify_deterministic_variant_id,
+    verify_transformation_attempt_id,
+    verify_transformation_audit_id,
+    verify_variant_draft_id,
+)
 from leanfaith.transforms.scale_materializer import (
+    _REQUIRED_CANDIDATE_VIEWS,
     DeterministicScaleConfig,
     DeterministicScaleError,
     DeterministicScaleManifest,
     DeterministicScaleRunSpec,
+    ScaleQuarantineRecord,
     ScaleSourceShard,
     _AdmissionState,
     _admit_source_shard,
@@ -32,8 +54,10 @@ from leanfaith.transforms.scale_materializer import (
     _journal_receipt_path,
     _load_journal_receipt,
     _load_jsonl,
+    _load_lean_replay_verification,
     _load_source_shard,
     _project_records,
+    _representation_payload_hash,
     _root_component_shard_assignments,
     _run_lock,
     _run_spec_payload,
@@ -61,12 +85,14 @@ class DeterministicScaleMergedShardBinding(StrictModel):
     journal_tree_hash: str = Field(pattern=_HEX64_PATTERN)
     journal_receipt_tree_hash: str = Field(pattern=_HEX64_PATTERN)
     journal_chain_tip: str = Field(pattern=_HEX64_PATTERN)
+    lean_replay_verification_hash: str = Field(pattern=_HEX64_PATTERN)
+    lean_replay_verification_sha256: str = Field(pattern=_HEX64_PATTERN)
 
 
 class DeterministicScaleMergedManifest(StrictModel):
     """Content-addressed audit manifest for one complete shard set."""
 
-    schema_version: Literal[1] = 1
+    schema_version: Literal[2] = 2
     artifact_kind: Literal["deterministic_scale_merged_manifest"] = (
         "deterministic_scale_merged_manifest"
     )
@@ -89,6 +115,8 @@ class DeterministicScaleMergedManifest(StrictModel):
     resolved_semantic_labels: Literal[0] = 0
     promoted_items: Literal[0] = 0
     output_quality_tier: Literal["provisional"] = "provisional"
+    full_lean_backed_verification: Literal[True] = True
+    training_eligible: Literal[False] = False
     created_at: datetime.datetime
 
     @model_validator(mode="after")
@@ -191,6 +219,413 @@ def _expected_local_entries(
     )
 
 
+def _unique_by[RecordT: StrictModel](
+    records: Sequence[RecordT],
+    *,
+    field: str,
+    label: str,
+) -> dict[str, RecordT]:
+    result: dict[str, RecordT] = {}
+    for record in records:
+        value = getattr(record, field)
+        if not isinstance(value, str) or not value:
+            raise DeterministicScaleError(f"{label} has an invalid {field}")
+        if value in result:
+            raise DeterministicScaleError(f"duplicate {field} values detected: {value}")
+        result[value] = record
+    return result
+
+
+def _validate_projected_semantic_lineage(
+    *,
+    projected: Mapping[str, Sequence[StrictModel]],
+    source_theorems: Sequence[TheoremRecord],
+    source_representations: Sequence[RepresentationRecord],
+    spec: DeterministicScaleRunSpec,
+    config: DeterministicScaleConfig,
+) -> None:
+    """Rebuild every accepted cross-record lineage from immutable inventories.
+
+    Partition equality with a producer journal is necessary but not
+    sufficient: an internally rehashed journal could still carry a corrupted
+    pair split group or candidate/source link.  This validator treats the
+    theorem/repr_v3 inputs named by ``run_spec`` as the independent inventory
+    and recomputes all deterministic identities and cross-record projections.
+    """
+
+    sources = _unique_by(source_theorems, field="theorem_id", label="source theorem")
+    source_reprs = _unique_by(
+        source_representations,
+        field="representation_id",
+        label="source representation",
+    )
+    source_repr_by_theorem: dict[str, RepresentationRecord] = {}
+    for representation in source_representations:
+        if representation.theorem_id not in sources:
+            raise DeterministicScaleError(
+                "source representation references a theorem outside the immutable inventory"
+            )
+        if representation.theorem_id in source_repr_by_theorem:
+            raise DeterministicScaleError(
+                f"duplicate source representation theorem link: {representation.theorem_id}"
+            )
+        if representation.normalization_version != NORMALIZATION_VERSION:
+            raise DeterministicScaleError("source representation version is not repr_v3")
+        expected_id = make_id(
+            REPRESENTATION_PREFIX,
+            {
+                "theorem_id": representation.theorem_id,
+                "normalization_version": NORMALIZATION_VERSION,
+            },
+        )
+        if (
+            representation.representation_id != expected_id
+            or representation.content_hash != _representation_payload_hash(representation)
+        ):
+            raise DeterministicScaleError(
+                f"source representation identity/content mismatch: {representation.theorem_id}"
+            )
+        source_repr_by_theorem[representation.theorem_id] = representation
+    if len(source_reprs) != len(source_repr_by_theorem):
+        raise DeterministicScaleError("source representation IDs/theorem links do not reconcile")
+    if set(source_repr_by_theorem) != set(sources):
+        raise DeterministicScaleError(
+            "immutable source inventory does not contain exactly one repr_v3 record per theorem"
+        )
+
+    attempts = cast(Sequence[TransformationAttempt], projected["attempts"])
+    drafts = cast(Sequence[VariantDraft], projected["drafts"])
+    candidate_theorems = cast(
+        Sequence[TheoremRecord],
+        projected["candidate_theorems"],
+    )
+    candidate_representations = cast(
+        Sequence[RepresentationRecord],
+        projected["candidate_representations"],
+    )
+    audits = cast(Sequence[TransformationAudit], projected["audits"])
+    variants = cast(Sequence[VariantRecord], projected["variants"])
+    pairs = cast(Sequence[PairRecord], projected["pairs"])
+    quarantine = cast(Sequence[ScaleQuarantineRecord], projected["quarantine"])
+
+    attempt_by_id = _unique_by(attempts, field="attempt_id", label="attempt")
+    draft_by_id = _unique_by(drafts, field="draft_id", label="draft")
+    candidate_by_id = _unique_by(
+        candidate_theorems,
+        field="theorem_id",
+        label="candidate theorem",
+    )
+    candidate_repr_by_id = _unique_by(
+        candidate_representations,
+        field="representation_id",
+        label="candidate representation",
+    )
+    audit_by_id = _unique_by(audits, field="audit_id", label="audit")
+    variant_by_id = _unique_by(variants, field="variant_id", label="variant")
+    pair_by_id = _unique_by(pairs, field="pair_id", label="pair")
+    quarantine_by_draft = _unique_by(
+        quarantine,
+        field="draft_id",
+        label="quarantine record",
+    )
+    del variant_by_id, pair_by_id
+
+    accepted_count = len(drafts)
+    linked_counts = {
+        "candidate_theorems": len(candidate_theorems),
+        "candidate_representations": len(candidate_representations),
+        "audits": len(audits),
+        "variants": len(variants),
+        "pairs": len(pairs),
+    }
+    if any(count != accepted_count for count in linked_counts.values()):
+        raise DeterministicScaleError(
+            "accepted cross-record partitions do not have one-to-one cardinality: "
+            f"drafts={accepted_count}, linked={linked_counts}"
+        )
+    accepted_draft_ids = set(draft_by_id)
+    quarantined_draft_ids = set(quarantine_by_draft)
+    if accepted_draft_ids & quarantined_draft_ids:
+        raise DeterministicScaleError("accepted and quarantined draft IDs overlap")
+
+    draft_owner: dict[str, str] = {}
+    for attempt in attempts:
+        try:
+            verify_transformation_attempt_id(attempt)
+        except ValueError as exc:
+            raise DeterministicScaleError(
+                f"transformation attempt identity mismatch: {attempt.attempt_id}"
+            ) from exc
+        if (
+            attempt.registry_hash != spec.registry_hash
+            or attempt.generation_config_hash != spec.registry_hash
+        ):
+            raise DeterministicScaleError(
+                f"attempt is not bound to the run registry: {attempt.attempt_id}"
+            )
+        for theorem_id, representation_id in zip(
+            attempt.source_theorem_ids,
+            attempt.source_representation_ids,
+            strict=True,
+        ):
+            source = sources.get(theorem_id)
+            linked_source_representation = source_repr_by_theorem.get(theorem_id)
+            if (
+                source is None
+                or linked_source_representation is None
+                or linked_source_representation.representation_id != representation_id
+                or source.context_id != attempt.context_id
+            ):
+                raise DeterministicScaleError(
+                    f"attempt source inventory link mismatch: {attempt.attempt_id}"
+                )
+        for draft_id in attempt.draft_ids:
+            previous = draft_owner.setdefault(draft_id, attempt.attempt_id)
+            if previous != attempt.attempt_id:
+                raise DeterministicScaleError(f"draft ID is owned by multiple attempts: {draft_id}")
+
+    projected_draft_ids = accepted_draft_ids | quarantined_draft_ids
+    if set(draft_owner) != projected_draft_ids:
+        raise DeterministicScaleError(
+            "attempt draft inventory differs from accepted plus quarantined projections"
+        )
+    for record in quarantine:
+        if any(theorem_id not in sources for theorem_id in record.source_theorem_ids):
+            raise DeterministicScaleError(
+                f"quarantine source link leaves immutable inventory: {record.draft_id}"
+            )
+        if record.failure.draft_id != record.draft_id:
+            raise DeterministicScaleError(
+                f"quarantine failure/draft identity mismatch: {record.draft_id}"
+            )
+        if record.candidate_content_redacted != (record.status == "protected_benchmark_overlap"):
+            raise DeterministicScaleError(
+                f"quarantine redaction status mismatch: {record.draft_id}"
+            )
+
+    pairs_by_candidate: dict[str, PairRecord] = {}
+    for pair in pairs:
+        if pair.theorem_b_id in pairs_by_candidate:
+            raise DeterministicScaleError(
+                f"multiple pairs reference one candidate theorem: {pair.theorem_b_id}"
+            )
+        pairs_by_candidate[pair.theorem_b_id] = pair
+
+    source_index_by_id = {
+        theorem_id: index for index, theorem_id in enumerate(spec.source_universe_theorem_ids)
+    }
+    consumed_candidates: set[str] = set()
+    consumed_representations: set[str] = set()
+    consumed_audits: set[str] = set()
+    consumed_pairs: set[str] = set()
+    for variant in variants:
+        try:
+            verify_deterministic_variant_id(variant)
+        except ValueError as exc:
+            raise DeterministicScaleError(
+                f"deterministic variant identity mismatch: {variant.variant_id}"
+            ) from exc
+        if (
+            variant.draft_id is None
+            or variant.audit_id is None
+            or variant.transformation_attempt_id is None
+            or variant.derived_theorem_id is None
+            or variant.derived_representation_id is None
+        ):
+            raise DeterministicScaleError(
+                f"deterministic variant lacks complete links: {variant.variant_id}"
+            )
+        draft = draft_by_id.get(variant.draft_id)
+        audit = audit_by_id.get(variant.audit_id)
+        linked_attempt = attempt_by_id.get(variant.transformation_attempt_id)
+        candidate = candidate_by_id.get(variant.derived_theorem_id)
+        candidate_representation = candidate_repr_by_id.get(variant.derived_representation_id)
+        linked_pair = pairs_by_candidate.get(variant.derived_theorem_id)
+        if any(
+            item is None
+            for item in (
+                draft,
+                audit,
+                linked_attempt,
+                candidate,
+                candidate_representation,
+                linked_pair,
+            )
+        ):
+            raise DeterministicScaleError(
+                f"variant cross-record link is missing: {variant.variant_id}"
+            )
+        assert draft is not None
+        assert audit is not None
+        assert linked_attempt is not None
+        assert candidate is not None
+        assert candidate_representation is not None
+        assert linked_pair is not None
+        attempt = linked_attempt
+        pair = linked_pair
+        source_records = tuple(
+            sources[theorem_id] for theorem_id in draft.source_theorem_ids if theorem_id in sources
+        )
+        if len(source_records) != len(draft.source_theorem_ids):
+            raise DeterministicScaleError(
+                f"draft source theorem leaves immutable inventory: {draft.draft_id}"
+            )
+        source_representation_ids = tuple(
+            source_repr_by_theorem[theorem_id].representation_id
+            for theorem_id in draft.source_theorem_ids
+            if theorem_id in source_repr_by_theorem
+        )
+        if (
+            len(source_representation_ids) != len(draft.source_theorem_ids)
+            or draft.source_representation_ids != source_representation_ids
+        ):
+            raise DeterministicScaleError(
+                f"draft source representation link mismatch: {draft.draft_id}"
+            )
+        try:
+            verify_variant_draft_id(draft)
+            verify_transformation_audit_id(audit)
+        except ValueError as exc:
+            raise DeterministicScaleError(
+                f"draft/audit identity mismatch for variant {variant.variant_id}"
+            ) from exc
+        lineage_violations = check_deterministic_variant_lineage(
+            variant,
+            draft,
+            audit,
+            attempt,
+        )
+        if lineage_violations:
+            raise DeterministicScaleError(
+                "deterministic variant cross-record lineage mismatch: "
+                + ",".join(lineage_violations)
+            )
+
+        primary_source_id = candidate.metadata.get("primary_source_id")
+        if not isinstance(primary_source_id, str) or primary_source_id not in sources:
+            raise DeterministicScaleError(
+                f"candidate primary source link is invalid: {candidate.theorem_id}"
+            )
+        if primary_source_id not in draft.source_theorem_ids:
+            raise DeterministicScaleError(
+                f"candidate primary source is absent from draft: {candidate.theorem_id}"
+            )
+        expected_source_index = source_index_by_id.get(primary_source_id)
+        if expected_source_index is None:
+            raise DeterministicScaleError(
+                f"candidate primary source leaves run universe: {candidate.theorem_id}"
+            )
+        validation_request_hash = candidate.metadata.get("validation_request_hash")
+        inline_context_sha256 = candidate.metadata.get("inline_context_sha256")
+        if any(
+            not isinstance(value, str)
+            or len(value) != 64
+            or any(character not in "0123456789abcdef" for character in value)
+            for value in (validation_request_hash, inline_context_sha256)
+        ):
+            raise DeterministicScaleError(
+                f"candidate lacks bound Lean validation hashes: {candidate.theorem_id}"
+            )
+        expected_candidate = build_derived_theorem_record(
+            draft=draft,
+            sources=source_records,
+            primary_source_id=primary_source_id,
+            elaboration_status=candidate.elaboration_status,
+            elaboration_diagnostics=candidate.elaboration_diagnostics,
+            inline_elaboration_source=draft.candidate_code,
+            metadata={
+                "run_spec_hash": spec.run_spec_hash,
+                "scale_profile_id": config.profile_id,
+                "source_index": expected_source_index,
+                "validation_request_hash": validation_request_hash,
+                "inline_context_sha256": inline_context_sha256,
+                "inline_context_persisted": False,
+            },
+        ).model_copy(update={"inline_elaboration_source": None})
+        if candidate != expected_candidate:
+            raise DeterministicScaleError(
+                f"candidate theorem differs from deterministic lineage: {candidate.theorem_id}"
+            )
+        expected_representation_id = make_id(
+            REPRESENTATION_PREFIX,
+            {
+                "theorem_id": candidate.theorem_id,
+                "normalization_version": NORMALIZATION_VERSION,
+            },
+        )
+        if (
+            candidate_representation.representation_id != expected_representation_id
+            or candidate_representation.theorem_id != candidate.theorem_id
+            or candidate_representation.context_id != candidate.context_id
+            or candidate_representation.normalization_version != NORMALIZATION_VERSION
+            or candidate_representation.content_hash
+            != _representation_payload_hash(candidate_representation)
+            or candidate_representation.alpha_identity_fingerprint is None
+            or any(
+                candidate_representation.view_status[view] != ViewStatus.OK
+                for view in _REQUIRED_CANDIDATE_VIEWS
+            )
+            or candidate.elaboration_status
+            not in {
+                ValidationStatus.ELABORATES,
+                ValidationStatus.ELABORATES_WITH_PLACEHOLDER,
+            }
+        ):
+            raise DeterministicScaleError(
+                f"candidate representation/status mismatch: {candidate.theorem_id}"
+            )
+        expected_metadata: dict[str, str | int | float | bool | None] = {
+            "run_spec_hash": spec.run_spec_hash,
+            "scale_profile_id": config.profile_id,
+            "source_index": expected_source_index,
+        }
+        expected_variant = build_deterministic_variant_record(
+            attempt=attempt,
+            draft=draft,
+            audit=audit,
+            candidate=candidate,
+            candidate_representation=candidate_representation,
+            polarity=variant.polarity_metadata,
+            metadata=expected_metadata,
+        )
+        if variant != expected_variant:
+            raise DeterministicScaleError(
+                f"variant differs from deterministic projection: {variant.variant_id}"
+            )
+        primary = sources[primary_source_id]
+        pair_candidate = candidate.model_copy(
+            update={"inline_elaboration_source": draft.candidate_code}
+        )
+        expected_pair = build_deterministic_pair_record(
+            source=primary,
+            candidate=pair_candidate,
+            draft=draft,
+            audit=audit,
+            all_sources=source_records,
+            metadata=expected_metadata,
+        )
+        group_violations = check_pair_groups(pair, primary, candidate)
+        if pair != expected_pair or group_violations:
+            raise DeterministicScaleError(
+                "pair identity/split lineage mismatch: "
+                f"{pair.pair_id}; violations={group_violations}"
+            )
+        consumed_candidates.add(candidate.theorem_id)
+        consumed_representations.add(candidate_representation.representation_id)
+        consumed_audits.add(audit.audit_id)
+        consumed_pairs.add(pair.pair_id)
+
+    if (
+        consumed_candidates != set(candidate_by_id)
+        or consumed_representations != set(candidate_repr_by_id)
+        or consumed_audits != set(audit_by_id)
+        or consumed_pairs != {pair.pair_id for pair in pairs}
+    ):
+        raise DeterministicScaleError(
+            "accepted candidate/audit/pair partitions contain unconsumed lineage records"
+        )
+
+
 def _validate_shard_output(
     *,
     output_dir: Path,
@@ -287,6 +722,21 @@ def _validate_shard_output(
     journal_count, journal_tree_hash = _tree_hash(journal_dir, "*.json")
     receipt_count, receipt_tree_hash = _tree_hash(receipt_dir, "*.json")
     raw_count, raw_tree_hash = _tree_hash(output_dir / "raw_lean_responses", "*")
+    verification_path = output_dir / "full_lean_replay_verification.json"
+    if not verification_path.is_file():
+        raise DeterministicScaleError(
+            "producer shard lacks full Lean-backed replay verification; rerun the "
+            "completed shard with exact --resume before merge"
+        )
+    verification = _load_lean_replay_verification(
+        path=verification_path,
+        run_spec=spec,
+        run_spec_path=run_spec_path,
+        replayed_source_ids=spec.selected_source_theorem_ids,
+        journal_tree_hash=journal_tree_hash,
+        partition_sha256=partition_hashes,
+        created_at=config.record_timestamp_utc,
+    )
     expected_manifest = DeterministicScaleManifest(
         run_spec_hash=spec.run_spec_hash,
         run_spec_sha256=hash_file(run_spec_path),
@@ -327,6 +777,8 @@ def _validate_shard_output(
             journal_tree_hash=journal_tree_hash,
             journal_receipt_tree_hash=receipt_tree_hash,
             journal_chain_tip=previous_receipt_hash,
+            lean_replay_verification_hash=verification.verification_hash,
+            lean_replay_verification_sha256=hash_file(verification_path),
         ),
     )
 
@@ -342,25 +794,32 @@ def _reject_cross_shard_semantic_leakage(
         raise DeterministicScaleError("merged pairs contain resolved semantic labels")
 
     id_fields = {
+        "attempts": "attempt_id",
         "drafts": "draft_id",
         "candidate_theorems": "theorem_id",
         "candidate_representations": "representation_id",
         "audits": "audit_id",
         "variants": "variant_id",
         "pairs": "pair_id",
+        "quarantine": "draft_id",
     }
     for partition, field in id_fields.items():
         values = [getattr(record, field) for record in projected[partition]]
         if len(values) != len(set(values)):
             raise DeterministicScaleError(f"duplicate {field} values detected across merged shards")
 
+    candidate_theorems = cast(Sequence[TheoremRecord], projected["candidate_theorems"])
+    if len(candidate_theorems) != len(variants):
+        raise DeterministicScaleError(
+            "candidate theorem and variant partition counts do not reconcile"
+        )
     candidate_keys = [
         (
             theorem.root_ancestry_ids,
             variant.candidate_code_hash,
         )
         for theorem, variant in zip(
-            cast(Sequence[TheoremRecord], projected["candidate_theorems"]),
+            candidate_theorems,
             variants,
             strict=True,
         )
@@ -420,10 +879,24 @@ def merge_deterministic_scale_shards(
         Path(first_spec.config_path),
         DeterministicScaleConfig,
     )
+    if first_spec.shard_count > 1 and "n10_nearby_theorem" in loaded_config.config.active_rule_ids:
+        raise DeterministicScaleError(
+            "sharded N10 output is scientifically invalid: run unary families in "
+            "source shards and N10 in a dedicated shard_count=1 global pass"
+        )
+    if collect_code_state(paths.root) != first_spec.code:
+        raise DeterministicScaleError(
+            "merge implementation/code state differs from the producer run spec; "
+            "archive this shard set and use an explicit migration/replay"
+        )
     theorems = _load_jsonl(
         Path(first_spec.theorem_input_path),
         TheoremRecord,
         wrapper_key="theorem",
+    )
+    representations = _load_jsonl(
+        Path(first_spec.representation_input_path),
+        RepresentationRecord,
     )
     ordered = tuple(
         sorted(
@@ -477,6 +950,19 @@ def merge_deterministic_scale_shards(
         raise DeterministicScaleError("merged source journal order is not the source universe")
     projected = _project_records(all_shards)
     _reject_cross_shard_semantic_leakage(projected)
+    universe_ids = set(first_spec.source_universe_theorem_ids)
+    universe_representations = tuple(
+        representation
+        for representation in representations
+        if representation.theorem_id in universe_ids
+    )
+    _validate_projected_semantic_lineage(
+        projected=projected,
+        source_theorems=universe,
+        source_representations=universe_representations,
+        spec=first_spec,
+        config=loaded_config.config,
+    )
 
     global_state = _AdmissionState(
         root_counts=Counter(),
@@ -534,7 +1020,7 @@ def merge_deterministic_scale_shards(
             }
         )
         data: dict[str, object] = {
-            "schema_version": 1,
+            "schema_version": 2,
             "artifact_kind": "deterministic_scale_merged_manifest",
             "shard_set_spec_hash": first_spec.shard_set_spec_hash,
             "shard_count": first_spec.shard_count,
@@ -571,6 +1057,8 @@ def merge_deterministic_scale_shards(
             "resolved_semantic_labels": 0,
             "promoted_items": 0,
             "output_quality_tier": "provisional",
+            "full_lean_backed_verification": True,
+            "training_eligible": False,
             "created_at": config.record_timestamp_utc,
         }
         hash_payload = {

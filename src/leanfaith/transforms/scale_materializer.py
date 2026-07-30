@@ -32,7 +32,7 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Literal
 
-from pydantic import Field, model_validator
+from pydantic import Field, TypeAdapter, model_validator
 
 from leanfaith.config.hashing import (
     canonical_json_bytes,
@@ -468,6 +468,39 @@ class ScaleJournalReceipt(StrictModel):
         payload.pop("receipt_hash")
         if self.receipt_hash != hash_canonical(payload):
             raise ValueError("journal receipt hash does not match its canonical payload")
+        return self
+
+
+class ScaleLeanReplayVerification(StrictModel):
+    """Independent full-replay receipt required before shard merge.
+
+    A receipt is written only when a *completed* producer shard is opened with
+    ``--resume`` and every persisted source shard is rebuilt through the
+    current Lean-backed materialization path and compared byte-for-byte with
+    the journal.  Hash-chain validation alone is deliberately insufficient.
+    """
+
+    schema_version: Literal[1] = 1
+    artifact_kind: Literal["deterministic_scale_full_lean_replay"] = (
+        "deterministic_scale_full_lean_replay"
+    )
+    verification_hash: str = Field(pattern=_HEX64_PATTERN)
+    run_spec_hash: str = Field(pattern=_HEX64_PATTERN)
+    run_spec_sha256: str = Field(pattern=_HEX64_PATTERN)
+    verification_mode: Literal["full_lean_backed_replay"] = "full_lean_backed_replay"
+    replayed_source_count: int = Field(ge=1)
+    replayed_source_ids_sha256: str = Field(pattern=_HEX64_PATTERN)
+    journal_tree_hash: str = Field(pattern=_HEX64_PATTERN)
+    partition_sha256: dict[str, str]
+    scientific_merge_eligible: Literal[True] = True
+    created_at: datetime.datetime
+
+    @model_validator(mode="after")
+    def _self_authenticating(self) -> ScaleLeanReplayVerification:
+        payload = self.model_dump(mode="json")
+        payload.pop("verification_hash")
+        if self.verification_hash != hash_canonical(payload):
+            raise ValueError("Lean-replay verification hash does not match canonical payload")
         return self
 
 
@@ -1178,10 +1211,9 @@ def _root_component_shard_assignments(
 ) -> tuple[int, ...]:
     """Assign complete root-ancestry components to balanced deterministic shards.
 
-    Keeping every shared root ancestry in one shard makes all configured
-    per-root admission caps shard-local.  N10 donors are subsequently selected
-    only from that shard, so parallel materialization cannot create a hidden
-    cross-shard cap dependency.
+    Keeping every shared root ancestry in one shard makes unary-family
+    per-root admission caps shard-local. Pair-aware N10 is explicitly
+    prohibited when ``shard_count > 1`` and runs in a separate global pass.
     """
 
     if shard_count < 1:
@@ -1233,6 +1265,26 @@ def _root_component_shard_assignments(
     if any(assignment < 0 for assignment in assignments):
         raise AssertionError("internal source sharding left an unassigned source")
     return tuple(assignments)
+
+
+def _validate_shard_execution_policy(
+    config: DeterministicScaleConfig,
+    *,
+    shard_count: int,
+) -> None:
+    """Reject policies whose admission or donor semantics are not shard-local."""
+
+    if shard_count > 1 and config.max_accepted_variants_per_family is not None:
+        raise DeterministicScaleError(
+            "multi-shard materialization requires max_accepted_variants_per_family=null; "
+            "a global family cap is not independently shardable"
+        )
+    if shard_count > 1 and "n10_nearby_theorem" in config.active_rule_ids:
+        raise DeterministicScaleError(
+            "N10 cannot run inside source shards: donor scheduling and dual-ancestry "
+            "admission are global. Use a sharded unary-only profile, then execute N10 "
+            "as a dedicated shard_count=1 global pass."
+        )
 
 
 def _candidate_inline_source(
@@ -2123,6 +2175,81 @@ def _build_journal_receipt(
         "previous_receipt_hash": previous_receipt_hash,
     }
     return ScaleJournalReceipt.model_validate({"receipt_hash": hash_canonical(data), **data})
+
+
+def _build_lean_replay_verification(
+    *,
+    run_spec: DeterministicScaleRunSpec,
+    run_spec_path: Path,
+    replayed_source_ids: Sequence[str],
+    journal_tree_hash: str,
+    partition_sha256: Mapping[str, str],
+    created_at: datetime.datetime,
+) -> ScaleLeanReplayVerification:
+    data: dict[str, object] = {
+        "schema_version": 1,
+        "artifact_kind": "deterministic_scale_full_lean_replay",
+        "run_spec_hash": run_spec.run_spec_hash,
+        "run_spec_sha256": hash_file(run_spec_path),
+        "verification_mode": "full_lean_backed_replay",
+        "replayed_source_count": len(replayed_source_ids),
+        "replayed_source_ids_sha256": hash_canonical(tuple(replayed_source_ids)),
+        "journal_tree_hash": journal_tree_hash,
+        "partition_sha256": dict(sorted(partition_sha256.items())),
+        "scientific_merge_eligible": True,
+        "created_at": created_at,
+    }
+    canonical = {
+        **data,
+        "created_at": TypeAdapter(datetime.datetime).dump_python(
+            created_at,
+            mode="json",
+        ),
+    }
+    return ScaleLeanReplayVerification.model_validate(
+        {"verification_hash": hash_canonical(canonical), **data}
+    )
+
+
+def _load_lean_replay_verification(
+    *,
+    path: Path,
+    run_spec: DeterministicScaleRunSpec,
+    run_spec_path: Path,
+    replayed_source_ids: Sequence[str],
+    journal_tree_hash: str,
+    partition_sha256: Mapping[str, str],
+    created_at: datetime.datetime,
+) -> ScaleLeanReplayVerification:
+    try:
+        payload = path.read_bytes()
+        raw = json.loads(
+            payload,
+            object_pairs_hook=_reject_duplicate_keys,
+            parse_constant=_reject_nonfinite,
+        )
+        verification = ScaleLeanReplayVerification.model_validate(raw)
+    except Exception as exc:
+        raise DeterministicScaleError(
+            f"invalid full Lean-replay verification {path}: {exc}"
+        ) from exc
+    if payload != _canonical_model_bytes(verification):
+        raise DeterministicScaleError(
+            f"full Lean-replay verification is not canonical JSON: {path}"
+        )
+    expected = _build_lean_replay_verification(
+        run_spec=run_spec,
+        run_spec_path=run_spec_path,
+        replayed_source_ids=replayed_source_ids,
+        journal_tree_hash=journal_tree_hash,
+        partition_sha256=partition_sha256,
+        created_at=created_at,
+    )
+    if verification != expected:
+        raise DeterministicScaleError(
+            "full Lean-replay verification does not bind the current journal/partitions"
+        )
+    return verification
 
 
 def _load_journal_receipt(
@@ -3219,8 +3346,11 @@ def run_deterministic_scale_materialization(
         raise ValueError("shard_count must be positive")
     if shard_index < 0 or shard_index >= shard_count:
         raise ValueError("shard_index must satisfy 0 <= shard_index < shard_count")
-    if fast_resume and not resume:
-        raise ValueError("fast_resume requires resume=True")
+    if fast_resume:
+        raise DeterministicScaleError(
+            "fast resume is retired: hash-chain receipts are operational integrity "
+            "metadata, not scientific verification; use exact --resume Lean replay"
+        )
     theorem_path = theorem_jsonl.resolve()
     representation_path = representation_jsonl.resolve()
     inventory_manifest_path = source_inventory_manifest.resolve()
@@ -3265,11 +3395,7 @@ def run_deterministic_scale_materialization(
     universe = ordered if max_sources is None else ordered[:max_sources]
     if not universe:
         raise DeterministicScaleError("theorem input selected zero source records")
-    if shard_count > 1 and config.max_accepted_variants_per_family is not None:
-        raise DeterministicScaleError(
-            "multi-shard materialization requires max_accepted_variants_per_family=null; "
-            "a global family cap is not independently shardable"
-        )
+    _validate_shard_execution_policy(config, shard_count=shard_count)
     source_shard_assignments = _root_component_shard_assignments(
         universe,
         shard_count=shard_count,
@@ -3359,6 +3485,7 @@ def run_deterministic_scale_materialization(
     journal_dir = output / "journal"
     receipt_dir = output / "journal_receipts"
     manifest_path = output / "manifest.json"
+    verification_path = output / "full_lean_replay_verification.json"
 
     with _run_lock(output):
         preexisting = tuple(path for path in output.iterdir() if path.name != "run.lock")
@@ -3381,6 +3508,12 @@ def run_deterministic_scale_materialization(
             _journal_receipt_path(receipt_dir, shard_path) for shard_path in expected_shards
         )
         existing_flags = tuple(path.exists() for path in expected_shards)
+        complete_run_opened_for_replay = resume and all(existing_flags)
+        if verification_path.exists() and not complete_run_opened_for_replay:
+            raise DeterministicScaleError(
+                "a full Lean-replay verification exists for an incomplete/non-resume "
+                "execution; archive the output and restart from immutable inputs"
+            )
         saw_gap = False
         for index, exists in enumerate(existing_flags):
             if not exists:
@@ -3474,11 +3607,6 @@ def run_deterministic_scale_materialization(
                         previous_receipt_hash=previous_receipt_hash,
                     )
                     previous_receipt_hash = receipt.receipt_hash
-                elif fast_resume:
-                    raise DeterministicScaleError(
-                        "fast resume requires a complete immutable receipt chain; "
-                        f"missing {receipt_path}"
-                    )
                 expected_donors = (
                     _donors_for(
                         theorem,
@@ -3505,10 +3633,6 @@ def run_deterministic_scale_materialization(
                     benchmark=benchmark,
                     run_spec_hash=run_spec.run_spec_hash,
                 )
-                if fast_resume:
-                    _admit_source_shard(state, persisted_shard)
-                    shards.append(persisted_shard)
-                    continue
                 rebuilt_shard = _build_source_shard(
                     backend=require_backend(),
                     loaded_registry=loaded_registry,
@@ -3598,6 +3722,19 @@ def run_deterministic_scale_materialization(
         journal_count, journal_tree_hash = _tree_hash(journal_dir, "*.json")
         receipt_count, receipt_tree_hash = _tree_hash(receipt_dir, "*.json")
         raw_count, raw_tree_hash = _tree_hash(output / "raw_lean_responses", "*")
+        if complete_run_opened_for_replay:
+            verification = _build_lean_replay_verification(
+                run_spec=run_spec,
+                run_spec_path=run_spec_path,
+                replayed_source_ids=selected_ids,
+                journal_tree_hash=journal_tree_hash,
+                partition_sha256=partition_hashes,
+                created_at=config.record_timestamp_utc,
+            )
+            _write_new_atomic(
+                verification_path,
+                _canonical_model_bytes(verification),
+            )
         manifest = DeterministicScaleManifest(
             run_spec_hash=run_spec.run_spec_hash,
             run_spec_sha256=hash_file(run_spec_path),
@@ -3649,6 +3786,7 @@ __all__ = [
     "ScaleDraftResult",
     "ScaleFailure",
     "ScaleJournalReceipt",
+    "ScaleLeanReplayVerification",
     "ScaleRuleResult",
     "ScaleSourceInventoryArtifacts",
     "ScaleSourceInventoryManifest",
