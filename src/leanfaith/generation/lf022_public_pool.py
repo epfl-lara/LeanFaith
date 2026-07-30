@@ -161,6 +161,10 @@ class LF022PublicPoolOutputArtifacts(StrictModel):
     context_records: LF022JSONLArtifactBinding
     admission: LF022ArtifactBinding
     production_plan: LF022ArtifactBinding
+    parent_pool_derivation: LF022ArtifactBinding | None = Field(
+        default=None,
+        exclude_if=lambda value: value is None,
+    )
 
     @model_validator(mode="after")
     def _maps_are_canonical(self) -> Self:
@@ -174,7 +178,7 @@ class LF022PublicPoolOutputArtifacts(StrictModel):
 class LF022PublicPoolAudit(StrictModel):
     """Mechanically reconciled eligibility, selection, and output audit."""
 
-    schema_version: Literal[1] = 1
+    schema_version: Literal[1, 2] = 1
     audit_id: str = Field(pattern=id_pattern("lf022_public_pool_audit"))
     selection_version: Literal["lf022_public_pool_hash_rank_v1"]
     profile: LF022PlanProfile
@@ -211,6 +215,8 @@ class LF022PublicPoolAudit(StrictModel):
 
     @model_validator(mode="after")
     def _reconciles(self) -> Self:
+        if (self.schema_version == 2) != (self.outputs.parent_pool_derivation is not None):
+            raise ValueError("schema v2 requires parent_pool_derivation and schema v1 forbids it")
         if set(self.rejection_counts) != set(_REJECTION_REASONS):
             raise ValueError("rejection_counts must contain every canonical reason")
         if any(value < 0 for value in self.rejection_counts.values()):

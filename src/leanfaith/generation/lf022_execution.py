@@ -651,7 +651,8 @@ def _load_strict_json(
         record = model.model_validate(cast(object, json.loads(raw)))
     except (OSError, UnicodeError, json.JSONDecodeError, ValueError) as exc:
         raise LF022ExecutionError(f"invalid {label}: {exc}") from exc
-    if raw != canonical_json_bytes(record.model_dump(mode="json")):
+    canonical = canonical_json_bytes(record.model_dump(mode="json"))
+    if raw not in {canonical, canonical + b"\n"}:
         raise LF022ExecutionError(f"{label} is not canonical JSON")
     return record
 

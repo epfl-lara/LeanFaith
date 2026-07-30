@@ -3127,6 +3127,93 @@ def materialize_lf022_public_pool_command(
     typer.echo(result.summary.model_dump_json())
 
 
+@app.command("derive-lf022-diagnostic-subpool")
+def derive_lf022_diagnostic_subpool_command(
+    parent_pool_audit: Annotated[
+        Path,
+        typer.Option(
+            "--parent-pool-audit",
+            help="Exact immutable public-pool audit to subset.",
+        ),
+    ],
+    proposer_family: Annotated[
+        str,
+        typer.Option("--proposer-family", help="qwen3 or glm5."),
+    ],
+    output_directory: Annotated[
+        Path,
+        typer.Option("--out-dir", help="Repository-local immutable output directory."),
+    ],
+    root_dir: Annotated[
+        Path | None,
+        typer.Option("--root", help="Repository root override."),
+    ] = None,
+) -> None:
+    """Derive one repr_v3 diagnostic source from an exact public pool offline."""
+    from typing import cast
+
+    from leanfaith.config.paths import RepoPaths
+    from leanfaith.generation.lf022_diagnostic_subpool import (
+        LF022DiagnosticProposerFamily,
+        LF022DiagnosticSubpoolError,
+        derive_lf022_diagnostic_subpool,
+    )
+
+    if proposer_family not in {"qwen3", "glm5"}:
+        typer.echo("--proposer-family must be qwen3 or glm5", err=True)
+        raise typer.Exit(code=2)
+    paths = RepoPaths.discover(root_dir) if root_dir is None else RepoPaths(root=root_dir)
+    try:
+        result = derive_lf022_diagnostic_subpool(
+            repo_root=paths.root,
+            parent_pool_audit_path=parent_pool_audit,
+            proposer_family_id=cast(LF022DiagnosticProposerFamily, proposer_family),
+            output_directory=output_directory,
+        )
+    except (LF022DiagnosticSubpoolError, OSError, ValueError) as exc:
+        typer.echo(
+            json.dumps(
+                {
+                    "status": "error",
+                    "operation": "derive_lf022_diagnostic_subpool",
+                    "message": str(exc),
+                    "network_execution_authorized": False,
+                    "semantic_labels_created": False,
+                    "training_eligible": False,
+                },
+                sort_keys=True,
+                separators=(",", ":"),
+            ),
+            err=True,
+        )
+        raise typer.Exit(code=2) from exc
+    audit = result.materialized.audit
+    typer.echo(
+        json.dumps(
+            {
+                "status": "derived",
+                "operation": "derive_lf022_diagnostic_subpool",
+                "proposer_family_id": proposer_family,
+                "parent_pool_audit_id": result.derivation.parent_pool_audit_id,
+                "derivation_id": result.derivation.derivation_id,
+                "audit_id": audit.audit_id,
+                "plan_id": result.materialized.plan.manifest_id,
+                "selected_count": audit.selected_count,
+                "task_count": len(result.materialized.plan.tasks),
+                "audit": result.materialized.audit_binding.model_dump(mode="json"),
+                "network_execution_authorized": False,
+                "outputs_unresolved": True,
+                "semantic_labels_created": False,
+                "training_eligible": False,
+                "evaluation_eligible": False,
+                "gate_credit_claimed": False,
+            },
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+    )
+
+
 @app.command("lf022-rcp-smoke")
 def lf022_rcp_smoke_command(
     config_path: Annotated[

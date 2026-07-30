@@ -301,6 +301,27 @@ def freeze_lf022_diagnostic_execution_admission(
     code_tree_hash = collect_code_state(root).code_tree_hash
     if code_tree_hash is None:
         raise LF022AdmissionFreezeError("current repository code-tree hash is unavailable")
+    if audit.schema_version == 2:
+        if proposer_family_id == "moonshot_kimi_k2":
+            raise LF022AdmissionFreezeError(
+                "derived diagnostic subpools support only qwen3 or glm5"
+            )
+        from leanfaith.generation.lf022_diagnostic_subpool import (
+            LF022DiagnosticSubpoolError,
+            verify_lf022_diagnostic_subpool,
+        )
+
+        try:
+            verify_lf022_diagnostic_subpool(
+                repo_root=root,
+                audit=audit,
+                expected_proposer_family_id=proposer_family_id,
+                expected_code_tree_hash=code_tree_hash,
+            )
+        except LF022DiagnosticSubpoolError as exc:
+            raise LF022AdmissionFreezeError(
+                f"derived diagnostic subpool exact replay rejected: {exc}"
+            ) from exc
     code_bundle_binding = _repo_file_binding(
         root,
         code_bundle_path,

@@ -30,8 +30,14 @@ reasoning fields are rejected rather than renamed or silently dropped.
 The route runner consumes an execution admission; a route-contract YAML is not
 an admission. Build the family-specific one-source diagnostic allocation and
 freeze the execution admission entirely offline before resolving credentials.
-The same path supports Kimi, although Kimi does not require the later
-qualification certificate.
+
+For Qwen and GLM, derive the diagnostic pool from the already immutable,
+exact-replayed `repr_v3` public pool. Do **not** rematerialize that pool from the
+old extraction after extraction-only code changes, weaken/refreeze its reviewed
+reuse attestation, or fall back to the old pre-`repr_v3` smoke representations.
+The derivation binds and replays the parent audit, all selected parent files,
+the exact source/representation/context/denylist clearance, the chosen family,
+and the current clean code tree.
 
 Run from a clean repository tree:
 
@@ -41,28 +47,14 @@ cd "$ROOT"
 git diff --quiet
 git diff --cached --quiet
 
-# Set one family at a time: qwen3, glm5, or moonshot_kimi_k2.
+# Set one family at a time: qwen3 or glm5.
 FAMILY=qwen3
-QUAL_ROOT="artifacts/generation/lf022_${FAMILY}_diagnostic_v1"
+QUAL_ROOT="artifacts/generation/lf022_${FAMILY}_diagnostic_from_v3_max"
+PARENT_AUDIT="artifacts/generation/lf022_public_v3_max_c799f54c/audit.json"
 
-uv run leanfaith materialize-lf022-public-pool \
-  --theorems data/scale/lf022_public_v1/extraction/theorems/mathlib.jsonl \
-  --representations \
-    data/scale/lf022_public_v3/repr_dc29fe6_c799f54c/records/mathlib.jsonl \
-  --contexts \
-    data/extracted/contexts/0cd06826b8767b3bc951c0eb00c802424af95785b558f9f8a61f18694a86c4ce.json \
-  --extraction-manifest \
-    data/scale/lf022_public_v1/extraction/manifests/mathlib.json \
-  --representation-manifest \
-    data/scale/lf022_public_v3/repr_dc29fe6_c799f54c/manifests/mathlib.json \
-  --mathlib-source-frame \
-    data/source_frames/mathlib/lf022_public_mathlib_frame_v1_1200.json \
-  --active-registry data/benchmarks/frozen_ids.representations_v1.json \
-  --extraction-reuse-attestation \
-    data/scale/lf022_public_v3/extraction_reuse_attestation_c799f54c_v2.json \
-  --requested-count 1 \
-  --profile diagnostic_scaffold \
-  --diagnostic-proposer-family "$FAMILY" \
+uv run leanfaith derive-lf022-diagnostic-subpool \
+  --parent-pool-audit "$PARENT_AUDIT" \
+  --proposer-family "$FAMILY" \
   --out-dir "$QUAL_ROOT"
 
 BUNDLE_JSON=$(
@@ -84,11 +76,13 @@ uv run leanfaith freeze-lf022-proposer-admission \
   --output "$ADMISSION"
 ```
 
-The materializer rejects a diagnostic family override unless the profile has
-exactly one selected source. The admission freezer then exact-replays the
-public-pool audit, its two-task `G_sci`/`G_open` allocation, the raw and
-normalized provider catalogs, the route-specific contract, prior transport
-evidence, prompt, code bundle, and current code-tree hash. It never reads
+The derivation selects the first theorem in the parent audit's frozen selection
+order and requires its parent representation to be `repr_v3`. It emits exactly
+one byte-identical source, theorem, representation, context, and denylist
+clearance, plus a two-task `G_sci`/`G_open` plan assigned to the requested
+family. The admission freezer exact-replays that parent lineage, the raw and
+normalized provider catalogs, route-specific contract, prior transport
+evidence, prompt, code bundle, and current code-tree hash. Neither command reads
 credentials or performs a network request.
 
 For Qwen and GLM, derive the one exact public `G_open` allocation, freeze the
