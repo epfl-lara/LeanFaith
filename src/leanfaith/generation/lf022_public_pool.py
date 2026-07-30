@@ -24,8 +24,8 @@ from leanfaith.config.hashing import canonical_json_bytes, hash_canonical, hash_
 from leanfaith.config.models import StrictModel
 from leanfaith.datasets.denylist import DenylistIndex, FrozenRegistry
 from leanfaith.generation.lf022_extraction_reuse import (
-    LF022ExtractionReuseArtifactBinding,
     LF022ExtractionReuseAttestationV1,
+    narrow_lf022_extraction_reuse_binding,
     verify_lf022_extraction_reuse_attestation,
 )
 from leanfaith.generation.lf022_production import (
@@ -558,26 +558,20 @@ def _validate_upstream_representation(
             verify_lf022_extraction_reuse_attestation(
                 repo_root=repo_root,
                 attestation=extraction_reuse_attestation,
-                attestation_binding=LF022ExtractionReuseArtifactBinding.model_validate(
-                    extraction_reuse_attestation_binding.model_dump(mode="json")
+                attestation_binding=narrow_lf022_extraction_reuse_binding(
+                    extraction_reuse_attestation_binding
                 ),
                 extraction_manifest=extraction_manifest,
-                extraction_manifest_binding=LF022ExtractionReuseArtifactBinding.model_validate(
-                    extraction_manifest_binding.model_dump(mode="json")
+                extraction_manifest_binding=narrow_lf022_extraction_reuse_binding(
+                    extraction_manifest_binding
                 ),
-                theorem_records_binding=LF022ExtractionReuseArtifactBinding.model_validate(
-                    theorem_binding.model_dump(mode="json")
-                ),
+                theorem_records_binding=narrow_lf022_extraction_reuse_binding(theorem_binding),
                 representation_manifest=representation_manifest,
                 representation_manifest_binding=(
-                    LF022ExtractionReuseArtifactBinding.model_validate(
-                        representation_manifest_binding.model_dump(mode="json")
-                    )
+                    narrow_lf022_extraction_reuse_binding(representation_manifest_binding)
                 ),
                 representation_records_binding=(
-                    LF022ExtractionReuseArtifactBinding.model_validate(
-                        representation_binding.model_dump(mode="json")
-                    )
+                    narrow_lf022_extraction_reuse_binding(representation_binding)
                 ),
             )
         except ValueError as exc:

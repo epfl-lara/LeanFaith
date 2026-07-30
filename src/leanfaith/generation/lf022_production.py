@@ -1282,8 +1282,8 @@ def build_lf022_production_plan(
         reuse_verified = False
         if authorized_source.extraction_reuse_attestation is not None:
             from leanfaith.generation.lf022_extraction_reuse import (
-                LF022ExtractionReuseArtifactBinding,
                 LF022ExtractionReuseAttestationV1,
+                narrow_lf022_extraction_reuse_binding,
                 verify_lf022_extraction_reuse_attestation,
             )
 
@@ -1295,31 +1295,27 @@ def build_lf022_production_plan(
             verify_lf022_extraction_reuse_attestation(
                 repo_root=repo_root,
                 attestation=reuse_attestation,
-                attestation_binding=LF022ExtractionReuseArtifactBinding.model_validate(
-                    authorized_source.extraction_reuse_attestation.model_dump(mode="json")
+                attestation_binding=narrow_lf022_extraction_reuse_binding(
+                    authorized_source.extraction_reuse_attestation
                 ),
                 extraction_manifest=upstream_manifest,
                 extraction_manifest_binding=(
-                    LF022ExtractionReuseArtifactBinding.model_validate(
-                        authorized_source.upstream_extraction_output_manifest.model_dump(
-                            mode="json"
-                        )
+                    narrow_lf022_extraction_reuse_binding(
+                        authorized_source.upstream_extraction_output_manifest
                     )
                 ),
-                theorem_records_binding=LF022ExtractionReuseArtifactBinding.model_validate(
-                    authorized_source.upstream_theorem_records.model_dump(mode="json")
+                theorem_records_binding=narrow_lf022_extraction_reuse_binding(
+                    authorized_source.upstream_theorem_records
                 ),
                 representation_manifest=representation_manifest,
                 representation_manifest_binding=(
-                    LF022ExtractionReuseArtifactBinding.model_validate(
-                        authorized_source.upstream_representation_output_manifest.model_dump(
-                            mode="json"
-                        )
+                    narrow_lf022_extraction_reuse_binding(
+                        authorized_source.upstream_representation_output_manifest
                     )
                 ),
                 representation_records_binding=(
-                    LF022ExtractionReuseArtifactBinding.model_validate(
-                        authorized_source.upstream_representation_records.model_dump(mode="json")
+                    narrow_lf022_extraction_reuse_binding(
+                        authorized_source.upstream_representation_records
                     )
                 ),
             )

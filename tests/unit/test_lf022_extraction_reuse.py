@@ -18,13 +18,32 @@ from leanfaith.generation.lf022_extraction_reuse import (
     LF022ExtractionReusePolicyV1,
     freeze_lf022_extraction_reuse_attestation,
     load_reviewed_lf022_extraction_reuse_policy,
+    narrow_lf022_extraction_reuse_binding,
     verify_lf022_extraction_reuse_attestation,
 )
+from leanfaith.generation.lf022_production import LF022JSONLArtifactBinding
 from leanfaith.schemas.enums import ArtifactClass, DataStage
 from leanfaith.schemas.ids import make_id
 from leanfaith.schemas.manifest import CodeState, OutputManifest
 
 ROOT = Path(__file__).resolve().parents[2]
+
+
+def test_jsonl_binding_narrows_to_reuse_path_and_hash() -> None:
+    binding = LF022JSONLArtifactBinding(
+        path="data/records.jsonl",
+        sha256="a" * 64,
+        record_count=27_786,
+    )
+
+    narrowed = narrow_lf022_extraction_reuse_binding(binding)
+
+    assert narrowed.model_dump(mode="json") == {
+        "path": "data/records.jsonl",
+        "sha256": "a" * 64,
+    }
+
+
 NOW = datetime.datetime(2026, 7, 30, tzinfo=datetime.UTC)
 
 

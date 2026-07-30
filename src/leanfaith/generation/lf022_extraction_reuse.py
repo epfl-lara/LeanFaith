@@ -19,7 +19,7 @@ import os
 import stat
 import subprocess
 from pathlib import Path, PurePosixPath
-from typing import Literal, Self
+from typing import Literal, Protocol, Self
 
 from pydantic import Field, model_validator
 
@@ -64,6 +64,30 @@ class LF022ExtractionReuseArtifactBinding(StrictModel):
         ):
             raise ValueError("artifact path must be normalized and repository-relative")
         return self
+
+
+class LF022ExtractionReuseBindingLike(Protocol):
+    """Minimum binding surface accepted by the reuse verifier."""
+
+    path: str
+    sha256: str
+
+
+def narrow_lf022_extraction_reuse_binding(
+    binding: LF022ExtractionReuseBindingLike,
+) -> LF022ExtractionReuseArtifactBinding:
+    """Drop caller-specific metadata while preserving the exact file binding.
+
+    LF-022 JSONL bindings additionally carry ``record_count``.  Passing their
+    full Pydantic dump into this strict two-field model fails on that legitimate
+    extra field.  Narrowing by attribute keeps the fail-closed path/hash checks
+    while allowing both ordinary and JSONL bindings to replay an attestation.
+    """
+
+    return LF022ExtractionReuseArtifactBinding(
+        path=binding.path,
+        sha256=binding.sha256,
+    )
 
 
 class LF022ExtractionCriticalPath(StrictModel):
@@ -773,5 +797,6 @@ __all__ = [
     "LF022ExtractionReusePolicyV1",
     "freeze_lf022_extraction_reuse_attestation",
     "load_reviewed_lf022_extraction_reuse_policy",
+    "narrow_lf022_extraction_reuse_binding",
     "verify_lf022_extraction_reuse_attestation",
 ]
