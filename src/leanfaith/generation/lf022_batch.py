@@ -199,18 +199,17 @@ class LF022BatchRouteFreezeRequest(StrictModel):
             raise ValueError("allocation_task_ids must be sorted and unique")
         if len(set(self.requested_relations)) != len(self.requested_relations):
             raise ValueError("requested_relations must be unique")
-        if (
+        pending_qualification = (
             self.proposer_family_id in _QUALIFICATION_FAMILIES
-            and len(self.allocation_task_ids) != 1
-        ):
-            raise ValueError("unqualified Qwen/GLM routes require exactly one allocation task")
-        expected_scope = (
-            "one_item_proposer_qualification_only"
-            if self.proposer_family_id in _QUALIFICATION_FAMILIES
-            else "public_provisional_g_open"
+            and self.route.execution_scope == "one_item_proposer_qualification_only"
         )
-        if self.route.execution_scope != expected_scope:
-            raise ValueError("route execution scope differs from reviewed batch policy")
+        if pending_qualification and len(self.allocation_task_ids) != 1:
+            raise ValueError("unqualified Qwen/GLM routes require exactly one allocation task")
+        if (
+            self.proposer_family_id == "moonshot_kimi_k2"
+            and self.route.execution_scope != "public_provisional_g_open"
+        ):
+            raise ValueError("Kimi route must use the reviewed public production scope")
         return self
 
 
@@ -301,6 +300,7 @@ class LF022BatchRouteManifest(StrictModel):
     qualification_state: Literal[
         "production_route_reviewed",
         "pending_one_item_mechanical_qualification",
+        "production_live_qualified",
     ]
     admission_id: str = Field(pattern=id_pattern("lf022_execution_admission"))
     admission: LF022ArtifactBinding
@@ -314,14 +314,27 @@ class LF022BatchRouteManifest(StrictModel):
         task_ids = tuple(task.execution_task_id for task in self.tasks)
         if tuple(sorted(set(task_ids))) != task_ids:
             raise ValueError("route execution tasks must be sorted and unique")
-        if self.proposer_family_id in _QUALIFICATION_FAMILIES:
+        pending_qualification = (
+            self.proposer_family_id in _QUALIFICATION_FAMILIES
+            and self.execution_scope == "one_item_proposer_qualification_only"
+        )
+        qualified_production = (
+            self.proposer_family_id in _QUALIFICATION_FAMILIES
+            and self.execution_scope == "public_provisional_g_open"
+        )
+        if pending_qualification:
             if (
-                self.execution_scope != "one_item_proposer_qualification_only"
-                or self.qualification_state != "pending_one_item_mechanical_qualification"
+                self.qualification_state != "pending_one_item_mechanical_qualification"
                 or len(self.tasks) != 1
                 or self.qualification_claim is None
             ):
                 raise ValueError("Qwen/GLM remain restricted to one qualification task")
+        elif qualified_production:
+            if (
+                self.qualification_state != "production_live_qualified"
+                or self.qualification_claim is not None
+            ):
+                raise ValueError("Qwen/GLM production requires replay-verified live qualification")
         elif (
             self.execution_scope != "public_provisional_g_open"
             or self.qualification_state != "production_route_reviewed"
@@ -498,7 +511,11 @@ def freeze_lf022_public_batch(
         admission_raw = canonical_json_bytes(admission.model_dump(mode="json"))
         if admission.route.proposer_family_id != route_request.proposer_family_id:
             raise LF022BatchError("batch route family differs from its reviewed admission")
-        if route_request.proposer_family_id in _QUALIFICATION_FAMILIES:
+        pending_qualification = (
+            route_request.proposer_family_id in _QUALIFICATION_FAMILIES
+            and admission.route.execution_scope == "one_item_proposer_qualification_only"
+        )
+        if pending_qualification:
             if admission.route.execution_scope != "one_item_proposer_qualification_only":
                 raise LF022BatchError(
                     "Qwen/GLM cannot enter a production batch before qualification"
@@ -559,7 +576,7 @@ def freeze_lf022_public_batch(
         selected.sort(key=lambda task: task.execution_task_id)
 
         qualification_claim_binding: LF022ArtifactBinding | None = None
-        if route_request.proposer_family_id in _QUALIFICATION_FAMILIES:
+        if pending_qualification:
             claim = make_lf022_qualification_claim(
                 admission=admission,
                 task=selected[0],
@@ -608,6 +625,8 @@ def freeze_lf022_public_batch(
                 execution_scope=admission.route.execution_scope,
                 qualification_state=(
                     "pending_one_item_mechanical_qualification"
+                    if pending_qualification
+                    else "production_live_qualified"
                     if route_request.proposer_family_id in _QUALIFICATION_FAMILIES
                     else "production_route_reviewed"
                 ),
@@ -994,7 +1013,11 @@ def _load_batch(
             != route_request.allocation_task_ids
         ):
             raise LF022BatchError("batch tasks differ from the frozen request selection")
-        if route.proposer_family_id in _QUALIFICATION_FAMILIES:
+        pending_qualification = (
+            route.proposer_family_id in _QUALIFICATION_FAMILIES
+            and route.execution_scope == "one_item_proposer_qualification_only"
+        )
+        if pending_qualification:
             claim_binding = route.qualification_claim
             if claim_binding is None:
                 raise LF022BatchError("qualification route lacks its global claim")
