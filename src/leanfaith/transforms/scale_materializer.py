@@ -447,6 +447,30 @@ class ScaleSourceShard(StrictModel):
         return self
 
 
+class ScaleJournalReceipt(StrictModel):
+    """Hash-chain receipt for one immutable source journal shard."""
+
+    schema_version: Literal[1] = 1
+    artifact_kind: Literal["deterministic_scale_journal_receipt"] = (
+        "deterministic_scale_journal_receipt"
+    )
+    run_spec_hash: str = Field(pattern=_HEX64_PATTERN)
+    source_index: int = Field(ge=0)
+    source_theorem_id: str
+    shard_filename: str = Field(min_length=1)
+    shard_sha256: str = Field(pattern=_HEX64_PATTERN)
+    previous_receipt_hash: str = Field(pattern=_HEX64_PATTERN)
+    receipt_hash: str = Field(pattern=_HEX64_PATTERN)
+
+    @model_validator(mode="after")
+    def _self_authenticating(self) -> ScaleJournalReceipt:
+        payload = self.model_dump(mode="json")
+        payload.pop("receipt_hash")
+        if self.receipt_hash != hash_canonical(payload):
+            raise ValueError("journal receipt hash does not match its canonical payload")
+        return self
+
+
 class ScaleInventoryPartitionBinding(StrictModel):
     """Authoritative content binding for one immutable source partition."""
 
@@ -536,9 +560,10 @@ class ScaleSourceInventoryManifest(StrictModel):
 class DeterministicScaleRunSpec(StrictModel):
     """Immutable semantic identity of a resumable scale run."""
 
-    schema_version: Literal[1] = 1
+    schema_version: Literal[2] = 2
     artifact_kind: Literal["deterministic_scale_run_spec"] = "deterministic_scale_run_spec"
     run_spec_hash: str = Field(pattern=_HEX64_PATTERN)
+    shard_set_spec_hash: str = Field(pattern=_HEX64_PATTERN)
     theorem_input_path: str
     theorem_input_sha256: str = Field(pattern=_HEX64_PATTERN)
     representation_input_path: str
@@ -560,17 +585,55 @@ class DeterministicScaleRunSpec(StrictModel):
     project_revision: str
     project_tree_hash: str = Field(pattern=r"^[0-9a-f]{40}(?:[0-9a-f]{24})?$")
     code: CodeState
+    shard_assignment_scheme: Literal["root_component_greedy_v1"] = "root_component_greedy_v1"
+    shard_count: int = Field(ge=1)
+    shard_index: int = Field(ge=0)
+    source_universe_theorem_ids: tuple[str, ...]
+    source_shard_assignments: tuple[int, ...]
     selected_source_theorem_ids: tuple[str, ...]
     max_sources: int | None = Field(default=None, ge=1)
+
+    @model_validator(mode="after")
+    def _shard_assignment_is_closed(self) -> DeterministicScaleRunSpec:
+        if self.shard_index >= self.shard_count:
+            raise ValueError("shard_index must be smaller than shard_count")
+        if len(self.source_universe_theorem_ids) != len(self.source_shard_assignments):
+            raise ValueError("source universe and shard assignments differ in length")
+        if not self.source_universe_theorem_ids:
+            raise ValueError("source universe cannot be empty")
+        if len(set(self.source_universe_theorem_ids)) != len(self.source_universe_theorem_ids):
+            raise ValueError("source universe contains duplicate theorem IDs")
+        if any(
+            assignment < 0 or assignment >= self.shard_count
+            for assignment in self.source_shard_assignments
+        ):
+            raise ValueError("source shard assignment is out of range")
+        expected = tuple(
+            theorem_id
+            for theorem_id, assignment in zip(
+                self.source_universe_theorem_ids,
+                self.source_shard_assignments,
+                strict=True,
+            )
+            if assignment == self.shard_index
+        )
+        if self.selected_source_theorem_ids != expected:
+            raise ValueError("selected sources do not match the bound shard assignment")
+        return self
 
 
 class DeterministicScaleManifest(StrictModel):
     """Final machine-readable accounting and partition binding."""
 
-    schema_version: Literal[1] = 1
+    schema_version: Literal[2] = 2
     artifact_kind: Literal["deterministic_scale_manifest"] = "deterministic_scale_manifest"
     run_spec_hash: str = Field(pattern=_HEX64_PATTERN)
     run_spec_sha256: str = Field(pattern=_HEX64_PATTERN)
+    shard_set_spec_hash: str = Field(pattern=_HEX64_PATTERN)
+    shard_count: int = Field(ge=1)
+    shard_index: int = Field(ge=0)
+    source_universe_count: int = Field(ge=1)
+    source_assignment_sha256: str = Field(pattern=_HEX64_PATTERN)
     source_count: int = Field(ge=0)
     eligible_source_count: int = Field(ge=0)
     ineligible_source_count: int = Field(ge=0)
@@ -580,12 +643,27 @@ class DeterministicScaleManifest(StrictModel):
     record_counts: dict[str, int]
     partition_sha256: dict[str, str]
     journal_tree_hash: str = Field(pattern=_HEX64_PATTERN)
+    journal_receipt_count: int = Field(ge=0)
+    journal_receipt_tree_hash: str = Field(pattern=_HEX64_PATTERN)
+    journal_chain_tip: str = Field(pattern=_HEX64_PATTERN)
     raw_response_file_count: int = Field(ge=0)
     raw_response_tree_hash: str = Field(pattern=_HEX64_PATTERN)
     resolved_semantic_labels: Literal[0] = 0
     promoted_items: Literal[0] = 0
     output_quality_tier: Literal["provisional"] = "provisional"
     created_at: datetime.datetime
+
+    @model_validator(mode="after")
+    def _reconciles(self) -> DeterministicScaleManifest:
+        if self.shard_index >= self.shard_count:
+            raise ValueError("manifest shard_index must be smaller than shard_count")
+        if self.source_count != self.eligible_source_count + self.ineligible_source_count:
+            raise ValueError("manifest eligible/ineligible source counts do not reconcile")
+        if self.journal_shard_count != self.source_count:
+            raise ValueError("manifest journal shard count differs from source_count")
+        if self.journal_receipt_count != self.source_count:
+            raise ValueError("manifest journal receipt count differs from source_count")
+        return self
 
 
 @dataclass(frozen=True, slots=True)
@@ -1093,6 +1171,70 @@ def _selection_key(base_seed: int, theorem_id: str) -> tuple[str, str]:
     )
 
 
+def _root_component_shard_assignments(
+    sources: Sequence[TheoremRecord],
+    *,
+    shard_count: int,
+) -> tuple[int, ...]:
+    """Assign complete root-ancestry components to balanced deterministic shards.
+
+    Keeping every shared root ancestry in one shard makes all configured
+    per-root admission caps shard-local.  N10 donors are subsequently selected
+    only from that shard, so parallel materialization cannot create a hidden
+    cross-shard cap dependency.
+    """
+
+    if shard_count < 1:
+        raise ValueError("shard_count must be positive")
+    if not sources:
+        raise ValueError("cannot shard an empty source universe")
+    parent = list(range(len(sources)))
+
+    def find(index: int) -> int:
+        while parent[index] != index:
+            parent[index] = parent[parent[index]]
+            index = parent[index]
+        return index
+
+    def union(left: int, right: int) -> None:
+        left_root = find(left)
+        right_root = find(right)
+        if left_root == right_root:
+            return
+        if left_root < right_root:
+            parent[right_root] = left_root
+        else:
+            parent[left_root] = right_root
+
+    first_by_root: dict[str, int] = {}
+    for index, theorem in enumerate(sources):
+        for root in theorem.root_ancestry_ids:
+            first = first_by_root.setdefault(root, index)
+            union(index, first)
+
+    components: dict[int, list[int]] = defaultdict(list)
+    for index in range(len(sources)):
+        components[find(index)].append(index)
+    ordered_components = sorted(
+        (tuple(indices) for indices in components.values()),
+        key=lambda indices: (indices[0], tuple(sources[index].theorem_id for index in indices)),
+    )
+    if shard_count > len(ordered_components):
+        raise DeterministicScaleError(
+            "shard_count exceeds the number of disjoint root-ancestry components"
+        )
+    loads = [0] * shard_count
+    assignments = [-1] * len(sources)
+    for component in ordered_components:
+        shard_index = min(range(shard_count), key=lambda index: (loads[index], index))
+        for source_index in component:
+            assignments[source_index] = shard_index
+        loads[shard_index] += len(component)
+    if any(assignment < 0 for assignment in assignments):
+        raise AssertionError("internal source sharding left an unassigned source")
+    return tuple(assignments)
+
+
 def _candidate_inline_source(
     source: TheoremRecord,
     candidate_code: str,
@@ -1469,6 +1611,15 @@ def _admit(state: _AdmissionState, draft_result: ScaleDraftResult) -> None:
         raise DeterministicScaleError("duplicate accepted pair ID in journal")
     state.variant_ids.add(draft_result.variant.variant_id)
     state.pair_ids.add(draft_result.pair.pair_id)
+
+
+def _admit_source_shard(state: _AdmissionState, shard: ScaleSourceShard) -> None:
+    """Rebuild admission state from one already validated immutable shard."""
+
+    for rule in shard.rule_results:
+        for draft_result in rule.draft_results:
+            if draft_result.status == "accepted":
+                _admit(state, draft_result)
 
 
 def _failure(
@@ -1935,16 +2086,74 @@ def _source_shard_path(journal_dir: Path, index: int, theorem_id: str) -> Path:
     return journal_dir / f"{index:08d}-{suffix}.json"
 
 
+def _journal_receipt_path(receipt_dir: Path, shard_path: Path) -> Path:
+    return receipt_dir / f"{shard_path.stem}.receipt.json"
+
+
 def _load_source_shard(path: Path) -> ScaleSourceShard:
     try:
+        payload = path.read_bytes()
         raw = json.loads(
-            path.read_text(encoding="utf-8"),
+            payload,
             object_pairs_hook=_reject_duplicate_keys,
             parse_constant=_reject_nonfinite,
         )
-        return ScaleSourceShard.model_validate(raw)
+        shard = ScaleSourceShard.model_validate(raw)
+        if payload != _canonical_model_bytes(shard):
+            raise ValueError("source shard is not canonical JSON")
+        return shard
     except Exception as exc:
         raise DeterministicScaleError(f"invalid immutable source shard {path}: {exc}") from exc
+
+
+def _build_journal_receipt(
+    *,
+    shard: ScaleSourceShard,
+    shard_path: Path,
+    previous_receipt_hash: str,
+) -> ScaleJournalReceipt:
+    data: dict[str, object] = {
+        "schema_version": 1,
+        "artifact_kind": "deterministic_scale_journal_receipt",
+        "run_spec_hash": shard.run_spec_hash,
+        "source_index": shard.source_index,
+        "source_theorem_id": shard.source_theorem_id,
+        "shard_filename": shard_path.name,
+        "shard_sha256": hash_file(shard_path),
+        "previous_receipt_hash": previous_receipt_hash,
+    }
+    return ScaleJournalReceipt.model_validate({"receipt_hash": hash_canonical(data), **data})
+
+
+def _load_journal_receipt(
+    *,
+    path: Path,
+    shard: ScaleSourceShard,
+    shard_path: Path,
+    previous_receipt_hash: str,
+) -> ScaleJournalReceipt:
+    try:
+        payload = path.read_bytes()
+        raw = json.loads(
+            payload,
+            object_pairs_hook=_reject_duplicate_keys,
+            parse_constant=_reject_nonfinite,
+        )
+        receipt = ScaleJournalReceipt.model_validate(raw)
+    except Exception as exc:
+        raise DeterministicScaleError(f"invalid immutable journal receipt {path}: {exc}") from exc
+    if payload != _canonical_model_bytes(receipt):
+        raise DeterministicScaleError(f"journal receipt is not canonical JSON: {path}")
+    expected = _build_journal_receipt(
+        shard=shard,
+        shard_path=shard_path,
+        previous_receipt_hash=previous_receipt_hash,
+    )
+    if receipt != expected:
+        raise DeterministicScaleError(
+            f"journal receipt does not bind the current shard/chain: {path}"
+        )
+    return receipt
 
 
 def _representation_payload_hash(record: RepresentationRecord) -> str:
@@ -2619,6 +2828,18 @@ def _run_spec_payload(data: Mapping[str, object]) -> dict[str, object]:
     return {key: value for key, value in data.items() if key != "run_spec_hash"}
 
 
+def _shard_set_spec_payload(data: Mapping[str, object]) -> dict[str, object]:
+    """Common semantic spec shared by every independently executed shard."""
+
+    excluded = {
+        "run_spec_hash",
+        "shard_set_spec_hash",
+        "shard_index",
+        "selected_source_theorem_ids",
+    }
+    return {key: value for key, value in data.items() if key not in excluded}
+
+
 def _build_run_spec(
     *,
     theorem_path: Path,
@@ -2635,11 +2856,15 @@ def _build_run_spec(
     project_revision: str,
     project_tree_hash: str,
     code: CodeState,
+    source_universe_ids: tuple[str, ...],
+    source_shard_assignments: tuple[int, ...],
     selected_ids: tuple[str, ...],
     max_sources: int | None,
+    shard_count: int,
+    shard_index: int,
 ) -> DeterministicScaleRunSpec:
     data: dict[str, object] = {
-        "schema_version": 1,
+        "schema_version": 2,
         "artifact_kind": "deterministic_scale_run_spec",
         "theorem_input_path": str(theorem_path.resolve()),
         "theorem_input_sha256": hash_file(theorem_path),
@@ -2664,14 +2889,37 @@ def _build_run_spec(
         "project_revision": project_revision,
         "project_tree_hash": project_tree_hash,
         "code": code,
+        "shard_assignment_scheme": "root_component_greedy_v1",
+        "shard_count": shard_count,
+        "shard_index": shard_index,
+        "source_universe_theorem_ids": source_universe_ids,
+        "source_shard_assignments": source_shard_assignments,
         "selected_source_theorem_ids": selected_ids,
         "max_sources": max_sources,
     }
+    shard_set_semantic = DeterministicScaleRunSpec.model_validate(
+        {
+            "run_spec_hash": "0" * 64,
+            "shard_set_spec_hash": "0" * 64,
+            **data,
+        }
+    ).model_dump(mode="json")
+    shard_set_spec_hash = hash_canonical(_shard_set_spec_payload(shard_set_semantic))
     semantic = DeterministicScaleRunSpec.model_validate(
-        {"run_spec_hash": "0" * 64, **data}
+        {
+            "run_spec_hash": "0" * 64,
+            "shard_set_spec_hash": shard_set_spec_hash,
+            **data,
+        }
     ).model_dump(mode="json")
     run_spec_hash = hash_canonical(_run_spec_payload(semantic))
-    return DeterministicScaleRunSpec.model_validate({"run_spec_hash": run_spec_hash, **data})
+    return DeterministicScaleRunSpec.model_validate(
+        {
+            "run_spec_hash": run_spec_hash,
+            "shard_set_spec_hash": shard_set_spec_hash,
+            **data,
+        }
+    )
 
 
 def _tree_hash(root: Path, pattern: str) -> tuple[int, str]:
@@ -2957,13 +3205,22 @@ def run_deterministic_scale_materialization(
     output_dir: Path,
     config_path: Path | None = None,
     max_sources: int | None = None,
+    shard_count: int = 1,
+    shard_index: int = 0,
     resume: bool = False,
+    fast_resume: bool = False,
     memory_hard_limit_mb: int | None = None,
 ) -> DeterministicScaleArtifacts:
     """Materialize deterministic v1 candidates from immutable repr_v3 inputs."""
 
     if max_sources is not None and max_sources < 1:
         raise ValueError("max_sources must be positive")
+    if shard_count < 1:
+        raise ValueError("shard_count must be positive")
+    if shard_index < 0 or shard_index >= shard_count:
+        raise ValueError("shard_index must satisfy 0 <= shard_index < shard_count")
+    if fast_resume and not resume:
+        raise ValueError("fast_resume requires resume=True")
     theorem_path = theorem_jsonl.resolve()
     representation_path = representation_jsonl.resolve()
     inventory_manifest_path = source_inventory_manifest.resolve()
@@ -3005,10 +3262,30 @@ def run_deterministic_scale_materialization(
     ordered = tuple(
         sorted(theorems, key=lambda theorem: _selection_key(config.base_seed, theorem.theorem_id))
     )
-    selected = ordered if max_sources is None else ordered[:max_sources]
+    universe = ordered if max_sources is None else ordered[:max_sources]
+    if not universe:
+        raise DeterministicScaleError("theorem input selected zero source records")
+    if shard_count > 1 and config.max_accepted_variants_per_family is not None:
+        raise DeterministicScaleError(
+            "multi-shard materialization requires max_accepted_variants_per_family=null; "
+            "a global family cap is not independently shardable"
+        )
+    source_shard_assignments = _root_component_shard_assignments(
+        universe,
+        shard_count=shard_count,
+    )
+    selected_entries = tuple(
+        (global_index, theorem)
+        for global_index, (theorem, assignment) in enumerate(
+            zip(universe, source_shard_assignments, strict=True)
+        )
+        if assignment == shard_index
+    )
+    selected = tuple(theorem for _, theorem in selected_entries)
+    source_universe_ids = tuple(theorem.theorem_id for theorem in universe)
     selected_ids = tuple(theorem.theorem_id for theorem in selected)
     if not selected:
-        raise DeterministicScaleError("theorem input selected zero source records")
+        raise DeterministicScaleError("deterministic shard assignment selected zero sources")
 
     # Import lazily to avoid making transformation-domain code depend on the
     # Typer command module during import.
@@ -3071,11 +3348,16 @@ def run_deterministic_scale_materialization(
         project_revision=project_revision,
         project_tree_hash=project_tree_hash,
         code=code,
+        source_universe_ids=source_universe_ids,
+        source_shard_assignments=source_shard_assignments,
         selected_ids=selected_ids,
         max_sources=max_sources,
+        shard_count=shard_count,
+        shard_index=shard_index,
     )
     run_spec_path = output / "run_spec.json"
     journal_dir = output / "journal"
+    receipt_dir = output / "journal_receipts"
     manifest_path = output / "manifest.json"
 
     with _run_lock(output):
@@ -3092,8 +3374,11 @@ def run_deterministic_scale_materialization(
         )
 
         expected_shards = tuple(
-            _source_shard_path(journal_dir, index, theorem.theorem_id)
-            for index, theorem in enumerate(selected)
+            _source_shard_path(journal_dir, global_index, theorem.theorem_id)
+            for global_index, theorem in selected_entries
+        )
+        expected_receipts = tuple(
+            _journal_receipt_path(receipt_dir, shard_path) for shard_path in expected_shards
         )
         existing_flags = tuple(path.exists() for path in expected_shards)
         saw_gap = False
@@ -3111,6 +3396,27 @@ def run_deterministic_scale_materialization(
         if unexpected:
             raise DeterministicScaleError(
                 f"journal contains shards outside current immutable run spec: {unexpected[:3]}"
+            )
+        unexpected_receipts = sorted(
+            path for path in receipt_dir.glob("*.json") if path not in set(expected_receipts)
+        )
+        if unexpected_receipts:
+            raise DeterministicScaleError(
+                "journal receipt directory contains records outside the immutable run spec: "
+                f"{unexpected_receipts[:3]}"
+            )
+        orphan_receipts = [
+            receipt_path
+            for shard_path, receipt_path in zip(
+                expected_shards,
+                expected_receipts,
+                strict=True,
+            )
+            if receipt_path.exists() and not shard_path.exists()
+        ]
+        if orphan_receipts:
+            raise DeterministicScaleError(
+                f"journal receipt exists without its immutable shard: {orphan_receipts[:3]}"
             )
 
         eligible_for_n10 = tuple(
@@ -3133,10 +3439,6 @@ def run_deterministic_scale_materialization(
             raw_response_dir=output / "raw_lean_responses",
             memory_hard_limit_mb=memory_hard_limit_mb,
         )
-        # Resume is an exact scientific replay, not a trust-on-first-use cache:
-        # persisted shards are rebuilt through Lean and compared byte-for-byte.
-        LeanInteractBackend.prepare_environment(settings)
-        backend = LeanInteractBackend(replace(settings, environment_is_prepared=True))
         state = _AdmissionState(
             root_counts=Counter(),
             family_root_counts=Counter(),
@@ -3146,12 +3448,37 @@ def run_deterministic_scale_materialization(
             pair_ids=set(),
         )
         shards: list[ScaleSourceShard] = []
+        backend: LeanInteractBackend | None = None
+
+        def require_backend() -> LeanInteractBackend:
+            nonlocal backend
+            if backend is None:
+                LeanInteractBackend.prepare_environment(settings)
+                backend = LeanInteractBackend(replace(settings, environment_is_prepared=True))
+            return backend
+
+        previous_receipt_hash = "0" * 64
         try:
-            for index, path in enumerate(expected_shards):
+            for local_index, path in enumerate(expected_shards):
                 if not path.exists():
                     break
                 persisted_shard = _load_source_shard(path)
-                theorem = selected[index]
+                global_index, theorem = selected_entries[local_index]
+                receipt_path = expected_receipts[local_index]
+                receipt: ScaleJournalReceipt | None = None
+                if receipt_path.exists():
+                    receipt = _load_journal_receipt(
+                        path=receipt_path,
+                        shard=persisted_shard,
+                        shard_path=path,
+                        previous_receipt_hash=previous_receipt_hash,
+                    )
+                    previous_receipt_hash = receipt.receipt_hash
+                elif fast_resume:
+                    raise DeterministicScaleError(
+                        "fast resume requires a complete immutable receipt chain; "
+                        f"missing {receipt_path}"
+                    )
                 expected_donors = (
                     _donors_for(
                         theorem,
@@ -3164,7 +3491,7 @@ def run_deterministic_scale_materialization(
                 )
                 _validate_resume_shard(
                     shard=persisted_shard,
-                    expected_index=index,
+                    expected_index=global_index,
                     source=theorem,
                     source_representation=representation_by_theorem.get(theorem.theorem_id),
                     theorem_by_id={record.theorem_id: record for record in selected},
@@ -3178,8 +3505,12 @@ def run_deterministic_scale_materialization(
                     benchmark=benchmark,
                     run_spec_hash=run_spec.run_spec_hash,
                 )
+                if fast_resume:
+                    _admit_source_shard(state, persisted_shard)
+                    shards.append(persisted_shard)
+                    continue
                 rebuilt_shard = _build_source_shard(
-                    backend=backend,
+                    backend=require_backend(),
                     loaded_registry=loaded_registry,
                     positive_runtime=positive_registration.runtime,
                     negative_runtime=negative_registration.runtime,
@@ -3187,7 +3518,7 @@ def run_deterministic_scale_materialization(
                     benchmark=benchmark,
                     config=config,
                     run_spec_hash=run_spec.run_spec_hash,
-                    source_index=index,
+                    source_index=global_index,
                     theorem=theorem,
                     representation=representation_by_theorem.get(theorem.theorem_id),
                     representation_by_theorem=representation_by_theorem,
@@ -3199,9 +3530,17 @@ def run_deterministic_scale_materialization(
                 )
                 _require_exact_resume_replay(persisted_shard, rebuilt_shard)
                 shards.append(rebuilt_shard)
+                if receipt is None:
+                    receipt = _build_journal_receipt(
+                        shard=rebuilt_shard,
+                        shard_path=path,
+                        previous_receipt_hash=previous_receipt_hash,
+                    )
+                    _write_new_atomic(receipt_path, _canonical_model_bytes(receipt))
+                    previous_receipt_hash = receipt.receipt_hash
 
-            for index in range(len(shards), len(selected)):
-                theorem = selected[index]
+            for local_index in range(len(shards), len(selected)):
+                global_index, theorem = selected_entries[local_index]
                 donors = (
                     _donors_for(
                         theorem,
@@ -3213,7 +3552,7 @@ def run_deterministic_scale_materialization(
                     else ()
                 )
                 shard = _build_source_shard(
-                    backend=backend,
+                    backend=require_backend(),
                     loaded_registry=loaded_registry,
                     positive_runtime=positive_registration.runtime,
                     negative_runtime=negative_registration.runtime,
@@ -3221,7 +3560,7 @@ def run_deterministic_scale_materialization(
                     benchmark=benchmark,
                     config=config,
                     run_spec_hash=run_spec.run_spec_hash,
-                    source_index=index,
+                    source_index=global_index,
                     theorem=theorem,
                     representation=representation_by_theorem.get(theorem.theorem_id),
                     representation_by_theorem=representation_by_theorem,
@@ -3231,10 +3570,22 @@ def run_deterministic_scale_materialization(
                     raw_response_dir=settings.raw_response_dir,
                     state=state,
                 )
-                _write_new_atomic(expected_shards[index], _canonical_model_bytes(shard))
+                shard_path = expected_shards[local_index]
+                _write_new_atomic(shard_path, _canonical_model_bytes(shard))
+                receipt = _build_journal_receipt(
+                    shard=shard,
+                    shard_path=shard_path,
+                    previous_receipt_hash=previous_receipt_hash,
+                )
+                _write_new_atomic(
+                    expected_receipts[local_index],
+                    _canonical_model_bytes(receipt),
+                )
+                previous_receipt_hash = receipt.receipt_hash
                 shards.append(shard)
         finally:
-            backend.close()
+            if backend is not None:
+                backend.close()
 
         _clean_project_tree_hash(
             project,
@@ -3245,10 +3596,21 @@ def run_deterministic_scale_materialization(
         partition_paths, partition_hashes = _write_partitions(output, projected)
         status_counts = Counter(result.status for shard in shards for result in shard.rule_results)
         journal_count, journal_tree_hash = _tree_hash(journal_dir, "*.json")
+        receipt_count, receipt_tree_hash = _tree_hash(receipt_dir, "*.json")
         raw_count, raw_tree_hash = _tree_hash(output / "raw_lean_responses", "*")
         manifest = DeterministicScaleManifest(
             run_spec_hash=run_spec.run_spec_hash,
             run_spec_sha256=hash_file(run_spec_path),
+            shard_set_spec_hash=run_spec.shard_set_spec_hash,
+            shard_count=run_spec.shard_count,
+            shard_index=run_spec.shard_index,
+            source_universe_count=len(run_spec.source_universe_theorem_ids),
+            source_assignment_sha256=hash_canonical(
+                {
+                    "source_universe_theorem_ids": run_spec.source_universe_theorem_ids,
+                    "source_shard_assignments": run_spec.source_shard_assignments,
+                }
+            ),
             source_count=len(shards),
             eligible_source_count=sum(shard.source_status == "eligible" for shard in shards),
             ineligible_source_count=sum(shard.source_status == "ineligible" for shard in shards),
@@ -3258,6 +3620,9 @@ def run_deterministic_scale_materialization(
             record_counts={name: len(values) for name, values in projected.items()},
             partition_sha256=dict(sorted(partition_hashes.items())),
             journal_tree_hash=journal_tree_hash,
+            journal_receipt_count=receipt_count,
+            journal_receipt_tree_hash=receipt_tree_hash,
+            journal_chain_tip=previous_receipt_hash,
             raw_response_file_count=raw_count,
             raw_response_tree_hash=raw_tree_hash,
             created_at=config.record_timestamp_utc,
@@ -3283,6 +3648,7 @@ __all__ = [
     "DeterministicScaleRunSpec",
     "ScaleDraftResult",
     "ScaleFailure",
+    "ScaleJournalReceipt",
     "ScaleRuleResult",
     "ScaleSourceInventoryArtifacts",
     "ScaleSourceInventoryManifest",
