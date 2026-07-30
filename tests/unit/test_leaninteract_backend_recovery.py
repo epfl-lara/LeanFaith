@@ -130,6 +130,34 @@ def test_ordinary_invalid_response_is_not_retried(monkeypatch: Any, tmp_path: Pa
         backend.close()
 
 
+def test_raw_response_resubmission_never_overwrites_first_observation(
+    tmp_path: Path,
+) -> None:
+    backend = LeanInteractBackend(
+        BackendSettings(
+            project_dir=tmp_path,
+            context_fingerprint="0" * 64,
+            environment_schema_version=1,
+            raw_response_dir=tmp_path / "raw",
+        )
+    )
+    request = LeanRequest(
+        request_id="immutable-raw",
+        context_id="ctx:" + "0" * 64,
+        code="theorem immutable_raw : True := trivial",
+    )
+    request_hash = "a" * 64
+    first = backend._persist_raw(request, request_hash, {"env": 11}, None)
+    second = backend._persist_raw(request, request_hash, {"env": 12}, None)
+    repeated_second = backend._persist_raw(request, request_hash, {"env": 12}, None)
+
+    assert first != second
+    assert second == repeated_second
+    assert json.loads(Path(first).read_text(encoding="utf-8"))["response"] == {"env": 11}
+    assert json.loads(Path(second).read_text(encoding="utf-8"))["response"] == {"env": 12}
+    assert len(tuple((tmp_path / "raw").glob("*.json"))) == 2
+
+
 def _representation_result(
     request: LeanRequest,
     status: LeanStatus,

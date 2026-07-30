@@ -29,6 +29,7 @@ from leanfaith.transforms.scale_materializer import (
     _build_journal_receipt,
     _build_lean_replay_audit,
     _canonical_model_bytes,
+    _isolated_scale_backend,
     _journal_receipt_path,
     _load_journal_receipt,
     _project_records,
@@ -49,6 +50,7 @@ from leanfaith.transforms.scale_merge import (
     DeterministicScaleMergeArtifacts,
     _reject_cross_shard_semantic_leakage,
     _replay_shard_with_lean,
+    _validate_producer_artifact_bindings,
     _validate_projected_semantic_lineage,
     merge_deterministic_scale_shards,
 )
@@ -105,7 +107,7 @@ def _make_run_spec(
         if assignment == shard_index
     )
     data: dict[str, object] = {
-        "schema_version": 2,
+        "schema_version": 3,
         "artifact_kind": "deterministic_scale_run_spec",
         "theorem_input_path": str(theorem_path),
         "theorem_input_sha256": hash_file(theorem_path),
@@ -130,6 +132,10 @@ def _make_run_spec(
         "project_revision": "5" * 40,
         "project_tree_hash": "6" * 40,
         "code": code,
+        "execution_isolation_policy": "per_source_stateless_v1",
+        "lean_incremental_optimization": False,
+        "replay_raw_response_policy": "separate_unbound_directory_v1",
+        "memory_hard_limit_mb": 49152,
         "shard_assignment_scheme": "root_component_greedy_v1",
         "shard_count": 2,
         "shard_index": shard_index,
@@ -160,6 +166,78 @@ def _make_run_spec(
             **data,
         }
     )
+
+
+def test_run_spec_binds_stateless_per_source_execution_policy(
+    tmp_path: Path,
+) -> None:
+    shard_dirs, _, _ = _fixture_shard_set(tmp_path)
+    spec = DeterministicScaleRunSpec.model_validate_json(
+        (shard_dirs[0] / "run_spec.json").read_text(encoding="utf-8")
+    )
+
+    assert spec.schema_version == 3
+    assert spec.execution_isolation_policy == "per_source_stateless_v1"
+    assert spec.lean_incremental_optimization is False
+    assert spec.replay_raw_response_policy == "separate_unbound_directory_v1"
+    assert spec.memory_hard_limit_mb == 49152
+
+    changed = spec.model_dump(mode="json")
+    changed["memory_hard_limit_mb"] = 32768
+    changed["run_spec_hash"] = "0" * 64
+    changed["shard_set_spec_hash"] = "0" * 64
+    preliminary = DeterministicScaleRunSpec.model_validate(changed).model_dump(mode="json")
+    changed_shard_set_hash = hash_canonical(_shard_set_spec_payload(preliminary))
+    preliminary["shard_set_spec_hash"] = changed_shard_set_hash
+    changed_run_hash = hash_canonical(_run_spec_payload(preliminary))
+
+    assert changed_shard_set_hash != spec.shard_set_spec_hash
+    assert changed_run_hash != spec.run_spec_hash
+
+
+def test_isolated_scale_backend_is_fresh_stateless_and_closes(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    from leanfaith.transforms import scale_materializer
+
+    observed: list[object] = []
+
+    class FakeBackend:
+        def __init__(self, settings: object) -> None:
+            self.settings = settings
+            self.closed = False
+            observed.append(self)
+
+        def close(self) -> None:
+            self.closed = True
+
+    monkeypatch.setattr(scale_materializer, "LeanInteractBackend", FakeBackend)
+    settings = scale_materializer.BackendSettings(
+        project_dir=tmp_path,
+        context_fingerprint="0" * 64,
+        environment_schema_version=1,
+        raw_response_dir=tmp_path / "producer",
+        enable_incremental_optimization=False,
+    )
+
+    with _isolated_scale_backend(
+        settings,
+        raw_response_dir=tmp_path / "producer",
+    ) as first:
+        assert first is observed[0]
+        assert first.settings.environment_is_prepared is True  # type: ignore[attr-defined]
+        assert first.settings.enable_incremental_optimization is False  # type: ignore[attr-defined]
+        assert first.settings.raw_response_dir == tmp_path / "producer"  # type: ignore[attr-defined]
+    with _isolated_scale_backend(
+        settings,
+        raw_response_dir=tmp_path / "replay",
+    ) as second:
+        assert second is observed[1]
+        assert second is not first
+        assert second.settings.raw_response_dir == tmp_path / "replay"  # type: ignore[attr-defined]
+
+    assert all(item.closed for item in observed)  # type: ignore[attr-defined]
 
 
 def _write_ineligible_shard_output(
@@ -511,12 +589,16 @@ def test_exact_merge_replay_requires_pinned_git_project(tmp_path: Path) -> None:
     spec = DeterministicScaleRunSpec.model_validate_json(
         (shard_dirs[0] / "run_spec.json").read_text(encoding="utf-8")
     )
+    manifest = DeterministicScaleManifest.model_validate_json(
+        (shard_dirs[0] / "manifest.json").read_text(encoding="utf-8")
+    )
 
     with pytest.raises(DeterministicScaleError, match="cannot bind clean Lean project"):
         _replay_shard_with_lean(
             paths=RepoPaths(root=_ROOT),
             output_dir=shard_dirs[0],
             spec=spec,
+            manifest=manifest,
         )
 
 
@@ -530,6 +612,9 @@ def test_exact_merge_replay_calls_materializer_with_bound_run_spec(
     output_dir = shard_dirs[0]
     spec = DeterministicScaleRunSpec.model_validate_json(
         (output_dir / "run_spec.json").read_text(encoding="utf-8")
+    )
+    manifest = DeterministicScaleManifest.model_validate_json(
+        (output_dir / "manifest.json").read_text(encoding="utf-8")
     )
     clean_checks: list[tuple[Path, str | None, str | None]] = []
     materializer_kwargs: dict[str, object] = {}
@@ -545,11 +630,15 @@ def test_exact_merge_replay_calls_materializer_with_bound_run_spec(
 
     def fake_materialize(**kwargs: object) -> DeterministicScaleArtifacts:
         materializer_kwargs.update(kwargs)
+        replay_output = cast(Path, kwargs["output_dir"])
+        replay_output.mkdir(parents=True)
+        shutil.copy2(output_dir / "run_spec.json", replay_output / "run_spec.json")
+        shutil.copy2(output_dir / "manifest.json", replay_output / "manifest.json")
         return DeterministicScaleArtifacts(
-            output_dir=output_dir,
-            run_spec_path=output_dir / "run_spec.json",
-            manifest_path=output_dir / "manifest.json",
-            manifest_sha256=hash_file(output_dir / "manifest.json"),
+            output_dir=replay_output,
+            run_spec_path=replay_output / "run_spec.json",
+            manifest_path=replay_output / "manifest.json",
+            manifest_sha256=hash_file(replay_output / "manifest.json"),
             partition_paths={},
         )
 
@@ -563,17 +652,114 @@ def test_exact_merge_replay_calls_materializer_with_bound_run_spec(
         paths=RepoPaths(root=_ROOT),
         output_dir=output_dir,
         spec=spec,
+        manifest=manifest,
     )
 
-    assert materializer_kwargs["resume"] is True
+    assert materializer_kwargs["resume"] is False
     assert materializer_kwargs["fast_resume"] is False
     assert materializer_kwargs["shard_count"] == spec.shard_count
     assert materializer_kwargs["shard_index"] == spec.shard_index
     assert materializer_kwargs["project_dir"] == Path(spec.project_dir)
+    assert materializer_kwargs["memory_hard_limit_mb"] == spec.memory_hard_limit_mb
+    assert materializer_kwargs["output_dir"] != output_dir
     assert clean_checks == [
         (Path(spec.project_dir), spec.project_revision, spec.project_tree_hash),
         (Path(spec.project_dir), spec.project_revision, spec.project_tree_hash),
     ]
+
+
+def test_replay_audit_is_not_written_before_final_project_integrity_check(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from leanfaith.transforms import scale_merge
+
+    shard_dirs, _, _ = _fixture_shard_set(tmp_path)
+    output_dir = shard_dirs[0]
+    audit_path = output_dir / "full_lean_replay_audit.json"
+    audit_path.unlink()
+    spec = DeterministicScaleRunSpec.model_validate_json(
+        (output_dir / "run_spec.json").read_text(encoding="utf-8")
+    )
+    manifest = DeterministicScaleManifest.model_validate_json(
+        (output_dir / "manifest.json").read_text(encoding="utf-8")
+    )
+    clean_calls = 0
+
+    def fake_clean(
+        project_dir: Path,
+        *,
+        expected_revision: str | None = None,
+        expected_tree_hash: str | None = None,
+    ) -> tuple[str, str]:
+        nonlocal clean_calls
+        del project_dir, expected_revision, expected_tree_hash
+        clean_calls += 1
+        if clean_calls == 2:
+            raise DeterministicScaleError("project changed during scratch replay")
+        return spec.project_revision, spec.project_tree_hash
+
+    def fake_materialize(**kwargs: object) -> DeterministicScaleArtifacts:
+        replay_output = cast(Path, kwargs["output_dir"])
+        replay_output.mkdir(parents=True)
+        shutil.copy2(output_dir / "run_spec.json", replay_output / "run_spec.json")
+        shutil.copy2(output_dir / "manifest.json", replay_output / "manifest.json")
+        return DeterministicScaleArtifacts(
+            output_dir=replay_output,
+            run_spec_path=replay_output / "run_spec.json",
+            manifest_path=replay_output / "manifest.json",
+            manifest_sha256=hash_file(replay_output / "manifest.json"),
+            partition_paths={},
+        )
+
+    monkeypatch.setattr(scale_merge, "_clean_project_tree_hash", fake_clean)
+    monkeypatch.setattr(
+        scale_merge,
+        "run_deterministic_scale_materialization",
+        fake_materialize,
+    )
+
+    with pytest.raises(DeterministicScaleError, match="project changed"):
+        _replay_shard_with_lean(
+            paths=RepoPaths(root=_ROOT),
+            output_dir=output_dir,
+            spec=spec,
+            manifest=manifest,
+        )
+
+    assert clean_calls == 2
+    assert not audit_path.exists()
+
+
+@pytest.mark.parametrize("artifact_kind", ("journal", "receipt", "partition"))
+def test_replay_preflight_never_heals_missing_producer_artifact(
+    tmp_path: Path,
+    artifact_kind: str,
+) -> None:
+    shard_dirs, _, _ = _fixture_shard_set(tmp_path)
+    output_dir = shard_dirs[0]
+    spec = DeterministicScaleRunSpec.model_validate_json(
+        (output_dir / "run_spec.json").read_text(encoding="utf-8")
+    )
+    manifest = DeterministicScaleManifest.model_validate_json(
+        (output_dir / "manifest.json").read_text(encoding="utf-8")
+    )
+    candidates = {
+        "journal": next((output_dir / "journal").glob("*.json")),
+        "receipt": next((output_dir / "journal_receipts").glob("*.json")),
+        "partition": next((output_dir / "partitions").glob("*.jsonl")),
+    }
+    missing = candidates[artifact_kind]
+    missing.unlink()
+
+    with pytest.raises(DeterministicScaleError, match="before replay"):
+        _validate_producer_artifact_bindings(
+            output_dir=output_dir,
+            spec=spec,
+            manifest=manifest,
+        )
+
+    assert not missing.exists()
 
 
 def test_materializer_api_rejects_retired_fast_resume_before_io(tmp_path: Path) -> None:

@@ -216,14 +216,30 @@ class LeanInteractBackend:
         directory = self._settings.raw_response_dir
         directory.mkdir(parents=True, exist_ok=True)
         # Raw responses are append-only (§8.4): the filename keys on the
-        # request hash PLUS a submission digest, so identical resubmissions
-        # never overwrite each other; retries additionally carry the attempt
-        # counter (metadata, excluded from the hash) per §28.4.
+        # request hash PLUS a submission digest; retries additionally carry
+        # the attempt counter (metadata, excluded from the hash) per §28.4.
+        # A deterministic replay can submit the same request ID and attempt
+        # while receiving session-local response fields that differ. Never
+        # overwrite the first observation in that case: retain the later
+        # response under a content-addressed suffix.
         attempt = str(request.metadata.get("attempt", "0"))
         suffix = f".attempt{attempt}" if attempt != "0" else ""
         submission = sha256_hex(request.request_id.encode("utf-8"))[:8]
         path = directory / f"{request_hash}.{submission}{suffix}.json"
-        path.write_text(json.dumps(record, ensure_ascii=False, sort_keys=True), encoding="utf-8")
+        payload = json.dumps(record, ensure_ascii=False, sort_keys=True).encode("utf-8")
+        if path.exists():
+            if path.read_bytes() == payload:
+                return str(path)
+            response_digest = sha256_hex(payload)[:16]
+            path = directory / (
+                f"{request_hash}.{submission}{suffix}.response-{response_digest}.json"
+            )
+            if path.exists():
+                if path.read_bytes() != payload:
+                    raise RuntimeError(f"raw Lean response content-address collision at {path}")
+                return str(path)
+        with path.open("xb") as handle:
+            handle.write(payload)
         return str(path)
 
     # -- request execution -----------------------------------------------------

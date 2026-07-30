@@ -880,8 +880,12 @@ def test_exact_resume_replay_rejects_rehashed_forged_signature_view() -> None:
     forged_rule = expected.rule_results[0].model_copy(update={"draft_results": (forged_result,)})
     forged_shard = expected.model_copy(update={"rule_results": (forged_rule,)})
 
-    with pytest.raises(DeterministicScaleError, match="exact Lean-backed"):
+    with pytest.raises(DeterministicScaleError, match="exact Lean-backed") as exc_info:
         _require_exact_resume_replay(forged_shard, expected)
+    assert "first_difference=/rule_results/0/draft_results/0/" in str(exc_info.value)
+    assert "persisted_sha256=" in str(exc_info.value)
+    assert "rebuilt_sha256=" in str(exc_info.value)
+    assert "False" not in str(exc_info.value)
 
 
 def test_protected_candidate_raw_artifacts_are_purged_without_touching_accepted(

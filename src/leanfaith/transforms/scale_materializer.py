@@ -603,7 +603,7 @@ class ScaleSourceInventoryManifest(StrictModel):
 class DeterministicScaleRunSpec(StrictModel):
     """Immutable semantic identity of a resumable scale run."""
 
-    schema_version: Literal[2] = 2
+    schema_version: Literal[3] = 3
     artifact_kind: Literal["deterministic_scale_run_spec"] = "deterministic_scale_run_spec"
     run_spec_hash: str = Field(pattern=_HEX64_PATTERN)
     shard_set_spec_hash: str = Field(pattern=_HEX64_PATTERN)
@@ -628,6 +628,12 @@ class DeterministicScaleRunSpec(StrictModel):
     project_revision: str
     project_tree_hash: str = Field(pattern=r"^[0-9a-f]{40}(?:[0-9a-f]{24})?$")
     code: CodeState
+    execution_isolation_policy: Literal["per_source_stateless_v1"] = "per_source_stateless_v1"
+    lean_incremental_optimization: Literal[False] = False
+    replay_raw_response_policy: Literal["separate_unbound_directory_v1"] = (
+        "separate_unbound_directory_v1"
+    )
+    memory_hard_limit_mb: int | None = Field(default=None, ge=1)
     shard_assignment_scheme: Literal["root_component_greedy_v1"] = "root_component_greedy_v1"
     shard_count: int = Field(ge=1)
     shard_index: int = Field(ge=0)
@@ -2459,6 +2465,45 @@ def _validate_replayed_generation(
             )
 
 
+def _first_canonical_difference(
+    persisted: object,
+    rebuilt: object,
+    *,
+    path: str = "",
+) -> str:
+    """Return the first deterministic JSON pointer without exposing values."""
+
+    if type(persisted) is not type(rebuilt):
+        return path or "/"
+    if isinstance(persisted, dict) and isinstance(rebuilt, dict):
+        for key in sorted(set(persisted) | set(rebuilt)):
+            escaped = str(key).replace("~", "~0").replace("/", "~1")
+            child = f"{path}/{escaped}"
+            if key not in persisted or key not in rebuilt:
+                return child
+            difference = _first_canonical_difference(
+                persisted[key],
+                rebuilt[key],
+                path=child,
+            )
+            if difference:
+                return difference
+        return ""
+    if isinstance(persisted, list) and isinstance(rebuilt, list):
+        for index, (left, right) in enumerate(zip(persisted, rebuilt, strict=False)):
+            difference = _first_canonical_difference(
+                left,
+                right,
+                path=f"{path}/{index}",
+            )
+            if difference:
+                return difference
+        if len(persisted) != len(rebuilt):
+            return f"{path}/{min(len(persisted), len(rebuilt))}"
+        return ""
+    return "" if persisted == rebuilt else (path or "/")
+
+
 def _require_exact_resume_replay(
     persisted: ScaleSourceShard,
     rebuilt: ScaleSourceShard,
@@ -2466,8 +2511,17 @@ def _require_exact_resume_replay(
     """Fail closed unless current Lean-backed materialization exactly replays."""
 
     if persisted != rebuilt:
+        persisted_payload = persisted.model_dump(mode="json")
+        rebuilt_payload = rebuilt.model_dump(mode="json")
+        difference = _first_canonical_difference(
+            persisted_payload,
+            rebuilt_payload,
+        )
         raise DeterministicScaleError(
-            "persisted resume shard differs from exact Lean-backed deterministic replay"
+            "persisted resume shard differs from exact Lean-backed deterministic replay; "
+            f"first_difference={difference}; "
+            f"persisted_sha256={hash_canonical(persisted_payload)}; "
+            f"rebuilt_sha256={hash_canonical(rebuilt_payload)}"
         )
 
 
@@ -2918,6 +2972,31 @@ def _donors_for(
     return tuple(ordered[: config.max_n10_donor_attempts_per_primary])
 
 
+@contextmanager
+def _isolated_scale_backend(
+    settings: BackendSettings,
+    *,
+    raw_response_dir: Path,
+) -> Iterator[LeanInteractBackend]:
+    """Yield one fresh stateless backend for exactly one source theorem."""
+
+    if settings.enable_incremental_optimization:
+        raise DeterministicScaleError(
+            "deterministic scale execution requires Lean incrementality to be disabled"
+        )
+    backend = LeanInteractBackend(
+        replace(
+            settings,
+            raw_response_dir=raw_response_dir,
+            environment_is_prepared=True,
+        )
+    )
+    try:
+        yield backend
+    finally:
+        backend.close()
+
+
 def _build_source_shard(
     *,
     backend: LeanInteractBackend,
@@ -3096,9 +3175,10 @@ def _build_run_spec(
     max_sources: int | None,
     shard_count: int,
     shard_index: int,
+    memory_hard_limit_mb: int | None,
 ) -> DeterministicScaleRunSpec:
     data: dict[str, object] = {
-        "schema_version": 2,
+        "schema_version": 3,
         "artifact_kind": "deterministic_scale_run_spec",
         "theorem_input_path": str(theorem_path.resolve()),
         "theorem_input_sha256": hash_file(theorem_path),
@@ -3123,6 +3203,10 @@ def _build_run_spec(
         "project_revision": project_revision,
         "project_tree_hash": project_tree_hash,
         "code": code,
+        "execution_isolation_policy": "per_source_stateless_v1",
+        "lean_incremental_optimization": False,
+        "replay_raw_response_policy": "separate_unbound_directory_v1",
+        "memory_hard_limit_mb": memory_hard_limit_mb,
         "shard_assignment_scheme": "root_component_greedy_v1",
         "shard_count": shard_count,
         "shard_index": shard_index,
@@ -3604,6 +3688,7 @@ def run_deterministic_scale_materialization(
         max_sources=max_sources,
         shard_count=shard_count,
         shard_index=shard_index,
+        memory_hard_limit_mb=memory_hard_limit_mb,
     )
     run_spec_path = output / "run_spec.json"
     journal_dir = output / "journal"
@@ -3689,12 +3774,15 @@ def run_deterministic_scale_materialization(
         )
         donor_buckets, donor_keys = _n10_donor_index(eligible_for_n10)
 
+        producer_raw_response_dir = output / "raw_lean_responses"
+        replay_raw_response_dir = output / "replay_raw_lean_responses"
         settings = BackendSettings(
             project_dir=project,
             context_fingerprint=context.context_fingerprint,
             environment_schema_version=load_environment_lock(paths).environment_schema_version,
-            raw_response_dir=output / "raw_lean_responses",
+            raw_response_dir=producer_raw_response_dir,
             memory_hard_limit_mb=memory_hard_limit_mb,
+            enable_incremental_optimization=False,
         )
         state = _AdmissionState(
             root_counts=Counter(),
@@ -3705,60 +3793,34 @@ def run_deterministic_scale_materialization(
             pair_ids=set(),
         )
         shards: list[ScaleSourceShard] = []
-        backend: LeanInteractBackend | None = None
+        environment_prepared = False
 
-        def require_backend() -> LeanInteractBackend:
-            nonlocal backend
-            if backend is None:
+        def build_isolated_source(
+            *,
+            raw_response_dir: Path,
+            source_index: int,
+            theorem: TheoremRecord,
+            representation: RepresentationRecord | None,
+            donors: Sequence[TheoremRecord],
+        ) -> ScaleSourceShard:
+            """Build one source in a fresh, stateless Lean session.
+
+            A recovered incremental LeanInteract session previously poisoned
+            later theorem checks while returning ordinary INVALID responses.
+            Source-level process isolation plus disabled incrementality makes
+            every source independent of earlier retry/restart trajectories.
+            """
+
+            nonlocal environment_prepared
+            if not environment_prepared:
                 LeanInteractBackend.prepare_environment(settings)
-                backend = LeanInteractBackend(replace(settings, environment_is_prepared=True))
-            return backend
-
-        previous_receipt_hash = "0" * 64
-        try:
-            for local_index, path in enumerate(expected_shards):
-                if not path.exists():
-                    break
-                persisted_shard = _load_source_shard(path)
-                global_index, theorem = selected_entries[local_index]
-                receipt_path = expected_receipts[local_index]
-                receipt: ScaleJournalReceipt | None = None
-                if receipt_path.exists():
-                    receipt = _load_journal_receipt(
-                        path=receipt_path,
-                        shard=persisted_shard,
-                        shard_path=path,
-                        previous_receipt_hash=previous_receipt_hash,
-                    )
-                    previous_receipt_hash = receipt.receipt_hash
-                expected_donors = (
-                    _donors_for(
-                        theorem,
-                        buckets=donor_buckets,
-                        keys_by_theorem=donor_keys,
-                        config=config,
-                    )
-                    if "n10_nearby_theorem" in config.active_rule_ids
-                    else ()
-                )
-                _validate_resume_shard(
-                    shard=persisted_shard,
-                    expected_index=global_index,
-                    source=theorem,
-                    source_representation=representation_by_theorem.get(theorem.theorem_id),
-                    theorem_by_id={record.theorem_id: record for record in selected},
-                    representation_by_theorem=representation_by_theorem,
-                    expected_donors=expected_donors,
-                    config=config,
-                    loaded_registry=loaded_registry,
-                    positive_runtime=positive_registration.runtime,
-                    negative_runtime=negative_registration.runtime,
-                    pair_rule=pair_rule,
-                    benchmark=benchmark,
-                    run_spec_hash=run_spec.run_spec_hash,
-                )
-                rebuilt_shard = _build_source_shard(
-                    backend=require_backend(),
+                environment_prepared = True
+            with _isolated_scale_backend(
+                settings,
+                raw_response_dir=raw_response_dir,
+            ) as backend:
+                return _build_source_shard(
+                    backend=backend,
                     loaded_registry=loaded_registry,
                     positive_runtime=positive_registration.runtime,
                     negative_runtime=negative_registration.runtime,
@@ -3766,74 +3828,109 @@ def run_deterministic_scale_materialization(
                     benchmark=benchmark,
                     config=config,
                     run_spec_hash=run_spec.run_spec_hash,
-                    source_index=global_index,
+                    source_index=source_index,
                     theorem=theorem,
-                    representation=representation_by_theorem.get(theorem.theorem_id),
-                    representation_by_theorem=representation_by_theorem,
-                    donors=expected_donors,
-                    project_dir=project,
-                    import_header=import_header,
-                    raw_response_dir=settings.raw_response_dir,
-                    state=state,
-                )
-                _require_exact_resume_replay(persisted_shard, rebuilt_shard)
-                shards.append(rebuilt_shard)
-                if receipt is None:
-                    receipt = _build_journal_receipt(
-                        shard=rebuilt_shard,
-                        shard_path=path,
-                        previous_receipt_hash=previous_receipt_hash,
-                    )
-                    _write_new_atomic(receipt_path, _canonical_model_bytes(receipt))
-                    previous_receipt_hash = receipt.receipt_hash
-
-            for local_index in range(len(shards), len(selected)):
-                global_index, theorem = selected_entries[local_index]
-                donors = (
-                    _donors_for(
-                        theorem,
-                        buckets=donor_buckets,
-                        keys_by_theorem=donor_keys,
-                        config=config,
-                    )
-                    if "n10_nearby_theorem" in config.active_rule_ids
-                    else ()
-                )
-                shard = _build_source_shard(
-                    backend=require_backend(),
-                    loaded_registry=loaded_registry,
-                    positive_runtime=positive_registration.runtime,
-                    negative_runtime=negative_registration.runtime,
-                    pair_rule=pair_rule,
-                    benchmark=benchmark,
-                    config=config,
-                    run_spec_hash=run_spec.run_spec_hash,
-                    source_index=global_index,
-                    theorem=theorem,
-                    representation=representation_by_theorem.get(theorem.theorem_id),
+                    representation=representation,
                     representation_by_theorem=representation_by_theorem,
                     donors=donors,
                     project_dir=project,
                     import_header=import_header,
-                    raw_response_dir=settings.raw_response_dir,
+                    raw_response_dir=raw_response_dir,
                     state=state,
                 )
-                shard_path = expected_shards[local_index]
-                _write_new_atomic(shard_path, _canonical_model_bytes(shard))
-                receipt = _build_journal_receipt(
-                    shard=shard,
-                    shard_path=shard_path,
+
+        previous_receipt_hash = "0" * 64
+        for local_index, path in enumerate(expected_shards):
+            if not path.exists():
+                break
+            persisted_shard = _load_source_shard(path)
+            global_index, theorem = selected_entries[local_index]
+            receipt_path = expected_receipts[local_index]
+            receipt: ScaleJournalReceipt | None = None
+            if receipt_path.exists():
+                receipt = _load_journal_receipt(
+                    path=receipt_path,
+                    shard=persisted_shard,
+                    shard_path=path,
                     previous_receipt_hash=previous_receipt_hash,
                 )
-                _write_new_atomic(
-                    expected_receipts[local_index],
-                    _canonical_model_bytes(receipt),
-                )
                 previous_receipt_hash = receipt.receipt_hash
-                shards.append(shard)
-        finally:
-            if backend is not None:
-                backend.close()
+            expected_donors = (
+                _donors_for(
+                    theorem,
+                    buckets=donor_buckets,
+                    keys_by_theorem=donor_keys,
+                    config=config,
+                )
+                if "n10_nearby_theorem" in config.active_rule_ids
+                else ()
+            )
+            _validate_resume_shard(
+                shard=persisted_shard,
+                expected_index=global_index,
+                source=theorem,
+                source_representation=representation_by_theorem.get(theorem.theorem_id),
+                theorem_by_id={record.theorem_id: record for record in selected},
+                representation_by_theorem=representation_by_theorem,
+                expected_donors=expected_donors,
+                config=config,
+                loaded_registry=loaded_registry,
+                positive_runtime=positive_registration.runtime,
+                negative_runtime=negative_registration.runtime,
+                pair_rule=pair_rule,
+                benchmark=benchmark,
+                run_spec_hash=run_spec.run_spec_hash,
+            )
+            rebuilt_shard = build_isolated_source(
+                raw_response_dir=replay_raw_response_dir,
+                source_index=global_index,
+                theorem=theorem,
+                representation=representation_by_theorem.get(theorem.theorem_id),
+                donors=expected_donors,
+            )
+            _require_exact_resume_replay(persisted_shard, rebuilt_shard)
+            shards.append(rebuilt_shard)
+            if receipt is None:
+                receipt = _build_journal_receipt(
+                    shard=rebuilt_shard,
+                    shard_path=path,
+                    previous_receipt_hash=previous_receipt_hash,
+                )
+                _write_new_atomic(receipt_path, _canonical_model_bytes(receipt))
+                previous_receipt_hash = receipt.receipt_hash
+
+        for local_index in range(len(shards), len(selected)):
+            global_index, theorem = selected_entries[local_index]
+            donors = (
+                _donors_for(
+                    theorem,
+                    buckets=donor_buckets,
+                    keys_by_theorem=donor_keys,
+                    config=config,
+                )
+                if "n10_nearby_theorem" in config.active_rule_ids
+                else ()
+            )
+            shard = build_isolated_source(
+                raw_response_dir=producer_raw_response_dir,
+                source_index=global_index,
+                theorem=theorem,
+                representation=representation_by_theorem.get(theorem.theorem_id),
+                donors=donors,
+            )
+            shard_path = expected_shards[local_index]
+            _write_new_atomic(shard_path, _canonical_model_bytes(shard))
+            receipt = _build_journal_receipt(
+                shard=shard,
+                shard_path=shard_path,
+                previous_receipt_hash=previous_receipt_hash,
+            )
+            _write_new_atomic(
+                expected_receipts[local_index],
+                _canonical_model_bytes(receipt),
+            )
+            previous_receipt_hash = receipt.receipt_hash
+            shards.append(shard)
 
         _clean_project_tree_hash(
             project,
@@ -3845,7 +3942,7 @@ def run_deterministic_scale_materialization(
         status_counts = Counter(result.status for shard in shards for result in shard.rule_results)
         journal_count, journal_tree_hash = _tree_hash(journal_dir, "*.json")
         receipt_count, receipt_tree_hash = _tree_hash(receipt_dir, "*.json")
-        raw_count, raw_tree_hash = _tree_hash(output / "raw_lean_responses", "*")
+        raw_count, raw_tree_hash = _tree_hash(producer_raw_response_dir, "*")
         if complete_run_opened_for_replay:
             replay_audit = _build_lean_replay_audit(
                 run_spec=run_spec,

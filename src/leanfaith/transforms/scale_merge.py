@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import datetime
 import json
+import tempfile
 from collections import Counter
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
@@ -51,6 +52,7 @@ from leanfaith.transforms.scale_materializer import (
     ScaleSourceShard,
     _AdmissionState,
     _admit_source_shard,
+    _build_lean_replay_audit,
     _canonical_model_bytes,
     _clean_project_tree_hash,
     _journal_receipt_path,
@@ -211,53 +213,160 @@ def _replay_shard_with_lean(
     paths: RepoPaths,
     output_dir: Path,
     spec: DeterministicScaleRunSpec,
+    manifest: DeterministicScaleManifest,
 ) -> None:
-    """Re-run one completed shard through the pinned Lean materializer.
+    """Re-run one completed shard in scratch through the pinned materializer.
 
     The producer's self-hashed journal and replay audit are not trust anchors.
-    Merge calls the materializer itself, which rebuilds every source shard,
-    performs Lean candidate validation/representation, and exact-compares the
-    rebuilt journal to the persisted bytes before this function returns.
+    Merge first verifies every producer-bound file, then rebuilds the entire
+    shard in a separate scratch output. Only the replay audit is added to the
+    producer after exact semantic equality succeeds; verification never heals
+    or rewrites producer journals, receipts, partitions, manifests, or raw
+    Lean responses.
     """
 
+    _validate_producer_artifact_bindings(
+        output_dir=output_dir,
+        spec=spec,
+        manifest=manifest,
+    )
     project_dir = Path(spec.project_dir)
     _clean_project_tree_hash(
         project_dir,
         expected_revision=spec.project_revision,
         expected_tree_hash=spec.project_tree_hash,
     )
-    artifacts = run_deterministic_scale_materialization(
-        paths=paths,
-        theorem_jsonl=Path(spec.theorem_input_path),
-        representation_jsonl=Path(spec.representation_input_path),
-        source_inventory_manifest=Path(spec.source_inventory_manifest_path),
-        project_dir=project_dir,
-        output_dir=output_dir,
-        config_path=Path(spec.config_path),
-        max_sources=spec.max_sources,
-        shard_count=spec.shard_count,
-        shard_index=spec.shard_index,
-        resume=True,
-        fast_resume=False,
-    )
-    if (
-        artifacts.run_spec_path != output_dir / "run_spec.json"
-        or artifacts.manifest_path != output_dir / "manifest.json"
-    ):
-        raise DeterministicScaleError(
-            "exact Lean replay returned artifact paths outside the producer shard"
+    with tempfile.TemporaryDirectory(
+        prefix=f".{output_dir.name}.lean-replay-",
+        dir=output_dir.parent,
+    ) as scratch:
+        replay_output = Path(scratch) / "shard"
+        artifacts = run_deterministic_scale_materialization(
+            paths=paths,
+            theorem_jsonl=Path(spec.theorem_input_path),
+            representation_jsonl=Path(spec.representation_input_path),
+            source_inventory_manifest=Path(spec.source_inventory_manifest_path),
+            project_dir=project_dir,
+            output_dir=replay_output,
+            config_path=Path(spec.config_path),
+            max_sources=spec.max_sources,
+            shard_count=spec.shard_count,
+            shard_index=spec.shard_index,
+            resume=False,
+            fast_resume=False,
+            memory_hard_limit_mb=spec.memory_hard_limit_mb,
         )
-    replayed_spec = _load_canonical_model(
-        artifacts.run_spec_path,
-        DeterministicScaleRunSpec,
-    )
-    if replayed_spec != spec:
-        raise DeterministicScaleError("exact Lean replay changed the producer run specification")
+        if (
+            artifacts.run_spec_path != replay_output / "run_spec.json"
+            or artifacts.manifest_path != replay_output / "manifest.json"
+        ):
+            raise DeterministicScaleError(
+                "exact Lean replay returned artifact paths outside its scratch shard"
+            )
+        replayed_spec = _load_canonical_model(
+            artifacts.run_spec_path,
+            DeterministicScaleRunSpec,
+        )
+        if replayed_spec != spec:
+            raise DeterministicScaleError(
+                "exact Lean replay changed the producer run specification"
+            )
+        replayed_manifest = _load_canonical_model(
+            artifacts.manifest_path,
+            DeterministicScaleManifest,
+        )
+        producer_semantic = manifest.model_dump(mode="json")
+        replay_semantic = replayed_manifest.model_dump(mode="json")
+        for operational_field in (
+            "raw_response_file_count",
+            "raw_response_tree_hash",
+        ):
+            producer_semantic.pop(operational_field)
+            replay_semantic.pop(operational_field)
+        if replay_semantic != producer_semantic:
+            raise DeterministicScaleError(
+                "scratch Lean replay differs from the producer scientific manifest"
+            )
+
     _clean_project_tree_hash(
         project_dir,
         expected_revision=spec.project_revision,
         expected_tree_hash=spec.project_tree_hash,
     )
+    replay_audit = _build_lean_replay_audit(
+        run_spec=spec,
+        run_spec_path=output_dir / "run_spec.json",
+        replayed_source_ids=spec.selected_source_theorem_ids,
+        journal_tree_hash=manifest.journal_tree_hash,
+        partition_sha256=manifest.partition_sha256,
+        created_at=manifest.created_at,
+    )
+    _write_new_atomic(
+        output_dir / "full_lean_replay_audit.json",
+        _canonical_model_bytes(replay_audit),
+    )
+
+
+def _validate_producer_artifact_bindings(
+    *,
+    output_dir: Path,
+    spec: DeterministicScaleRunSpec,
+    manifest: DeterministicScaleManifest,
+) -> None:
+    """Fail before replay if any producer-bound artifact is absent or changed."""
+
+    run_spec_path = output_dir / "run_spec.json"
+    if (
+        manifest.run_spec_hash != spec.run_spec_hash
+        or manifest.run_spec_sha256 != hash_file(run_spec_path)
+        or manifest.shard_set_spec_hash != spec.shard_set_spec_hash
+    ):
+        raise DeterministicScaleError("producer manifest/run-spec binding changed before replay")
+
+    entries = _expected_local_entries(spec)
+    journal_dir = output_dir / "journal"
+    receipt_dir = output_dir / "journal_receipts"
+    expected_journals = tuple(
+        _source_shard_path(journal_dir, global_index, theorem_id)
+        for global_index, theorem_id in entries
+    )
+    expected_receipts = tuple(
+        _journal_receipt_path(receipt_dir, journal) for journal in expected_journals
+    )
+    if set(journal_dir.glob("*.json")) != set(expected_journals):
+        raise DeterministicScaleError(
+            "producer journal is incomplete or contains foreign files before replay"
+        )
+    if set(receipt_dir.glob("*.json")) != set(expected_receipts):
+        raise DeterministicScaleError(
+            "producer receipt chain is incomplete or contains foreign files before replay"
+        )
+    journal_count, journal_tree_hash = _tree_hash(journal_dir, "*.json")
+    receipt_count, receipt_tree_hash = _tree_hash(receipt_dir, "*.json")
+    if (
+        journal_count != manifest.journal_shard_count
+        or journal_tree_hash != manifest.journal_tree_hash
+        or receipt_count != manifest.journal_receipt_count
+        or receipt_tree_hash != manifest.journal_receipt_tree_hash
+    ):
+        raise DeterministicScaleError("producer journal/receipt binding changed before replay")
+
+    partition_dir = output_dir / "partitions"
+    actual_partitions = {path.stem: path for path in partition_dir.glob("*.jsonl")}
+    if set(actual_partitions) != set(manifest.partition_sha256):
+        raise DeterministicScaleError(
+            "producer partitions are incomplete or contain foreign files before replay"
+        )
+    for name, expected_hash in manifest.partition_sha256.items():
+        if hash_file(actual_partitions[name]) != expected_hash:
+            raise DeterministicScaleError(f"producer partition changed before replay: {name}")
+
+    raw_count, raw_tree_hash = _tree_hash(output_dir / "raw_lean_responses", "*")
+    if (
+        raw_count != manifest.raw_response_file_count
+        or raw_tree_hash != manifest.raw_response_tree_hash
+    ):
+        raise DeterministicScaleError("producer raw Lean-response binding changed before replay")
 
 
 def _expected_local_entries(
@@ -1122,13 +1231,8 @@ def merge_deterministic_scale_shards(
             paths=paths,
             output_dir=shard_dir,
             spec=spec,
+            manifest=manifest,
         )
-        replayed_manifest = _load_canonical_model(
-            shard_dir / "manifest.json",
-            DeterministicScaleManifest,
-        )
-        if replayed_manifest != manifest:
-            raise DeterministicScaleError("exact Lean replay changed the producer manifest")
         overlap = observed_sources & set(spec.selected_source_theorem_ids)
         if overlap:
             raise DeterministicScaleError(
