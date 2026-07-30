@@ -42,6 +42,7 @@ from leanfaith.transforms.protocol import (
 )
 from leanfaith.transforms.scale_materializer import (
     _REQUIRED_CANDIDATE_VIEWS,
+    _RULE_POLARITY,
     DeterministicScaleConfig,
     DeterministicScaleError,
     DeterministicScaleManifest,
@@ -51,10 +52,11 @@ from leanfaith.transforms.scale_materializer import (
     _AdmissionState,
     _admit_source_shard,
     _canonical_model_bytes,
+    _clean_project_tree_hash,
     _journal_receipt_path,
     _load_journal_receipt,
     _load_jsonl,
-    _load_lean_replay_verification,
+    _load_lean_replay_audit,
     _load_source_shard,
     _project_records,
     _representation_payload_hash,
@@ -67,6 +69,7 @@ from leanfaith.transforms.scale_materializer import (
     _tree_hash,
     _write_new_atomic,
     _write_partitions,
+    run_deterministic_scale_materialization,
 )
 
 _HEX64_PATTERN = r"^[0-9a-f]{64}$"
@@ -85,14 +88,14 @@ class DeterministicScaleMergedShardBinding(StrictModel):
     journal_tree_hash: str = Field(pattern=_HEX64_PATTERN)
     journal_receipt_tree_hash: str = Field(pattern=_HEX64_PATTERN)
     journal_chain_tip: str = Field(pattern=_HEX64_PATTERN)
-    lean_replay_verification_hash: str = Field(pattern=_HEX64_PATTERN)
-    lean_replay_verification_sha256: str = Field(pattern=_HEX64_PATTERN)
+    lean_replay_audit_hash: str = Field(pattern=_HEX64_PATTERN)
+    lean_replay_audit_sha256: str = Field(pattern=_HEX64_PATTERN)
 
 
 class DeterministicScaleMergedManifest(StrictModel):
     """Content-addressed audit manifest for one complete shard set."""
 
-    schema_version: Literal[2] = 2
+    schema_version: Literal[3] = 3
     artifact_kind: Literal["deterministic_scale_merged_manifest"] = (
         "deterministic_scale_merged_manifest"
     )
@@ -115,7 +118,7 @@ class DeterministicScaleMergedManifest(StrictModel):
     resolved_semantic_labels: Literal[0] = 0
     promoted_items: Literal[0] = 0
     output_quality_tier: Literal["provisional"] = "provisional"
-    full_lean_backed_verification: Literal[True] = True
+    merge_replayed_with_lean: Literal[True] = True
     training_eligible: Literal[False] = False
     created_at: datetime.datetime
 
@@ -203,6 +206,60 @@ def _validate_current_input_bindings(spec: DeterministicScaleRunSpec) -> None:
         raise DeterministicScaleError("deterministic scale config changed after shard execution")
 
 
+def _replay_shard_with_lean(
+    *,
+    paths: RepoPaths,
+    output_dir: Path,
+    spec: DeterministicScaleRunSpec,
+) -> None:
+    """Re-run one completed shard through the pinned Lean materializer.
+
+    The producer's self-hashed journal and replay audit are not trust anchors.
+    Merge calls the materializer itself, which rebuilds every source shard,
+    performs Lean candidate validation/representation, and exact-compares the
+    rebuilt journal to the persisted bytes before this function returns.
+    """
+
+    project_dir = Path(spec.project_dir)
+    _clean_project_tree_hash(
+        project_dir,
+        expected_revision=spec.project_revision,
+        expected_tree_hash=spec.project_tree_hash,
+    )
+    artifacts = run_deterministic_scale_materialization(
+        paths=paths,
+        theorem_jsonl=Path(spec.theorem_input_path),
+        representation_jsonl=Path(spec.representation_input_path),
+        source_inventory_manifest=Path(spec.source_inventory_manifest_path),
+        project_dir=project_dir,
+        output_dir=output_dir,
+        config_path=Path(spec.config_path),
+        max_sources=spec.max_sources,
+        shard_count=spec.shard_count,
+        shard_index=spec.shard_index,
+        resume=True,
+        fast_resume=False,
+    )
+    if (
+        artifacts.run_spec_path != output_dir / "run_spec.json"
+        or artifacts.manifest_path != output_dir / "manifest.json"
+    ):
+        raise DeterministicScaleError(
+            "exact Lean replay returned artifact paths outside the producer shard"
+        )
+    replayed_spec = _load_canonical_model(
+        artifacts.run_spec_path,
+        DeterministicScaleRunSpec,
+    )
+    if replayed_spec != spec:
+        raise DeterministicScaleError("exact Lean replay changed the producer run specification")
+    _clean_project_tree_hash(
+        project_dir,
+        expected_revision=spec.project_revision,
+        expected_tree_hash=spec.project_tree_hash,
+    )
+
+
 def _expected_local_entries(
     spec: DeterministicScaleRunSpec,
 ) -> tuple[tuple[int, str], ...]:
@@ -239,10 +296,12 @@ def _unique_by[RecordT: StrictModel](
 def _validate_projected_semantic_lineage(
     *,
     projected: Mapping[str, Sequence[StrictModel]],
+    source_shards: Sequence[ScaleSourceShard],
     source_theorems: Sequence[TheoremRecord],
     source_representations: Sequence[RepresentationRecord],
     spec: DeterministicScaleRunSpec,
     config: DeterministicScaleConfig,
+    source_run_spec_hashes: Mapping[str, str] | None = None,
 ) -> None:
     """Rebuild every accepted cross-record lineage from immutable inventories.
 
@@ -348,6 +407,145 @@ def _validate_projected_semantic_lineage(
     if accepted_draft_ids & quarantined_draft_ids:
         raise DeterministicScaleError("accepted and quarantined draft IDs overlap")
 
+    nested_attempts: list[TransformationAttempt] = []
+    expected_quarantine: dict[str, ScaleQuarantineRecord] = {}
+    nested_draft_ids: set[str] = set()
+    source_index_by_id = {
+        theorem_id: index for index, theorem_id in enumerate(spec.source_universe_theorem_ids)
+    }
+    for source_shard in source_shards:
+        expected_source_index = source_index_by_id.get(source_shard.source_theorem_id)
+        expected_run_spec_hash = (
+            source_run_spec_hashes.get(source_shard.source_theorem_id)
+            if source_run_spec_hashes is not None
+            else spec.run_spec_hash
+        )
+        if (
+            source_shard.source_theorem_id not in sources
+            or expected_run_spec_hash is None
+            or source_shard.run_spec_hash != expected_run_spec_hash
+            or source_shard.source_index != expected_source_index
+        ):
+            raise DeterministicScaleError(
+                "source journal shard leaves its exact run/inventory assignment"
+            )
+        for rule in source_shard.rule_results:
+            if (
+                source_shard.source_theorem_id not in rule.source_theorem_ids
+                or any(theorem_id not in sources for theorem_id in rule.source_theorem_ids)
+                or rule.rule_id not in config.active_rule_ids
+                or rule.family_id != rule.rule_id
+                or rule.polarity != _RULE_POLARITY[rule.rule_id]
+            ):
+                raise DeterministicScaleError(
+                    f"rule result leaves its owning source/family policy: {rule.rule_id}"
+                )
+            expected_rule_sources: tuple[str, ...]
+            if rule.rule_id == "n10_nearby_theorem":
+                if rule.status == "no_donor":
+                    expected_rule_sources = (source_shard.source_theorem_id,)
+                else:
+                    if rule.donor_theorem_id is None:
+                        raise DeterministicScaleError("N10 journal result lacks its donor role")
+                    expected_rule_sources = tuple(
+                        sorted(
+                            (
+                                source_shard.source_theorem_id,
+                                rule.donor_theorem_id,
+                            )
+                        )
+                    )
+            else:
+                if rule.donor_theorem_id is not None:
+                    raise DeterministicScaleError(
+                        f"unary journal result carries a donor: {rule.rule_id}"
+                    )
+                expected_rule_sources = (source_shard.source_theorem_id,)
+            if rule.source_theorem_ids != expected_rule_sources:
+                raise DeterministicScaleError(
+                    f"rule result source/role lineage mismatch: {rule.rule_id}"
+                )
+            attempt = rule.attempt
+            if attempt is not None:
+                nested_attempts.append(attempt)
+                if (
+                    attempt.family_id != rule.family_id
+                    or attempt.rule_id != rule.rule_id
+                    or attempt.source_theorem_ids != rule.source_theorem_ids
+                    or attempt.seed != rule.seed
+                ):
+                    raise DeterministicScaleError(
+                        f"nested attempt/rule lineage mismatch: {attempt.attempt_id}"
+                    )
+            if rule.draft_results and attempt is None:
+                raise DeterministicScaleError(
+                    f"rule with draft outcomes lacks its owning attempt: {rule.rule_id}"
+                )
+            for result in rule.draft_results:
+                draft_id = result.persistent_draft_id
+                if draft_id in nested_draft_ids:
+                    raise DeterministicScaleError(
+                        f"nested draft ID occurs more than once: {draft_id}"
+                    )
+                nested_draft_ids.add(draft_id)
+                if attempt is None or draft_id not in attempt.draft_ids:
+                    raise DeterministicScaleError(
+                        f"nested draft is not owned by its transformation attempt: {draft_id}"
+                    )
+                if result.failure is not None and (
+                    result.failure.draft_id != draft_id
+                    or result.failure.rule_id != rule.rule_id
+                    or result.failure.source_theorem_ids != rule.source_theorem_ids
+                ):
+                    raise DeterministicScaleError(
+                        f"nested draft failure lineage mismatch: {draft_id}"
+                    )
+                if result.draft is not None:
+                    try:
+                        verify_variant_draft_id(result.draft)
+                    except ValueError as exc:
+                        raise DeterministicScaleError(
+                            f"nested draft identity mismatch: {draft_id}"
+                        ) from exc
+                    if (
+                        result.draft.draft_id != draft_id
+                        or result.draft.family_id != rule.family_id
+                        or result.draft.rule_id != rule.rule_id
+                        or result.draft.source_theorem_ids != rule.source_theorem_ids
+                        or result.draft.seed != rule.seed
+                        or result.draft.candidate_code_hash != result.persistent_candidate_code_hash
+                    ):
+                        raise DeterministicScaleError(
+                            f"nested draft/rule payload lineage mismatch: {draft_id}"
+                        )
+                if result.status != "accepted":
+                    assert result.failure is not None
+                    expected_quarantine[draft_id] = ScaleQuarantineRecord(
+                        status=result.status,
+                        source_theorem_ids=rule.source_theorem_ids,
+                        rule_id=rule.rule_id,
+                        family_id=rule.family_id,
+                        polarity=rule.polarity,
+                        draft_id=draft_id,
+                        candidate_code_hash=result.persistent_candidate_code_hash,
+                        failure=result.failure,
+                        candidate_content_redacted=(result.status == "protected_benchmark_overlap"),
+                    )
+
+    if tuple(attempts) != tuple(nested_attempts):
+        raise DeterministicScaleError(
+            "attempt partition differs from the exact nested journal projection"
+        )
+    if set(expected_quarantine) != set(quarantine_by_draft):
+        raise DeterministicScaleError(
+            "quarantine partition inventory differs from nested journal outcomes"
+        )
+    for draft_id, expected in expected_quarantine.items():
+        if quarantine_by_draft[draft_id] != expected:
+            raise DeterministicScaleError(
+                f"quarantine record differs from its exact owning outcome: {draft_id}"
+            )
+
     draft_owner: dict[str, str] = {}
     for attempt in attempts:
         try:
@@ -411,9 +609,6 @@ def _validate_projected_semantic_lineage(
             )
         pairs_by_candidate[pair.theorem_b_id] = pair
 
-    source_index_by_id = {
-        theorem_id: index for index, theorem_id in enumerate(spec.source_universe_theorem_ids)
-    }
     consumed_candidates: set[str] = set()
     consumed_representations: set[str] = set()
     consumed_audits: set[str] = set()
@@ -722,14 +917,14 @@ def _validate_shard_output(
     journal_count, journal_tree_hash = _tree_hash(journal_dir, "*.json")
     receipt_count, receipt_tree_hash = _tree_hash(receipt_dir, "*.json")
     raw_count, raw_tree_hash = _tree_hash(output_dir / "raw_lean_responses", "*")
-    verification_path = output_dir / "full_lean_replay_verification.json"
-    if not verification_path.is_file():
+    replay_audit_path = output_dir / "full_lean_replay_audit.json"
+    if not replay_audit_path.is_file():
         raise DeterministicScaleError(
-            "producer shard lacks full Lean-backed replay verification; rerun the "
-            "completed shard with exact --resume before merge"
+            "producer shard lacks its replay accounting audit; scientific merge "
+            "must invoke exact Lean replay before validating the shard"
         )
-    verification = _load_lean_replay_verification(
-        path=verification_path,
+    replay_audit = _load_lean_replay_audit(
+        path=replay_audit_path,
         run_spec=spec,
         run_spec_path=run_spec_path,
         replayed_source_ids=spec.selected_source_theorem_ids,
@@ -777,8 +972,8 @@ def _validate_shard_output(
             journal_tree_hash=journal_tree_hash,
             journal_receipt_tree_hash=receipt_tree_hash,
             journal_chain_tip=previous_receipt_hash,
-            lean_replay_verification_hash=verification.verification_hash,
-            lean_replay_verification_sha256=hash_file(verification_path),
+            lean_replay_audit_hash=replay_audit.audit_hash,
+            lean_replay_audit_sha256=hash_file(replay_audit_path),
         ),
     )
 
@@ -923,6 +1118,17 @@ def merge_deterministic_scale_shards(
     bindings: list[DeterministicScaleMergedShardBinding] = []
     observed_sources: set[str] = set()
     for shard_dir, spec, manifest in loaded:
+        _replay_shard_with_lean(
+            paths=paths,
+            output_dir=shard_dir,
+            spec=spec,
+        )
+        replayed_manifest = _load_canonical_model(
+            shard_dir / "manifest.json",
+            DeterministicScaleManifest,
+        )
+        if replayed_manifest != manifest:
+            raise DeterministicScaleError("exact Lean replay changed the producer manifest")
         overlap = observed_sources & set(spec.selected_source_theorem_ids)
         if overlap:
             raise DeterministicScaleError(
@@ -958,10 +1164,16 @@ def merge_deterministic_scale_shards(
     )
     _validate_projected_semantic_lineage(
         projected=projected,
+        source_shards=all_shards,
         source_theorems=universe,
         source_representations=universe_representations,
         spec=first_spec,
         config=loaded_config.config,
+        source_run_spec_hashes={
+            theorem_id: spec.run_spec_hash
+            for _, spec, _ in loaded
+            for theorem_id in spec.selected_source_theorem_ids
+        },
     )
 
     global_state = _AdmissionState(
@@ -1020,7 +1232,7 @@ def merge_deterministic_scale_shards(
             }
         )
         data: dict[str, object] = {
-            "schema_version": 2,
+            "schema_version": 3,
             "artifact_kind": "deterministic_scale_merged_manifest",
             "shard_set_spec_hash": first_spec.shard_set_spec_hash,
             "shard_count": first_spec.shard_count,
@@ -1057,7 +1269,7 @@ def merge_deterministic_scale_shards(
             "resolved_semantic_labels": 0,
             "promoted_items": 0,
             "output_quality_tier": "provisional",
-            "full_lean_backed_verification": True,
+            "merge_replayed_with_lean": True,
             "training_eligible": False,
             "created_at": config.record_timestamp_utc,
         }

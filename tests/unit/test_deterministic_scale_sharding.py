@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import shutil
 from pathlib import Path
+from typing import cast
 
 import pytest
 from typer.testing import CliRunner
@@ -21,16 +22,18 @@ from leanfaith.transforms.scale_materializer import (
     DeterministicScaleError,
     DeterministicScaleManifest,
     DeterministicScaleRunSpec,
+    ScaleDraftResult,
     ScaleFailure,
     ScaleQuarantineRecord,
     ScaleSourceShard,
     _build_journal_receipt,
-    _build_lean_replay_verification,
+    _build_lean_replay_audit,
     _canonical_model_bytes,
     _journal_receipt_path,
     _load_journal_receipt,
     _project_records,
     _representation_payload_hash,
+    _role_ordered_replay_inputs,
     _root_component_shard_assignments,
     _run_spec_payload,
     _selection_key,
@@ -45,6 +48,7 @@ from leanfaith.transforms.scale_materializer import (
 from leanfaith.transforms.scale_merge import (
     DeterministicScaleMergeArtifacts,
     _reject_cross_shard_semantic_leakage,
+    _replay_shard_with_lean,
     _validate_projected_semantic_lineage,
     merge_deterministic_scale_shards,
 )
@@ -52,6 +56,20 @@ from tests.unit.record_factories import representation_record, theorem_record
 from tests.unit.test_deterministic_scale_materializer import _accepted_source_shard
 
 _ROOT = Path(__file__).resolve().parents[2]
+
+
+@pytest.fixture(autouse=True)
+def _isolate_generic_merge_fixtures_from_lean(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Generic fake shard fixtures exercise merge logic, not a real Lean tree."""
+    from leanfaith.transforms import scale_merge
+
+    monkeypatch.setattr(
+        scale_merge,
+        "_replay_shard_with_lean",
+        lambda **_: None,
+    )
 
 
 def _source(index: int, *, shared_root: str | None = None) -> TheoremRecord:
@@ -235,7 +253,7 @@ def _write_ineligible_shard_output(
         created_at=config.record_timestamp_utc,
     )
     _write_new_atomic(output_dir / "manifest.json", _canonical_model_bytes(manifest))
-    verification = _build_lean_replay_verification(
+    replay_audit = _build_lean_replay_audit(
         run_spec=spec,
         run_spec_path=run_spec_path,
         replayed_source_ids=spec.selected_source_theorem_ids,
@@ -244,8 +262,8 @@ def _write_ineligible_shard_output(
         created_at=config.record_timestamp_utc,
     )
     _write_new_atomic(
-        output_dir / "full_lean_replay_verification.json",
-        _canonical_model_bytes(verification),
+        output_dir / "full_lean_replay_audit.json",
+        _canonical_model_bytes(replay_audit),
     )
 
 
@@ -378,6 +396,49 @@ def test_sharded_policy_rejects_n10_and_requires_dedicated_global_pass() -> None
         _validate_shard_execution_policy(n10, shard_count=2)
 
 
+@pytest.mark.parametrize("primary_is_lexically_first", [True, False])
+def test_n10_replay_preserves_primary_and_donor_roles(
+    primary_is_lexically_first: bool,
+) -> None:
+    lower = "thm:" + "0" * 64
+    upper = "thm:" + "f" * 64
+    primary_id, donor_id = (lower, upper) if primary_is_lexically_first else (upper, lower)
+    primary = theorem_record(theorem_id=primary_id, declaration_full_name="Fixture.Primary")
+    donor = theorem_record(theorem_id=donor_id, declaration_full_name="Fixture.Donor")
+    primary_representation = representation_record(
+        theorem_id=primary_id,
+        representation_id=make_id(
+            "repr",
+            {"theorem_id": primary_id, "normalization_version": "repr_v3"},
+        ),
+    )
+    donor_representation = representation_record(
+        theorem_id=donor_id,
+        representation_id=make_id(
+            "repr",
+            {"theorem_id": donor_id, "normalization_version": "repr_v3"},
+        ),
+    )
+
+    sources, representations = _role_ordered_replay_inputs(
+        rule_id="n10_nearby_theorem",
+        primary=primary,
+        primary_representation=primary_representation,
+        donor_theorem_id=donor_id,
+        theorem_by_id={primary_id: primary, donor_id: donor},
+        representation_by_theorem={
+            primary_id: primary_representation,
+            donor_id: donor_representation,
+        },
+    )
+
+    assert tuple(record.theorem_id for record in sources) == (primary_id, donor_id)
+    assert tuple(record.theorem_id for record in representations) == (
+        primary_id,
+        donor_id,
+    )
+
+
 def test_merge_audits_complete_set_and_is_content_addressed(tmp_path: Path) -> None:
     shard_dirs, _, sources = _fixture_shard_set(tmp_path)
 
@@ -398,11 +459,11 @@ def test_merge_audits_complete_set_and_is_content_addressed(tmp_path: Path) -> N
     assert sum(1 for _ in (tmp_path / "merged/partitions/failures.jsonl").open()) == len(sources)
 
 
-def test_merge_requires_full_lean_backed_replay_verification(tmp_path: Path) -> None:
+def test_merge_requires_replay_accounting_audit(tmp_path: Path) -> None:
     shard_dirs, _, _ = _fixture_shard_set(tmp_path)
-    (shard_dirs[0] / "full_lean_replay_verification.json").unlink()
+    (shard_dirs[0] / "full_lean_replay_audit.json").unlink()
 
-    with pytest.raises(DeterministicScaleError, match="full Lean-backed replay"):
+    with pytest.raises(DeterministicScaleError, match="replay accounting audit"):
         merge_deterministic_scale_shards(
             paths=RepoPaths(root=_ROOT),
             shard_output_dirs=shard_dirs,
@@ -410,10 +471,10 @@ def test_merge_requires_full_lean_backed_replay_verification(tmp_path: Path) -> 
         )
 
 
-def test_merge_rejects_tampered_full_lean_replay_receipt(tmp_path: Path) -> None:
+def test_merge_rejects_tampered_replay_audit(tmp_path: Path) -> None:
     shard_dirs, _, _ = _fixture_shard_set(tmp_path)
-    verification = shard_dirs[0] / "full_lean_replay_verification.json"
-    verification.write_bytes(verification.read_bytes() + b" ")
+    replay_audit = shard_dirs[0] / "full_lean_replay_audit.json"
+    replay_audit.write_bytes(replay_audit.read_bytes() + b" ")
 
     with pytest.raises(DeterministicScaleError, match="not canonical JSON"):
         merge_deterministic_scale_shards(
@@ -421,6 +482,98 @@ def test_merge_rejects_tampered_full_lean_replay_receipt(tmp_path: Path) -> None
             shard_output_dirs=shard_dirs,
             output_dir=tmp_path / "merged",
         )
+
+
+def test_merge_invokes_exact_lean_replay_for_every_shard(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from leanfaith.transforms import scale_merge
+
+    shard_dirs, _, _ = _fixture_shard_set(tmp_path)
+    replayed: list[Path] = []
+
+    def record_replay(**kwargs: object) -> None:
+        replayed.append(cast(Path, kwargs["output_dir"]))
+
+    monkeypatch.setattr(scale_merge, "_replay_shard_with_lean", record_replay)
+    merge_deterministic_scale_shards(
+        paths=RepoPaths(root=_ROOT),
+        shard_output_dirs=shard_dirs,
+        output_dir=tmp_path / "merged",
+    )
+
+    assert replayed == list(shard_dirs)
+
+
+def test_exact_merge_replay_requires_pinned_git_project(tmp_path: Path) -> None:
+    shard_dirs, _, _ = _fixture_shard_set(tmp_path)
+    spec = DeterministicScaleRunSpec.model_validate_json(
+        (shard_dirs[0] / "run_spec.json").read_text(encoding="utf-8")
+    )
+
+    with pytest.raises(DeterministicScaleError, match="cannot bind clean Lean project"):
+        _replay_shard_with_lean(
+            paths=RepoPaths(root=_ROOT),
+            output_dir=shard_dirs[0],
+            spec=spec,
+        )
+
+
+def test_exact_merge_replay_calls_materializer_with_bound_run_spec(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from leanfaith.transforms import scale_merge
+
+    shard_dirs, _, _ = _fixture_shard_set(tmp_path)
+    output_dir = shard_dirs[0]
+    spec = DeterministicScaleRunSpec.model_validate_json(
+        (output_dir / "run_spec.json").read_text(encoding="utf-8")
+    )
+    clean_checks: list[tuple[Path, str | None, str | None]] = []
+    materializer_kwargs: dict[str, object] = {}
+
+    def fake_clean(
+        project_dir: Path,
+        *,
+        expected_revision: str | None = None,
+        expected_tree_hash: str | None = None,
+    ) -> tuple[str, str]:
+        clean_checks.append((project_dir, expected_revision, expected_tree_hash))
+        return spec.project_revision, spec.project_tree_hash
+
+    def fake_materialize(**kwargs: object) -> DeterministicScaleArtifacts:
+        materializer_kwargs.update(kwargs)
+        return DeterministicScaleArtifacts(
+            output_dir=output_dir,
+            run_spec_path=output_dir / "run_spec.json",
+            manifest_path=output_dir / "manifest.json",
+            manifest_sha256=hash_file(output_dir / "manifest.json"),
+            partition_paths={},
+        )
+
+    monkeypatch.setattr(scale_merge, "_clean_project_tree_hash", fake_clean)
+    monkeypatch.setattr(
+        scale_merge,
+        "run_deterministic_scale_materialization",
+        fake_materialize,
+    )
+    _replay_shard_with_lean(
+        paths=RepoPaths(root=_ROOT),
+        output_dir=output_dir,
+        spec=spec,
+    )
+
+    assert materializer_kwargs["resume"] is True
+    assert materializer_kwargs["fast_resume"] is False
+    assert materializer_kwargs["shard_count"] == spec.shard_count
+    assert materializer_kwargs["shard_index"] == spec.shard_index
+    assert materializer_kwargs["project_dir"] == Path(spec.project_dir)
+    assert clean_checks == [
+        (Path(spec.project_dir), spec.project_revision, spec.project_tree_hash),
+        (Path(spec.project_dir), spec.project_revision, spec.project_tree_hash),
+    ]
 
 
 def test_materializer_api_rejects_retired_fast_resume_before_io(tmp_path: Path) -> None:
@@ -616,6 +769,7 @@ def test_semantic_lineage_audit_rejects_rehashed_bad_pair_split_group() -> None:
     )
     _validate_projected_semantic_lineage(
         projected=projected,
+        source_shards=(accepted,),
         source_theorems=(source,),
         source_representations=(source_representation,),
         spec=spec,
@@ -629,8 +783,85 @@ def test_semantic_lineage_audit_rejects_rehashed_bad_pair_split_group() -> None:
     with pytest.raises(DeterministicScaleError, match="pair identity/split lineage mismatch"):
         _validate_projected_semantic_lineage(
             projected={**projected, "pairs": (bad_pair,)},
+            source_shards=(accepted,),
             source_theorems=(source,),
             source_representations=(source_representation,),
+            spec=spec,
+            config=config,
+        )
+
+
+@pytest.mark.parametrize("tamper", ["source", "candidate_hash"])
+def test_semantic_lineage_audit_rejects_forged_quarantine_projection(
+    tamper: str,
+) -> None:
+    source, source_representation, accepted = _accepted_source_shard()
+    accepted_rule = accepted.rule_results[0]
+    accepted_result = accepted_rule.draft_results[0]
+    assert accepted_result.draft is not None
+    failure = ScaleFailure(
+        stage="candidate_validation",
+        code="fixture_rejection",
+        detail="fixture rejected draft",
+        source_theorem_ids=accepted_rule.source_theorem_ids,
+        rule_id=accepted_rule.rule_id,
+        draft_id=accepted_result.draft.draft_id,
+    )
+    rejected_result = ScaleDraftResult(
+        status="candidate_invalid",
+        draft=accepted_result.draft,
+        failure=failure,
+    )
+    rejected_rule = accepted_rule.model_copy(
+        update={
+            "status": "candidate_invalid",
+            "draft_results": (rejected_result,),
+        }
+    )
+    rejected_shard = accepted.model_copy(update={"rule_results": (rejected_rule,)})
+    projected = _project_records((rejected_shard,))
+    other_source = _source(999)
+    other_representation = representation_record(
+        representation_id=make_id(
+            "repr",
+            {
+                "theorem_id": other_source.theorem_id,
+                "normalization_version": "repr_v3",
+            },
+        ),
+        theorem_id=other_source.theorem_id,
+        normalization_version="repr_v3",
+        context_id=other_source.context_id,
+    )
+    other_representation = other_representation.model_copy(
+        update={"content_hash": _representation_payload_hash(other_representation)}
+    )
+    config = load_config(
+        _ROOT / "configs/transformations/deterministic_scale_v1.yaml",
+        DeterministicScaleConfig,
+    ).config
+    spec = DeterministicScaleRunSpec.model_construct(
+        run_spec_hash="b" * 64,
+        registry_hash="a" * 64,
+        source_universe_theorem_ids=(
+            source.theorem_id,
+            other_source.theorem_id,
+        ),
+    )
+    record = projected["quarantine"][0]
+    update: dict[str, object]
+    if tamper == "source":
+        update = {"source_theorem_ids": (other_source.theorem_id,)}
+    else:
+        update = {"candidate_code_hash": "c" * 64}
+    forged = record.model_copy(update=update)
+
+    with pytest.raises(DeterministicScaleError, match="exact owning outcome"):
+        _validate_projected_semantic_lineage(
+            projected={**projected, "quarantine": (forged,)},
+            source_shards=(rejected_shard,),
+            source_theorems=(source, other_source),
+            source_representations=(source_representation, other_representation),
             spec=spec,
             config=config,
         )

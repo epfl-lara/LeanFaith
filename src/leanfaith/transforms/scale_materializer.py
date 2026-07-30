@@ -471,36 +471,35 @@ class ScaleJournalReceipt(StrictModel):
         return self
 
 
-class ScaleLeanReplayVerification(StrictModel):
-    """Independent full-replay receipt required before shard merge.
+class ScaleLeanReplayAudit(StrictModel):
+    """Self-hashed accounting record for one completed exact replay.
 
-    A receipt is written only when a *completed* producer shard is opened with
-    ``--resume`` and every persisted source shard is rebuilt through the
-    current Lean-backed materialization path and compared byte-for-byte with
-    the journal.  Hash-chain validation alone is deliberately insufficient.
+    This record is deliberately *not* an authentication or verification
+    primitive: anyone able to rewrite a producer shard can also rewrite this
+    payload and its hash.  Scientific merge therefore reruns the exact
+    Lean-backed materializer itself against the pinned project and context.
     """
 
     schema_version: Literal[1] = 1
-    artifact_kind: Literal["deterministic_scale_full_lean_replay"] = (
-        "deterministic_scale_full_lean_replay"
-    )
-    verification_hash: str = Field(pattern=_HEX64_PATTERN)
+    artifact_kind: Literal["deterministic_scale_replay_audit"] = "deterministic_scale_replay_audit"
+    audit_hash: str = Field(pattern=_HEX64_PATTERN)
     run_spec_hash: str = Field(pattern=_HEX64_PATTERN)
     run_spec_sha256: str = Field(pattern=_HEX64_PATTERN)
-    verification_mode: Literal["full_lean_backed_replay"] = "full_lean_backed_replay"
+    replay_mode: Literal["exact_lean_backed_replay"] = "exact_lean_backed_replay"
     replayed_source_count: int = Field(ge=1)
     replayed_source_ids_sha256: str = Field(pattern=_HEX64_PATTERN)
     journal_tree_hash: str = Field(pattern=_HEX64_PATTERN)
     partition_sha256: dict[str, str]
-    scientific_merge_eligible: Literal[True] = True
+    replay_completed: Literal[True] = True
+    authentication_strength: Literal["self_hash_only"] = "self_hash_only"
     created_at: datetime.datetime
 
     @model_validator(mode="after")
-    def _self_authenticating(self) -> ScaleLeanReplayVerification:
+    def _self_consistent(self) -> ScaleLeanReplayAudit:
         payload = self.model_dump(mode="json")
-        payload.pop("verification_hash")
-        if self.verification_hash != hash_canonical(payload):
-            raise ValueError("Lean-replay verification hash does not match canonical payload")
+        payload.pop("audit_hash")
+        if self.audit_hash != hash_canonical(payload):
+            raise ValueError("Lean-replay audit hash does not match canonical payload")
         return self
 
 
@@ -2177,7 +2176,7 @@ def _build_journal_receipt(
     return ScaleJournalReceipt.model_validate({"receipt_hash": hash_canonical(data), **data})
 
 
-def _build_lean_replay_verification(
+def _build_lean_replay_audit(
     *,
     run_spec: DeterministicScaleRunSpec,
     run_spec_path: Path,
@@ -2185,18 +2184,19 @@ def _build_lean_replay_verification(
     journal_tree_hash: str,
     partition_sha256: Mapping[str, str],
     created_at: datetime.datetime,
-) -> ScaleLeanReplayVerification:
+) -> ScaleLeanReplayAudit:
     data: dict[str, object] = {
         "schema_version": 1,
-        "artifact_kind": "deterministic_scale_full_lean_replay",
+        "artifact_kind": "deterministic_scale_replay_audit",
         "run_spec_hash": run_spec.run_spec_hash,
         "run_spec_sha256": hash_file(run_spec_path),
-        "verification_mode": "full_lean_backed_replay",
+        "replay_mode": "exact_lean_backed_replay",
         "replayed_source_count": len(replayed_source_ids),
         "replayed_source_ids_sha256": hash_canonical(tuple(replayed_source_ids)),
         "journal_tree_hash": journal_tree_hash,
         "partition_sha256": dict(sorted(partition_sha256.items())),
-        "scientific_merge_eligible": True,
+        "replay_completed": True,
+        "authentication_strength": "self_hash_only",
         "created_at": created_at,
     }
     canonical = {
@@ -2206,12 +2206,10 @@ def _build_lean_replay_verification(
             mode="json",
         ),
     }
-    return ScaleLeanReplayVerification.model_validate(
-        {"verification_hash": hash_canonical(canonical), **data}
-    )
+    return ScaleLeanReplayAudit.model_validate({"audit_hash": hash_canonical(canonical), **data})
 
 
-def _load_lean_replay_verification(
+def _load_lean_replay_audit(
     *,
     path: Path,
     run_spec: DeterministicScaleRunSpec,
@@ -2220,7 +2218,7 @@ def _load_lean_replay_verification(
     journal_tree_hash: str,
     partition_sha256: Mapping[str, str],
     created_at: datetime.datetime,
-) -> ScaleLeanReplayVerification:
+) -> ScaleLeanReplayAudit:
     try:
         payload = path.read_bytes()
         raw = json.loads(
@@ -2228,16 +2226,12 @@ def _load_lean_replay_verification(
             object_pairs_hook=_reject_duplicate_keys,
             parse_constant=_reject_nonfinite,
         )
-        verification = ScaleLeanReplayVerification.model_validate(raw)
+        audit = ScaleLeanReplayAudit.model_validate(raw)
     except Exception as exc:
-        raise DeterministicScaleError(
-            f"invalid full Lean-replay verification {path}: {exc}"
-        ) from exc
-    if payload != _canonical_model_bytes(verification):
-        raise DeterministicScaleError(
-            f"full Lean-replay verification is not canonical JSON: {path}"
-        )
-    expected = _build_lean_replay_verification(
+        raise DeterministicScaleError(f"invalid Lean-replay audit {path}: {exc}") from exc
+    if payload != _canonical_model_bytes(audit):
+        raise DeterministicScaleError(f"Lean-replay audit is not canonical JSON: {path}")
+    expected = _build_lean_replay_audit(
         run_spec=run_spec,
         run_spec_path=run_spec_path,
         replayed_source_ids=replayed_source_ids,
@@ -2245,11 +2239,11 @@ def _load_lean_replay_verification(
         partition_sha256=partition_sha256,
         created_at=created_at,
     )
-    if verification != expected:
+    if audit != expected:
         raise DeterministicScaleError(
-            "full Lean-replay verification does not bind the current journal/partitions"
+            "Lean-replay audit does not bind the current journal/partitions"
         )
-    return verification
+    return audit
 
 
 def _load_journal_receipt(
@@ -2399,6 +2393,30 @@ def _require_exact_resume_replay(
         )
 
 
+def _role_ordered_replay_inputs(
+    *,
+    rule_id: str,
+    primary: TheoremRecord,
+    primary_representation: RepresentationRecord,
+    donor_theorem_id: str | None,
+    theorem_by_id: Mapping[str, TheoremRecord],
+    representation_by_theorem: Mapping[str, RepresentationRecord],
+) -> tuple[tuple[TheoremRecord, ...], tuple[RepresentationRecord, ...]]:
+    """Preserve semantic primary/donor roles independently of canonical IDs."""
+
+    if rule_id != "n10_nearby_theorem":
+        return (primary,), (primary_representation,)
+    if donor_theorem_id is None:
+        raise DeterministicScaleError("N10 semantic replay lacks its scheduled donor")
+    donor = theorem_by_id.get(donor_theorem_id)
+    donor_representation = representation_by_theorem.get(donor_theorem_id)
+    if donor is None or donor_representation is None:
+        raise DeterministicScaleError(
+            "N10 semantic replay donor leaves the immutable source inventory"
+        )
+    return (primary, donor), (primary_representation, donor_representation)
+
+
 def _validate_resume_shard(
     *,
     shard: ScaleSourceShard,
@@ -2528,9 +2546,17 @@ def _validate_resume_shard(
                 raise DeterministicScaleError("resume shard rule source lineage mismatch")
             if result.seed != _seed(config, rule_id, source_ids):
                 raise DeterministicScaleError("resume shard rule seed mismatch")
-            sources = tuple(theorem_by_id[theorem_id] for theorem_id in source_ids)
-            source_representations = tuple(
+            lineage_sources = tuple(theorem_by_id[theorem_id] for theorem_id in source_ids)
+            lineage_source_representations = tuple(
                 representation_by_theorem[theorem_id] for theorem_id in source_ids
+            )
+            replay_sources, replay_source_representations = _role_ordered_replay_inputs(
+                rule_id=rule_id,
+                primary=source,
+                primary_representation=source_representation,
+                donor_theorem_id=result.donor_theorem_id,
+                theorem_by_id=theorem_by_id,
+                representation_by_theorem=representation_by_theorem,
             )
             if result.attempt is not None:
                 attempt = result.attempt
@@ -2546,7 +2572,7 @@ def _validate_resume_shard(
                     or attempt.rule_version != str(rule_config.rule_version)
                     or attempt.source_theorem_ids != source_ids
                     or attempt.source_representation_ids
-                    != tuple(record.representation_id for record in source_representations)
+                    != tuple(record.representation_id for record in lineage_source_representations)
                     or attempt.context_id != source.context_id
                     or attempt.registry_hash != loaded_registry.registry_hash
                     or attempt.generation_config_hash != loaded_registry.registry_hash
@@ -2568,8 +2594,8 @@ def _validate_resume_shard(
                 _validate_replayed_generation(
                     result=result,
                     source=source,
-                    sources=sources,
-                    source_representations=source_representations,
+                    sources=replay_sources,
+                    source_representations=replay_source_representations,
                     loaded_registry=loaded_registry,
                     positive_runtime=positive_runtime,
                     negative_runtime=negative_runtime,
@@ -2600,7 +2626,10 @@ def _validate_resume_shard(
                             or draft_result.draft.seed != result.seed
                             or draft_result.draft.source_theorem_ids != source_ids
                             or draft_result.draft.source_representation_ids
-                            != tuple(record.representation_id for record in source_representations)
+                            != tuple(
+                                record.representation_id
+                                for record in lineage_source_representations
+                            )
                         ):
                             raise DeterministicScaleError(
                                 "resume shard quarantined draft lineage mismatch"
@@ -2643,7 +2672,7 @@ def _validate_resume_shard(
                     or draft.seed != result.seed
                     or draft.source_theorem_ids != source_ids
                     or draft.source_representation_ids
-                    != tuple(record.representation_id for record in source_representations)
+                    != tuple(record.representation_id for record in lineage_source_representations)
                     or candidate.inline_elaboration_source is not None
                     or candidate.parent_theorem_ids != source_ids
                     or candidate.proof_stripped_declaration != draft.candidate_code
@@ -2673,7 +2702,7 @@ def _validate_resume_shard(
                     )
                 expected_candidate = build_derived_theorem_record(
                     draft=draft,
-                    sources=sources,
+                    sources=lineage_sources,
                     primary_source_id=source.theorem_id,
                     elaboration_status=candidate.elaboration_status,
                     elaboration_diagnostics=candidate.elaboration_diagnostics,
@@ -2747,7 +2776,7 @@ def _validate_resume_shard(
                     candidate=candidate_for_pair_check,
                     draft=draft,
                     audit=audit,
-                    all_sources=sources,
+                    all_sources=lineage_sources,
                     metadata={
                         "run_spec_hash": run_spec_hash,
                         "scale_profile_id": config.profile_id,
@@ -3485,7 +3514,7 @@ def run_deterministic_scale_materialization(
     journal_dir = output / "journal"
     receipt_dir = output / "journal_receipts"
     manifest_path = output / "manifest.json"
-    verification_path = output / "full_lean_replay_verification.json"
+    replay_audit_path = output / "full_lean_replay_audit.json"
 
     with _run_lock(output):
         preexisting = tuple(path for path in output.iterdir() if path.name != "run.lock")
@@ -3509,9 +3538,9 @@ def run_deterministic_scale_materialization(
         )
         existing_flags = tuple(path.exists() for path in expected_shards)
         complete_run_opened_for_replay = resume and all(existing_flags)
-        if verification_path.exists() and not complete_run_opened_for_replay:
+        if replay_audit_path.exists() and not complete_run_opened_for_replay:
             raise DeterministicScaleError(
-                "a full Lean-replay verification exists for an incomplete/non-resume "
+                "a Lean-replay audit exists for an incomplete/non-resume "
                 "execution; archive the output and restart from immutable inputs"
             )
         saw_gap = False
@@ -3723,7 +3752,7 @@ def run_deterministic_scale_materialization(
         receipt_count, receipt_tree_hash = _tree_hash(receipt_dir, "*.json")
         raw_count, raw_tree_hash = _tree_hash(output / "raw_lean_responses", "*")
         if complete_run_opened_for_replay:
-            verification = _build_lean_replay_verification(
+            replay_audit = _build_lean_replay_audit(
                 run_spec=run_spec,
                 run_spec_path=run_spec_path,
                 replayed_source_ids=selected_ids,
@@ -3732,8 +3761,8 @@ def run_deterministic_scale_materialization(
                 created_at=config.record_timestamp_utc,
             )
             _write_new_atomic(
-                verification_path,
-                _canonical_model_bytes(verification),
+                replay_audit_path,
+                _canonical_model_bytes(replay_audit),
             )
         manifest = DeterministicScaleManifest(
             run_spec_hash=run_spec.run_spec_hash,
@@ -3786,7 +3815,7 @@ __all__ = [
     "ScaleDraftResult",
     "ScaleFailure",
     "ScaleJournalReceipt",
-    "ScaleLeanReplayVerification",
+    "ScaleLeanReplayAudit",
     "ScaleRuleResult",
     "ScaleSourceInventoryArtifacts",
     "ScaleSourceInventoryManifest",

@@ -200,6 +200,7 @@ uv run leanfaith certify-lf022-proposer-route --help
 uv run leanfaith make-lf022-public-batch-request --help
 uv run leanfaith freeze-lf022-public-batch --help
 uv run leanfaith run-lf022-public-batch --help
+uv run leanfaith combine-deterministic-scale-passes --help
 uv run leanfaith audit-training-readiness --report-only
 ```
 
@@ -211,8 +212,11 @@ unresolved, unvalidated, provisional, and ineligible for labels, training,
 evaluation, or Gate credit.
 
 Scientific-scale deterministic materialization uses separate sharded-unary and
-global-N10 passes, followed by a mandatory full Lean-backed replay before
-merge. `--fast-resume` is retired. See
+global-N10 passes. Merge itself performs the mandatory exact Lean-backed
+replay; its self-hashed replay audit is accounting metadata, not a trust
+primitive. Treating both passes together additionally requires the
+`combine-deterministic-scale-passes` compatibility manifest. `--fast-resume`
+is retired. See
 [`docs/deterministic_scale_operations.md`](docs/deterministic_scale_operations.md)
 for the fail-closed execution and legacy-journal recovery contract.
 

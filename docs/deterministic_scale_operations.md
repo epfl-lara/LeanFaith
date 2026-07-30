@@ -24,9 +24,26 @@ configs/transformations/deterministic_scale_n10_global_v1.yaml
 
 The materializer fails closed if an active N10 rule is combined with
 `--shard-count` greater than one. The unary shard merger also recomputes this
-policy. The global N10 output is a separate provisional partition set; a later
-dataset-freeze stage may combine it with merged unary output while enforcing
-global ancestry caps and connected split components.
+policy. The global N10 output is a separate provisional partition set.
+
+Manual concatenation of the two partition sets is scientifically invalid. After
+both passes have independently completed and merged, authorize them together
+with:
+
+```text
+leanfaith combine-deterministic-scale-passes \
+  --unary-merged-output <unary-merged-dir> \
+  --n10-merged-output <n10-merged-dir> \
+  --output-dir <combined-manifest-dir>
+```
+
+This command re-invokes each ordinary merge (and therefore its exact Lean
+replay), verifies identical source inventory, code, project, toolchain context,
+and benchmark provenance, enforces disjoint family ownership/record IDs/
+candidate payloads, and recomputes the admission caps over both passes. Only
+the resulting content-addressed `deterministic_scale_two_pass_manifest`
+authorizes downstream code to treat the two outputs together. It does not make
+the provisional records training-eligible.
 
 ## Resume and merge verification
 
@@ -38,22 +55,24 @@ that persisted Lean results remain valid.
 `--fast-resume` is retired and rejected. It must not appear in scientific
 commands or manifests.
 
-A completed producer shard is not merge-eligible immediately after its first
-run. Re-run the identical command with `--resume` after completion. When every
-source shard already exists, the materializer:
+When every source shard already exists, an exact `--resume` execution:
 
 1. validates the receipt chain;
 2. replays every deterministic rule;
 3. re-elaborates every accepted candidate through LeanInteract;
 4. rebuilds every accepted representation;
 5. compares every rebuilt source shard exactly with its persisted journal;
-6. writes `full_lean_replay_verification.json`.
+6. writes `full_lean_replay_audit.json`.
 
-The merge command requires and recomputes that receipt for every producer
-shard. It then rebuilds attempt, draft, candidate, audit, variant, and pair
-lineage from the immutable theorem/repr_v3 inventory. In particular it applies
-`check_pair_groups` and rejects missing donor ancestry even when all producer
-JSON, hashes, receipts, partitions, and manifests were consistently rewritten.
+The audit file is self-hashed accounting metadata, not proof that Lean was run;
+an attacker who can rewrite a shard can also rewrite that file. The merge
+command therefore performs the exact `--resume` Lean replay itself against the
+pinned clean project revision/tree and context before it reads any producer
+partition as scientific output. It then rebuilds attempt, draft, quarantine,
+candidate, audit, variant, and pair lineage from the immutable theorem/repr_v3
+inventory. In particular it applies `check_pair_groups` and rejects missing
+donor ancestry even when all producer JSON, hashes, receipts, partitions,
+manifests, and replay-audit hashes were consistently rewritten.
 
 Merged deterministic variants remain `provisional`; merged pairs remain
 unresolved; the merged manifest records `training_eligible=false`.
@@ -73,8 +92,8 @@ For a legacy directory:
    benchmark inputs;
 5. start a new output directory using the current unary-sharded or N10-global
    profile;
-6. complete the new run and perform the mandatory full exact `--resume`;
-7. merge only after the full Lean-replay receipt exists.
+6. complete the new run;
+7. invoke merge, which performs the mandatory full exact Lean replay itself.
 
 Individual `ScaleSourceShard` records still carry their record-level
 `schema_version: 1`; they are scientifically identified by, and cannot be
