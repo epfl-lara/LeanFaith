@@ -1118,7 +1118,7 @@ def generate_deterministic_command(
             f"manifest_sha256={merged_artifacts.manifest_sha256} "
             f"merged_manifest_hash={merged_artifacts.merged_manifest_hash} "
             "resolved_semantic_labels=0 promoted_items=0 output_tier=provisional "
-            "full_lean_backed_verification=true training_eligible=false"
+            "merge_replayed_with_lean=true training_eligible=false"
         )
         return
     if run_smoke_vertical_slice:
@@ -1378,6 +1378,60 @@ def generate_deterministic_command(
         f"LF-016 framework OK; registry_snapshot={result.snapshot_path} "
         f"report={result.report_path} run_manifest={result.run_manifest_path} "
         "generated_drafts=0"
+    )
+
+
+@app.command("combine-deterministic-scale-passes")
+def combine_deterministic_scale_passes_command(
+    unary_merged_output_dir: Annotated[
+        Path,
+        typer.Option(
+            "--unary-merged-output",
+            help="Content-addressed merged output for the unary deterministic pass.",
+        ),
+    ],
+    n10_merged_output_dir: Annotated[
+        Path,
+        typer.Option(
+            "--n10-merged-output",
+            help="Content-addressed merged output for the global N10 pass.",
+        ),
+    ],
+    output_dir: Annotated[
+        Path,
+        typer.Option(
+            "--output-dir",
+            help="Directory for the two-pass compatibility manifest.",
+        ),
+    ],
+    root_dir: Annotated[
+        Path | None,
+        typer.Option("--root", help="Repository root override."),
+    ] = None,
+) -> None:
+    """Authorize one exact unary pass and one exact global-N10 pass together."""
+    from leanfaith.config.paths import RepoPaths
+    from leanfaith.transforms.scale_combine import combine_deterministic_scale_passes
+    from leanfaith.transforms.scale_materializer import DeterministicScaleError
+
+    paths = RepoPaths.discover(root_dir) if root_dir is None else RepoPaths(root=root_dir)
+    try:
+        artifacts = combine_deterministic_scale_passes(
+            paths=paths,
+            unary_merged_output_dir=unary_merged_output_dir,
+            n10_merged_output_dir=n10_merged_output_dir,
+            output_dir=output_dir,
+        )
+    except DeterministicScaleError as exc:
+        typer.echo(f"deterministic two-pass combination FAILED: {exc}", err=True)
+        raise typer.Exit(code=1) from exc
+    typer.echo(
+        "deterministic two-pass combination OK; "
+        f"manifest={artifacts.manifest_path} "
+        f"manifest_sha256={artifacts.manifest_sha256} "
+        f"combined_manifest_hash={artifacts.combined_manifest_hash} "
+        "scientific_pairing_eligible=true output_tier=provisional "
+        "training_eligible=false"
     )
 
 
