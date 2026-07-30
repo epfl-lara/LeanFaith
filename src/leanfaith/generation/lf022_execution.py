@@ -283,32 +283,38 @@ class LF022RCPRouteBinding(StrictModel):
                 "moonshot_kimi_k2",
                 "moonshotai/kimi-k2",
                 "kimi_k2_7_public_smoke_v3",
-                "public_provisional_g_open",
+                ("public_provisional_g_open",),
             ),
             "Qwen/Qwen3.5-397B-A17B": (
                 "qwen3",
                 "qwen/qwen3",
                 "qwen3_5_proposer_qualification_v1",
-                "one_item_proposer_qualification_only",
+                (
+                    "one_item_proposer_qualification_only",
+                    "public_provisional_g_open",
+                ),
             ),
             "zai-org/GLM-5.2": (
                 "glm5",
                 "zai-org/glm-5.2",
                 "glm5_2_proposer_qualification_v1",
-                "one_item_proposer_qualification_only",
+                (
+                    "one_item_proposer_qualification_only",
+                    "public_provisional_g_open",
+                ),
             ),
         }.get(self.model_id)
         if expected is None:
             raise ValueError(
                 "route is outside the exact reviewed LF-022 Kimi/Qwen/GLM proposer scope"
             )
-        observed = (
-            self.proposer_family_id,
-            self.canonical_family,
-            self.decoding.contract_id,
-            self.execution_scope,
-        )
-        if observed != expected:
+        expected_family, expected_canonical, expected_contract, allowed_scopes = expected
+        if (
+            self.proposer_family_id != expected_family
+            or self.canonical_family != expected_canonical
+            or self.decoding.contract_id != expected_contract
+            or self.execution_scope not in allowed_scopes
+        ):
             raise ValueError(
                 "route family or decoding contract differs from the reviewed proposer route"
             )
@@ -327,6 +333,10 @@ class LF022ExecutionArtifacts(StrictModel):
     reviewed_route_evidence: LF022ArtifactBinding
     prompt_template: LF022ArtifactBinding
     code_bundle: LF022ArtifactBinding
+    proposer_production_eligibility: LF022ArtifactBinding | None = Field(
+        default=None,
+        exclude_if=lambda value: value is None,
+    )
 
 
 class LF022QualificationClaim(StrictModel):
@@ -362,7 +372,7 @@ class LF022QualificationClaim(StrictModel):
 class LF022GOpenExecutionAdmission(StrictModel):
     """Reviewed authority for proposer-only, public, provisional collection."""
 
-    schema_version: Literal[1] = 1
+    schema_version: Literal[1, 2]
     admission_id: str = Field(pattern=id_pattern("lf022_execution_admission"))
     status: Literal["public_provisional_g_open_admitted"]
     normalization_version: Literal["repr_v3"]
@@ -395,6 +405,19 @@ class LF022GOpenExecutionAdmission(StrictModel):
         expected_revision = _CATALOG_REVISION_PREFIX + self.artifacts.provider_catalog_raw.sha256
         if self.route.route_snapshot_revision != expected_revision:
             raise ValueError("route_snapshot_revision must bind the exact raw catalog artifact")
+        requires_eligibility = (
+            self.route.proposer_family_id in {"qwen3", "glm5"}
+            and self.route.execution_scope == "public_provisional_g_open"
+        )
+        if requires_eligibility != (self.artifacts.proposer_production_eligibility is not None):
+            raise ValueError(
+                "Qwen/GLM production scope requires exactly one bound proposer eligibility"
+            )
+        expected_schema = 2 if requires_eligibility else 1
+        if self.schema_version != expected_schema:
+            raise ValueError(
+                "execution admission schema version differs from route eligibility state"
+            )
         expected = _content_id(
             "lf022_execution_admission",
             self,
@@ -415,7 +438,7 @@ def make_lf022_g_open_execution_admission(
     code_tree_hash: str,
 ) -> LF022GOpenExecutionAdmission:
     payload: dict[str, object] = {
-        "schema_version": 1,
+        "schema_version": (2 if artifacts.proposer_production_eligibility is not None else 1),
         "status": "public_provisional_g_open_admitted",
         "normalization_version": "repr_v3",
         "public_pool_audit_id": public_pool_audit_id,
@@ -735,6 +758,7 @@ def _reviewed_route_payload(
 
 def _verify_reviewed_route_contract(
     *,
+    repo_root: Path,
     portfolio_path: Path,
     contract_path: Path,
     evidence_path: Path,
@@ -757,7 +781,9 @@ def _verify_reviewed_route_contract(
     ):
         raise LF022ExecutionError("reviewed public smoke evidence is not replay-verified")
 
-    if route.execution_scope == "public_provisional_g_open":
+    if route.proposer_family_id == "moonshot_kimi_k2":
+        if route.execution_scope != "public_provisional_g_open":
+            raise LF022ExecutionError("Kimi route must use the reviewed production scope")
         reviewed = _reviewed_route_payload(path=contract_path, route=route)
         expected = route.decoding.model_dump(mode="json")
         for field in (
@@ -809,7 +835,7 @@ def _verify_reviewed_route_contract(
         or qualification.family_id != route.proposer_family_id
         or qualification.canonical_family != route.canonical_family
         or qualification.provider != route.provider_id
-        or qualification.execution_scope != route.execution_scope
+        or qualification.execution_scope != "one_item_proposer_qualification_only"
         or LF022RCPDecodingContract.model_validate(
             qualification.decoding.route_payload(
                 contract_id=qualification.contract_id,
@@ -828,6 +854,105 @@ def _verify_reviewed_route_contract(
         or evidence.verified_success.proposer == route.model_id
     ):
         raise LF022ExecutionError("qualification route lacks exact judge-transport-only evidence")
+    capability = qualification.wire_capability_policy
+    if (
+        capability.evidence != transport_evidence
+        or qualification.decoding.reasoning_effort not in capability.reasoning_effort_values
+        or qualification.decoding.chat_template_enable_thinking
+        not in capability.chat_template_enable_thinking_values
+    ):
+        raise LF022ExecutionError(
+            "qualification route requests unsupported or unbound reasoning fields"
+        )
+    accepted_wire_path = _bound_path(
+        repo_root=repo_root,
+        binding=LF022ArtifactBinding(
+            path=capability.accepted_wire_request.artifact,
+            sha256=capability.accepted_wire_request.sha256,
+        ),
+        label="qualification accepted wire request",
+    )
+    try:
+        accepted_wire_raw = accepted_wire_path.read_bytes()
+        accepted_wire = json.loads(accepted_wire_raw)
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        raise LF022ExecutionError(f"invalid qualification accepted wire request: {exc}") from exc
+    if (
+        not isinstance(accepted_wire, dict)
+        or accepted_wire_raw != canonical_json_bytes(accepted_wire) + b"\n"
+        or accepted_wire.get("model") != route.model_id
+        or accepted_wire.get("reasoning_effort") != qualification.decoding.reasoning_effort
+        or not isinstance(accepted_wire.get("chat_template_kwargs"), dict)
+        or accepted_wire["chat_template_kwargs"].get("enable_thinking")
+        is not qualification.decoding.chat_template_enable_thinking
+    ):
+        raise LF022ExecutionError(
+            "qualification reasoning capability differs from exact accepted wire bytes"
+        )
+    accepted_manifest_path = _bound_path(
+        repo_root=repo_root,
+        binding=LF022ArtifactBinding(
+            path=evidence.verified_success.manifest,
+            sha256=evidence.verified_success.manifest_sha256,
+        ),
+        label="qualification replay manifest",
+    )
+    try:
+        accepted_manifest_raw = accepted_manifest_path.read_bytes()
+        accepted_manifest = json.loads(accepted_manifest_raw)
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        raise LF022ExecutionError(f"invalid qualification replay manifest: {exc}") from exc
+    if (
+        not isinstance(accepted_manifest, dict)
+        or accepted_manifest_raw != canonical_json_bytes(accepted_manifest) + b"\n"
+        or not isinstance(accepted_manifest.get("call_artifacts"), list)
+    ):
+        raise LF022ExecutionError("qualification replay manifest is not canonical call evidence")
+    matching_calls = tuple(
+        item
+        for item in accepted_manifest["call_artifacts"]
+        if isinstance(item, dict)
+        and item.get("call_label") == capability.accepted_call_label
+        and item.get("model_id") == route.model_id
+        and item.get("role") == "judge"
+        and item.get("parse_status") == "parsed"
+        and item.get("wire_request_artifact") == capability.accepted_wire_request.artifact
+        and item.get("wire_request_sha256") == capability.accepted_wire_request.sha256
+    )
+    if len(matching_calls) != 1:
+        raise LF022ExecutionError(
+            "qualification accepted wire request is not one exact replay-manifest call"
+        )
+    accepted_call = matching_calls[0]
+    response_artifact = accepted_call.get("wire_response_artifact")
+    response_sha256 = accepted_call.get("wire_response_sha256")
+    if not isinstance(response_artifact, str) or not isinstance(response_sha256, str):
+        raise LF022ExecutionError("qualification accepted call lacks bound response bytes")
+    accepted_response_path = _bound_path(
+        repo_root=repo_root,
+        binding=LF022ArtifactBinding(
+            path=response_artifact,
+            sha256=response_sha256,
+        ),
+        label="qualification accepted wire response",
+    )
+    try:
+        accepted_response_raw = accepted_response_path.read_bytes()
+        accepted_response = json.loads(accepted_response_raw)
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        raise LF022ExecutionError(f"invalid qualification accepted wire response: {exc}") from exc
+    choices = accepted_response.get("choices") if isinstance(accepted_response, dict) else None
+    if (
+        not isinstance(accepted_response, dict)
+        or accepted_response.get("model") != route.model_id
+        or not isinstance(choices, list)
+        or len(choices) != 1
+        or not isinstance(choices[0], dict)
+        or choices[0].get("finish_reason") != "stop"
+    ):
+        raise LF022ExecutionError(
+            "qualification accepted response does not prove successful exact route handling"
+        )
     if route.proposer_family_id == "qwen3":
         source = qualification.portfolio_source
         if (
@@ -947,6 +1072,26 @@ class _LF022TransportEvidence(_LF022QualificationArtifact):
     proposer_evidence: Literal[False]
 
 
+class _LF022WireCapabilityPolicy(StrictModel):
+    """Exact optional thinking fields accepted by a bound prior RCP call."""
+
+    status: Literal["exact_fields_accepted_by_bound_prior_rcp_call"]
+    reasoning_effort_values: tuple[Literal["high"], ...] = Field(min_length=1)
+    chat_template_enable_thinking_values: tuple[Literal[True], ...] = Field(min_length=1)
+    unsupported_reasoning_fields: Literal["reject"]
+    evidence: _LF022TransportEvidence
+    accepted_call_label: str = Field(min_length=1)
+    accepted_wire_request: _LF022QualificationArtifact
+
+    @model_validator(mode="after")
+    def _exact_values(self) -> Self:
+        if self.reasoning_effort_values != ("high",):
+            raise ValueError("only explicitly accepted reasoning_effort='high' is supported")
+        if self.chat_template_enable_thinking_values != (True,):
+            raise ValueError("only explicitly accepted enable_thinking=true is supported")
+        return self
+
+
 class _LF022ProposerQualificationDecoding(StrictModel):
     temperature: float
     top_p: float
@@ -990,6 +1135,7 @@ class _LF022ProposerQualificationContract(StrictModel):
     decoding: _LF022ProposerQualificationDecoding
     portfolio_source: _LF022QualificationPortfolio | None
     prior_transport_evidence: _LF022TransportEvidence
+    wire_capability_policy: _LF022WireCapabilityPolicy
 
 
 def verify_lf022_execution_admission(
@@ -1016,6 +1162,12 @@ def verify_lf022_execution_admission(
             ("code_bundle", admission.artifacts.code_bundle),
         )
     }
+    if admission.artifacts.proposer_production_eligibility is not None:
+        paths["proposer_production_eligibility"] = _bound_path(
+            repo_root=repo_root,
+            binding=admission.artifacts.proposer_production_eligibility,
+            label="proposer_production_eligibility",
+        )
     plan = _load_strict_json(
         paths["allocation_plan"],
         LF022ProductionPlanManifest,
@@ -1123,11 +1275,47 @@ def verify_lf022_execution_admission(
         route=route,
     )
     _verify_reviewed_route_contract(
+        repo_root=repo_root,
         portfolio_path=paths["reviewed_route_portfolio"],
         contract_path=paths["reviewed_route_contract"],
         evidence_path=paths["reviewed_route_evidence"],
         route=route,
     )
+    if (
+        route.proposer_family_id in {"qwen3", "glm5"}
+        and route.execution_scope == "public_provisional_g_open"
+    ):
+        from leanfaith.generation.lf022_route_qualification import (
+            LF022RouteQualificationError,
+            verify_lf022_proposer_production_eligibility,
+        )
+
+        eligibility_binding = admission.artifacts.proposer_production_eligibility
+        assert eligibility_binding is not None
+        try:
+            eligibility = verify_lf022_proposer_production_eligibility(
+                repo_root=repo_root,
+                eligibility_binding=eligibility_binding,
+            )
+        except LF022RouteQualificationError as exc:
+            raise LF022ExecutionError(f"proposer production eligibility rejected: {exc}") from exc
+        if (
+            eligibility.proposer_family_id != route.proposer_family_id
+            or eligibility.model_id != route.model_id
+            or eligibility.deployment_id != route.deployment_id
+            or eligibility.canonical_family != route.canonical_family
+            or eligibility.provider_id != route.provider_id
+            or eligibility.catalog_snapshot_id != route.catalog_snapshot_id
+            or eligibility.route_snapshot_revision != route.route_snapshot_revision
+            or eligibility.decoding_contract_id != route.decoding.contract_id
+            or eligibility.decoding_contract_hash
+            != hash_canonical(route.decoding.model_dump(mode="json"))
+            or eligibility.family_matrix != plan.artifacts.family_matrix
+            or eligibility.family_matrix_id != family_matrix.matrix_id
+        ):
+            raise LF022ExecutionError(
+                "proposer production eligibility belongs to a different route or matrix"
+            )
     try:
         validate_code_bundle(paths["code_bundle"], admission.code_tree_hash)
     except (OSError, ValueError) as exc:
