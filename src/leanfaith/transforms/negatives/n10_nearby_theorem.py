@@ -249,6 +249,42 @@ class NearbyTheoremSite:
         )
 
 
+def nearby_theorem_bucket_keys(theorem: TheoremRecord) -> tuple[str, ...]:
+    """Return deterministic high-overlap index keys for N10 donor lookup.
+
+    N10 accepts theorem pairs whose proof-free signatures have the same token
+    sequence except for one curated relation/operator symbol. Comparing every
+    theorem with every other theorem is quadratic, so the scale materializer
+    indexes each potentially mutable signature position with that position
+    replaced by a sentinel. Sharing a key is only a cheap candidate filter:
+    :func:`enumerate_nearby_theorem_sites` and the ordinary pair-aware runtime
+    still perform every semantic-atom, type, ancestry, and exact-difference
+    check before a draft can be generated.
+    """
+
+    try:
+        parts = _declaration_parts(theorem.proof_stripped_declaration)
+    except N10NearbyTheoremError:
+        return ()
+    tokens = parts.signature_tokens
+    keys = {
+        hash_canonical(
+            {
+                "schema": "n10_nearby_bucket_v1",
+                "declaration_kind": parts.kind,
+                "mutable_index": index,
+                "tokens": [
+                    ["mutable", "*"] if position == index else [candidate.kind, candidate.text]
+                    for position, candidate in enumerate(tokens)
+                ],
+            }
+        )
+        for index, token in enumerate(tokens)
+        if token.kind == "symbol" and token.text in _MUTABLE_SYMBOLS
+    }
+    return tuple(sorted(keys))
+
+
 def _lex_lean(source: str) -> tuple[_Token, ...]:
     """Small deterministic lexer sufficient for proof-stripped declarations."""
 
@@ -1407,4 +1443,5 @@ __all__ = [
     "apply_nearby_theorem_trace",
     "enumerate_nearby_theorem_sites",
     "load_n10_nearby_theorem_config",
+    "nearby_theorem_bucket_keys",
 ]

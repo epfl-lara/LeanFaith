@@ -444,13 +444,20 @@ def _imports_with_lean(imports: str) -> str:
 
 
 def _hoist_inline_imports(source: str) -> tuple[str, str]:
-    """Move inline ``import`` commands ahead of the injected meta helper.
+    """Move inline module/import preamble ahead of the injected meta helper.
 
     Dataset declarations frequently preserve their original import header.
     Appending that source after helper declarations would place imports after
-    declarations, which Lean rejects.  Imports are order-insensitive command
-    prerequisites, so hoisting them preserves the statement context while
-    keeping all non-import commands in source order.
+    declarations, which Lean rejects. Mathlib source prefixes additionally use
+    the Lean module system's leading ``module`` command and ``public import``
+    declarations. The one-shot inspection command deliberately drops
+    ``module`` and rewrites ``public import``/``public`` modifiers to their
+    ordinary equivalents. Module export visibility is irrelevant inside one
+    request, while leaving module mode enabled changes the meta-status rules
+    for the injected helper definitions.
+
+    Hoisting preserves the non-preamble command order and does not mistake
+    import-like prose inside comments or strings for commands.
     """
 
     imports: list[str] = []
@@ -459,20 +466,31 @@ def _hoist_inline_imports(source: str) -> tuple[str, str]:
     for line in source.splitlines():
         initial_depth = block_depth
         first_code, block_depth = _scan_lean_line(line, block_depth)
-        # Only move a real command whose first code token is `import`.  In
-        # particular, prose such as `import geometry;` inside a nested Lean
-        # block comment must remain a comment.  Requiring balanced comments on
-        # the import line avoids moving one half of a multi-line comment.
-        is_import = (
-            initial_depth == 0
-            and block_depth == 0
-            and first_code is not None
-            and re.match(r"import(?:\s|$)", line[first_code:]) is not None
-        )
-        if is_import:
-            imports.append(line[first_code:].strip())
-        else:
-            body.append(line)
+        # Only move a real top-level preamble command. In particular, prose
+        # such as `import geometry;` inside a nested Lean block comment must
+        # remain a comment. Requiring balanced comments on the line avoids
+        # moving one half of a multi-line comment.
+        command = line[first_code:] if first_code is not None else ""
+        is_top_level_code = initial_depth == 0 and block_depth == 0 and first_code is not None
+        if is_top_level_code and re.match(r"module(?:\s|$)", command):
+            continue
+        if is_top_level_code and re.match(r"public\s+import(?:\s|$)", command):
+            imports.append(re.sub(r"^public\s+", "", command, count=1).strip())
+            continue
+        if is_top_level_code and re.match(r"import(?:\s|$)", command):
+            imports.append(command.strip())
+            continue
+        if is_top_level_code:
+            ordinary_command = re.sub(
+                r"^((?:@\[[^\n]*\]\s*)*)public\s+",
+                r"\1",
+                command,
+                count=1,
+            )
+            if ordinary_command != command:
+                body.append(line[:first_code] + ordinary_command)
+                continue
+        body.append(line)
     return "\n".join(dict.fromkeys(imports)), "\n".join(body)
 
 

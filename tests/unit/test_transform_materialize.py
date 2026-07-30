@@ -119,6 +119,52 @@ def test_unary_candidate_and_pair_are_deterministic_unlabeled_and_linked() -> No
     assert pair.metadata["resolved_semantic_label"] is False
 
 
+def test_candidate_preserves_full_inline_elaboration_context_without_exposing_it_as_statement() -> (
+    None
+):
+    source = theorem_record()
+    draft = _draft()
+    inline_source = (
+        "import Mathlib\n"
+        "namespace MaterializeFixture\n"
+        "variable (unused : Nat)\n"
+        f"{draft.candidate_code}\n"
+        "end MaterializeFixture\n"
+    )
+    candidate = build_derived_theorem_record(
+        draft=draft,
+        sources=(source,),
+        primary_source_id=source.theorem_id,
+        elaboration_status=ValidationStatus.ELABORATES_WITH_PLACEHOLDER,
+        inline_elaboration_source=inline_source,
+    )
+    audit = _audit(draft, candidate)
+    pair = build_deterministic_pair_record(
+        source=source,
+        candidate=candidate,
+        draft=draft,
+        audit=audit,
+    )
+
+    assert candidate.proof_stripped_declaration == draft.candidate_code
+    assert candidate.inline_elaboration_source == inline_source
+    assert candidate.inline_elaboration_source.count(draft.candidate_code) == 1
+    assert pair.resolved_label_id is None
+
+
+def test_candidate_rejects_ambiguous_inline_elaboration_context() -> None:
+    draft = _draft()
+
+    with pytest.raises(TransformationIdentityError, match="exactly once"):
+        build_derived_theorem_record(
+            draft=draft,
+            sources=(theorem_record(),),
+            primary_source_id=THM_A,
+            elaboration_status=ValidationStatus.ELABORATES_WITH_PLACEHOLDER,
+            inline_elaboration_source=f"{draft.candidate_code}\n{draft.candidate_code}",
+        )
+
+
 def test_n10_candidate_unions_both_roots_and_pair_preserves_them() -> None:
     primary = theorem_record()
     donor = _source_b()

@@ -887,6 +887,26 @@ def generate_deterministic_command(
             ),
         ),
     ] = False,
+    materialize_scale: Annotated[
+        bool,
+        typer.Option(
+            "--materialize-scale",
+            help=(
+                "Materialize provisional deterministic v1 candidates from an "
+                "immutable theorem/repr_v3 inventory."
+            ),
+        ),
+    ] = False,
+    freeze_scale_inventory: Annotated[
+        bool,
+        typer.Option(
+            "--freeze-scale-inventory",
+            help=(
+                "Validate and atomically freeze an authoritative theorem/repr_v3 "
+                "inventory manifest for scientific materialization."
+            ),
+        ),
+    ] = False,
     code_bundle: Annotated[
         Path | None,
         typer.Option(
@@ -906,8 +926,65 @@ def generate_deterministic_command(
         Path | None,
         typer.Option(
             "--output-dir",
-            help="LF-018 pre-scale output-directory override.",
+            help="LF-018 pre-scale or scientific-scale output directory.",
         ),
+    ] = None,
+    theorem_jsonl: Annotated[
+        Path | None,
+        typer.Option("--theorems", help="Immutable source TheoremRecord JSONL."),
+    ] = None,
+    representation_jsonl: Annotated[
+        Path | None,
+        typer.Option("--representations", help="Matching repr_v3 RepresentationRecord JSONL."),
+    ] = None,
+    source_inventory_manifest: Annotated[
+        Path | None,
+        typer.Option(
+            "--source-inventory-manifest",
+            help=(
+                "Authoritative manifest binding the exact theorem and repr_v3 source partitions."
+            ),
+        ),
+    ] = None,
+    theorem_upstream_manifest: Annotated[
+        Path | None,
+        typer.Option(
+            "--theorem-upstream-manifest",
+            help=(
+                "Trusted extraction OutputManifest or frozen Gate-3 selection manifest "
+                "binding the theorem partition."
+            ),
+        ),
+    ] = None,
+    representation_upstream_manifest: Annotated[
+        Path | None,
+        typer.Option(
+            "--representation-upstream-manifest",
+            help=(
+                "Trusted representation OutputManifest binding both the repr_v3 "
+                "partition and its theorem input."
+            ),
+        ),
+    ] = None,
+    project_dir: Annotated[
+        Path | None,
+        typer.Option("--project-dir", help="Pinned mathlib checkout for candidate validation."),
+    ] = None,
+    scale_config: Annotated[
+        Path | None,
+        typer.Option("--scale-config", help="Deterministic scale-policy YAML override."),
+    ] = None,
+    max_sources: Annotated[
+        int | None,
+        typer.Option("--max-sources", min=1, help="Deterministic source-prefix smoke/scale limit."),
+    ] = None,
+    resume: Annotated[
+        bool,
+        typer.Option("--resume", help="Resume the exact hash-bound append-only scale journal."),
+    ] = False,
+    memory_hard_limit_mb: Annotated[
+        int | None,
+        typer.Option("--memory-hard-limit-mb", min=256),
     ] = None,
 ) -> None:
     """Validate transformations or run the persisted LF-018 pre-scale slice."""
@@ -926,13 +1003,16 @@ def generate_deterministic_command(
                 validate_negatives,
                 run_negative_pre_scale,
                 run_smoke_vertical_slice,
+                materialize_scale,
+                freeze_scale_inventory,
             )
         )
         > 1
     ):
         typer.echo(
             "--validate-only, --validate-positives, --validate-negatives, and "
-            "--run-negative-pre-scale/--run-smoke-vertical-slice are mutually exclusive",
+            "--run-negative-pre-scale/--run-smoke-vertical-slice/"
+            "--materialize-scale/--freeze-scale-inventory are mutually exclusive",
             err=True,
         )
         raise typer.Exit(code=2)
@@ -972,6 +1052,113 @@ def generate_deterministic_command(
             f"semantic_fingerprint={replay.run_b.semantic_fingerprint} "
             f"gate_4g_closed={str(replay.run_b.gate_4g_closed).lower()} "
             "gate_4a_closed=false gate_4b_closed=false"
+        )
+        return
+    if freeze_scale_inventory:
+        missing = [
+            name
+            for name, value in (
+                ("--theorems", theorem_jsonl),
+                ("--representations", representation_jsonl),
+                ("--source-inventory-manifest", source_inventory_manifest),
+                ("--theorem-upstream-manifest", theorem_upstream_manifest),
+                (
+                    "--representation-upstream-manifest",
+                    representation_upstream_manifest,
+                ),
+            )
+            if value is None
+        ]
+        if missing:
+            typer.echo(
+                "--freeze-scale-inventory requires " + ", ".join(missing),
+                err=True,
+            )
+            raise typer.Exit(code=2)
+        from leanfaith.transforms.scale_materializer import (
+            DeterministicScaleError,
+            freeze_deterministic_scale_source_inventory,
+        )
+
+        assert theorem_jsonl is not None
+        assert representation_jsonl is not None
+        assert source_inventory_manifest is not None
+        assert theorem_upstream_manifest is not None
+        assert representation_upstream_manifest is not None
+        try:
+            frozen = freeze_deterministic_scale_source_inventory(
+                repo_root=paths.root,
+                theorem_jsonl=theorem_jsonl,
+                representation_jsonl=representation_jsonl,
+                theorem_upstream_manifest=theorem_upstream_manifest,
+                representation_upstream_manifest=representation_upstream_manifest,
+                manifest_path=source_inventory_manifest,
+            )
+        except DeterministicScaleError as exc:
+            typer.echo(f"deterministic scale inventory freeze FAILED: {exc}", err=True)
+            raise typer.Exit(code=1) from exc
+        typer.echo(
+            "deterministic scale inventory freeze OK; "
+            f"manifest={frozen.manifest_path} "
+            f"manifest_sha256={frozen.manifest_sha256} "
+            f"theorems={frozen.theorem_count} "
+            f"representations={frozen.representation_count}"
+        )
+        return
+    if materialize_scale:
+        if report_path is not None:
+            typer.echo("--report is not accepted with --materialize-scale", err=True)
+            raise typer.Exit(code=2)
+        missing = [
+            name
+            for name, value in (
+                ("--theorems", theorem_jsonl),
+                ("--representations", representation_jsonl),
+                ("--source-inventory-manifest", source_inventory_manifest),
+                ("--project-dir", project_dir),
+                ("--output-dir", output_dir),
+            )
+            if value is None
+        ]
+        if missing:
+            typer.echo(
+                "--materialize-scale requires " + ", ".join(missing),
+                err=True,
+            )
+            raise typer.Exit(code=2)
+        from leanfaith.transforms.scale_materializer import (
+            DeterministicScaleError,
+            run_deterministic_scale_materialization,
+        )
+
+        assert theorem_jsonl is not None
+        assert representation_jsonl is not None
+        assert source_inventory_manifest is not None
+        assert project_dir is not None
+        assert output_dir is not None
+        try:
+            artifacts = run_deterministic_scale_materialization(
+                paths=paths,
+                theorem_jsonl=theorem_jsonl,
+                representation_jsonl=representation_jsonl,
+                source_inventory_manifest=source_inventory_manifest,
+                project_dir=project_dir,
+                output_dir=output_dir,
+                config_path=scale_config,
+                max_sources=max_sources,
+                resume=resume,
+                memory_hard_limit_mb=memory_hard_limit_mb,
+            )
+        except DeterministicScaleError as exc:
+            typer.echo(f"deterministic scale materialization FAILED: {exc}", err=True)
+            raise typer.Exit(code=1) from exc
+        typer.echo(
+            "deterministic scale materialization OK; "
+            f"output={artifacts.output_dir} "
+            f"run_spec={artifacts.run_spec_path} "
+            f"manifest={artifacts.manifest_path} "
+            f"manifest_sha256={artifacts.manifest_sha256} "
+            "resolved_semantic_labels=0 promoted_items=0 output_tier=provisional"
         )
         return
     if run_negative_pre_scale:
@@ -1054,7 +1241,7 @@ def generate_deterministic_command(
         typer.echo(
             "choose one deterministic action; "
             "use --validate-only, --validate-positives, --validate-negatives, or "
-            "--run-negative-pre-scale/--run-smoke-vertical-slice",
+            "--run-negative-pre-scale/--run-smoke-vertical-slice/--materialize-scale",
             err=True,
         )
         raise typer.Exit(code=2)

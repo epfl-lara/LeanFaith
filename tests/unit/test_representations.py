@@ -347,6 +347,21 @@ def test_inline_import_hoisting_accepts_comment_then_real_import() -> None:
     assert body == "theorem fixture : True := by trivial"
 
 
+def test_inline_preamble_hoisting_supports_mathlib_module_and_public_imports() -> None:
+    from leanfaith.representations.pipeline import _hoist_inline_imports
+
+    imports, body = _hoist_inline_imports(
+        "/- license -/\n"
+        "module\n"
+        "public import Mathlib.Algebra.Group.Basic\n"
+        "@[expose] public section\n"
+        "theorem fixture : True := by trivial"
+    )
+
+    assert imports == "import Mathlib.Algebra.Group.Basic"
+    assert body == ("/- license -/\n@[expose] section\ntheorem fixture : True := by trivial")
+
+
 def test_imports_with_lean_is_first_and_deduplicated() -> None:
     from leanfaith.representations.pipeline import _imports_with_lean
 

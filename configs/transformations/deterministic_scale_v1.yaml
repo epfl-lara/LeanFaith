@@ -1,0 +1,30 @@
+schema_version: 1
+profile_id: deterministic_scale_v1
+profile_version: 1.0.0
+base_seed: 41001
+active_rule_ids:
+  - n01_operator
+  - n02_quantifier
+  - n03_drop_hypothesis
+  - n07_literal_bound
+  - n10_nearby_theorem
+  - p01_alpha
+  - p02_binders
+  - p04_notation_lite
+normalization_version: repr_v3
+required_source_views:
+  - headless
+  - operator_tree
+  - raw_proof_stripped
+  - semantic_atoms
+  - signature_explicit
+max_accepted_variants_per_root_ancestry: 8
+max_accepted_variants_per_family_per_root_ancestry: 1
+max_accepted_variants_per_family: null
+max_n10_donor_attempts_per_primary: 16
+candidate_timeout_seconds: 600.0
+record_timestamp_utc: "2026-07-30T00:00:00+00:00"
+reject_protected_benchmark_overlap: true
+negatives_remain_provisional: true
+positives_require_clean_mechanical_audit: true
+failed_proof_search_is_negative_evidence: false

@@ -26,6 +26,7 @@ from leanfaith.transforms.negatives.n10_nearby_theorem import (
     apply_nearby_theorem_trace,
     enumerate_nearby_theorem_sites,
     load_n10_nearby_theorem_config,
+    nearby_theorem_bucket_keys,
 )
 from leanfaith.transforms.pair_runtime import (
     PairTransformationDispatchError,
@@ -297,6 +298,27 @@ def test_pair_is_high_overlap_exactly_one_curated_component() -> None:
     assert sites[0].donor_token == "≤"
     assert sites[0].signature_token_count == 10
     assert sites[0].positional_overlap_ppm == 900_000
+
+
+def test_n10_bucket_index_finds_one_symbol_neighbor_without_claiming_applicability() -> None:
+    primary, _, donor, _ = _sources()
+    unrelated = _theorem(
+        theorem_id=make_id("thm", {"n10": "unrelated"}),
+        ancestry_id=make_id("anc", {"n10": "unrelated"}),
+        roots=(make_id("anc", {"n10": "unrelated"}),),
+        name="n10_unrelated",
+        code="theorem n10_unrelated (m n : Nat) : m + n = n + m := by sorry",
+    )
+
+    primary_keys = set(nearby_theorem_bucket_keys(primary))
+    donor_keys = set(nearby_theorem_bucket_keys(donor))
+    unrelated_keys = set(nearby_theorem_bucket_keys(unrelated))
+
+    assert primary_keys
+    assert donor_keys
+    assert primary_keys & donor_keys
+    assert not (primary_keys & unrelated_keys)
+    assert nearby_theorem_bucket_keys(primary) == tuple(sorted(primary_keys))
 
 
 def test_generation_is_deterministic_dual_source_and_primary_identity_preserving() -> None:
