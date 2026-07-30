@@ -13,7 +13,7 @@ from leanfaith.config.hashing import hash_canonical, hash_file
 from leanfaith.config.loading import load_config
 from leanfaith.config.paths import RepoPaths
 from leanfaith.schemas import QualityTier, make_id
-from leanfaith.schemas.manifest import CodeState
+from leanfaith.schemas.manifest import CodeState, collect_code_state
 from leanfaith.schemas.theorem import TheoremRecord
 from leanfaith.transforms.scale_materializer import (
     DeterministicScaleArtifacts,
@@ -22,27 +22,33 @@ from leanfaith.transforms.scale_materializer import (
     DeterministicScaleManifest,
     DeterministicScaleRunSpec,
     ScaleFailure,
+    ScaleQuarantineRecord,
     ScaleSourceShard,
     _build_journal_receipt,
+    _build_lean_replay_verification,
     _canonical_model_bytes,
     _journal_receipt_path,
     _load_journal_receipt,
     _project_records,
+    _representation_payload_hash,
     _root_component_shard_assignments,
     _run_spec_payload,
     _selection_key,
     _shard_set_spec_payload,
     _source_shard_path,
     _tree_hash,
+    _validate_shard_execution_policy,
     _write_new_atomic,
     _write_partitions,
+    run_deterministic_scale_materialization,
 )
 from leanfaith.transforms.scale_merge import (
     DeterministicScaleMergeArtifacts,
     _reject_cross_shard_semantic_leakage,
+    _validate_projected_semantic_lineage,
     merge_deterministic_scale_shards,
 )
-from tests.unit.record_factories import theorem_record
+from tests.unit.record_factories import representation_record, theorem_record
 from tests.unit.test_deterministic_scale_materializer import _accepted_source_shard
 
 _ROOT = Path(__file__).resolve().parents[2]
@@ -229,6 +235,18 @@ def _write_ineligible_shard_output(
         created_at=config.record_timestamp_utc,
     )
     _write_new_atomic(output_dir / "manifest.json", _canonical_model_bytes(manifest))
+    verification = _build_lean_replay_verification(
+        run_spec=spec,
+        run_spec_path=run_spec_path,
+        replayed_source_ids=spec.selected_source_theorem_ids,
+        journal_tree_hash=journal_tree_hash,
+        partition_sha256=partition_hashes,
+        created_at=config.record_timestamp_utc,
+    )
+    _write_new_atomic(
+        output_dir / "full_lean_replay_verification.json",
+        _canonical_model_bytes(verification),
+    )
 
 
 def _fixture_shard_set(
@@ -237,15 +255,36 @@ def _fixture_shard_set(
     code_by_shard: tuple[CodeState, CodeState] | None = None,
 ) -> tuple[tuple[Path, Path], Path, tuple[TheoremRecord, ...]]:
     sources = tuple(_source(index) for index in range(4))
-    config_path = tmp_path / "deterministic_scale_v1.yaml"
+    config_path = tmp_path / "deterministic_scale_unary_sharded_v1.yaml"
     config_path.write_bytes(
-        (_ROOT / "configs/transformations/deterministic_scale_v1.yaml").read_bytes()
+        (_ROOT / "configs/transformations/deterministic_scale_unary_sharded_v1.yaml").read_bytes()
     )
     loaded_config = load_config(config_path, DeterministicScaleConfig)
     theorem_path = tmp_path / "theorems.jsonl"
     theorem_path.write_bytes(b"".join(_canonical_model_bytes(source) for source in sources))
     representation_path = tmp_path / "representations.jsonl"
-    representation_path.write_bytes(b"\n")
+    representations = []
+    for source in sources:
+        representation = representation_record(
+            representation_id=make_id(
+                "repr",
+                {
+                    "theorem_id": source.theorem_id,
+                    "normalization_version": "repr_v3",
+                },
+            ),
+            theorem_id=source.theorem_id,
+            normalization_version="repr_v3",
+            context_id=source.context_id,
+        )
+        representations.append(
+            representation.model_copy(
+                update={"content_hash": _representation_payload_hash(representation)}
+            )
+        )
+    representation_path.write_bytes(
+        b"".join(_canonical_model_bytes(record) for record in representations)
+    )
     support_paths = {
         name: tmp_path / f"{name}.json"
         for name in (
@@ -271,11 +310,7 @@ def _fixture_shard_set(
         )
     )
     assignments = _root_component_shard_assignments(ordered, shard_count=2)
-    default_code = CodeState(
-        git_revision="7" * 40,
-        git_dirty=False,
-        code_tree_hash="8" * 64,
-    )
+    default_code = collect_code_state(_ROOT)
     codes = code_by_shard or (default_code, default_code)
     shard_dirs: list[Path] = []
     source_by_id = {source.theorem_id: source for source in ordered}
@@ -320,6 +355,29 @@ def test_root_component_sharding_is_disjoint_complete_and_deterministic() -> Non
     assert sum(first.count(index) for index in range(2)) == len(sources)
 
 
+def test_sharded_policy_rejects_n10_and_requires_dedicated_global_pass() -> None:
+    base = load_config(
+        _ROOT / "configs/transformations/deterministic_scale_v1.yaml",
+        DeterministicScaleConfig,
+    ).config
+    with pytest.raises(DeterministicScaleError, match="N10 cannot run inside source shards"):
+        _validate_shard_execution_policy(base, shard_count=2)
+
+    unary = load_config(
+        _ROOT / "configs/transformations/deterministic_scale_unary_sharded_v1.yaml",
+        DeterministicScaleConfig,
+    ).config
+    _validate_shard_execution_policy(unary, shard_count=2)
+
+    n10 = load_config(
+        _ROOT / "configs/transformations/deterministic_scale_n10_global_v1.yaml",
+        DeterministicScaleConfig,
+    ).config
+    _validate_shard_execution_policy(n10, shard_count=1)
+    with pytest.raises(DeterministicScaleError, match="N10 cannot run inside source shards"):
+        _validate_shard_execution_policy(n10, shard_count=2)
+
+
 def test_merge_audits_complete_set_and_is_content_addressed(tmp_path: Path) -> None:
     shard_dirs, _, sources = _fixture_shard_set(tmp_path)
 
@@ -338,6 +396,45 @@ def test_merge_audits_complete_set_and_is_content_addressed(tmp_path: Path) -> N
     assert first.manifest_sha256 == second.manifest_sha256
     assert first.merged_manifest_hash in first.manifest_path.name
     assert sum(1 for _ in (tmp_path / "merged/partitions/failures.jsonl").open()) == len(sources)
+
+
+def test_merge_requires_full_lean_backed_replay_verification(tmp_path: Path) -> None:
+    shard_dirs, _, _ = _fixture_shard_set(tmp_path)
+    (shard_dirs[0] / "full_lean_replay_verification.json").unlink()
+
+    with pytest.raises(DeterministicScaleError, match="full Lean-backed replay"):
+        merge_deterministic_scale_shards(
+            paths=RepoPaths(root=_ROOT),
+            shard_output_dirs=shard_dirs,
+            output_dir=tmp_path / "merged",
+        )
+
+
+def test_merge_rejects_tampered_full_lean_replay_receipt(tmp_path: Path) -> None:
+    shard_dirs, _, _ = _fixture_shard_set(tmp_path)
+    verification = shard_dirs[0] / "full_lean_replay_verification.json"
+    verification.write_bytes(verification.read_bytes() + b" ")
+
+    with pytest.raises(DeterministicScaleError, match="not canonical JSON"):
+        merge_deterministic_scale_shards(
+            paths=RepoPaths(root=_ROOT),
+            shard_output_dirs=shard_dirs,
+            output_dir=tmp_path / "merged",
+        )
+
+
+def test_materializer_api_rejects_retired_fast_resume_before_io(tmp_path: Path) -> None:
+    with pytest.raises(DeterministicScaleError, match="fast resume is retired"):
+        run_deterministic_scale_materialization(
+            paths=RepoPaths(root=_ROOT),
+            theorem_jsonl=tmp_path / "missing-theorems.jsonl",
+            representation_jsonl=tmp_path / "missing-representations.jsonl",
+            source_inventory_manifest=tmp_path / "missing-inventory.json",
+            project_dir=tmp_path / "missing-project",
+            output_dir=tmp_path / "output",
+            resume=True,
+            fast_resume=True,
+        )
 
 
 def test_merge_rejects_gap_overlap_and_journal_tampering(tmp_path: Path) -> None:
@@ -383,11 +480,11 @@ def test_merge_rejects_changed_input_config_and_code(tmp_path: Path) -> None:
     config_case = tmp_path / "config_case"
     config_case.mkdir()
     shard_dirs, _, _ = _fixture_shard_set(config_case)
-    config_path = config_case / "deterministic_scale_v1.yaml"
+    config_path = config_case / "deterministic_scale_unary_sharded_v1.yaml"
     config_path.write_text(
         config_path.read_text(encoding="utf-8").replace(
-            "profile_version: 1.0.0",
-            "profile_version: 1.0.1",
+            "profile_version: 1.1.0",
+            "profile_version: 1.1.1",
         ),
         encoding="utf-8",
     )
@@ -478,6 +575,66 @@ def test_merge_rejects_duplicate_variant_pair_and_accidental_labels() -> None:
     with pytest.raises(DeterministicScaleError, match="uniformly provisional"):
         _reject_cross_shard_semantic_leakage({**clean, "variants": (promoted_variant,)})
 
+    attempt = clean["attempts"][0]
+    with pytest.raises(DeterministicScaleError, match="duplicate attempt_id"):
+        _reject_cross_shard_semantic_leakage({**clean, "attempts": (attempt, attempt)})
+
+    draft = clean["drafts"][0]
+    quarantine = ScaleQuarantineRecord(
+        status="candidate_invalid",
+        source_theorem_ids=draft.source_theorem_ids,
+        rule_id=draft.rule_id,
+        family_id=draft.family_id,
+        polarity=variant.polarity_metadata,
+        draft_id=draft.draft_id,
+        candidate_code_hash=draft.candidate_code_hash,
+        failure=ScaleFailure(
+            stage="candidate_validation",
+            code="fixture",
+            detail="fixture",
+            source_theorem_ids=draft.source_theorem_ids,
+            rule_id=draft.rule_id,
+            draft_id=draft.draft_id,
+        ),
+        candidate_content_redacted=False,
+    )
+    with pytest.raises(DeterministicScaleError, match="duplicate draft_id"):
+        _reject_cross_shard_semantic_leakage({**clean, "quarantine": (quarantine, quarantine)})
+
+
+def test_semantic_lineage_audit_rejects_rehashed_bad_pair_split_group() -> None:
+    source, source_representation, accepted = _accepted_source_shard()
+    projected = _project_records((accepted,))
+    config = load_config(
+        _ROOT / "configs/transformations/deterministic_scale_v1.yaml",
+        DeterministicScaleConfig,
+    ).config
+    spec = DeterministicScaleRunSpec.model_construct(
+        run_spec_hash="b" * 64,
+        registry_hash="a" * 64,
+        source_universe_theorem_ids=(source.theorem_id,),
+    )
+    _validate_projected_semantic_lineage(
+        projected=projected,
+        source_theorems=(source,),
+        source_representations=(source_representation,),
+        spec=spec,
+        config=config,
+    )
+
+    pair = projected["pairs"][0]
+    bad_pair = pair.model_copy(
+        update={"split_group_ids": (make_id("anc", {"malicious": "replacement"}),)}
+    )
+    with pytest.raises(DeterministicScaleError, match="pair identity/split lineage mismatch"):
+        _validate_projected_semantic_lineage(
+            projected={**projected, "pairs": (bad_pair,)},
+            source_theorems=(source,),
+            source_representations=(source_representation,),
+            spec=spec,
+            config=config,
+        )
+
 
 def test_journal_receipt_rejects_shard_and_chain_tampering(tmp_path: Path) -> None:
     source = _source(0)
@@ -522,7 +679,7 @@ def test_journal_receipt_rejects_shard_and_chain_tampering(tmp_path: Path) -> No
         )
 
 
-def test_scale_cli_forwards_sharding_and_fast_resume(
+def test_scale_cli_forwards_sharding_and_exact_resume(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -568,7 +725,6 @@ def test_scale_cli_forwards_sharding_and_fast_resume(
             "--shard-index",
             "2",
             "--resume",
-            "--fast-resume",
         ],
     )
 
@@ -576,10 +732,10 @@ def test_scale_cli_forwards_sharding_and_fast_resume(
     assert seen["shard_count"] == 3
     assert seen["shard_index"] == 2
     assert seen["resume"] is True
-    assert seen["fast_resume"] is True
+    assert seen["fast_resume"] is False
 
 
-def test_scale_cli_rejects_fast_resume_without_resume(tmp_path: Path) -> None:
+def test_scale_cli_rejects_retired_fast_resume_even_with_resume(tmp_path: Path) -> None:
     result = CliRunner().invoke(
         app,
         [
@@ -597,12 +753,13 @@ def test_scale_cli_rejects_fast_resume_without_resume(tmp_path: Path) -> None:
             str(tmp_path / "mathlib"),
             "--output-dir",
             str(tmp_path / "output"),
+            "--resume",
             "--fast-resume",
         ],
     )
 
     assert result.exit_code == 2
-    assert "--fast-resume requires --resume" in result.output
+    assert "--fast-resume is retired" in result.output
 
 
 def test_scale_merge_cli_accepts_repeated_shard_directories(
