@@ -17,7 +17,7 @@ from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from leanfaith.config.hashing import hash_file
+from leanfaith.config.hashing import hash_canonical, hash_file
 from leanfaith.lean.extraction import (
     ExtractedDeclaration,
     ExtractionFailure,
@@ -620,10 +620,36 @@ def _elaborate_dataset_route(
     created_at: datetime.datetime,
     timeout_seconds: float,
 ) -> tuple[LeanResult, ExtractionResult]:
+    request_id = f"{source}-{parsed.source_record_id[:16]}-{route}"
+    if not snippet.strip():
+        # An absent question fence or a fallback whose completed proof could
+        # not be stripped is source-route unavailability, not a LeanInteract
+        # execution failure.  In particular, never construct a LeanInteract
+        # ``Command`` with the resulting empty ``cmd``: its Pydantic boundary
+        # rejects that payload and would misleadingly persist an
+        # ``infrastructure_error`` for an ordinary source-row condition.
+        return (
+            LeanResult(
+                request_id=request_id,
+                request_hash=hash_canonical(
+                    {
+                        "method": "empty_dataset_route_v1",
+                        "source_record_id": parsed.source_record_id,
+                        "route": route,
+                        "context_id": context_id,
+                        "snippet": snippet,
+                    }
+                ),
+                context_id=context_id,
+                context_fingerprint=context_id.removeprefix("ctx:"),
+                status=LeanStatus.UNSUPPORTED,
+            ),
+            ExtractionResult(),
+        )
     result = _run_request(
         backend,
         LeanRequest(
-            request_id=f"{source}-{parsed.source_record_id[:16]}-{route}",
+            request_id=request_id,
             context_id=context_id,
             code=snippet,
             declarations=True,

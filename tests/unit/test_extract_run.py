@@ -149,6 +149,97 @@ def test_sft_invalid_partial_declarations_are_diagnostic_only(tmp_path: Path) ->
     assert "partial_declarations_reported=1" in failures[0]["detail"]
 
 
+class RejectBlankDatasetRouteBackend:
+    """A source-unavailable route must never reach the Lean boundary."""
+
+    def __init__(self, *, declarations: tuple[dict, ...] = ()) -> None:
+        self.declarations = declarations
+        self.calls: list[LeanRequest] = []
+
+    def run(self, request: LeanRequest) -> LeanResult:
+        assert request.code is not None
+        assert request.code.strip()
+        self.calls.append(request)
+        return LeanResult(
+            request_id=request.request_id,
+            request_hash="b" * 64,
+            context_id=request.context_id,
+            context_fingerprint="e" * 64,
+            status=LeanStatus.VALID_WITH_SORRY,
+            declarations=self.declarations,
+        )
+
+
+def test_sft_unstrippable_fallback_is_source_unavailable_not_infrastructure_error(
+    tmp_path: Path,
+) -> None:
+    non_prop = {
+        **_DECL,
+        "kind": "definition",
+        "signature": {
+            **_DECL["signature"],
+            "pp": ": Nat",
+        },
+        "type": {"pp": "Nat"},
+    }
+    backend = RejectBlankDatasetRouteBackend(declarations=(non_prop,))
+    row = {
+        "uuid": "empty-fallback",
+        "data_source": "fixture",
+        "question": "```lean4\ndef t_ok : Nat := 1\n```",
+        # A non-theorem fallback is real source content, but the proof-strip
+        # route is unsupported and therefore produces no Lean command.
+        "lean_code": "def fallback : Nat := 1",
+        "valid": False,
+        "proof_repair": False,
+    }
+
+    stats = extract_sft_classic_rows(
+        backend,  # type: ignore[arg-type]
+        [row],
+        source_revision="0bf9",
+        split="train",
+        row_offset=0,
+        context_id=_CTX,
+        out_dir=tmp_path,
+    )
+
+    assert len(backend.calls) == 1
+    assert "question_statement" in backend.calls[0].request_id
+    assert stats.row_outcomes == {"not_a_proposition": 1}
+    failure = json.loads((tmp_path / "failures" / "sft_classic.jsonl").read_text().splitlines()[-1])
+    assert "fallback=unsupported" in failure["detail"]
+    assert "infrastructure_error" not in failure["detail"]
+
+
+def test_sft_two_blank_routes_never_call_lean(tmp_path: Path) -> None:
+    backend = RejectBlankDatasetRouteBackend()
+    row = {
+        "uuid": "blank-routes",
+        "data_source": "fixture",
+        "question": "No fenced Lean declaration is present.",
+        "lean_code": "   ",
+        "valid": False,
+        "proof_repair": False,
+    }
+
+    stats = extract_sft_classic_rows(
+        backend,  # type: ignore[arg-type]
+        [row],
+        source_revision="0bf9",
+        split="train",
+        row_offset=0,
+        context_id=_CTX,
+        out_dir=tmp_path,
+    )
+
+    assert backend.calls == []
+    assert stats.row_outcomes == {"missing_lean_fence": 1}
+    failure = json.loads((tmp_path / "failures" / "sft_classic.jsonl").read_text().splitlines()[-1])
+    assert "question=unsupported; fallback=unsupported" in failure["detail"]
+    assert "infrastructure_error" not in failure["detail"]
+
+
 def test_dataset_extraction_counts_non_elaborating_source(tmp_path: Path) -> None:
     backend = FakeBackend(decl_status=LeanStatus.INVALID, reval_status=LeanStatus.VALID_WITH_SORRY)
     rows = [{"uuid": "row-1", "lean_code": "theorem broken : Nonsense := foo"}]
