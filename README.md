@@ -199,6 +199,12 @@ uv run leanfaith lf022-rcp-smoke --help
 uv run leanfaith audit-training-readiness --report-only
 ```
 
+Scientific-scale deterministic materialization uses separate sharded-unary and
+global-N10 passes, followed by a mandatory full Lean-backed replay before
+merge. `--fast-resume` is retired. See
+[`docs/deterministic_scale_operations.md`](docs/deterministic_scale_operations.md)
+for the fail-closed execution and legacy-journal recovery contract.
+
 Scale extraction and representation runs accept `--resume-work-dir`. Each
 completed chunk is bound to its exact input, context, code tree, code bundle,
 and relevant execution configuration; mismatched resume state fails closed.

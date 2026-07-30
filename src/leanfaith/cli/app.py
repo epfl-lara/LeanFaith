@@ -993,7 +993,10 @@ def generate_deterministic_command(
         typer.Option(
             "--shard-count",
             min=1,
-            help="Number of deterministic root-component source shards.",
+            help=(
+                "Number of deterministic root-component source shards. Values above "
+                "one require the unary-only profile; N10 is a separate global pass."
+            ),
         ),
     ] = 1,
     shard_index: Annotated[
@@ -1020,8 +1023,8 @@ def generate_deterministic_command(
         typer.Option(
             "--fast-resume",
             help=(
-                "With --resume, trust only canonical hash-chain journal receipts and "
-                "skip Lean replay for completed source shards."
+                "Retired unsafe compatibility flag. Scientific resume always performs "
+                "full Lean-backed replay of completed source shards."
             ),
         ),
     ] = False,
@@ -1114,7 +1117,8 @@ def generate_deterministic_command(
             f"manifest={merged_artifacts.manifest_path} "
             f"manifest_sha256={merged_artifacts.manifest_sha256} "
             f"merged_manifest_hash={merged_artifacts.merged_manifest_hash} "
-            "resolved_semantic_labels=0 promoted_items=0 output_tier=provisional"
+            "resolved_semantic_labels=0 promoted_items=0 output_tier=provisional "
+            "full_lean_backed_verification=true training_eligible=false"
         )
         return
     if run_smoke_vertical_slice:
@@ -1216,8 +1220,12 @@ def generate_deterministic_command(
         if shard_index >= shard_count:
             typer.echo("--shard-index must be smaller than --shard-count", err=True)
             raise typer.Exit(code=2)
-        if fast_resume and not resume:
-            typer.echo("--fast-resume requires --resume", err=True)
+        if fast_resume:
+            typer.echo(
+                "--fast-resume is retired because receipt hashes are not scientific "
+                "verification; use exact --resume Lean replay",
+                err=True,
+            )
             raise typer.Exit(code=2)
         missing = [
             name
