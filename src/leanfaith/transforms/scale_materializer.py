@@ -519,6 +519,16 @@ class ScaleUpstreamManifestBinding(StrictModel):
     manifest_kind: Literal["output_manifest", "gate3_selection_v2"]
 
 
+class ScaleRelocationAttestationBinding(StrictModel):
+    """Exact reviewed authorization for content-addressed artifact relocation."""
+
+    path: str
+    sha256: str = Field(pattern=_HEX64_PATTERN)
+    attestation_kind: Literal["lf022_extraction_reuse_attestation_v1"] = (
+        "lf022_extraction_reuse_attestation_v1"
+    )
+
+
 class _Gate3SelectionRecord(StrictModel):
     source: str
     theorem_id: str
@@ -587,6 +597,7 @@ class ScaleSourceInventoryManifest(StrictModel):
     representation_partition: ScaleInventoryPartitionBinding
     theorem_upstream_manifest: ScaleUpstreamManifestBinding
     representation_upstream_manifest: ScaleUpstreamManifestBinding
+    relocation_attestation: ScaleRelocationAttestationBinding | None = None
 
 
 class DeterministicScaleRunSpec(StrictModel):
@@ -793,7 +804,7 @@ def _load_json_document(path: Path) -> dict[str, object]:
 def _resolve_manifest_binding_path(
     *,
     inventory_manifest_path: Path,
-    binding: ScaleUpstreamManifestBinding,
+    binding: ScaleUpstreamManifestBinding | ScaleRelocationAttestationBinding,
 ) -> Path:
     raw = Path(binding.path)
     candidate = raw if raw.is_absolute() else inventory_manifest_path.parent / raw
@@ -817,6 +828,7 @@ def _path_checksum(
     *,
     supplied_path: Path,
     repo_root: Path,
+    allow_content_addressed_relocation: bool = False,
 ) -> str | None:
     """Find one exact path binding written as absolute or repository-relative."""
 
@@ -825,6 +837,15 @@ def _path_checksum(
     if resolved.is_relative_to(repo_root.resolve()):
         candidates.add(str(resolved.relative_to(repo_root.resolve())))
     observed = {checksums[key] for key in candidates if key in checksums}
+    if not observed and allow_content_addressed_relocation:
+        supplied_sha256 = hash_file(resolved)
+        relocated = [key for key, digest in checksums.items() if digest == supplied_sha256]
+        if len(relocated) > 1:
+            raise DeterministicScaleError(
+                f"manifest contains ambiguous content bindings for relocated {resolved}"
+            )
+        if relocated:
+            return supplied_sha256
     if not observed:
         return None
     if len(observed) != 1:
@@ -931,6 +952,7 @@ def _load_trusted_representation_manifest(
     representation_count: int,
     context_id: str,
     repo_root: Path,
+    allow_content_addressed_relocation: bool = False,
 ) -> None:
     if expected_kind != "output_manifest":
         raise DeterministicScaleError(
@@ -955,18 +977,21 @@ def _load_trusted_representation_manifest(
             manifest.output_partition_checksums,
             supplied_path=representation_path,
             repo_root=repo_root,
+            allow_content_addressed_relocation=allow_content_addressed_relocation,
         )
         != representation_sha
         or _path_checksum(
             manifest.file_checksums,
             supplied_path=representation_path,
             repo_root=repo_root,
+            allow_content_addressed_relocation=allow_content_addressed_relocation,
         )
         != representation_sha
         or _path_checksum(
             manifest.input_partition_checksums,
             supplied_path=theorem_path,
             repo_root=repo_root,
+            allow_content_addressed_relocation=allow_content_addressed_relocation,
         )
         != theorem_sha
     ):
@@ -994,6 +1019,58 @@ def _validate_trusted_upstream_manifests(
         inventory_manifest_path=inventory_manifest_path,
         binding=inventory.representation_upstream_manifest,
     )
+    allow_content_addressed_relocation = False
+    if inventory.relocation_attestation is not None:
+        from leanfaith.generation.lf022_extraction_reuse import (
+            LF022ExtractionReuseArtifactBinding,
+            LF022ExtractionReuseAttestationV1,
+            verify_lf022_extraction_reuse_attestation,
+        )
+
+        attestation_path = _resolve_manifest_binding_path(
+            inventory_manifest_path=inventory_manifest_path,
+            binding=inventory.relocation_attestation,
+        )
+        root = repo_root.resolve(strict=True)
+
+        def repo_binding(candidate: Path) -> LF022ExtractionReuseArtifactBinding:
+            resolved = candidate.resolve(strict=True)
+            try:
+                relative = resolved.relative_to(root).as_posix()
+            except ValueError as exc:
+                raise DeterministicScaleError(
+                    "relocation attestation may authorize only repository-local copies"
+                ) from exc
+            return LF022ExtractionReuseArtifactBinding(
+                path=relative,
+                sha256=hash_file(resolved),
+            )
+
+        try:
+            attestation = LF022ExtractionReuseAttestationV1.model_validate(
+                _load_json_document(attestation_path)
+            )
+            verify_lf022_extraction_reuse_attestation(
+                repo_root=root,
+                attestation=attestation,
+                attestation_binding=repo_binding(attestation_path),
+                extraction_manifest=OutputManifest.model_validate(
+                    _load_json_document(theorem_manifest_path)
+                ),
+                extraction_manifest_binding=repo_binding(theorem_manifest_path),
+                theorem_records_binding=repo_binding(theorem_path),
+                representation_manifest=OutputManifest.model_validate(
+                    _load_json_document(representation_manifest_path)
+                ),
+                representation_manifest_binding=repo_binding(representation_manifest_path),
+                representation_records_binding=repo_binding(representation_path),
+                require_current_attesting_code_state=False,
+            )
+        except ValueError as exc:
+            raise DeterministicScaleError(
+                f"reviewed content-relocation attestation failed: {exc}"
+            ) from exc
+        allow_content_addressed_relocation = True
     _load_trusted_theorem_manifest(
         theorem_manifest_path,
         expected_kind=inventory.theorem_upstream_manifest.manifest_kind,
@@ -1010,6 +1087,7 @@ def _validate_trusted_upstream_manifests(
         representation_count=len(representations),
         context_id=inventory.context_id,
         repo_root=repo_root,
+        allow_content_addressed_relocation=allow_content_addressed_relocation,
     )
     return theorem_manifest_path, representation_manifest_path
 
@@ -3265,6 +3343,7 @@ def freeze_deterministic_scale_source_inventory(
     theorem_upstream_manifest: Path,
     representation_upstream_manifest: Path,
     manifest_path: Path,
+    relocation_attestation: Path | None = None,
 ) -> ScaleSourceInventoryArtifacts:
     """Validate and atomically bind exact extracted theorem/repr_v3 partitions."""
 
@@ -3272,6 +3351,9 @@ def freeze_deterministic_scale_source_inventory(
     representation_path = representation_jsonl.resolve()
     theorem_manifest_path = theorem_upstream_manifest.resolve()
     representation_manifest_path = representation_upstream_manifest.resolve()
+    relocation_attestation_path = (
+        None if relocation_attestation is None else relocation_attestation.resolve()
+    )
     output_path = manifest_path.resolve()
     theorems = _load_jsonl(theorem_path, TheoremRecord, wrapper_key="theorem")
     representations = _load_jsonl(representation_path, RepresentationRecord)
@@ -3326,6 +3408,19 @@ def freeze_deterministic_scale_source_inventory(
             ).as_posix(),
             sha256=hash_file(representation_manifest_path),
             manifest_kind="output_manifest",
+        ),
+        relocation_attestation=(
+            None
+            if relocation_attestation_path is None
+            else ScaleRelocationAttestationBinding(
+                path=Path(
+                    os.path.relpath(
+                        relocation_attestation_path,
+                        start=output_path.parent,
+                    )
+                ).as_posix(),
+                sha256=hash_file(relocation_attestation_path),
+            )
         ),
     )
     _validate_trusted_upstream_manifests(

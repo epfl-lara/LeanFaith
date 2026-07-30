@@ -366,6 +366,75 @@ def test_attestation_rejects_wrong_current_tree(
         )
 
 
+def test_frozen_attestation_can_authorize_artifacts_after_unrelated_code_change(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fixture = _verification_fixture(tmp_path, monkeypatch)
+    (
+        attestation,
+        attestation_binding,
+        extraction_manifest,
+        extraction_manifest_binding,
+        theorem_binding,
+        representation_manifest,
+        representation_manifest_binding,
+        representation_binding,
+    ) = fixture
+    monkeypatch.setattr(
+        reuse,
+        "_verify_current_reviewed_paths",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            AssertionError("historical artifact replay must not inspect the current tree")
+        ),
+    )
+
+    verify_lf022_extraction_reuse_attestation(
+        repo_root=tmp_path,
+        attestation=attestation,
+        attestation_binding=attestation_binding,
+        extraction_manifest=extraction_manifest,
+        extraction_manifest_binding=extraction_manifest_binding,
+        theorem_records_binding=theorem_binding,
+        representation_manifest=representation_manifest,
+        representation_manifest_binding=representation_manifest_binding,
+        representation_records_binding=representation_binding,
+        require_current_attesting_code_state=False,
+    )
+
+
+def test_frozen_attestation_replay_still_rejects_artifact_tamper(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fixture = _verification_fixture(tmp_path, monkeypatch)
+    (
+        attestation,
+        attestation_binding,
+        extraction_manifest,
+        extraction_manifest_binding,
+        theorem_binding,
+        representation_manifest,
+        representation_manifest_binding,
+        representation_binding,
+    ) = fixture
+    (tmp_path / theorem_binding.path).write_bytes(b'{"tampered":true}\n')
+
+    with pytest.raises(LF022ExtractionReuseError, match="hash mismatch"):
+        verify_lf022_extraction_reuse_attestation(
+            repo_root=tmp_path,
+            attestation=attestation,
+            attestation_binding=attestation_binding,
+            extraction_manifest=extraction_manifest,
+            extraction_manifest_binding=extraction_manifest_binding,
+            theorem_records_binding=theorem_binding,
+            representation_manifest=representation_manifest,
+            representation_manifest_binding=representation_manifest_binding,
+            representation_records_binding=representation_binding,
+            require_current_attesting_code_state=False,
+        )
+
+
 def test_attestation_rejects_recomputed_id_for_non_policy_artifacts(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

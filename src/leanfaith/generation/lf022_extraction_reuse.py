@@ -647,8 +647,17 @@ def verify_lf022_extraction_reuse_attestation(
     representation_manifest: OutputManifest,
     representation_manifest_binding: LF022ExtractionReuseArtifactBinding,
     representation_records_binding: LF022ExtractionReuseArtifactBinding,
+    require_current_attesting_code_state: bool = True,
 ) -> None:
-    """Replay an attestation and require the exact supplied provenance."""
+    """Replay an attestation and require the exact supplied provenance.
+
+    ``require_current_attesting_code_state=False`` is reserved for consumers
+    of the already-frozen artifact authorization.  In that mode the verifier
+    still checks the digest-pinned review policy, its historical Git snapshots,
+    the canonical attestation, every artifact hash/count, and both producer
+    manifests.  It merely avoids requiring an unrelated future repository
+    checkout to equal the full tree that originally froze the attestation.
+    """
 
     restored = _load_json_model(
         repo_root,
@@ -775,16 +784,17 @@ def verify_lf022_extraction_reuse_attestation(
         raise LF022ExtractionReuseError(
             "representation theorem-input locator differs from attestation"
         )
-    current_revision, current_tree = _verify_current_reviewed_paths(
-        repo_root,
-        policy,
-        require_clean=False,
-    )
-    if (
-        current_revision != attestation.attesting_git_revision
-        or current_tree != attestation.attesting_code_tree_hash
-    ):
-        raise LF022ExtractionReuseError("current attesting code tree differs from attestation")
+    if require_current_attesting_code_state:
+        current_revision, current_tree = _verify_current_reviewed_paths(
+            repo_root,
+            policy,
+            require_clean=False,
+        )
+        if (
+            current_revision != attestation.attesting_git_revision
+            or current_tree != attestation.attesting_code_tree_hash
+        ):
+            raise LF022ExtractionReuseError("current attesting code tree differs from attestation")
 
 
 __all__ = [

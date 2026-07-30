@@ -976,6 +976,16 @@ def generate_deterministic_command(
             ),
         ),
     ] = None,
+    extraction_reuse_attestation: Annotated[
+        Path | None,
+        typer.Option(
+            "--extraction-reuse-attestation",
+            help=(
+                "Reviewed LF-022 attestation authorizing the exact "
+                "content-addressed representation-output/theorem-input relocation."
+            ),
+        ),
+    ] = None,
     project_dir: Annotated[
         Path | None,
         typer.Option("--project-dir", help="Pinned mathlib checkout for candidate validation."),
@@ -1066,6 +1076,12 @@ def generate_deterministic_command(
         raise typer.Exit(code=2)
     if code_bundle is not None and not run_smoke_vertical_slice:
         typer.echo("--code-bundle is supported only with --run-smoke-vertical-slice", err=True)
+        raise typer.Exit(code=2)
+    if extraction_reuse_attestation is not None and not freeze_scale_inventory:
+        typer.echo(
+            "--extraction-reuse-attestation is supported only with --freeze-scale-inventory",
+            err=True,
+        )
         raise typer.Exit(code=2)
     if merge_scale_shards:
         if report_path is not None:
@@ -1194,6 +1210,7 @@ def generate_deterministic_command(
                 representation_jsonl=representation_jsonl,
                 theorem_upstream_manifest=theorem_upstream_manifest,
                 representation_upstream_manifest=representation_upstream_manifest,
+                relocation_attestation=extraction_reuse_attestation,
                 manifest_path=source_inventory_manifest,
             )
         except DeterministicScaleError as exc:

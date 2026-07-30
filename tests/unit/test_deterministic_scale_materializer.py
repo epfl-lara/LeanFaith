@@ -66,6 +66,7 @@ from leanfaith.transforms.scale_materializer import (
     _load_jsonl,
     _load_source_inventory_manifest,
     _materialize_draft,
+    _path_checksum,
     _project_records,
     _purge_candidate_raw_artifacts,
     _representation_payload_hash,
@@ -1309,6 +1310,88 @@ def test_scale_inventory_freeze_rejects_claim_rewrite_before_trust_freeze(
 
     assert result.exit_code == 1
     assert "does not bind the exact theorem partition/count" in result.output
+
+
+def test_manifest_checksum_requires_reviewed_content_relocation(
+    tmp_path: Path,
+) -> None:
+    original = tmp_path / "producer" / "records.jsonl"
+    relocated = tmp_path / "consumer" / "records.jsonl"
+    original.parent.mkdir()
+    relocated.parent.mkdir()
+    original.write_bytes(b'{"record":1}\n')
+    relocated.write_bytes(original.read_bytes())
+    digest = hash_file(original)
+    checksums = {str(original): digest}
+
+    assert (
+        _path_checksum(
+            checksums,
+            supplied_path=relocated,
+            repo_root=tmp_path,
+        )
+        is None
+    )
+    assert (
+        _path_checksum(
+            checksums,
+            supplied_path=relocated,
+            repo_root=tmp_path,
+            allow_content_addressed_relocation=True,
+        )
+        == digest
+    )
+
+    relocated.write_bytes(b'{"record":2}\n')
+    assert (
+        _path_checksum(
+            checksums,
+            supplied_path=relocated,
+            repo_root=tmp_path,
+            allow_content_addressed_relocation=True,
+        )
+        is None
+    )
+
+
+def test_manifest_checksum_rejects_ambiguous_content_relocation(
+    tmp_path: Path,
+) -> None:
+    relocated = tmp_path / "relocated.jsonl"
+    relocated.write_bytes(b'{"record":1}\n')
+    digest = hash_file(relocated)
+
+    with pytest.raises(DeterministicScaleError, match="ambiguous content bindings"):
+        _path_checksum(
+            {
+                "/producer/a.jsonl": digest,
+                "/producer/b.jsonl": digest,
+            },
+            supplied_path=relocated,
+            repo_root=tmp_path,
+            allow_content_addressed_relocation=True,
+        )
+
+
+def test_manifest_checksum_does_not_override_wrong_exact_path_digest(
+    tmp_path: Path,
+) -> None:
+    supplied = tmp_path / "records.jsonl"
+    supplied.write_bytes(b'{"record":1}\n')
+    correct_digest = hash_file(supplied)
+
+    assert (
+        _path_checksum(
+            {
+                str(supplied): "0" * 64,
+                "/producer/other-copy.jsonl": correct_digest,
+            },
+            supplied_path=supplied,
+            repo_root=tmp_path,
+            allow_content_addressed_relocation=True,
+        )
+        == "0" * 64
+    )
 
 
 def test_scale_cli_delegates_and_reports_unresolved_provisional_outputs(
