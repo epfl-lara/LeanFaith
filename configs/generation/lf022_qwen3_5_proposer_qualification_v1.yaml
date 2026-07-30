@@ -34,3 +34,19 @@ prior_transport_evidence:
   sha256: 8d952a9bb6e61b056858946404ef19714b7f90ce5e7541d11396e429ffcdfbbb
   observed_role: judge
   proposer_evidence: false
+wire_capability_policy:
+  status: exact_fields_accepted_by_bound_prior_rcp_call
+  reasoning_effort_values:
+    - high
+  chat_template_enable_thinking_values:
+    - true
+  unsupported_reasoning_fields: reject
+  evidence:
+    artifact: reports/generation/lf022_rcp_public_smoke_qualification_v1.json
+    sha256: 8d952a9bb6e61b056858946404ef19714b7f90ce5e7541d11396e429ffcdfbbb
+    observed_role: judge
+    proposer_evidence: false
+  accepted_call_label: judge_A_AB
+  accepted_wire_request:
+    artifact: data/raw/llm_variants/lf022_rcp_public_smoke_v3/61e201acc254d89cb5e9686bd56a7f4e03c0ea2f8169ae39e22cc31be48a0589/calls/judge_A_AB/wire_request.json
+    sha256: f23519f6fb29f4657b14a8641107bd642a644f3adb49f2d25e89468794a9eda9

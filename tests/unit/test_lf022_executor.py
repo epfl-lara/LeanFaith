@@ -73,6 +73,12 @@ from leanfaith.generation.lf022_public_pool import (
     LF022PublicPoolAudit,
     LF022PublicPoolOutputArtifacts,
 )
+from leanfaith.generation.lf022_route_qualification import (
+    LF022QualifiedProposerProductionEligibility,
+    LF022RouteQualificationError,
+    certify_lf022_proposer_production_eligibility,
+    verify_lf022_proposer_production_eligibility,
+)
 from leanfaith.generation.llm_variants import PublicLeanVariantSource
 from leanfaith.generation.rcp_provider import (
     RCPHTTPTransport,
@@ -742,6 +748,35 @@ def _fixture(
         qualification_contract_path_override or contract_relative,
         contract_bytes,
     )
+    accepted_wire_evidence = {
+        "Qwen/Qwen3.5-397B-A17B": (
+            "data/raw/llm_variants/lf022_rcp_public_smoke_v3/"
+            "61e201acc254d89cb5e9686bd56a7f4e03c0ea2f8169ae39e22cc31be48a0589/"
+            "calls/judge_A_AB/wire_request.json",
+            "data/raw/llm_variants/lf022_rcp_public_smoke_v3/"
+            "61e201acc254d89cb5e9686bd56a7f4e03c0ea2f8169ae39e22cc31be48a0589/"
+            "calls/judge_A_AB/wire_response.json",
+        ),
+        "zai-org/GLM-5.2": (
+            "data/raw/llm_variants/lf022_rcp_public_smoke_v3/"
+            "61e201acc254d89cb5e9686bd56a7f4e03c0ea2f8169ae39e22cc31be48a0589/"
+            "calls/judge_B_AB/wire_request.json",
+            "data/raw/llm_variants/lf022_rcp_public_smoke_v3/"
+            "61e201acc254d89cb5e9686bd56a7f4e03c0ea2f8169ae39e22cc31be48a0589/"
+            "calls/judge_B_AB/wire_response.json",
+        ),
+    }.get(model_id)
+    if accepted_wire_evidence is not None:
+        _copy_repo_artifact(
+            root,
+            (
+                "data/raw/llm_variants/lf022_rcp_public_smoke_v3/"
+                "61e201acc254d89cb5e9686bd56a7f4e03c0ea2f8169ae39e22cc31be48a0589/"
+                "manifest.json"
+            ),
+        )
+        for artifact in accepted_wire_evidence:
+            _copy_repo_artifact(root, artifact)
     admission = make_lf022_g_open_execution_admission(
         public_pool_audit_id=audit.audit_id,
         allocation_plan_id=plan.manifest_id,
@@ -871,6 +906,58 @@ def _credentials() -> RCPRuntimeCredentials:
         base_url="https://inference.rcp.epfl.ch/v1",
         api_key="unit-test-secret",
     )
+
+
+def _qualification_task_dir(root: Path, task: LF022GOpenExecutionTask) -> Path:
+    digest = task.execution_task_id.removeprefix("lf022_execution_task:")
+    return root / "data/lf022_execution/tasks" / digest[:2] / digest
+
+
+def _qualify_and_certify(
+    root: Path,
+    *,
+    model_id: str,
+) -> tuple[
+    LF022GOpenExecutionAdmission,
+    LF022GOpenExecutionTask,
+    LF022QualifiedProposerProductionEligibility,
+    LF022ArtifactBinding,
+]:
+    admission, task = _fixture(root, model_id=model_id)
+    transport = FakeTransport([_success_response(model_id)])
+    live = execute_lf022_g_open_task(
+        repo_root=root,
+        output_root=root / "data/lf022_execution",
+        admission=admission,
+        task=task,
+        execute_public_provisional=True,
+        credentials=_credentials(),
+        transport=transport,
+        clock=lambda: NOW,
+    )
+    assert live.terminal is not None
+    assert live.terminal.status == "provisional_variants_created"
+    assert live.network_calls_this_run == 1
+    assert transport.calls == 1
+    task_dir = _qualification_task_dir(root, task)
+    admission_path = task_dir / "admission.json"
+    task_path = task_dir / "task.json"
+    certified = certify_lf022_proposer_production_eligibility(
+        repo_root=root,
+        qualification_admission_binding=LF022ArtifactBinding(
+            path=str(admission_path.relative_to(root)),
+            sha256=hash_file(admission_path),
+        ),
+        qualification_task_binding=LF022ArtifactBinding(
+            path=str(task_path.relative_to(root)),
+            sha256=hash_file(task_path),
+        ),
+    )
+    eligibility_binding = LF022ArtifactBinding(
+        path=str(certified.eligibility_path.relative_to(root)),
+        sha256=hash_file(certified.eligibility_path),
+    )
+    return admission, task, certified.eligibility, eligibility_binding
 
 
 def _task_dir(root: Path, task: LF022GOpenExecutionTask) -> Path:
@@ -1125,6 +1212,361 @@ def test_prior_judge_smoke_cannot_be_claimed_as_proposer_evidence(
             admission=admission,
             task=task,
         )
+
+
+@pytest.mark.parametrize(
+    "model_id",
+    ("Qwen/Qwen3.5-397B-A17B", "zai-org/GLM-5.2"),
+)
+def test_exact_live_qualification_certifies_only_production_route(
+    tmp_path: Path,
+    model_id: str,
+) -> None:
+    admission, task, eligibility, eligibility_binding = _qualify_and_certify(
+        tmp_path,
+        model_id=model_id,
+    )
+    assert eligibility.proposer_family_id == admission.route.proposer_family_id
+    assert eligibility.model_id == model_id
+    assert eligibility.deployment_id == admission.route.deployment_id
+    assert eligibility.qualification_task_id == task.execution_task_id
+    assert eligibility.qualification_task_count == 1
+    assert eligibility.qualification_variant_count == 1
+    assert eligibility.outputs_unresolved is True
+    assert eligibility.semantic_labels_created is False
+    assert eligibility.training_eligible is False
+    assert eligibility.gate_credit_claimed is False
+    assert eligibility.proposer_family_id not in eligibility.judge_family_ids
+    assert eligibility.proposer_family_id not in eligibility.permitted_validator_family_ids
+    assert eligibility.heldout_eval_family_id not in eligibility.permitted_validator_family_ids
+    assert (
+        verify_lf022_proposer_production_eligibility(
+            repo_root=tmp_path,
+            eligibility_binding=eligibility_binding,
+        )
+        == eligibility
+    )
+
+    production_route = admission.route.model_copy(
+        update={"execution_scope": "public_provisional_g_open"}
+    )
+    production_artifacts = admission.artifacts.model_copy(
+        update={"proposer_production_eligibility": eligibility_binding}
+    )
+    production_admission = make_lf022_g_open_execution_admission(
+        public_pool_audit_id=admission.public_pool_audit_id,
+        allocation_plan_id=admission.allocation_plan_id,
+        artifacts=production_artifacts,
+        route=production_route,
+        retry_policy=admission.retry_policy,
+        code_tree_hash=admission.code_tree_hash,
+    )
+    assert admission.schema_version == 1
+    assert "proposer_production_eligibility" not in admission.artifacts.model_dump(mode="json")
+    assert production_admission.schema_version == 2
+    assert production_admission.artifacts.proposer_production_eligibility == eligibility_binding
+    verified = verify_lf022_execution_admission(
+        repo_root=tmp_path,
+        admission=production_admission,
+    )
+    production_task = make_lf022_g_open_execution_task(
+        admission=production_admission,
+        allocation_task=task.allocation_task,
+        source=task.source,
+    )
+    assert production_task.training_eligible is False
+    assert production_task.evaluation_eligible is False
+    frozen = freeze_lf022_public_batch(
+        repo_root=tmp_path,
+        request_binding=_batch_request_binding(
+            tmp_path,
+            admission=production_admission,
+            task=production_task,
+        ),
+    )
+    assert frozen.manifest.routes[0].qualification_state == "production_live_qualified"
+    assert frozen.manifest.routes[0].qualification_claim is None
+    assert (
+        execute_lf022_g_open_task(
+            repo_root=tmp_path,
+            output_root=tmp_path / "data/out",
+            admission=production_admission,
+            task=production_task,
+            verified_admission=verified,
+        ).network_calls_this_run
+        == 0
+    )
+
+
+@pytest.mark.parametrize(
+    "model_id",
+    ("Qwen/Qwen3.5-397B-A17B", "zai-org/GLM-5.2"),
+)
+def test_production_scope_rejects_qualification_bypass(
+    tmp_path: Path,
+    model_id: str,
+) -> None:
+    admission, _ = _fixture(tmp_path, model_id=model_id)
+    production_route = admission.route.model_copy(
+        update={"execution_scope": "public_provisional_g_open"}
+    )
+    with pytest.raises(ValueError, match="requires exactly one bound proposer eligibility"):
+        make_lf022_g_open_execution_admission(
+            public_pool_audit_id=admission.public_pool_audit_id,
+            allocation_plan_id=admission.allocation_plan_id,
+            artifacts=admission.artifacts,
+            route=production_route,
+            retry_policy=admission.retry_policy,
+            code_tree_hash=admission.code_tree_hash,
+        )
+
+
+def test_cross_family_qualification_cannot_authorize_production(
+    tmp_path: Path,
+) -> None:
+    qwen_admission, _, _, qwen_eligibility = _qualify_and_certify(
+        tmp_path,
+        model_id="Qwen/Qwen3.5-397B-A17B",
+    )
+    glm_contract = _copy_repo_artifact(
+        tmp_path,
+        "configs/generation/lf022_glm5_2_proposer_qualification_v1.yaml",
+    )
+    _copy_repo_artifact(
+        tmp_path,
+        (
+            "data/raw/llm_variants/lf022_rcp_public_smoke_v3/"
+            "61e201acc254d89cb5e9686bd56a7f4e03c0ea2f8169ae39e22cc31be48a0589/"
+            "calls/judge_B_AB/wire_request.json"
+        ),
+    )
+    _copy_repo_artifact(
+        tmp_path,
+        (
+            "data/raw/llm_variants/lf022_rcp_public_smoke_v3/"
+            "61e201acc254d89cb5e9686bd56a7f4e03c0ea2f8169ae39e22cc31be48a0589/"
+            "calls/judge_B_AB/wire_response.json"
+        ),
+    )
+    glm_route = LF022RCPRouteBinding(
+        provider_id="epfl_rcp",
+        model_id="zai-org/GLM-5.2",
+        deployment_id="zai-org/GLM-5.2",
+        proposer_family_id="glm5",
+        canonical_family="zai-org/glm-5.2",
+        catalog_snapshot_id=qwen_admission.route.catalog_snapshot_id,
+        route_snapshot_revision=qwen_admission.route.route_snapshot_revision,
+        underlying_checkpoint_revision_status="provider_not_disclosed",
+        execution_scope="public_provisional_g_open",
+        decoding=LF022RCPDecodingContract(
+            contract_id="glm5_2_proposer_qualification_v1",
+            temperature=0.0,
+            top_p=1.0,
+            max_tokens=8192,
+            seed=42,
+            thinking_mode="enabled",
+            reasoning_effort="high",
+            chat_template_enable_thinking=True,
+        ),
+    )
+    artifacts = qwen_admission.artifacts.model_copy(
+        update={
+            "reviewed_route_contract": glm_contract,
+            "proposer_production_eligibility": qwen_eligibility,
+        }
+    )
+    admission = make_lf022_g_open_execution_admission(
+        public_pool_audit_id=qwen_admission.public_pool_audit_id,
+        allocation_plan_id=qwen_admission.allocation_plan_id,
+        artifacts=artifacts,
+        route=glm_route,
+        retry_policy=qwen_admission.retry_policy,
+        code_tree_hash=qwen_admission.code_tree_hash,
+    )
+    with pytest.raises(
+        LF022ExecutionError,
+        match=r"eligibility belongs to a different route|eligibility identity differs",
+    ):
+        verify_lf022_execution_admission(repo_root=tmp_path, admission=admission)
+
+
+def test_qualification_terminal_cannot_claim_semantic_labels(
+    tmp_path: Path,
+) -> None:
+    admission, task = _fixture(
+        tmp_path,
+        model_id="Qwen/Qwen3.5-397B-A17B",
+    )
+    live = execute_lf022_g_open_task(
+        repo_root=tmp_path,
+        output_root=tmp_path / "data/lf022_execution",
+        admission=admission,
+        task=task,
+        execute_public_provisional=True,
+        credentials=_credentials(),
+        transport=FakeTransport([_success_response(admission.route.model_id)]),
+        clock=lambda: NOW,
+    )
+    assert live.terminal_path is not None
+    payload = json.loads(live.terminal_path.read_bytes())
+    payload["semantic_labels_created"] = True
+    live.terminal_path.write_bytes(canonical_json_bytes(payload) + b"\n")
+    task_dir = _qualification_task_dir(tmp_path, task)
+    with pytest.raises(
+        LF022RouteQualificationError,
+        match="qualification exact replay rejected",
+    ):
+        certify_lf022_proposer_production_eligibility(
+            repo_root=tmp_path,
+            qualification_admission_binding=LF022ArtifactBinding(
+                path=str((task_dir / "admission.json").relative_to(tmp_path)),
+                sha256=hash_file(task_dir / "admission.json"),
+            ),
+            qualification_task_binding=LF022ArtifactBinding(
+                path=str((task_dir / "task.json").relative_to(tmp_path)),
+                sha256=hash_file(task_dir / "task.json"),
+            ),
+        )
+
+
+def test_unbound_reasoning_capability_is_rejected_before_transport(
+    tmp_path: Path,
+) -> None:
+    admission, task = _fixture(
+        tmp_path,
+        model_id="Qwen/Qwen3.5-397B-A17B",
+        qualification_contract_replacement=(
+            b"reasoning_effort_values:\n    - high",
+            b"reasoning_effort_values: []",
+        ),
+    )
+    transport = FakeTransport([_success_response(admission.route.model_id)])
+    with pytest.raises(
+        LF022ExecutionError,
+        match="invalid proposer qualification contract",
+    ):
+        execute_lf022_g_open_task(
+            repo_root=tmp_path,
+            output_root=tmp_path / "data/lf022_execution",
+            admission=admission,
+            task=task,
+            execute_public_provisional=True,
+            credentials=_credentials(),
+            transport=transport,
+        )
+    assert transport.calls == 0
+
+
+def test_reasoning_capability_must_be_one_exact_replay_manifest_call(
+    tmp_path: Path,
+) -> None:
+    admission, task = _fixture(
+        tmp_path,
+        model_id="Qwen/Qwen3.5-397B-A17B",
+        qualification_contract_replacement=(
+            b"accepted_call_label: judge_A_AB",
+            b"accepted_call_label: judge_A_BA",
+        ),
+    )
+    transport = FakeTransport([])
+    with pytest.raises(
+        LF022ExecutionError,
+        match="not one exact replay-manifest call",
+    ):
+        execute_lf022_g_open_task(
+            repo_root=tmp_path,
+            output_root=tmp_path / "data/lf022_execution",
+            admission=admission,
+            task=task,
+            execute_public_provisional=True,
+            credentials=_credentials(),
+            transport=transport,
+        )
+    assert transport.calls == 0
+
+
+def test_reasoning_capability_requires_bound_successful_response(
+    tmp_path: Path,
+) -> None:
+    admission, task = _fixture(
+        tmp_path,
+        model_id="Qwen/Qwen3.5-397B-A17B",
+    )
+    response_path = (
+        tmp_path
+        / "data/raw/llm_variants/lf022_rcp_public_smoke_v3"
+        / "61e201acc254d89cb5e9686bd56a7f4e03c0ea2f8169ae39e22cc31be48a0589"
+        / "calls/judge_A_AB/wire_response.json"
+    )
+    response = json.loads(response_path.read_bytes())
+    response["choices"][0]["finish_reason"] = "length"
+    response_path.write_bytes(canonical_json_bytes(response) + b"\n")
+
+    manifest_path = response_path.parents[2] / "manifest.json"
+    manifest = json.loads(manifest_path.read_bytes())
+    accepted_call = next(
+        call for call in manifest["call_artifacts"] if call["call_label"] == "judge_A_AB"
+    )
+    accepted_call["wire_response_sha256"] = hash_file(response_path)
+    manifest_path.write_bytes(canonical_json_bytes(manifest) + b"\n")
+
+    evidence_path = tmp_path / admission.artifacts.reviewed_route_evidence.path
+    evidence = json.loads(evidence_path.read_bytes())
+    evidence["verified_success"]["manifest_sha256"] = hash_file(manifest_path)
+    evidence_path.write_bytes(canonical_json_bytes(evidence) + b"\n")
+    evidence_binding = LF022ArtifactBinding(
+        path=admission.artifacts.reviewed_route_evidence.path,
+        sha256=hash_file(evidence_path),
+    )
+
+    contract_path = tmp_path / admission.artifacts.reviewed_route_contract.path
+    old_evidence_sha = admission.artifacts.reviewed_route_evidence.sha256.encode()
+    contract_bytes = contract_path.read_bytes()
+    assert contract_bytes.count(old_evidence_sha) == 2
+    contract_path.write_bytes(
+        contract_bytes.replace(
+            old_evidence_sha,
+            evidence_binding.sha256.encode(),
+        )
+    )
+    contract_binding = LF022ArtifactBinding(
+        path=admission.artifacts.reviewed_route_contract.path,
+        sha256=hash_file(contract_path),
+    )
+    artifacts = admission.artifacts.model_copy(
+        update={
+            "reviewed_route_contract": contract_binding,
+            "reviewed_route_evidence": evidence_binding,
+        }
+    )
+    mutated_admission = make_lf022_g_open_execution_admission(
+        public_pool_audit_id=admission.public_pool_audit_id,
+        allocation_plan_id=admission.allocation_plan_id,
+        artifacts=artifacts,
+        route=admission.route,
+        retry_policy=admission.retry_policy,
+        code_tree_hash=admission.code_tree_hash,
+    )
+    mutated_task = make_lf022_g_open_execution_task(
+        admission=mutated_admission,
+        allocation_task=task.allocation_task,
+        source=task.source,
+    )
+    transport = FakeTransport([])
+    with pytest.raises(
+        LF022ExecutionError,
+        match="does not prove successful exact route handling",
+    ):
+        execute_lf022_g_open_task(
+            repo_root=tmp_path,
+            output_root=tmp_path / "data/lf022_execution",
+            admission=mutated_admission,
+            task=mutated_task,
+            execute_public_provisional=True,
+            credentials=_credentials(),
+            transport=transport,
+        )
+    assert transport.calls == 0
 
 
 @pytest.mark.parametrize(
@@ -1894,6 +2336,71 @@ def _batch_request_binding(
         request_path,
         request.model_dump(mode="json"),
     )
+
+
+def test_batch_request_cli_constructs_one_exact_qualification_route_offline(
+    tmp_path: Path,
+) -> None:
+    admission, task = _fixture(
+        tmp_path,
+        model_id="Qwen/Qwen3.5-397B-A17B",
+    )
+    admission_path = tmp_path / "artifacts/reviewed_qualification_admission.json"
+    admission_path.write_bytes(canonical_json_bytes(admission.model_dump(mode="json")) + b"\n")
+    output = tmp_path / "data/qwen_qualification_batch_request.json"
+    result = CliRunner().invoke(
+        app,
+        [
+            "make-lf022-public-batch-request",
+            "--root",
+            str(tmp_path),
+            "--admission",
+            str(admission_path),
+            "--allocation-task-id",
+            task.allocation_task.task_id,
+            "--output",
+            str(output),
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    assert "network_calls_this_run=0" in result.output
+    request = LF022BatchFreezeRequest.model_validate_json(output.read_bytes())
+    assert request.routes[0].proposer_family_id == "qwen3"
+    assert request.routes[0].allocation_task_ids == (task.allocation_task.task_id,)
+    assert request.private_source_content_forbidden is True
+    replay = CliRunner().invoke(
+        app,
+        [
+            "make-lf022-public-batch-request",
+            "--root",
+            str(tmp_path),
+            "--admission",
+            str(admission_path),
+            "--allocation-task-id",
+            task.allocation_task.task_id,
+            "--output",
+            str(output),
+        ],
+    )
+    assert replay.exit_code == 0, replay.output
+    escaped = tmp_path.parent / "escaped_lf022_batch_request.json"
+    escaped.unlink(missing_ok=True)
+    rejected = CliRunner().invoke(
+        app,
+        [
+            "make-lf022-public-batch-request",
+            "--root",
+            str(tmp_path),
+            "--admission",
+            str(admission_path),
+            "--allocation-task-id",
+            task.allocation_task.task_id,
+            "--output",
+            "../escaped_lf022_batch_request.json",
+        ],
+    )
+    assert rejected.exit_code == 2
+    assert not escaped.exists()
 
 
 def test_batch_freeze_and_offline_replay_are_deterministic(tmp_path: Path) -> None:
