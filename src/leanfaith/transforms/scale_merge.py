@@ -819,6 +819,15 @@ def _validate_projected_semantic_lineage(
             raise DeterministicScaleError(
                 f"candidate primary source leaves run universe: {candidate.theorem_id}"
             )
+        owner_run_spec_hash = (
+            source_run_spec_hashes.get(primary_source_id)
+            if source_run_spec_hashes is not None
+            else spec.run_spec_hash
+        )
+        if owner_run_spec_hash is None:
+            raise DeterministicScaleError(
+                f"candidate primary source lacks an owning run spec: {candidate.theorem_id}"
+            )
         validation_request_hash = candidate.metadata.get("validation_request_hash")
         inline_context_sha256 = candidate.metadata.get("inline_context_sha256")
         if any(
@@ -838,7 +847,7 @@ def _validate_projected_semantic_lineage(
             elaboration_diagnostics=candidate.elaboration_diagnostics,
             inline_elaboration_source=draft.candidate_code,
             metadata={
-                "run_spec_hash": spec.run_spec_hash,
+                "run_spec_hash": owner_run_spec_hash,
                 "scale_profile_id": config.profile_id,
                 "source_index": expected_source_index,
                 "validation_request_hash": validation_request_hash,
@@ -879,7 +888,7 @@ def _validate_projected_semantic_lineage(
                 f"candidate representation/status mismatch: {candidate.theorem_id}"
             )
         expected_metadata: dict[str, str | int | float | bool | None] = {
-            "run_spec_hash": spec.run_spec_hash,
+            "run_spec_hash": owner_run_spec_hash,
             "scale_profile_id": config.profile_id,
             "source_index": expected_source_index,
         }

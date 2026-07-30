@@ -977,6 +977,44 @@ def test_semantic_lineage_audit_rejects_rehashed_bad_pair_split_group() -> None:
         )
 
 
+def test_semantic_lineage_uses_the_candidate_source_owning_shard_run_spec() -> None:
+    source, source_representation, accepted = _accepted_source_shard()
+    projected = _project_records((accepted,))
+    config = load_config(
+        _ROOT / "configs/transformations/deterministic_scale_v1.yaml",
+        DeterministicScaleConfig,
+    ).config
+    first_shard_spec = DeterministicScaleRunSpec.model_construct(
+        run_spec_hash="0" * 64,
+        registry_hash="a" * 64,
+        source_universe_theorem_ids=(source.theorem_id,),
+    )
+
+    _validate_projected_semantic_lineage(
+        projected=projected,
+        source_shards=(accepted,),
+        source_theorems=(source,),
+        source_representations=(source_representation,),
+        spec=first_shard_spec,
+        config=config,
+        source_run_spec_hashes={source.theorem_id: accepted.run_spec_hash},
+    )
+
+    with pytest.raises(
+        DeterministicScaleError,
+        match="source journal shard leaves its exact run/inventory assignment",
+    ):
+        _validate_projected_semantic_lineage(
+            projected=projected,
+            source_shards=(accepted,),
+            source_theorems=(source,),
+            source_representations=(source_representation,),
+            spec=first_shard_spec,
+            config=config,
+            source_run_spec_hashes={},
+        )
+
+
 @pytest.mark.parametrize("tamper", ["source", "candidate_hash"])
 def test_semantic_lineage_audit_rejects_forged_quarantine_projection(
     tamper: str,
