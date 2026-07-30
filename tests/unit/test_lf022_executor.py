@@ -7,6 +7,7 @@ import fcntl
 import json
 import subprocess
 from collections.abc import Mapping
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -22,6 +23,16 @@ from leanfaith.config.hashing import (
 )
 from leanfaith.config.models import StrictModel
 from leanfaith.datasets.denylist import DenylistIndex, FrozenBenchmark, FrozenRegistry
+from leanfaith.generation.lf022_batch import (
+    LF022BatchError,
+    LF022BatchFreezeRequest,
+    LF022BatchRouteFreezeRequest,
+    LF022BatchRunPolicy,
+    RateLimitedRCPTransport,
+    freeze_lf022_public_batch,
+    make_lf022_batch_freeze_request,
+    run_lf022_public_batch,
+)
 from leanfaith.generation.lf022_execution import (
     LF022ExecutionArtifacts,
     LF022ExecutionError,
@@ -30,8 +41,10 @@ from leanfaith.generation.lf022_execution import (
     LF022RCPDecodingContract,
     LF022RCPRetryPolicy,
     LF022RCPRouteBinding,
+    load_lf022_execution_task_inputs,
     make_lf022_g_open_execution_admission,
     make_lf022_g_open_execution_task,
+    verify_lf022_execution_admission,
 )
 from leanfaith.generation.lf022_executor import (
     LF022ExecutorError,
@@ -1016,9 +1029,14 @@ def test_exact_kimi_qwen_glm_routes_pass_offline_preflight(
 ) -> None:
     admission, task = _fixture(tmp_path, model_id=model_id)
     transport = FakeTransport([])
+    output_root = (
+        tmp_path / "data/lf022_execution"
+        if admission.route.execution_scope == "one_item_proposer_qualification_only"
+        else tmp_path / "data/out"
+    )
     result = execute_lf022_g_open_task(
         repo_root=tmp_path,
-        output_root=tmp_path / "data/out",
+        output_root=output_root,
         admission=admission,
         task=task,
         transport=transport,
@@ -1844,3 +1862,550 @@ def test_interruption_after_raw_response_resumes_without_second_call(
     assert resumed.terminal.status == "provisional_variants_created"
     assert resumed.network_calls_this_run == 0
     assert replay_transport.calls == 0
+
+
+def _batch_request_binding(
+    root: Path,
+    *,
+    admission: LF022GOpenExecutionAdmission,
+    task: LF022GOpenExecutionTask,
+    batch_directory: str = "data/lf022_batch",
+    request_path: str = "data/lf022_batch_request.json",
+    executor_output_root: str = "data/lf022_execution",
+) -> LF022ArtifactBinding:
+    request = make_lf022_batch_freeze_request(
+        batch_directory=batch_directory,
+        executor_output_root=executor_output_root,
+        routes=(
+            LF022BatchRouteFreezeRequest(
+                proposer_family_id=admission.route.proposer_family_id,
+                public_pool_audit_id=admission.public_pool_audit_id,
+                allocation_plan_id=admission.allocation_plan_id,
+                execution_artifacts=admission.artifacts,
+                route=admission.route,
+                retry_policy=admission.retry_policy,
+                code_tree_hash=admission.code_tree_hash,
+                allocation_task_ids=(task.allocation_task.task_id,),
+            ),
+        ),
+    )
+    return _write_json(
+        root,
+        request_path,
+        request.model_dump(mode="json"),
+    )
+
+
+def test_batch_freeze_and_offline_replay_are_deterministic(tmp_path: Path) -> None:
+    admission, task = _fixture(tmp_path)
+    request_binding = _batch_request_binding(
+        tmp_path,
+        admission=admission,
+        task=task,
+    )
+    frozen = freeze_lf022_public_batch(
+        repo_root=tmp_path,
+        request_binding=request_binding,
+    )
+    replayed_freeze = freeze_lf022_public_batch(
+        repo_root=tmp_path,
+        request_binding=request_binding,
+    )
+    assert replayed_freeze.manifest == frozen.manifest
+    assert replayed_freeze.manifest_path.read_bytes() == frozen.manifest_path.read_bytes()
+    assert frozen.manifest.total_task_count == 1
+    assert frozen.manifest.semantic_labels_created is False
+    assert frozen.manifest.training_eligible is False
+    route = frozen.manifest.routes[0]
+    frozen_task = LF022GOpenExecutionTask.model_validate_json(
+        (tmp_path / route.tasks[0].task.path).read_bytes()
+    )
+    assert frozen_task.source.optional_natural_language is None
+    assert frozen_task.training_eligible is False
+
+    manifest_binding = LF022ArtifactBinding(
+        path=str(frozen.manifest_path.relative_to(tmp_path)),
+        sha256=hash_file(frozen.manifest_path),
+    )
+    first = run_lf022_public_batch(
+        repo_root=tmp_path,
+        manifest_binding=manifest_binding,
+        policy=LF022BatchRunPolicy(max_concurrency=2),
+    )
+    second = run_lf022_public_batch(
+        repo_root=tmp_path,
+        manifest_binding=manifest_binding,
+        policy=LF022BatchRunPolicy(max_concurrency=2),
+    )
+    assert first.report == second.report
+    assert first.report.preflight_only_count == 1
+    assert first.report.network_calls_this_run == 0
+    assert first.report.error_count == 0
+    events = sorted((tmp_path / frozen.manifest.journal_directory).glob("*/*.json"))
+    assert len(events) == 1
+
+
+@pytest.mark.parametrize(
+    "model_id",
+    (
+        "Qwen/Qwen3.5-397B-A17B",
+        "zai-org/GLM-5.2",
+    ),
+)
+def test_unqualified_batch_route_is_frozen_as_one_item_only(
+    tmp_path: Path,
+    model_id: str,
+) -> None:
+    admission, task = _fixture(tmp_path, model_id=model_id)
+    frozen = freeze_lf022_public_batch(
+        repo_root=tmp_path,
+        request_binding=_batch_request_binding(
+            tmp_path,
+            admission=admission,
+            task=task,
+        ),
+    )
+    route = frozen.manifest.routes[0]
+    assert route.execution_scope == "one_item_proposer_qualification_only"
+    assert route.qualification_state == "pending_one_item_mechanical_qualification"
+    assert len(route.tasks) == 1
+
+
+def test_qwen_batch_request_rejects_more_than_one_task(tmp_path: Path) -> None:
+    admission, task = _fixture(tmp_path, model_id="Qwen/Qwen3.5-397B-A17B")
+    with pytest.raises(ValueError, match="exactly one allocation task"):
+        LF022BatchRouteFreezeRequest(
+            proposer_family_id="qwen3",
+            public_pool_audit_id=admission.public_pool_audit_id,
+            allocation_plan_id=admission.allocation_plan_id,
+            execution_artifacts=admission.artifacts,
+            route=admission.route,
+            retry_policy=admission.retry_policy,
+            code_tree_hash=admission.code_tree_hash,
+            allocation_task_ids=tuple(
+                sorted(
+                    (
+                        task.allocation_task.task_id,
+                        f"lf022_production_task:{'2' * 64}",
+                    )
+                )
+            ),
+        )
+
+
+def test_batch_freeze_rejects_tampered_plan_binding(tmp_path: Path) -> None:
+    admission, task = _fixture(tmp_path)
+    request_binding = _batch_request_binding(
+        tmp_path,
+        admission=admission,
+        task=task,
+    )
+    (tmp_path / admission.artifacts.allocation_plan.path).write_text("{}\n", encoding="utf-8")
+    with pytest.raises(LF022BatchError, match="SHA-256 mismatch"):
+        freeze_lf022_public_batch(
+            repo_root=tmp_path,
+            request_binding=request_binding,
+        )
+
+
+def test_batch_freeze_rejects_noncanonical_prompt_before_execution(
+    tmp_path: Path,
+) -> None:
+    admission, task = _fixture(tmp_path)
+    malicious_prompt = _write_bytes(
+        tmp_path,
+        "prompts/proposers/unreviewed_private_prompt.txt",
+        b"PRIVATE_SENSITIVE_PAYLOAD\n",
+    )
+    artifacts = admission.artifacts.model_copy(update={"prompt_template": malicious_prompt})
+    unreviewed = make_lf022_g_open_execution_admission(
+        public_pool_audit_id=admission.public_pool_audit_id,
+        allocation_plan_id=admission.allocation_plan_id,
+        artifacts=artifacts,
+        route=admission.route,
+        retry_policy=admission.retry_policy,
+        code_tree_hash=admission.code_tree_hash,
+    )
+    with pytest.raises(LF022BatchError, match="exact reviewed proposer prompt"):
+        freeze_lf022_public_batch(
+            repo_root=tmp_path,
+            request_binding=_batch_request_binding(
+                tmp_path,
+                admission=unreviewed,
+                task=task,
+            ),
+        )
+
+
+def test_cached_verification_cannot_authorize_a_different_prompt(
+    tmp_path: Path,
+) -> None:
+    admission, task = _fixture(tmp_path)
+    verified = verify_lf022_execution_admission(
+        repo_root=tmp_path,
+        admission=admission,
+    )
+    task_inputs = load_lf022_execution_task_inputs(
+        repo_root=tmp_path,
+        verified=verified,
+    )
+    malicious_prompt = _write_bytes(
+        tmp_path,
+        "prompts/proposers/unreviewed_cached_private_prompt.txt",
+        b"PRIVATE_SENSITIVE_PAYLOAD\n",
+    )
+    unreviewed = make_lf022_g_open_execution_admission(
+        public_pool_audit_id=admission.public_pool_audit_id,
+        allocation_plan_id=admission.allocation_plan_id,
+        artifacts=admission.artifacts.model_copy(update={"prompt_template": malicious_prompt}),
+        route=admission.route,
+        retry_policy=admission.retry_policy,
+        code_tree_hash=admission.code_tree_hash,
+    )
+    unreviewed_task = make_lf022_g_open_execution_task(
+        admission=unreviewed,
+        allocation_task=task.allocation_task,
+        source=task.source,
+    )
+    with pytest.raises(LF022ExecutorError, match="different admission"):
+        prepare_lf022_g_open_execution(
+            repo_root=tmp_path,
+            output_root=tmp_path / "data/out",
+            admission=unreviewed,
+            task=unreviewed_task,
+            verified_admission=verified,
+            verified_task_inputs=task_inputs,
+            observed_code_tree_hash=unreviewed.code_tree_hash,
+        )
+
+    forged_cache = replace(verified, admission_id=unreviewed.admission_id)
+    with pytest.raises(LF022ExecutorError, match="exact reviewed proposer prompt"):
+        prepare_lf022_g_open_execution(
+            repo_root=tmp_path,
+            output_root=tmp_path / "data/out",
+            admission=unreviewed,
+            task=unreviewed_task,
+            verified_admission=forged_cache,
+            verified_task_inputs=task_inputs,
+            observed_code_tree_hash=unreviewed.code_tree_hash,
+        )
+
+
+def test_batch_request_rejects_noncanonical_executor_output_root(
+    tmp_path: Path,
+) -> None:
+    admission, task = _fixture(tmp_path, model_id="Qwen/Qwen3.5-397B-A17B")
+    with pytest.raises(ValueError, match="canonical global LF-022 executor root"):
+        _batch_request_binding(
+            tmp_path,
+            admission=admission,
+            task=task,
+            executor_output_root="data/a_second_executor_root",
+        )
+
+
+def test_single_task_qualification_rejects_alternate_output_root(
+    tmp_path: Path,
+) -> None:
+    admission, task = _fixture(tmp_path, model_id="Qwen/Qwen3.5-397B-A17B")
+    canonical_transport = FakeTransport([_success_response(admission.route.model_id)])
+    first = execute_lf022_g_open_task(
+        repo_root=tmp_path,
+        output_root=tmp_path / "data/lf022_execution",
+        admission=admission,
+        task=task,
+        execute_public_provisional=True,
+        credentials=_credentials(),
+        transport=canonical_transport,
+        clock=lambda: NOW,
+    )
+    assert canonical_transport.calls == 1
+    assert first.terminal is not None
+
+    alternate_transport = FakeTransport([])
+    with pytest.raises(LF022ExecutorError, match="canonical global LF-022 executor root"):
+        execute_lf022_g_open_task(
+            repo_root=tmp_path,
+            output_root=tmp_path / "data/alternate_qwen_root",
+            admission=admission,
+            task=task,
+            execute_public_provisional=True,
+            credentials=_credentials(),
+            transport=alternate_transport,
+            clock=lambda: NOW,
+        )
+    assert alternate_transport.calls == 0
+
+
+def test_legacy_cli_rejects_alternate_qualification_output_root(
+    tmp_path: Path,
+) -> None:
+    admission, task = _fixture(tmp_path, model_id="Qwen/Qwen3.5-397B-A17B")
+    admission_path = tmp_path / "admission.json"
+    task_path = tmp_path / "task.json"
+    admission_path.write_bytes(canonical_json_bytes(admission.model_dump(mode="json")))
+    task_path.write_bytes(canonical_json_bytes(task.model_dump(mode="json")))
+    result = CliRunner().invoke(
+        app,
+        [
+            "run-lf022-public-provisional",
+            "--root",
+            str(tmp_path),
+            "--admission",
+            str(admission_path),
+            "--task",
+            str(task_path),
+            "--output-root",
+            str(tmp_path / "data/alternate_qwen_cli_root"),
+        ],
+    )
+    assert result.exit_code == 2
+    assert "canonical global LF-022 executor root" in result.output
+
+
+def test_qualification_task_replays_globally_across_batch_directories(
+    tmp_path: Path,
+) -> None:
+    admission, task = _fixture(tmp_path, model_id="Qwen/Qwen3.5-397B-A17B")
+    first = freeze_lf022_public_batch(
+        repo_root=tmp_path,
+        request_binding=_batch_request_binding(
+            tmp_path,
+            admission=admission,
+            task=task,
+        ),
+    )
+    second = freeze_lf022_public_batch(
+        repo_root=tmp_path,
+        request_binding=_batch_request_binding(
+            tmp_path,
+            admission=admission,
+            task=task,
+            batch_directory="data/lf022_batch_second",
+            request_path="data/lf022_batch_request_second.json",
+        ),
+    )
+    first_binding = LF022ArtifactBinding(
+        path=str(first.manifest_path.relative_to(tmp_path)),
+        sha256=hash_file(first.manifest_path),
+    )
+    second_binding = LF022ArtifactBinding(
+        path=str(second.manifest_path.relative_to(tmp_path)),
+        sha256=hash_file(second.manifest_path),
+    )
+
+    live_transport = FakeTransport([_success_response(admission.route.model_id)])
+    first_run = run_lf022_public_batch(
+        repo_root=tmp_path,
+        manifest_binding=first_binding,
+        policy=LF022BatchRunPolicy(),
+        execute_public_provisional=True,
+        credentials=_credentials(),
+        transport=live_transport,
+    )
+    assert first_run.report.network_calls_this_run == 1
+
+    replay_transport = FakeTransport([])
+    second_run = run_lf022_public_batch(
+        repo_root=tmp_path,
+        manifest_binding=second_binding,
+        policy=LF022BatchRunPolicy(),
+        execute_public_provisional=True,
+        credentials=_credentials(),
+        transport=replay_transport,
+    )
+    assert replay_transport.calls == 0
+    assert second_run.report.replayed_terminal_count == 1
+    assert second_run.report.network_calls_this_run == 0
+
+
+def test_batch_run_requires_frozen_request_replay(tmp_path: Path) -> None:
+    admission, task = _fixture(tmp_path)
+    frozen = freeze_lf022_public_batch(
+        repo_root=tmp_path,
+        request_binding=_batch_request_binding(
+            tmp_path,
+            admission=admission,
+            task=task,
+        ),
+    )
+    (tmp_path / frozen.manifest.freeze_request.path).unlink()
+    with pytest.raises(LF022BatchError, match="missing or unsafe"):
+        run_lf022_public_batch(
+            repo_root=tmp_path,
+            manifest_binding=LF022ArtifactBinding(
+                path=str(frozen.manifest_path.relative_to(tmp_path)),
+                sha256=hash_file(frozen.manifest_path),
+            ),
+            policy=LF022BatchRunPolicy(),
+        )
+
+
+def test_batch_run_rejects_forged_copied_route_metadata(tmp_path: Path) -> None:
+    admission, task = _fixture(tmp_path)
+    frozen = freeze_lf022_public_batch(
+        repo_root=tmp_path,
+        request_binding=_batch_request_binding(
+            tmp_path,
+            admission=admission,
+            task=task,
+        ),
+    )
+    payload = frozen.manifest.model_dump(mode="json")
+    routes = payload["routes"]
+    assert isinstance(routes, list)
+    route = routes[0]
+    assert isinstance(route, dict)
+    route["model_id"] = "fabricated/model"
+    payload_without_id = {key: value for key, value in payload.items() if key != "batch_id"}
+    payload["batch_id"] = make_id("lf022_public_batch", payload_without_id)
+    forged = _write_json(
+        tmp_path,
+        "data/forged_batch_manifest.json",
+        payload,
+    )
+    with pytest.raises(LF022BatchError, match="frozen admission"):
+        run_lf022_public_batch(
+            repo_root=tmp_path,
+            manifest_binding=forged,
+            policy=LF022BatchRunPolicy(),
+        )
+
+
+def test_live_batch_is_explicit_and_resumes_without_a_second_call(tmp_path: Path) -> None:
+    admission, task = _fixture(tmp_path)
+    frozen = freeze_lf022_public_batch(
+        repo_root=tmp_path,
+        request_binding=_batch_request_binding(
+            tmp_path,
+            admission=admission,
+            task=task,
+        ),
+    )
+    manifest_binding = LF022ArtifactBinding(
+        path=str(frozen.manifest_path.relative_to(tmp_path)),
+        sha256=hash_file(frozen.manifest_path),
+    )
+    with pytest.raises(LF022BatchError, match="requires runtime credentials"):
+        run_lf022_public_batch(
+            repo_root=tmp_path,
+            manifest_binding=manifest_binding,
+            policy=LF022BatchRunPolicy(),
+            execute_public_provisional=True,
+        )
+
+    live_transport = FakeTransport([_success_response(admission.route.model_id)])
+    live = run_lf022_public_batch(
+        repo_root=tmp_path,
+        manifest_binding=manifest_binding,
+        policy=LF022BatchRunPolicy(max_concurrency=2),
+        execute_public_provisional=True,
+        credentials=_credentials(),
+        transport=live_transport,
+    )
+    assert live_transport.calls == 1
+    assert live.report.new_terminal_count == 1
+    assert live.report.network_calls_this_run == 1
+    assert live.report.terminal_status_counts == {"provisional_variants_created": 1}
+
+    replay_transport = FakeTransport([])
+    replay = run_lf022_public_batch(
+        repo_root=tmp_path,
+        manifest_binding=manifest_binding,
+        policy=LF022BatchRunPolicy(max_concurrency=2),
+        execute_public_provisional=True,
+        credentials=_credentials(),
+        transport=replay_transport,
+    )
+    assert replay_transport.calls == 0
+    assert replay.report.replayed_terminal_count == 1
+    assert replay.report.network_calls_this_run == 0
+    events = sorted((tmp_path / frozen.manifest.journal_directory).glob("*/*.json"))
+    assert len(events) == 2
+
+
+def test_rate_limiter_applies_to_every_transport_start() -> None:
+    clock_values = iter((0.0, 0.0, 2.0, 2.0))
+    sleeps: list[float] = []
+    underlying = FakeTransport(
+        [
+            _success_response("moonshotai/Kimi-K2.7-Code"),
+            _success_response("moonshotai/Kimi-K2.7-Code"),
+        ]
+    )
+    limited = RateLimitedRCPTransport(
+        underlying=underlying,
+        minimum_interval_seconds=2.0,
+        monotonic=lambda: next(clock_values),
+        sleeper=sleeps.append,
+    )
+    payload: Mapping[str, object] = {"model": "moonshotai/Kimi-K2.7-Code"}
+    url = "https://inference.rcp.epfl.ch/v1/chat/completions"
+    limited.post_json(url=url, api_key="secret", payload=payload, timeout_seconds=1)
+    limited.post_json(url=url, api_key="secret", payload=payload, timeout_seconds=1)
+    assert underlying.calls == 2
+    assert sleeps == [2.0]
+
+
+def test_batch_request_rejects_duplicate_route_family(tmp_path: Path) -> None:
+    admission, task = _fixture(tmp_path)
+    kimi = LF022BatchRouteFreezeRequest(
+        proposer_family_id="moonshot_kimi_k2",
+        public_pool_audit_id=admission.public_pool_audit_id,
+        allocation_plan_id=admission.allocation_plan_id,
+        execution_artifacts=admission.artifacts,
+        route=admission.route,
+        retry_policy=admission.retry_policy,
+        code_tree_hash=admission.code_tree_hash,
+        allocation_task_ids=(task.allocation_task.task_id,),
+    )
+    payload = {
+        "schema_version": 1,
+        "request_id": f"lf022_batch_request:{'c' * 64}",
+        "batch_directory": "data/batch",
+        "executor_output_root": "data/lf022_execution",
+        "routes": [kimi, kimi],
+    }
+    with pytest.raises(ValueError, match="must be unique"):
+        LF022BatchFreezeRequest.model_validate(payload)
+
+
+def test_batch_cli_freezes_then_preflights_without_credentials(tmp_path: Path) -> None:
+    admission, task = _fixture(tmp_path)
+    request_binding = _batch_request_binding(
+        tmp_path,
+        admission=admission,
+        task=task,
+    )
+    runner = CliRunner()
+    frozen = runner.invoke(
+        app,
+        [
+            "freeze-lf022-public-batch",
+            "--root",
+            str(tmp_path),
+            "--request",
+            str(tmp_path / request_binding.path),
+        ],
+    )
+    assert frozen.exit_code == 0, frozen.output
+    assert "tasks=1" in frozen.output
+    assert "network_calls_this_run=0" in frozen.output
+
+    executed = runner.invoke(
+        app,
+        [
+            "run-lf022-public-batch",
+            "--root",
+            str(tmp_path),
+            "--manifest",
+            str(tmp_path / "data/lf022_batch/batch_manifest.json"),
+            "--max-concurrency",
+            "2",
+        ],
+        env={"RCP_BASE_URL": "", "RCP_API_KEY": ""},
+    )
+    assert executed.exit_code == 0, executed.output
+    assert "mode=offline" in executed.output
+    assert "preflight_only=1" in executed.output
+    assert "network_calls_this_run=0" in executed.output

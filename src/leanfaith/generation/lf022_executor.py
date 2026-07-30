@@ -28,8 +28,14 @@ from leanfaith.config.hashing import (
 )
 from leanfaith.config.models import StrictModel
 from leanfaith.generation.lf022_execution import (
+    LF022_CANONICAL_EXECUTOR_OUTPUT_ROOT,
+    LF022_REVIEWED_PROPOSER_PROMPT_PATH,
+    LF022_REVIEWED_PROPOSER_PROMPT_SHA256,
     LF022GOpenExecutionAdmission,
     LF022GOpenExecutionTask,
+    VerifiedLF022ExecutionAdmission,
+    VerifiedLF022ExecutionTaskInputs,
+    make_lf022_qualification_claim,
     verify_lf022_execution_admission,
     verify_lf022_execution_task,
 )
@@ -471,26 +477,60 @@ def prepare_lf022_g_open_execution(
     output_root: Path,
     admission: LF022GOpenExecutionAdmission,
     task: LF022GOpenExecutionTask,
+    verified_admission: VerifiedLF022ExecutionAdmission | None = None,
+    verified_task_inputs: VerifiedLF022ExecutionTaskInputs | None = None,
+    observed_code_tree_hash: str | None = None,
 ) -> PreparedLF022Execution:
     """Validate exact bindings and persist a network-free preflight."""
 
-    try:
-        current_code_tree_hash = collect_code_state(repo_root).code_tree_hash
-    except ManifestError as exc:
-        raise LF022ExecutorError(f"cannot verify current code tree: {exc}") from exc
+    current_code_tree_hash = observed_code_tree_hash
+    if current_code_tree_hash is None:
+        try:
+            current_code_tree_hash = collect_code_state(repo_root).code_tree_hash
+        except ManifestError as exc:
+            raise LF022ExecutorError(f"cannot verify current code tree: {exc}") from exc
     if current_code_tree_hash != admission.code_tree_hash:
         raise LF022ExecutorError("current repository code tree differs from execution admission")
     canonical_output_root = _repository_output_root(repo_root, output_root)
-    verified = verify_lf022_execution_admission(
-        repo_root=repo_root,
-        admission=admission,
-    )
+    if verified_admission is not None:
+        if verified_admission.admission_id != admission.admission_id:
+            raise LF022ExecutorError("cached verification belongs to a different admission")
+        verified = verified_admission
+    else:
+        if verified_task_inputs is not None:
+            raise LF022ExecutorError("cached task inputs require the matching verified admission")
+        verified = verify_lf022_execution_admission(
+            repo_root=repo_root,
+            admission=admission,
+        )
     verify_lf022_execution_task(
         repo_root=repo_root,
         admission=admission,
         verified=verified,
         task=task,
+        inputs=verified_task_inputs,
     )
+    if (
+        admission.artifacts.prompt_template.path != LF022_REVIEWED_PROPOSER_PROMPT_PATH
+        or admission.artifacts.prompt_template.sha256 != LF022_REVIEWED_PROPOSER_PROMPT_SHA256
+    ):
+        raise LF022ExecutorError("execution prompt differs from the exact reviewed proposer prompt")
+    if admission.route.execution_scope == "one_item_proposer_qualification_only":
+        expected_output_root = repo_root.resolve(strict=True) / LF022_CANONICAL_EXECUTOR_OUTPUT_ROOT
+        if canonical_output_root != expected_output_root:
+            raise LF022ExecutorError(
+                "qualification execution requires the canonical global LF-022 executor root"
+            )
+        claim = make_lf022_qualification_claim(
+            admission=admission,
+            task=task,
+        )
+        _immutable(
+            canonical_output_root
+            / "qualification_claims"
+            / f"{admission.route.proposer_family_id}.json",
+            canonical_json_bytes(claim.model_dump(mode="json")),
+        )
     prompt_path = repo_root / admission.artifacts.prompt_template.path
     prompt = render_variant_proposer_prompt(
         task.prompt_request(),
@@ -1756,6 +1796,9 @@ def execute_lf022_g_open_task(
     sleeper: Callable[[float], None] | None = None,
     clock: Callable[[], datetime.datetime] | None = None,
     after_wire_response_persisted: Callable[[], None] | None = None,
+    verified_admission: VerifiedLF022ExecutionAdmission | None = None,
+    verified_task_inputs: VerifiedLF022ExecutionTaskInputs | None = None,
+    observed_code_tree_hash: str | None = None,
 ) -> LF022ExecutionResult:
     """Preflight by default; execute only with the explicit live flag."""
 
@@ -1764,6 +1807,9 @@ def execute_lf022_g_open_task(
         output_root=output_root,
         admission=admission,
         task=task,
+        verified_admission=verified_admission,
+        verified_task_inputs=verified_task_inputs,
+        observed_code_tree_hash=observed_code_tree_hash,
     )
     terminal_path = prepared.task_directory / "terminal.json"
     if terminal_path.exists():

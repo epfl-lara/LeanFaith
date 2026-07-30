@@ -3014,6 +3014,115 @@ def run_lf022_public_provisional_command(
     )
 
 
+@app.command("freeze-lf022-public-batch")
+def freeze_lf022_public_batch_command(
+    request_path: Annotated[
+        Path,
+        typer.Option(
+            "--request",
+            help="Content-addressed public batch freeze request JSON.",
+        ),
+    ],
+    root_dir: Annotated[
+        Path | None,
+        typer.Option("--root", help="Repository root override."),
+    ] = None,
+) -> None:
+    """Replay reviewed admissions and freeze public-only LF-022 task JSON files."""
+    from leanfaith.cli.lf022_batch import freeze_public_batch
+    from leanfaith.config.paths import RepoPaths
+    from leanfaith.generation.lf022_batch import LF022BatchError
+
+    paths = RepoPaths.discover(root_dir) if root_dir is None else RepoPaths(root=root_dir)
+    anchored_request = request_path if request_path.is_absolute() else paths.root / request_path
+    try:
+        result = freeze_public_batch(
+            repo_root=paths.root,
+            request_path=anchored_request,
+        )
+    except (LF022BatchError, OSError, ValueError) as exc:
+        typer.echo(f"LF-022 public batch freeze rejected: {exc}", err=True)
+        raise typer.Exit(code=2) from exc
+    typer.echo(
+        f"batch_id={result.manifest.batch_id} "
+        f"tasks={result.manifest.total_task_count} "
+        f"manifest={result.manifest_path} "
+        "network_calls_this_run=0 semantic_labels_created=0 "
+        "training_eligible=false evaluation_eligible=false gate_credit_claimed=false"
+    )
+
+
+@app.command("run-lf022-public-batch")
+def run_lf022_public_batch_command(
+    manifest_path: Annotated[
+        Path,
+        typer.Option(
+            "--manifest",
+            help="Frozen public batch manifest JSON.",
+        ),
+    ],
+    max_concurrency: Annotated[
+        int,
+        typer.Option(
+            "--max-concurrency",
+            min=1,
+            max=8,
+            help="Maximum concurrent task executions.",
+        ),
+    ] = 1,
+    minimum_request_interval_seconds: Annotated[
+        float,
+        typer.Option(
+            "--minimum-request-interval-seconds",
+            min=0.0,
+            max=300.0,
+            help="Minimum start interval shared by all provider requests and retries.",
+        ),
+    ] = 0.0,
+    execute_public_provisional: Annotated[
+        bool,
+        typer.Option(
+            "--execute-public-provisional",
+            help="Explicitly permit public provisional RCP calls; omitted is offline.",
+        ),
+    ] = False,
+    root_dir: Annotated[
+        Path | None,
+        typer.Option("--root", help="Repository root override."),
+    ] = None,
+) -> None:
+    """Preflight/replay a batch offline, or explicitly collect provisional candidates."""
+    from leanfaith.cli.lf022_batch import run_public_batch
+    from leanfaith.config.paths import RepoPaths
+    from leanfaith.generation.lf022_batch import LF022BatchError
+
+    paths = RepoPaths.discover(root_dir) if root_dir is None else RepoPaths(root=root_dir)
+    anchored_manifest = manifest_path if manifest_path.is_absolute() else paths.root / manifest_path
+    try:
+        result = run_public_batch(
+            repo_root=paths.root,
+            manifest_path=anchored_manifest,
+            max_concurrency=max_concurrency,
+            minimum_request_interval_seconds=minimum_request_interval_seconds,
+            execute_public_provisional=execute_public_provisional,
+        )
+    except (LF022BatchError, OSError, ValueError) as exc:
+        typer.echo(f"LF-022 public batch run rejected: {exc}", err=True)
+        raise typer.Exit(code=2) from exc
+    report = result.report
+    typer.echo(
+        f"mode={report.mode} tasks={report.task_count} "
+        f"preflight_only={report.preflight_only_count} "
+        f"replayed_terminal={report.replayed_terminal_count} "
+        f"new_terminal={report.new_terminal_count} errors={report.error_count} "
+        f"network_calls_this_run={report.network_calls_this_run} "
+        f"report={result.report_path} semantic_labels_created=0 "
+        "training_eligible=false evaluation_eligible=false gate_credit_claimed=false"
+    )
+    if report.error_count:
+        raise typer.Exit(code=2)
+
+
 @app.command("audit-training-readiness")
 def audit_training_readiness_command(
     config_path: Annotated[

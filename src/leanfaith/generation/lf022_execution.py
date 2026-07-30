@@ -46,6 +46,11 @@ from leanfaith.schemas.theorem import ContextRecord, RepresentationRecord, Theor
 
 _PRIVATE_SOURCE_MARKERS = ("formalmathatepfl/sft_classic", "sft_classic")
 _CATALOG_REVISION_PREFIX = "rcp-catalog-sha256:"
+LF022_CANONICAL_EXECUTOR_OUTPUT_ROOT = "data/lf022_execution"
+LF022_REVIEWED_PROPOSER_PROMPT_PATH = "prompts/proposers/lean_variant_v1.txt"
+LF022_REVIEWED_PROPOSER_PROMPT_SHA256 = (
+    "0f7b74aab06659e745980879cf9a13cdbcdd29927c1ddbb7ca47c6840e541f36"
+)
 
 
 class LF022ExecutionError(RuntimeError):
@@ -56,9 +61,29 @@ class LF022ExecutionError(RuntimeError):
 class VerifiedLF022ExecutionAdmission:
     """Hash-verified allocation and public-pool inputs."""
 
+    admission_id: str
     plan: LF022ProductionPlanManifest
     audit: LF022PublicPoolAudit
     family_matrix: LF022ProductionFamilyMatrix
+
+
+@dataclass(frozen=True, slots=True)
+class VerifiedLF022ExecutionTaskInputs:
+    """One immutable in-memory view of the exact public task artifacts.
+
+    Batch execution loads and hash-checks these artifacts once per admission.
+    Individual execution retains the existing fail-closed behavior by loading
+    the same view on demand.
+    """
+
+    source_records: tuple[LF022ProductionSourceRecord, ...]
+    theorems: tuple[TheoremRecord, ...]
+    representations: tuple[RepresentationRecord, ...]
+    contexts: tuple[ContextRecord, ...]
+    clearances: tuple[LF022DenylistClearanceRecord, ...]
+    benchmark_manifest: LF022BenchmarkRegistryManifest
+    active_registry: FrozenRegistry
+    authorization_registry: LF022PublicSourceAuthorizationRegistry
 
 
 def _safe_relative_path(value: str, *, field: str) -> str:
@@ -304,6 +329,36 @@ class LF022ExecutionArtifacts(StrictModel):
     code_bundle: LF022ArtifactBinding
 
 
+class LF022QualificationClaim(StrictModel):
+    """Repository-global exactly-once reservation for an unqualified proposer."""
+
+    schema_version: Literal[1] = 1
+    claim_id: str = Field(pattern=id_pattern("lf022_qualification_claim"))
+    proposer_family_id: Literal["qwen3", "glm5"]
+    model_id: str
+    execution_scope: Literal["one_item_proposer_qualification_only"]
+    admission_id: str = Field(pattern=id_pattern("lf022_execution_admission"))
+    execution_task_id: str = Field(pattern=id_pattern("lf022_execution_task"))
+    allocation_task_id: str = Field(pattern=id_pattern("lf022_production_task"))
+    public_pool_audit_id: str = Field(pattern=id_pattern("lf022_public_pool_audit"))
+    allocation_plan_id: str = Field(pattern=id_pattern("lf022_production_plan"))
+    output_quality_tier: Literal["provisional"] = "provisional"
+    semantic_labels_created: Literal[False] = False
+    training_eligible: Literal[False] = False
+    gate_credit_claimed: Literal[False] = False
+
+    @model_validator(mode="after")
+    def _content_addressed(self) -> Self:
+        expected = _content_id(
+            "lf022_qualification_claim",
+            self,
+            id_field="claim_id",
+        )
+        if self.claim_id != expected:
+            raise ValueError("claim_id does not match canonical qualification claim")
+        return self
+
+
 class LF022GOpenExecutionAdmission(StrictModel):
     """Reviewed authority for proposer-only, public, provisional collection."""
 
@@ -497,6 +552,42 @@ def make_lf022_g_open_execution_task(
         {
             **payload,
             "execution_task_id": make_id("lf022_execution_task", payload),
+        }
+    )
+
+
+def make_lf022_qualification_claim(
+    *,
+    admission: LF022GOpenExecutionAdmission,
+    task: LF022GOpenExecutionTask,
+) -> LF022QualificationClaim:
+    """Bind the one repository-global Qwen/GLM qualification task."""
+
+    if admission.route.proposer_family_id not in {"qwen3", "glm5"}:
+        raise LF022ExecutionError("only Qwen/GLM routes may reserve a qualification claim")
+    if admission.route.execution_scope != "one_item_proposer_qualification_only":
+        raise LF022ExecutionError("qualification claim requires the one-item execution scope")
+    if task.execution_admission_id != admission.admission_id:
+        raise LF022ExecutionError("qualification claim task differs from its admission")
+    payload: dict[str, object] = {
+        "schema_version": 1,
+        "proposer_family_id": admission.route.proposer_family_id,
+        "model_id": admission.route.model_id,
+        "execution_scope": admission.route.execution_scope,
+        "admission_id": admission.admission_id,
+        "execution_task_id": task.execution_task_id,
+        "allocation_task_id": task.allocation_task.task_id,
+        "public_pool_audit_id": admission.public_pool_audit_id,
+        "allocation_plan_id": admission.allocation_plan_id,
+        "output_quality_tier": "provisional",
+        "semantic_labels_created": False,
+        "training_eligible": False,
+        "gate_credit_claimed": False,
+    }
+    return LF022QualificationClaim.model_validate(
+        {
+            **payload,
+            "claim_id": make_id("lf022_qualification_claim", payload),
         }
     )
 
@@ -963,6 +1054,11 @@ def verify_lf022_execution_admission(
         or audit.active_benchmark_registry != plan.artifacts.active_benchmark_registry
     ):
         raise LF022ExecutionError("public-pool audit and allocation-plan artifacts differ")
+    if (
+        admission.artifacts.prompt_template.path != LF022_REVIEWED_PROPOSER_PROMPT_PATH
+        or admission.artifacts.prompt_template.sha256 != LF022_REVIEWED_PROPOSER_PROMPT_SHA256
+    ):
+        raise LF022ExecutionError("prompt template differs from the exact reviewed proposer prompt")
     if admission.artifacts.prompt_template.sha256 != hash_file(paths["prompt_template"]):
         raise LF022ExecutionError("prompt-template binding drifted")
 
@@ -1037,41 +1133,19 @@ def verify_lf022_execution_admission(
     except (OSError, ValueError) as exc:
         raise LF022ExecutionError(f"code-bundle validation failed: {exc}") from exc
     return VerifiedLF022ExecutionAdmission(
+        admission_id=admission.admission_id,
         plan=plan,
         audit=audit,
         family_matrix=family_matrix,
     )
 
 
-def verify_lf022_execution_task(
+def load_lf022_execution_task_inputs(
     *,
     repo_root: Path,
-    admission: LF022GOpenExecutionAdmission,
     verified: VerifiedLF022ExecutionAdmission,
-    task: LF022GOpenExecutionTask,
-) -> None:
-    """Require exact task membership and route/source agreement before prompting."""
-
-    if (
-        task.execution_admission_id != admission.admission_id
-        or task.allocation_plan_id != admission.allocation_plan_id
-        or task.normalization_version != admission.normalization_version
-    ):
-        raise LF022ExecutionError("execution task differs from its admission")
-    if task.allocation_task.proposer_family_id != admission.route.proposer_family_id:
-        raise LF022ExecutionError("task proposer family differs from admitted route")
-    if (
-        admission.route.execution_scope == "one_item_proposer_qualification_only"
-        and task.proposal_count != 1
-    ):
-        raise LF022ExecutionError(
-            "proposer qualification route task must request exactly one proposal"
-        )
-    matching = tuple(
-        item for item in verified.plan.tasks if item.task_id == task.allocation_task.task_id
-    )
-    if matching != (task.allocation_task,):
-        raise LF022ExecutionError("allocation task is absent or differs from the bound plan")
+) -> VerifiedLF022ExecutionTaskInputs:
+    """Load every exact public task artifact once for bounded batch reuse."""
 
     audit = verified.audit
     source_records = _load_bound_jsonl(
@@ -1104,51 +1178,6 @@ def verify_lf022_execution_task(
         model=LF022DenylistClearanceRecord,
         label="denylist clearance records",
     )
-    allocation = task.allocation_task
-    source_record = _exactly_one(
-        source_records,
-        predicate=lambda record: record.admission_record_id == allocation.admission_record_id,
-        label="allocation source",
-    )
-    theorem = _exactly_one(
-        theorems,
-        predicate=lambda record: record.theorem_id == allocation.theorem_id,
-        label="allocation theorem",
-    )
-    representation = _exactly_one(
-        representations,
-        predicate=lambda record: record.representation_id == allocation.representation_id,
-        label="allocation representation",
-    )
-    context = _exactly_one(
-        contexts,
-        predicate=lambda record: record.context_id == allocation.context_id,
-        label="allocation context",
-    )
-    clearance = _exactly_one(
-        clearances,
-        predicate=lambda record: record.clearance_id == source_record.denylist_clearance_id,
-        label="allocation denylist clearance",
-    )
-    if (
-        source_record.theorem_id != theorem.theorem_id
-        or source_record.representation_id != representation.representation_id
-        or source_record.context_id != context.context_id
-        or source_record.source != theorem.source
-        or source_record.source_revision != theorem.source_revision
-        or source_record.theorem_statement_content_hash != theorem.statement_content_hash
-        or source_record.representation_content_hash != representation.content_hash
-        or source_record.context_fingerprint != context.context_fingerprint
-        or source_record.context_header_hash != context.header_hash
-        or representation.theorem_id != theorem.theorem_id
-        or representation.context_id != context.context_id
-    ):
-        raise LF022ExecutionError("public source/theorem/representation/context linkage differs")
-    if (
-        source_record.normalization_version != admission.normalization_version
-        or representation.normalization_version != admission.normalization_version
-    ):
-        raise LF022ExecutionError("execution source is not represented under repr_v3")
     benchmark_manifest_path = _bound_path(
         repo_root=repo_root,
         binding=audit.outputs.benchmark_registry_manifest,
@@ -1173,6 +1202,119 @@ def verify_lf022_execution_task(
         label="active benchmark registry",
     )
     assert isinstance(active_registry, FrozenRegistry)
+    if (
+        DenylistIndex(active_registry).registry_content_hash
+        != audit.active_benchmark_registry_content_hash
+    ):
+        raise LF022ExecutionError("active benchmark registry content hash differs")
+    registry_path = _bound_path(
+        repo_root=repo_root,
+        binding=audit.outputs.public_source_authorization_registry,
+        label="public source authorization registry",
+    )
+    registry = _load_strict_json(
+        registry_path,
+        LF022PublicSourceAuthorizationRegistry,
+        label="public source authorization registry",
+    )
+    assert isinstance(registry, LF022PublicSourceAuthorizationRegistry)
+    return VerifiedLF022ExecutionTaskInputs(
+        source_records=source_records,
+        theorems=theorems,
+        representations=representations,
+        contexts=contexts,
+        clearances=clearances,
+        benchmark_manifest=benchmark_manifest,
+        active_registry=active_registry,
+        authorization_registry=registry,
+    )
+
+
+def verify_lf022_execution_task(
+    *,
+    repo_root: Path,
+    admission: LF022GOpenExecutionAdmission,
+    verified: VerifiedLF022ExecutionAdmission,
+    task: LF022GOpenExecutionTask,
+    inputs: VerifiedLF022ExecutionTaskInputs | None = None,
+) -> None:
+    """Require exact task membership and route/source agreement before prompting."""
+
+    if (
+        task.execution_admission_id != admission.admission_id
+        or task.allocation_plan_id != admission.allocation_plan_id
+        or task.normalization_version != admission.normalization_version
+    ):
+        raise LF022ExecutionError("execution task differs from its admission")
+    if task.allocation_task.proposer_family_id != admission.route.proposer_family_id:
+        raise LF022ExecutionError("task proposer family differs from admitted route")
+    if (
+        admission.route.execution_scope == "one_item_proposer_qualification_only"
+        and task.proposal_count != 1
+    ):
+        raise LF022ExecutionError(
+            "proposer qualification route task must request exactly one proposal"
+        )
+    matching = tuple(
+        item for item in verified.plan.tasks if item.task_id == task.allocation_task.task_id
+    )
+    if matching != (task.allocation_task,):
+        raise LF022ExecutionError("allocation task is absent or differs from the bound plan")
+
+    audit = verified.audit
+    task_inputs = inputs or load_lf022_execution_task_inputs(
+        repo_root=repo_root,
+        verified=verified,
+    )
+    allocation = task.allocation_task
+    source_record = _exactly_one(
+        task_inputs.source_records,
+        predicate=lambda record: record.admission_record_id == allocation.admission_record_id,
+        label="allocation source",
+    )
+    theorem = _exactly_one(
+        task_inputs.theorems,
+        predicate=lambda record: record.theorem_id == allocation.theorem_id,
+        label="allocation theorem",
+    )
+    representation = _exactly_one(
+        task_inputs.representations,
+        predicate=lambda record: record.representation_id == allocation.representation_id,
+        label="allocation representation",
+    )
+    context = _exactly_one(
+        task_inputs.contexts,
+        predicate=lambda record: record.context_id == allocation.context_id,
+        label="allocation context",
+    )
+    clearance = _exactly_one(
+        task_inputs.clearances,
+        predicate=lambda record: record.clearance_id == source_record.denylist_clearance_id,
+        label="allocation denylist clearance",
+    )
+    if (
+        source_record.theorem_id != theorem.theorem_id
+        or source_record.representation_id != representation.representation_id
+        or source_record.context_id != context.context_id
+        or source_record.source != theorem.source
+        or source_record.source_revision != theorem.source_revision
+        or source_record.theorem_statement_content_hash != theorem.statement_content_hash
+        or source_record.representation_content_hash != representation.content_hash
+        or source_record.context_fingerprint != context.context_fingerprint
+        or source_record.context_header_hash != context.header_hash
+        or representation.theorem_id != theorem.theorem_id
+        or representation.context_id != context.context_id
+    ):
+        raise LF022ExecutionError("public source/theorem/representation/context linkage differs")
+    if (
+        source_record.normalization_version != admission.normalization_version
+        or representation.normalization_version != admission.normalization_version
+    ):
+        raise LF022ExecutionError("execution source is not represented under repr_v3")
+    benchmark_manifest = task_inputs.benchmark_manifest
+    if benchmark_manifest.active_registry != audit.active_benchmark_registry:
+        raise LF022ExecutionError("benchmark registry manifest differs from public-pool audit")
+    active_registry = task_inputs.active_registry
     if (
         DenylistIndex(active_registry).registry_content_hash
         != audit.active_benchmark_registry_content_hash
@@ -1217,20 +1359,9 @@ def verify_lf022_execution_task(
     ):
         raise LF022ExecutionError("prompt source content differs from the bound public pool")
 
-    registry_path = _bound_path(
-        repo_root=repo_root,
-        binding=audit.outputs.public_source_authorization_registry,
-        label="public source authorization registry",
-    )
-    registry = _load_strict_json(
-        registry_path,
-        LF022PublicSourceAuthorizationRegistry,
-        label="public source authorization registry",
-    )
-    assert isinstance(registry, LF022PublicSourceAuthorizationRegistry)
     authorizations = tuple(
         item
-        for item in registry.authorizations
+        for item in task_inputs.authorization_registry.authorizations
         if item.authorization_id == source_record.public_source_authorization_id
     )
     if len(authorizations) != 1:
@@ -1247,16 +1378,23 @@ def verify_lf022_execution_task(
 
 
 __all__ = [
+    "LF022_CANONICAL_EXECUTOR_OUTPUT_ROOT",
+    "LF022_REVIEWED_PROPOSER_PROMPT_PATH",
+    "LF022_REVIEWED_PROPOSER_PROMPT_SHA256",
     "LF022ExecutionArtifacts",
     "LF022ExecutionError",
     "LF022GOpenExecutionAdmission",
     "LF022GOpenExecutionTask",
+    "LF022QualificationClaim",
     "LF022RCPDecodingContract",
     "LF022RCPRetryPolicy",
     "LF022RCPRouteBinding",
     "VerifiedLF022ExecutionAdmission",
+    "VerifiedLF022ExecutionTaskInputs",
+    "load_lf022_execution_task_inputs",
     "make_lf022_g_open_execution_admission",
     "make_lf022_g_open_execution_task",
+    "make_lf022_qualification_claim",
     "verify_lf022_execution_admission",
     "verify_lf022_execution_task",
 ]
