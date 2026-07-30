@@ -250,7 +250,9 @@ def test_sft_non_prop_question_does_not_suppress_valid_theorem_fallback(tmp_path
     assert failures == [
         {
             "code": "not_a_proposition",
+            "declaration_full_name": "t_ok",
             "declaration_name": "t_ok",
+            "declaration_ordinal": 0,
             "detail": "declaration kind 'definition' is not proposition-valued",
             "extraction_route": "question_statement",
             "outcome_level": "declaration",
@@ -298,7 +300,9 @@ def test_sft_persists_skipped_alternate_route_declaration(
     assert stats.failure_codes == {"alternate_route_skipped": 1}
     assert failure == {
         "code": "alternate_route_skipped",
+        "declaration_full_name": "t_ok",
         "declaration_name": "t_ok",
+        "declaration_ordinal": 0,
         "detail": (
             "lean_code_fallback proposition skipped because "
             "question_statement is the canonical extraction route"

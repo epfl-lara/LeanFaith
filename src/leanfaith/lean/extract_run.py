@@ -237,6 +237,8 @@ def _append_failures(result: ExtractionResult, failures_path: Path) -> None:
     failures_path.parent.mkdir(parents=True, exist_ok=True)
     with failures_path.open("a", encoding="utf-8") as fh:
         for failure in result.failures:
+            if failure.outcome_level == "declaration" and not failure.extraction_route:
+                raise ValueError("declaration failure lacks extraction_route")
             fh.write(
                 json.dumps(
                     {
@@ -246,6 +248,8 @@ def _append_failures(result: ExtractionResult, failures_path: Path) -> None:
                         "detail": failure.detail,
                         "outcome_level": failure.outcome_level,
                         "extraction_route": failure.extraction_route,
+                        "declaration_ordinal": failure.declaration_ordinal,
+                        "declaration_full_name": failure.declaration_full_name,
                     },
                     ensure_ascii=False,
                     sort_keys=True,
@@ -373,6 +377,7 @@ def extract_repository_files(
                 source_revision=source_revision,
                 source_record=rel,
                 context_id=context_id,
+                extraction_route="repository_file",
                 source_file=rel,
             ),
             source_text,
@@ -463,6 +468,7 @@ def extract_dataset_snippets(
                 source_revision=source_revision,
                 source_record=record_id,
                 context_id=context_id,
+                extraction_route="dataset_snippet",
             ),
             snippet,
             declarations,
@@ -499,6 +505,11 @@ def extract_dataset_snippets(
                             extracted.theorem.declaration_name,
                             ExtractionFailureCode.REVALIDATION_FAILED,
                             f"stripped statement re-elaborated as {reval.status.value}",
+                            extraction_route=(
+                                extracted.theorem.extraction_route or "dataset_snippet"
+                            ),
+                            declaration_ordinal=extracted.theorem.declaration_ordinal,
+                            declaration_full_name=extracted.theorem.declaration_full_name,
                         )
                     )
                     stats.failures += 1
@@ -731,6 +742,9 @@ def _revalidate_route(
                     item.theorem.declaration_name,
                     ExtractionFailureCode.REVALIDATION_FAILED,
                     f"stripped statement re-elaborated as {result.status.value}",
+                    extraction_route=item.theorem.extraction_route,
+                    declaration_ordinal=item.theorem.declaration_ordinal,
+                    declaration_full_name=item.theorem.declaration_full_name,
                 )
             )
         else:
@@ -859,6 +873,8 @@ def extract_sft_classic_rows(
                 ),
                 outcome_level="declaration",
                 extraction_route=alternate_route,
+                declaration_ordinal=item.theorem.declaration_ordinal,
+                declaration_full_name=item.theorem.declaration_full_name,
             )
             for item in alternate_extraction.accepted
         )
