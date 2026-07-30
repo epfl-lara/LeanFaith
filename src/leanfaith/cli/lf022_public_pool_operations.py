@@ -27,6 +27,9 @@ from leanfaith.config.hashing import canonical_json_bytes, sha256_hex
 from leanfaith.config.models import StrictModel
 from leanfaith.config.paths import RepoPaths
 from leanfaith.datasets.denylist import FrozenRegistry
+from leanfaith.generation.lf022_extraction_reuse import (
+    LF022ExtractionReuseAttestationV1,
+)
 from leanfaith.generation.lf022_production import (
     LF022ArtifactBinding,
     LF022JSONLArtifactBinding,
@@ -147,6 +150,7 @@ class LF022PublicPoolOperationSuccess(StrictModel):
     active_registry: LF022ArtifactBinding
     extraction_output_manifest_input: LF022ArtifactBinding
     representation_output_manifest_input: LF022ArtifactBinding
+    extraction_reuse_attestation_input: LF022ArtifactBinding | None = None
     mathlib_source_frame_input: LF022ArtifactBinding
     family_matrix_input: LF022ArtifactBinding
     approved_sources_input: LF022ArtifactBinding
@@ -508,6 +512,7 @@ def run_materialize_lf022_public_pool(
     output_directory: Path,
     requested_count: int = 15_000,
     profile: LF022PlanProfile = "scientific_production_scaffold",
+    extraction_reuse_attestation_path: Path | None = None,
 ) -> LF022PublicPoolOperationRun:
     """Validate exact offline inputs and materialize a non-executable pool."""
 
@@ -583,6 +588,12 @@ def run_materialize_lf022_public_pool(
             owner="approved public sources",
         ),
     }
+    if extraction_reuse_attestation_path is not None:
+        inputs["extraction reuse attestation"] = _read_repo_regular_file(
+            repo_root=root,
+            path=extraction_reuse_attestation_path,
+            owner="extraction reuse attestation",
+        )
     theorem_count = _validate_jsonl_syntax(
         inputs["theorem records"],
         owner="theorem records",
@@ -657,6 +668,21 @@ def run_materialize_lf022_public_pool(
         owner="family matrix",
     )
     approved_sources = _parse_approved_sources(inputs["approved public sources"])
+    extraction_reuse_attestation = (
+        _validate_model(
+            _json_object(
+                _parse_json(
+                    inputs["extraction reuse attestation"].raw,
+                    owner="extraction reuse attestation",
+                ),
+                owner="extraction reuse attestation",
+            ),
+            model_type=LF022ExtractionReuseAttestationV1,
+            owner="extraction reuse attestation",
+        )
+        if "extraction reuse attestation" in inputs
+        else None
+    )
 
     expected_theorems = _jsonl_binding(
         root,
@@ -685,6 +711,11 @@ def run_materialize_lf022_public_pool(
     mathlib_source_frame_binding = _binding(root, inputs["mathlib source frame"])
     family_matrix_binding = _binding(root, inputs["family matrix"])
     approved_sources_binding = _binding(root, inputs["approved public sources"])
+    extraction_reuse_attestation_binding = (
+        _binding(root, inputs["extraction reuse attestation"])
+        if "extraction reuse attestation" in inputs
+        else None
+    )
 
     try:
         materialized = materialize_lf022_public_pool(
@@ -705,6 +736,8 @@ def run_materialize_lf022_public_pool(
             output_directory=output_directory,
             requested_count=requested_count,
             profile=profile,
+            extraction_reuse_attestation=extraction_reuse_attestation,
+            extraction_reuse_attestation_binding=extraction_reuse_attestation_binding,
         )
     except LF022PublicPoolCapacityError as exc:
         raise _failure(
@@ -780,6 +813,7 @@ def run_materialize_lf022_public_pool(
         active_registry=active_registry_binding,
         extraction_output_manifest_input=extraction_output_manifest_binding,
         representation_output_manifest_input=representation_output_manifest_binding,
+        extraction_reuse_attestation_input=extraction_reuse_attestation_binding,
         mathlib_source_frame_input=mathlib_source_frame_binding,
         family_matrix_input=family_matrix_binding,
         approved_sources_input=approved_sources_binding,
