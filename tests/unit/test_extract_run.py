@@ -227,11 +227,12 @@ def test_sft_non_prop_question_does_not_suppress_valid_theorem_fallback(tmp_path
     )
 
     assert stats.sources_processed == 1
-    assert stats.declarations_seen == 1
+    assert stats.declarations_seen == 2
     assert stats.accepted == 1
-    assert stats.failures == 0
+    assert stats.failures == 1
+    assert stats.failure_codes == {"not_a_proposition": 1}
     assert stats.row_outcomes == {"accepted_lean_code_fallback": 1}
-    assert stats.declaration_outcomes == {"accepted": 1, "failed_or_skipped": 0}
+    assert stats.declaration_outcomes == {"accepted": 1, "failed_or_skipped": 1}
     assert [call.request_id.rsplit("-", 1)[-1] for call in backend.calls[:2]] == [
         "question_statement",
         "lean_code_fallback",
@@ -242,7 +243,20 @@ def test_sft_non_prop_question_does_not_suppress_valid_theorem_fallback(tmp_path
     assert theorem["extraction_route"] == "lean_code_fallback"
     assert theorem["nl_pair_eligibility"] == "unverified"
     assert theorem["question_lean_code_agreement"] == "question_unavailable"
-    assert not (tmp_path / "failures" / "sft_classic.jsonl").exists()
+    failures = [
+        json.loads(line)
+        for line in (tmp_path / "failures" / "sft_classic.jsonl").read_text().splitlines()
+    ]
+    assert failures == [
+        {
+            "code": "not_a_proposition",
+            "declaration_name": "t_ok",
+            "detail": "declaration kind 'definition' is not proposition-valued",
+            "extraction_route": "question_statement",
+            "outcome_level": "declaration",
+            "source_record": theorem["source_record_id"],
+        }
+    ]
 
 
 def test_sft_unstrippable_fallback_is_source_unavailable_not_infrastructure_error(
