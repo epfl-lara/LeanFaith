@@ -3014,6 +3014,126 @@ def run_lf022_public_provisional_command(
     )
 
 
+@app.command("certify-lf022-proposer-route")
+def certify_lf022_proposer_route_command(
+    qualification_admission_path: Annotated[
+        Path,
+        typer.Option(
+            "--qualification-admission",
+            help="Frozen one-item Qwen/GLM qualification admission JSON.",
+        ),
+    ],
+    qualification_task_path: Annotated[
+        Path,
+        typer.Option(
+            "--qualification-task",
+            help="Frozen one-item Qwen/GLM qualification task JSON.",
+        ),
+    ],
+    root_dir: Annotated[
+        Path | None,
+        typer.Option("--root", help="Repository root override."),
+    ] = None,
+) -> None:
+    """Replay completed live qualification and certify only route eligibility."""
+    from leanfaith.cli.lf022_route_qualification import certify_proposer_route
+    from leanfaith.config.paths import RepoPaths
+    from leanfaith.generation.lf022_route_qualification import (
+        LF022RouteQualificationError,
+    )
+
+    paths = RepoPaths.discover(root_dir) if root_dir is None else RepoPaths(root=root_dir)
+
+    def anchored(path: Path) -> Path:
+        return path if path.is_absolute() else paths.root / path
+
+    try:
+        result = certify_proposer_route(
+            repo_root=paths.root,
+            qualification_admission_path=anchored(qualification_admission_path),
+            qualification_task_path=anchored(qualification_task_path),
+        )
+    except (LF022RouteQualificationError, OSError, ValueError) as exc:
+        typer.echo(f"LF-022 proposer-route certification rejected: {exc}", err=True)
+        raise typer.Exit(code=2) from exc
+    typer.echo(
+        f"family={result.eligibility.proposer_family_id} "
+        f"model={result.eligibility.model_id} "
+        f"eligibility_id={result.eligibility.eligibility_id} "
+        f"eligibility={result.eligibility_path} network_calls_this_run=0 "
+        "candidate_quality=provisional outputs_unresolved=true semantic_labels_created=0 "
+        "training_eligible=false evaluation_eligible=false gate_credit_claimed=false"
+    )
+
+
+@app.command("make-lf022-public-batch-request")
+def make_lf022_public_batch_request_command(
+    admission_path: Annotated[
+        Path,
+        typer.Option(
+            "--admission",
+            help="Canonical reviewed LF-022 execution admission JSON.",
+        ),
+    ],
+    allocation_task_ids: Annotated[
+        list[str] | None,
+        typer.Option(
+            "--allocation-task-id",
+            help="Allocation task ID to include; repeat in sorted order.",
+        ),
+    ] = None,
+    output_path: Annotated[
+        Path,
+        typer.Option(
+            "--output",
+            help="Repository-local immutable request JSON to create.",
+        ),
+    ] = Path("data/lf022_batch_request.json"),
+    batch_directory: Annotated[
+        str,
+        typer.Option(
+            "--batch-directory",
+            help="Repository-relative directory for the later frozen batch.",
+        ),
+    ] = "data/lf022_batch",
+    root_dir: Annotated[
+        Path | None,
+        typer.Option("--root", help="Repository root override."),
+    ] = None,
+) -> None:
+    """Verify one route and create a public-only batch request offline."""
+    from leanfaith.cli.lf022_batch import create_public_batch_request
+    from leanfaith.config.paths import RepoPaths
+    from leanfaith.generation.lf022_batch import LF022BatchError
+    from leanfaith.generation.lf022_execution import LF022ExecutionError
+
+    paths = RepoPaths.discover(root_dir) if root_dir is None else RepoPaths(root=root_dir)
+
+    def anchored(path: Path) -> Path:
+        return path if path.is_absolute() else paths.root / path
+
+    try:
+        result = create_public_batch_request(
+            repo_root=paths.root,
+            admission_path=anchored(admission_path),
+            allocation_task_ids=tuple(allocation_task_ids or ()),
+            output_path=anchored(output_path),
+            batch_directory=batch_directory,
+            executor_output_root="data/lf022_execution",
+        )
+    except (LF022BatchError, LF022ExecutionError, OSError, ValueError) as exc:
+        typer.echo(f"LF-022 batch request creation rejected: {exc}", err=True)
+        raise typer.Exit(code=2) from exc
+    typer.echo(
+        f"request_id={result.request.request_id} "
+        f"family={result.request.routes[0].proposer_family_id} "
+        f"tasks={len(result.request.routes[0].allocation_task_ids)} "
+        f"request={result.request_path} network_calls_this_run=0 "
+        "semantic_labels_created=0 training_eligible=false "
+        "evaluation_eligible=false gate_credit_claimed=false"
+    )
+
+
 @app.command("freeze-lf022-public-batch")
 def freeze_lf022_public_batch_command(
     request_path: Annotated[

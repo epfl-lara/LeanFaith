@@ -196,8 +196,19 @@ uv run leanfaith validate-lf022 --help
 uv run leanfaith freeze-lf022-family-matrix
 uv run leanfaith materialize-lf022-public-pool --help
 uv run leanfaith lf022-rcp-smoke --help
+uv run leanfaith certify-lf022-proposer-route --help
+uv run leanfaith make-lf022-public-batch-request --help
+uv run leanfaith freeze-lf022-public-batch --help
+uv run leanfaith run-lf022-public-batch --help
 uv run leanfaith audit-training-readiness --report-only
 ```
+
+Qwen3.5 and GLM-5.2 public production routes remain blocked until one exact
+live proposer qualification per family succeeds and the persisted result is
+certified offline. See [`docs/lf022_public_generation.md`](docs/lf022_public_generation.md).
+Certification authorizes only a provider route; every generated theorem stays
+unresolved, unvalidated, provisional, and ineligible for labels, training,
+evaluation, or Gate credit.
 
 Scale extraction and representation runs accept `--resume-work-dir`. Each
 completed chunk is bound to its exact input, context, code tree, code bundle,
