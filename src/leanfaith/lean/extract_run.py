@@ -828,9 +828,33 @@ def extract_sft_classic_rows(
         canonical_declarations = (
             chosen_result.declarations if chosen_result.status in _VALID else ()
         )
+        if route == "question_statement":
+            alternate_result = fallback_result
+            alternate_extraction = fallback_extraction
+        else:
+            alternate_result = question_result
+            alternate_extraction = question_extraction
+        alternate_declarations = (
+            alternate_result.declarations if alternate_result.status in _VALID else ()
+        )
         partial_declarations = len(chosen_result.declarations) - len(canonical_declarations)
-        stats.declarations_seen += len(canonical_declarations)
+        stats.declarations_seen += len(canonical_declarations) + len(alternate_declarations)
         stats.partial_declarations_reported += partial_declarations
+        # Every declaration from a valid attempted route receives exactly one
+        # terminal outcome. The alternate route is never emitted as another
+        # canonical theorem, but its real extraction failures remain valuable
+        # evidence and must not disappear merely because the other route won.
+        if alternate_declarations:
+            stats.declaration_outcomes["failed_or_skipped"] += len(alternate_declarations)
+        if alternate_extraction.failures:
+            stats.failures += len(alternate_extraction.failures)
+            for failure in alternate_extraction.failures:
+                stats.failure_codes[failure.code.value] += 1
+            _write_records(
+                ExtractionResult(failures=alternate_extraction.failures),
+                theorems_path,
+                failures_path,
+            )
 
         question_status = question_result.status.value
         fallback_status = fallback_result.status.value
