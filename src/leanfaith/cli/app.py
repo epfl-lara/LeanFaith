@@ -2757,6 +2757,63 @@ def freeze_lf022_family_matrix_command(
     )
 
 
+@app.command("freeze-lf022-extraction-reuse-attestation")
+def freeze_lf022_extraction_reuse_attestation_command(
+    extraction_output_manifest: Annotated[
+        Path,
+        typer.Option("--extraction-manifest"),
+    ],
+    theorem_records: Annotated[Path, typer.Option("--theorems")],
+    context_records: Annotated[Path, typer.Option("--contexts")],
+    mathlib_source_frame: Annotated[Path, typer.Option("--mathlib-source-frame")],
+    representation_output_manifest: Annotated[
+        Path,
+        typer.Option("--representation-manifest"),
+    ],
+    representation_records: Annotated[Path, typer.Option("--representations")],
+    output: Annotated[
+        Path,
+        typer.Option(
+            "--output",
+            help="Repository-local immutable attestation JSON.",
+        ),
+    ],
+    root_dir: Annotated[
+        Path | None,
+        typer.Option("--root", help="Repository root override."),
+    ] = None,
+) -> None:
+    """Freeze the one reviewed LF-022 extraction-reuse exception."""
+    from leanfaith.config.hashing import hash_file
+    from leanfaith.config.paths import RepoPaths
+    from leanfaith.generation.lf022_extraction_reuse import (
+        LF022ExtractionReuseError,
+        freeze_lf022_extraction_reuse_attestation,
+    )
+
+    paths = RepoPaths.discover(root_dir) if root_dir is None else RepoPaths(root=root_dir)
+    try:
+        attestation = freeze_lf022_extraction_reuse_attestation(
+            repo_root=paths.root,
+            extraction_manifest_path=extraction_output_manifest,
+            theorem_records_path=theorem_records,
+            context_records_path=context_records,
+            mathlib_source_frame_path=mathlib_source_frame,
+            representation_manifest_path=representation_output_manifest,
+            representation_records_path=representation_records,
+            output_path=output,
+        )
+        output_path = output if output.is_absolute() else paths.root / output
+        digest = hash_file(output_path.resolve(strict=True))
+    except (LF022ExtractionReuseError, OSError, ValueError) as exc:
+        typer.echo(f"LF-022 extraction-reuse attestation rejected: {exc}", err=True)
+        raise typer.Exit(code=2) from exc
+    typer.echo(
+        f"status=frozen attestation_id={attestation.attestation_id} sha256={digest} "
+        "network_requests=0 semantic_labels_created=0 gate_credit=false"
+    )
+
+
 @app.command("materialize-lf022-public-pool")
 def materialize_lf022_public_pool_command(
     theorem_records: Annotated[Path, typer.Option("--theorems")],
@@ -2795,6 +2852,16 @@ def materialize_lf022_public_pool_command(
         Path,
         typer.Option("--approved-sources", help="Reviewed public-source authorization YAML/JSON."),
     ] = Path("configs/sources/lf022_public_sources_v1.yaml"),
+    extraction_reuse_attestation: Annotated[
+        Path | None,
+        typer.Option(
+            "--extraction-reuse-attestation",
+            help=(
+                "Optional exact reviewed attestation for the one approved "
+                "old-extraction/new-representation provenance mismatch."
+            ),
+        ),
+    ] = None,
     output_directory: Annotated[
         Path,
         typer.Option("--out-dir", help="Repository-local immutable output directory."),
@@ -2849,6 +2916,7 @@ def materialize_lf022_public_pool_command(
             output_directory=output_directory,
             requested_count=requested_count,
             profile=cast(LF022PlanProfile, profile),
+            extraction_reuse_attestation_path=extraction_reuse_attestation,
         )
     except LF022PublicPoolOperationError as exc:
         typer.echo(exc.failure.model_dump_json(), err=True)

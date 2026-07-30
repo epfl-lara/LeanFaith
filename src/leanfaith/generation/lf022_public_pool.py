@@ -23,6 +23,11 @@ from pydantic import Field, model_validator
 from leanfaith.config.hashing import canonical_json_bytes, hash_canonical, hash_file, sha256_hex
 from leanfaith.config.models import StrictModel
 from leanfaith.datasets.denylist import DenylistIndex, FrozenRegistry
+from leanfaith.generation.lf022_extraction_reuse import (
+    LF022ExtractionReuseArtifactBinding,
+    LF022ExtractionReuseAttestationV1,
+    verify_lf022_extraction_reuse_attestation,
+)
 from leanfaith.generation.lf022_production import (
     LF022ArtifactBinding,
     LF022AuthorizedExtractionMember,
@@ -486,8 +491,12 @@ def _validate_upstream_representation(
     representations: tuple[RepresentationRecord, ...],
     representation_binding: LF022JSONLArtifactBinding,
     extraction_manifest: OutputManifest,
+    extraction_manifest_binding: LF022ArtifactBinding,
     representation_manifest: OutputManifest,
+    representation_manifest_binding: LF022ArtifactBinding,
     profile: LF022PlanProfile,
+    extraction_reuse_attestation: LF022ExtractionReuseAttestationV1 | None,
+    extraction_reuse_attestation_binding: LF022ArtifactBinding | None,
 ) -> None:
     """Bind model-visible views to the exact LeanInteract representation run."""
 
@@ -508,35 +517,83 @@ def _validate_upstream_representation(
         raise LF022PublicPoolError(
             "upstream representation manifest stage/count/context does not match inputs"
         )
-    if not _manifest_checksum_matches_binding(
+    representation_output_binding_exact = _manifest_checksum_matches_binding(
         repo_root=repo_root,
         checksums=representation_manifest.output_partition_checksums,
         binding=representation_binding,
-    ) or not _manifest_checksum_matches_binding(
+    ) and _manifest_checksum_matches_binding(
         repo_root=repo_root,
         checksums=representation_manifest.file_checksums,
         binding=representation_binding,
-    ):
-        raise LF022PublicPoolError(
-            "upstream representation manifest does not bind the exact representation JSONL"
-        )
-    if not _manifest_checksum_matches_binding(
+    )
+    representation_input_binding_exact = _manifest_checksum_matches_binding(
         repo_root=repo_root,
         checksums=representation_manifest.input_partition_checksums,
         binding=theorem_binding,
-    ):
+    )
+    representation_provenance_exact = (
+        representation_manifest.environment_hash is not None
+        and representation_manifest.environment_hash == extraction_manifest.environment_hash
+        and representation_manifest.code_tree_hash is not None
+        and representation_manifest.code.code_tree_hash is not None
+        and representation_manifest.code_tree_hash == representation_manifest.code.code_tree_hash
+        and representation_manifest.code_tree_hash == extraction_manifest.code_tree_hash
+        and representation_manifest.code == extraction_manifest.code
+    )
+    mismatch_present = (
+        not representation_output_binding_exact
+        or not representation_input_binding_exact
+        or not representation_provenance_exact
+    )
+    if (extraction_reuse_attestation is None) != (extraction_reuse_attestation_binding is None):
         raise LF022PublicPoolError(
-            "upstream representation manifest does not bind the exact extraction theorem JSONL"
+            "extraction-reuse attestation record and binding must be supplied together"
         )
+    reuse_verified = False
     if (
-        representation_manifest.environment_hash is None
-        or representation_manifest.environment_hash != extraction_manifest.environment_hash
-        or representation_manifest.code_tree_hash is None
-        or representation_manifest.code.code_tree_hash is None
-        or representation_manifest.code_tree_hash != representation_manifest.code.code_tree_hash
-        or representation_manifest.code_tree_hash != extraction_manifest.code_tree_hash
-        or representation_manifest.code != extraction_manifest.code
+        extraction_reuse_attestation is not None
+        and extraction_reuse_attestation_binding is not None
     ):
+        try:
+            verify_lf022_extraction_reuse_attestation(
+                repo_root=repo_root,
+                attestation=extraction_reuse_attestation,
+                attestation_binding=LF022ExtractionReuseArtifactBinding.model_validate(
+                    extraction_reuse_attestation_binding.model_dump(mode="json")
+                ),
+                extraction_manifest=extraction_manifest,
+                extraction_manifest_binding=LF022ExtractionReuseArtifactBinding.model_validate(
+                    extraction_manifest_binding.model_dump(mode="json")
+                ),
+                theorem_records_binding=LF022ExtractionReuseArtifactBinding.model_validate(
+                    theorem_binding.model_dump(mode="json")
+                ),
+                representation_manifest=representation_manifest,
+                representation_manifest_binding=(
+                    LF022ExtractionReuseArtifactBinding.model_validate(
+                        representation_manifest_binding.model_dump(mode="json")
+                    )
+                ),
+                representation_records_binding=(
+                    LF022ExtractionReuseArtifactBinding.model_validate(
+                        representation_binding.model_dump(mode="json")
+                    )
+                ),
+            )
+        except ValueError as exc:
+            raise LF022PublicPoolError(
+                f"reviewed extraction-reuse attestation failed: {exc}"
+            ) from exc
+        reuse_verified = True
+    if mismatch_present and not reuse_verified:
+        if not representation_output_binding_exact:
+            raise LF022PublicPoolError(
+                "upstream representation manifest does not bind the exact representation JSONL"
+            )
+        if not representation_input_binding_exact:
+            raise LF022PublicPoolError(
+                "upstream representation manifest does not bind the exact extraction theorem JSONL"
+            )
         raise LF022PublicPoolError(
             "upstream representation environment/code provenance differs from extraction"
         )
@@ -788,6 +845,8 @@ def materialize_lf022_public_pool(
     output_directory: Path,
     requested_count: int = 15_000,
     profile: LF022PlanProfile = "scientific_production_scaffold",
+    extraction_reuse_attestation: LF022ExtractionReuseAttestationV1 | None = None,
+    extraction_reuse_attestation_binding: LF022ArtifactBinding | None = None,
 ) -> MaterializedLF022PublicPool:
     """Create or byte-identically replay one bounded public LF-022 pool."""
 
@@ -862,8 +921,12 @@ def materialize_lf022_public_pool(
         representations=representations,
         representation_binding=representation_input_binding,
         extraction_manifest=persisted_extraction_manifest,
+        extraction_manifest_binding=extraction_output_manifest_binding,
         representation_manifest=persisted_representation_manifest,
+        representation_manifest_binding=representation_output_manifest_binding,
         profile=profile,
+        extraction_reuse_attestation=extraction_reuse_attestation,
+        extraction_reuse_attestation_binding=extraction_reuse_attestation_binding,
     )
     denylist_index = _resolve_bound_registry(
         repo_root=repo_root,
@@ -1069,6 +1132,7 @@ def materialize_lf022_public_pool(
             upstream_extraction_output_manifest=extraction_output_manifest_binding,
             upstream_representation_records=representation_input_binding,
             upstream_representation_output_manifest=representation_output_manifest_binding,
+            extraction_reuse_attestation=extraction_reuse_attestation_binding,
             mathlib_source_frame=mathlib_source_frame_binding,
             extraction_manifest=extraction_binding,
         )
