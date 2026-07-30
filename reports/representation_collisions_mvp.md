@@ -1,13 +1,5 @@
 # Gate 3 representation-collision review
 
-> **Current representation version:** The report below preserves the original
-> `repr_v2` collision closure. The separate `repr_v3` audit re-enumerated and
-> rechecked 152/152 clusters: 141 `semantic_atoms` projection losses and 11
-> `signature_pp` erasures, all with disposition
-> `expected_lossy_projection`. Current immutable evidence is recorded in
-> `reports/milestones/phase_3_repr_v3_revalidation.md` and
-> `reports/gates/gate_3_repr_v3.json`.
-
 **Updated:** 2026-07-18
 **Decision:** **PASS**
 
