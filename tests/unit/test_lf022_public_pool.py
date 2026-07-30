@@ -558,6 +558,49 @@ def test_materializer_selects_exact_deterministic_non_executable_pool(
     )
 
 
+@pytest.mark.parametrize(
+    "proposer_family_id",
+    ("kimi", "qwen", "glm"),
+)
+def test_materializer_assigns_one_source_diagnostic_to_requested_proposer(
+    tmp_path: Path,
+    proposer_family_id: str,
+) -> None:
+    context = _context()
+    theorem = _theorem(0, context)
+    representation = _representation(0, theorem)
+    theorem_path, representation_path, context_path = _inputs(
+        tmp_path,
+        (theorem,),
+        (representation,),
+        context,
+    )
+    registry, registry_binding = _registry_binding(tmp_path)
+
+    result = _materialize(
+        repo_root=tmp_path,
+        theorem_records_path=theorem_path,
+        representation_records_path=representation_path,
+        context_records_path=context_path,
+        active_registry=registry,
+        active_registry_binding=registry_binding,
+        family_matrix=_family_matrix(),
+        approved_sources=(_approval(),),
+        output_directory=Path(f"artifacts/lf022/{proposer_family_id}"),
+        requested_count=1,
+        profile="diagnostic_scaffold",
+        diagnostic_proposer_family_id=proposer_family_id,
+    )
+
+    assert result.audit.selected_count == 1
+    assert result.plan.unique_source_count == 1
+    assert len(result.plan.tasks) == 2
+    assert {task.distribution for task in result.plan.tasks} == {"G_sci", "G_open"}
+    assert {task.proposer_family_id for task in result.plan.tasks} == {proposer_family_id}
+    assert all(proposer_family_id not in task.judge_family_ids for task in result.plan.tasks)
+    assert all(task.network_execution_authorized is False for task in result.plan.tasks)
+
+
 def test_materializer_accepts_canonical_extraction_theorem_envelopes(
     tmp_path: Path,
 ) -> None:

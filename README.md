@@ -196,6 +196,7 @@ uv run leanfaith validate-lf022 --help
 uv run leanfaith freeze-lf022-family-matrix
 uv run leanfaith materialize-lf022-public-pool --help
 uv run leanfaith lf022-rcp-smoke --help
+uv run leanfaith freeze-lf022-proposer-admission --help
 uv run leanfaith certify-lf022-proposer-route --help
 uv run leanfaith make-lf022-public-batch-request --help
 uv run leanfaith freeze-lf022-public-batch --help

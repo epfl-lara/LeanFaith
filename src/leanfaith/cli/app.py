@@ -3052,6 +3052,16 @@ def materialize_lf022_public_pool_command(
             help=("diagnostic_scaffold, pilot_scaffold, or scientific_production_scaffold."),
         ),
     ] = "scientific_production_scaffold",
+    diagnostic_proposer_family_id: Annotated[
+        str | None,
+        typer.Option(
+            "--diagnostic-proposer-family",
+            help=(
+                "For a one-source diagnostic scaffold only, assign both tasks "
+                "to moonshot_kimi_k2, qwen3, or glm5."
+            ),
+        ),
+    ] = None,
     root_dir: Annotated[
         Path | None,
         typer.Option("--root", help="Repository root override."),
@@ -3091,6 +3101,7 @@ def materialize_lf022_public_pool_command(
             output_directory=output_directory,
             requested_count=requested_count,
             profile=cast(LF022PlanProfile, profile),
+            diagnostic_proposer_family_id=diagnostic_proposer_family_id,
             extraction_reuse_attestation_path=extraction_reuse_attestation,
         )
     except LF022PublicPoolOperationError as exc:
@@ -3305,6 +3316,95 @@ def certify_lf022_proposer_route_command(
         f"eligibility_id={result.eligibility.eligibility_id} "
         f"eligibility={result.eligibility_path} network_calls_this_run=0 "
         "candidate_quality=provisional outputs_unresolved=true semantic_labels_created=0 "
+        "training_eligible=false evaluation_eligible=false gate_credit_claimed=false"
+    )
+
+
+@app.command("freeze-lf022-proposer-admission")
+def freeze_lf022_proposer_admission_command(
+    public_pool_audit_path: Annotated[
+        Path,
+        typer.Option(
+            "--public-pool-audit",
+            help="One-source family-specific diagnostic public-pool audit JSON.",
+        ),
+    ],
+    proposer_family_id: Annotated[
+        str,
+        typer.Option(
+            "--proposer-family",
+            help="moonshot_kimi_k2, qwen3, or glm5.",
+        ),
+    ],
+    code_bundle_path: Annotated[
+        Path,
+        typer.Option(
+            "--code-bundle",
+            help="Repository-local code bundle for the current exact code tree.",
+        ),
+    ],
+    output_path: Annotated[
+        Path,
+        typer.Option(
+            "--output",
+            help="Repository-local immutable execution admission JSON.",
+        ),
+    ],
+    provider_catalog_raw_path: Annotated[
+        Path | None,
+        typer.Option(
+            "--provider-catalog-raw",
+            help="Exact raw RCP catalog response; defaults to reviewed v3 smoke evidence.",
+        ),
+    ] = None,
+    root_dir: Annotated[
+        Path | None,
+        typer.Option("--root", help="Repository root override."),
+    ] = None,
+) -> None:
+    """Freeze and exact-replay one public diagnostic proposer admission offline."""
+    from typing import cast
+
+    from leanfaith.config.paths import RepoPaths
+    from leanfaith.generation.lf022_admission_freeze import (
+        LF022AdmissionFreezeError,
+        LF022SupportedProposerFamily,
+        freeze_lf022_diagnostic_execution_admission,
+    )
+
+    allowed_families = {"moonshot_kimi_k2", "qwen3", "glm5"}
+    if proposer_family_id not in allowed_families:
+        typer.echo("--proposer-family is not a supported public LF-022 proposer", err=True)
+        raise typer.Exit(code=2)
+    paths = RepoPaths.discover(root_dir) if root_dir is None else RepoPaths(root=root_dir)
+
+    def anchored(path: Path | None) -> Path | None:
+        if path is None or path.is_absolute():
+            return path
+        return paths.root / path
+
+    try:
+        result = freeze_lf022_diagnostic_execution_admission(
+            repo_root=paths.root,
+            public_pool_audit_path=anchored(public_pool_audit_path) or public_pool_audit_path,
+            proposer_family_id=cast(
+                LF022SupportedProposerFamily,
+                proposer_family_id,
+            ),
+            code_bundle_path=anchored(code_bundle_path) or code_bundle_path,
+            output_path=anchored(output_path) or output_path,
+            provider_catalog_raw_path=anchored(provider_catalog_raw_path),
+        )
+    except (LF022AdmissionFreezeError, OSError, ValueError) as exc:
+        typer.echo(f"LF-022 proposer admission freeze rejected: {exc}", err=True)
+        raise typer.Exit(code=2) from exc
+    typer.echo(
+        f"status=frozen family={result.admission.route.proposer_family_id} "
+        f"model={result.admission.route.model_id} "
+        f"scope={result.admission.route.execution_scope} "
+        f"admission_id={result.admission.admission_id} "
+        f"admission={result.admission_path} network_calls_this_run=0 "
+        "outputs_unresolved=true semantic_labels_created=0 "
         "training_eligible=false evaluation_eligible=false gate_credit_claimed=false"
     )
 

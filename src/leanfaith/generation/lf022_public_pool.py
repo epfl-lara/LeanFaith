@@ -839,6 +839,7 @@ def materialize_lf022_public_pool(
     output_directory: Path,
     requested_count: int = 15_000,
     profile: LF022PlanProfile = "scientific_production_scaffold",
+    diagnostic_proposer_family_id: str | None = None,
     extraction_reuse_attestation: LF022ExtractionReuseAttestationV1 | None = None,
     extraction_reuse_attestation_binding: LF022ArtifactBinding | None = None,
 ) -> MaterializedLF022PublicPool:
@@ -1266,6 +1267,7 @@ def materialize_lf022_public_pool(
         repo_root=repo_root,
         admission=admission,
         family_matrix=family_matrix,
+        diagnostic_proposer_family_id=diagnostic_proposer_family_id,
     )
     plan_binding = write_lf022_production_plan(
         repo_root=repo_root,

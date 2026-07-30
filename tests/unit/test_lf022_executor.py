@@ -23,6 +23,10 @@ from leanfaith.config.hashing import (
 )
 from leanfaith.config.models import StrictModel
 from leanfaith.datasets.denylist import DenylistIndex, FrozenBenchmark, FrozenRegistry
+from leanfaith.generation.lf022_admission_freeze import (
+    LF022AdmissionFreezeError,
+    freeze_lf022_diagnostic_execution_admission,
+)
 from leanfaith.generation.lf022_batch import (
     LF022BatchError,
     LF022BatchFreezeRequest,
@@ -859,6 +863,97 @@ def _success_response(model_id: str) -> RCPWireResponse:
             }
         ),
     )
+
+
+@pytest.mark.parametrize(
+    ("model_id", "family_id"),
+    (
+        ("moonshotai/Kimi-K2.7-Code", "moonshot_kimi_k2"),
+        ("Qwen/Qwen3.5-397B-A17B", "qwen3"),
+        ("zai-org/GLM-5.2", "glm5"),
+    ),
+)
+def test_freeze_diagnostic_execution_admission_replays_exact_fixture(
+    tmp_path: Path,
+    model_id: str,
+    family_id: str,
+) -> None:
+    expected, _ = _fixture(tmp_path, model_id=model_id)
+    output = tmp_path / f"artifacts/{family_id}_execution_admission.json"
+    first = freeze_lf022_diagnostic_execution_admission(
+        repo_root=tmp_path,
+        public_pool_audit_path=tmp_path / "artifacts/public_pool_audit.json",
+        proposer_family_id=family_id,  # type: ignore[arg-type]
+        code_bundle_path=tmp_path / expected.artifacts.code_bundle.path,
+        provider_catalog_raw_path=tmp_path / expected.artifacts.provider_catalog_raw.path,
+        output_path=output,
+    )
+    second = freeze_lf022_diagnostic_execution_admission(
+        repo_root=tmp_path,
+        public_pool_audit_path=tmp_path / "artifacts/public_pool_audit.json",
+        proposer_family_id=family_id,  # type: ignore[arg-type]
+        code_bundle_path=tmp_path / expected.artifacts.code_bundle.path,
+        provider_catalog_raw_path=tmp_path / expected.artifacts.provider_catalog_raw.path,
+        output_path=output,
+    )
+    assert first.admission == expected
+    assert second == first
+    assert output.read_bytes() == (canonical_json_bytes(expected.model_dump(mode="json")) + b"\n")
+    assert first.admission.public_sources_only is True
+    assert first.admission.private_source_content_forbidden is True
+    assert first.admission.outputs_provisional_only is True
+    assert first.admission.semantic_labels_created is False
+    assert first.admission.training_eligible is False
+    assert first.admission.evaluation_eligible is False
+    assert first.admission.gate_credit_claimed is False
+
+
+def test_freeze_diagnostic_execution_admission_rejects_cross_family_plan(
+    tmp_path: Path,
+) -> None:
+    expected, _ = _fixture(tmp_path, model_id="Qwen/Qwen3.5-397B-A17B")
+    with pytest.raises(
+        LF022AdmissionFreezeError,
+        match="assigned to the selected proposer",
+    ):
+        freeze_lf022_diagnostic_execution_admission(
+            repo_root=tmp_path,
+            public_pool_audit_path=tmp_path / "artifacts/public_pool_audit.json",
+            proposer_family_id="glm5",
+            code_bundle_path=tmp_path / expected.artifacts.code_bundle.path,
+            provider_catalog_raw_path=tmp_path / expected.artifacts.provider_catalog_raw.path,
+            output_path=tmp_path / "artifacts/rejected.json",
+        )
+
+
+def test_freeze_diagnostic_execution_admission_cli_is_offline(
+    tmp_path: Path,
+) -> None:
+    expected, _ = _fixture(tmp_path, model_id="Qwen/Qwen3.5-397B-A17B")
+    output = tmp_path / "artifacts/qwen_cli_execution_admission.json"
+    result = CliRunner().invoke(
+        app,
+        [
+            "freeze-lf022-proposer-admission",
+            "--root",
+            str(tmp_path),
+            "--public-pool-audit",
+            "artifacts/public_pool_audit.json",
+            "--proposer-family",
+            "qwen3",
+            "--code-bundle",
+            expected.artifacts.code_bundle.path,
+            "--provider-catalog-raw",
+            expected.artifacts.provider_catalog_raw.path,
+            "--output",
+            str(output),
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    assert "family=qwen3" in result.output
+    assert "network_calls_this_run=0" in result.output
+    assert "training_eligible=false" in result.output
+    assert LF022GOpenExecutionAdmission.model_validate_json(output.read_bytes()) == expected
 
 
 class FakeTransport(RCPHTTPTransport):

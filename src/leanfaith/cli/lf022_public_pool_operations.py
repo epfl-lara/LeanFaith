@@ -512,6 +512,7 @@ def run_materialize_lf022_public_pool(
     output_directory: Path,
     requested_count: int = 15_000,
     profile: LF022PlanProfile = "scientific_production_scaffold",
+    diagnostic_proposer_family_id: str | None = None,
     extraction_reuse_attestation_path: Path | None = None,
 ) -> LF022PublicPoolOperationRun:
     """Validate exact offline inputs and materialize a non-executable pool."""
@@ -530,6 +531,26 @@ def run_materialize_lf022_public_pool(
         raise _failure(
             code=LF022PublicPoolOperationCode.INVALID_REQUEST,
             message="profile is not a supported LF-022 allocation profile",
+            requested_count=requested_count,
+        )
+    if diagnostic_proposer_family_id is not None and (
+        profile != "diagnostic_scaffold" or requested_count != 1
+    ):
+        raise _failure(
+            code=LF022PublicPoolOperationCode.INVALID_REQUEST,
+            message=(
+                "diagnostic_proposer_family_id requires diagnostic_scaffold with requested_count=1"
+            ),
+            requested_count=requested_count,
+        )
+    if diagnostic_proposer_family_id is not None and diagnostic_proposer_family_id not in {
+        "moonshot_kimi_k2",
+        "qwen3",
+        "glm5",
+    }:
+        raise _failure(
+            code=LF022PublicPoolOperationCode.INVALID_REQUEST,
+            message="diagnostic_proposer_family_id is not a supported public proposer",
             requested_count=requested_count,
         )
 
@@ -736,6 +757,7 @@ def run_materialize_lf022_public_pool(
             output_directory=output_directory,
             requested_count=requested_count,
             profile=profile,
+            diagnostic_proposer_family_id=diagnostic_proposer_family_id,
             extraction_reuse_attestation=extraction_reuse_attestation,
             extraction_reuse_attestation_binding=extraction_reuse_attestation_binding,
         )

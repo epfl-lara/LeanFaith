@@ -333,6 +333,10 @@ def _successful_materializer(
 def _run(
     root: Path,
     inputs: dict[str, Path],
+    *,
+    diagnostic_proposer_family_id: str | None = None,
+    requested_count: int = 1,
+    profile: str = "diagnostic_scaffold",
 ) -> LF022PublicPoolOperationRun:
     return run_materialize_lf022_public_pool(
         paths=RepoPaths(root=root),
@@ -346,8 +350,9 @@ def _run(
         family_matrix_path=inputs["matrix"],
         approved_sources_path=inputs["approved"],
         output_directory=Path("artifacts/lf022/public_pool"),
-        requested_count=1,
-        profile="diagnostic_scaffold",
+        requested_count=requested_count,
+        profile=profile,  # type: ignore[arg-type]
+        diagnostic_proposer_family_id=diagnostic_proposer_family_id,
     )
 
 
@@ -373,6 +378,55 @@ def test_operation_loads_exact_inputs_and_returns_non_executable_summary(
     assert result.summary.semantic_labels_created is False
     assert result.summary.non_executable_allocation_only is True
     assert result.summary.active_registry.sha256 == hash_file(inputs["registry"])
+
+
+def test_operation_binds_supported_one_source_diagnostic_proposer(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    inputs = _prepare_inputs(tmp_path)
+    observed: dict[str, object] = {}
+
+    def materialize(**kwargs: object) -> object:
+        observed.update(kwargs)
+        return _successful_materializer()(**kwargs)
+
+    monkeypatch.setattr(operations, "materialize_lf022_public_pool", materialize)
+
+    _run(
+        tmp_path,
+        inputs,
+        diagnostic_proposer_family_id="qwen3",
+    )
+
+    assert observed["diagnostic_proposer_family_id"] == "qwen3"
+
+
+@pytest.mark.parametrize(
+    ("family_id", "profile", "requested_count"),
+    (
+        ("unsupported", "diagnostic_scaffold", 1),
+        ("qwen3", "pilot_scaffold", 1),
+        ("qwen3", "diagnostic_scaffold", 2),
+    ),
+)
+def test_operation_rejects_invalid_diagnostic_proposer_scope_before_loading_inputs(
+    tmp_path: Path,
+    family_id: str,
+    profile: str,
+    requested_count: int,
+) -> None:
+    inputs = _prepare_inputs(tmp_path)
+    with pytest.raises(LF022PublicPoolOperationError) as caught:
+        _run(
+            tmp_path,
+            inputs,
+            diagnostic_proposer_family_id=family_id,
+            profile=profile,
+            requested_count=requested_count,
+        )
+
+    assert caught.value.failure.code is LF022PublicPoolOperationCode.INVALID_REQUEST
 
 
 def test_operation_rejects_duplicate_json_keys(
@@ -494,4 +548,5 @@ def test_public_pool_cli_help_exposes_exact_offline_inputs() -> None:
     assert "--mathlib-source-fra" in result.output
     assert "--active-registry" in result.output
     assert "--requested-count" in result.output
+    assert "--diagnostic-propose" in result.output
     assert "non-executable" in result.output

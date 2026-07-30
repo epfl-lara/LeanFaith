@@ -1224,6 +1224,7 @@ def build_lf022_production_plan(
     repo_root: Path,
     admission: LF022ProductionAdmission,
     family_matrix: LF022ProductionFamilyMatrix,
+    diagnostic_proposer_family_id: str | None = None,
 ) -> LF022ProductionPlanManifest:
     """Replay every bound input and build a deterministic allocation scaffold."""
 
@@ -1510,6 +1511,19 @@ def build_lf022_production_plan(
     ordered_sources = tuple(
         sorted(source_index.values(), key=lambda record: record.admission_record_id)
     )
+    if diagnostic_proposer_family_id is not None:
+        if admission.profile != "diagnostic_scaffold":
+            raise LF022ProductionPlanError(
+                "a diagnostic proposer override is allowed only for diagnostic_scaffold"
+            )
+        if len(ordered_sources) != 1:
+            raise LF022ProductionPlanError(
+                "a diagnostic proposer override requires exactly one admitted source"
+            )
+        if diagnostic_proposer_family_id not in family_matrix.proposer_family_ids:
+            raise LF022ProductionPlanError(
+                "diagnostic proposer family is absent from the reviewed proposer registry"
+            )
     minimum = _PROFILE_MINIMUM_SOURCES[admission.profile]
     if len(ordered_sources) < minimum:
         raise LF022ProductionPlanError(
@@ -1563,7 +1577,11 @@ def build_lf022_production_plan(
     proposer_ids = family_matrix.proposer_family_ids
     proposer_counts: Counter[str] = Counter()
     for source_index_value, source_record in enumerate(ordered_sources):
-        proposer_id = proposer_ids[source_index_value % len(proposer_ids)]
+        proposer_id = (
+            diagnostic_proposer_family_id
+            if diagnostic_proposer_family_id is not None
+            else proposer_ids[source_index_value % len(proposer_ids)]
+        )
         proposer_counts[proposer_id] += 1
         assignment = _role_assignment_ids(
             proposer_id=proposer_id,

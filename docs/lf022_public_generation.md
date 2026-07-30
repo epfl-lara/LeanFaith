@@ -27,65 +27,210 @@ reasoning fields are rejected rather than renamed or silently dropped.
 
 ## Qualification and activation
 
-For each of Qwen and GLM:
+The route runner consumes an execution admission; a route-contract YAML is not
+an admission. Build the family-specific one-source diagnostic allocation and
+freeze the execution admission entirely offline before resolving credentials.
+The same path supports Kimi, although Kimi does not require the later
+qualification certificate.
 
-1. Starting from a canonical reviewed admission with
-   `execution_scope=one_item_proposer_qualification_only`, create the exact
-   one-task request offline:
+Run from a clean repository tree:
 
-   ```bash
-   uv run leanfaith make-lf022-public-batch-request \
-     --admission PATH_TO_REVIEWED_QUALIFICATION_ADMISSION \
-     --allocation-task-id lf022_production_task:... \
-     --output data/lf022_qwen_or_glm_qualification_request.json
-   ```
+```bash
+ROOT=/localhome/milikic/LeanFaith
+cd "$ROOT"
+git diff --quiet
+git diff --cached --quiet
 
-   The command verifies that the selected task is a public `G_open` allocation
-   for that admitted family. Qwen/GLM qualification requests reject any second
-   task.
-2. Freeze the request:
+# Set one family at a time: qwen3, glm5, or moonshot_kimi_k2.
+FAMILY=qwen3
+QUAL_ROOT="artifacts/generation/lf022_${FAMILY}_diagnostic_v1"
 
-   ```bash
-   uv run leanfaith freeze-lf022-public-batch \
-     --request data/lf022_qwen_or_glm_qualification_request.json
-   ```
+uv run leanfaith materialize-lf022-public-pool \
+  --theorems data/scale/lf022_public_v1/extraction/theorems/mathlib.jsonl \
+  --representations \
+    data/scale/lf022_public_v3/repr_dc29fe6_c799f54c/records/mathlib.jsonl \
+  --contexts \
+    data/extracted/contexts/0cd06826b8767b3bc951c0eb00c802424af95785b558f9f8a61f18694a86c4ce.json \
+  --extraction-manifest \
+    data/scale/lf022_public_v1/extraction/manifests/mathlib.json \
+  --representation-manifest \
+    data/scale/lf022_public_v3/repr_dc29fe6_c799f54c/manifests/mathlib.json \
+  --mathlib-source-frame \
+    data/source_frames/mathlib/lf022_public_mathlib_frame_v1_1200.json \
+  --active-registry data/benchmarks/frozen_ids.representations_v1.json \
+  --extraction-reuse-attestation \
+    data/scale/lf022_public_v3/extraction_reuse_attestation_c799f54c_v2.json \
+  --requested-count 1 \
+  --profile diagnostic_scaffold \
+  --diagnostic-proposer-family "$FAMILY" \
+  --out-dir "$QUAL_ROOT"
 
-3. Replay the frozen batch offline. This performs no provider call.
-4. Set `RCP_BASE_URL` and `RCP_API_KEY` only in the runtime environment, then
-   make the single explicit live call:
+BUNDLE_JSON=$(
+  uv run leanfaith freeze-code-bundle \
+    --root "$ROOT" \
+    --out-dir artifacts/code_bundles/lf022_proposer_qualification
+)
+BUNDLE=$(
+  python -c 'import json,sys; print(json.load(sys.stdin)["path"])' \
+    <<<"$BUNDLE_JSON"
+)
 
-   ```bash
-   uv run leanfaith run-lf022-public-batch \
-     --manifest PATH_TO_FROZEN_QUALIFICATION_BATCH \
-     --execute-public-provisional \
-     --max-concurrency 1 \
-     --minimum-request-interval-seconds 1
-   ```
+ADMISSION="$QUAL_ROOT/execution_admission.json"
+uv run leanfaith freeze-lf022-proposer-admission \
+  --root "$ROOT" \
+  --public-pool-audit "$QUAL_ROOT/audit.json" \
+  --proposer-family "$FAMILY" \
+  --code-bundle "$BUNDLE" \
+  --output "$ADMISSION"
+```
 
-5. Replay the same batch offline. A successful terminal must contain exactly
-   one unvalidated provisional variant and the complete request/response
-   lineage.
-6. Certify the exact qualification:
+The materializer rejects a diagnostic family override unless the profile has
+exactly one selected source. The admission freezer then exact-replays the
+public-pool audit, its two-task `G_sci`/`G_open` allocation, the raw and
+normalized provider catalogs, the route-specific contract, prior transport
+evidence, prompt, code bundle, and current code-tree hash. It never reads
+credentials or performs a network request.
 
-   ```bash
-   uv run leanfaith certify-lf022-proposer-route \
-     --qualification-admission PATH_TO_FROZEN_QUALIFICATION_ADMISSION \
-     --qualification-task PATH_TO_FROZEN_QUALIFICATION_TASK
-   ```
+For Qwen and GLM, derive the one exact public `G_open` allocation, freeze the
+batch, and preflight it without credentials:
 
-   Certification performs zero network calls. It exact-replays the persisted
-   provider request, raw response, parser result, LLM call/attempt lineage, and
-   variant bytes. It writes exactly one immutable family record under
-   `data/lf022_execution/production_eligibility/`.
+```bash
+TASK_ID=$(
+  python - "$ROOT" "$ADMISSION" "$FAMILY" <<'PY'
+import json
+import sys
+from pathlib import Path
 
-7. Construct the production route with the same provider deployment, catalog
-   snapshot, prompt, decoding contract, and family matrix; change only
-   `execution_scope` to `public_provisional_g_open` and bind the exact
-   `proposer_production_eligibility` artifact. The admission verifier replays
-   the qualification again. A missing, changed, cross-family, or hand-written
-   eligibility record fails closed.
+root = Path(sys.argv[1])
+admission = json.load(open(sys.argv[2], encoding="utf-8"))
+family = sys.argv[3]
+assert admission["route"]["proposer_family_id"] == family
+assert admission["route"]["execution_scope"] == (
+    "one_item_proposer_qualification_only"
+)
+plan = json.load(
+    open(root / admission["artifacts"]["allocation_plan"]["path"], encoding="utf-8")
+)
+assert plan["profile"] == "diagnostic_scaffold"
+assert len(plan["tasks"]) == 2
+task_ids = [
+    task["task_id"]
+    for task in plan["tasks"]
+    if task["distribution"] == "G_open"
+    and task["proposer_family_id"] == family
+]
+assert len(task_ids) == 1
+print(task_ids[0])
+PY
+)
 
-Qualification and Kimi admissions remain byte-compatible schema v1 records.
+REQUEST="data/lf022_qualification/${FAMILY}/request.json"
+BATCH_DIR="data/lf022_qualification/${FAMILY}/batch"
+uv run leanfaith make-lf022-public-batch-request \
+  --root "$ROOT" \
+  --admission "$ADMISSION" \
+  --allocation-task-id "$TASK_ID" \
+  --output "$REQUEST" \
+  --batch-directory "$BATCH_DIR"
+uv run leanfaith freeze-lf022-public-batch \
+  --root "$ROOT" \
+  --request "$REQUEST"
+
+MANIFEST="$BATCH_DIR/batch_manifest.json"
+env -u RCP_BASE_URL -u RCP_API_KEY -u OPENAI_BASE_URL -u OPENAI_API_KEY \
+  uv run leanfaith run-lf022-public-batch \
+    --root "$ROOT" \
+    --manifest "$MANIFEST" \
+    --max-concurrency 1 \
+    --minimum-request-interval-seconds 1
+```
+
+A fresh preflight must report `tasks=1`, `preflight_only=1`, `errors=0`, and
+`network_calls_this_run=0`. Freezing also creates exactly one immutable global
+qualification claim for Qwen or GLM. Do not proceed if a claim already exists
+with different bytes.
+
+Set runtime-only credentials, verify the exact admitted endpoint without
+printing the key, and perform the explicit one-task call:
+
+```bash
+test "${RCP_BASE_URL%/}" = "https://inference.rcp.epfl.ch/v1"
+test -n "${RCP_API_KEY:-}"
+set +x
+env -u OPENAI_BASE_URL -u OPENAI_API_KEY \
+  RCP_BASE_URL="$RCP_BASE_URL" \
+  RCP_API_KEY="$RCP_API_KEY" \
+  uv run leanfaith run-lf022-public-batch \
+    --root "$ROOT" \
+    --manifest "$MANIFEST" \
+    --execute-public-provisional \
+    --max-concurrency 1 \
+    --minimum-request-interval-seconds 1
+```
+
+The normal success path reports one new terminal and one network call. The
+frozen retry policy permits at most three attempts for explicitly listed
+response-confirmed transient HTTP statuses; an unknown transport outcome is
+quarantined and is never retried automatically. Never continue to certification
+when `tasks != 1`, `errors != 0`, or no successful terminal exists.
+
+Replay the same result without credentials:
+
+```bash
+env -u RCP_BASE_URL -u RCP_API_KEY -u OPENAI_BASE_URL -u OPENAI_API_KEY \
+  uv run leanfaith run-lf022-public-batch \
+    --root "$ROOT" \
+    --manifest "$MANIFEST" \
+    --max-concurrency 1 \
+    --minimum-request-interval-seconds 1
+```
+
+This must report one replayed terminal and zero network calls. Resolve the
+frozen admission and task from the manifest, then certify Qwen or GLM:
+
+```bash
+read -r QUAL_ADMISSION QUAL_TASK < <(
+  python - "$ROOT" "$MANIFEST" "$FAMILY" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+root = Path(sys.argv[1])
+manifest = json.load(open(sys.argv[2], encoding="utf-8"))
+family = sys.argv[3]
+routes = [
+    route for route in manifest["routes"]
+    if route["proposer_family_id"] == family
+]
+assert len(routes) == 1 and len(routes[0]["tasks"]) == 1
+print(
+    root / routes[0]["admission"]["path"],
+    root / routes[0]["tasks"][0]["task"]["path"],
+)
+PY
+)
+
+env -u RCP_BASE_URL -u RCP_API_KEY -u OPENAI_BASE_URL -u OPENAI_API_KEY \
+  uv run leanfaith certify-lf022-proposer-route \
+    --root "$ROOT" \
+    --qualification-admission "$QUAL_ADMISSION" \
+    --qualification-task "$QUAL_TASK"
+```
+
+Certification performs zero network calls. It exact-replays the persisted
+provider request, raw response, parser result, LLM call/attempt lineage, and
+variant bytes. It requires exactly one provisional variant and writes exactly
+one immutable record at
+`data/lf022_execution/production_eligibility/qwen3.json` or
+`data/lf022_execution/production_eligibility/glm5.json`.
+
+Construct a later production admission with the same deployment, catalog,
+prompt, decoding contract, and family matrix; change only the execution scope
+to `public_provisional_g_open` and bind that exact eligibility artifact. The
+admission verifier replays the qualification again. A missing, changed,
+cross-family, or hand-written eligibility record fails closed.
+
+Qualification and Kimi admissions remain byte-compatible schema-v1 records.
 The first admission containing `proposer_production_eligibility` is schema v2;
 new readers accept both, while v1 cannot carry production eligibility.
 
