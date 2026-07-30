@@ -2,9 +2,9 @@
 
 **Working title:** *LeanFaith: A Lightweight, Calibrated, and Reference-Aware Metric for Autoformalization Faithfulness*
 **Document purpose:** implementation specification for a coding agent and research roadmap for the project team  
-**Status:** Gates 0 (internal research only), 1, 2, historical Gate 3 (`repr_v2`), 4G, and the mechanical Gate 5G passed; current `repr_v3` still requires its fresh frozen 10,000-record Gate-3 audit/replay before scientific use; the additive benchmark-signature and overlap freeze passed; LF-019 and LF-020 are complete; Gates 4A and 4B remain open; LF-021 completed 16 replay-verified scalable tranches (1,440 terminal invocations), yielding 299 compile-and-benchmark-clear members and 250 unique problem-aware eligible units; the production CSPRNG froze a 240-item, 31-stratum human prevalence frame and the reference-aware blinded two-annotator export is operationally materialized; LF-022 now has a fail-closed software foundation and one complete public-source Kimi/Qwen/GLM smoke with exact offline replay, but that smoke created no label, promotion, supervision, training, evaluation, or gate-credit record; Gate 5 remains open pending genuine human adjudication and Gates 6G/6 remain open pending admitted production collection and promotion; the hardened fail-closed training-data audit is `NOT_READY` with zero safe F1 labels, no production LF-022 SCI/open artifacts, no frozen training inventory, and zero of four gold products
+**Status:** Gates 0 (internal research only), 1, 2, historical Gate 3 (`repr_v2`), current Gate-3 `repr_v3` revalidation, 4G, and the mechanical Gate 5G passed; `repr_v3` is scientifically validated on the unchanged frozen 10,000-record denominator, while historical `repr_v2` artifacts remain versioned historical evidence; the additive benchmark-signature and overlap freeze passed; LF-019 and LF-020 are complete; Gates 4A and 4B remain open; LF-021 completed 16 replay-verified scalable tranches (1,440 terminal invocations), yielding 299 compile-and-benchmark-clear members and 250 unique problem-aware eligible units; the production CSPRNG froze a 240-item, 31-stratum human prevalence frame and the reference-aware blinded two-annotator export is operationally materialized; LF-022 now has a fail-closed software foundation and one complete public-source Kimi/Qwen/GLM smoke with exact offline replay, but that smoke created no label, promotion, supervision, training, evaluation, or gate-credit record; Gate 5 remains open pending genuine human adjudication and Gates 6G/6 remain open pending admitted production collection and promotion; the hardened fail-closed training-data audit is `NOT_READY` with zero safe F1 labels, no production LF-022 SCI/open artifacts, no frozen training inventory, and zero of four gold products
 **Revision:** 4.1
-**Last revised:** 2026-07-28
+**Last revised:** 2026-07-30
 **Canonical filename:** `PLAN.md`  
 **Primary Python–Lean interface:** [LeanInteract](https://github.com/augustepoiroux/LeanInteract)  
 **Initial LeanInteract pin:** `lean-interact==0.11.4`  
@@ -26,6 +26,7 @@
 13. Makes independent per-theorem LeanInteract requests the Gate-3 correctness primitive and fixes all representation denominators before execution.
 14. Requires a binder-normalized identity fingerprint, alpha-invariance, collision, proof-leakage, and name-versus-inline audits without making graphs a blocker.
 15. Keeps localization, generated repair, graph work, staffing, schedules, compensation, budgets, and hardware prescriptions outside the flagship path.
+16. Records the fresh `repr_v3` Gate-3 revalidation on the unchanged frozen 5,000-mathlib plus 5,000-`sft_classic` denominator without rewriting the historical `repr_v2` decision.
 
 ---
 ## 0. How this document must be used
@@ -838,6 +839,7 @@ leanfaith/
       phase_1_leaninteract.md
       phase_2_extraction.md
       phase_3_representations.md
+      phase_3_repr_v3_revalidation.md
       phase_4_transforms.md
       phase_5_real_outputs.md
       phase_6_llm_data.md
@@ -1664,6 +1666,17 @@ denominator must be rebuilt under `repr_v3` and pass the complete Gate-3 audit
 and deterministic replay in new versioned artifacts. Focused tests and smoke
 runs may validate implementation behavior, but cannot substitute for that
 scale closure.
+
+That version-specific closure passed on 2026-07-30. Both independent
+`repr_v3` runs represented all 10,000 frozen records with all required views
+at 100%, replayed every representation ID and content hash, passed 1,000/1,000
+alpha-renaming cases and 500/500 name-versus-inline comparisons, and closed
+all 152 enumerated lossy-view clusters. The immutable decision is
+`reports/gates/gate_3_repr_v3.json`; full evidence is
+`reports/milestones/phase_3_repr_v3_revalidation.md`. The two raw record files
+differ only in the operational `created_at` field; no scientific field differs.
+Historical `repr_v2` artifacts remain unchanged and are not silently promoted
+to `repr_v3`.
 
 Gate 3 also builds a non-model binder-normalized identity fingerprint from the
 elaborated expression: local binders use de-Bruijn-style identities; binder
@@ -2864,6 +2877,11 @@ worker, sequential Run A then Run B, chunk size 500, and a Linux per-REPL
 the same code bundle and execution configuration; chunks from earlier failed
 profiles cannot be reused. These values document this measured gate-closing
 run and are not a universal worker-count, RAM, or hardware prescription.
+
+The historical Gate-3 decision is preserved in `reports/gates/gate_3.json`.
+The current `repr_v3` revalidation passed separately in
+`reports/gates/gate_3_repr_v3.json`; it authorizes `repr_v3` for new scientific
+artifacts without mutating or relabeling historical `repr_v2` records.
 
 ### Phase 4 — Deterministic generation and promotion
 

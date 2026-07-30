@@ -1,5 +1,13 @@
 # Phase 3 - Multi-view representations (Revision 4.1)
 
+> **Current representation version:** The report below is the preserved
+> 2026-07-18 `repr_v2` Gate-3 closure. The current `repr_v3` implementation
+> subsequently passed a fresh revalidation on the same immutable 10,000-record
+> denominator on 2026-07-30. See
+> `reports/milestones/phase_3_repr_v3_revalidation.md` and
+> `reports/gates/gate_3_repr_v3.json`. No historical artifact was rewritten or
+> relabelled.
+
 **Updated:** 2026-07-18
 **Decision:** **PASS**
 **Authorization:** Gate 3 is closed. LF-016 remains blocked only by the
@@ -28,7 +36,8 @@ exact denominator frozen by Gate 2. The run uses 5,000 mathlib and 5,000
 - Environment hash:
   `e447ac3a773b0d29ec75b51bcfa5318158399e9fe7459a650f9d0bfef9986298`.
 
-The archived source bundle binds the dirty working tree used for the runs,
+The archived source bundle binds the dirty working tree used for these
+historical `repr_v2` runs,
 including tracked and untracked source/configuration inputs. Later report-only
 edits do not change the executed bundle.
 

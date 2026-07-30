@@ -53,7 +53,13 @@ dataset probe (PLAN.md §9.2).
   families.
 - **Passed:** Gate 0 for internal research only and Gates 1, 2, and 3,
   including the frozen 20,000-row ingestion audit and exact 10,000-theorem
-  representation audit.
+  representation audit. The current `repr_v3` implementation also passed a
+  fresh, independent revalidation on the unchanged 5,000-mathlib plus
+  5,000-`sft_classic` denominator: every required view reached 100%, semantic
+  replay passed all 10,000 records, alpha invariance passed 1,000/1,000,
+  cross-path comparison passed 500/500, and 152/152 lossy clusters were
+  reviewed and closed. See `reports/gates/gate_3_repr_v3.json`. The historical
+  `repr_v2` decision and artifacts remain preserved rather than relabelled.
 - **Passed:** the additive benchmark representation-signature and overlap
   freeze over all 14,534 statements from the two locally resolved v1
   benchmarks. The active hash-only registry is
