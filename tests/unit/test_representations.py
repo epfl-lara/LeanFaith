@@ -370,6 +370,40 @@ def test_imports_with_lean_is_first_and_deduplicated() -> None:
     )
 
 
+def test_inline_helper_opens_close_before_user_source() -> None:
+    from leanfaith.representations.pipeline import (
+        TheoremForRepresentation,
+        _combined_command,
+    )
+    from leanfaith.schemas.ids import make_id
+
+    source = "\n".join(
+        (
+            "import Mathlib",
+            "open Real Set",
+            "theorem lf_unqualified_log (x : ℝ) : log x = Real.log x := by rfl",
+        )
+    )
+    theorem = TheoremForRepresentation(
+        theorem_id=make_id("thm", {"helper_namespace_isolation": 1}),
+        full_name="lf_unqualified_log",
+        proof_stripped=source.splitlines()[-1],
+        inline_source=source,
+        context_id="ctx:" + "a" * 64,
+        inline_declaration=True,
+    )
+
+    command = _combined_command("import Mathlib", theorem)
+
+    namespace_start = command.index("namespace LeanFaith.ReprV3.ExprJsonHelper")
+    helper_open = command.index("open Lean Elab Command Meta")
+    namespace_end = command.index("end LeanFaith.ReprV3.ExprJsonHelper")
+    user_open = command.index("open Real Set")
+    assert namespace_start < helper_open < namespace_end < user_open
+    assert command.count("open Lean Elab Command Meta") == 1
+    assert command.count("end LeanFaith.ReprV3.ExprJsonHelper") == 1
+
+
 def test_private_environment_lookup_name_is_source_qualified() -> None:
     from leanfaith.representations.pipeline import declaration_environment_lookup_name
 
