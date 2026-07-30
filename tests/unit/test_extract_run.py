@@ -259,6 +259,56 @@ def test_sft_non_prop_question_does_not_suppress_valid_theorem_fallback(tmp_path
     ]
 
 
+def test_sft_persists_skipped_alternate_route_declaration(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    backend = FakeBackend(
+        decl_status=LeanStatus.VALID_WITH_SORRY,
+        reval_status=LeanStatus.VALID_WITH_SORRY,
+    )
+    monkeypatch.setattr(
+        "leanfaith.lean.extract_run._route_alpha_fingerprints",
+        lambda *args, **kwargs: ("a" * 64,),
+    )
+    row = {
+        "uuid": "both-routes-valid",
+        "data_source": "fixture",
+        "question": f"```lean4\n{_SNIPPET}\n```",
+        "lean_code": _SNIPPET,
+        "valid": True,
+        "proof_repair": False,
+    }
+
+    stats = extract_sft_classic_rows(
+        backend,  # type: ignore[arg-type]
+        [row],
+        source_revision="0bf9",
+        split="train",
+        row_offset=0,
+        context_id=_CTX,
+        out_dir=tmp_path,
+    )
+
+    theorem = json.loads((tmp_path / "theorems" / "sft_classic.jsonl").read_text())["theorem"]
+    failure = json.loads((tmp_path / "failures" / "sft_classic.jsonl").read_text())
+    assert stats.declarations_seen == 2
+    assert stats.accepted == 1
+    assert stats.failures == 1
+    assert stats.declaration_outcomes == {"accepted": 1, "failed_or_skipped": 1}
+    assert stats.failure_codes == {"alternate_route_skipped": 1}
+    assert failure == {
+        "code": "alternate_route_skipped",
+        "declaration_name": "t_ok",
+        "detail": (
+            "lean_code_fallback proposition skipped because "
+            "question_statement is the canonical extraction route"
+        ),
+        "extraction_route": "lean_code_fallback",
+        "outcome_level": "declaration",
+        "source_record": theorem["source_record_id"],
+    }
+
+
 def test_sft_unstrippable_fallback_is_source_unavailable_not_infrastructure_error(
     tmp_path: Path,
 ) -> None:

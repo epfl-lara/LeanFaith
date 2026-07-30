@@ -219,7 +219,14 @@ def test_gate2_scale_audit_reconciles_frozen_denominator_and_hashes(tmp_path: Pa
                 "source_record": source_7,
                 "outcome_level": "row",
                 "code": "source_non_elaboration",
-            }
+            },
+            {
+                "source_record": source_3,
+                "declaration_name": "alternate",
+                "outcome_level": "declaration",
+                "code": "alternate_route_skipped",
+                "extraction_route": "lean_code_fallback",
+            },
         ],
     )
     sample_manifest_path = tmp_path / "sample_manifest.json"
@@ -242,7 +249,7 @@ def test_gate2_scale_audit_reconciles_frozen_denominator_and_hashes(tmp_path: Pa
             {
                 "attempted_row_count": 2,
                 "row_count": 1,
-                "declaration_count": 1,
+                "declaration_count": 2,
                 "terminal_outcome_counts": {"accepted": 1, "failed": 1},
                 "config_hash": "5" * 64,
                 "environment_hash": "6" * 64,

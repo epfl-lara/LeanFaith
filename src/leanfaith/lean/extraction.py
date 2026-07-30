@@ -52,6 +52,7 @@ class ExtractionFailureCode(StrEnum):
     RANGE_OUT_OF_BOUNDS = "range_out_of_bounds"
     PROOF_LEAK_DETECTED = "proof_leak_detected"
     REVALIDATION_FAILED = "revalidation_failed"
+    ALTERNATE_ROUTE_SKIPPED = "alternate_route_skipped"
 
 
 @dataclass(frozen=True, slots=True)

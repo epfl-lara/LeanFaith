@@ -829,9 +829,11 @@ def extract_sft_classic_rows(
             chosen_result.declarations if chosen_result.status in _VALID else ()
         )
         if route == "question_statement":
+            alternate_route = "lean_code_fallback"
             alternate_result = fallback_result
             alternate_extraction = fallback_extraction
         else:
+            alternate_route = "question_statement"
             alternate_result = question_result
             alternate_extraction = question_extraction
         alternate_declarations = (
@@ -844,14 +846,31 @@ def extract_sft_classic_rows(
         # terminal outcome. The alternate route is never emitted as another
         # canonical theorem, but its real extraction failures remain valuable
         # evidence and must not disappear merely because the other route won.
+        alternate_skips = tuple(
+            ExtractionFailure(
+                source_record=parsed.source_record_id,
+                declaration_name=(
+                    item.theorem.declaration_full_name or item.theorem.declaration_name
+                ),
+                code=ExtractionFailureCode.ALTERNATE_ROUTE_SKIPPED,
+                detail=(
+                    f"{alternate_route} proposition skipped because "
+                    f"{route} is the canonical extraction route"
+                ),
+                outcome_level="declaration",
+                extraction_route=alternate_route,
+            )
+            for item in alternate_extraction.accepted
+        )
+        alternate_terminal_outcomes = alternate_extraction.failures + alternate_skips
         if alternate_declarations:
             stats.declaration_outcomes["failed_or_skipped"] += len(alternate_declarations)
-        if alternate_extraction.failures:
-            stats.failures += len(alternate_extraction.failures)
-            for failure in alternate_extraction.failures:
+        if alternate_terminal_outcomes:
+            stats.failures += len(alternate_terminal_outcomes)
+            for failure in alternate_terminal_outcomes:
                 stats.failure_codes[failure.code.value] += 1
             _write_records(
-                ExtractionResult(failures=alternate_extraction.failures),
+                ExtractionResult(failures=alternate_terminal_outcomes),
                 theorems_path,
                 failures_path,
             )
