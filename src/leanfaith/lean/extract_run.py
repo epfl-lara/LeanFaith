@@ -52,6 +52,7 @@ from leanfaith.sources.hf_sft_classic import (
 )
 
 _VALID = (LeanStatus.VALID, LeanStatus.VALID_WITH_SORRY)
+_MAX_ROW_FAILURE_DETAIL_CHARS = 2000
 
 
 def _run_request(backend: LeanInteractBackend, request: LeanRequest) -> LeanResult:
@@ -70,6 +71,25 @@ def _failure_code_for_status(status: LeanStatus) -> ExtractionFailureCode:
     if status == LeanStatus.UNSUPPORTED:
         return ExtractionFailureCode.UNSUPPORTED_STRUCTURE
     return ExtractionFailureCode.SOURCE_NON_ELABORATION
+
+
+def _bounded_row_failure_detail(
+    summary: str,
+    *infrastructure_results: tuple[str, LeanResult],
+) -> str:
+    """Attach bounded process diagnostics to a row-level extraction failure.
+
+    ``LeanResult.infrastructure_error`` is diagnostic evidence only.  It can
+    explain a CRASH/TIMEOUT/INTERNAL_ERROR (including Lean's
+    ``failed to create thread`` stderr), but it never changes a theorem label
+    or the canonical extraction failure code.
+    """
+
+    parts = [summary]
+    for name, result in infrastructure_results:
+        if result.infrastructure_error:
+            parts.append(f"{name}_infrastructure_error={result.infrastructure_error}")
+    return "; ".join(parts)[:_MAX_ROW_FAILURE_DETAIL_CHARS]
 
 
 def _persist_source_failure(
@@ -323,7 +343,10 @@ def extract_repository_files(
                 failures_path,
                 rel,
                 _failure_code_for_status(result.status),
-                f"file elaboration ended as {result.status.value}",
+                _bounded_row_failure_detail(
+                    f"file elaboration ended as {result.status.value}",
+                    ("file", result),
+                ),
             )
             stats.row_outcomes[_failure_code_for_status(result.status).value] += 1
             continue
@@ -412,7 +435,10 @@ def extract_dataset_snippets(
                 failures_path,
                 record_id,
                 _failure_code_for_status(decl_result.status),
-                f"snippet elaboration ended as {decl_result.status.value}",
+                _bounded_row_failure_detail(
+                    f"snippet elaboration ended as {decl_result.status.value}",
+                    ("snippet", decl_result),
+                ),
             )
             stats.row_outcomes[_failure_code_for_status(decl_result.status).value] += 1
             continue
@@ -810,8 +836,12 @@ def extract_sft_classic_rows(
                 failures_path,
                 parsed.source_record_id,
                 code,
-                f"question={question_status}; fallback={fallback_status}; "
-                f"partial_declarations_reported={partial_declarations}",
+                _bounded_row_failure_detail(
+                    f"question={question_status}; fallback={fallback_status}; "
+                    f"partial_declarations_reported={partial_declarations}",
+                    ("question", question_result),
+                    ("fallback", fallback_result),
+                ),
             )
             stats.source_not_elaborating += int(
                 question_result.status not in _VALID and fallback_result.status not in _VALID

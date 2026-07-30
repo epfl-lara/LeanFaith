@@ -196,6 +196,78 @@ class ZeroDeclBackend:
         )
 
 
+class CrashBackend:
+    """Return one scripted infrastructure crash without invoking Lean."""
+
+    def __init__(self, infrastructure_error: str) -> None:
+        self.infrastructure_error = infrastructure_error
+
+    def run(self, request: LeanRequest) -> LeanResult:
+        return LeanResult(
+            request_id=request.request_id,
+            request_hash="c" * 64,
+            context_id=request.context_id,
+            context_fingerprint="e" * 64,
+            status=LeanStatus.CRASH,
+            infrastructure_error=self.infrastructure_error,
+        )
+
+
+def test_repository_thread_creation_crash_persists_bounded_diagnostic(
+    tmp_path: Path,
+) -> None:
+    checkout = tmp_path / "mathlib"
+    (checkout / "Mathlib").mkdir(parents=True)
+    relative_path = "Mathlib/F.lean"
+    (checkout / relative_path).write_text(_SNIPPET + "\n")
+    raw_error = (
+        "resource_limit_thread_creation: ConnectionAbortedError: "
+        "stderr: failed to create thread\n" + "x" * 4000
+    )
+
+    stats = extract_repository_files(
+        CrashBackend(raw_error),  # type: ignore[arg-type]
+        checkout,
+        [relative_path],
+        source="mathlib",
+        source_revision="d568",
+        context_id=_CTX,
+        out_dir=tmp_path / "out",
+    )
+
+    failure = json.loads((tmp_path / "out" / "failures" / "mathlib.jsonl").read_text().strip())
+    assert stats.row_outcomes == {"worker_crash": 1}
+    assert stats.failure_codes == {"worker_crash": 1}
+    assert failure["code"] == "worker_crash"
+    assert "resource_limit_thread_creation" in failure["detail"]
+    assert "failed to create thread" in failure["detail"]
+    assert len(failure["detail"]) == 2000
+
+
+def test_repository_ordinary_crash_keeps_worker_crash_mapping(tmp_path: Path) -> None:
+    checkout = tmp_path / "mathlib"
+    (checkout / "Mathlib").mkdir(parents=True)
+    relative_path = "Mathlib/F.lean"
+    (checkout / relative_path).write_text(_SNIPPET + "\n")
+
+    stats = extract_repository_files(
+        CrashBackend("ConnectionAbortedError: ordinary child exit"),  # type: ignore[arg-type]
+        checkout,
+        [relative_path],
+        source="mathlib",
+        source_revision="d568",
+        context_id=_CTX,
+        out_dir=tmp_path / "out",
+    )
+
+    failure = json.loads((tmp_path / "out" / "failures" / "mathlib.jsonl").read_text().strip())
+    assert stats.row_outcomes == {"worker_crash": 1}
+    assert failure["code"] == "worker_crash"
+    assert failure["detail"].endswith(
+        "file_infrastructure_error=ConnectionAbortedError: ordinary child exit"
+    )
+
+
 def test_elaborating_no_declarations_counted_distinctly(tmp_path: Path) -> None:
     stats = extract_dataset_snippets(
         ZeroDeclBackend(),  # type: ignore[arg-type]
