@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 from leanfaith.lean.extract_run import (
     ExtractStats,
     extract_dataset_snippets,
@@ -170,6 +172,79 @@ class RejectBlankDatasetRouteBackend:
         )
 
 
+class NonPropQuestionValidFallbackBackend:
+    """The canonical route is the first accepted proposition, not any declaration."""
+
+    def __init__(self) -> None:
+        self.calls: list[LeanRequest] = []
+
+    def run(self, request: LeanRequest) -> LeanResult:
+        assert request.code is not None
+        assert request.code.strip()
+        self.calls.append(request)
+        if "reval" in request.request_id:
+            declarations: tuple[dict, ...] = ()
+        elif "question_statement" in request.request_id:
+            declarations = (
+                {
+                    **_DECL,
+                    "kind": "definition",
+                    "signature": {**_DECL["signature"], "pp": ": Nat"},
+                    "type": {"pp": "Nat"},
+                },
+            )
+        else:
+            declarations = (_DECL,)
+        return LeanResult(
+            request_id=request.request_id,
+            request_hash="c" * 64,
+            context_id=request.context_id,
+            context_fingerprint="e" * 64,
+            status=LeanStatus.VALID_WITH_SORRY,
+            declarations=declarations,
+        )
+
+
+def test_sft_non_prop_question_does_not_suppress_valid_theorem_fallback(tmp_path: Path) -> None:
+    backend = NonPropQuestionValidFallbackBackend()
+    row = {
+        "uuid": "non-prop-question-valid-fallback",
+        "data_source": "fixture",
+        "question": "```lean4\ndef t_ok : Nat := 1\n```",
+        "lean_code": _SNIPPET,
+        "valid": False,
+        "proof_repair": False,
+    }
+
+    stats = extract_sft_classic_rows(
+        backend,  # type: ignore[arg-type]
+        [row],
+        source_revision="0bf9",
+        split="train",
+        row_offset=0,
+        context_id=_CTX,
+        out_dir=tmp_path,
+    )
+
+    assert stats.sources_processed == 1
+    assert stats.declarations_seen == 1
+    assert stats.accepted == 1
+    assert stats.failures == 0
+    assert stats.row_outcomes == {"accepted_lean_code_fallback": 1}
+    assert stats.declaration_outcomes == {"accepted": 1, "failed_or_skipped": 0}
+    assert [call.request_id.rsplit("-", 1)[-1] for call in backend.calls[:2]] == [
+        "question_statement",
+        "lean_code_fallback",
+    ]
+    theorem = json.loads((tmp_path / "theorems" / "sft_classic.jsonl").read_text().splitlines()[0])[
+        "theorem"
+    ]
+    assert theorem["extraction_route"] == "lean_code_fallback"
+    assert theorem["nl_pair_eligibility"] == "unverified"
+    assert theorem["question_lean_code_agreement"] == "question_unavailable"
+    assert not (tmp_path / "failures" / "sft_classic.jsonl").exists()
+
+
 def test_sft_unstrippable_fallback_is_source_unavailable_not_infrastructure_error(
     tmp_path: Path,
 ) -> None:
@@ -212,6 +287,35 @@ def test_sft_unstrippable_fallback_is_source_unavailable_not_infrastructure_erro
     assert "infrastructure_error" not in failure["detail"]
 
 
+def test_sft_whitespace_fence_is_unsupported_structure_not_missing_fence(tmp_path: Path) -> None:
+    backend = RejectBlankDatasetRouteBackend()
+    row = {
+        "uuid": "whitespace-fence",
+        "data_source": "fixture",
+        "question": "```lean4\n   \n```",
+        "lean_code": "   ",
+        "valid": False,
+        "proof_repair": False,
+    }
+
+    stats = extract_sft_classic_rows(
+        backend,  # type: ignore[arg-type]
+        [row],
+        source_revision="0bf9",
+        split="train",
+        row_offset=0,
+        context_id=_CTX,
+        out_dir=tmp_path,
+    )
+
+    assert backend.calls == []
+    assert stats.row_outcomes == {"unsupported_structure": 1}
+    failure = json.loads((tmp_path / "failures" / "sft_classic.jsonl").read_text().splitlines()[-1])
+    assert failure["code"] == "unsupported_structure"
+    assert "question=unsupported; fallback=unsupported" in failure["detail"]
+    assert "infrastructure_error" not in failure["detail"]
+
+
 def test_sft_two_blank_routes_never_call_lean(tmp_path: Path) -> None:
     backend = RejectBlankDatasetRouteBackend()
     row = {
@@ -238,6 +342,30 @@ def test_sft_two_blank_routes_never_call_lean(tmp_path: Path) -> None:
     failure = json.loads((tmp_path / "failures" / "sft_classic.jsonl").read_text().splitlines()[-1])
     assert "question=unsupported; fallback=unsupported" in failure["detail"]
     assert "infrastructure_error" not in failure["detail"]
+
+
+def test_sft_empty_route_rejects_noncanonical_context_before_lean(tmp_path: Path) -> None:
+    backend = RejectBlankDatasetRouteBackend()
+    row = {
+        "uuid": "bad-context",
+        "data_source": "fixture",
+        "question": "No fenced Lean declaration is present.",
+        "lean_code": "",
+        "valid": False,
+        "proof_repair": False,
+    }
+
+    with pytest.raises(ValueError, match="canonical form"):
+        extract_sft_classic_rows(
+            backend,  # type: ignore[arg-type]
+            [row],
+            source_revision="0bf9",
+            split="train",
+            row_offset=0,
+            context_id="ctx:not-a-fingerprint",
+            out_dir=tmp_path,
+        )
+    assert backend.calls == []
 
 
 def test_dataset_extraction_counts_non_elaborating_source(tmp_path: Path) -> None:
