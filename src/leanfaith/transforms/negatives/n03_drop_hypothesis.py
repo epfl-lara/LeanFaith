@@ -876,8 +876,10 @@ class N03DropHypothesisRule:
             applicable=True,
             reason_codes=(),
             matched_nodes=tuple(
-                f"forall:{site.outer_index}:{site.hypothesis_name}:{site.start}:{site.end}"
-                for site in sites
+                sorted(
+                    f"forall:{site.outer_index}:{site.hypothesis_name}:{site.start}:{site.end}"
+                    for site in sites
+                )
             ),
             required_capabilities=(
                 "alpha_identity_fingerprint",

@@ -505,8 +505,10 @@ class N02QuantifierRule:
             applicable=True,
             reason_codes=(),
             matched_nodes=tuple(
-                f"quantifier:{site.token_index}:{site.start}:{site.end}:{site.mutation_id}"
-                for site in sites
+                sorted(
+                    f"quantifier:{site.token_index}:{site.start}:{site.end}:{site.mutation_id}"
+                    for site in sites
+                )
             ),
             required_capabilities=(
                 "alpha_identity_fingerprint",

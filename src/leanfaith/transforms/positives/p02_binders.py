@@ -860,7 +860,7 @@ class P02BinderRule:
             return Applicability(
                 applicable=False,
                 reason_codes=_analysis_reasons(theorem.proof_stripped_declaration, binders),
-                matched_nodes=tuple(f"binder:{binder.index}" for binder in binders),
+                matched_nodes=tuple(sorted(f"binder:{binder.index}" for binder in binders)),
                 required_capabilities=(
                     "alpha_identity",
                     "binder_dependency_graph",
@@ -872,7 +872,9 @@ class P02BinderRule:
         return Applicability(
             applicable=True,
             reason_codes=(),
-            matched_nodes=tuple(f"span:{edit.start}:{edit.end}:{edit.operation}" for edit in edits),
+            matched_nodes=tuple(
+                sorted(f"span:{edit.start}:{edit.end}:{edit.operation}" for edit in edits)
+            ),
             required_capabilities=(
                 "alpha_identity",
                 "binder_dependency_graph",

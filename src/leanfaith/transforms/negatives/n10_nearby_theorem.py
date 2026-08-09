@@ -1019,11 +1019,13 @@ class N10NearbyTheoremRule:
             applicable=True,
             reason_codes=(),
             matched_nodes=tuple(
-                (
-                    f"nearby:{site.primary_start}:{site.primary_end}:"
-                    f"{site.donor_start}:{site.donor_end}:{site.entry_id}"
+                sorted(
+                    (
+                        f"nearby:{site.primary_start}:{site.primary_end}:"
+                        f"{site.donor_start}:{site.donor_end}:{site.entry_id}"
+                    )
+                    for site in sites
                 )
-                for site in sites
             ),
             required_capabilities=(
                 "alpha_identity_fingerprint",

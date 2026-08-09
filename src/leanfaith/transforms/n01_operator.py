@@ -719,7 +719,7 @@ class N01OperatorRule:
             applicable=True,
             reason_codes=(),
             matched_nodes=tuple(
-                f"operator:{site.start}:{site.end}:{site.entry_id}" for site in sites
+                sorted(f"operator:{site.start}:{site.end}:{site.entry_id}" for site in sites)
             ),
             required_capabilities=("lean_reelaboration", "semantic_atom_delta"),
             metadata={"eligible_site_count": len(sites)},

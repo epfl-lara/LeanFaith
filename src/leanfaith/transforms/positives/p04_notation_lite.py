@@ -553,8 +553,10 @@ class P04NotationLiteRule:
             applicable=True,
             reason_codes=(),
             matched_nodes=tuple(
-                f"token:{site.token_index}:{site.start}:{site.end}:{site.entry_id}:{site.direction}"
-                for site in sites
+                sorted(
+                    f"token:{site.token_index}:{site.start}:{site.end}:{site.entry_id}:{site.direction}"
+                    for site in sites
+                )
             ),
             required_capabilities=(
                 "alpha_identity_fingerprint",

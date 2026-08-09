@@ -181,6 +181,23 @@ def test_seeded_selection_reaches_distinct_sites() -> None:
     assert len(selected) == 2
 
 
+def test_assess_canonicalizes_multiple_real_quantifier_sites() -> None:
+    code = (
+        "lemma isSheafFor_singleton {X Y : C} {f : X ⟶ Y} :\n"
+        "    Presieve.IsSheafFor P (.singleton f) ↔\n"
+        "      ∀ (x : P.obj (op X)),\n"
+        "        (∀ {Z : C} (p₁ p₂ : Z ⟶ X), p₁ ≫ f = p₂ ≫ f → "
+        "P.map p₁.op x = P.map p₂.op x) →\n"
+        "        ∃! y, P.map f.op y = x := by sorry"
+    )
+
+    applicability = _rule().assess(_theorem(code), _representation(code))
+
+    assert applicability.applicable
+    assert len(applicability.matched_nodes) == 3
+    assert applicability.matched_nodes == tuple(sorted(set(applicability.matched_nodes)))
+
+
 @pytest.mark.parametrize(
     "source",
     [
