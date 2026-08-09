@@ -3437,7 +3437,7 @@ def freeze_lf022_proposer_admission_command(
         str,
         typer.Option(
             "--proposer-family",
-            help="moonshot_kimi_k2, qwen3, or glm5.",
+            help="qwen3 or glm5; the Kimi-v3 route is archived.",
         ),
     ],
     code_bundle_path: Annotated[
@@ -3483,7 +3483,13 @@ def freeze_lf022_proposer_admission_command(
         freeze_lf022_diagnostic_execution_admission,
     )
 
-    allowed_families = {"moonshot_kimi_k2", "qwen3", "glm5"}
+    if proposer_family_id == "moonshot_kimi_k2":
+        typer.echo(
+            "Kimi-v3 admission is archived after the failed prefix-256 audit",
+            err=True,
+        )
+        raise typer.Exit(code=2)
+    allowed_families = {"qwen3", "glm5"}
     if proposer_family_id not in allowed_families:
         typer.echo("--proposer-family is not a supported public LF-022 proposer", err=True)
         raise typer.Exit(code=2)
@@ -3556,7 +3562,7 @@ def freeze_lf022_scientific_kimi_admission_command(
         typer.Option("--root", help="Repository root override."),
     ] = None,
 ) -> None:
-    """Freeze the reviewed Kimi route over an exact scientific public pool offline."""
+    """Reject the archived Kimi-v3 scientific admission path."""
     from leanfaith.config.paths import RepoPaths
     from leanfaith.generation.lf022_admission_freeze import (
         LF022AdmissionFreezeError,
@@ -4002,6 +4008,136 @@ def qa_lf022_prefix256_command(
     )
     if report.qa_status != "passed":
         raise typer.Exit(code=2)
+
+
+@app.command("freeze-lf022-kimi-v4-challenge")
+def freeze_lf022_kimi_v4_challenge_command(
+    current_code_bundle: Annotated[
+        Path,
+        typer.Option(
+            "--current-code-bundle",
+            help="Validated full bundle of the clean current selection code tree.",
+        ),
+    ],
+    v3_manifest: Annotated[
+        Path,
+        typer.Option("--v3-manifest", help="Exact immutable Kimi-v3 prefix-256 manifest."),
+    ] = Path("data/lf022_kimi_scientific_cfdbb46/prefix_256/batch/batch_manifest.json"),
+    exact_offline_replay_report: Annotated[
+        Path,
+        typer.Option(
+            "--exact-offline-replay-report",
+            help="Exact zero-network 256-terminal Kimi-v3 replay report.",
+        ),
+    ] = Path(
+        "data/lf022_kimi_scientific_cfdbb46/prefix_256/batch/runs/"
+        "9fc94ffe7c230634f961c6519bb5f70834de769afcbf5856affb4959117bf016.json"
+    ),
+    v4_contract: Annotated[
+        Path,
+        typer.Option("--v4-contract", help="Reviewed, still-unqualified Kimi-v4 contract."),
+    ] = Path("configs/generation/lf022_kimi_k2_7_proposer_v4.yaml"),
+    root_dir: Annotated[
+        Path | None,
+        typer.Option("--root", help="Repository root override."),
+    ] = None,
+) -> None:
+    """Freeze the deterministic Kimi-v4 challenge without provider access."""
+    from leanfaith.config.hashing import hash_file
+    from leanfaith.config.paths import RepoPaths, RepoRootNotFoundError
+    from leanfaith.generation.lf022_kimi_v4_selection import (
+        LF022KimiV4SelectionError,
+        freeze_lf022_kimi_v4_challenge_selection,
+    )
+    from leanfaith.generation.lf022_production import LF022ArtifactBinding
+
+    try:
+        paths = RepoPaths.discover(root_dir) if root_dir is None else RepoPaths(root=root_dir)
+        root = paths.root.resolve(strict=True)
+
+        def binding(path: Path, *, label: str) -> LF022ArtifactBinding:
+            candidate = (path if path.is_absolute() else root / path).resolve(strict=True)
+            try:
+                relative = candidate.relative_to(root).as_posix()
+            except ValueError as exc:
+                raise ValueError(f"{label} must be inside the repository") from exc
+            return LF022ArtifactBinding(path=relative, sha256=hash_file(candidate))
+
+        frozen = freeze_lf022_kimi_v4_challenge_selection(
+            repo_root=root,
+            v3_manifest_binding=binding(v3_manifest, label="v3 manifest"),
+            exact_offline_replay_report_binding=binding(
+                exact_offline_replay_report,
+                label="exact offline replay report",
+            ),
+            v4_contract_binding=binding(v4_contract, label="v4 contract"),
+            current_code_bundle_binding=binding(
+                current_code_bundle,
+                label="current code bundle",
+            ),
+        )
+    except (
+        LF022KimiV4SelectionError,
+        RepoRootNotFoundError,
+        OSError,
+        ValueError,
+    ) as exc:
+        typer.echo(f"Kimi-v4 challenge freeze rejected: {exc}", err=True)
+        raise typer.Exit(code=2) from exc
+    typer.echo(
+        f"status={frozen.selection.status} selection_id={frozen.selection.selection_id} "
+        f"path={frozen.selection_path} selected=16 capability_rank=0 "
+        "network_requests=0 execution_admission_created=false promotion_enabled=false"
+    )
+
+
+@app.command("verify-lf022-kimi-v4-challenge")
+def verify_lf022_kimi_v4_challenge_command(
+    selection: Annotated[
+        Path,
+        typer.Option("--selection", help="Content-addressed Kimi-v4 challenge selection."),
+    ],
+    root_dir: Annotated[
+        Path | None,
+        typer.Option("--root", help="Repository root override."),
+    ] = None,
+) -> None:
+    """Replay a frozen Kimi-v4 challenge selection with zero network calls."""
+    from leanfaith.config.hashing import hash_file
+    from leanfaith.config.paths import RepoPaths, RepoRootNotFoundError
+    from leanfaith.generation.lf022_kimi_v4_selection import (
+        LF022KimiV4SelectionError,
+        verify_lf022_kimi_v4_challenge_selection,
+    )
+    from leanfaith.generation.lf022_production import LF022ArtifactBinding
+
+    try:
+        paths = RepoPaths.discover(root_dir) if root_dir is None else RepoPaths(root=root_dir)
+        root = paths.root.resolve(strict=True)
+        candidate = (selection if selection.is_absolute() else root / selection).resolve(
+            strict=True
+        )
+        relative = candidate.relative_to(root).as_posix()
+        verified = verify_lf022_kimi_v4_challenge_selection(
+            repo_root=root,
+            selection_binding=LF022ArtifactBinding(
+                path=relative,
+                sha256=hash_file(candidate),
+            ),
+        )
+    except (
+        LF022KimiV4SelectionError,
+        RepoRootNotFoundError,
+        OSError,
+        ValueError,
+    ) as exc:
+        typer.echo(f"Kimi-v4 challenge replay rejected: {exc}", err=True)
+        raise typer.Exit(code=2) from exc
+    typer.echo(
+        f"status={verified.status} selection_id={verified.selection_id} "
+        "replayed_terminals=256 selected=16 network_requests=0 "
+        "execution_admission_created=false promotion_enabled=false"
+    )
 
 
 @app.command("audit-training-readiness")

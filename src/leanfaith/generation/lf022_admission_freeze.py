@@ -702,6 +702,12 @@ def freeze_lf022_diagnostic_execution_admission(
 ) -> FrozenLF022ExecutionAdmission:
     """Create and exact-replay one family-specific diagnostic admission offline."""
 
+    if proposer_family_id == "moonshot_kimi_k2":
+        raise LF022AdmissionFreezeError(
+            "Kimi-v3 diagnostic admission is archived after the failed prefix-256 audit; "
+            "historical artifacts are offline-replay-only and Kimi-v4 remains unqualified"
+        )
+
     return _freeze_lf022_execution_admission(
         repo_root=repo_root,
         public_pool_audit_path=public_pool_audit_path,
@@ -723,18 +729,25 @@ def freeze_lf022_scientific_kimi_execution_admission(
     output_path: Path,
     provider_catalog_raw_path: Path | None = None,
 ) -> FrozenLF022ExecutionAdmission:
-    """Admit the reviewed Kimi route over one exact scientific public pool."""
+    """Reject new Kimi-v3 scientific admissions while retaining the legacy API.
 
-    return _freeze_lf022_execution_admission(
-        repo_root=repo_root,
-        public_pool_audit_path=public_pool_audit_path,
-        proposer_family_id="moonshot_kimi_k2",
-        code_bundle_path=code_bundle_path,
-        output_path=output_path,
-        provider_catalog_raw_path=provider_catalog_raw_path,
-        qualification_supersession_path=None,
-        proposer_production_eligibility_path=None,
-        expected_profile="scientific_production_scaffold",
+    Existing immutable v3 admissions remain readable for offline historical
+    replay.  The failed prefix-256 audit archived this production route, so a
+    current caller must complete the separately versioned Kimi-v4
+    requalification before any new scientific admission can exist.
+    """
+
+    del (
+        repo_root,
+        public_pool_audit_path,
+        code_bundle_path,
+        output_path,
+        provider_catalog_raw_path,
+    )
+    raise LF022AdmissionFreezeError(
+        "Kimi-v3 scientific admission is archived after the failed prefix-256 audit; "
+        "historical artifacts are offline-replay-only and Kimi-v4 requalification "
+        "does not yet authorize production"
     )
 
 

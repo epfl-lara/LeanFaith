@@ -7,7 +7,9 @@ records, or Gate credit.
 
 ## Supported proposer routes
 
-- `moonshotai/Kimi-K2.7-Code` has an already reviewed public provisional route.
+- `moonshotai/Kimi-K2.7-Code` v3 is archived and offline-replay-only after its
+  failed prefix-256 audit. Kimi-v4 is a pending offline requalification design,
+  not an executable route.
 - `Qwen/Qwen3.5-397B-A17B` may enter scientific production only through its
   exact replay-verified v2 proposer eligibility.
 - `zai-org/GLM-5.2` may enter scientific production only through its exact
@@ -395,127 +397,83 @@ retain `--max-concurrency 1`.
 Every output remains public-only, provisional, unresolved, unlabeled, and
 ineligible for training, evaluation, promotion, or Gate credit.
 
-## Scientific Kimi production tranches
+## Kimi-v4 requalification after the failed v3 prefix
 
-Kimi already has a reviewed `public_provisional_g_open` route, so it does not
-use the Qwen/GLM one-item proposer-qualification gate. The scientific admission
-must instead bind the exact reviewed public pool, current code bundle, raw and
-normalized provider catalogs, Kimi v3 route contract, prompt, and successful
-route evidence. Freeze it offline from a clean committed tree:
+The immutable Kimi-v3 prefix-256 remains the historical record: 227 tasks
+succeeded and 29 failed. Reinspection of the persisted wire bodies attributes
+22 failures to the 16,384-token completion ceiling, five to declaration-boundary
+parsing (including one valid structure literal containing `:=`), and two to
+avoidable max-parallel HTTP 429 responses. The v4 work does not rewrite or
+silently reinterpret those terminal artifacts.
+
+`configs/generation/lf022_kimi_k2_7_proposer_v4.yaml` is a pending
+requalification contract, not a production admission. It binds the v2 prompt,
+32,768-token high-reasoning request, transient-HTTP-only retry policy, one
+maximum in-flight request, and a capability-first 16-case decision rule. The
+first selected case is the only permitted capability call. The other 15 calls
+must not begin unless it returns HTTP 200, the expected model, `finish_reason`
+`stop`, and one strict parsed variant. A `length` response is recorded as
+`output_budget_exhausted` and is never retried with identical payload bytes.
+
+Freeze the exact challenge offline from the admitted-code historical replay:
 
 ```bash
 ROOT=/localhome/milikic/LeanFaith
 cd "$ROOT"
-git diff --quiet
-git diff --cached --quiet
+test -z "$(git status --porcelain)"
 
-POOL_AUDIT="artifacts/generation/lf022_public_v3_max_c799f54c/audit.json"
 BUNDLE_JSON=$(
   uv run leanfaith freeze-code-bundle \
     --root "$ROOT" \
-    --out-dir artifacts/code_bundles/lf022_kimi_scientific
+    --out-dir artifacts/code_bundles/lf022_kimi_v4
 )
 BUNDLE=$(
   python -c 'import json,sys; print(json.load(sys.stdin)["path"])' \
     <<<"$BUNDLE_JSON"
 )
 
-ADMISSION="artifacts/generation/lf022_kimi_scientific_v3/execution_admission.json"
-uv run leanfaith freeze-lf022-scientific-kimi-admission \
+uv run leanfaith freeze-lf022-kimi-v4-challenge \
   --root "$ROOT" \
-  --public-pool-audit "$POOL_AUDIT" \
-  --code-bundle "$BUNDLE" \
-  --output "$ADMISSION"
+  --current-code-bundle "$BUNDLE"
 ```
 
-This command reads no credentials and performs no network request. The bound
-scientific plan currently contains exactly 9,207 Kimi `G_open` tasks. Select
-deterministic tranches by their position in that exact plan rather than passing
-thousands of task IDs. The selected IDs are then stored sorted and unique in
-the immutable request:
+The command performs no network request and creates no execution admission. It
+requires a clean Git tree, validates and binds the complete current code bundle,
+and records exact hashes for the selector, historical loader, response parsers,
+contract, and prompt before reparsing any historical body. It replays all 256
+historical terminals and deterministically selects six prior budget-exhausted
+cases, two still-proof-bearing cases, and eight prior-success controls from 16
+unique sources. Its output is content-addressed beneath
+`artifacts/generation/lf022_kimi_v4_challenge_selection_v2/`. Replay it later
+only from that same code tree with:
 
 ```bash
-# Start with LIMIT=1. After end-to-end review, use LIMIT=256 and then LIMIT=9207.
-OFFSET=0
-LIMIT=1
-TAG="prefix_${LIMIT}"
-REQUEST="data/lf022_kimi_scientific/${TAG}/request.json"
-BATCH_DIR="data/lf022_kimi_scientific/${TAG}/batch"
-
-uv run leanfaith make-lf022-public-batch-request \
+uv run leanfaith verify-lf022-kimi-v4-challenge \
   --root "$ROOT" \
-  --admission "$ADMISSION" \
-  --allocation-offset "$OFFSET" \
-  --allocation-limit "$LIMIT" \
-  --output "$REQUEST" \
-  --batch-directory "$BATCH_DIR"
-uv run leanfaith freeze-lf022-public-batch \
-  --root "$ROOT" \
-  --request "$REQUEST"
+  --selection artifacts/generation/lf022_kimi_v4_challenge_selection_v2/<sha256>.json
 ```
 
-The freezer fails closed if the requested window extends past the admitted
-Kimi `G_open` plan. Thus `OFFSET=0 LIMIT=1`, `OFFSET=0 LIMIT=256`, and
-`OFFSET=0 LIMIT=9207` freeze the reviewed one-item, prefix-256, and complete
-scientific batches without a large command line. An operator may instead use
-non-overlapping offsets. The immutable request and manifest store the exact
-sorted task IDs; record the human-readable offset and limit in the associated
-run notes rather than claiming that those two convenience arguments are schema
-fields.
+The requalification decision is fixed before live access: at least 14/16 must
+strictly parse, no selected response may exhaust its output budget or be an
+HTTP-200 empty response, and neither selected historical declaration-boundary
+failure may repeat. Passing still requires a distinct reviewed qualification
+artifact before any larger Kimi admission. Until the live capability call and
+remaining challenge exist, Kimi-v4 remains non-executable and cannot authorize
+production, supervision, promotion, evaluation, or Gate credit.
 
-Preflight any frozen tranche without credentials:
+## Archived Kimi-v3 scientific route
 
-```bash
-MANIFEST="$BATCH_DIR/batch_manifest.json"
-env -u RCP_BASE_URL -u RCP_API_KEY -u OPENAI_BASE_URL -u OPENAI_API_KEY \
-  uv run leanfaith run-lf022-public-batch \
-    --root "$ROOT" \
-    --manifest "$MANIFEST" \
-    --max-concurrency 1 \
-    --minimum-request-interval-seconds 1
-```
+The failed prefix-256 audit permanently closed the Kimi-v3 scientific launch
+path. Both legacy Kimi-v3 admission commands now reject every request, and
+explicit live execution rejects every existing manifest bound to
+`kimi_k2_7_public_smoke_v3`. Existing admissions, requests,
+terminals, and raw responses remain immutable evidence and may still be replayed
+with the ordinary commands in offline mode. They cannot be extended into a new
+prefix or full run.
 
-Only after the one-item result has been inspected end to end should the same
-manifest be executed with runtime-only credentials and the explicit live flag:
-
-```bash
-test "${RCP_BASE_URL%/}" = "https://inference.rcp.epfl.ch/v1"
-test -n "${RCP_API_KEY:-}"
-set +x
-env -u OPENAI_BASE_URL -u OPENAI_API_KEY \
-  RCP_BASE_URL="$RCP_BASE_URL" \
-  RCP_API_KEY="$RCP_API_KEY" \
-  uv run leanfaith run-lf022-public-batch \
-    --root "$ROOT" \
-    --manifest "$MANIFEST" \
-    --execute-public-provisional \
-    --max-concurrency 1 \
-    --minimum-request-interval-seconds 1
-```
-
-Use one concurrent request for Kimi as well. The prefix-256 diagnostic run
-observed the same key-level `max_parallel_requests=1` response header and
-confirmed that higher client concurrency creates avoidable HTTP 429 retries.
-
-All tranches use the same global executor output root and deterministic task
-identities. Re-freezing a larger prefix therefore replays already terminal
-tasks without another provider call and continues only with unfinished tasks.
-The prefix-256 tranche is the mechanical go/no-go audit for the full run. Do
-not start the 9,207-task tranche unless all 256 tasks have terminal records,
-`error_count=0`, no `transport_unknown` terminal exists, and at least 243 of
-256 tasks (95%) end as `provisional_variants_created`. Inspect a deterministic
-32-item sample of the successful raw and parsed artifacts for prompt leakage,
-proof bodies/placeholders, malformed declaration boundaries, and duplicated
-outputs. This is operational generation QA, not semantic labeling. A failed
-threshold requires a route or prompt review and a new versioned admission; it
-must not be bypassed by silently dropping failed tasks.
-
-Use `qa-lf022-prefix256` above for this audit; do not select the 32 examples by
-hand or substitute a different offline replay report.
-
-Every generated variant remains provisional, unresolved, unlabeled, and
-ineligible for training, evaluation, promotion, or Gate credit until later
-independent validation and label resolution.
+There is intentionally no Kimi-v4 live runner yet. Freezing the v4 challenge is
+only an offline selection step; a future capability-first runner requires a
+separate reviewed implementation and qualification artifact.
 
 ## Separation and privacy invariants
 

@@ -60,6 +60,14 @@ def run_lf022_public_provisional(
         LF022GOpenExecutionTask,
         label="LF-022 execution task",
     )
+    if execute_public_provisional and (
+        admission.route.proposer_family_id == "moonshot_kimi_k2"
+        and admission.route.decoding.contract_id == "kimi_k2_7_public_smoke_v3"
+    ):
+        raise ValueError(
+            "live Kimi-v3 execution is archived after the failed prefix-256 audit; "
+            "offline replay remains available and Kimi-v4 is not yet qualified"
+        )
     if not execute_public_provisional:
         return execute_lf022_g_open_task(
             repo_root=repo_root,

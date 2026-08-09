@@ -30,6 +30,8 @@ from leanfaith.generation.lf022_production import (
 )
 from leanfaith.generation.rcp_provider import UrllibOpenAICompatibleRCPTransport
 
+_ARCHIVED_KIMI_V3_CONTRACT_ID = "kimi_k2_7_public_smoke_v3"
+
 
 @dataclass(frozen=True, slots=True)
 class CreatedLF022BatchRequest:
@@ -146,6 +148,14 @@ def create_public_batch_request(
     canonical = canonical_json_bytes(admission.model_dump(mode="json"))
     if raw not in {canonical, canonical + b"\n"}:
         raise ValueError("execution admission is not canonical JSON")
+    if (
+        admission.route.proposer_family_id == "moonshot_kimi_k2"
+        and admission.route.decoding.contract_id == _ARCHIVED_KIMI_V3_CONTRACT_ID
+    ):
+        raise ValueError(
+            "new Kimi-v3 batch requests are archived after the failed prefix-256 "
+            "audit; existing frozen manifests remain available for offline replay"
+        )
     verified = verify_lf022_execution_admission(
         repo_root=repo_root,
         admission=admission,
@@ -250,6 +260,10 @@ def run_public_batch(
             repo_root=repo_root,
             manifest_binding=binding,
             policy=policy,
+        )
+    if max_concurrency != 1:
+        raise ValueError(
+            "live LF-022 execution requires --max-concurrency 1; offline replay may use more"
         )
     base_url = os.environ.get("RCP_BASE_URL", "")
     api_key = os.environ.get("RCP_API_KEY", "")

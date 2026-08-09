@@ -107,6 +107,29 @@ def test_v4_config_binds_reviewed_prompt_and_exact_high_reasoning_decoding() -> 
     assert decoding.chat_template_enable_thinking is True
     assert decoding.temperature == 1.0
     assert decoding.top_p == 0.95
+    assert config["capability_policy"] == {
+        "max_tokens_32768_provider_support": "unverified_until_one_live_call",
+        "official_per_model_output_limit_disclosed": False,
+        "mass_execution_before_capability_success": False,
+        "capability_stage_size": 1,
+        "capability_requires_strict_variant_success": True,
+        "remaining_challenge_before_capability_success": False,
+    }
+    assert config["retry_policy"] == {
+        "schema_version": 1,
+        "max_attempts": 3,
+        "request_timeout_seconds": 3600,
+        "base_delay_seconds": 1.0,
+        "maximum_delay_seconds": 60.0,
+        "retryable_http_statuses": [408, 409, 425, 429, 500, 502, 503, 504],
+        "honor_retry_after": True,
+        "retry_transport_unknown": False,
+        "retry_parse_failures": False,
+        "retry_lean_failures": False,
+    }
+    assert config["requalification"]["execution_order"] == ("capability_then_remaining_selection")
+    assert config["requalification"]["max_concurrency"] == 1
+    assert config["requalification"]["maximum_in_flight_requests"] == 1
     assert config["prior_lineage"] == {
         "batch_id": "lf022_public_batch:ea34d07c4162eb3e5e2b35f1465b26afd997095b3dcd2d87bff9382564093a9d",
         "execution_admission_id": "lf022_execution_admission:c97dcb54c8dd425aaa6cfe2ed0f20bfd5b4b67c929dcf55bc4362729b5c90f31",
@@ -194,6 +217,22 @@ def _variant_output(candidate: str) -> str:
 def test_strict_parser_allows_assignment_syntax_inside_the_proposition() -> None:
     batch = parse_variant_proposer_output(_variant_output("theorem local_let : let n := 1; n = 1"))
     assert batch.variants[0].candidate_lean.endswith("let n := 1; n = 1")
+
+
+def test_strict_parser_accepts_the_historical_record_literal_false_positive() -> None:
+    candidate = (
+        "theorem zsmul_val : ∀ {R : Type*} {a b : R} [CommRing R] "
+        "(n : ℤ) (x y : R), ↑n * { re := x, im := y } = "
+        "{ re := ↑n * y, im := ↑n * x }"
+    )
+    batch = parse_variant_proposer_output(_variant_output(candidate))
+    assert batch.variants[0].candidate_lean == candidate
+
+
+def test_strict_parser_rejects_a_dangling_top_level_assignment_delimiter() -> None:
+    with pytest.raises(VariantOutputParseError) as caught:
+        parse_variant_proposer_output(_variant_output("theorem dangling : True :="))
+    assert caught.value.code is VariantOutputErrorCode.PROOF_BEARING_CANDIDATE
 
 
 def test_strict_parser_still_rejects_a_top_level_declaration_value() -> None:

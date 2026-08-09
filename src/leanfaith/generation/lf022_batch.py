@@ -72,6 +72,7 @@ _ROUTE_ORDER = {
 }
 _QUALIFICATION_FAMILIES = frozenset({"qwen3", "glm5"})
 _PRIVATE_MARKERS = ("formalmathatepfl/sft_classic", "sft_classic")
+_ARCHIVED_KIMI_V3_CONTRACT_ID = "kimi_k2_7_public_smoke_v3"
 
 
 class LF022BatchError(RuntimeError):
@@ -538,6 +539,15 @@ def freeze_lf022_public_batch(
         model=LF022BatchFreezeRequest,
         label="LF-022 batch freeze request",
     )
+    if any(
+        route.route.proposer_family_id == "moonshot_kimi_k2"
+        and route.route.decoding.contract_id == _ARCHIVED_KIMI_V3_CONTRACT_ID
+        for route in request.routes
+    ):
+        raise LF022BatchError(
+            "new Kimi-v3 batch freezing is archived after the failed prefix-256 "
+            "audit; existing frozen manifests remain available for offline replay"
+        )
     output = _repo_path(
         repo_root,
         request.batch_directory,
@@ -850,23 +860,36 @@ class LF022BatchRunResult:
 
 
 class RateLimitedRCPTransport:
-    """Thread-safe request-start limiter over the reviewed RCP transport."""
+    """Thread-safe start limiter with a bounded in-flight provider window.
+
+    RCP currently advertises a key-level maximum of one parallel request for
+    the reviewed proposer route.  Merely spacing request *starts* is
+    insufficient: a long reasoning call can still overlap the next worker and
+    turn bounded retries into more HTTP 429 responses.  The in-flight
+    semaphore therefore covers each complete underlying transport call.  A
+    later retry independently waits, reacquires the semaphore, and performs a
+    new transport call.
+    """
 
     def __init__(
         self,
         *,
         underlying: RCPHTTPTransport,
         minimum_interval_seconds: float,
+        maximum_in_flight_requests: int = 1,
         monotonic: Callable[[], float] = time.monotonic,
         sleeper: Callable[[float], None] = time.sleep,
     ) -> None:
         if minimum_interval_seconds < 0 or minimum_interval_seconds > 300:
             raise ValueError("minimum_interval_seconds must be in [0, 300]")
+        if maximum_in_flight_requests < 1 or maximum_in_flight_requests > 8:
+            raise ValueError("maximum_in_flight_requests must be in [1, 8]")
         self._underlying = underlying
         self._interval = minimum_interval_seconds
         self._monotonic = monotonic
         self._sleeper = sleeper
-        self._lock = threading.Lock()
+        self._start_lock = threading.Lock()
+        self._in_flight = threading.BoundedSemaphore(maximum_in_flight_requests)
         self._next_start = 0.0
 
     def post_json(
@@ -877,19 +900,20 @@ class RateLimitedRCPTransport:
         payload: Mapping[str, object],
         timeout_seconds: int,
     ) -> RCPWireResponse:
-        with self._lock:
-            now = self._monotonic()
-            delay = max(0.0, self._next_start - now)
-            if delay:
-                self._sleeper(delay)
+        with self._in_flight:
+            with self._start_lock:
                 now = self._monotonic()
-            self._next_start = max(now, self._next_start) + self._interval
-        return self._underlying.post_json(
-            url=url,
-            api_key=api_key,
-            payload=payload,
-            timeout_seconds=timeout_seconds,
-        )
+                delay = max(0.0, self._next_start - now)
+                if delay:
+                    self._sleeper(delay)
+                    now = self._monotonic()
+                self._next_start = max(now, self._next_start) + self._interval
+            return self._underlying.post_json(
+                url=url,
+                api_key=api_key,
+                payload=payload,
+                timeout_seconds=timeout_seconds,
+            )
 
 
 @dataclass(frozen=True, slots=True)
@@ -1134,6 +1158,11 @@ def run_lf022_public_batch(
 ) -> LF022BatchRunResult:
     """Preflight/replay a frozen batch, or explicitly execute provisional tasks."""
 
+    if execute_public_provisional and policy.max_concurrency != 1:
+        raise LF022BatchError(
+            "live LF-022 execution requires max_concurrency=1; offline replay may use more"
+        )
+
     manifest, tasks = _load_batch(
         repo_root=repo_root,
         manifest_binding=manifest_binding,
@@ -1142,6 +1171,15 @@ def run_lf022_public_batch(
         raise LF022BatchError("explicit live batch execution requires runtime credentials")
     if not execute_public_provisional and (credentials is not None or transport is not None):
         raise LF022BatchError("offline batch execution rejects credentials and transports")
+    if execute_public_provisional and any(
+        loaded.admission.route.proposer_family_id == "moonshot_kimi_k2"
+        and loaded.admission.route.decoding.contract_id == _ARCHIVED_KIMI_V3_CONTRACT_ID
+        for loaded in tasks
+    ):
+        raise LF022BatchError(
+            "live Kimi-v3 batches are archived after the failed prefix-256 "
+            "audit; offline replay remains available and Kimi-v4 is not yet qualified"
+        )
     try:
         observed_code_tree_hash = collect_code_state(repo_root).code_tree_hash
     except ManifestError as exc:
@@ -1172,6 +1210,7 @@ def run_lf022_public_batch(
         RateLimitedRCPTransport(
             underlying=cast(RCPHTTPTransport, transport),
             minimum_interval_seconds=policy.minimum_request_interval_seconds,
+            maximum_in_flight_requests=1,
         )
         if execute_public_provisional
         else None

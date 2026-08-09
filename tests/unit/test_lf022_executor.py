@@ -6,7 +6,10 @@ import datetime
 import fcntl
 import json
 import subprocess
+import threading
+import time
 from collections.abc import Mapping
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
 from pathlib import Path
 from typing import Literal
@@ -910,7 +913,6 @@ def _success_response(model_id: str) -> RCPWireResponse:
 @pytest.mark.parametrize(
     ("model_id", "family_id"),
     (
-        ("moonshotai/Kimi-K2.7-Code", "moonshot_kimi_k2"),
         ("Qwen/Qwen3.5-397B-A17B", "qwen3"),
         ("zai-org/GLM-5.2", "glm5"),
     ),
@@ -948,6 +950,23 @@ def test_freeze_diagnostic_execution_admission_replays_exact_fixture(
     assert first.admission.training_eligible is False
     assert first.admission.evaluation_eligible is False
     assert first.admission.gate_credit_claimed is False
+
+
+def test_freeze_diagnostic_kimi_v3_execution_admission_is_archived(
+    tmp_path: Path,
+) -> None:
+    expected, _ = _fixture(tmp_path)
+    output = tmp_path / "artifacts/kimi_diagnostic_execution_admission.json"
+    with pytest.raises(LF022AdmissionFreezeError, match="Kimi-v3 diagnostic admission is archived"):
+        freeze_lf022_diagnostic_execution_admission(
+            repo_root=tmp_path,
+            public_pool_audit_path=tmp_path / "artifacts/public_pool_audit.json",
+            proposer_family_id="moonshot_kimi_k2",
+            code_bundle_path=tmp_path / expected.artifacts.code_bundle.path,
+            provider_catalog_raw_path=tmp_path / expected.artifacts.provider_catalog_raw.path,
+            output_path=output,
+        )
+    assert not output.exists()
 
 
 def test_freeze_diagnostic_execution_admission_rejects_cross_family_plan(
@@ -998,7 +1017,33 @@ def test_freeze_diagnostic_execution_admission_cli_is_offline(
     assert LF022GOpenExecutionAdmission.model_validate_json(output.read_bytes()) == expected
 
 
-def test_freeze_scientific_kimi_execution_admission_replays_exact_fixture(
+def test_freeze_diagnostic_kimi_v3_cli_is_archived(tmp_path: Path) -> None:
+    expected, _ = _fixture(tmp_path)
+    output = tmp_path / "artifacts/kimi_diagnostic_cli_admission.json"
+    result = CliRunner().invoke(
+        app,
+        [
+            "freeze-lf022-proposer-admission",
+            "--root",
+            str(tmp_path),
+            "--public-pool-audit",
+            "artifacts/public_pool_audit.json",
+            "--proposer-family",
+            "moonshot_kimi_k2",
+            "--code-bundle",
+            expected.artifacts.code_bundle.path,
+            "--provider-catalog-raw",
+            expected.artifacts.provider_catalog_raw.path,
+            "--output",
+            str(output),
+        ],
+    )
+    assert result.exit_code == 2
+    assert "Kimi-v3 admission is archived" in result.output
+    assert not output.exists()
+
+
+def test_freeze_scientific_kimi_execution_admission_is_archived(
     tmp_path: Path,
 ) -> None:
     expected, _ = _fixture(
@@ -1006,32 +1051,18 @@ def test_freeze_scientific_kimi_execution_admission_replays_exact_fixture(
         profile="scientific_production_scaffold",
     )
     output = tmp_path / "artifacts/kimi_scientific_execution_admission.json"
-    first = freeze_lf022_scientific_kimi_execution_admission(
-        repo_root=tmp_path,
-        public_pool_audit_path=tmp_path / "artifacts/public_pool_audit.json",
-        code_bundle_path=tmp_path / expected.artifacts.code_bundle.path,
-        provider_catalog_raw_path=tmp_path / expected.artifacts.provider_catalog_raw.path,
-        output_path=output,
-    )
-    second = freeze_lf022_scientific_kimi_execution_admission(
-        repo_root=tmp_path,
-        public_pool_audit_path=tmp_path / "artifacts/public_pool_audit.json",
-        code_bundle_path=tmp_path / expected.artifacts.code_bundle.path,
-        provider_catalog_raw_path=tmp_path / expected.artifacts.provider_catalog_raw.path,
-        output_path=output,
-    )
-    assert first.admission == expected
-    assert second == first
-    assert first.admission.route.proposer_family_id == "moonshot_kimi_k2"
-    assert first.admission.route.execution_scope == "public_provisional_g_open"
-    assert first.admission.outputs_provisional_only is True
-    assert first.admission.semantic_labels_created is False
-    assert first.admission.training_eligible is False
-    assert first.admission.evaluation_eligible is False
-    assert first.admission.gate_credit_claimed is False
+    with pytest.raises(LF022AdmissionFreezeError, match="archived after the failed prefix-256"):
+        freeze_lf022_scientific_kimi_execution_admission(
+            repo_root=tmp_path,
+            public_pool_audit_path=tmp_path / "artifacts/public_pool_audit.json",
+            code_bundle_path=tmp_path / expected.artifacts.code_bundle.path,
+            provider_catalog_raw_path=tmp_path / expected.artifacts.provider_catalog_raw.path,
+            output_path=output,
+        )
+    assert not output.exists()
 
 
-def test_freeze_scientific_kimi_admission_cli_is_offline(tmp_path: Path) -> None:
+def test_freeze_scientific_kimi_admission_cli_is_archived(tmp_path: Path) -> None:
     expected, _ = _fixture(
         tmp_path,
         profile="scientific_production_scaffold",
@@ -1053,12 +1084,9 @@ def test_freeze_scientific_kimi_admission_cli_is_offline(tmp_path: Path) -> None
             str(output),
         ],
     )
-    assert result.exit_code == 0, result.output
-    assert "family=moonshot_kimi_k2" in result.output
-    assert "scope=public_provisional_g_open" in result.output
-    assert "network_calls_this_run=0" in result.output
-    assert "outputs_unresolved=true" in result.output
-    assert LF022GOpenExecutionAdmission.model_validate_json(output.read_bytes()) == expected
+    assert result.exit_code == 2
+    assert "archived after the failed prefix-256" in result.output
+    assert not output.exists()
 
 
 @pytest.mark.parametrize(
@@ -1267,11 +1295,11 @@ def test_freeze_scientific_qualified_admission_cli_is_offline(
     assert admission.artifacts.proposer_production_eligibility == eligibility_binding
 
 
-def test_scientific_kimi_admission_rejects_diagnostic_pool(tmp_path: Path) -> None:
+def test_scientific_kimi_admission_is_archived_even_for_diagnostic_pool(tmp_path: Path) -> None:
     expected, _ = _fixture(tmp_path)
     with pytest.raises(
         LF022AdmissionFreezeError,
-        match="exact requested public-only pool profile",
+        match="archived after the failed prefix-256",
     ):
         freeze_lf022_scientific_kimi_execution_admission(
             repo_root=tmp_path,
@@ -2463,6 +2491,68 @@ def test_cli_requires_explicit_live_flag(tmp_path: Path) -> None:
     assert "semantic_labels_created=0" in result.output
 
 
+def test_cli_rejects_live_kimi_v3_but_keeps_offline_preflight(
+    tmp_path: Path,
+) -> None:
+    admission, task = _fixture(tmp_path)
+    admission_path = tmp_path / "admission.json"
+    task_path = tmp_path / "task.json"
+    admission_path.write_bytes(canonical_json_bytes(admission.model_dump(mode="json")))
+    task_path.write_bytes(canonical_json_bytes(task.model_dump(mode="json")))
+    result = CliRunner().invoke(
+        app,
+        [
+            "run-lf022-public-provisional",
+            "--root",
+            str(tmp_path),
+            "--admission",
+            str(admission_path),
+            "--task",
+            str(task_path),
+            "--output-root",
+            str(tmp_path / "data/lf022_execution"),
+            "--execute-public-provisional",
+        ],
+        env={
+            "RCP_BASE_URL": "https://inference.rcp.epfl.ch/v1",
+            "RCP_API_KEY": "must-not-be-used",
+        },
+    )
+    assert result.exit_code == 2
+    assert "live Kimi-v3 execution is archived" in result.output
+
+
+def test_scientific_kimi_v3_allows_offline_preflight_but_rejects_live(
+    tmp_path: Path,
+) -> None:
+    admission, task = _fixture(
+        tmp_path,
+        profile="scientific_production_scaffold",
+    )
+    offline = execute_lf022_g_open_task(
+        repo_root=tmp_path,
+        output_root=tmp_path / "data/lf022_execution",
+        admission=admission,
+        task=task,
+    )
+    assert offline.terminal is None
+    assert offline.network_calls_this_run == 0
+
+    transport = FakeTransport([_success_response(admission.route.model_id)])
+    with pytest.raises(LF022ExecutorError, match="live Kimi-v3 scientific execution is archived"):
+        execute_lf022_g_open_task(
+            repo_root=tmp_path,
+            output_root=tmp_path / "data/lf022_execution",
+            admission=admission,
+            task=task,
+            execute_public_provisional=True,
+            credentials=_credentials(),
+            transport=transport,
+            clock=lambda: NOW,
+        )
+    assert transport.calls == 0
+
+
 def test_success_is_provisional_raw_first_and_exactly_replayed(tmp_path: Path) -> None:
     admission, task = _fixture(tmp_path)
     transport = FakeTransport([_success_response(admission.route.model_id)])
@@ -3236,10 +3326,10 @@ def test_batch_request_cli_constructs_one_exact_qualification_route_offline(
     assert not escaped.exists()
 
 
-def test_batch_request_cli_selects_exact_scientific_plan_window_offline(
+def test_new_scientific_kimi_v3_batch_request_is_archived_before_output(
     tmp_path: Path,
 ) -> None:
-    admission, task = _fixture(
+    admission, _ = _fixture(
         tmp_path,
         profile="scientific_production_scaffold",
     )
@@ -3247,7 +3337,7 @@ def test_batch_request_cli_selects_exact_scientific_plan_window_offline(
     admission_path.write_bytes(canonical_json_bytes(admission.model_dump(mode="json")) + b"\n")
     output = tmp_path / "data/kimi_scientific_batch_request.json"
 
-    selected = CliRunner().invoke(
+    rejected = CliRunner().invoke(
         app,
         [
             "make-lf022-public-batch-request",
@@ -3264,59 +3354,33 @@ def test_batch_request_cli_selects_exact_scientific_plan_window_offline(
         ],
     )
 
-    assert selected.exit_code == 0, selected.output
-    assert "tasks=1" in selected.output
-    assert "network_calls_this_run=0" in selected.output
-    request = LF022BatchFreezeRequest.model_validate_json(output.read_bytes())
-    assert request.routes[0].allocation_task_ids == (task.allocation_task.task_id,)
-    assert request.semantic_labels_created is False
-    assert request.training_eligible is False
-    assert request.evaluation_eligible is False
-    assert request.gate_credit_claimed is False
+    assert rejected.exit_code == 2
+    assert "new Kimi-v3 batch requests are archived" in rejected.output
+    assert not output.exists()
 
-    mixed_selection = CliRunner().invoke(
-        app,
-        [
-            "make-lf022-public-batch-request",
-            "--root",
-            str(tmp_path),
-            "--admission",
-            str(admission_path),
-            "--allocation-task-id",
-            task.allocation_task.task_id,
-            "--allocation-offset",
-            "0",
-            "--allocation-limit",
-            "1",
-            "--output",
-            str(tmp_path / "data/rejected_mixed_selection.json"),
-        ],
-    )
-    assert mixed_selection.exit_code == 2
-    assert "cannot be combined" in mixed_selection.output
 
-    out_of_range = CliRunner().invoke(
-        app,
-        [
-            "make-lf022-public-batch-request",
-            "--root",
-            str(tmp_path),
-            "--admission",
-            str(admission_path),
-            "--allocation-offset",
-            "1",
-            "--allocation-limit",
-            "1",
-            "--output",
-            str(tmp_path / "data/rejected_out_of_range.json"),
-        ],
+def test_new_scientific_kimi_v3_batch_freeze_is_archived_before_output(
+    tmp_path: Path,
+) -> None:
+    admission, task = _fixture(
+        tmp_path,
+        profile="scientific_production_scaffold",
     )
-    assert out_of_range.exit_code == 2
-    assert "exceeds" in out_of_range.output
+    batch_directory = tmp_path / "data/lf022_batch"
+    with pytest.raises(LF022BatchError, match="new Kimi-v3 batch freezing is archived"):
+        freeze_lf022_public_batch(
+            repo_root=tmp_path,
+            request_binding=_batch_request_binding(
+                tmp_path,
+                admission=admission,
+                task=task,
+            ),
+        )
+    assert not batch_directory.exists()
 
 
 def test_batch_freeze_and_offline_replay_are_deterministic(tmp_path: Path) -> None:
-    admission, task = _fixture(tmp_path)
+    admission, task = _fixture(tmp_path, model_id="Qwen/Qwen3.5-397B-A17B")
     request_binding = _batch_request_binding(
         tmp_path,
         admission=admission,
@@ -3514,7 +3578,7 @@ def test_qwen_batch_request_rejects_more_than_one_task(tmp_path: Path) -> None:
 
 
 def test_batch_freeze_rejects_tampered_plan_binding(tmp_path: Path) -> None:
-    admission, task = _fixture(tmp_path)
+    admission, task = _fixture(tmp_path, model_id="Qwen/Qwen3.5-397B-A17B")
     request_binding = _batch_request_binding(
         tmp_path,
         admission=admission,
@@ -3531,7 +3595,7 @@ def test_batch_freeze_rejects_tampered_plan_binding(tmp_path: Path) -> None:
 def test_batch_freeze_rejects_noncanonical_prompt_before_execution(
     tmp_path: Path,
 ) -> None:
-    admission, task = _fixture(tmp_path)
+    admission, task = _fixture(tmp_path, model_id="Qwen/Qwen3.5-397B-A17B")
     malicious_prompt = _write_bytes(
         tmp_path,
         "prompts/proposers/unreviewed_private_prompt.txt",
@@ -3740,7 +3804,7 @@ def test_qualification_task_replays_globally_across_batch_directories(
 
 
 def test_batch_run_requires_frozen_request_replay(tmp_path: Path) -> None:
-    admission, task = _fixture(tmp_path)
+    admission, task = _fixture(tmp_path, model_id="Qwen/Qwen3.5-397B-A17B")
     frozen = freeze_lf022_public_batch(
         repo_root=tmp_path,
         request_binding=_batch_request_binding(
@@ -3762,7 +3826,7 @@ def test_batch_run_requires_frozen_request_replay(tmp_path: Path) -> None:
 
 
 def test_batch_run_rejects_forged_copied_route_metadata(tmp_path: Path) -> None:
-    admission, task = _fixture(tmp_path)
+    admission, task = _fixture(tmp_path, model_id="Qwen/Qwen3.5-397B-A17B")
     frozen = freeze_lf022_public_batch(
         repo_root=tmp_path,
         request_binding=_batch_request_binding(
@@ -3793,7 +3857,7 @@ def test_batch_run_rejects_forged_copied_route_metadata(tmp_path: Path) -> None:
 
 
 def test_live_batch_is_explicit_and_resumes_without_a_second_call(tmp_path: Path) -> None:
-    admission, task = _fixture(tmp_path)
+    admission, task = _fixture(tmp_path, model_id="Qwen/Qwen3.5-397B-A17B")
     frozen = freeze_lf022_public_batch(
         repo_root=tmp_path,
         request_binding=_batch_request_binding(
@@ -3818,7 +3882,7 @@ def test_live_batch_is_explicit_and_resumes_without_a_second_call(tmp_path: Path
     live = run_lf022_public_batch(
         repo_root=tmp_path,
         manifest_binding=manifest_binding,
-        policy=LF022BatchRunPolicy(max_concurrency=2),
+        policy=LF022BatchRunPolicy(max_concurrency=1),
         execute_public_provisional=True,
         credentials=_credentials(),
         transport=live_transport,
@@ -3834,7 +3898,7 @@ def test_live_batch_is_explicit_and_resumes_without_a_second_call(tmp_path: Path
     replay = run_lf022_public_batch(
         repo_root=tmp_path,
         manifest_binding=manifest_binding,
-        policy=LF022BatchRunPolicy(max_concurrency=2),
+        policy=LF022BatchRunPolicy(max_concurrency=1),
         execute_public_provisional=True,
         credentials=_credentials(),
         transport=replay_transport,
@@ -3848,10 +3912,27 @@ def test_live_batch_is_explicit_and_resumes_without_a_second_call(tmp_path: Path
     assert len(events) == 2
 
 
+def test_live_batch_rejects_more_than_one_worker_before_loading_manifest(
+    tmp_path: Path,
+) -> None:
+    with pytest.raises(LF022BatchError, match="live LF-022 execution requires max_concurrency=1"):
+        run_lf022_public_batch(
+            repo_root=tmp_path,
+            manifest_binding=LF022ArtifactBinding(
+                path="does-not-need-to-exist.json",
+                sha256="a" * 64,
+            ),
+            policy=LF022BatchRunPolicy(max_concurrency=2),
+            execute_public_provisional=True,
+            credentials=_credentials(),
+            transport=FakeTransport([]),
+        )
+
+
 def test_batch_report_distinguishes_failed_terminal_from_executor_error(
     tmp_path: Path,
 ) -> None:
-    admission, task = _fixture(tmp_path)
+    admission, task = _fixture(tmp_path, model_id="Qwen/Qwen3.5-397B-A17B")
     frozen = freeze_lf022_public_batch(
         repo_root=tmp_path,
         request_binding=_batch_request_binding(
@@ -3912,6 +3993,62 @@ def test_rate_limiter_applies_to_every_transport_start() -> None:
     assert sleeps == [2.0]
 
 
+def test_rate_limiter_serializes_complete_in_flight_requests() -> None:
+    class ConcurrencyObservingTransport:
+        def __init__(self) -> None:
+            self._lock = threading.Lock()
+            self.active = 0
+            self.maximum_active = 0
+
+        def post_json(
+            self,
+            *,
+            url: str,
+            api_key: str,
+            payload: Mapping[str, object],
+            timeout_seconds: int,
+        ) -> RCPWireResponse:
+            del url, api_key, payload, timeout_seconds
+            with self._lock:
+                self.active += 1
+                self.maximum_active = max(self.maximum_active, self.active)
+            time.sleep(0.02)
+            with self._lock:
+                self.active -= 1
+            return _success_response("moonshotai/Kimi-K2.7-Code")
+
+    underlying = ConcurrencyObservingTransport()
+    limited = RateLimitedRCPTransport(
+        underlying=underlying,
+        minimum_interval_seconds=0.0,
+        maximum_in_flight_requests=1,
+    )
+    payload: Mapping[str, object] = {"model": "moonshotai/Kimi-K2.7-Code"}
+    with ThreadPoolExecutor(max_workers=4) as executor:
+        futures = [
+            executor.submit(
+                limited.post_json,
+                url="https://inference.rcp.epfl.ch/v1/chat/completions",
+                api_key="secret",
+                payload=payload,
+                timeout_seconds=1,
+            )
+            for _ in range(4)
+        ]
+        assert all(future.result().status_code == 200 for future in futures)
+    assert underlying.maximum_active == 1
+
+
+@pytest.mark.parametrize("maximum", (0, 9))
+def test_rate_limiter_rejects_invalid_in_flight_window(maximum: int) -> None:
+    with pytest.raises(ValueError, match="maximum_in_flight_requests"):
+        RateLimitedRCPTransport(
+            underlying=FakeTransport([]),
+            minimum_interval_seconds=0.0,
+            maximum_in_flight_requests=maximum,
+        )
+
+
 def test_batch_request_rejects_duplicate_route_family(tmp_path: Path) -> None:
     admission, task = _fixture(tmp_path)
     kimi = LF022BatchRouteFreezeRequest(
@@ -3936,7 +4073,7 @@ def test_batch_request_rejects_duplicate_route_family(tmp_path: Path) -> None:
 
 
 def test_batch_cli_freezes_then_preflights_without_credentials(tmp_path: Path) -> None:
-    admission, task = _fixture(tmp_path)
+    admission, task = _fixture(tmp_path, model_id="Qwen/Qwen3.5-397B-A17B")
     request_binding = _batch_request_binding(
         tmp_path,
         admission=admission,

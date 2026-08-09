@@ -13,7 +13,10 @@ can enter the output-budget-exhausted stratum.
 
 from __future__ import annotations
 
+import json
 import os
+import re
+import tarfile
 import tempfile
 from collections import Counter
 from dataclasses import dataclass
@@ -22,6 +25,7 @@ from typing import Literal, Self, cast
 
 from pydantic import Field, model_validator
 
+from leanfaith.config.code_bundle import validate_code_bundle
 from leanfaith.config.hashing import canonical_json_bytes, hash_canonical, hash_file
 from leanfaith.config.loading import load_yaml_mapping
 from leanfaith.config.models import StrictModel
@@ -32,7 +36,10 @@ from leanfaith.generation.lf022_batch import (
     VerifiedLF022BatchTask,
     load_lf022_public_batch,
 )
-from leanfaith.generation.lf022_execution import LF022RCPDecodingContract
+from leanfaith.generation.lf022_execution import (
+    LF022RCPDecodingContract,
+    LF022RCPRetryPolicy,
+)
 from leanfaith.generation.lf022_executor import (
     LF022ExecutionAttemptRecord,
     LF022ExecutionTerminalRecord,
@@ -52,9 +59,10 @@ from leanfaith.generation.llm_variants import (
 )
 from leanfaith.generation.rcp_provider import RCPResponseError, parse_chat_completion
 from leanfaith.schemas.ids import HEX64_PATTERN, id_pattern, make_id
+from leanfaith.schemas.manifest import CodeState, ManifestError, collect_code_state
 
-LF022_KIMI_V4_SELECTION_RULE = "lf022_kimi_v4_challenge_selection_v1"
-LF022_KIMI_V4_SELECTION_ROOT = "artifacts/generation/lf022_kimi_v4_challenge_selection_v1"
+LF022_KIMI_V4_SELECTION_RULE = "lf022_kimi_v4_challenge_selection_v2"
+LF022_KIMI_V4_SELECTION_ROOT = "artifacts/generation/lf022_kimi_v4_challenge_selection_v2"
 LF022_KIMI_V3_TASK_COUNT = 256
 LF022_KIMI_V4_CHALLENGE_SIZE = 16
 
@@ -70,6 +78,27 @@ CurrentParserOutcome = Literal[
     "other_response",
     "non_http_200",
 ]
+KimiV4ImplementationRole = Literal[
+    "challenge_selector",
+    "batch_lineage_loader",
+    "execution_record_loader",
+    "historical_replay",
+    "strict_variant_parser",
+    "provider_response_parser",
+    "v4_contract",
+    "proposer_prompt",
+]
+
+_CURRENT_IMPLEMENTATION_PATHS: tuple[tuple[KimiV4ImplementationRole, str], ...] = (
+    ("challenge_selector", "src/leanfaith/generation/lf022_kimi_v4_selection.py"),
+    ("batch_lineage_loader", "src/leanfaith/generation/lf022_batch.py"),
+    ("execution_record_loader", "src/leanfaith/generation/lf022_executor.py"),
+    ("historical_replay", "src/leanfaith/generation/lf022_historical_replay.py"),
+    ("strict_variant_parser", "src/leanfaith/generation/llm_variants.py"),
+    ("provider_response_parser", "src/leanfaith/generation/rcp_provider.py"),
+    ("v4_contract", "configs/generation/lf022_kimi_k2_7_proposer_v4.yaml"),
+    ("proposer_prompt", "prompts/proposers/lean_variant_v2.txt"),
+)
 
 _ROLE_COUNTS: dict[KimiV4ChallengeRole, int] = {
     "budget_exhausted": 6,
@@ -115,6 +144,9 @@ class _KimiV4CapabilityPolicy(StrictModel):
     max_tokens_32768_provider_support: Literal["unverified_until_one_live_call"]
     official_per_model_output_limit_disclosed: Literal[False]
     mass_execution_before_capability_success: Literal[False]
+    capability_stage_size: Literal[1]
+    capability_requires_strict_variant_success: Literal[True]
+    remaining_challenge_before_capability_success: Literal[False]
 
 
 class _KimiV4FailurePolicy(StrictModel):
@@ -127,10 +159,13 @@ class _KimiV4FailurePolicy(StrictModel):
 
 class _KimiV4RequalificationPolicy(StrictModel):
     challenge_size: Literal[16]
+    remaining_challenge_size: Literal[15]
+    execution_order: Literal["capability_then_remaining_selection"]
     prior_output_budget_exhausted_items: Literal[6]
     prior_proof_bearing_items: Literal[2]
     prior_success_controls: Literal[8]
     max_concurrency: Literal[1]
+    maximum_in_flight_requests: Literal[1]
     minimum_strict_parse_successes: Literal[14]
     maximum_output_budget_exhausted: Literal[0]
     maximum_http_200_empty_responses: Literal[0]
@@ -165,6 +200,7 @@ class LF022KimiV4ChallengeContract(StrictModel):
     prior_lineage: _KimiV3ReviewedLineage
     capability_policy: _KimiV4CapabilityPolicy
     failure_policy: _KimiV4FailurePolicy
+    retry_policy: LF022RCPRetryPolicy
     requalification: _KimiV4RequalificationPolicy
     promotion: _KimiV4PromotionPolicy
 
@@ -172,6 +208,20 @@ class LF022KimiV4ChallengeContract(StrictModel):
     def _exact_contract(self) -> Self:
         if self.decoding.contract_id != self.contract_id:
             raise ValueError("v4 decoding contract ID differs from the document")
+        expected_retry = {
+            "schema_version": 1,
+            "max_attempts": 3,
+            "request_timeout_seconds": 3600,
+            "base_delay_seconds": 1.0,
+            "maximum_delay_seconds": 60.0,
+            "retryable_http_statuses": [408, 409, 425, 429, 500, 502, 503, 504],
+            "honor_retry_after": True,
+            "retry_transport_unknown": False,
+            "retry_parse_failures": False,
+            "retry_lean_failures": False,
+        }
+        if self.retry_policy.model_dump(mode="json") != expected_retry:
+            raise ValueError("v4 retry policy differs from the reviewed transient-only policy")
         return self
 
 
@@ -212,12 +262,40 @@ class LF022KimiV4SelectedChallengeItem(StrictModel):
     current_parser_outcome: CurrentParserOutcome
 
 
+class LF022KimiV4ImplementationFileBinding(StrictModel):
+    """One exact current-code input that determines selection semantics."""
+
+    role: KimiV4ImplementationRole
+    artifact: LF022ArtifactBinding
+
+
+class LF022KimiV4ImplementationLineage(StrictModel):
+    """Clean current tree and complete bundle used to interpret historical bytes."""
+
+    git_revision: str = Field(pattern=r"^[0-9a-f]{40}$")
+    git_dirty: Literal[False]
+    code_tree_hash: str = Field(pattern=HEX64_PATTERN)
+    code_bundle: LF022ArtifactBinding
+    files: tuple[LF022KimiV4ImplementationFileBinding, ...] = Field(
+        min_length=len(_CURRENT_IMPLEMENTATION_PATHS),
+        max_length=len(_CURRENT_IMPLEMENTATION_PATHS),
+    )
+
+    @model_validator(mode="after")
+    def _exact_files(self) -> Self:
+        expected = _CURRENT_IMPLEMENTATION_PATHS
+        observed = tuple((item.role, item.artifact.path) for item in self.files)
+        if observed != expected:
+            raise ValueError("current implementation bindings differ from the exact file set")
+        return self
+
+
 class LF022KimiV4ChallengeSelection(StrictModel):
     """Content-addressed, offline-only 16-case Kimi-v4 challenge selection."""
 
-    schema_version: Literal[1] = 1
+    schema_version: Literal[2] = 2
     selection_id: str = Field(pattern=id_pattern("lf022_kimi_v4_selection"))
-    selection_rule: Literal["lf022_kimi_v4_challenge_selection_v1"]
+    selection_rule: Literal["lf022_kimi_v4_challenge_selection_v2"]
     status: Literal["frozen_offline_selection_only"]
     v3_batch_id: str = Field(pattern=id_pattern("lf022_public_batch"))
     v3_batch_manifest: LF022ArtifactBinding
@@ -238,6 +316,7 @@ class LF022KimiV4ChallengeSelection(StrictModel):
         min_length=LF022_KIMI_V3_TASK_COUNT,
         max_length=LF022_KIMI_V3_TASK_COUNT,
     )
+    current_implementation: LF022KimiV4ImplementationLineage
     v4_contract_id: Literal["kimi_k2_7_public_proposer_v4"]
     v4_contract_hash: str = Field(pattern=HEX64_PATTERN)
     v4_contract: LF022ArtifactBinding
@@ -404,6 +483,128 @@ def _bound_file(
     return path
 
 
+def _current_implementation_lineage(
+    *,
+    repo_root: Path,
+    code_bundle_binding: LF022ArtifactBinding,
+    v4_contract_binding: LF022ArtifactBinding,
+    v4_prompt_binding: LF022ArtifactBinding,
+) -> LF022KimiV4ImplementationLineage:
+    """Bind the exact clean implementation that classifies historical responses."""
+
+    try:
+        state: CodeState = collect_code_state(repo_root)
+    except ManifestError as exc:
+        raise LF022KimiV4SelectionError(
+            f"cannot identify current selection code tree: {exc}"
+        ) from exc
+    if state.git_dirty:
+        raise LF022KimiV4SelectionError(
+            "Kimi-v4 challenge selection requires a clean current Git worktree"
+        )
+    if state.code_tree_hash is None:
+        raise LF022KimiV4SelectionError("current selection code-tree hash is unavailable")
+
+    code_bundle_path = _bound_file(
+        repo_root=repo_root,
+        binding=code_bundle_binding,
+        label="current selection code bundle",
+    )
+    try:
+        observed_bundle_hash = validate_code_bundle(
+            code_bundle_path,
+            state.code_tree_hash,
+        )
+    except (OSError, ValueError, tarfile.TarError) as exc:
+        raise LF022KimiV4SelectionError(
+            f"current selection code bundle failed validation: {exc}"
+        ) from exc
+    if observed_bundle_hash != code_bundle_binding.sha256:
+        raise LF022KimiV4SelectionError(
+            "current selection code-bundle hash differs from its artifact binding"
+        )
+
+    files = tuple(
+        LF022KimiV4ImplementationFileBinding(
+            role=role,
+            artifact=_binding(repo_root, repo_root / relative),
+        )
+        for role, relative in _CURRENT_IMPLEMENTATION_PATHS
+    )
+    by_role = {item.role: item.artifact for item in files}
+    if by_role["v4_contract"] != v4_contract_binding:
+        raise LF022KimiV4SelectionError(
+            "v4 contract differs from the current implementation binding"
+        )
+    if by_role["proposer_prompt"] != v4_prompt_binding:
+        raise LF022KimiV4SelectionError("v4 prompt differs from the current implementation binding")
+    return LF022KimiV4ImplementationLineage(
+        git_revision=state.git_revision,
+        git_dirty=False,
+        code_tree_hash=state.code_tree_hash,
+        code_bundle=code_bundle_binding,
+        files=files,
+    )
+
+
+def _verify_current_implementation_lineage(
+    *,
+    repo_root: Path,
+    expected: LF022KimiV4ImplementationLineage,
+) -> None:
+    """Reject code drift before reparsing any bound contract or provider body."""
+
+    try:
+        state = collect_code_state(repo_root)
+    except ManifestError as exc:
+        raise LF022KimiV4SelectionError(
+            f"cannot verify current selection code tree: {exc}"
+        ) from exc
+    if state.git_dirty:
+        raise LF022KimiV4SelectionError(
+            "Kimi-v4 challenge verification requires a clean current Git worktree"
+        )
+    if (
+        state.git_revision != expected.git_revision
+        or state.code_tree_hash != expected.code_tree_hash
+    ):
+        raise LF022KimiV4SelectionError(
+            "current code differs from the implementation bound by the challenge selection"
+        )
+    try:
+        code_bundle_path = _bound_file(
+            repo_root=repo_root,
+            binding=expected.code_bundle,
+            label="bound current selection code bundle",
+        )
+        observed_bundle_hash = validate_code_bundle(
+            code_bundle_path,
+            expected.code_tree_hash,
+        )
+        if observed_bundle_hash != expected.code_bundle.sha256:
+            raise ValueError("bundle hash differs from its artifact binding")
+        observed_files = tuple(
+            LF022KimiV4ImplementationFileBinding(
+                role=role,
+                artifact=_binding(repo_root, repo_root / relative),
+            )
+            for role, relative in _CURRENT_IMPLEMENTATION_PATHS
+        )
+    except (
+        OSError,
+        ValueError,
+        tarfile.TarError,
+        LF022KimiV4SelectionError,
+    ) as exc:
+        raise LF022KimiV4SelectionError(
+            "current code differs from the implementation bound by the challenge selection"
+        ) from exc
+    if observed_files != expected.files:
+        raise LF022KimiV4SelectionError(
+            "current code differs from the implementation bound by the challenge selection"
+        )
+
+
 def _load_canonical[RecordT: StrictModel](
     *,
     repo_root: Path,
@@ -424,6 +625,83 @@ def _load_canonical[RecordT: StrictModel](
     if raw != expected:
         raise LF022KimiV4SelectionError(f"{label} is not canonical JSON")
     return record
+
+
+def _reject_duplicate_json_keys(pairs: list[tuple[str, object]]) -> dict[str, object]:
+    """Build one JSON object while rejecting duplicate member names."""
+
+    result: dict[str, object] = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError(f"duplicate JSON key: {key}")
+        result[key] = value
+    return result
+
+
+def _reject_nonfinite_json(value: str) -> object:
+    """Reject the non-standard JSON constants accepted by ``json.loads``."""
+
+    raise ValueError(f"non-finite JSON value: {value}")
+
+
+def _load_selection_bootstrap(
+    *,
+    repo_root: Path,
+    binding: LF022ArtifactBinding,
+) -> tuple[bytes, str, LF022KimiV4ImplementationLineage]:
+    """Passively load only the envelope needed to reject code drift first.
+
+    This deliberately does not instantiate ``LF022KimiV4ChallengeSelection``:
+    that model's validator executes the current deterministic selector.  The
+    bound implementation lineage must be verified before any such semantic
+    reinterpretation of historical responses occurs.
+    """
+
+    path = _bound_file(
+        repo_root=repo_root,
+        binding=binding,
+        label="Kimi-v4 challenge selection",
+    )
+    raw = path.read_bytes()
+    try:
+        payload = json.loads(
+            raw.decode("utf-8"),
+            object_pairs_hook=_reject_duplicate_json_keys,
+            parse_constant=_reject_nonfinite_json,
+        )
+    except (UnicodeDecodeError, ValueError, json.JSONDecodeError) as exc:
+        raise LF022KimiV4SelectionError(
+            f"invalid Kimi-v4 challenge selection envelope: {exc}"
+        ) from exc
+    if not isinstance(payload, dict):
+        raise LF022KimiV4SelectionError(
+            "Kimi-v4 challenge selection envelope must be a JSON object"
+        )
+    expected_fields = set(LF022KimiV4ChallengeSelection.model_fields)
+    if set(payload) != expected_fields:
+        raise LF022KimiV4SelectionError(
+            "Kimi-v4 challenge selection envelope fields differ from schema v2"
+        )
+    if raw != canonical_json_bytes(payload) + b"\n":
+        raise LF022KimiV4SelectionError("Kimi-v4 challenge selection is not canonical JSON")
+
+    selection_id = payload.get("selection_id")
+    if (
+        not isinstance(selection_id, str)
+        or re.fullmatch(id_pattern("lf022_kimi_v4_selection"), selection_id) is None
+    ):
+        raise LF022KimiV4SelectionError(
+            "Kimi-v4 challenge selection envelope has an invalid selection_id"
+        )
+    try:
+        current_implementation = LF022KimiV4ImplementationLineage.model_validate(
+            payload.get("current_implementation")
+        )
+    except ValueError as exc:
+        raise LF022KimiV4SelectionError(
+            f"invalid current implementation lineage in selection envelope: {exc}"
+        ) from exc
+    return raw, selection_id, current_implementation
 
 
 def _write_immutable(path: Path, payload: bytes) -> None:
@@ -863,11 +1141,26 @@ def _build_selection(
     v3_manifest_binding: LF022ArtifactBinding,
     exact_offline_replay_report_binding: LF022ArtifactBinding,
     v4_contract_binding: LF022ArtifactBinding,
+    current_code_bundle_binding: LF022ArtifactBinding,
+    expected_current_implementation: LF022KimiV4ImplementationLineage | None = None,
 ) -> LF022KimiV4ChallengeSelection:
     v4_contract, v4_prompt_binding = _load_v4_contract(
         repo_root=repo_root,
         binding=v4_contract_binding,
     )
+    current_implementation = _current_implementation_lineage(
+        repo_root=repo_root,
+        code_bundle_binding=current_code_bundle_binding,
+        v4_contract_binding=v4_contract_binding,
+        v4_prompt_binding=v4_prompt_binding,
+    )
+    if (
+        expected_current_implementation is not None
+        and current_implementation != expected_current_implementation
+    ):
+        raise LF022KimiV4SelectionError(
+            "current code differs from the implementation bound by the challenge selection"
+        )
     reviewed_lineage = v4_contract.prior_lineage
     if (
         v3_manifest_binding != reviewed_lineage.batch_manifest
@@ -970,7 +1263,7 @@ def _build_selection(
         )
     selected = _select(population)
     payload: dict[str, object] = {
-        "schema_version": 1,
+        "schema_version": 2,
         "selection_rule": LF022_KIMI_V4_SELECTION_RULE,
         "status": "frozen_offline_selection_only",
         "v3_batch_id": manifest.batch_id,
@@ -993,6 +1286,7 @@ def _build_selection(
         "historical_terminal_bindings": [
             item.model_dump(mode="json") for item in historical_replay.terminal_bindings
         ],
+        "current_implementation": current_implementation.model_dump(mode="json"),
         "v4_contract_id": v4_contract.contract_id,
         "v4_contract_hash": hash_canonical(v4_contract.model_dump(mode="json")),
         "v4_contract": v4_contract_binding.model_dump(mode="json"),
@@ -1028,6 +1322,7 @@ def freeze_lf022_kimi_v4_challenge_selection(
     v3_manifest_binding: LF022ArtifactBinding,
     exact_offline_replay_report_binding: LF022ArtifactBinding,
     v4_contract_binding: LF022ArtifactBinding,
+    current_code_bundle_binding: LF022ArtifactBinding,
 ) -> FrozenLF022KimiV4ChallengeSelection:
     """Freeze the deterministic challenge without executing or admitting v4."""
 
@@ -1036,6 +1331,7 @@ def freeze_lf022_kimi_v4_challenge_selection(
         v3_manifest_binding=v3_manifest_binding,
         exact_offline_replay_report_binding=exact_offline_replay_report_binding,
         v4_contract_binding=v4_contract_binding,
+        current_code_bundle_binding=current_code_bundle_binding,
     )
     digest = selection.selection_id.split(":", 1)[1]
     path = _selection_output_path(repo_root, digest)
@@ -1059,26 +1355,32 @@ def verify_lf022_kimi_v4_challenge_selection(
 ) -> LF022KimiV4ChallengeSelection:
     """Recompute and verify one immutable offline-only challenge selection."""
 
-    selection = _load_canonical(
+    raw, selection_id, current_implementation = _load_selection_bootstrap(
         repo_root=repo_root,
         binding=selection_binding,
-        model=LF022KimiV4ChallengeSelection,
-        label="Kimi-v4 challenge selection",
-        trailing_newline=True,
     )
     expected_path = (
-        PurePosixPath(LF022_KIMI_V4_SELECTION_ROOT)
-        / f"{selection.selection_id.split(':', 1)[1]}.json"
+        PurePosixPath(LF022_KIMI_V4_SELECTION_ROOT) / f"{selection_id.split(':', 1)[1]}.json"
     ).as_posix()
     if selection_binding.path != expected_path:
         raise LF022KimiV4SelectionError(
             "challenge selection is outside its content-addressed registry"
         )
+    _verify_current_implementation_lineage(
+        repo_root=repo_root,
+        expected=current_implementation,
+    )
+    try:
+        selection = LF022KimiV4ChallengeSelection.model_validate_json(raw)
+    except ValueError as exc:
+        raise LF022KimiV4SelectionError(f"invalid Kimi-v4 challenge selection: {exc}") from exc
     expected = _build_selection(
         repo_root=repo_root,
         v3_manifest_binding=selection.v3_batch_manifest,
         exact_offline_replay_report_binding=selection.exact_offline_replay_report,
         v4_contract_binding=selection.v4_contract,
+        current_code_bundle_binding=selection.current_implementation.code_bundle,
+        expected_current_implementation=selection.current_implementation,
     )
     if selection != expected:
         raise LF022KimiV4SelectionError(
@@ -1091,9 +1393,12 @@ __all__ = [
     "CurrentParserOutcome",
     "FrozenLF022KimiV4ChallengeSelection",
     "KimiV4ChallengeRole",
+    "KimiV4ImplementationRole",
     "LF022KimiV3ChallengePopulationItem",
     "LF022KimiV4ChallengeContract",
     "LF022KimiV4ChallengeSelection",
+    "LF022KimiV4ImplementationFileBinding",
+    "LF022KimiV4ImplementationLineage",
     "LF022KimiV4SelectedChallengeItem",
     "LF022KimiV4SelectionError",
     "freeze_lf022_kimi_v4_challenge_selection",

@@ -29,6 +29,7 @@ from leanfaith.config.hashing import (
 from leanfaith.config.models import StrictModel
 from leanfaith.generation.lf022_execution import (
     LF022_CANONICAL_EXECUTOR_OUTPUT_ROOT,
+    LF022ExecutionError,
     LF022GOpenExecutionAdmission,
     LF022GOpenExecutionTask,
     VerifiedLF022ExecutionAdmission,
@@ -1850,6 +1851,26 @@ def execute_lf022_g_open_task(
             replayed=False,
             network_calls_this_run=0,
         )
+    if (
+        admission.route.proposer_family_id == "moonshot_kimi_k2"
+        and admission.route.decoding.contract_id == "kimi_k2_7_public_smoke_v3"
+    ):
+        verified = verified_admission
+        if verified is None:
+            try:
+                verified = verify_lf022_execution_admission(
+                    repo_root=repo_root,
+                    admission=admission,
+                )
+            except LF022ExecutionError as exc:
+                raise LF022ExecutorError(
+                    f"cannot determine Kimi-v3 admission profile: {exc}"
+                ) from exc
+        if verified.audit.profile == "scientific_production_scaffold":
+            raise LF022ExecutorError(
+                "live Kimi-v3 scientific execution is archived after the failed "
+                "prefix-256 audit; use offline replay while Kimi-v4 remains unqualified"
+            )
     if credentials is None or transport is None:
         raise LF022ExecutorError(
             "explicit live execution requires runtime credentials and a transport"

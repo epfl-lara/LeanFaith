@@ -4,12 +4,15 @@ from __future__ import annotations
 
 import datetime
 import json
+import tarfile
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, cast
 
 import pytest
+from typer.testing import CliRunner
 
+from leanfaith.cli.app import app
 from leanfaith.config.hashing import canonical_json_bytes, hash_file
 from leanfaith.config.loading import load_yaml_mapping
 from leanfaith.generation import lf022_kimi_v4_selection as selection_module
@@ -37,6 +40,7 @@ from leanfaith.generation.lf022_historical_replay import (
     LF022HistoricalTerminalBinding,
 )
 from leanfaith.generation.lf022_kimi_v4_selection import (
+    LF022_KIMI_V4_SELECTION_ROOT,
     LF022KimiV4SelectionError,
     freeze_lf022_kimi_v4_challenge_selection,
     verify_lf022_kimi_v4_challenge_selection,
@@ -45,6 +49,7 @@ from leanfaith.generation.lf022_production import LF022ArtifactBinding
 from leanfaith.generation.llm_variants import PublicLeanVariantSource
 from leanfaith.schemas.enums import IntendedRelation
 from leanfaith.schemas.ids import make_id
+from leanfaith.schemas.manifest import CodeState
 
 ROOT = Path(__file__).resolve().parents[2]
 MODEL = "moonshotai/Kimi-K2.7-Code"
@@ -263,7 +268,12 @@ def _fixture(
     duplicate_success_source: bool = False,
     all_same_theorem: bool = False,
     incomplete_replay: bool = False,
-) -> tuple[LF022ArtifactBinding, LF022ArtifactBinding, LF022ArtifactBinding]:
+) -> tuple[
+    LF022ArtifactBinding,
+    LF022ArtifactBinding,
+    LF022ArtifactBinding,
+    LF022ArtifactBinding,
+]:
     _write(
         root,
         "prompts/proposers/lean_variant_v2.txt",
@@ -471,14 +481,47 @@ def _fixture(
         "configs/generation/lf022_kimi_k2_7_proposer_v4.yaml",
         canonical_json_bytes(contract_mapping),
     )
-    return manifest_binding, replay_binding, config_binding
+    for role, relative in selection_module._CURRENT_IMPLEMENTATION_PATHS:
+        del role
+        path = root / relative
+        if not path.exists():
+            _write(root, relative, f"fixture implementation: {relative}\n".encode())
+    current_code_bundle = _write(
+        root,
+        "artifacts/current-code-bundle.tar.gz",
+        b"current code bundle fixture\n",
+    )
+    monkeypatch.setattr(
+        selection_module,
+        "collect_code_state",
+        lambda _: CodeState(
+            git_revision="e" * 40,
+            git_dirty=False,
+            base_git_commit="e" * 40,
+            code_tree_hash="f" * 64,
+            tracked_diff_hash="0" * 64,
+            untracked_files=(),
+        ),
+    )
+
+    def validate_current_bundle(path: Path, expected_code_tree_hash: str) -> str:
+        assert expected_code_tree_hash == "f" * 64
+        assert path == root / current_code_bundle.path
+        return hash_file(path)
+
+    monkeypatch.setattr(
+        selection_module,
+        "validate_code_bundle",
+        validate_current_bundle,
+    )
+    return manifest_binding, replay_binding, config_binding, current_code_bundle
 
 
 def test_freezes_exact_6_2_8_selection_with_capability_first(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    manifest, replay, contract = _fixture(
+    manifest, replay, contract, current_bundle = _fixture(
         tmp_path,
         monkeypatch,
         duplicate_success_source=True,
@@ -488,12 +531,14 @@ def test_freezes_exact_6_2_8_selection_with_capability_first(
         v3_manifest_binding=manifest,
         exact_offline_replay_report_binding=replay,
         v4_contract_binding=contract,
+        current_code_bundle_binding=current_bundle,
     )
     second = freeze_lf022_kimi_v4_challenge_selection(
         repo_root=tmp_path,
         v3_manifest_binding=manifest,
         exact_offline_replay_report_binding=replay,
         v4_contract_binding=contract,
+        current_code_bundle_binding=current_bundle,
     )
 
     assert first.selection == second.selection
@@ -507,6 +552,11 @@ def test_freezes_exact_6_2_8_selection_with_capability_first(
     assert len(first.selection.historical_terminal_bindings) == 256
     assert first.selection.historical_replay_network_calls == 0
     assert first.selection.historical_code_tree_hash == "d" * 64
+    assert first.selection.current_implementation.code_tree_hash == "f" * 64
+    assert first.selection.current_implementation.code_bundle == current_bundle
+    assert tuple(item.role for item in first.selection.current_implementation.files) == tuple(
+        role for role, _ in selection_module._CURRENT_IMPLEMENTATION_PATHS
+    )
     assert first.selection.live_calls_performed is False
     assert first.selection.execution_admission_created is False
     assert first.selection.promotion_enabled is False
@@ -520,11 +570,182 @@ def test_freezes_exact_6_2_8_selection_with_capability_first(
     assert verified == first.selection
 
 
+def test_cli_freezes_then_replays_the_offline_selection(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    manifest, replay, contract, current_bundle = _fixture(tmp_path, monkeypatch)
+    runner = CliRunner()
+    frozen = runner.invoke(
+        app,
+        [
+            "freeze-lf022-kimi-v4-challenge",
+            "--root",
+            str(tmp_path),
+            "--v3-manifest",
+            manifest.path,
+            "--exact-offline-replay-report",
+            replay.path,
+            "--v4-contract",
+            contract.path,
+            "--current-code-bundle",
+            current_bundle.path,
+        ],
+    )
+    assert frozen.exit_code == 0, frozen.output
+    assert "network_requests=0" in frozen.output
+    assert "capability_rank=0" in frozen.output
+    selections = tuple((tmp_path / LF022_KIMI_V4_SELECTION_ROOT).glob("*.json"))
+    assert len(selections) == 1
+
+    replayed = runner.invoke(
+        app,
+        [
+            "verify-lf022-kimi-v4-challenge",
+            "--root",
+            str(tmp_path),
+            "--selection",
+            selections[0].relative_to(tmp_path).as_posix(),
+        ],
+    )
+    assert replayed.exit_code == 0, replayed.output
+    assert "replayed_terminals=256" in replayed.output
+    assert "network_requests=0" in replayed.output
+
+
+def test_freeze_rejects_dirty_current_selection_tree(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    manifest, replay, contract, current_bundle = _fixture(tmp_path, monkeypatch)
+    monkeypatch.setattr(
+        selection_module,
+        "collect_code_state",
+        lambda _: CodeState(
+            git_revision="e" * 40,
+            git_dirty=True,
+            base_git_commit="e" * 40,
+            code_tree_hash="f" * 64,
+            tracked_diff_hash="1" * 64,
+            untracked_files=("new_parser.py",),
+        ),
+    )
+    with pytest.raises(LF022KimiV4SelectionError, match="requires a clean current Git worktree"):
+        freeze_lf022_kimi_v4_challenge_selection(
+            repo_root=tmp_path,
+            v3_manifest_binding=manifest,
+            exact_offline_replay_report_binding=replay,
+            v4_contract_binding=contract,
+            current_code_bundle_binding=current_bundle,
+        )
+
+
+def test_verifier_rejects_current_parser_module_drift_before_reclassification(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    manifest, replay, contract, current_bundle = _fixture(tmp_path, monkeypatch)
+    frozen = freeze_lf022_kimi_v4_challenge_selection(
+        repo_root=tmp_path,
+        v3_manifest_binding=manifest,
+        exact_offline_replay_report_binding=replay,
+        v4_contract_binding=contract,
+        current_code_bundle_binding=current_bundle,
+    )
+    selector_path = tmp_path / "src/leanfaith/generation/lf022_kimi_v4_selection.py"
+    selector_path.write_bytes(selector_path.read_bytes() + b"# drift\n")
+    selector_called = False
+
+    def reject_selector_call(*_: object, **__: object) -> object:
+        nonlocal selector_called
+        selector_called = True
+        raise AssertionError("selector ran before current implementation verification")
+
+    monkeypatch.setattr(selection_module, "_select", reject_selector_call)
+    with pytest.raises(LF022KimiV4SelectionError, match="current code differs"):
+        verify_lf022_kimi_v4_challenge_selection(
+            repo_root=tmp_path,
+            selection_binding=LF022ArtifactBinding(
+                path=frozen.selection_path.relative_to(tmp_path).as_posix(),
+                sha256=hash_file(frozen.selection_path),
+            ),
+        )
+    assert selector_called is False
+
+
+def test_freeze_cli_contains_invalid_root_failure(tmp_path: Path) -> None:
+    missing_root = tmp_path / "missing-repository"
+    result = CliRunner().invoke(
+        app,
+        [
+            "freeze-lf022-kimi-v4-challenge",
+            "--root",
+            str(missing_root),
+            "--current-code-bundle",
+            "artifacts/current-code-bundle.tar.gz",
+        ],
+    )
+    assert result.exit_code == 2
+    assert "Kimi-v4 challenge freeze rejected" in result.output
+
+
+def test_freeze_cli_contains_malformed_current_bundle_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    manifest, replay, contract, current_bundle = _fixture(tmp_path, monkeypatch)
+
+    def reject_malformed_bundle(_: Path, __: str) -> str:
+        raise tarfile.ReadError("not a readable code bundle")
+
+    monkeypatch.setattr(
+        selection_module,
+        "validate_code_bundle",
+        reject_malformed_bundle,
+    )
+    result = CliRunner().invoke(
+        app,
+        [
+            "freeze-lf022-kimi-v4-challenge",
+            "--root",
+            str(tmp_path),
+            "--v3-manifest",
+            manifest.path,
+            "--exact-offline-replay-report",
+            replay.path,
+            "--v4-contract",
+            contract.path,
+            "--current-code-bundle",
+            current_bundle.path,
+        ],
+    )
+    assert result.exit_code == 2
+    assert "Kimi-v4 challenge freeze rejected" in result.output
+    assert "failed validation" in result.output
+
+
+def test_verify_cli_contains_missing_path_failure(
+    tmp_path: Path,
+) -> None:
+    result = CliRunner().invoke(
+        app,
+        [
+            "verify-lf022-kimi-v4-challenge",
+            "--root",
+            str(tmp_path),
+            "--selection",
+            "missing-selection.json",
+        ],
+    )
+    assert result.exit_code == 2
+    assert "Kimi-v4 challenge replay rejected" in result.output
+
+
 def test_legacy_terminal_string_cannot_fake_budget_category(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    manifest, replay, contract = _fixture(
+    manifest, replay, contract, current_bundle = _fixture(
         tmp_path,
         monkeypatch,
         fake_budget_index=5,
@@ -535,6 +756,7 @@ def test_legacy_terminal_string_cannot_fake_budget_category(
             v3_manifest_binding=manifest,
             exact_offline_replay_report_binding=replay,
             v4_contract_binding=contract,
+            current_code_bundle_binding=current_bundle,
         )
 
 
@@ -542,7 +764,7 @@ def test_compatible_alternate_batch_binding_cannot_be_cherry_picked(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    manifest, replay, contract = _fixture(tmp_path, monkeypatch)
+    manifest, replay, contract, current_bundle = _fixture(tmp_path, monkeypatch)
     # The patched loader still presents an otherwise compatible 256-task Kimi
     # population.  Its different manifest path/bytes must nevertheless fail
     # the preregistered lineage binding before selection.
@@ -558,6 +780,7 @@ def test_compatible_alternate_batch_binding_cannot_be_cherry_picked(
             v3_manifest_binding=alternate_manifest,
             exact_offline_replay_report_binding=replay,
             v4_contract_binding=contract,
+            current_code_bundle_binding=current_bundle,
         )
 
 
@@ -565,7 +788,7 @@ def test_incomplete_offline_replay_cannot_freeze_selection(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    manifest, replay, contract = _fixture(
+    manifest, replay, contract, current_bundle = _fixture(
         tmp_path,
         monkeypatch,
         incomplete_replay=True,
@@ -576,6 +799,7 @@ def test_incomplete_offline_replay_cannot_freeze_selection(
             v3_manifest_binding=manifest,
             exact_offline_replay_report_binding=replay,
             v4_contract_binding=contract,
+            current_code_bundle_binding=current_bundle,
         )
 
 
@@ -583,7 +807,7 @@ def test_distinct_admission_ids_cannot_hide_one_repeated_theorem(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    manifest, replay, contract = _fixture(
+    manifest, replay, contract, current_bundle = _fixture(
         tmp_path,
         monkeypatch,
         all_same_theorem=True,
@@ -594,6 +818,7 @@ def test_distinct_admission_ids_cannot_hide_one_repeated_theorem(
             v3_manifest_binding=manifest,
             exact_offline_replay_report_binding=replay,
             v4_contract_binding=contract,
+            current_code_bundle_binding=current_bundle,
         )
 
 
@@ -601,12 +826,13 @@ def test_verifier_rejects_terminal_bytes_changed_after_freeze(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    manifest, replay, contract = _fixture(tmp_path, monkeypatch)
+    manifest, replay, contract, current_bundle = _fixture(tmp_path, monkeypatch)
     frozen = freeze_lf022_kimi_v4_challenge_selection(
         repo_root=tmp_path,
         v3_manifest_binding=manifest,
         exact_offline_replay_report_binding=replay,
         v4_contract_binding=contract,
+        current_code_bundle_binding=current_bundle,
     )
     selection_binding = LF022ArtifactBinding(
         path=frozen.selection_path.relative_to(tmp_path).as_posix(),
@@ -625,7 +851,7 @@ def test_self_consistent_post_replay_lineage_rewrite_is_rejected(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    manifest, replay, contract = _fixture(tmp_path, monkeypatch)
+    manifest, replay, contract, current_bundle = _fixture(tmp_path, monkeypatch)
     task_id = f"lf022_execution_task:{9:064x}"
     digest = task_id.split(":", 1)[1]
     task_root = tmp_path / "data/lf022_execution/tasks" / digest[:2] / digest
@@ -691,4 +917,5 @@ def test_self_consistent_post_replay_lineage_rewrite_is_rejected(
             v3_manifest_binding=manifest,
             exact_offline_replay_report_binding=replay,
             v4_contract_binding=contract,
+            current_code_bundle_binding=current_bundle,
         )

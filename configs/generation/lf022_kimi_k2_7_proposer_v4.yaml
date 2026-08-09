@@ -51,18 +51,35 @@ capability_policy:
   max_tokens_32768_provider_support: unverified_until_one_live_call
   official_per_model_output_limit_disclosed: false
   mass_execution_before_capability_success: false
+  capability_stage_size: 1
+  capability_requires_strict_variant_success: true
+  remaining_challenge_before_capability_success: false
 failure_policy:
   finish_reason_length: output_budget_exhausted
   output_budget_exhausted_retry_identical_payload: false
   partial_content_parse_allowed: false
   strict_proposer_parser: true
   parser_relaxation_allowed: false
+retry_policy:
+  schema_version: 1
+  max_attempts: 3
+  request_timeout_seconds: 3600
+  base_delay_seconds: 1.0
+  maximum_delay_seconds: 60.0
+  retryable_http_statuses: [408, 409, 425, 429, 500, 502, 503, 504]
+  honor_retry_after: true
+  retry_transport_unknown: false
+  retry_parse_failures: false
+  retry_lean_failures: false
 requalification:
   challenge_size: 16
+  remaining_challenge_size: 15
+  execution_order: capability_then_remaining_selection
   prior_output_budget_exhausted_items: 6
   prior_proof_bearing_items: 2
   prior_success_controls: 8
   max_concurrency: 1
+  maximum_in_flight_requests: 1
   minimum_strict_parse_successes: 14
   maximum_output_budget_exhausted: 0
   maximum_http_200_empty_responses: 0
