@@ -24,7 +24,10 @@ from leanfaith.generation.lf022_execution import (
     verify_lf022_execution_admission,
 )
 from leanfaith.generation.lf022_executor import RCPRuntimeCredentials
-from leanfaith.generation.lf022_production import LF022ArtifactBinding
+from leanfaith.generation.lf022_production import (
+    LF022ArtifactBinding,
+    LF022ProductionTask,
+)
 from leanfaith.generation.rcp_provider import UrllibOpenAICompatibleRCPTransport
 
 
@@ -34,6 +37,32 @@ class CreatedLF022BatchRequest:
 
     request: LF022BatchFreezeRequest
     request_path: Path
+
+
+def select_public_g_open_plan_window(
+    *,
+    plan_tasks: tuple[LF022ProductionTask, ...],
+    proposer_family_id: str,
+    allocation_offset: int,
+    allocation_limit: int,
+) -> tuple[str, ...]:
+    """Select one exact plan-order window and return canonical sorted task IDs."""
+
+    if allocation_offset < 0 or allocation_limit < 1:
+        raise ValueError("allocation offset must be nonnegative and limit must be positive")
+    available_in_plan_order = tuple(
+        task.task_id
+        for task in plan_tasks
+        if task.distribution == "G_open" and task.proposer_family_id == proposer_family_id
+    )
+    selection_end = allocation_offset + allocation_limit
+    if allocation_offset >= len(available_in_plan_order) or selection_end > len(
+        available_in_plan_order
+    ):
+        raise ValueError(
+            "allocation offset/limit exceeds the admitted public G_open plan-order range"
+        )
+    return tuple(sorted(available_in_plan_order[allocation_offset:selection_end]))
 
 
 def _binding(repo_root: Path, path: Path, *, label: str) -> LF022ArtifactBinding:
@@ -102,6 +131,8 @@ def create_public_batch_request(
     output_path: Path,
     batch_directory: str,
     executor_output_root: str,
+    allocation_offset: int | None = None,
+    allocation_limit: int | None = None,
 ) -> CreatedLF022BatchRequest:
     """Verify one admission and create its exact request without network I/O."""
 
@@ -119,15 +150,31 @@ def create_public_batch_request(
         repo_root=repo_root,
         admission=admission,
     )
-    selected = tuple(sorted(set(allocation_task_ids)))
-    if not selected or selected != allocation_task_ids:
-        raise ValueError("allocation task IDs must be nonempty, sorted, and unique")
     available = {
         task.task_id
         for task in verified.plan.tasks
         if task.distribution == "G_open"
         and task.proposer_family_id == admission.route.proposer_family_id
     }
+    if allocation_task_ids:
+        if allocation_offset is not None or allocation_limit is not None:
+            raise ValueError(
+                "explicit allocation task IDs cannot be combined with offset/limit selection"
+            )
+        selected = tuple(sorted(set(allocation_task_ids)))
+        if selected != allocation_task_ids:
+            raise ValueError("allocation task IDs must be sorted and unique")
+    else:
+        if allocation_offset is None or allocation_limit is None:
+            raise ValueError(
+                "provide either sorted allocation task IDs or both allocation offset and limit"
+            )
+        selected = select_public_g_open_plan_window(
+            plan_tasks=verified.plan.tasks,
+            proposer_family_id=admission.route.proposer_family_id,
+            allocation_offset=allocation_offset,
+            allocation_limit=allocation_limit,
+        )
     missing = tuple(task_id for task_id in selected if task_id not in available)
     if missing:
         raise ValueError(
@@ -223,4 +270,5 @@ __all__ = [
     "create_public_batch_request",
     "freeze_public_batch",
     "run_public_batch",
+    "select_public_g_open_plan_window",
 ]

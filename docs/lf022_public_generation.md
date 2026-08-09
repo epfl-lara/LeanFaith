@@ -44,8 +44,7 @@ Run from a clean repository tree:
 ```bash
 ROOT=/localhome/milikic/LeanFaith
 cd "$ROOT"
-git diff --quiet
-git diff --cached --quiet
+test -z "$(git status --porcelain)"
 
 # Set one family at a time: qwen3 or glm5.
 FAMILY=qwen3
@@ -84,6 +83,15 @@ family. The admission freezer exact-replays that parent lineage, the raw and
 normalized provider catalogs, route-specific contract, prior transport
 evidence, prompt, code bundle, and current code-tree hash. Neither command reads
 credentials or performs a network request.
+
+New execution tasks send a self-contained proof-free named signature built
+from the bound `signature_pp` representation, for example
+`theorem Mathlib.name : ∀ ..., ...`. This deliberately exposes section
+variables and typeclass binders that may be implicit in source text, while
+excluding attributes, proof placeholders, and proof bodies. The theorem,
+context, representation ID, and `repr_v3` normalization version must agree
+exactly. Legacy schema-v1 tasks remain replayable against their original
+source bytes; new writers always emit `source_statement_version=named_signature_v2`.
 
 For Qwen and GLM, derive the one exact public `G_open` allocation, freeze the
 batch, and preflight it without credentials:
@@ -162,11 +170,15 @@ env -u OPENAI_BASE_URL -u OPENAI_API_KEY \
     --minimum-request-interval-seconds 1
 ```
 
-The normal success path reports one new terminal and one network call. The
+The normal success path reports `successful_terminal=1`,
+`failed_terminal=0`, one new terminal, and one network call. A provider or
+parser terminal reports `successful_terminal=0`, `failed_terminal=1`, while
+`errors` remains reserved for orchestration/executor rejection. The
 frozen retry policy permits at most three attempts for explicitly listed
 response-confirmed transient HTTP statuses; an unknown transport outcome is
 quarantined and is never retried automatically. Never continue to certification
-when `tasks != 1`, `errors != 0`, or no successful terminal exists.
+when `tasks != 1`, `errors != 0`, `failed_terminal != 0`, or no successful
+terminal exists.
 
 Replay the same result without credentials:
 
@@ -229,9 +241,141 @@ The first admission containing `proposer_production_eligibility` is schema v2;
 new readers accept both, while v1 cannot carry production eligibility.
 
 The repository-global qualification claim prevents a second task from silently
-replacing the first qualification. Provider retries remain bounded and
-append-only; an unknown transport outcome is quarantined and never retried
-automatically.
+replacing the first qualification. A replay-verified `provider_exhausted` or
+`proposer_parse_failed` terminal may authorize one fresh, versioned attempt
+without deleting or changing the failed lineage:
+
+```bash
+uv run leanfaith supersede-lf022-failed-qualification \
+  --root "$ROOT" \
+  --qualification-admission "$QUAL_ADMISSION" \
+  --qualification-task "$QUAL_TASK" \
+  --next-contract qwen3_5_proposer_qualification_v2
+```
+
+Use `glm5_2_proposer_qualification_v2` for GLM. The command performs no
+network call and writes a content-addressed record below
+`data/lf022_execution/qualification_supersessions/<family>/`. A successful
+terminal and a `transport_unknown` terminal cannot be superseded. Freeze the
+fresh admission with
+`--qualification-supersession <record>`; its new claim is also
+content-addressed under the family directory, while the legacy claim remains
+unchanged. Provider retries remain bounded and append-only.
+
+## Scientific Kimi production tranches
+
+Kimi already has a reviewed `public_provisional_g_open` route, so it does not
+use the Qwen/GLM one-item proposer-qualification gate. The scientific admission
+must instead bind the exact reviewed public pool, current code bundle, raw and
+normalized provider catalogs, Kimi v3 route contract, prompt, and successful
+route evidence. Freeze it offline from a clean committed tree:
+
+```bash
+ROOT=/localhome/milikic/LeanFaith
+cd "$ROOT"
+git diff --quiet
+git diff --cached --quiet
+
+POOL_AUDIT="artifacts/generation/lf022_public_v3_max_c799f54c/audit.json"
+BUNDLE_JSON=$(
+  uv run leanfaith freeze-code-bundle \
+    --root "$ROOT" \
+    --out-dir artifacts/code_bundles/lf022_kimi_scientific
+)
+BUNDLE=$(
+  python -c 'import json,sys; print(json.load(sys.stdin)["path"])' \
+    <<<"$BUNDLE_JSON"
+)
+
+ADMISSION="artifacts/generation/lf022_kimi_scientific_v3/execution_admission.json"
+uv run leanfaith freeze-lf022-scientific-kimi-admission \
+  --root "$ROOT" \
+  --public-pool-audit "$POOL_AUDIT" \
+  --code-bundle "$BUNDLE" \
+  --output "$ADMISSION"
+```
+
+This command reads no credentials and performs no network request. The bound
+scientific plan currently contains exactly 9,207 Kimi `G_open` tasks. Select
+deterministic tranches by their position in that exact plan rather than passing
+thousands of task IDs. The selected IDs are then stored sorted and unique in
+the immutable request:
+
+```bash
+# Start with LIMIT=1. After end-to-end review, use LIMIT=256 and then LIMIT=9207.
+OFFSET=0
+LIMIT=1
+TAG="prefix_${LIMIT}"
+REQUEST="data/lf022_kimi_scientific/${TAG}/request.json"
+BATCH_DIR="data/lf022_kimi_scientific/${TAG}/batch"
+
+uv run leanfaith make-lf022-public-batch-request \
+  --root "$ROOT" \
+  --admission "$ADMISSION" \
+  --allocation-offset "$OFFSET" \
+  --allocation-limit "$LIMIT" \
+  --output "$REQUEST" \
+  --batch-directory "$BATCH_DIR"
+uv run leanfaith freeze-lf022-public-batch \
+  --root "$ROOT" \
+  --request "$REQUEST"
+```
+
+The freezer fails closed if the requested window extends past the admitted
+Kimi `G_open` plan. Thus `OFFSET=0 LIMIT=1`, `OFFSET=0 LIMIT=256`, and
+`OFFSET=0 LIMIT=9207` freeze the reviewed one-item, prefix-256, and complete
+scientific batches without a large command line. An operator may instead use
+non-overlapping offsets. The immutable request and manifest store the exact
+sorted task IDs; record the human-readable offset and limit in the associated
+run notes rather than claiming that those two convenience arguments are schema
+fields.
+
+Preflight any frozen tranche without credentials:
+
+```bash
+MANIFEST="$BATCH_DIR/batch_manifest.json"
+env -u RCP_BASE_URL -u RCP_API_KEY -u OPENAI_BASE_URL -u OPENAI_API_KEY \
+  uv run leanfaith run-lf022-public-batch \
+    --root "$ROOT" \
+    --manifest "$MANIFEST" \
+    --max-concurrency 2 \
+    --minimum-request-interval-seconds 1
+```
+
+Only after the one-item result has been inspected end to end should the same
+manifest be executed with runtime-only credentials and the explicit live flag:
+
+```bash
+test "${RCP_BASE_URL%/}" = "https://inference.rcp.epfl.ch/v1"
+test -n "${RCP_API_KEY:-}"
+set +x
+env -u OPENAI_BASE_URL -u OPENAI_API_KEY \
+  RCP_BASE_URL="$RCP_BASE_URL" \
+  RCP_API_KEY="$RCP_API_KEY" \
+  uv run leanfaith run-lf022-public-batch \
+    --root "$ROOT" \
+    --manifest "$MANIFEST" \
+    --execute-public-provisional \
+    --max-concurrency 2 \
+    --minimum-request-interval-seconds 1
+```
+
+All tranches use the same global executor output root and deterministic task
+identities. Re-freezing a larger prefix therefore replays already terminal
+tasks without another provider call and continues only with unfinished tasks.
+The prefix-256 tranche is the mechanical go/no-go audit for the full run. Do
+not start the 9,207-task tranche unless all 256 tasks have terminal records,
+`error_count=0`, no `transport_unknown` terminal exists, and at least 243 of
+256 tasks (95%) end as `provisional_variants_created`. Inspect a deterministic
+32-item sample of the successful raw and parsed artifacts for prompt leakage,
+proof bodies/placeholders, malformed declaration boundaries, and duplicated
+outputs. This is operational generation QA, not semantic labeling. A failed
+threshold requires a route or prompt review and a new versioned admission; it
+must not be bypassed by silently dropping failed tasks.
+
+Every generated variant remains provisional, unresolved, unlabeled, and
+ineligible for training, evaluation, promotion, or Gate credit until later
+independent validation and label resolution.
 
 ## Separation and privacy invariants
 

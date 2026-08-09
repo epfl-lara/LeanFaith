@@ -35,6 +35,7 @@ from leanfaith.generation.lf022_execution import (
     LF022GOpenExecutionTask,
     VerifiedLF022ExecutionAdmission,
     VerifiedLF022ExecutionTaskInputs,
+    lf022_qualification_claim_path,
     make_lf022_qualification_claim,
     verify_lf022_execution_admission,
     verify_lf022_execution_task,
@@ -526,9 +527,11 @@ def prepare_lf022_g_open_execution(
             task=task,
         )
         _immutable(
-            canonical_output_root
-            / "qualification_claims"
-            / f"{admission.route.proposer_family_id}.json",
+            lf022_qualification_claim_path(
+                output_root=canonical_output_root,
+                admission=admission,
+                claim=claim,
+            ),
             canonical_json_bytes(claim.model_dump(mode="json")),
         )
     prompt_path = repo_root / admission.artifacts.prompt_template.path

@@ -3461,6 +3461,13 @@ def freeze_lf022_proposer_admission_command(
             help="Exact raw RCP catalog response; defaults to reviewed v3 smoke evidence.",
         ),
     ] = None,
+    qualification_supersession_path: Annotated[
+        Path | None,
+        typer.Option(
+            "--qualification-supersession",
+            help="Replay-verified failed-v1 supersession authorizing a v2 qualification.",
+        ),
+    ] = None,
     root_dir: Annotated[
         Path | None,
         typer.Option("--root", help="Repository root override."),
@@ -3498,6 +3505,7 @@ def freeze_lf022_proposer_admission_command(
             code_bundle_path=anchored(code_bundle_path) or code_bundle_path,
             output_path=anchored(output_path) or output_path,
             provider_catalog_raw_path=anchored(provider_catalog_raw_path),
+            qualification_supersession_path=anchored(qualification_supersession_path),
         )
     except (LF022AdmissionFreezeError, OSError, ValueError) as exc:
         typer.echo(f"LF-022 proposer admission freeze rejected: {exc}", err=True)
@@ -3510,6 +3518,128 @@ def freeze_lf022_proposer_admission_command(
         f"admission={result.admission_path} network_calls_this_run=0 "
         "outputs_unresolved=true semantic_labels_created=0 "
         "training_eligible=false evaluation_eligible=false gate_credit_claimed=false"
+    )
+
+
+@app.command("freeze-lf022-scientific-kimi-admission")
+def freeze_lf022_scientific_kimi_admission_command(
+    public_pool_audit_path: Annotated[
+        Path,
+        typer.Option(
+            "--public-pool-audit",
+            help="Scientific production public-pool audit JSON.",
+        ),
+    ],
+    code_bundle_path: Annotated[
+        Path,
+        typer.Option(
+            "--code-bundle",
+            help="Repository-local code bundle for the current exact code tree.",
+        ),
+    ],
+    output_path: Annotated[
+        Path,
+        typer.Option(
+            "--output",
+            help="Repository-local immutable Kimi execution admission JSON.",
+        ),
+    ],
+    provider_catalog_raw_path: Annotated[
+        Path | None,
+        typer.Option(
+            "--provider-catalog-raw",
+            help="Exact raw RCP catalog response; defaults to reviewed v3 smoke evidence.",
+        ),
+    ] = None,
+    root_dir: Annotated[
+        Path | None,
+        typer.Option("--root", help="Repository root override."),
+    ] = None,
+) -> None:
+    """Freeze the reviewed Kimi route over an exact scientific public pool offline."""
+    from leanfaith.config.paths import RepoPaths
+    from leanfaith.generation.lf022_admission_freeze import (
+        LF022AdmissionFreezeError,
+        freeze_lf022_scientific_kimi_execution_admission,
+    )
+
+    paths = RepoPaths.discover(root_dir) if root_dir is None else RepoPaths(root=root_dir)
+
+    def anchored(path: Path | None) -> Path | None:
+        if path is None or path.is_absolute():
+            return path
+        return paths.root / path
+
+    try:
+        result = freeze_lf022_scientific_kimi_execution_admission(
+            repo_root=paths.root,
+            public_pool_audit_path=anchored(public_pool_audit_path) or public_pool_audit_path,
+            code_bundle_path=anchored(code_bundle_path) or code_bundle_path,
+            output_path=anchored(output_path) or output_path,
+            provider_catalog_raw_path=anchored(provider_catalog_raw_path),
+        )
+    except (LF022AdmissionFreezeError, OSError, ValueError) as exc:
+        typer.echo(f"LF-022 scientific Kimi admission freeze rejected: {exc}", err=True)
+        raise typer.Exit(code=2) from exc
+    typer.echo(
+        f"status=frozen family={result.admission.route.proposer_family_id} "
+        f"model={result.admission.route.model_id} "
+        f"scope={result.admission.route.execution_scope} "
+        f"admission_id={result.admission.admission_id} "
+        f"admission={result.admission_path} network_calls_this_run=0 "
+        "outputs_unresolved=true semantic_labels_created=0 "
+        "training_eligible=false evaluation_eligible=false gate_credit_claimed=false"
+    )
+
+
+@app.command("supersede-lf022-failed-qualification")
+def supersede_lf022_failed_qualification_command(
+    qualification_admission_path: Annotated[
+        Path,
+        typer.Option("--qualification-admission", help="Failed v1 qualification admission."),
+    ],
+    qualification_task_path: Annotated[
+        Path,
+        typer.Option("--qualification-task", help="Failed v1 qualification task."),
+    ],
+    next_decoding_contract_id: Annotated[
+        str,
+        typer.Option("--next-contract", help="Reviewed family-matched v2 recovery contract."),
+    ],
+    root_dir: Annotated[
+        Path | None,
+        typer.Option("--root", help="Repository root override."),
+    ] = None,
+) -> None:
+    """Replay a failed terminal and append one immutable retry authorization."""
+    from leanfaith.cli.lf022_route_qualification import supersede_failed_qualification
+    from leanfaith.config.paths import RepoPaths
+    from leanfaith.generation.lf022_route_qualification import (
+        LF022RouteQualificationError,
+    )
+
+    paths = RepoPaths.discover(root_dir) if root_dir is None else RepoPaths(root=root_dir)
+
+    def anchored(path: Path) -> Path:
+        return path if path.is_absolute() else paths.root / path
+
+    try:
+        result = supersede_failed_qualification(
+            repo_root=paths.root,
+            qualification_admission_path=anchored(qualification_admission_path),
+            qualification_task_path=anchored(qualification_task_path),
+            next_decoding_contract_id=next_decoding_contract_id,
+        )
+    except (LF022RouteQualificationError, OSError, ValueError) as exc:
+        typer.echo(f"LF-022 qualification supersession rejected: {exc}", err=True)
+        raise typer.Exit(code=2) from exc
+    typer.echo(
+        f"status=failed_qualification_superseded "
+        f"family={result.supersession.proposer_family_id} "
+        f"previous_terminal={result.supersession.previous_terminal_status} "
+        f"next_contract={result.supersession.next_decoding_contract_id} "
+        f"supersession_id={result.supersession.supersession_id} "
+        f"supersession={result.supersession_path} network_calls_this_run=0"
     )
 
 
@@ -3527,6 +3657,22 @@ def make_lf022_public_batch_request_command(
         typer.Option(
             "--allocation-task-id",
             help="Allocation task ID to include; repeat in sorted order.",
+        ),
+    ] = None,
+    allocation_offset: Annotated[
+        int | None,
+        typer.Option(
+            "--allocation-offset",
+            min=0,
+            help="Zero-based offset in the admitted route's exact G_open plan order.",
+        ),
+    ] = None,
+    allocation_limit: Annotated[
+        int | None,
+        typer.Option(
+            "--allocation-limit",
+            min=1,
+            help="Exact number of consecutive G_open plan-order tasks to select.",
         ),
     ] = None,
     output_path: Annotated[
@@ -3567,6 +3713,8 @@ def make_lf022_public_batch_request_command(
             output_path=anchored(output_path),
             batch_directory=batch_directory,
             executor_output_root="data/lf022_execution",
+            allocation_offset=allocation_offset,
+            allocation_limit=allocation_limit,
         )
     except (LF022BatchError, LF022ExecutionError, OSError, ValueError) as exc:
         typer.echo(f"LF-022 batch request creation rejected: {exc}", err=True)
@@ -3681,7 +3829,10 @@ def run_lf022_public_batch_command(
         f"mode={report.mode} tasks={report.task_count} "
         f"preflight_only={report.preflight_only_count} "
         f"replayed_terminal={report.replayed_terminal_count} "
-        f"new_terminal={report.new_terminal_count} errors={report.error_count} "
+        f"new_terminal={report.new_terminal_count} "
+        f"successful_terminal={report.successful_terminal_count or 0} "
+        f"failed_terminal={report.failed_terminal_count or 0} "
+        f"errors={report.error_count} "
         f"network_calls_this_run={report.network_calls_this_run} "
         f"report={result.report_path} semantic_labels_created=0 "
         "training_eligible=false evaluation_eligible=false gate_credit_claimed=false"

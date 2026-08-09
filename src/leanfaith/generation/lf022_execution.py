@@ -9,7 +9,7 @@ still requires an explicit caller flag at the executor boundary.
 from __future__ import annotations
 
 import json
-from collections.abc import Callable
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import Literal, Self, cast
@@ -31,6 +31,7 @@ from leanfaith.generation.lf022_production import (
     LF022ProductionSourceRecord,
     LF022ProductionTask,
     LF022ProviderCatalogSnapshot,
+    LF022PublicSourceAuthorization,
     LF022PublicSourceAuthorizationRegistry,
 )
 from leanfaith.generation.lf022_public_pool import LF022PublicPoolAudit
@@ -40,7 +41,7 @@ from leanfaith.generation.llm_variants import (
     PublicLeanVariantSource,
     VariantPromptRequest,
 )
-from leanfaith.schemas.enums import IntendedRelation
+from leanfaith.schemas.enums import IntendedRelation, ViewStatus
 from leanfaith.schemas.ids import HEX64_PATTERN, id_pattern, make_id
 from leanfaith.schemas.theorem import ContextRecord, RepresentationRecord, TheoremRecord
 
@@ -84,6 +85,14 @@ class VerifiedLF022ExecutionTaskInputs:
     benchmark_manifest: LF022BenchmarkRegistryManifest
     active_registry: FrozenRegistry
     authorization_registry: LF022PublicSourceAuthorizationRegistry
+    allocation_tasks_by_id: Mapping[str, LF022ProductionTask]
+    source_records_by_admission_id: Mapping[str, LF022ProductionSourceRecord]
+    theorems_by_id: Mapping[str, TheoremRecord]
+    representations_by_id: Mapping[str, RepresentationRecord]
+    contexts_by_id: Mapping[str, ContextRecord]
+    clearances_by_id: Mapping[str, LF022DenylistClearanceRecord]
+    authorizations_by_id: Mapping[str, LF022PublicSourceAuthorization]
+    active_registry_content_hash: str
 
 
 def _safe_relative_path(value: str, *, field: str) -> str:
@@ -139,7 +148,9 @@ class LF022RCPDecodingContract(StrictModel):
     contract_id: Literal[
         "kimi_k2_7_public_smoke_v3",
         "qwen3_5_proposer_qualification_v1",
+        "qwen3_5_proposer_qualification_v2",
         "glm5_2_proposer_qualification_v1",
+        "glm5_2_proposer_qualification_v2",
     ]
     temperature: float = Field(ge=0.0, le=2.0)
     top_p: float = Field(gt=0.0, le=1.0)
@@ -191,7 +202,39 @@ class LF022RCPDecodingContract(StrictModel):
                 "chat_template_thinking": None,
                 "thinking_fields_forbidden": False,
             },
+            "qwen3_5_proposer_qualification_v2": {
+                "temperature": 0.6,
+                "top_p": 0.95,
+                "top_k": 20,
+                "min_p": 0.0,
+                "presence_penalty": 0.0,
+                "repetition_penalty": 1.0,
+                "max_tokens": 16384,
+                "seed": 42,
+                "stream": False,
+                "thinking_mode": "enabled",
+                "reasoning_effort": "high",
+                "chat_template_enable_thinking": True,
+                "chat_template_thinking": None,
+                "thinking_fields_forbidden": False,
+            },
             "glm5_2_proposer_qualification_v1": {
+                "temperature": 0.0,
+                "top_p": 1.0,
+                "top_k": None,
+                "min_p": None,
+                "presence_penalty": None,
+                "repetition_penalty": None,
+                "max_tokens": 8192,
+                "seed": 42,
+                "stream": False,
+                "thinking_mode": "enabled",
+                "reasoning_effort": "high",
+                "chat_template_enable_thinking": True,
+                "chat_template_thinking": None,
+                "thinking_fields_forbidden": False,
+            },
+            "glm5_2_proposer_qualification_v2": {
                 "temperature": 0.0,
                 "top_p": 1.0,
                 "top_k": None,
@@ -288,7 +331,10 @@ class LF022RCPRouteBinding(StrictModel):
             "Qwen/Qwen3.5-397B-A17B": (
                 "qwen3",
                 "qwen/qwen3",
-                "qwen3_5_proposer_qualification_v1",
+                (
+                    "qwen3_5_proposer_qualification_v1",
+                    "qwen3_5_proposer_qualification_v2",
+                ),
                 (
                     "one_item_proposer_qualification_only",
                     "public_provisional_g_open",
@@ -297,7 +343,10 @@ class LF022RCPRouteBinding(StrictModel):
             "zai-org/GLM-5.2": (
                 "glm5",
                 "zai-org/glm-5.2",
-                "glm5_2_proposer_qualification_v1",
+                (
+                    "glm5_2_proposer_qualification_v1",
+                    "glm5_2_proposer_qualification_v2",
+                ),
                 (
                     "one_item_proposer_qualification_only",
                     "public_provisional_g_open",
@@ -308,11 +357,13 @@ class LF022RCPRouteBinding(StrictModel):
             raise ValueError(
                 "route is outside the exact reviewed LF-022 Kimi/Qwen/GLM proposer scope"
             )
-        expected_family, expected_canonical, expected_contract, allowed_scopes = expected
+        expected_family, expected_canonical, expected_contracts, allowed_scopes = expected
+        if isinstance(expected_contracts, str):
+            expected_contracts = (expected_contracts,)
         if (
             self.proposer_family_id != expected_family
             or self.canonical_family != expected_canonical
-            or self.decoding.contract_id != expected_contract
+            or self.decoding.contract_id not in expected_contracts
             or self.execution_scope not in allowed_scopes
         ):
             raise ValueError(
@@ -337,12 +388,62 @@ class LF022ExecutionArtifacts(StrictModel):
         default=None,
         exclude_if=lambda value: value is None,
     )
+    qualification_supersession: LF022ArtifactBinding | None = Field(
+        default=None,
+        exclude_if=lambda value: value is None,
+    )
+
+
+FailedQualificationTerminalStatus = Literal[
+    "provider_exhausted",
+    "proposer_parse_failed",
+]
+
+
+class LF022QualificationSupersession(StrictModel):
+    """Append-only authority for one fresh attempt after a verified failure."""
+
+    schema_version: Literal[1] = 1
+    supersession_id: str = Field(pattern=id_pattern("lf022_qualification_supersession"))
+    proposer_family_id: Literal["qwen3", "glm5"]
+    model_id: str
+    previous_claim_id: str = Field(pattern=id_pattern("lf022_qualification_claim"))
+    previous_claim: LF022ArtifactBinding
+    previous_admission_id: str = Field(pattern=id_pattern("lf022_execution_admission"))
+    previous_admission: LF022ArtifactBinding
+    previous_task_id: str = Field(pattern=id_pattern("lf022_execution_task"))
+    previous_task: LF022ArtifactBinding
+    previous_terminal_id: str = Field(pattern=id_pattern("lf022_execution_terminal"))
+    previous_terminal: LF022ArtifactBinding
+    previous_terminal_status: FailedQualificationTerminalStatus
+    previous_terminal_error_code: str = Field(min_length=1)
+    previous_decoding_contract_id: str = Field(min_length=1)
+    next_decoding_contract_id: str = Field(min_length=1)
+    reason: Literal["replay_verified_failed_qualification"]
+    exact_failed_replay_verified: Literal[True] = True
+    replay_network_calls: Literal[0] = 0
+    semantic_labels_created: Literal[False] = False
+    training_eligible: Literal[False] = False
+    gate_credit_claimed: Literal[False] = False
+
+    @model_validator(mode="after")
+    def _content_addressed(self) -> Self:
+        if self.previous_decoding_contract_id == self.next_decoding_contract_id:
+            raise ValueError("qualification supersession requires a new decoding contract")
+        expected = _content_id(
+            "lf022_qualification_supersession",
+            self,
+            id_field="supersession_id",
+        )
+        if self.supersession_id != expected:
+            raise ValueError("supersession_id does not match canonical qualification recovery")
+        return self
 
 
 class LF022QualificationClaim(StrictModel):
     """Repository-global exactly-once reservation for an unqualified proposer."""
 
-    schema_version: Literal[1] = 1
+    schema_version: Literal[1, 2] = 1
     claim_id: str = Field(pattern=id_pattern("lf022_qualification_claim"))
     proposer_family_id: Literal["qwen3", "glm5"]
     model_id: str
@@ -356,9 +457,16 @@ class LF022QualificationClaim(StrictModel):
     semantic_labels_created: Literal[False] = False
     training_eligible: Literal[False] = False
     gate_credit_claimed: Literal[False] = False
+    qualification_supersession: LF022ArtifactBinding | None = Field(
+        default=None,
+        exclude_if=lambda value: value is None,
+    )
 
     @model_validator(mode="after")
     def _content_addressed(self) -> Self:
+        expected_schema = 2 if self.qualification_supersession is not None else 1
+        if self.schema_version != expected_schema:
+            raise ValueError("qualification claim schema differs from supersession state")
         expected = _content_id(
             "lf022_qualification_claim",
             self,
@@ -372,7 +480,7 @@ class LF022QualificationClaim(StrictModel):
 class LF022GOpenExecutionAdmission(StrictModel):
     """Reviewed authority for proposer-only, public, provisional collection."""
 
-    schema_version: Literal[1, 2]
+    schema_version: Literal[1, 2, 3]
     admission_id: str = Field(pattern=id_pattern("lf022_execution_admission"))
     status: Literal["public_provisional_g_open_admitted"]
     normalization_version: Literal["repr_v3"]
@@ -413,7 +521,25 @@ class LF022GOpenExecutionAdmission(StrictModel):
             raise ValueError(
                 "Qwen/GLM production scope requires exactly one bound proposer eligibility"
             )
-        expected_schema = 2 if requires_eligibility else 1
+        has_supersession = self.artifacts.qualification_supersession is not None
+        recovery_contract = self.route.decoding.contract_id in {
+            "qwen3_5_proposer_qualification_v2",
+            "glm5_2_proposer_qualification_v2",
+        }
+        if has_supersession and (
+            requires_eligibility
+            or self.route.proposer_family_id not in {"qwen3", "glm5"}
+            or self.route.execution_scope != "one_item_proposer_qualification_only"
+        ):
+            raise ValueError(
+                "qualification supersession is restricted to an unqualified Qwen/GLM route"
+            )
+        if (
+            self.route.execution_scope == "one_item_proposer_qualification_only"
+            and recovery_contract != has_supersession
+        ):
+            raise ValueError("qualification v2 recovery contract requires exactly one supersession")
+        expected_schema = 2 if requires_eligibility else 3 if has_supersession else 1
         if self.schema_version != expected_schema:
             raise ValueError(
                 "execution admission schema version differs from route eligibility state"
@@ -438,7 +564,13 @@ def make_lf022_g_open_execution_admission(
     code_tree_hash: str,
 ) -> LF022GOpenExecutionAdmission:
     payload: dict[str, object] = {
-        "schema_version": (2 if artifacts.proposer_production_eligibility is not None else 1),
+        "schema_version": (
+            2
+            if artifacts.proposer_production_eligibility is not None
+            else 3
+            if artifacts.qualification_supersession is not None
+            else 1
+        ),
         "status": "public_provisional_g_open_admitted",
         "normalization_version": "repr_v3",
         "public_pool_audit_id": public_pool_audit_id,
@@ -474,7 +606,7 @@ def make_lf022_g_open_execution_admission(
 class LF022GOpenExecutionTask(StrictModel):
     """One allocation-bound, public proposer request."""
 
-    schema_version: Literal[1] = 1
+    schema_version: Literal[1, 2] = 1
     execution_task_id: str = Field(pattern=id_pattern("lf022_execution_task"))
     execution_admission_id: str = Field(pattern=id_pattern("lf022_execution_admission"))
     allocation_plan_id: str = Field(pattern=id_pattern("lf022_production_plan"))
@@ -489,9 +621,15 @@ class LF022GOpenExecutionTask(StrictModel):
     gold_promotion_enabled: Literal[False]
     training_eligible: Literal[False]
     evaluation_eligible: Literal[False]
+    source_statement_version: Literal["named_signature_v2"] | None = Field(
+        default=None,
+        exclude_if=lambda value: value is None,
+    )
 
     @model_validator(mode="after")
     def _public_open_task(self) -> Self:
+        if (self.schema_version == 2) != (self.source_statement_version == "named_signature_v2"):
+            raise ValueError("task schema differs from proposer source-statement version")
         allocation = self.allocation_task
         if allocation.distribution != "G_open":
             raise ValueError("proposer-only execution accepts only G_open allocations")
@@ -556,7 +694,7 @@ def make_lf022_g_open_execution_task(
             "proposer qualification routes require exactly one requested proposal"
         )
     payload: dict[str, object] = {
-        "schema_version": 1,
+        "schema_version": 2,
         "execution_admission_id": admission.admission_id,
         "allocation_plan_id": admission.allocation_plan_id,
         "allocation_task": allocation_task.model_dump(mode="json"),
@@ -570,6 +708,7 @@ def make_lf022_g_open_execution_task(
         "gold_promotion_enabled": False,
         "training_eligible": False,
         "evaluation_eligible": False,
+        "source_statement_version": "named_signature_v2",
     }
     return LF022GOpenExecutionTask.model_validate(
         {
@@ -592,8 +731,9 @@ def make_lf022_qualification_claim(
         raise LF022ExecutionError("qualification claim requires the one-item execution scope")
     if task.execution_admission_id != admission.admission_id:
         raise LF022ExecutionError("qualification claim task differs from its admission")
+    supersession = admission.artifacts.qualification_supersession
     payload: dict[str, object] = {
-        "schema_version": 1,
+        "schema_version": 2 if supersession is not None else 1,
         "proposer_family_id": admission.route.proposer_family_id,
         "model_id": admission.route.model_id,
         "execution_scope": admission.route.execution_scope,
@@ -606,13 +746,77 @@ def make_lf022_qualification_claim(
         "semantic_labels_created": False,
         "training_eligible": False,
         "gate_credit_claimed": False,
+        "qualification_supersession": (
+            supersession.model_dump(mode="json") if supersession is not None else None
+        ),
     }
+    if supersession is None:
+        payload.pop("qualification_supersession")
     return LF022QualificationClaim.model_validate(
         {
             **payload,
             "claim_id": make_id("lf022_qualification_claim", payload),
         }
     )
+
+
+def lf022_qualification_claim_path(
+    *,
+    output_root: Path,
+    admission: LF022GOpenExecutionAdmission,
+    claim: LF022QualificationClaim,
+) -> Path:
+    """Return the legacy or append-only content-addressed claim location."""
+
+    claims_root = output_root / "qualification_claims"
+    if claim.qualification_supersession is None:
+        return claims_root / f"{admission.route.proposer_family_id}.json"
+    digest = claim.claim_id.split(":", 1)[1]
+    return claims_root / admission.route.proposer_family_id / f"{digest}.json"
+
+
+def make_lf022_named_signature(
+    *,
+    theorem: TheoremRecord,
+    representation: RepresentationRecord,
+) -> str:
+    """Build a proof-free named statement with every elaborated binder exposed."""
+
+    def valid_name(name: str) -> bool:
+        segments = name.split(".")
+        return bool(segments) and all(
+            bool(segment)
+            and (segment[0].isalpha() or segment[0] == "_")
+            and all(
+                character.isalnum() or character in {"_", "'", "!", "?"}
+                for character in segment[1:]
+            )
+            for segment in segments
+        )
+
+    if (
+        theorem.declaration_name is None
+        or not theorem.declaration_name.strip()
+        or not valid_name(theorem.declaration_name)
+        or representation.theorem_id != theorem.theorem_id
+        or representation.context_id != theorem.context_id
+        or representation.normalization_version != "repr_v3"
+        or representation.signature_pp is None
+        or representation.view_status.get("signature_pp") is not ViewStatus.OK
+    ):
+        raise LF022ExecutionError(
+            "proposer source requires a named theorem and successful signature_pp view"
+        )
+    signature = representation.signature_pp.strip()
+    if not signature:
+        raise LF022ExecutionError("proposer signature is empty or malformed")
+    # ``signature_pp`` is a hash-bound, type-only representation.  ``:=`` may
+    # legitimately occur inside that type (for example in structure literals
+    # or ``let`` expressions), so it is not evidence of an outer proof body.
+    declaration_kind = (
+        theorem.declaration_kind if theorem.declaration_kind in {"theorem", "lemma"} else "theorem"
+    )
+    return f"{declaration_kind} {theorem.declaration_name} : {signature}"
 
 
 def _bound_path(
@@ -704,16 +908,19 @@ def _load_bound_jsonl[RecordT: StrictModel](
     return tuple(records)
 
 
-def _exactly_one[RecordT: StrictModel](
+def _unique_execution_index[RecordT: StrictModel](
     records: tuple[RecordT, ...],
     *,
-    predicate: Callable[[RecordT], bool],
+    attribute: str,
     label: str,
-) -> RecordT:
-    selected = tuple(record for record in records if predicate(record))
-    if len(selected) != 1:
-        raise LF022ExecutionError(f"{label} requires exactly one matching public-pool record")
-    return selected[0]
+) -> dict[str, RecordT]:
+    indexed: dict[str, RecordT] = {}
+    for record in records:
+        key = cast(str, getattr(record, attribute))
+        if key in indexed:
+            raise LF022ExecutionError(f"{label} contains duplicate key {key}")
+        indexed[key] = record
+    return indexed
 
 
 def _reviewed_route_payload(
@@ -815,9 +1022,19 @@ def _verify_reviewed_route_contract(
         return
 
     required_contract = {
-        "qwen3": "configs/generation/lf022_qwen3_5_proposer_qualification_v1.yaml",
-        "glm5": "configs/generation/lf022_glm5_2_proposer_qualification_v1.yaml",
-    }[route.proposer_family_id]
+        "qwen3_5_proposer_qualification_v1": (
+            "configs/generation/lf022_qwen3_5_proposer_qualification_v1.yaml"
+        ),
+        "qwen3_5_proposer_qualification_v2": (
+            "configs/generation/lf022_qwen3_5_proposer_qualification_v2.yaml"
+        ),
+        "glm5_2_proposer_qualification_v1": (
+            "configs/generation/lf022_glm5_2_proposer_qualification_v1.yaml"
+        ),
+        "glm5_2_proposer_qualification_v2": (
+            "configs/generation/lf022_glm5_2_proposer_qualification_v2.yaml"
+        ),
+    }[route.decoding.contract_id]
     if contract_path.as_posix().split("/")[-len(PurePosixPath(required_contract).parts) :] != list(
         PurePosixPath(required_contract).parts
     ):
@@ -1122,7 +1339,9 @@ class _LF022ProposerQualificationContract(StrictModel):
     artifact_class: Literal["proposer_qualification_contract"]
     contract_id: Literal[
         "qwen3_5_proposer_qualification_v1",
+        "qwen3_5_proposer_qualification_v2",
         "glm5_2_proposer_qualification_v1",
+        "glm5_2_proposer_qualification_v2",
     ]
     role: Literal["proposer"]
     qualification_status: Literal["pending_one_item_live_qualification"]
@@ -1169,6 +1388,12 @@ def verify_lf022_execution_admission(
             binding=admission.artifacts.proposer_production_eligibility,
             label="proposer_production_eligibility",
         )
+    if admission.artifacts.qualification_supersession is not None:
+        paths["qualification_supersession"] = _bound_path(
+            repo_root=repo_root,
+            binding=admission.artifacts.qualification_supersession,
+            label="qualification_supersession",
+        )
     plan = _load_strict_json(
         paths["allocation_plan"],
         LF022ProductionPlanManifest,
@@ -1189,6 +1414,14 @@ def verify_lf022_execution_admission(
         raise LF022ExecutionError("public-pool audit does not bind the admitted allocation plan")
     if not audit.public_sources_only or not audit.private_sft_classic_forbidden:
         raise LF022ExecutionError("public-pool audit is not public-only")
+    if (
+        audit.profile != plan.profile
+        or audit.selected_count != plan.unique_source_count
+        or len(plan.tasks) != 2 * plan.unique_source_count
+    ):
+        raise LF022ExecutionError(
+            "public-pool audit profile or selected-source count differs from allocation plan"
+        )
     if admission.route.execution_scope == "one_item_proposer_qualification_only" and (
         plan.profile != "diagnostic_scaffold" or audit.selected_count != 1 or len(plan.tasks) != 2
     ):
@@ -1282,6 +1515,27 @@ def verify_lf022_execution_admission(
         evidence_path=paths["reviewed_route_evidence"],
         route=route,
     )
+    if admission.artifacts.qualification_supersession is not None:
+        from leanfaith.generation.lf022_route_qualification import (
+            LF022RouteQualificationError,
+            verify_lf022_qualification_supersession,
+        )
+
+        try:
+            supersession = verify_lf022_qualification_supersession(
+                repo_root=repo_root,
+                supersession_binding=admission.artifacts.qualification_supersession,
+            )
+        except LF022RouteQualificationError as exc:
+            raise LF022ExecutionError(f"qualification supersession rejected: {exc}") from exc
+        if (
+            supersession.proposer_family_id != route.proposer_family_id
+            or supersession.model_id != route.model_id
+            or supersession.next_decoding_contract_id != route.decoding.contract_id
+        ):
+            raise LF022ExecutionError(
+                "qualification supersession belongs to a different recovery route"
+            )
     if (
         route.proposer_family_id in {"qwen3", "glm5"}
         and route.execution_scope == "public_provisional_g_open"
@@ -1391,10 +1645,8 @@ def load_lf022_execution_task_inputs(
         label="active benchmark registry",
     )
     assert isinstance(active_registry, FrozenRegistry)
-    if (
-        DenylistIndex(active_registry).registry_content_hash
-        != audit.active_benchmark_registry_content_hash
-    ):
+    active_registry_content_hash = DenylistIndex(active_registry).registry_content_hash
+    if active_registry_content_hash != audit.active_benchmark_registry_content_hash:
         raise LF022ExecutionError("active benchmark registry content hash differs")
     registry_path = _bound_path(
         repo_root=repo_root,
@@ -1416,6 +1668,42 @@ def load_lf022_execution_task_inputs(
         benchmark_manifest=benchmark_manifest,
         active_registry=active_registry,
         authorization_registry=registry,
+        allocation_tasks_by_id=_unique_execution_index(
+            verified.plan.tasks,
+            attribute="task_id",
+            label="allocation plan",
+        ),
+        source_records_by_admission_id=_unique_execution_index(
+            source_records,
+            attribute="admission_record_id",
+            label="public source pool",
+        ),
+        theorems_by_id=_unique_execution_index(
+            theorems,
+            attribute="theorem_id",
+            label="public theorem records",
+        ),
+        representations_by_id=_unique_execution_index(
+            representations,
+            attribute="representation_id",
+            label="public representation records",
+        ),
+        contexts_by_id=_unique_execution_index(
+            contexts,
+            attribute="context_id",
+            label="public context records",
+        ),
+        clearances_by_id=_unique_execution_index(
+            clearances,
+            attribute="clearance_id",
+            label="denylist clearance records",
+        ),
+        authorizations_by_id=_unique_execution_index(
+            registry.authorizations,
+            attribute="authorization_id",
+            label="public source authorization registry",
+        ),
+        active_registry_content_hash=active_registry_content_hash,
     )
 
 
@@ -1444,43 +1732,25 @@ def verify_lf022_execution_task(
         raise LF022ExecutionError(
             "proposer qualification route task must request exactly one proposal"
         )
-    matching = tuple(
-        item for item in verified.plan.tasks if item.task_id == task.allocation_task.task_id
-    )
-    if matching != (task.allocation_task,):
-        raise LF022ExecutionError("allocation task is absent or differs from the bound plan")
-
     audit = verified.audit
     task_inputs = inputs or load_lf022_execution_task_inputs(
         repo_root=repo_root,
         verified=verified,
     )
     allocation = task.allocation_task
-    source_record = _exactly_one(
-        task_inputs.source_records,
-        predicate=lambda record: record.admission_record_id == allocation.admission_record_id,
-        label="allocation source",
-    )
-    theorem = _exactly_one(
-        task_inputs.theorems,
-        predicate=lambda record: record.theorem_id == allocation.theorem_id,
-        label="allocation theorem",
-    )
-    representation = _exactly_one(
-        task_inputs.representations,
-        predicate=lambda record: record.representation_id == allocation.representation_id,
-        label="allocation representation",
-    )
-    context = _exactly_one(
-        task_inputs.contexts,
-        predicate=lambda record: record.context_id == allocation.context_id,
-        label="allocation context",
-    )
-    clearance = _exactly_one(
-        task_inputs.clearances,
-        predicate=lambda record: record.clearance_id == source_record.denylist_clearance_id,
-        label="allocation denylist clearance",
-    )
+    if task_inputs.allocation_tasks_by_id.get(allocation.task_id) != allocation:
+        raise LF022ExecutionError("allocation task is absent or differs from the bound plan")
+    source_record = task_inputs.source_records_by_admission_id.get(allocation.admission_record_id)
+    theorem = task_inputs.theorems_by_id.get(allocation.theorem_id)
+    representation = task_inputs.representations_by_id.get(allocation.representation_id)
+    context = task_inputs.contexts_by_id.get(allocation.context_id)
+    if source_record is None or theorem is None or representation is None or context is None:
+        raise LF022ExecutionError(
+            "allocation source, theorem, representation, or context is absent"
+        )
+    clearance = task_inputs.clearances_by_id.get(source_record.denylist_clearance_id)
+    if clearance is None:
+        raise LF022ExecutionError("allocation denylist clearance is absent")
     if (
         source_record.theorem_id != theorem.theorem_id
         or source_record.representation_id != representation.representation_id
@@ -1503,11 +1773,7 @@ def verify_lf022_execution_task(
     benchmark_manifest = task_inputs.benchmark_manifest
     if benchmark_manifest.active_registry != audit.active_benchmark_registry:
         raise LF022ExecutionError("benchmark registry manifest differs from public-pool audit")
-    active_registry = task_inputs.active_registry
-    if (
-        DenylistIndex(active_registry).registry_content_hash
-        != audit.active_benchmark_registry_content_hash
-    ):
+    if task_inputs.active_registry_content_hash != audit.active_benchmark_registry_content_hash:
         raise LF022ExecutionError("active benchmark registry content hash differs")
     expected_clearance = (
         source_record.denylist_clearance_id,
@@ -1540,22 +1806,27 @@ def verify_lf022_execution_task(
             "denylist clearance does not exactly and clearly bind the execution source"
         )
     source = task.source
+    expected_source_statement = (
+        theorem.proof_stripped_declaration
+        if task.source_statement_version is None
+        else make_lf022_named_signature(
+            theorem=theorem,
+            representation=representation,
+        )
+    )
     if (
-        source.source_statement != theorem.proof_stripped_declaration
+        source.source_statement != expected_source_statement
         or source.imports != context.imports
         or source.source_id != theorem.source
         or source.source_revision != theorem.source_revision
     ):
         raise LF022ExecutionError("prompt source content differs from the bound public pool")
 
-    authorizations = tuple(
-        item
-        for item in task_inputs.authorization_registry.authorizations
-        if item.authorization_id == source_record.public_source_authorization_id
+    authorization = task_inputs.authorizations_by_id.get(
+        source_record.public_source_authorization_id
     )
-    if len(authorizations) != 1:
+    if authorization is None:
         raise LF022ExecutionError("public source lacks one exact authorization")
-    authorization = authorizations[0]
     if (
         authorization.source != theorem.source
         or authorization.source_revision != theorem.source_revision
@@ -1575,14 +1846,17 @@ __all__ = [
     "LF022GOpenExecutionAdmission",
     "LF022GOpenExecutionTask",
     "LF022QualificationClaim",
+    "LF022QualificationSupersession",
     "LF022RCPDecodingContract",
     "LF022RCPRetryPolicy",
     "LF022RCPRouteBinding",
     "VerifiedLF022ExecutionAdmission",
     "VerifiedLF022ExecutionTaskInputs",
+    "lf022_qualification_claim_path",
     "load_lf022_execution_task_inputs",
     "make_lf022_g_open_execution_admission",
     "make_lf022_g_open_execution_task",
+    "make_lf022_named_signature",
     "make_lf022_qualification_claim",
     "verify_lf022_execution_admission",
     "verify_lf022_execution_task",

@@ -9,11 +9,13 @@ import subprocess
 from collections.abc import Mapping
 from dataclasses import replace
 from pathlib import Path
+from typing import Literal
 
 import pytest
 from typer.testing import CliRunner
 
 from leanfaith.cli.app import app
+from leanfaith.cli.lf022_batch import select_public_g_open_plan_window
 from leanfaith.config.code_bundle import freeze_code_bundle
 from leanfaith.config.hashing import (
     canonical_json_bytes,
@@ -26,6 +28,7 @@ from leanfaith.datasets.denylist import DenylistIndex, FrozenBenchmark, FrozenRe
 from leanfaith.generation.lf022_admission_freeze import (
     LF022AdmissionFreezeError,
     freeze_lf022_diagnostic_execution_admission,
+    freeze_lf022_scientific_kimi_execution_admission,
 )
 from leanfaith.generation.lf022_batch import (
     LF022BatchError,
@@ -33,6 +36,7 @@ from leanfaith.generation.lf022_batch import (
     LF022BatchRouteFreezeRequest,
     LF022BatchRunPolicy,
     RateLimitedRCPTransport,
+    audit_lf022_g_open_source_eligibility,
     freeze_lf022_public_batch,
     make_lf022_batch_freeze_request,
     run_lf022_public_batch,
@@ -48,6 +52,8 @@ from leanfaith.generation.lf022_execution import (
     load_lf022_execution_task_inputs,
     make_lf022_g_open_execution_admission,
     make_lf022_g_open_execution_task,
+    make_lf022_named_signature,
+    make_lf022_qualification_claim,
     verify_lf022_execution_admission,
 )
 from leanfaith.generation.lf022_executor import (
@@ -81,7 +87,9 @@ from leanfaith.generation.lf022_route_qualification import (
     LF022QualifiedProposerProductionEligibility,
     LF022RouteQualificationError,
     certify_lf022_proposer_production_eligibility,
+    supersede_lf022_failed_qualification,
     verify_lf022_proposer_production_eligibility,
+    verify_lf022_qualification_supersession,
 )
 from leanfaith.generation.llm_variants import PublicLeanVariantSource
 from leanfaith.generation.rcp_provider import (
@@ -194,11 +202,19 @@ def _plan(
     g_open: LF022ProductionTask,
     artifacts: LF022ProductionArtifactSet,
     family_matrix: LF022ProductionFamilyMatrix,
+    profile: Literal[
+        "diagnostic_scaffold",
+        "scientific_production_scaffold",
+    ] = "diagnostic_scaffold",
 ) -> LF022ProductionPlanManifest:
     payload: dict[str, object] = {
         "schema_version": 2,
-        "profile": "diagnostic_scaffold",
-        "scientific_status": "diagnostic_only",
+        "profile": profile,
+        "scientific_status": (
+            "diagnostic_only"
+            if profile == "diagnostic_scaffold"
+            else "scientific_allocation_scaffold"
+        ),
         "artifact_class": "allocation_scaffold",
         "status": "non_executable_allocation_complete",
         "admission_id": f"lf022_production_admission:{'2' * 64}",
@@ -242,6 +258,10 @@ def _audit(
     active_benchmark_registry_content_hash: str,
     denylist_clearance_records: LF022JSONLArtifactBinding,
     theorem_id: str,
+    profile: Literal[
+        "diagnostic_scaffold",
+        "scientific_production_scaffold",
+    ] = "diagnostic_scaffold",
 ) -> tuple[LF022PublicPoolAudit, LF022ArtifactBinding]:
     outputs = LF022PublicPoolOutputArtifacts(
         family_matrix=family_matrix,
@@ -263,7 +283,7 @@ def _audit(
     payload: dict[str, object] = {
         "schema_version": 1,
         "selection_version": "lf022_public_pool_hash_rank_v1",
-        "profile": "diagnostic_scaffold",
+        "profile": profile,
         "requested_count": 1,
         "input_theorems": theorem_records.model_dump(mode="json"),
         "input_representations": representation_records.model_dump(mode="json"),
@@ -363,6 +383,10 @@ def _fixture(
     raw_catalog_omit_model_id: str | None = None,
     qualification_contract_replacement: tuple[bytes, bytes] | None = None,
     qualification_contract_path_override: str | None = None,
+    profile: Literal[
+        "diagnostic_scaffold",
+        "scientific_production_scaffold",
+    ] = "diagnostic_scaffold",
 ) -> tuple[
     LF022GOpenExecutionAdmission,
     LF022GOpenExecutionTask,
@@ -475,8 +499,8 @@ def _fixture(
         context_id=context_id,
         raw_proof_stripped=statement,
         headless="(n : Nat) : n = n",
-        signature_pp=statement,
-        signature_explicit="theorem public_source (n : Nat) : Eq Nat n n",
+        signature_pp="∀ (n : Nat), n = n",
+        signature_explicit="∀ (n : Nat), Eq Nat n n",
         semantic_atoms=("Eq", "Nat"),
         operator_tree={"kind": "forall"},
         alpha_identity_fingerprint="2" * 64,
@@ -658,6 +682,7 @@ def _fixture(
         g_open=g_open,
         artifacts=production_artifacts,
         family_matrix=family_matrix,
+        profile=profile,
     )
     plan_binding = _write_json(
         root,
@@ -679,6 +704,7 @@ def _fixture(
         active_benchmark_registry_content_hash=active_registry_content_hash,
         denylist_clearance_records=clearance_records,
         theorem_id=theorem_id,
+        profile=profile,
     )
     raw_catalog = _write_bytes(
         root,
@@ -810,7 +836,10 @@ def _fixture(
         source_representation_id=representation_id,
         context_id=context_id,
         imports=("Mathlib",),
-        source_statement=statement,
+        source_statement=make_lf022_named_signature(
+            theorem=theorem,
+            representation=representation,
+        ),
         source_id="mathlib",
         source_revision=source_revision,
         source_license="Apache-2.0",
@@ -954,6 +983,153 @@ def test_freeze_diagnostic_execution_admission_cli_is_offline(
     assert "network_calls_this_run=0" in result.output
     assert "training_eligible=false" in result.output
     assert LF022GOpenExecutionAdmission.model_validate_json(output.read_bytes()) == expected
+
+
+def test_freeze_scientific_kimi_execution_admission_replays_exact_fixture(
+    tmp_path: Path,
+) -> None:
+    expected, _ = _fixture(
+        tmp_path,
+        profile="scientific_production_scaffold",
+    )
+    output = tmp_path / "artifacts/kimi_scientific_execution_admission.json"
+    first = freeze_lf022_scientific_kimi_execution_admission(
+        repo_root=tmp_path,
+        public_pool_audit_path=tmp_path / "artifacts/public_pool_audit.json",
+        code_bundle_path=tmp_path / expected.artifacts.code_bundle.path,
+        provider_catalog_raw_path=tmp_path / expected.artifacts.provider_catalog_raw.path,
+        output_path=output,
+    )
+    second = freeze_lf022_scientific_kimi_execution_admission(
+        repo_root=tmp_path,
+        public_pool_audit_path=tmp_path / "artifacts/public_pool_audit.json",
+        code_bundle_path=tmp_path / expected.artifacts.code_bundle.path,
+        provider_catalog_raw_path=tmp_path / expected.artifacts.provider_catalog_raw.path,
+        output_path=output,
+    )
+    assert first.admission == expected
+    assert second == first
+    assert first.admission.route.proposer_family_id == "moonshot_kimi_k2"
+    assert first.admission.route.execution_scope == "public_provisional_g_open"
+    assert first.admission.outputs_provisional_only is True
+    assert first.admission.semantic_labels_created is False
+    assert first.admission.training_eligible is False
+    assert first.admission.evaluation_eligible is False
+    assert first.admission.gate_credit_claimed is False
+
+
+def test_freeze_scientific_kimi_admission_cli_is_offline(tmp_path: Path) -> None:
+    expected, _ = _fixture(
+        tmp_path,
+        profile="scientific_production_scaffold",
+    )
+    output = tmp_path / "artifacts/kimi_scientific_cli_admission.json"
+    result = CliRunner().invoke(
+        app,
+        [
+            "freeze-lf022-scientific-kimi-admission",
+            "--root",
+            str(tmp_path),
+            "--public-pool-audit",
+            "artifacts/public_pool_audit.json",
+            "--code-bundle",
+            expected.artifacts.code_bundle.path,
+            "--provider-catalog-raw",
+            expected.artifacts.provider_catalog_raw.path,
+            "--output",
+            str(output),
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    assert "family=moonshot_kimi_k2" in result.output
+    assert "scope=public_provisional_g_open" in result.output
+    assert "network_calls_this_run=0" in result.output
+    assert "outputs_unresolved=true" in result.output
+    assert LF022GOpenExecutionAdmission.model_validate_json(output.read_bytes()) == expected
+
+
+def test_scientific_kimi_admission_rejects_diagnostic_pool(tmp_path: Path) -> None:
+    expected, _ = _fixture(tmp_path)
+    with pytest.raises(
+        LF022AdmissionFreezeError,
+        match="exact requested public-only pool profile",
+    ):
+        freeze_lf022_scientific_kimi_execution_admission(
+            repo_root=tmp_path,
+            public_pool_audit_path=tmp_path / "artifacts/public_pool_audit.json",
+            code_bundle_path=tmp_path / expected.artifacts.code_bundle.path,
+            provider_catalog_raw_path=tmp_path / expected.artifacts.provider_catalog_raw.path,
+            output_path=tmp_path / "artifacts/rejected_scientific_admission.json",
+        )
+
+
+def test_scientific_kimi_plan_windows_are_stable_and_canonical() -> None:
+    kimi_open_tasks = tuple(
+        _task(
+            distribution="G_open",
+            proposer_family_id="moonshot_kimi_k2",
+            source_admission_id=f"lf022_source_admission:{index:064x}",
+            theorem_id=f"thm:{index:064x}",
+            representation_id=f"repr:{index:064x}",
+            context_id=f"ctx:{index:064x}",
+        )
+        for index in range(9_207)
+    )
+    unrelated_tasks = (
+        _task(
+            distribution="G_sci",
+            proposer_family_id="moonshot_kimi_k2",
+            source_admission_id=f"lf022_source_admission:{9_207:064x}",
+            theorem_id=f"thm:{9_207:064x}",
+            representation_id=f"repr:{9_207:064x}",
+            context_id=f"ctx:{9_207:064x}",
+        ),
+        _task(
+            distribution="G_open",
+            proposer_family_id="qwen3",
+            source_admission_id=f"lf022_source_admission:{9_208:064x}",
+            theorem_id=f"thm:{9_208:064x}",
+            representation_id=f"repr:{9_208:064x}",
+            context_id=f"ctx:{9_208:064x}",
+        ),
+    )
+    plan_tasks = (
+        unrelated_tasks[0],
+        *kimi_open_tasks[:256],
+        unrelated_tasks[1],
+        *kimi_open_tasks[256:],
+    )
+
+    one = select_public_g_open_plan_window(
+        plan_tasks=plan_tasks,
+        proposer_family_id="moonshot_kimi_k2",
+        allocation_offset=0,
+        allocation_limit=1,
+    )
+    first_256 = select_public_g_open_plan_window(
+        plan_tasks=plan_tasks,
+        proposer_family_id="moonshot_kimi_k2",
+        allocation_offset=0,
+        allocation_limit=256,
+    )
+    full = select_public_g_open_plan_window(
+        plan_tasks=plan_tasks,
+        proposer_family_id="moonshot_kimi_k2",
+        allocation_offset=0,
+        allocation_limit=9_207,
+    )
+
+    assert one == (kimi_open_tasks[0].task_id,)
+    assert first_256 == tuple(sorted(task.task_id for task in kimi_open_tasks[:256]))
+    assert full == tuple(sorted(task.task_id for task in kimi_open_tasks))
+    assert len(full) == len(set(full)) == 9_207
+    with pytest.raises(ValueError, match="exceeds"):
+        select_public_g_open_plan_window(
+            plan_tasks=plan_tasks,
+            proposer_family_id="moonshot_kimi_k2",
+            allocation_offset=9_207,
+            allocation_limit=1,
+        )
 
 
 class FakeTransport(RCPHTTPTransport):
@@ -2290,6 +2466,201 @@ def test_parse_failure_is_not_retried(tmp_path: Path) -> None:
     assert transport.calls == 1
 
 
+def test_failed_qualification_supersession_is_append_only_and_replay_verified(
+    tmp_path: Path,
+) -> None:
+    admission, task = _fixture(
+        tmp_path,
+        model_id="Qwen/Qwen3.5-397B-A17B",
+    )
+    bad_response = RCPWireResponse(
+        status_code=200,
+        headers={},
+        body=canonical_json_bytes(
+            {
+                "id": "fixture-bad-qualification",
+                "model": admission.route.model_id,
+                "choices": [{"message": {"content": "not task json"}}],
+            }
+        ),
+    )
+    result = execute_lf022_g_open_task(
+        repo_root=tmp_path,
+        output_root=tmp_path / "data/lf022_execution",
+        admission=admission,
+        task=task,
+        execute_public_provisional=True,
+        credentials=_credentials(),
+        transport=FakeTransport([bad_response]),
+        clock=lambda: NOW,
+    )
+    assert result.terminal is not None
+    assert result.terminal.status == "proposer_parse_failed"
+    task_dir = _qualification_task_dir(tmp_path, task)
+    admission_path = task_dir / "admission.json"
+    task_path = task_dir / "task.json"
+    terminal_path = task_dir / "terminal.json"
+    hashes_before = tuple(hash_file(path) for path in (admission_path, task_path, terminal_path))
+    superseded = supersede_lf022_failed_qualification(
+        repo_root=tmp_path,
+        previous_admission_binding=LF022ArtifactBinding(
+            path=admission_path.relative_to(tmp_path).as_posix(),
+            sha256=hash_file(admission_path),
+        ),
+        previous_task_binding=LF022ArtifactBinding(
+            path=task_path.relative_to(tmp_path).as_posix(),
+            sha256=hash_file(task_path),
+        ),
+        next_decoding_contract_id="qwen3_5_proposer_qualification_v2",
+    )
+    binding = LF022ArtifactBinding(
+        path=superseded.supersession_path.relative_to(tmp_path).as_posix(),
+        sha256=hash_file(superseded.supersession_path),
+    )
+    assert (
+        verify_lf022_qualification_supersession(
+            repo_root=tmp_path,
+            supersession_binding=binding,
+        )
+        == superseded.supersession
+    )
+    assert superseded.supersession.previous_terminal_status == "proposer_parse_failed"
+    assert superseded.supersession.replay_network_calls == 0
+    assert tuple(hash_file(path) for path in (admission_path, task_path, terminal_path)) == (
+        hashes_before
+    )
+    v2_contract = _copy_repo_artifact(
+        tmp_path,
+        "configs/generation/lf022_qwen3_5_proposer_qualification_v2.yaml",
+    )
+    new_code_tree_hash = collect_code_state(tmp_path).code_tree_hash
+    assert new_code_tree_hash is not None
+    new_code_bundle = _code_bundle(tmp_path, code_tree_hash=new_code_tree_hash)
+    v2_decoding = LF022RCPDecodingContract(
+        contract_id="qwen3_5_proposer_qualification_v2",
+        temperature=0.6,
+        top_p=0.95,
+        top_k=20,
+        min_p=0.0,
+        presence_penalty=0.0,
+        repetition_penalty=1.0,
+        max_tokens=16_384,
+        seed=42,
+        thinking_mode="enabled",
+        reasoning_effort="high",
+        chat_template_enable_thinking=True,
+    )
+    v2_route_payload = admission.route.model_dump(mode="json")
+    v2_route_payload["decoding"] = v2_decoding.model_dump(mode="json")
+    v2_route = LF022RCPRouteBinding.model_validate(v2_route_payload)
+    v2_artifact_payload = admission.artifacts.model_dump(mode="json")
+    v2_artifact_payload.update(
+        {
+            "reviewed_route_contract": v2_contract.model_dump(mode="json"),
+            "code_bundle": new_code_bundle.model_dump(mode="json"),
+            "qualification_supersession": binding.model_dump(mode="json"),
+        }
+    )
+    v2_admission = make_lf022_g_open_execution_admission(
+        public_pool_audit_id=admission.public_pool_audit_id,
+        allocation_plan_id=admission.allocation_plan_id,
+        artifacts=LF022ExecutionArtifacts.model_validate(v2_artifact_payload),
+        route=v2_route,
+        retry_policy=admission.retry_policy,
+        code_tree_hash=new_code_tree_hash,
+    )
+    v2_task = make_lf022_g_open_execution_task(
+        admission=v2_admission,
+        allocation_task=task.allocation_task,
+        source=task.source,
+    )
+    recovery_preflight = execute_lf022_g_open_task(
+        repo_root=tmp_path,
+        output_root=tmp_path / "data/lf022_execution",
+        admission=v2_admission,
+        task=v2_task,
+    )
+    assert recovery_preflight.terminal is None
+    assert recovery_preflight.network_calls_this_run == 0
+    assert (
+        tmp_path
+        / "data/lf022_execution/qualification_claims/qwen3"
+        / f"{make_lf022_qualification_claim(admission=v2_admission, task=v2_task).claim_id.split(':', 1)[1]}.json"
+    ).is_file()
+
+
+def test_successful_qualification_cannot_be_superseded(tmp_path: Path) -> None:
+    admission, task = _fixture(
+        tmp_path,
+        model_id="Qwen/Qwen3.5-397B-A17B",
+    )
+    result = execute_lf022_g_open_task(
+        repo_root=tmp_path,
+        output_root=tmp_path / "data/lf022_execution",
+        admission=admission,
+        task=task,
+        execute_public_provisional=True,
+        credentials=_credentials(),
+        transport=FakeTransport([_success_response(admission.route.model_id)]),
+        clock=lambda: NOW,
+    )
+    assert result.terminal is not None
+    assert result.terminal.status == "provisional_variants_created"
+    task_dir = _qualification_task_dir(tmp_path, task)
+    with pytest.raises(
+        LF022RouteQualificationError,
+        match="failed qualification",
+    ):
+        supersede_lf022_failed_qualification(
+            repo_root=tmp_path,
+            previous_admission_binding=LF022ArtifactBinding(
+                path=(task_dir / "admission.json").relative_to(tmp_path).as_posix(),
+                sha256=hash_file(task_dir / "admission.json"),
+            ),
+            previous_task_binding=LF022ArtifactBinding(
+                path=(task_dir / "task.json").relative_to(tmp_path).as_posix(),
+                sha256=hash_file(task_dir / "task.json"),
+            ),
+            next_decoding_contract_id="qwen3_5_proposer_qualification_v2",
+        )
+
+
+def test_transport_unknown_qualification_cannot_be_superseded(tmp_path: Path) -> None:
+    admission, task = _fixture(
+        tmp_path,
+        model_id="Qwen/Qwen3.5-397B-A17B",
+    )
+    result = execute_lf022_g_open_task(
+        repo_root=tmp_path,
+        output_root=tmp_path / "data/lf022_execution",
+        admission=admission,
+        task=task,
+        execute_public_provisional=True,
+        credentials=_credentials(),
+        transport=UnknownTransport(),
+        clock=lambda: NOW,
+    )
+    assert result.terminal is not None
+    assert result.terminal.status == "transport_unknown"
+    task_dir = _qualification_task_dir(tmp_path, task)
+    with pytest.raises(
+        LF022RouteQualificationError,
+        match="failed qualification",
+    ):
+        supersede_lf022_failed_qualification(
+            repo_root=tmp_path,
+            previous_admission_binding=LF022ArtifactBinding(
+                path=(task_dir / "admission.json").relative_to(tmp_path).as_posix(),
+                sha256=hash_file(task_dir / "admission.json"),
+            ),
+            previous_task_binding=LF022ArtifactBinding(
+                path=(task_dir / "task.json").relative_to(tmp_path).as_posix(),
+                sha256=hash_file(task_dir / "task.json"),
+            ),
+            next_decoding_contract_id="qwen3_5_proposer_qualification_v2",
+        )
+
+
 def test_transport_unknown_is_terminal_and_replays_without_retry(
     tmp_path: Path,
 ) -> None:
@@ -2498,6 +2869,85 @@ def test_batch_request_cli_constructs_one_exact_qualification_route_offline(
     assert not escaped.exists()
 
 
+def test_batch_request_cli_selects_exact_scientific_plan_window_offline(
+    tmp_path: Path,
+) -> None:
+    admission, task = _fixture(
+        tmp_path,
+        profile="scientific_production_scaffold",
+    )
+    admission_path = tmp_path / "artifacts/kimi_scientific_admission.json"
+    admission_path.write_bytes(canonical_json_bytes(admission.model_dump(mode="json")) + b"\n")
+    output = tmp_path / "data/kimi_scientific_batch_request.json"
+
+    selected = CliRunner().invoke(
+        app,
+        [
+            "make-lf022-public-batch-request",
+            "--root",
+            str(tmp_path),
+            "--admission",
+            str(admission_path),
+            "--allocation-offset",
+            "0",
+            "--allocation-limit",
+            "1",
+            "--output",
+            str(output),
+        ],
+    )
+
+    assert selected.exit_code == 0, selected.output
+    assert "tasks=1" in selected.output
+    assert "network_calls_this_run=0" in selected.output
+    request = LF022BatchFreezeRequest.model_validate_json(output.read_bytes())
+    assert request.routes[0].allocation_task_ids == (task.allocation_task.task_id,)
+    assert request.semantic_labels_created is False
+    assert request.training_eligible is False
+    assert request.evaluation_eligible is False
+    assert request.gate_credit_claimed is False
+
+    mixed_selection = CliRunner().invoke(
+        app,
+        [
+            "make-lf022-public-batch-request",
+            "--root",
+            str(tmp_path),
+            "--admission",
+            str(admission_path),
+            "--allocation-task-id",
+            task.allocation_task.task_id,
+            "--allocation-offset",
+            "0",
+            "--allocation-limit",
+            "1",
+            "--output",
+            str(tmp_path / "data/rejected_mixed_selection.json"),
+        ],
+    )
+    assert mixed_selection.exit_code == 2
+    assert "cannot be combined" in mixed_selection.output
+
+    out_of_range = CliRunner().invoke(
+        app,
+        [
+            "make-lf022-public-batch-request",
+            "--root",
+            str(tmp_path),
+            "--admission",
+            str(admission_path),
+            "--allocation-offset",
+            "1",
+            "--allocation-limit",
+            "1",
+            "--output",
+            str(tmp_path / "data/rejected_out_of_range.json"),
+        ],
+    )
+    assert out_of_range.exit_code == 2
+    assert "exceeds" in out_of_range.output
+
+
 def test_batch_freeze_and_offline_replay_are_deterministic(tmp_path: Path) -> None:
     admission, task = _fixture(tmp_path)
     request_binding = _batch_request_binding(
@@ -2523,6 +2973,8 @@ def test_batch_freeze_and_offline_replay_are_deterministic(tmp_path: Path) -> No
         (tmp_path / route.tasks[0].task.path).read_bytes()
     )
     assert frozen_task.source.optional_natural_language is None
+    assert frozen_task.source.source_statement == "theorem public_source : ∀ (n : Nat), n = n"
+    assert frozen_task.source_statement_version == "named_signature_v2"
     assert frozen_task.training_eligible is False
 
     manifest_binding = LF022ArtifactBinding(
@@ -2545,6 +2997,105 @@ def test_batch_freeze_and_offline_replay_are_deterministic(tmp_path: Path) -> No
     assert first.report.error_count == 0
     events = sorted((tmp_path / frozen.manifest.journal_directory).glob("*/*.json"))
     assert len(events) == 1
+
+
+def test_named_signature_is_bound_and_rejects_command_injection(tmp_path: Path) -> None:
+    _fixture(tmp_path)
+    theorem = TheoremRecord.model_validate_json(
+        (tmp_path / "artifacts/theorems.jsonl").read_bytes().splitlines()[0]
+    )
+    representation = RepresentationRecord.model_validate_json(
+        (tmp_path / "artifacts/representations.jsonl").read_bytes().splitlines()[0]
+    )
+    assert (
+        make_lf022_named_signature(
+            theorem=theorem.model_copy(update={"declaration_name": "public_source!"}),
+            representation=representation,
+        )
+        == "theorem public_source! : ∀ (n : Nat), n = n"
+    )
+    assert (
+        make_lf022_named_signature(
+            theorem=theorem.model_copy(update={"declaration_name": "public_source?"}),
+            representation=representation,
+        )
+        == "theorem public_source? : ∀ (n : Nat), n = n"
+    )
+    assert (
+        make_lf022_named_signature(
+            theorem=theorem,
+            representation=representation.model_copy(
+                update={"signature_pp": "{ re := 1, im := 0 } = Complex.ofReal 1"}
+            ),
+        )
+        == "theorem public_source : { re := 1, im := 0 } = Complex.ofReal 1"
+    )
+    assert (
+        make_lf022_named_signature(
+            theorem=theorem,
+            representation=representation.model_copy(
+                update={"signature_pp": "(let value := 1; value) = 1"}
+            ),
+        )
+        == "theorem public_source : (let value := 1; value) = 1"
+    )
+    with pytest.raises(LF022ExecutionError, match="named theorem"):
+        make_lf022_named_signature(
+            theorem=theorem.model_copy(update={"declaration_name": "public_source\n#check False"}),
+            representation=representation,
+        )
+    with pytest.raises(LF022ExecutionError, match="named theorem"):
+        make_lf022_named_signature(
+            theorem=theorem,
+            representation=representation.model_copy(update={"theorem_id": f"thm:{'0' * 64}"}),
+        )
+    with pytest.raises(LF022ExecutionError, match="named theorem"):
+        make_lf022_named_signature(
+            theorem=theorem,
+            representation=representation.model_copy(update={"signature_pp": None}),
+        )
+    failed_status = dict(representation.view_status)
+    failed_status["signature_pp"] = ViewStatus.FAILED
+    with pytest.raises(LF022ExecutionError, match="named theorem"):
+        make_lf022_named_signature(
+            theorem=theorem,
+            representation=representation.model_copy(update={"view_status": failed_status}),
+        )
+
+
+def test_source_eligibility_audit_uses_prebuilt_exact_input_indexes(
+    tmp_path: Path,
+) -> None:
+    admission, _ = _fixture(
+        tmp_path,
+        profile="scientific_production_scaffold",
+    )
+    verified = verify_lf022_execution_admission(
+        repo_root=tmp_path,
+        admission=admission,
+    )
+    inputs = load_lf022_execution_task_inputs(
+        repo_root=tmp_path,
+        verified=verified,
+    )
+    indexed_only = replace(
+        inputs,
+        source_records=(),
+        theorems=(),
+        representations=(),
+        contexts=(),
+        clearances=(),
+    )
+
+    assert (
+        audit_lf022_g_open_source_eligibility(
+            repo_root=tmp_path,
+            admission=admission,
+            verified=verified,
+            inputs=indexed_only,
+        )
+        == 1
+    )
 
 
 @pytest.mark.parametrize(
@@ -2907,6 +3458,8 @@ def test_live_batch_is_explicit_and_resumes_without_a_second_call(tmp_path: Path
     )
     assert live_transport.calls == 1
     assert live.report.new_terminal_count == 1
+    assert live.report.successful_terminal_count == 1
+    assert live.report.failed_terminal_count == 0
     assert live.report.network_calls_this_run == 1
     assert live.report.terminal_status_counts == {"provisional_variants_created": 1}
 
@@ -2921,9 +3474,52 @@ def test_live_batch_is_explicit_and_resumes_without_a_second_call(tmp_path: Path
     )
     assert replay_transport.calls == 0
     assert replay.report.replayed_terminal_count == 1
+    assert replay.report.successful_terminal_count == 1
+    assert replay.report.failed_terminal_count == 0
     assert replay.report.network_calls_this_run == 0
     events = sorted((tmp_path / frozen.manifest.journal_directory).glob("*/*.json"))
     assert len(events) == 2
+
+
+def test_batch_report_distinguishes_failed_terminal_from_executor_error(
+    tmp_path: Path,
+) -> None:
+    admission, task = _fixture(tmp_path)
+    frozen = freeze_lf022_public_batch(
+        repo_root=tmp_path,
+        request_binding=_batch_request_binding(
+            tmp_path,
+            admission=admission,
+            task=task,
+        ),
+    )
+    manifest_binding = LF022ArtifactBinding(
+        path=frozen.manifest_path.relative_to(tmp_path).as_posix(),
+        sha256=hash_file(frozen.manifest_path),
+    )
+    bad_response = RCPWireResponse(
+        status_code=200,
+        headers={},
+        body=canonical_json_bytes(
+            {
+                "id": "fixture-bad-batch",
+                "model": admission.route.model_id,
+                "choices": [{"message": {"content": "not task json"}}],
+            }
+        ),
+    )
+    result = run_lf022_public_batch(
+        repo_root=tmp_path,
+        manifest_binding=manifest_binding,
+        policy=LF022BatchRunPolicy(),
+        execute_public_provisional=True,
+        credentials=_credentials(),
+        transport=FakeTransport([bad_response]),
+    )
+    assert result.report.successful_terminal_count == 0
+    assert result.report.failed_terminal_count == 1
+    assert result.report.error_count == 0
+    assert result.report.terminal_status_counts == {"proposer_parse_failed": 1}
 
 
 def test_rate_limiter_applies_to_every_transport_start() -> None:

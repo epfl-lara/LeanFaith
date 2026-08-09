@@ -31,6 +31,8 @@ from leanfaith.generation.lf022_execution import (
     LF022GOpenExecutionAdmission,
     LF022GOpenExecutionTask,
     LF022QualificationClaim,
+    LF022QualificationSupersession,
+    lf022_qualification_claim_path,
     load_lf022_execution_task_inputs,
     make_lf022_qualification_claim,
     verify_lf022_execution_admission,
@@ -180,7 +182,9 @@ class LF022QualifiedProposerProductionEligibility(StrictModel):
     route_snapshot_revision: str = Field(pattern=r"^rcp-catalog-sha256:[0-9a-f]{64}$")
     decoding_contract_id: Literal[
         "qwen3_5_proposer_qualification_v1",
+        "qwen3_5_proposer_qualification_v2",
         "glm5_2_proposer_qualification_v1",
+        "glm5_2_proposer_qualification_v2",
     ]
     decoding_contract_hash: str = Field(pattern=HEX64_PATTERN)
     family_matrix_id: str = Field(pattern=id_pattern("lf022_family_matrix"))
@@ -263,9 +267,276 @@ class CertifiedLF022ProposerRoute:
     eligibility_path: Path
 
 
+@dataclass(frozen=True, slots=True)
+class SupersededLF022Qualification:
+    """One persisted authorization for a fresh qualification attempt."""
+
+    supersession: LF022QualificationSupersession
+    supersession_path: Path
+
+
 def _task_directory(repo_root: Path, task_id: str) -> Path:
     digest = task_id.removeprefix("lf022_execution_task:")
     return repo_root / LF022_CANONICAL_EXECUTOR_OUTPUT_ROOT / "tasks" / digest[:2] / digest
+
+
+def _qualification_supersession_path(
+    repo_root: Path,
+    supersession: LF022QualificationSupersession,
+) -> Path:
+    digest = supersession.supersession_id.split(":", 1)[1]
+    return (
+        repo_root
+        / LF022_CANONICAL_EXECUTOR_OUTPUT_ROOT
+        / "qualification_supersessions"
+        / supersession.proposer_family_id
+        / f"{digest}.json"
+    )
+
+
+def _failed_qualification_replay(
+    *,
+    repo_root: Path,
+    admission: LF022GOpenExecutionAdmission,
+    task: LF022GOpenExecutionTask,
+) -> tuple[LF022ExecutionTerminalRecord, Path]:
+    """Replay one immutable failed qualification without contacting a provider."""
+
+    if (
+        admission.route.proposer_family_id not in _QUALIFICATION_FAMILIES
+        or admission.route.execution_scope != "one_item_proposer_qualification_only"
+        or admission.artifacts.qualification_supersession is not None
+    ):
+        raise LF022RouteQualificationError(
+            "only a prior unsuperseded Qwen/GLM qualification may be superseded"
+        )
+    try:
+        verified = verify_lf022_execution_admission(
+            repo_root=repo_root,
+            admission=admission,
+        )
+        inputs = load_lf022_execution_task_inputs(repo_root=repo_root, verified=verified)
+        verify_lf022_execution_task(
+            repo_root=repo_root,
+            admission=admission,
+            verified=verified,
+            task=task,
+            inputs=inputs,
+        )
+        replay = execute_lf022_g_open_task(
+            repo_root=repo_root,
+            output_root=repo_root / LF022_CANONICAL_EXECUTOR_OUTPUT_ROOT,
+            admission=admission,
+            task=task,
+            verified_admission=verified,
+            verified_task_inputs=inputs,
+            # This is a historical replay of an immutable attempt.  The
+            # admission's archived code bundle, not the current worktree,
+            # defines the code identity that produced the terminal.
+            observed_code_tree_hash=admission.code_tree_hash,
+        )
+    except (LF022ExecutionError, LF022ExecutorError, ValueError) as exc:
+        raise LF022RouteQualificationError(
+            f"failed qualification exact replay rejected: {exc}"
+        ) from exc
+    if (
+        not replay.replayed
+        or replay.network_calls_this_run != 0
+        or replay.terminal is None
+        or replay.terminal_path is None
+        or replay.terminal.status not in {"provider_exhausted", "proposer_parse_failed"}
+        or replay.terminal.provisional_variant_count != 0
+        or replay.terminal.variants_artifact is not None
+        or replay.terminal.terminal_error_code is None
+    ):
+        raise LF022RouteQualificationError(
+            "supersession requires one exact offline-replayed failed qualification"
+        )
+    return replay.terminal, replay.terminal_path
+
+
+def supersede_lf022_failed_qualification(
+    *,
+    repo_root: Path,
+    previous_admission_binding: LF022ArtifactBinding,
+    previous_task_binding: LF022ArtifactBinding,
+    next_decoding_contract_id: Literal[
+        "qwen3_5_proposer_qualification_v2",
+        "glm5_2_proposer_qualification_v2",
+    ],
+) -> SupersededLF022Qualification:
+    """Persist an append-only retry authority after replaying a failed terminal."""
+
+    admission = _load_model(
+        repo_root=repo_root,
+        binding=previous_admission_binding,
+        model=LF022GOpenExecutionAdmission,
+        label="previous qualification admission",
+    )
+    task = _load_model(
+        repo_root=repo_root,
+        binding=previous_task_binding,
+        model=LF022GOpenExecutionTask,
+        label="previous qualification task",
+    )
+    expected_transition = {
+        "qwen3": (
+            "qwen3_5_proposer_qualification_v1",
+            "qwen3_5_proposer_qualification_v2",
+        ),
+        "glm5": (
+            "glm5_2_proposer_qualification_v1",
+            "glm5_2_proposer_qualification_v2",
+        ),
+    }.get(admission.route.proposer_family_id)
+    if expected_transition != (
+        admission.route.decoding.contract_id,
+        next_decoding_contract_id,
+    ):
+        raise LF022RouteQualificationError(
+            "qualification supersession is not the reviewed v1-to-v2 family transition"
+        )
+    terminal, terminal_path = _failed_qualification_replay(
+        repo_root=repo_root,
+        admission=admission,
+        task=task,
+    )
+    claim = make_lf022_qualification_claim(admission=admission, task=task)
+    claim_path = lf022_qualification_claim_path(
+        output_root=repo_root / LF022_CANONICAL_EXECUTOR_OUTPUT_ROOT,
+        admission=admission,
+        claim=claim,
+    )
+    observed_claim = _load_model(
+        repo_root=repo_root,
+        binding=_binding(repo_root, claim_path),
+        model=LF022QualificationClaim,
+        label="previous qualification claim",
+    )
+    if observed_claim != claim:
+        raise LF022RouteQualificationError(
+            "previous qualification claim differs from the failed replay"
+        )
+    payload: dict[str, object] = {
+        "schema_version": 1,
+        "proposer_family_id": admission.route.proposer_family_id,
+        "model_id": admission.route.model_id,
+        "previous_claim_id": claim.claim_id,
+        "previous_claim": _binding(repo_root, claim_path).model_dump(mode="json"),
+        "previous_admission_id": admission.admission_id,
+        "previous_admission": previous_admission_binding.model_dump(mode="json"),
+        "previous_task_id": task.execution_task_id,
+        "previous_task": previous_task_binding.model_dump(mode="json"),
+        "previous_terminal_id": terminal.terminal_id,
+        "previous_terminal": _binding(repo_root, terminal_path).model_dump(mode="json"),
+        "previous_terminal_status": terminal.status,
+        "previous_terminal_error_code": terminal.terminal_error_code,
+        "previous_decoding_contract_id": admission.route.decoding.contract_id,
+        "next_decoding_contract_id": next_decoding_contract_id,
+        "reason": "replay_verified_failed_qualification",
+        "exact_failed_replay_verified": True,
+        "replay_network_calls": 0,
+        "semantic_labels_created": False,
+        "training_eligible": False,
+        "gate_credit_claimed": False,
+    }
+    supersession = LF022QualificationSupersession.model_validate(
+        {
+            **payload,
+            "supersession_id": make_id("lf022_qualification_supersession", payload),
+        }
+    )
+    path = _qualification_supersession_path(repo_root, supersession)
+    _write_immutable(
+        path,
+        canonical_json_bytes(supersession.model_dump(mode="json")) + b"\n",
+    )
+    persisted = verify_lf022_qualification_supersession(
+        repo_root=repo_root,
+        supersession_binding=_binding(repo_root, path),
+    )
+    if persisted != supersession:
+        raise LF022RouteQualificationError("persisted qualification supersession differs")
+    return SupersededLF022Qualification(
+        supersession=persisted,
+        supersession_path=path,
+    )
+
+
+def verify_lf022_qualification_supersession(
+    *,
+    repo_root: Path,
+    supersession_binding: LF022ArtifactBinding,
+) -> LF022QualificationSupersession:
+    """Replay and verify an immutable failed-only qualification supersession."""
+
+    supersession = _load_model(
+        repo_root=repo_root,
+        binding=supersession_binding,
+        model=LF022QualificationSupersession,
+        label="qualification supersession",
+    )
+    expected_path = (
+        _qualification_supersession_path(
+            repo_root,
+            supersession,
+        )
+        .relative_to(repo_root)
+        .as_posix()
+    )
+    if supersession_binding.path != expected_path:
+        raise LF022RouteQualificationError(
+            "qualification supersession is outside the content-addressed registry"
+        )
+    admission = _load_model(
+        repo_root=repo_root,
+        binding=supersession.previous_admission,
+        model=LF022GOpenExecutionAdmission,
+        label="superseded qualification admission",
+    )
+    task = _load_model(
+        repo_root=repo_root,
+        binding=supersession.previous_task,
+        model=LF022GOpenExecutionTask,
+        label="superseded qualification task",
+    )
+    claim = _load_model(
+        repo_root=repo_root,
+        binding=supersession.previous_claim,
+        model=LF022QualificationClaim,
+        label="superseded qualification claim",
+    )
+    terminal, terminal_path = _failed_qualification_replay(
+        repo_root=repo_root,
+        admission=admission,
+        task=task,
+    )
+    expected_claim = make_lf022_qualification_claim(admission=admission, task=task)
+    if (
+        supersession.proposer_family_id != admission.route.proposer_family_id
+        or supersession.model_id != admission.route.model_id
+        or supersession.previous_admission_id != admission.admission_id
+        or supersession.previous_task_id != task.execution_task_id
+        or supersession.previous_claim_id != claim.claim_id
+        or claim != expected_claim
+        or supersession.previous_terminal_id != terminal.terminal_id
+        or supersession.previous_terminal != _binding(repo_root, terminal_path)
+        or supersession.previous_terminal_status != terminal.status
+        or supersession.previous_terminal_error_code != terminal.terminal_error_code
+        or supersession.previous_decoding_contract_id != admission.route.decoding.contract_id
+    ):
+        raise LF022RouteQualificationError(
+            "qualification supersession differs from exact failed replay lineage"
+        )
+    expected_next = {
+        "qwen3": "qwen3_5_proposer_qualification_v2",
+        "glm5": "glm5_2_proposer_qualification_v2",
+    }[supersession.proposer_family_id]
+    if supersession.next_decoding_contract_id != expected_next:
+        raise LF022RouteQualificationError(
+            "qualification supersession names an unreviewed recovery contract"
+        )
+    return supersession
 
 
 def _load_variants(
@@ -454,13 +725,12 @@ def certify_lf022_proposer_production_eligibility(
         raise LF022RouteQualificationError(
             "production eligibility requires one successful, offline-replayed qualification result"
         )
-    claim_path = (
-        repo_root
-        / LF022_CANONICAL_EXECUTOR_OUTPUT_ROOT
-        / "qualification_claims"
-        / f"{admission.route.proposer_family_id}.json"
-    )
     expected_claim = make_lf022_qualification_claim(admission=admission, task=task)
+    claim_path = lf022_qualification_claim_path(
+        output_root=repo_root / LF022_CANONICAL_EXECUTOR_OUTPUT_ROOT,
+        admission=admission,
+        claim=expected_claim,
+    )
     observed_claim = _load_model(
         repo_root=repo_root,
         binding=_binding(repo_root, claim_path),
@@ -696,6 +966,9 @@ __all__ = [
     "CertifiedLF022ProposerRoute",
     "LF022QualifiedProposerProductionEligibility",
     "LF022RouteQualificationError",
+    "SupersededLF022Qualification",
     "certify_lf022_proposer_production_eligibility",
+    "supersede_lf022_failed_qualification",
     "verify_lf022_proposer_production_eligibility",
+    "verify_lf022_qualification_supersession",
 ]

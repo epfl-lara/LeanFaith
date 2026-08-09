@@ -1,0 +1,49 @@
+schema_version: 1
+artifact_class: proposer_qualification_contract
+contract_id: glm5_2_proposer_qualification_v2
+role: proposer
+qualification_status: pending_one_item_live_qualification
+model_id: zai-org/GLM-5.2
+family_id: glm5
+canonical_family: zai-org/glm-5.2
+provider: epfl_rcp
+transport: rcp_openai_compatible
+execution_scope: one_item_proposer_qualification_only
+proposal_count: 1
+decoding:
+  temperature: 0.0
+  top_p: 1.0
+  top_k: null
+  min_p: null
+  presence_penalty: null
+  repetition_penalty: null
+  max_tokens: 8192
+  seed: 42
+  stream: false
+  thinking_mode: enabled
+  reasoning_effort: high
+  chat_template_enable_thinking: true
+  chat_template_thinking: null
+  thinking_fields_forbidden: false
+portfolio_source: null
+prior_transport_evidence:
+  artifact: reports/generation/lf022_rcp_public_smoke_qualification_v1.json
+  sha256: 8d952a9bb6e61b056858946404ef19714b7f90ce5e7541d11396e429ffcdfbbb
+  observed_role: judge
+  proposer_evidence: false
+wire_capability_policy:
+  status: exact_fields_accepted_by_bound_prior_rcp_call
+  reasoning_effort_values:
+    - high
+  chat_template_enable_thinking_values:
+    - true
+  unsupported_reasoning_fields: reject
+  evidence:
+    artifact: reports/generation/lf022_rcp_public_smoke_qualification_v1.json
+    sha256: 8d952a9bb6e61b056858946404ef19714b7f90ce5e7541d11396e429ffcdfbbb
+    observed_role: judge
+    proposer_evidence: false
+  accepted_call_label: judge_B_AB
+  accepted_wire_request:
+    artifact: data/raw/llm_variants/lf022_rcp_public_smoke_v3/61e201acc254d89cb5e9686bd56a7f4e03c0ea2f8169ae39e22cc31be48a0589/calls/judge_B_AB/wire_request.json
+    sha256: c19e822772b6ca9c356354f99ffd80a7847e36732922ef974c9dc29afd10cbfc

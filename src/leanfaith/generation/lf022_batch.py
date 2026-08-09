@@ -41,9 +41,11 @@ from leanfaith.generation.lf022_execution import (
     LF022RCPRouteBinding,
     VerifiedLF022ExecutionAdmission,
     VerifiedLF022ExecutionTaskInputs,
+    lf022_qualification_claim_path,
     load_lf022_execution_task_inputs,
     make_lf022_g_open_execution_admission,
     make_lf022_g_open_execution_task,
+    make_lf022_named_signature,
     make_lf022_qualification_claim,
     verify_lf022_execution_admission,
     verify_lf022_execution_task,
@@ -53,7 +55,10 @@ from leanfaith.generation.lf022_executor import (
     RCPRuntimeCredentials,
     execute_lf022_g_open_task,
 )
-from leanfaith.generation.lf022_production import LF022ArtifactBinding
+from leanfaith.generation.lf022_production import (
+    LF022ArtifactBinding,
+    LF022ProductionTask,
+)
 from leanfaith.generation.llm_variants import PublicLeanVariantSource
 from leanfaith.generation.rcp_provider import RCPHTTPTransport, RCPWireResponse
 from leanfaith.schemas.enums import IntendedRelation
@@ -395,54 +400,35 @@ class FrozenLF022PublicBatch:
     manifest_path: Path
 
 
-def _unique_index[RecordT: StrictModel](
-    records: tuple[RecordT, ...],
-    *,
-    attribute: str,
-    label: str,
-) -> dict[str, RecordT]:
-    result: dict[str, RecordT] = {}
-    for record in records:
-        key = cast(str, getattr(record, attribute))
-        if key in result:
-            raise LF022BatchError(f"duplicate {label} key {key}")
-        result[key] = record
-    return result
-
-
 def _source_for_allocation(
     *,
     admission: LF022GOpenExecutionAdmission,
     inputs: VerifiedLF022ExecutionTaskInputs,
     allocation_admission_record_id: str,
 ) -> PublicLeanVariantSource:
-    source_records = _unique_index(
-        inputs.source_records,
-        attribute="admission_record_id",
-        label="source admission",
-    )
-    theorems = _unique_index(inputs.theorems, attribute="theorem_id", label="theorem")
-    contexts = _unique_index(inputs.contexts, attribute="context_id", label="context")
-    source_record = source_records.get(allocation_admission_record_id)
+    source_record = inputs.source_records_by_admission_id.get(allocation_admission_record_id)
     if source_record is None:
         raise LF022BatchError("allocation source is absent from exact public source artifacts")
-    theorem = theorems.get(source_record.theorem_id)
-    context = contexts.get(source_record.context_id)
-    if theorem is None or context is None:
-        raise LF022BatchError("allocation theorem or context is absent")
-    authorizations = tuple(
-        item
-        for item in inputs.authorization_registry.authorizations
-        if item.authorization_id == source_record.public_source_authorization_id
-    )
-    if len(authorizations) != 1:
+    theorem = inputs.theorems_by_id.get(source_record.theorem_id)
+    representation = inputs.representations_by_id.get(source_record.representation_id)
+    context = inputs.contexts_by_id.get(source_record.context_id)
+    if theorem is None or representation is None or context is None:
+        raise LF022BatchError("allocation theorem, representation, or context is absent")
+    try:
+        source_statement = make_lf022_named_signature(
+            theorem=theorem,
+            representation=representation,
+        )
+    except LF022ExecutionError as exc:
+        raise LF022BatchError(f"allocation lacks a safe proposer signature: {exc}") from exc
+    authorization = inputs.authorizations_by_id.get(source_record.public_source_authorization_id)
+    if authorization is None:
         raise LF022BatchError("allocation source lacks one exact public authorization")
-    authorization = authorizations[0]
     serialized = canonical_json_bytes(
         {
             "source": theorem.source,
             "source_revision": theorem.source_revision,
-            "statement": theorem.proof_stripped_declaration,
+            "statement": source_statement,
             "imports": context.imports,
         }
     ).decode("utf-8")
@@ -462,7 +448,7 @@ def _source_for_allocation(
         source_representation_id=source_record.representation_id,
         context_id=context.context_id,
         imports=context.imports,
-        source_statement=theorem.proof_stripped_declaration,
+        source_statement=source_statement,
         optional_natural_language=None,
         source_id=theorem.source,
         source_revision=theorem.source_revision,
@@ -472,6 +458,71 @@ def _source_for_allocation(
         denylist_checked=True,
         denylist_hits=(),
     )
+
+
+def _execution_task_for_allocation(
+    *,
+    repo_root: Path,
+    admission: LF022GOpenExecutionAdmission,
+    verified: VerifiedLF022ExecutionAdmission,
+    inputs: VerifiedLF022ExecutionTaskInputs,
+    allocation: LF022ProductionTask,
+    proposal_count: int = 1,
+    requested_relations: tuple[IntendedRelation, ...] = (IntendedRelation.NEAR_MISS,),
+) -> LF022GOpenExecutionTask:
+    source = _source_for_allocation(
+        admission=admission,
+        inputs=inputs,
+        allocation_admission_record_id=allocation.admission_record_id,
+    )
+    task = make_lf022_g_open_execution_task(
+        admission=admission,
+        allocation_task=allocation,
+        source=source,
+        proposal_count=proposal_count,
+        requested_relations=requested_relations,
+    )
+    verify_lf022_execution_task(
+        repo_root=repo_root,
+        admission=admission,
+        verified=verified,
+        task=task,
+        inputs=inputs,
+    )
+    return task
+
+
+def audit_lf022_g_open_source_eligibility(
+    *,
+    repo_root: Path,
+    admission: LF022GOpenExecutionAdmission,
+    verified: VerifiedLF022ExecutionAdmission,
+    inputs: VerifiedLF022ExecutionTaskInputs,
+) -> int:
+    """Verify every admitted route source once using prebuilt exact-input indexes."""
+
+    allocations = tuple(
+        task
+        for task in verified.plan.tasks
+        if task.distribution == "G_open"
+        and task.proposer_family_id == admission.route.proposer_family_id
+    )
+    if not allocations:
+        raise LF022BatchError("admitted route has no G_open allocation tasks")
+    for allocation in allocations:
+        try:
+            _execution_task_for_allocation(
+                repo_root=repo_root,
+                admission=admission,
+                verified=verified,
+                inputs=inputs,
+                allocation=allocation,
+            )
+        except LF022ExecutionError as exc:
+            raise LF022BatchError(
+                f"route source eligibility rejected: {allocation.task_id}"
+            ) from exc
+    return len(allocations)
 
 
 def freeze_lf022_public_batch(
@@ -548,25 +599,15 @@ def freeze_lf022_public_batch(
                 )
             if allocation.proposer_family_id != route_request.proposer_family_id:
                 raise LF022BatchError("allocation task belongs to a different proposer family")
-            source = _source_for_allocation(
-                admission=admission,
-                inputs=task_inputs,
-                allocation_admission_record_id=allocation.admission_record_id,
-            )
-            task = make_lf022_g_open_execution_task(
-                admission=admission,
-                allocation_task=allocation,
-                source=source,
-                proposal_count=route_request.proposal_count,
-                requested_relations=route_request.requested_relations,
-            )
             try:
-                verify_lf022_execution_task(
+                task = _execution_task_for_allocation(
                     repo_root=repo_root,
                     admission=admission,
                     verified=verified,
-                    task=task,
                     inputs=task_inputs,
+                    allocation=allocation,
+                    proposal_count=route_request.proposal_count,
+                    requested_relations=route_request.requested_relations,
                 )
             except LF022ExecutionError as exc:
                 raise LF022BatchError(
@@ -581,11 +622,10 @@ def freeze_lf022_public_batch(
                 admission=admission,
                 task=selected[0],
             )
-            claim_path = (
-                repo_root
-                / LF022_CANONICAL_EXECUTOR_OUTPUT_ROOT
-                / "qualification_claims"
-                / f"{route_request.proposer_family_id}.json"
+            claim_path = lf022_qualification_claim_path(
+                output_root=repo_root / LF022_CANONICAL_EXECUTOR_OUTPUT_ROOT,
+                admission=admission,
+                claim=claim,
             )
             qualification_claim_binding = _binding(
                 repo_root,
@@ -734,7 +774,7 @@ class LF022BatchJournalEvent(StrictModel):
 class LF022BatchRunReport(StrictModel):
     """Immutable summary of one offline or explicitly live batch pass."""
 
-    schema_version: Literal[1] = 1
+    schema_version: Literal[1, 2] = 1
     report_id: str = Field(pattern=id_pattern("lf022_batch_run"))
     batch_id: str = Field(pattern=id_pattern("lf022_public_batch"))
     mode: Literal["offline", "live"]
@@ -742,6 +782,18 @@ class LF022BatchRunReport(StrictModel):
     preflight_only_count: int = Field(ge=0, strict=True)
     replayed_terminal_count: int = Field(ge=0, strict=True)
     new_terminal_count: int = Field(ge=0, strict=True)
+    successful_terminal_count: int | None = Field(
+        default=None,
+        ge=0,
+        strict=True,
+        exclude_if=lambda value: value is None,
+    )
+    failed_terminal_count: int | None = Field(
+        default=None,
+        ge=0,
+        strict=True,
+        exclude_if=lambda value: value is None,
+    )
     error_count: int = Field(ge=0, strict=True)
     network_calls_this_run: int = Field(ge=0, strict=True)
     terminal_status_counts: dict[str, int]
@@ -757,6 +809,16 @@ class LF022BatchRunReport(StrictModel):
 
     @model_validator(mode="after")
     def _content_addressed(self) -> Self:
+        if self.schema_version == 1:
+            if self.successful_terminal_count is not None or self.failed_terminal_count is not None:
+                raise ValueError("legacy batch report cannot carry terminal outcome totals")
+        elif (
+            self.successful_terminal_count is None
+            or self.failed_terminal_count is None
+            or self.successful_terminal_count + self.failed_terminal_count
+            != self.replayed_terminal_count + self.new_terminal_count
+        ):
+            raise ValueError("successful and failed terminal counts do not reconcile")
         if (
             self.preflight_only_count
             + self.replayed_terminal_count
@@ -1021,21 +1083,23 @@ def _load_batch(
             claim_binding = route.qualification_claim
             if claim_binding is None:
                 raise LF022BatchError("qualification route lacks its global claim")
-            expected_claim_path = (
-                f"{LF022_CANONICAL_EXECUTOR_OUTPUT_ROOT}/qualification_claims/"
-                f"{route.proposer_family_id}.json"
+            expected_claim = make_lf022_qualification_claim(
+                admission=admission,
+                task=route_tasks[0],
             )
-            if claim_binding.path != expected_claim_path:
+            expected_claim_path = lf022_qualification_claim_path(
+                output_root=repo_root / LF022_CANONICAL_EXECUTOR_OUTPUT_ROOT,
+                admission=admission,
+                claim=expected_claim,
+            )
+            expected_claim_relative = expected_claim_path.relative_to(repo_root).as_posix()
+            if claim_binding.path != expected_claim_relative:
                 raise LF022BatchError("qualification claim is outside the canonical registry")
             claim, _ = _load_canonical(
                 repo_root=repo_root,
                 binding=claim_binding,
                 model=LF022QualificationClaim,
                 label=f"{route.proposer_family_id} qualification claim",
-            )
-            expected_claim = make_lf022_qualification_claim(
-                admission=admission,
-                task=route_tasks[0],
             )
             if claim != expected_claim:
                 raise LF022BatchError("qualification claim differs from the frozen route")
@@ -1177,14 +1241,18 @@ def run_lf022_public_batch(
                 replayed += 1
             else:
                 new_terminal += 1
+    successful_terminals = terminal_counts["provisional_variants_created"]
+    failed_terminals = sum(terminal_counts.values()) - successful_terminals
     report_payload: dict[str, object] = {
-        "schema_version": 1,
+        "schema_version": 2,
         "batch_id": manifest.batch_id,
         "mode": "live" if execute_public_provisional else "offline",
         "task_count": len(tasks),
         "preflight_only_count": preflight_only,
         "replayed_terminal_count": replayed,
         "new_terminal_count": new_terminal,
+        "successful_terminal_count": successful_terminals,
+        "failed_terminal_count": failed_terminals,
         "error_count": len(failures),
         "network_calls_this_run": network_calls,
         "terminal_status_counts": dict(sorted(terminal_counts.items())),
@@ -1220,6 +1288,7 @@ __all__ = [
     "LF022BatchRunResult",
     "LF022PublicBatchManifest",
     "RateLimitedRCPTransport",
+    "audit_lf022_g_open_source_eligibility",
     "freeze_lf022_public_batch",
     "make_lf022_batch_freeze_request",
     "run_lf022_public_batch",
