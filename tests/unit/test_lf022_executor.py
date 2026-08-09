@@ -2587,6 +2587,31 @@ def test_failed_qualification_supersession_is_append_only_and_replay_verified(
         / "data/lf022_execution/qualification_claims/qwen3"
         / f"{make_lf022_qualification_claim(admission=v2_admission, task=v2_task).claim_id.split(':', 1)[1]}.json"
     ).is_file()
+    recovery_live = execute_lf022_g_open_task(
+        repo_root=tmp_path,
+        output_root=tmp_path / "data/lf022_execution",
+        admission=v2_admission,
+        task=v2_task,
+        execute_public_provisional=True,
+        credentials=_credentials(),
+        transport=FakeTransport([_success_response(v2_admission.route.model_id)]),
+        clock=lambda: NOW,
+    )
+    assert recovery_live.terminal is not None
+    assert recovery_live.terminal.status == "provisional_variants_created"
+    v2_task_dir = _qualification_task_dir(tmp_path, v2_task)
+    certified = certify_lf022_proposer_production_eligibility(
+        repo_root=tmp_path,
+        qualification_admission_binding=LF022ArtifactBinding(
+            path=(v2_task_dir / "admission.json").relative_to(tmp_path).as_posix(),
+            sha256=hash_file(v2_task_dir / "admission.json"),
+        ),
+        qualification_task_binding=LF022ArtifactBinding(
+            path=(v2_task_dir / "task.json").relative_to(tmp_path).as_posix(),
+            sha256=hash_file(v2_task_dir / "task.json"),
+        ),
+    )
+    assert certified.eligibility.decoding_contract_id == ("qwen3_5_proposer_qualification_v2")
 
 
 def test_successful_qualification_cannot_be_superseded(tmp_path: Path) -> None:

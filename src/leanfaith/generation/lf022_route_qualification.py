@@ -229,11 +229,17 @@ class LF022QualifiedProposerProductionEligibility(StrictModel):
         require_utc(self.qualification_completed_at)
         if self.model_id != _MODEL_BY_FAMILY[self.proposer_family_id]:
             raise ValueError("eligibility model differs from exact proposer family")
-        expected_contract = {
-            "qwen3": "qwen3_5_proposer_qualification_v1",
-            "glm5": "glm5_2_proposer_qualification_v1",
+        expected_contracts = {
+            "qwen3": {
+                "qwen3_5_proposer_qualification_v1",
+                "qwen3_5_proposer_qualification_v2",
+            },
+            "glm5": {
+                "glm5_2_proposer_qualification_v1",
+                "glm5_2_proposer_qualification_v2",
+            },
         }[self.proposer_family_id]
-        if self.decoding_contract_id != expected_contract:
+        if self.decoding_contract_id not in expected_contracts:
             raise ValueError("eligibility decoding contract differs from proposer family")
         if len(set(self.judge_family_ids)) != 2:
             raise ValueError("qualification task must bind two distinct judge families")
