@@ -13,6 +13,8 @@ import pytest
 from leanfaith.config.hashing import canonical_json_bytes, hash_file
 from leanfaith.generation.lf022_historical_replay import (
     LF022HistoricalReplayError,
+    _copy_binding_closure,
+    _json_values,
     _launch_historical_subprocess,
     run_lf022_historical_replay,
 )
@@ -238,6 +240,82 @@ def _loaded_task(bundle: LF022ArtifactBinding) -> tuple[Any, ...]:
     )
     task = SimpleNamespace(execution_task_id=f"lf022_execution_task:{'4' * 64}")
     return (SimpleNamespace(admission=admission, task=task),)
+
+
+def test_jsonl_binding_scan_streams_records_lazily(tmp_path: Path) -> None:
+    artifact = tmp_path / "bound.jsonl"
+    artifact.write_text('{"index": 1}\nnot-json\n', encoding="utf-8")
+
+    values = _json_values(artifact)
+
+    assert next(values) == {"index": 1}
+    with pytest.raises(LF022HistoricalReplayError, match="bound JSON artifact is invalid"):
+        next(values)
+
+
+def test_jsonl_binding_scan_does_not_use_whole_file_read_text(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    artifact = tmp_path / "bound.jsonl"
+    artifact.write_text('{"index": 1}\n{"index": 2}\n', encoding="utf-8")
+
+    def reject_read_text(*args: object, **kwargs: object) -> str:
+        raise AssertionError("JSONL closure scan must not read the whole file")
+
+    def reject_read_bytes(*args: object, **kwargs: object) -> bytes:
+        raise AssertionError("JSONL closure scan must not read the whole file")
+
+    monkeypatch.setattr(Path, "read_text", reject_read_text)
+    monkeypatch.setattr(Path, "read_bytes", reject_read_bytes)
+
+    assert tuple(_json_values(artifact)) == ({"index": 1}, {"index": 2})
+
+
+def test_binding_closure_discovers_children_from_streamed_jsonl(tmp_path: Path) -> None:
+    source = tmp_path / "source"
+    historical = tmp_path / "historical"
+    historical.mkdir()
+    first = source / "data/children/first.txt"
+    second = source / "data/children/second.txt"
+    _write(first, "first\n")
+    _write(second, "second\n")
+    records = source / "data/records.jsonl"
+    records.write_bytes(
+        canonical_json_bytes(
+            {"path": first.relative_to(source).as_posix(), "sha256": hash_file(first)}
+        )
+        + b"\n"
+        + canonical_json_bytes(
+            {"path": second.relative_to(source).as_posix(), "sha256": hash_file(second)}
+        )
+        + b"\n"
+    )
+    manifest = source / "data/manifest.json"
+    manifest.write_bytes(
+        canonical_json_bytes(
+            {
+                "records": {
+                    "path": records.relative_to(source).as_posix(),
+                    "sha256": hash_file(records),
+                }
+            }
+        )
+    )
+
+    _copy_binding_closure(
+        source_root=source,
+        historical_root=historical,
+        initial=(
+            LF022ArtifactBinding(
+                path=manifest.relative_to(source).as_posix(),
+                sha256=hash_file(manifest),
+            ),
+        ),
+    )
+
+    assert (historical / first.relative_to(source)).read_bytes() == b"first\n"
+    assert (historical / second.relative_to(source)).read_bytes() == b"second\n"
 
 
 def test_historical_replay_rejects_tampered_bundle_binding(tmp_path: Path) -> None:

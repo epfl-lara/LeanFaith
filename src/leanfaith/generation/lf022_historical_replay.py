@@ -17,6 +17,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+from collections.abc import Iterator
 from pathlib import Path, PurePosixPath
 from typing import Literal, Self
 
@@ -310,14 +311,18 @@ def _binding_candidates(value: object) -> list[tuple[str, str]]:
     return result
 
 
-def _json_values(path: Path) -> tuple[object, ...]:
+def _json_values(path: Path) -> Iterator[object]:
     if path.suffix not in {".json", ".jsonl"}:
-        return ()
-    raw = path.read_text(encoding="utf-8")
+        return
     try:
         if path.suffix == ".jsonl":
-            return tuple(json.loads(line) for line in raw.splitlines() if line.strip())
-        return (json.loads(raw),)
+            with path.open(encoding="utf-8") as stream:
+                for line in stream:
+                    if line.strip():
+                        yield json.loads(line)
+            return
+        with path.open(encoding="utf-8") as stream:
+            yield json.load(stream)
     except (UnicodeError, json.JSONDecodeError) as exc:
         raise LF022HistoricalReplayError(f"bound JSON artifact is invalid: {path}") from exc
 
