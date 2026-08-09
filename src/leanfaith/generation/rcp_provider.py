@@ -212,15 +212,23 @@ def parse_chat_completion(
     if not isinstance(choices, list) or not choices or not isinstance(choices[0], dict):
         raise RCPResponseError(code="invalid_response_shape", retryable=False)
     choice = cast(dict[str, object], choices[0])
+    returned_model = document.get("model")
+    if not isinstance(returned_model, str) or returned_model != expected_model:
+        raise RCPResponseError(code="returned_model_mismatch", retryable=False)
+    finish_reason = choice.get("finish_reason")
+    if finish_reason is not None and not isinstance(finish_reason, str):
+        raise RCPResponseError(code="invalid_response_shape", retryable=False)
+    if finish_reason == "length":
+        # A reasoning model can consume its entire completion budget without
+        # emitting final content.  This is not an empty transport response and
+        # retrying the identical payload would repeat a paid deterministic call.
+        raise RCPResponseError(code="output_budget_exhausted", retryable=False)
     message = choice.get("message")
     if not isinstance(message, dict):
         raise RCPResponseError(code="invalid_response_shape", retryable=False)
     content = message.get("content")
     if not isinstance(content, str) or not content.strip():
         raise RCPResponseError(code="empty_response", retryable=False)
-    returned_model = document.get("model")
-    if not isinstance(returned_model, str) or returned_model != expected_model:
-        raise RCPResponseError(code="returned_model_mismatch", retryable=False)
     usage_raw = document.get("usage")
     usage = (
         {
@@ -235,13 +243,12 @@ def parse_chat_completion(
         else {}
     )
     request_id = document.get("id")
-    finish_reason = choice.get("finish_reason")
     return RCPCompletion(
         content=content,
         returned_model=returned_model,
         provider_request_id=request_id if isinstance(request_id, str) else None,
         usage=dict(sorted(usage.items())),
-        finish_reason=finish_reason if isinstance(finish_reason, str) else None,
+        finish_reason=finish_reason,
         body_sha256=sha256_hex(body),
     )
 

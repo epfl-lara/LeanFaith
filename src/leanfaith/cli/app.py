@@ -3592,6 +3592,102 @@ def freeze_lf022_scientific_kimi_admission_command(
     )
 
 
+@app.command("freeze-lf022-scientific-qualified-admission")
+def freeze_lf022_scientific_qualified_admission_command(
+    public_pool_audit_path: Annotated[
+        Path,
+        typer.Option(
+            "--public-pool-audit",
+            help="Scientific production public-pool audit JSON.",
+        ),
+    ],
+    proposer_family_id: Annotated[
+        str,
+        typer.Option(
+            "--proposer-family",
+            help="Replay-qualified scientific proposer: qwen3 or glm5.",
+        ),
+    ],
+    proposer_production_eligibility_path: Annotated[
+        Path,
+        typer.Option(
+            "--proposer-production-eligibility",
+            help="Canonical replay-verified v2 proposer eligibility JSON.",
+        ),
+    ],
+    code_bundle_path: Annotated[
+        Path,
+        typer.Option(
+            "--code-bundle",
+            help="Repository-local code bundle for the current exact code tree.",
+        ),
+    ],
+    output_path: Annotated[
+        Path,
+        typer.Option(
+            "--output",
+            help="Repository-local immutable scientific execution admission JSON.",
+        ),
+    ],
+    provider_catalog_raw_path: Annotated[
+        Path | None,
+        typer.Option(
+            "--provider-catalog-raw",
+            help="Exact raw RCP catalog response; defaults to reviewed v3 smoke evidence.",
+        ),
+    ] = None,
+    root_dir: Annotated[
+        Path | None,
+        typer.Option("--root", help="Repository root override."),
+    ] = None,
+) -> None:
+    """Freeze a replay-qualified Qwen/GLM route over the scientific public pool."""
+    from typing import Literal, cast
+
+    from leanfaith.config.paths import RepoPaths
+    from leanfaith.generation.lf022_admission_freeze import (
+        LF022AdmissionFreezeError,
+        freeze_lf022_scientific_qualified_execution_admission,
+    )
+
+    if proposer_family_id not in {"qwen3", "glm5"}:
+        typer.echo("--proposer-family must be qwen3 or glm5", err=True)
+        raise typer.Exit(code=2)
+    paths = RepoPaths.discover(root_dir) if root_dir is None else RepoPaths(root=root_dir)
+
+    def anchored(path: Path | None) -> Path | None:
+        if path is None or path.is_absolute():
+            return path
+        return paths.root / path
+
+    try:
+        result = freeze_lf022_scientific_qualified_execution_admission(
+            repo_root=paths.root,
+            public_pool_audit_path=anchored(public_pool_audit_path) or public_pool_audit_path,
+            proposer_family_id=cast(Literal["qwen3", "glm5"], proposer_family_id),
+            proposer_production_eligibility_path=(
+                anchored(proposer_production_eligibility_path)
+                or proposer_production_eligibility_path
+            ),
+            code_bundle_path=anchored(code_bundle_path) or code_bundle_path,
+            output_path=anchored(output_path) or output_path,
+            provider_catalog_raw_path=anchored(provider_catalog_raw_path),
+        )
+    except (LF022AdmissionFreezeError, OSError, ValueError) as exc:
+        typer.echo(f"LF-022 scientific qualified admission freeze rejected: {exc}", err=True)
+        raise typer.Exit(code=2) from exc
+    typer.echo(
+        f"status=frozen family={result.admission.route.proposer_family_id} "
+        f"model={result.admission.route.model_id} "
+        f"scope={result.admission.route.execution_scope} "
+        f"admission_id={result.admission.admission_id} "
+        f"admission={result.admission_path} network_calls_this_run=0 "
+        "qualification_replay_verified=true outputs_unresolved=true "
+        "semantic_labels_created=0 training_eligible=false evaluation_eligible=false "
+        "gate_credit_claimed=false"
+    )
+
+
 @app.command("supersede-lf022-failed-qualification")
 def supersede_lf022_failed_qualification_command(
     qualification_admission_path: Annotated[

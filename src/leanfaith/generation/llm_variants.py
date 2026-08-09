@@ -47,9 +47,18 @@ from leanfaith.schemas.variant import (
 
 PROPOSER_TEMPLATE_ID = "lean_variant"
 PROPOSER_TEMPLATE_VERSION = "v1"
+PROPOSER_TEMPLATE_VERSION_V2 = "v2"
 DEFAULT_PROPOSER_TEMPLATE = (
     Path(__file__).resolve().parents[3] / "prompts" / "proposers" / "lean_variant_v1.txt"
 )
+PROPOSER_TEMPLATE_V2 = (
+    Path(__file__).resolve().parents[3] / "prompts" / "proposers" / "lean_variant_v2.txt"
+)
+
+_PROPOSER_TEMPLATE_VERSION_BY_SHA256 = {
+    "0f7b74aab06659e745980879cf9a13cdbcdd29927c1ddbb7ca47c6840e541f36": "v1",
+    "f4b6792b9ed1dc4000c72e3aa552be00950f312b4418e2fa5c3d822618cf0944": "v2",
+}
 
 _TEMPLATE_HASH_TOKEN = "{{PROMPT_TEMPLATE_SHA256}}"
 _INPUT_JSON_TOKEN = "{{INPUT_JSON}}"
@@ -59,8 +68,8 @@ _COMMAND_HEAD = re.compile(
     r"(?m)^[ \t]*(?:theorem|lemma|def|abbrev|opaque|example|axiom|instance|"
     r"structure|class|inductive|namespace|section|end|import|set_option)\b"
 )
-_PROOF_OR_VALUE = re.compile(
-    r"(?<![\w'])\b(?:by|sorry|admit)\b|:=|^[ \t]*where\b",
+_PROOF_TOKEN_OR_WHERE = re.compile(
+    r"(?<![\w'])\b(?:by|sorry|admit)\b|^[ \t]*where\b",
     re.UNICODE | re.MULTILINE,
 )
 
@@ -259,6 +268,12 @@ def render_variant_proposer_prompt(
         )
 
     template, template_sha256 = _load_template(template_path)
+    template_version = _PROPOSER_TEMPLATE_VERSION_BY_SHA256.get(template_sha256)
+    if template_version is None:
+        raise VariantPromptError(
+            VariantPromptErrorCode.TEMPLATE_CONTRACT,
+            "template hash is not a reviewed Lean variant prompt version",
+        )
     input_payload = {
         "request_id": request.request_id,
         "source_statement_id": source.source_theorem_id,
@@ -277,7 +292,7 @@ def render_variant_proposer_prompt(
     )
     return RenderedVariantPrompt(
         template_id=PROPOSER_TEMPLATE_ID,
-        template_version=PROPOSER_TEMPLATE_VERSION,
+        template_version=template_version,
         template_sha256=template_sha256,
         render_sha256=sha256_hex(text.encode("utf-8")),
         request_id=request.request_id,
@@ -289,6 +304,57 @@ def _normalized_candidate(statement: str) -> str:
     return " ".join(statement.replace("\r\n", "\n").strip().split())
 
 
+def _has_top_level_declaration_value(statement: str) -> bool:
+    """Distinguish a declaration body from valid ``:=`` inside its proposition.
+
+    Assignments nested in delimiters are term syntax (for example structure
+    literals and named arguments).  At delimiter depth zero, a ``let`` binding
+    is also part of the proposition.  Any other top-level ``:=`` introduces the
+    theorem/lemma value and is rejected by the proof-stripped contract.
+    """
+
+    depths = {"(": 0, "[": 0, "{": 0}
+    closing = {")": "(", "]": "[", "}": "{"}
+    in_string = False
+    escaped = False
+    index = 0
+    while index < len(statement):
+        character = statement[index]
+        if in_string:
+            if escaped:
+                escaped = False
+            elif character == "\\":
+                escaped = True
+            elif character == '"':
+                in_string = False
+            index += 1
+            continue
+        if character == '"':
+            in_string = True
+            index += 1
+            continue
+        if statement.startswith("--", index):
+            newline = statement.find("\n", index + 2)
+            index = len(statement) if newline < 0 else newline + 1
+            continue
+        if statement.startswith(":=", index):
+            if any(depths.values()):
+                index += 2
+                continue
+            line_or_sequence = re.split(r"[;\n]", statement[:index])[-1]
+            if re.search(r"\blet(?:\s+rec)?\b[^;\n]*$", line_or_sequence):
+                index += 2
+                continue
+            return True
+        if character in depths:
+            depths[character] += 1
+        elif character in closing:
+            opener = closing[character]
+            depths[opener] = max(0, depths[opener] - 1)
+        index += 1
+    return False
+
+
 def _validate_candidate(statement: str) -> None:
     stripped = statement.strip()
     if not _DECLARATION_HEAD.match(stripped) or ":" not in stripped:
@@ -296,7 +362,7 @@ def _validate_candidate(statement: str) -> None:
             VariantOutputErrorCode.UNSUPPORTED_DECLARATION,
             "candidate_lean must be one named theorem or lemma statement",
         )
-    if _PROOF_OR_VALUE.search(stripped):
+    if _PROOF_TOKEN_OR_WHERE.search(stripped) or _has_top_level_declaration_value(stripped):
         raise VariantOutputParseError(
             VariantOutputErrorCode.PROOF_BEARING_CANDIDATE,
             "candidate_lean contains a proof/value token",
@@ -525,8 +591,8 @@ def materialize_verified_provisional_variants(
             "verified variant materialization requires a completed, parsed schema-v2 proposer call"
         )
     if (
-        call.prompt_template_id != PROPOSER_TEMPLATE_ID
-        or call.prompt_template_version != PROPOSER_TEMPLATE_VERSION
+        call.prompt_template_id != rendered.template_id
+        or call.prompt_template_version != rendered.template_version
         or call.prompt_template_hash != rendered.template_sha256
         or call.prompt_render_hash != rendered.render_sha256
         or call.input_ids != expected_input_ids
@@ -569,7 +635,9 @@ def materialize_verified_provisional_variants(
 __all__ = [
     "DEFAULT_PROPOSER_TEMPLATE",
     "PROPOSER_TEMPLATE_ID",
+    "PROPOSER_TEMPLATE_V2",
     "PROPOSER_TEMPLATE_VERSION",
+    "PROPOSER_TEMPLATE_VERSION_V2",
     "PublicLeanVariantSource",
     "RenderedVariantPrompt",
     "VariantOutputErrorCode",

@@ -1,0 +1,61 @@
+schema_version: 1
+artifact_class: proposer_requalification_contract
+contract_id: kimi_k2_7_public_proposer_v4
+role: proposer
+qualification_status: pending_capability_and_challenge_requalification
+model_id: moonshotai/Kimi-K2.7-Code
+family_id: moonshot_kimi_k2
+canonical_family: moonshotai/kimi-k2
+provider: epfl_rcp
+transport: rcp_openai_compatible
+execution_scope: public_provisional_g_open
+prompt:
+  artifact: prompts/proposers/lean_variant_v2.txt
+  sha256: f4b6792b9ed1dc4000c72e3aa552be00950f312b4418e2fa5c3d822618cf0944
+  template_id: lean_variant
+  template_version: v2
+proposal_count: 1
+decoding:
+  temperature: 1.0
+  top_p: 0.95
+  top_k: null
+  min_p: null
+  presence_penalty: null
+  repetition_penalty: null
+  max_tokens: 32768
+  seed: 42
+  stream: false
+  thinking_mode: forced_thinking
+  reasoning_effort: high
+  chat_template_enable_thinking: true
+  chat_template_thinking: null
+  thinking_fields_forbidden: false
+prior_contract:
+  contract_id: kimi_k2_7_public_smoke_v3
+  max_tokens: 16384
+  immutable_lineage_required: true
+capability_policy:
+  max_tokens_32768_provider_support: unverified_until_one_live_call
+  official_per_model_output_limit_disclosed: false
+  mass_execution_before_capability_success: false
+failure_policy:
+  finish_reason_length: output_budget_exhausted
+  output_budget_exhausted_retry_identical_payload: false
+  partial_content_parse_allowed: false
+  strict_proposer_parser: true
+  parser_relaxation_allowed: false
+requalification:
+  challenge_size: 16
+  prior_output_budget_exhausted_items: 6
+  prior_proof_bearing_items: 2
+  prior_success_controls: 8
+  max_concurrency: 1
+  minimum_strict_parse_successes: 14
+  maximum_output_budget_exhausted: 0
+  maximum_http_200_empty_responses: 0
+  prior_proof_bearing_error_may_repeat: false
+  exact_replay_required: true
+promotion:
+  enabled: false
+  requires_separate_qualification_artifact: true
+  successful_v3_tasks_are_not_rerun: true

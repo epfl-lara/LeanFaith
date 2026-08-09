@@ -29,20 +29,17 @@ from leanfaith.config.hashing import (
 from leanfaith.config.models import StrictModel
 from leanfaith.generation.lf022_execution import (
     LF022_CANONICAL_EXECUTOR_OUTPUT_ROOT,
-    LF022_REVIEWED_PROPOSER_PROMPT_PATH,
-    LF022_REVIEWED_PROPOSER_PROMPT_SHA256,
     LF022GOpenExecutionAdmission,
     LF022GOpenExecutionTask,
     VerifiedLF022ExecutionAdmission,
     VerifiedLF022ExecutionTaskInputs,
     lf022_qualification_claim_path,
+    lf022_reviewed_proposer_prompt,
     make_lf022_qualification_claim,
     verify_lf022_execution_admission,
     verify_lf022_execution_task,
 )
 from leanfaith.generation.llm_variants import (
-    PROPOSER_TEMPLATE_ID,
-    PROPOSER_TEMPLATE_VERSION,
     RenderedVariantPrompt,
     VariantOutputErrorCode,
     VariantOutputParseError,
@@ -511,9 +508,12 @@ def prepare_lf022_g_open_execution(
         task=task,
         inputs=verified_task_inputs,
     )
+    reviewed_prompt_path, reviewed_prompt_sha256 = lf022_reviewed_proposer_prompt(
+        admission.prompt_template_version
+    )
     if (
-        admission.artifacts.prompt_template.path != LF022_REVIEWED_PROPOSER_PROMPT_PATH
-        or admission.artifacts.prompt_template.sha256 != LF022_REVIEWED_PROPOSER_PROMPT_SHA256
+        admission.artifacts.prompt_template.path != reviewed_prompt_path
+        or admission.artifacts.prompt_template.sha256 != reviewed_prompt_sha256
     ):
         raise LF022ExecutorError("execution prompt differs from the exact reviewed proposer prompt")
     if admission.route.execution_scope == "one_item_proposer_qualification_only":
@@ -539,7 +539,10 @@ def prepare_lf022_g_open_execution(
         task.prompt_request(),
         template_path=prompt_path,
     )
-    if prompt.template_sha256 != admission.artifacts.prompt_template.sha256:
+    if (
+        prompt.template_version != admission.prompt_template_version
+        or prompt.template_sha256 != admission.artifacts.prompt_template.sha256
+    ):
         raise LF022ExecutorError("rendered prompt template differs from admission")
     payload: dict[str, object] = {
         "schema_version": 1,
@@ -1052,6 +1055,14 @@ def _provider_raw(
     return response
 
 
+def _historical_response_error_matches(*, recorded: str, observed: str) -> bool:
+    """Accept one versioned parser refinement without rewriting old artifacts."""
+
+    return recorded == observed or (
+        recorded == "empty_response" and observed == "output_budget_exhausted"
+    )
+
+
 def _verify_attempt_artifacts(
     *,
     prepared: PreparedLF022Execution,
@@ -1173,6 +1184,7 @@ def _verify_attempt_artifacts(
         if response.status != "error" or response.error_type != record.error_code:
             raise LF022ExecutorError("provider raw error differs from persisted attempt status")
         if record.status == "invalid_response":
+            assert record.error_code is not None
             assert response_paths[0] is not None
             body_path = _artifact_path(
                 artifact_root,
@@ -1185,7 +1197,10 @@ def _verify_attempt_artifacts(
                     expected_model=prepared.admission.route.model_id,
                 )
             except RCPResponseError as exc:
-                if exc.code != record.error_code:
+                if not _historical_response_error_matches(
+                    recorded=record.error_code,
+                    observed=exc.code,
+                ):
                     raise LF022ExecutorError(
                         "invalid-response code differs from persisted wire response"
                     ) from exc
@@ -1317,8 +1332,8 @@ def _build_lineage(
         started_at=attempt_records[0].started_at,
         completed_at=attempt_records[-1].completed_at,
         execution_mode="external",
-        prompt_template_id=PROPOSER_TEMPLATE_ID,
-        prompt_template_version=PROPOSER_TEMPLATE_VERSION,
+        prompt_template_id=prepared.prompt.template_id,
+        prompt_template_version=prepared.prompt.template_version,
         prompt_template_hash=prepared.prompt.template_sha256,
         prompt_render_hash=prepared.prompt.render_sha256,
         request_artifact=final_record.request_artifact,

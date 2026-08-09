@@ -8,10 +8,10 @@ records, or Gate credit.
 ## Supported proposer routes
 
 - `moonshotai/Kimi-K2.7-Code` has an already reviewed public provisional route.
-- `Qwen/Qwen3.5-397B-A17B` is blocked until its one exact proposer
-  qualification succeeds and is certified.
-- `zai-org/GLM-5.2` is blocked until its one exact proposer qualification
-  succeeds and is certified.
+- `Qwen/Qwen3.5-397B-A17B` may enter scientific production only through its
+  exact replay-verified v2 proposer eligibility.
+- `zai-org/GLM-5.2` may enter scientific production only through its exact
+  replay-verified v2 proposer eligibility.
 
 The matching `*_production_route_v1.yaml` files are non-executable policy
 templates. Only a content-addressed execution admission that binds a verified
@@ -262,6 +262,100 @@ fresh admission with
 content-addressed under the family directory, while the legacy claim remains
 unchanged. Provider retries remain bounded and append-only.
 
+## Scientific replay-qualified Qwen and GLM tranches
+
+After the one-item v2 route is certified, freeze a separate scientific
+admission over the existing public pool. This does not reuse the diagnostic
+allocation: it selects only that family's already-frozen scientific `G_open`
+allocations and binds the canonical eligibility record, v2 decoding contract,
+family matrix, catalog, prompt, and current code bundle.
+
+```bash
+ROOT=/localhome/milikic/LeanFaith
+cd "$ROOT"
+test -z "$(git status --porcelain)"
+
+# Run one family at a time: qwen3 (9,207 G_open tasks) or glm5 (9,206).
+FAMILY=qwen3
+POOL_AUDIT="artifacts/generation/lf022_public_v3_max_c799f54c/audit.json"
+ELIGIBILITY="data/lf022_execution/production_eligibility/${FAMILY}.json"
+
+BUNDLE_JSON=$(
+  uv run leanfaith freeze-code-bundle \
+    --root "$ROOT" \
+    --out-dir "artifacts/code_bundles/lf022_${FAMILY}_scientific"
+)
+BUNDLE=$(
+  python -c 'import json,sys; print(json.load(sys.stdin)["path"])' \
+    <<<"$BUNDLE_JSON"
+)
+
+ADMISSION="artifacts/generation/lf022_${FAMILY}_scientific_v1/execution_admission.json"
+uv run leanfaith freeze-lf022-scientific-qualified-admission \
+  --root "$ROOT" \
+  --public-pool-audit "$POOL_AUDIT" \
+  --proposer-family "$FAMILY" \
+  --proposer-production-eligibility "$ELIGIBILITY" \
+  --code-bundle "$BUNDLE" \
+  --output "$ADMISSION"
+
+# Deterministic gate 1: one task. Later use 256, then the family's full count.
+REQUEST="data/lf022_${FAMILY}_scientific/prefix_1/request.json"
+BATCH_DIR="data/lf022_${FAMILY}_scientific/prefix_1/batch"
+uv run leanfaith make-lf022-public-batch-request \
+  --root "$ROOT" \
+  --admission "$ADMISSION" \
+  --allocation-offset 0 \
+  --allocation-limit 1 \
+  --output "$REQUEST" \
+  --batch-directory "$BATCH_DIR"
+uv run leanfaith freeze-lf022-public-batch \
+  --root "$ROOT" \
+  --request "$REQUEST"
+
+MANIFEST="$BATCH_DIR/batch_manifest.json"
+env -u RCP_BASE_URL -u RCP_API_KEY -u OPENAI_BASE_URL -u OPENAI_API_KEY \
+  uv run leanfaith run-lf022-public-batch \
+    --root "$ROOT" \
+    --manifest "$MANIFEST" \
+    --max-concurrency 1 \
+    --minimum-request-interval-seconds 1
+```
+
+Live RCP response headers observed during qualification reported
+`max_parallel_requests=1`. This is an operational observation, not a field
+bound by the frozen provider catalog. Until a new reviewed runtime-policy
+version records contrary evidence, every live Qwen/GLM qualification and
+production run must retain `--max-concurrency 1`.
+The command performs no network request unless the operator repeats the frozen
+manifest with runtime-only credentials and `--execute-public-provisional`.
+Qwen uses `qwen3_5_proposer_qualification_v2`; GLM uses
+`glm5_2_proposer_qualification_v2`. A v1, missing, changed, cross-family, or
+matrix- or contract-mismatched eligibility record fails before transport.
+
+Each family uses the same deterministic three-stage gate:
+
+1. Freeze and execute `OFFSET=0, LIMIT=1`. Require one successful terminal,
+   zero failed terminals, zero orchestration errors, and an exact offline
+   replay before continuing.
+2. Freeze and execute `OFFSET=0, LIMIT=256`. Require all 256 tasks to have
+   terminal records, `error_count=0`, no `transport_unknown`, and at least 243
+   `provisional_variants_created` terminals. Inspect a deterministic 32-item
+   sample for prompt leakage, proof placeholders/bodies, malformed declaration
+   boundaries, and duplicate output. This is operational generation QA, not
+   semantic labeling.
+3. Only after stage 2 passes, freeze `OFFSET=0` with `LIMIT=9207` for Qwen or
+   `LIMIT=9206` for GLM. Existing deterministic task IDs replay from the global
+   executor store, so widening the prefix must not repeat completed calls.
+
+Every stage uses its own immutable request and batch manifest. A failed gate
+requires a new reviewed contract/admission version; do not change the offset,
+drop failures from the denominator, or substitute more tasks. All live stages
+retain `--max-concurrency 1`.
+
+Every output remains public-only, provisional, unresolved, unlabeled, and
+ineligible for training, evaluation, promotion, or Gate credit.
+
 ## Scientific Kimi production tranches
 
 Kimi already has a reviewed `public_provisional_g_open` route, so it does not
@@ -338,7 +432,7 @@ env -u RCP_BASE_URL -u RCP_API_KEY -u OPENAI_BASE_URL -u OPENAI_API_KEY \
   uv run leanfaith run-lf022-public-batch \
     --root "$ROOT" \
     --manifest "$MANIFEST" \
-    --max-concurrency 2 \
+    --max-concurrency 1 \
     --minimum-request-interval-seconds 1
 ```
 
@@ -356,9 +450,13 @@ env -u OPENAI_BASE_URL -u OPENAI_API_KEY \
     --root "$ROOT" \
     --manifest "$MANIFEST" \
     --execute-public-provisional \
-    --max-concurrency 2 \
+    --max-concurrency 1 \
     --minimum-request-interval-seconds 1
 ```
+
+Use one concurrent request for Kimi as well. The prefix-256 diagnostic run
+observed the same key-level `max_parallel_requests=1` response header and
+confirmed that higher client concurrency creates avoidable HTTP 429 retries.
 
 All tranches use the same global executor output root and deterministic task
 identities. Re-freezing a larger prefix therefore replays already terminal

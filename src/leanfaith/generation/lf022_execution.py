@@ -38,6 +38,7 @@ from leanfaith.generation.lf022_public_pool import LF022PublicPoolAudit
 from leanfaith.generation.llm_variants import (
     PROPOSER_TEMPLATE_ID,
     PROPOSER_TEMPLATE_VERSION,
+    PROPOSER_TEMPLATE_VERSION_V2,
     PublicLeanVariantSource,
     VariantPromptRequest,
 )
@@ -52,6 +53,29 @@ LF022_REVIEWED_PROPOSER_PROMPT_PATH = "prompts/proposers/lean_variant_v1.txt"
 LF022_REVIEWED_PROPOSER_PROMPT_SHA256 = (
     "0f7b74aab06659e745980879cf9a13cdbcdd29927c1ddbb7ca47c6840e541f36"
 )
+LF022_REVIEWED_PROPOSER_PROMPT_V2_PATH = "prompts/proposers/lean_variant_v2.txt"
+LF022_REVIEWED_PROPOSER_PROMPT_V2_SHA256 = (
+    "f4b6792b9ed1dc4000c72e3aa552be00950f312b4418e2fa5c3d822618cf0944"
+)
+
+
+def lf022_reviewed_proposer_prompt(version: str) -> tuple[str, str]:
+    """Return the exact reviewed prompt path/hash for an admitted version."""
+
+    prompts = {
+        PROPOSER_TEMPLATE_VERSION: (
+            LF022_REVIEWED_PROPOSER_PROMPT_PATH,
+            LF022_REVIEWED_PROPOSER_PROMPT_SHA256,
+        ),
+        PROPOSER_TEMPLATE_VERSION_V2: (
+            LF022_REVIEWED_PROPOSER_PROMPT_V2_PATH,
+            LF022_REVIEWED_PROPOSER_PROMPT_V2_SHA256,
+        ),
+    }
+    try:
+        return prompts[version]
+    except KeyError as exc:
+        raise LF022ExecutionError(f"unsupported proposer prompt version {version!r}") from exc
 
 
 class LF022ExecutionError(RuntimeError):
@@ -147,6 +171,7 @@ class LF022RCPDecodingContract(StrictModel):
     schema_version: Literal[1] = 1
     contract_id: Literal[
         "kimi_k2_7_public_smoke_v3",
+        "kimi_k2_7_public_proposer_v4",
         "qwen3_5_proposer_qualification_v1",
         "qwen3_5_proposer_qualification_v2",
         "glm5_2_proposer_qualification_v1",
@@ -178,6 +203,22 @@ class LF022RCPDecodingContract(StrictModel):
                 "presence_penalty": None,
                 "repetition_penalty": None,
                 "max_tokens": 16384,
+                "seed": 42,
+                "stream": False,
+                "thinking_mode": "forced_thinking",
+                "reasoning_effort": "high",
+                "chat_template_enable_thinking": True,
+                "chat_template_thinking": None,
+                "thinking_fields_forbidden": False,
+            },
+            "kimi_k2_7_public_proposer_v4": {
+                "temperature": 1.0,
+                "top_p": 0.95,
+                "top_k": None,
+                "min_p": None,
+                "presence_penalty": None,
+                "repetition_penalty": None,
+                "max_tokens": 32768,
                 "seed": 42,
                 "stream": False,
                 "thinking_mode": "forced_thinking",
@@ -325,7 +366,7 @@ class LF022RCPRouteBinding(StrictModel):
             "moonshotai/Kimi-K2.7-Code": (
                 "moonshot_kimi_k2",
                 "moonshotai/kimi-k2",
-                "kimi_k2_7_public_smoke_v3",
+                ("kimi_k2_7_public_smoke_v3",),
                 ("public_provisional_g_open",),
             ),
             "Qwen/Qwen3.5-397B-A17B": (
@@ -368,6 +409,17 @@ class LF022RCPRouteBinding(StrictModel):
         ):
             raise ValueError(
                 "route family or decoding contract differs from the reviewed proposer route"
+            )
+        v1_qualification_contracts = {
+            "qwen3_5_proposer_qualification_v1",
+            "glm5_2_proposer_qualification_v1",
+        }
+        if (
+            self.execution_scope == "public_provisional_g_open"
+            and self.decoding.contract_id in v1_qualification_contracts
+        ):
+            raise ValueError(
+                "Qwen/GLM v1 decoding is restricted to one-item proposer qualification"
             )
         return self
 
@@ -492,7 +544,7 @@ class LF022GOpenExecutionAdmission(StrictModel):
     retry_policy_hash: str = Field(pattern=HEX64_PATTERN)
     code_tree_hash: str = Field(pattern=HEX64_PATTERN)
     prompt_template_id: Literal["lean_variant"] = "lean_variant"
-    prompt_template_version: Literal["v1"] = "v1"
+    prompt_template_version: Literal["v1", "v2"] = "v1"
     distribution: Literal["G_open"]
     public_sources_only: Literal[True]
     private_source_content_forbidden: Literal[True]
@@ -508,6 +560,13 @@ class LF022GOpenExecutionAdmission(StrictModel):
 
     @model_validator(mode="after")
     def _content_addressed(self) -> Self:
+        expected_prompt_version = (
+            PROPOSER_TEMPLATE_VERSION_V2
+            if self.route.decoding.contract_id == "kimi_k2_7_public_proposer_v4"
+            else PROPOSER_TEMPLATE_VERSION
+        )
+        if self.prompt_template_version != expected_prompt_version:
+            raise ValueError("prompt version differs from the reviewed decoding contract")
         if self.retry_policy_hash != self.retry_policy.policy_hash:
             raise ValueError("retry_policy_hash does not match retry_policy")
         expected_revision = _CATALOG_REVISION_PREFIX + self.artifacts.provider_catalog_raw.sha256
@@ -581,7 +640,11 @@ def make_lf022_g_open_execution_admission(
         "retry_policy_hash": retry_policy.policy_hash,
         "code_tree_hash": code_tree_hash,
         "prompt_template_id": PROPOSER_TEMPLATE_ID,
-        "prompt_template_version": PROPOSER_TEMPLATE_VERSION,
+        "prompt_template_version": (
+            PROPOSER_TEMPLATE_VERSION_V2
+            if route.decoding.contract_id == "kimi_k2_7_public_proposer_v4"
+            else PROPOSER_TEMPLATE_VERSION
+        ),
         "distribution": "G_open",
         "public_sources_only": True,
         "private_source_content_forbidden": True,
@@ -1440,9 +1503,12 @@ def verify_lf022_execution_admission(
         or audit.active_benchmark_registry != plan.artifacts.active_benchmark_registry
     ):
         raise LF022ExecutionError("public-pool audit and allocation-plan artifacts differ")
+    reviewed_prompt_path, reviewed_prompt_sha256 = lf022_reviewed_proposer_prompt(
+        admission.prompt_template_version
+    )
     if (
-        admission.artifacts.prompt_template.path != LF022_REVIEWED_PROPOSER_PROMPT_PATH
-        or admission.artifacts.prompt_template.sha256 != LF022_REVIEWED_PROPOSER_PROMPT_SHA256
+        admission.artifacts.prompt_template.path != reviewed_prompt_path
+        or admission.artifacts.prompt_template.sha256 != reviewed_prompt_sha256
     ):
         raise LF022ExecutionError("prompt template differs from the exact reviewed proposer prompt")
     if admission.artifacts.prompt_template.sha256 != hash_file(paths["prompt_template"]):
@@ -1468,6 +1534,18 @@ def verify_lf022_execution_admission(
         raise LF022ExecutionError("route proposer family lacks one exact family-matrix pin")
     pin = pins[0]
     route = admission.route
+    expected_qualified_production_contract = {
+        "qwen3": "qwen3_5_proposer_qualification_v2",
+        "glm5": "glm5_2_proposer_qualification_v2",
+    }.get(route.proposer_family_id)
+    if (
+        expected_qualified_production_contract is not None
+        and route.execution_scope == "public_provisional_g_open"
+        and route.decoding.contract_id != expected_qualified_production_contract
+    ):
+        raise LF022ExecutionError(
+            "Qwen/GLM production requires its exact reviewed v2 decoding contract"
+        )
     if (
         pin.model_id != route.model_id
         or pin.canonical_family != route.canonical_family
@@ -1565,6 +1643,7 @@ def verify_lf022_execution_admission(
             or eligibility.decoding_contract_id != route.decoding.contract_id
             or eligibility.decoding_contract_hash
             != hash_canonical(route.decoding.model_dump(mode="json"))
+            or eligibility.qualification_contract != admission.artifacts.reviewed_route_contract
             or eligibility.family_matrix != plan.artifacts.family_matrix
             or eligibility.family_matrix_id != family_matrix.matrix_id
         ):
@@ -1841,6 +1920,8 @@ __all__ = [
     "LF022_CANONICAL_EXECUTOR_OUTPUT_ROOT",
     "LF022_REVIEWED_PROPOSER_PROMPT_PATH",
     "LF022_REVIEWED_PROPOSER_PROMPT_SHA256",
+    "LF022_REVIEWED_PROPOSER_PROMPT_V2_PATH",
+    "LF022_REVIEWED_PROPOSER_PROMPT_V2_SHA256",
     "LF022ExecutionArtifacts",
     "LF022ExecutionError",
     "LF022GOpenExecutionAdmission",
@@ -1853,6 +1934,7 @@ __all__ = [
     "VerifiedLF022ExecutionAdmission",
     "VerifiedLF022ExecutionTaskInputs",
     "lf022_qualification_claim_path",
+    "lf022_reviewed_proposer_prompt",
     "load_lf022_execution_task_inputs",
     "make_lf022_g_open_execution_admission",
     "make_lf022_g_open_execution_task",

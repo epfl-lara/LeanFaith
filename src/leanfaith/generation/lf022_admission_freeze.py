@@ -12,7 +12,7 @@ import os
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
-from typing import Literal
+from typing import Literal, cast
 
 from leanfaith.config.code_bundle import validate_code_bundle
 from leanfaith.config.hashing import canonical_json_bytes, hash_file
@@ -194,6 +194,18 @@ _RECOVERY_ROUTES: dict[Literal["qwen3", "glm5"], _RouteSpec] = {
     ),
 }
 
+_QUALIFIED_PRODUCTION_ROUTES: dict[Literal["qwen3", "glm5"], _RouteSpec] = {
+    family: _RouteSpec(
+        model_id=spec.model_id,
+        canonical_family=spec.canonical_family,
+        contract_id=spec.contract_id,
+        contract_path=spec.contract_path,
+        execution_scope="public_provisional_g_open",
+        decoding=spec.decoding,
+    )
+    for family, spec in _RECOVERY_ROUTES.items()
+}
+
 
 def _repo_file_binding(
     repo_root: Path,
@@ -298,6 +310,7 @@ def _freeze_lf022_execution_admission(
     output_path: Path,
     provider_catalog_raw_path: Path | None = None,
     qualification_supersession_path: Path | None = None,
+    proposer_production_eligibility_path: Path | None = None,
     expected_profile: Literal[
         "diagnostic_scaffold",
         "scientific_production_scaffold",
@@ -308,19 +321,23 @@ def _freeze_lf022_execution_admission(
     root = repo_root.resolve(strict=True)
     if (
         expected_profile == "scientific_production_scaffold"
-        and proposer_family_id != "moonshot_kimi_k2"
-    ):
-        raise LF022AdmissionFreezeError(
-            "scientific admission currently supports only the reviewed Kimi route"
-        )
-    if (
-        expected_profile == "scientific_production_scaffold"
         and qualification_supersession_path is not None
     ):
         raise LF022AdmissionFreezeError(
-            "scientific Kimi admission cannot use a qualification supersession"
+            "scientific admission cannot use a qualification supersession"
         )
-    if qualification_supersession_path is not None:
+    qualified_scientific = (
+        expected_profile == "scientific_production_scaffold"
+        and proposer_family_id in {"qwen3", "glm5"}
+    )
+    if qualified_scientific != (proposer_production_eligibility_path is not None):
+        raise LF022AdmissionFreezeError(
+            "scientific Qwen/GLM admission requires exactly one production eligibility; "
+            "diagnostic and Kimi admissions forbid it"
+        )
+    if qualified_scientific:
+        spec = _QUALIFIED_PRODUCTION_ROUTES[cast(Literal["qwen3", "glm5"], proposer_family_id)]
+    elif qualification_supersession_path is not None:
         if proposer_family_id == "moonshot_kimi_k2":
             raise LF022AdmissionFreezeError("Kimi cannot use a qualification supersession")
         spec = _RECOVERY_ROUTES[proposer_family_id]
@@ -394,7 +411,7 @@ def _freeze_lf022_execution_admission(
         for task in plan.tasks
     ):
         raise LF022AdmissionFreezeError(
-            "scientific plan contains no G_open task for the reviewed Kimi route"
+            "scientific plan contains no G_open task for the reviewed proposer route"
         )
 
     code_tree_hash = collect_code_state(root).code_tree_hash
@@ -492,6 +509,11 @@ def _freeze_lf022_execution_admission(
         maximum_delay_seconds=60.0,
         retryable_http_statuses=(408, 409, 425, 429, 500, 502, 503, 504),
     )
+    reviewed_route_contract_binding = _repo_file_binding(
+        root,
+        spec.contract_path,
+        label="reviewed route contract",
+    )
     supersession_binding = (
         _repo_file_binding(
             root,
@@ -499,6 +521,15 @@ def _freeze_lf022_execution_admission(
             label="qualification supersession",
         )
         if qualification_supersession_path is not None
+        else None
+    )
+    eligibility_binding = (
+        _repo_file_binding(
+            root,
+            proposer_production_eligibility_path,
+            label="proposer production eligibility",
+        )
+        if proposer_production_eligibility_path is not None
         else None
     )
     if supersession_binding is not None:
@@ -524,6 +555,32 @@ def _freeze_lf022_execution_admission(
             raise LF022AdmissionFreezeError(
                 "qualification supersession belongs to a different recovery route"
             )
+    if eligibility_binding is not None:
+        from leanfaith.generation.lf022_route_qualification import (
+            LF022RouteQualificationError,
+            verify_lf022_proposer_production_eligibility,
+        )
+
+        try:
+            eligibility = verify_lf022_proposer_production_eligibility(
+                repo_root=root,
+                eligibility_binding=eligibility_binding,
+            )
+        except LF022RouteQualificationError as exc:
+            raise LF022AdmissionFreezeError(
+                f"proposer production eligibility exact replay rejected: {exc}"
+            ) from exc
+        if (
+            eligibility.proposer_family_id != proposer_family_id
+            or eligibility.model_id != spec.model_id
+            or eligibility.decoding_contract_id != spec.contract_id
+            or eligibility.qualification_contract != reviewed_route_contract_binding
+            or eligibility.family_matrix != plan.artifacts.family_matrix
+            or eligibility.family_matrix_id != plan.family_matrix_id
+        ):
+            raise LF022AdmissionFreezeError(
+                "proposer production eligibility belongs to a different v2 route or matrix"
+            )
     artifacts = LF022ExecutionArtifacts(
         public_pool_audit=audit_binding,
         allocation_plan=plan_binding,
@@ -534,11 +591,7 @@ def _freeze_lf022_execution_admission(
             _PORTFOLIO_PATH,
             label="reviewed route portfolio",
         ),
-        reviewed_route_contract=_repo_file_binding(
-            root,
-            spec.contract_path,
-            label="reviewed route contract",
-        ),
+        reviewed_route_contract=reviewed_route_contract_binding,
         reviewed_route_evidence=_repo_file_binding(
             root,
             _EVIDENCE_PATH,
@@ -550,6 +603,7 @@ def _freeze_lf022_execution_admission(
             label="reviewed proposer prompt",
         ),
         code_bundle=code_bundle_binding,
+        proposer_production_eligibility=eligibility_binding,
         qualification_supersession=supersession_binding,
     )
     admission = make_lf022_g_open_execution_admission(
@@ -595,15 +649,15 @@ def _freeze_lf022_execution_admission(
             )
         except (LF022BatchError, LF022ExecutionError) as exc:
             raise LF022AdmissionFreezeError(
-                f"scientific Kimi source eligibility audit rejected: {exc}"
+                f"scientific proposer source eligibility audit rejected: {exc}"
             ) from exc
-        expected_kimi_g_open = sum(
+        expected_proposer_g_open = sum(
             task.distribution == "G_open" and task.proposer_family_id == proposer_family_id
             for task in plan.tasks
         )
-        if eligible_count != expected_kimi_g_open:
+        if eligible_count != expected_proposer_g_open:
             raise LF022AdmissionFreezeError(
-                "scientific Kimi source eligibility count differs from its allocation plan"
+                "scientific proposer source eligibility count differs from its allocation plan"
             )
 
     destination = _output_path(root, output_path)
@@ -656,6 +710,7 @@ def freeze_lf022_diagnostic_execution_admission(
         output_path=output_path,
         provider_catalog_raw_path=provider_catalog_raw_path,
         qualification_supersession_path=qualification_supersession_path,
+        proposer_production_eligibility_path=None,
         expected_profile="diagnostic_scaffold",
     )
 
@@ -678,6 +733,32 @@ def freeze_lf022_scientific_kimi_execution_admission(
         output_path=output_path,
         provider_catalog_raw_path=provider_catalog_raw_path,
         qualification_supersession_path=None,
+        proposer_production_eligibility_path=None,
+        expected_profile="scientific_production_scaffold",
+    )
+
+
+def freeze_lf022_scientific_qualified_execution_admission(
+    *,
+    repo_root: Path,
+    public_pool_audit_path: Path,
+    proposer_family_id: Literal["qwen3", "glm5"],
+    proposer_production_eligibility_path: Path,
+    code_bundle_path: Path,
+    output_path: Path,
+    provider_catalog_raw_path: Path | None = None,
+) -> FrozenLF022ExecutionAdmission:
+    """Admit one replay-qualified Qwen/GLM route over the scientific public pool."""
+
+    return _freeze_lf022_execution_admission(
+        repo_root=repo_root,
+        public_pool_audit_path=public_pool_audit_path,
+        proposer_family_id=proposer_family_id,
+        code_bundle_path=code_bundle_path,
+        output_path=output_path,
+        provider_catalog_raw_path=provider_catalog_raw_path,
+        qualification_supersession_path=None,
+        proposer_production_eligibility_path=proposer_production_eligibility_path,
         expected_profile="scientific_production_scaffold",
     )
 
@@ -688,4 +769,5 @@ __all__ = [
     "LF022SupportedProposerFamily",
     "freeze_lf022_diagnostic_execution_admission",
     "freeze_lf022_scientific_kimi_execution_admission",
+    "freeze_lf022_scientific_qualified_execution_admission",
 ]

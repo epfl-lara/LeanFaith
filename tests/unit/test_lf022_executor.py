@@ -29,6 +29,7 @@ from leanfaith.generation.lf022_admission_freeze import (
     LF022AdmissionFreezeError,
     freeze_lf022_diagnostic_execution_admission,
     freeze_lf022_scientific_kimi_execution_admission,
+    freeze_lf022_scientific_qualified_execution_admission,
 )
 from leanfaith.generation.lf022_batch import (
     LF022BatchError,
@@ -60,6 +61,7 @@ from leanfaith.generation.lf022_executor import (
     LF022ExecutorError,
     LF022TaskLockedError,
     RCPRuntimeCredentials,
+    _historical_response_error_matches,
     execute_lf022_g_open_task,
     prepare_lf022_g_open_execution,
 )
@@ -106,6 +108,17 @@ from leanfaith.schemas.variant import VariantRecord
 
 NOW = datetime.datetime(2026, 7, 30, 12, 0, tzinfo=datetime.UTC)
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
+
+
+def test_historical_output_budget_error_replays_without_rewriting_artifact() -> None:
+    assert _historical_response_error_matches(
+        recorded="empty_response",
+        observed="output_budget_exhausted",
+    )
+    assert not _historical_response_error_matches(
+        recorded="invalid_response_shape",
+        observed="output_budget_exhausted",
+    )
 
 
 def _write_json(root: Path, relative: str, value: object) -> LF022ArtifactBinding:
@@ -1048,6 +1061,212 @@ def test_freeze_scientific_kimi_admission_cli_is_offline(tmp_path: Path) -> None
     assert LF022GOpenExecutionAdmission.model_validate_json(output.read_bytes()) == expected
 
 
+@pytest.mark.parametrize(
+    ("model_id", "family_id", "contract_id"),
+    (
+        (
+            "Qwen/Qwen3.5-397B-A17B",
+            "qwen3",
+            "qwen3_5_proposer_qualification_v2",
+        ),
+        ("zai-org/GLM-5.2", "glm5", "glm5_2_proposer_qualification_v2"),
+    ),
+)
+def test_freeze_scientific_qualified_admission_binds_exact_v2_eligibility(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    model_id: str,
+    family_id: Literal["qwen3", "glm5"],
+    contract_id: str,
+) -> None:
+    qualification_admission, task = _fixture(
+        tmp_path,
+        model_id=model_id,
+        profile="scientific_production_scaffold",
+    )
+    eligibility, eligibility_binding = _write_fake_v2_eligibility(
+        tmp_path,
+        admission=qualification_admission,
+        task=task,
+    )
+    from leanfaith.generation import lf022_route_qualification
+
+    def replay_exact_eligibility(
+        *,
+        repo_root: Path,
+        eligibility_binding: LF022ArtifactBinding,
+    ) -> LF022QualifiedProposerProductionEligibility:
+        assert repo_root == tmp_path
+        assert eligibility_binding == eligibility_binding_expected
+        return eligibility
+
+    eligibility_binding_expected = eligibility_binding
+    monkeypatch.setattr(
+        lf022_route_qualification,
+        "verify_lf022_proposer_production_eligibility",
+        replay_exact_eligibility,
+    )
+    output = tmp_path / f"artifacts/{family_id}_scientific_execution_admission.json"
+    frozen = freeze_lf022_scientific_qualified_execution_admission(
+        repo_root=tmp_path,
+        public_pool_audit_path=tmp_path / "artifacts/public_pool_audit.json",
+        proposer_family_id=family_id,
+        proposer_production_eligibility_path=tmp_path / eligibility_binding.path,
+        code_bundle_path=tmp_path / qualification_admission.artifacts.code_bundle.path,
+        provider_catalog_raw_path=(
+            tmp_path / qualification_admission.artifacts.provider_catalog_raw.path
+        ),
+        output_path=output,
+    )
+    assert frozen.admission.schema_version == 2
+    assert frozen.admission.route.execution_scope == "public_provisional_g_open"
+    assert frozen.admission.route.decoding.contract_id == contract_id
+    assert frozen.admission.artifacts.proposer_production_eligibility == eligibility_binding
+    assert frozen.admission.outputs_provisional_only is True
+    assert frozen.admission.semantic_labels_created is False
+    assert frozen.admission.training_eligible is False
+    assert frozen.admission.evaluation_eligible is False
+    assert frozen.admission.gate_credit_claimed is False
+    mismatched = eligibility.model_copy(
+        update={"qualification_contract": qualification_admission.artifacts.reviewed_route_evidence}
+    )
+    monkeypatch.setattr(
+        lf022_route_qualification,
+        "verify_lf022_proposer_production_eligibility",
+        lambda **_: mismatched,
+    )
+    with pytest.raises(
+        LF022ExecutionError,
+        match="proposer production eligibility belongs to a different route or matrix",
+    ):
+        verify_lf022_execution_admission(
+            repo_root=tmp_path,
+            admission=frozen.admission,
+        )
+
+
+def test_scientific_freezer_rejects_mismatched_qualification_contract(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    qualification_admission, task = _fixture(
+        tmp_path,
+        model_id="Qwen/Qwen3.5-397B-A17B",
+        profile="scientific_production_scaffold",
+    )
+    eligibility, eligibility_binding = _write_fake_v2_eligibility(
+        tmp_path,
+        admission=qualification_admission,
+        task=task,
+    )
+    mismatched = eligibility.model_copy(
+        update={"qualification_contract": qualification_admission.artifacts.reviewed_route_evidence}
+    )
+    from leanfaith.generation import lf022_route_qualification
+
+    monkeypatch.setattr(
+        lf022_route_qualification,
+        "verify_lf022_proposer_production_eligibility",
+        lambda **_: mismatched,
+    )
+    with pytest.raises(
+        LF022AdmissionFreezeError,
+        match="different v2 route or matrix",
+    ):
+        freeze_lf022_scientific_qualified_execution_admission(
+            repo_root=tmp_path,
+            public_pool_audit_path=tmp_path / "artifacts/public_pool_audit.json",
+            proposer_family_id="qwen3",
+            proposer_production_eligibility_path=tmp_path / eligibility_binding.path,
+            code_bundle_path=tmp_path / qualification_admission.artifacts.code_bundle.path,
+            provider_catalog_raw_path=(
+                tmp_path / qualification_admission.artifacts.provider_catalog_raw.path
+            ),
+            output_path=tmp_path / "artifacts/rejected_qwen_scientific.json",
+        )
+
+
+@pytest.mark.parametrize(
+    ("family_id", "contract_id"),
+    (
+        ("qwen3", "qwen3_5_proposer_qualification_v2"),
+        ("glm5", "glm5_2_proposer_qualification_v2"),
+    ),
+)
+def test_repository_v2_eligibility_artifact_replays_offline_when_present(
+    family_id: str,
+    contract_id: str,
+) -> None:
+    path = REPOSITORY_ROOT / "data/lf022_execution/production_eligibility" / f"{family_id}.json"
+    if not path.is_file():
+        pytest.skip("ignored replay-verified qualification artifact is not installed")
+    eligibility = verify_lf022_proposer_production_eligibility(
+        repo_root=REPOSITORY_ROOT,
+        eligibility_binding=LF022ArtifactBinding(
+            path=path.relative_to(REPOSITORY_ROOT).as_posix(),
+            sha256=hash_file(path),
+        ),
+    )
+    assert eligibility.proposer_family_id == family_id
+    assert eligibility.decoding_contract_id == contract_id
+    assert eligibility.exact_replay_verified is True
+    assert eligibility.outputs_unresolved is True
+    assert eligibility.semantic_labels_created is False
+    assert eligibility.training_eligible is False
+
+
+def test_freeze_scientific_qualified_admission_cli_is_offline(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    qualification_admission, task = _fixture(
+        tmp_path,
+        model_id="Qwen/Qwen3.5-397B-A17B",
+        profile="scientific_production_scaffold",
+    )
+    eligibility, eligibility_binding = _write_fake_v2_eligibility(
+        tmp_path,
+        admission=qualification_admission,
+        task=task,
+    )
+    from leanfaith.generation import lf022_route_qualification
+
+    monkeypatch.setattr(
+        lf022_route_qualification,
+        "verify_lf022_proposer_production_eligibility",
+        lambda **_: eligibility,
+    )
+    output = tmp_path / "artifacts/qwen_scientific_cli_admission.json"
+    result = CliRunner().invoke(
+        app,
+        [
+            "freeze-lf022-scientific-qualified-admission",
+            "--root",
+            str(tmp_path),
+            "--public-pool-audit",
+            "artifacts/public_pool_audit.json",
+            "--proposer-family",
+            "qwen3",
+            "--proposer-production-eligibility",
+            eligibility_binding.path,
+            "--code-bundle",
+            qualification_admission.artifacts.code_bundle.path,
+            "--provider-catalog-raw",
+            qualification_admission.artifacts.provider_catalog_raw.path,
+            "--output",
+            str(output),
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    assert "family=qwen3" in result.output
+    assert "qualification_replay_verified=true" in result.output
+    assert "network_calls_this_run=0" in result.output
+    assert "training_eligible=false" in result.output
+    admission = LF022GOpenExecutionAdmission.model_validate_json(output.read_bytes())
+    assert admission.route.decoding.contract_id == "qwen3_5_proposer_qualification_v2"
+    assert admission.artifacts.proposer_production_eligibility == eligibility_binding
+
+
 def test_scientific_kimi_admission_rejects_diagnostic_pool(tmp_path: Path) -> None:
     expected, _ = _fixture(tmp_path)
     with pytest.raises(
@@ -1231,6 +1450,134 @@ def _qualify_and_certify(
     return admission, task, certified.eligibility, eligibility_binding
 
 
+def _write_fake_v2_eligibility(
+    root: Path,
+    *,
+    admission: LF022GOpenExecutionAdmission,
+    task: LF022GOpenExecutionTask,
+) -> tuple[LF022QualifiedProposerProductionEligibility, LF022ArtifactBinding]:
+    """Build a schema-valid v2 fixture; tests monkeypatch its historical replay."""
+
+    family = admission.route.proposer_family_id
+    assert family in {"qwen3", "glm5"}
+    contract_id = {
+        "qwen3": "qwen3_5_proposer_qualification_v2",
+        "glm5": "glm5_2_proposer_qualification_v2",
+    }[family]
+    contract_path = {
+        "qwen3": "configs/generation/lf022_qwen3_5_proposer_qualification_v2.yaml",
+        "glm5": "configs/generation/lf022_glm5_2_proposer_qualification_v2.yaml",
+    }[family]
+    contract = _copy_repo_artifact(root, contract_path)
+    decoding = LF022RCPDecodingContract.model_validate(
+        {
+            **admission.route.decoding.model_dump(mode="json"),
+            "contract_id": contract_id,
+            "max_tokens": 16_384 if family == "qwen3" else 8_192,
+        }
+    )
+    plan = LF022ProductionPlanManifest.model_validate_json(
+        (root / admission.artifacts.allocation_plan.path).read_bytes()
+    )
+    matrix = LF022ProductionFamilyMatrix.model_validate_json(
+        (root / plan.artifacts.family_matrix.path).read_bytes()
+    )
+    validators = tuple(
+        sorted(
+            candidate
+            for candidate in matrix.sci_validator_family_ids
+            if candidate not in {family, matrix.heldout_eval_family_id}
+        )
+    )
+    placeholder = admission.artifacts.reviewed_route_evidence
+    payload: dict[str, object] = {
+        "schema_version": 1,
+        "status": "live_qualification_replay_verified",
+        "proposer_family_id": family,
+        "model_id": admission.route.model_id,
+        "deployment_id": admission.route.deployment_id,
+        "canonical_family": admission.route.canonical_family,
+        "provider_id": admission.route.provider_id,
+        "catalog_snapshot_id": admission.route.catalog_snapshot_id,
+        "route_snapshot_revision": admission.route.route_snapshot_revision,
+        "decoding_contract_id": contract_id,
+        "decoding_contract_hash": hash_canonical(decoding.model_dump(mode="json")),
+        "family_matrix_id": matrix.matrix_id,
+        "family_matrix": plan.artifacts.family_matrix.model_dump(mode="json"),
+        "qualification_contract": contract.model_dump(mode="json"),
+        "qualification_claim_id": f"lf022_qualification_claim:{'1' * 64}",
+        "qualification_claim": placeholder.model_dump(mode="json"),
+        "qualification_admission_id": admission.admission_id,
+        "qualification_admission": placeholder.model_dump(mode="json"),
+        "qualification_task_id": task.execution_task_id,
+        "qualification_task": placeholder.model_dump(mode="json"),
+        "qualification_terminal_id": f"lf022_execution_terminal:{'2' * 64}",
+        "qualification_terminal": placeholder.model_dump(mode="json"),
+        "qualification_variants": placeholder.model_dump(mode="json"),
+        "qualification_llm_call_id": f"call:{'3' * 64}",
+        "qualification_llm_call": placeholder.model_dump(mode="json"),
+        "qualification_provider_request_hash": "4" * 64,
+        "qualification_completed_at": NOW.isoformat().replace("+00:00", "Z"),
+        "qualification_task_count": 1,
+        "qualification_variant_count": 1,
+        "qualification_execution_mode": "external",
+        "exact_replay_verified": True,
+        "production_execution_scope": "public_provisional_g_open",
+        "judge_family_ids": list(task.allocation_task.judge_family_ids),
+        "permitted_validator_family_ids": list(validators),
+        "proposer_validator_same_family_forbidden": True,
+        "heldout_eval_family_id": matrix.heldout_eval_family_id,
+        "heldout_eval_supervision_excluded": True,
+        "public_sources_only": True,
+        "private_source_content_forbidden": True,
+        "output_quality_tier": "provisional",
+        "outputs_unresolved": True,
+        "semantic_labels_created": False,
+        "silver_promotion_enabled": False,
+        "gold_promotion_enabled": False,
+        "training_eligible": False,
+        "evaluation_eligible": False,
+        "gate_credit_claimed": False,
+    }
+    eligibility = LF022QualifiedProposerProductionEligibility.model_validate(
+        {
+            **payload,
+            "eligibility_id": make_id("lf022_route_eligibility", payload),
+        }
+    )
+    binding = _write_json(
+        root,
+        f"data/lf022_execution/production_eligibility/{family}.json",
+        eligibility.model_dump(mode="json"),
+    )
+    return eligibility, binding
+
+
+def _v2_production_route(
+    admission: LF022GOpenExecutionAdmission,
+) -> LF022RCPRouteBinding:
+    family = admission.route.proposer_family_id
+    contract_id = {
+        "qwen3": "qwen3_5_proposer_qualification_v2",
+        "glm5": "glm5_2_proposer_qualification_v2",
+    }[family]
+    decoding = LF022RCPDecodingContract.model_validate(
+        {
+            **admission.route.decoding.model_dump(mode="json"),
+            "contract_id": contract_id,
+            "max_tokens": 16_384 if family == "qwen3" else 8_192,
+        }
+    )
+    route_payload = admission.route.model_dump(mode="json")
+    route_payload.update(
+        {
+            "execution_scope": "public_provisional_g_open",
+            "decoding": decoding.model_dump(mode="json"),
+        }
+    )
+    return LF022RCPRouteBinding.model_validate(route_payload)
+
+
 def _task_dir(root: Path, task: LF022GOpenExecutionTask) -> Path:
     digest = task.execution_task_id.removeprefix("lf022_execution_task:")
     return root / "data/out/tasks" / digest[:2] / digest
@@ -1373,6 +1720,32 @@ def test_unreviewed_vl_route_is_rejected() -> None:
         )
 
 
+def test_kimi_v4_contract_is_recognized_but_not_live_admissible() -> None:
+    decoding = LF022RCPDecodingContract(
+        contract_id="kimi_k2_7_public_proposer_v4",
+        temperature=1.0,
+        top_p=0.95,
+        max_tokens=32_768,
+        seed=42,
+        thinking_mode="forced_thinking",
+        reasoning_effort="high",
+        chat_template_enable_thinking=True,
+    )
+    with pytest.raises(ValueError, match="differs from the reviewed proposer route"):
+        LF022RCPRouteBinding(
+            provider_id="epfl_rcp",
+            model_id="moonshotai/Kimi-K2.7-Code",
+            deployment_id="moonshotai/Kimi-K2.7-Code",
+            proposer_family_id="moonshot_kimi_k2",
+            canonical_family="moonshotai/kimi-k2",
+            catalog_snapshot_id=f"lf022_provider_catalog:{'d' * 64}",
+            route_snapshot_revision=f"rcp-catalog-sha256:{'e' * 64}",
+            underlying_checkpoint_revision_status="provider_not_disclosed",
+            execution_scope="public_provisional_g_open",
+            decoding=decoding,
+        )
+
+
 @pytest.mark.parametrize(
     "model_id",
     (
@@ -1489,7 +1862,7 @@ def test_prior_judge_smoke_cannot_be_claimed_as_proposer_evidence(
     "model_id",
     ("Qwen/Qwen3.5-397B-A17B", "zai-org/GLM-5.2"),
 )
-def test_exact_live_qualification_certifies_only_production_route(
+def test_exact_live_v1_qualification_cannot_activate_production(
     tmp_path: Path,
     model_id: str,
 ) -> None:
@@ -1518,55 +1891,22 @@ def test_exact_live_qualification_certifies_only_production_route(
         == eligibility
     )
 
-    production_route = admission.route.model_copy(
-        update={"execution_scope": "public_provisional_g_open"}
-    )
     production_artifacts = admission.artifacts.model_copy(
         update={"proposer_production_eligibility": eligibility_binding}
     )
-    production_admission = make_lf022_g_open_execution_admission(
-        public_pool_audit_id=admission.public_pool_audit_id,
-        allocation_plan_id=admission.allocation_plan_id,
-        artifacts=production_artifacts,
-        route=production_route,
-        retry_policy=admission.retry_policy,
-        code_tree_hash=admission.code_tree_hash,
-    )
     assert admission.schema_version == 1
     assert "proposer_production_eligibility" not in admission.artifacts.model_dump(mode="json")
-    assert production_admission.schema_version == 2
-    assert production_admission.artifacts.proposer_production_eligibility == eligibility_binding
-    verified = verify_lf022_execution_admission(
-        repo_root=tmp_path,
-        admission=production_admission,
-    )
-    production_task = make_lf022_g_open_execution_task(
-        admission=production_admission,
-        allocation_task=task.allocation_task,
-        source=task.source,
-    )
-    assert production_task.training_eligible is False
-    assert production_task.evaluation_eligible is False
-    frozen = freeze_lf022_public_batch(
-        repo_root=tmp_path,
-        request_binding=_batch_request_binding(
-            tmp_path,
-            admission=production_admission,
-            task=production_task,
-        ),
-    )
-    assert frozen.manifest.routes[0].qualification_state == "production_live_qualified"
-    assert frozen.manifest.routes[0].qualification_claim is None
-    assert (
-        execute_lf022_g_open_task(
-            repo_root=tmp_path,
-            output_root=tmp_path / "data/out",
-            admission=production_admission,
-            task=production_task,
-            verified_admission=verified,
-        ).network_calls_this_run
-        == 0
-    )
+    production_route_payload = admission.route.model_dump(mode="json")
+    production_route_payload["execution_scope"] = "public_provisional_g_open"
+    with pytest.raises(ValueError, match="v1 decoding is restricted"):
+        make_lf022_g_open_execution_admission(
+            public_pool_audit_id=admission.public_pool_audit_id,
+            allocation_plan_id=admission.allocation_plan_id,
+            artifacts=production_artifacts,
+            route=LF022RCPRouteBinding.model_validate(production_route_payload),
+            retry_policy=admission.retry_policy,
+            code_tree_hash=admission.code_tree_hash,
+        )
 
 
 @pytest.mark.parametrize(
@@ -1578,9 +1918,7 @@ def test_production_scope_rejects_qualification_bypass(
     model_id: str,
 ) -> None:
     admission, _ = _fixture(tmp_path, model_id=model_id)
-    production_route = admission.route.model_copy(
-        update={"execution_scope": "public_provisional_g_open"}
-    )
+    production_route = _v2_production_route(admission)
     with pytest.raises(ValueError, match="requires exactly one bound proposer eligibility"):
         make_lf022_g_open_execution_admission(
             public_pool_audit_id=admission.public_pool_audit_id,
@@ -1601,7 +1939,7 @@ def test_cross_family_qualification_cannot_authorize_production(
     )
     glm_contract = _copy_repo_artifact(
         tmp_path,
-        "configs/generation/lf022_glm5_2_proposer_qualification_v1.yaml",
+        "configs/generation/lf022_glm5_2_proposer_qualification_v2.yaml",
     )
     _copy_repo_artifact(
         tmp_path,
@@ -1630,7 +1968,7 @@ def test_cross_family_qualification_cannot_authorize_production(
         underlying_checkpoint_revision_status="provider_not_disclosed",
         execution_scope="public_provisional_g_open",
         decoding=LF022RCPDecodingContract(
-            contract_id="glm5_2_proposer_qualification_v1",
+            contract_id="glm5_2_proposer_qualification_v2",
             temperature=0.0,
             top_p=1.0,
             max_tokens=8192,
