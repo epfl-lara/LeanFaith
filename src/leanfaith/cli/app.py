@@ -3937,6 +3937,73 @@ def run_lf022_public_batch_command(
         raise typer.Exit(code=2)
 
 
+@app.command("qa-lf022-prefix256")
+def qa_lf022_prefix256_command(
+    manifest_path: Annotated[
+        Path,
+        typer.Option(
+            "--manifest",
+            help="Frozen 256-task LF-022 public batch manifest JSON.",
+        ),
+    ],
+    exact_offline_replay_report_path: Annotated[
+        Path,
+        typer.Option(
+            "--offline-replay-report",
+            help="Canonical report from the complete exact offline replay.",
+        ),
+    ],
+    output_dir: Annotated[
+        Path,
+        typer.Option(
+            "--output-dir",
+            help="Repository-local immutable QA report and reviewer-bundle directory.",
+        ),
+    ],
+    root_dir: Annotated[
+        Path | None,
+        typer.Option("--root", help="Repository root override."),
+    ] = None,
+) -> None:
+    """Run fail-closed operational QA for one completed LF-022 prefix-256 batch."""
+    from leanfaith.config.paths import RepoPaths
+    from leanfaith.generation.lf022_prefix256_qa import (
+        LF022Prefix256QAError,
+        run_lf022_prefix256_operational_qa,
+    )
+
+    paths = RepoPaths.discover(root_dir) if root_dir is None else RepoPaths(root=root_dir)
+
+    def anchored(path: Path) -> Path:
+        return path if path.is_absolute() else paths.root / path
+
+    try:
+        result = run_lf022_prefix256_operational_qa(
+            repo_root=paths.root,
+            manifest_path=anchored(manifest_path),
+            exact_offline_replay_report_path=anchored(exact_offline_replay_report_path),
+            output_dir=anchored(output_dir),
+        )
+    except (LF022Prefix256QAError, OSError, ValueError) as exc:
+        typer.echo(f"LF-022 prefix-256 operational QA rejected: {exc}", err=True)
+        raise typer.Exit(code=2) from exc
+    report = result.report
+    typer.echo(
+        f"qa_status={report.qa_status} tasks={report.task_count} "
+        f"offline_replay={report.offline_replay_count} "
+        f"successful_terminal={report.successful_terminal_count} "
+        f"failed_terminal={report.failed_terminal_count} "
+        f"network_calls_this_replay={report.network_calls_this_replay} "
+        f"errors={report.orchestration_error_count} "
+        f"review_sample={len(report.selected_task_ids)} "
+        f"report={result.report_path} reviewer_bundle={result.reviewer_bundle_path} "
+        "semantic_labels_created=0 training_eligible=false "
+        "evaluation_eligible=false gate_credit_claimed=false"
+    )
+    if report.qa_status != "passed":
+        raise typer.Exit(code=2)
+
+
 @app.command("audit-training-readiness")
 def audit_training_readiness_command(
     config_path: Annotated[

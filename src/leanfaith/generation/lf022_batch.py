@@ -893,7 +893,9 @@ class RateLimitedRCPTransport:
 
 
 @dataclass(frozen=True, slots=True)
-class _LoadedBatchTask:
+class VerifiedLF022BatchTask:
+    """One hash-verified task loaded from a frozen public batch."""
+
     family: str
     admission: LF022GOpenExecutionAdmission
     task: LF022GOpenExecutionTask
@@ -905,7 +907,7 @@ def _journal_event(
     *,
     repo_root: Path,
     manifest: LF022PublicBatchManifest,
-    loaded: _LoadedBatchTask,
+    loaded: VerifiedLF022BatchTask,
     phase: Literal["preflight", "terminal", "error"],
     result: LF022ExecutionResult | None,
 ) -> LF022BatchJournalEvent:
@@ -972,7 +974,7 @@ def _load_batch(
     *,
     repo_root: Path,
     manifest_binding: LF022ArtifactBinding,
-) -> tuple[LF022PublicBatchManifest, tuple[_LoadedBatchTask, ...]]:
+) -> tuple[LF022PublicBatchManifest, tuple[VerifiedLF022BatchTask, ...]]:
     manifest, _ = _load_canonical(
         repo_root=repo_root,
         binding=manifest_binding,
@@ -992,7 +994,7 @@ def _load_batch(
         or len(request.routes) != len(manifest.routes)
     ):
         raise LF022BatchError("batch manifest differs from its frozen request")
-    loaded: list[_LoadedBatchTask] = []
+    loaded: list[VerifiedLF022BatchTask] = []
     for route, route_request in zip(manifest.routes, request.routes, strict=True):
         if route.proposer_family_id != route_request.proposer_family_id:
             raise LF022BatchError("batch route order differs from its frozen request")
@@ -1061,7 +1063,7 @@ def _load_batch(
                     f"frozen task replay rejected: {task.execution_task_id}"
                 ) from exc
             loaded.append(
-                _LoadedBatchTask(
+                VerifiedLF022BatchTask(
                     family=route.proposer_family_id,
                     admission=admission,
                     task=task,
@@ -1109,6 +1111,16 @@ def _load_batch(
     if len(loaded) != manifest.total_task_count:
         raise LF022BatchError("loaded task count differs from batch manifest")
     return manifest, tuple(loaded)
+
+
+def load_lf022_public_batch(
+    *,
+    repo_root: Path,
+    manifest_binding: LF022ArtifactBinding,
+) -> tuple[LF022PublicBatchManifest, tuple[VerifiedLF022BatchTask, ...]]:
+    """Load and replay every frozen batch/admission/task binding without network I/O."""
+
+    return _load_batch(repo_root=repo_root, manifest_binding=manifest_binding)
 
 
 def run_lf022_public_batch(
@@ -1165,7 +1177,9 @@ def run_lf022_public_batch(
         else None
     )
 
-    def run_one(loaded: _LoadedBatchTask) -> tuple[_LoadedBatchTask, LF022ExecutionResult | None]:
+    def run_one(
+        loaded: VerifiedLF022BatchTask,
+    ) -> tuple[VerifiedLF022BatchTask, LF022ExecutionResult | None]:
         try:
             result = execute_lf022_g_open_task(
                 repo_root=repo_root,
@@ -1208,7 +1222,7 @@ def run_lf022_public_batch(
             _persist_event(repo_root=repo_root, manifest=manifest, event=terminal_event)
         return loaded, result
 
-    results: list[tuple[_LoadedBatchTask, LF022ExecutionResult | None]] = []
+    results: list[tuple[VerifiedLF022BatchTask, LF022ExecutionResult | None]] = []
     try:
         with ThreadPoolExecutor(
             max_workers=policy.max_concurrency,
@@ -1288,8 +1302,10 @@ __all__ = [
     "LF022BatchRunResult",
     "LF022PublicBatchManifest",
     "RateLimitedRCPTransport",
+    "VerifiedLF022BatchTask",
     "audit_lf022_g_open_source_eligibility",
     "freeze_lf022_public_batch",
+    "load_lf022_public_batch",
     "make_lf022_batch_freeze_request",
     "run_lf022_public_batch",
 ]

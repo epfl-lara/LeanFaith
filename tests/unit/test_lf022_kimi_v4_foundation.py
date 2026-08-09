@@ -107,6 +107,23 @@ def test_v4_config_binds_reviewed_prompt_and_exact_high_reasoning_decoding() -> 
     assert decoding.chat_template_enable_thinking is True
     assert decoding.temperature == 1.0
     assert decoding.top_p == 0.95
+    assert config["prior_lineage"] == {
+        "batch_id": "lf022_public_batch:ea34d07c4162eb3e5e2b35f1465b26afd997095b3dcd2d87bff9382564093a9d",
+        "execution_admission_id": "lf022_execution_admission:c97dcb54c8dd425aaa6cfe2ed0f20bfd5b4b67c929dcf55bc4362729b5c90f31",
+        "batch_manifest": {
+            "path": "data/lf022_kimi_scientific_cfdbb46/prefix_256/batch/batch_manifest.json",
+            "sha256": "6f42cf6dfd1d00217894f29e353fa11bb873699f0fba208f0f36fe688eefa1f4",
+        },
+        "execution_admission": {
+            "path": "data/lf022_kimi_scientific_cfdbb46/prefix_256/batch/admissions/moonshot_kimi_k2.json",
+            "sha256": "90cd5c8923c0c097d2bd77b09f848f573ab1e0075cd1c4f2885244dad7b10028",
+        },
+        "exact_offline_replay_report_id": "lf022_batch_run:9fc94ffe7c230634f961c6519bb5f70834de769afcbf5856affb4959117bf016",
+        "exact_offline_replay_report": {
+            "path": "data/lf022_kimi_scientific_cfdbb46/prefix_256/batch/runs/9fc94ffe7c230634f961c6519bb5f70834de769afcbf5856affb4959117bf016.json",
+            "sha256": "bea16e2926ed5bf49361ef0384b7fe6a4fe8a6fb499c5ac364f333cf92f9fd9e",
+        },
+    }
 
 
 def test_v2_prompt_is_hash_bound_and_resolves_the_proof_stripped_signature_contract() -> None:

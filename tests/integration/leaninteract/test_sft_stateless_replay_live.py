@@ -1,9 +1,10 @@
-"""Public synthetic replay regression for stateless sft_classic extraction.
+"""Public synthetic replay regression for nonce-isolated SFT extraction.
 
-The scale extractor processes independent, self-contained dataset snippets in
-one bounded Lean process.  This fixture interleaves a real syntax failure with
-valid declarations that share long prefixes and checks that neither the
-failure nor an earlier command changes later terminal outcomes on replay.
+The scale extractor processes independent, self-contained snippets in one
+bounded Lean process.  This fixture exercises the real Mathlib/Aesop import
+header, BigOperators, and ``ℝ`` around malformed and fallback routes.  It
+checks that request-specific trie namespaces prevent either failure or prior
+commands from changing later outcomes, while keeping the import cache shared.
 """
 
 from __future__ import annotations
@@ -14,26 +15,29 @@ from pathlib import Path
 
 import pytest
 
-from leanfaith.cli.pipeline import _extract_sft_chunk
-from leanfaith.config.paths import find_repo_root
+from leanfaith.cli.pipeline import _extract_sft_chunk, default_mathlib_checkout
+
+_PROJECT = default_mathlib_checkout()
 
 pytestmark = [
     pytest.mark.lean,
     pytest.mark.skipif(shutil.which("lake") is None, reason="Lean toolchain unavailable"),
+    pytest.mark.skipif(
+        not (_PROJECT / "lean-toolchain").is_file(),
+        reason="pinned mathlib checkout unavailable",
+    ),
 ]
 
-_FIXTURES = find_repo_root(Path(__file__).parent) / "tests" / "lean_fixtures"
 _CTX_FP = "0" * 64
 _CTX = f"ctx:{_CTX_FP}"
+_HEADER = "import Mathlib\nimport Aesop\nopen scoped BigOperators\n"
 
 
 def _row(uuid: str, statement: str, *, lean_code: str | None = None) -> dict[str, object]:
     return {
         "uuid": uuid,
         "data_source": "leanfaith/public-synthetic-replay",
-        "question": (
-            f"```lean4\n/-- Public synthetic extraction replay fixture. -/\n{statement}\n```"
-        ),
+        "question": f"```lean4\n-- Public synthetic extraction replay fixture.\n{statement}\n```",
         # A definition deliberately makes the fallback route unavailable.
         "lean_code": lean_code or "def no_theorem_fallback : Nat := 0",
         "valid": False,
@@ -42,16 +46,25 @@ def _row(uuid: str, statement: str, *, lean_code: str | None = None) -> dict[str
 
 
 _ROWS = [
-    _row("synthetic-valid-0", "theorem repeated_prefix_0 (n : Nat) : n = n := by sorry"),
+    _row(
+        "synthetic-valid-0",
+        _HEADER
+        + "theorem repeated_prefix_0 (x : ℝ) : "
+        + "(∑ i ∈ Finset.range 1, x) = x := by sorry",
+    ),
     _row(
         "synthetic-invalid",
-        "theorem repeated_prefix_invalid (n : Nat) : n =",
-        lean_code="theorem repeated_prefix_invalid (n : Nat) : n = := by sorry",
+        _HEADER + "theorem repeated_prefix_invalid (x : ℝ) : x =",
+        lean_code=_HEADER + "theorem repeated_prefix_invalid (x : ℝ) : x = := by sorry",
     ),
-    _row("synthetic-valid-1", "theorem repeated_prefix_1 (n : Nat) : n + 0 = n := by sorry"),
     _row(
-        "synthetic-valid-2",
-        "theorem repeated_prefix_2 (n : Nat) : Nat.succ n = n + 1 := by sorry",
+        "synthetic-valid-fallback",
+        _HEADER + "theorem repeated_prefix_fallback (x : ℝ) : x =",
+        lean_code=(_HEADER + "theorem repeated_prefix_fallback (x : ℝ) : x = x := by rfl"),
+    ),
+    _row(
+        "synthetic-valid-after-failure",
+        _HEADER + "theorem repeated_prefix_after (x : ℝ) : x + 0 = x := by sorry",
     ),
 ]
 
@@ -86,7 +99,7 @@ def _semantic_projection(out_dir: Path) -> tuple[tuple[object, ...], ...]:
     return tuple(sorted(projected))
 
 
-def test_public_synthetic_chunk_replays_without_cross_row_state(tmp_path: Path) -> None:
+def test_public_mathlib_chunk_replays_without_cross_request_state(tmp_path: Path) -> None:
     outputs: list[Path] = []
     stats = []
     for replay in range(2):
@@ -94,7 +107,7 @@ def test_public_synthetic_chunk_replays_without_cross_row_state(tmp_path: Path) 
         outputs.append(out_dir)
         stats.append(
             _extract_sft_chunk(
-                project_dir=_FIXTURES,
+                project_dir=_PROJECT,
                 context_fingerprint=_CTX_FP,
                 context_id=_CTX,
                 raw_response_dir=tmp_path / f"raw-{replay}",
@@ -112,13 +125,29 @@ def test_public_synthetic_chunk_replays_without_cross_row_state(tmp_path: Path) 
     assert [item.accepted for item in stats] == [3, 3]
     assert [item.row_outcomes["source_non_elaboration"] for item in stats] == [1, 1]
     assert _semantic_projection(outputs[0]) == _semantic_projection(outputs[1])
+    theorems = [
+        json.loads(line)["theorem"]
+        for line in (outputs[0] / "theorems" / "sft_classic.jsonl")
+        .read_text(encoding="utf-8")
+        .splitlines()
+    ]
+    fallback = next(
+        theorem for theorem in theorems if theorem["declaration_name"] == "repeated_prefix_fallback"
+    )
+    assert fallback["extraction_route"] == "lean_code_fallback"
+
+    raw_text = "\n".join(
+        path.read_text(encoding="utf-8") for path in sorted((tmp_path / "raw-0").glob("*.json"))
+    )
+    assert "unknown namespace `BigOperators`" not in raw_text
+    assert "unknown identifier 'ℝ'" not in raw_text
 
     isolated_outputs: list[Path] = []
     for index, row in enumerate(_ROWS):
         out_dir = tmp_path / f"isolated-{index}"
         isolated_outputs.append(out_dir)
         _extract_sft_chunk(
-            project_dir=_FIXTURES,
+            project_dir=_PROJECT,
             context_fingerprint=_CTX_FP,
             context_id=_CTX,
             raw_response_dir=tmp_path / f"raw-isolated-{index}",

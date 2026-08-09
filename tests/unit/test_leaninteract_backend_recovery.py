@@ -41,6 +41,14 @@ class _Server:
         self.killed = True
 
 
+class _Pool:
+    def __init__(self) -> None:
+        self.closed = False
+
+    def close(self) -> None:
+        self.closed = True
+
+
 def _raw(messages: list[dict[str, str]]) -> dict[str, Any]:
     return {
         "declarations": [],
@@ -50,6 +58,135 @@ def _raw(messages: list[dict[str, str]]) -> dict[str, Any]:
         "sorries": [],
         "tactics": [],
     }
+
+
+def test_reset_session_discards_all_live_state_and_is_idempotent(tmp_path: Path) -> None:
+    backend = LeanInteractBackend(
+        BackendSettings(
+            project_dir=tmp_path,
+            context_fingerprint="0" * 64,
+            environment_schema_version=1,
+            raw_response_dir=tmp_path / "raw",
+        )
+    )
+    server = _Server(_Response(_raw([])))
+    pool = _Pool()
+    backend._server = server  # type: ignore[assignment]
+    backend._pool = pool  # type: ignore[assignment]
+    backend._auto_fallback_active = True
+
+    backend.reset_session()
+
+    assert server.killed
+    assert pool.closed
+    assert backend._server is None
+    assert backend._pool is None
+    assert not backend.auto_fallback_active
+    backend.reset_session()
+
+
+def test_command_isolation_prefix_and_async_option_are_opt_in(tmp_path: Path) -> None:
+    context_id = "ctx:" + "0" * 64
+    code = "theorem line_one : True := trivial"
+    request = LeanRequest(request_id="isolated-a", context_id=context_id, code=code)
+    isolated = LeanInteractBackend(
+        BackendSettings(
+            project_dir=tmp_path,
+            context_fingerprint="0" * 64,
+            environment_schema_version=1,
+            raw_response_dir=tmp_path / "raw-isolated",
+            enable_parallel_elaboration=False,
+            isolate_incremental_commands=True,
+        )
+    )
+    default = LeanInteractBackend(
+        BackendSettings(
+            project_dir=tmp_path,
+            context_fingerprint="0" * 64,
+            environment_schema_version=1,
+            raw_response_dir=tmp_path / "raw-default",
+        )
+    )
+
+    built = isolated._build_repl_request(request)
+    assert built.cmd is not None
+    assert built.cmd.endswith(code)
+    assert built.cmd != code
+    assert built.set_options == [(["Elab", "async"], False)]
+    assert isolated._build_repl_request(request).cmd == built.cmd
+    other = isolated._build_repl_request(
+        LeanRequest(request_id="isolated-b", context_id=context_id, code=code)
+    )
+    assert other.cmd != built.cmd
+    retry_request = LeanRequest(
+        request_id=request.request_id,
+        context_id=context_id,
+        code=code,
+        metadata={"attempt": "1"},
+    )
+    retry = isolated._build_repl_request(retry_request)
+    assert isolated._request_hash(retry_request) == isolated._request_hash(request)
+    assert retry.cmd != built.cmd
+
+    default_built = default._build_repl_request(request)
+    assert default_built.cmd == code
+    assert default_built.set_options is None
+
+
+def test_isolated_response_positions_are_restored_before_normalization(
+    monkeypatch: Any, tmp_path: Path
+) -> None:
+    context_id = "ctx:" + "0" * 64
+    request = LeanRequest(
+        request_id="position-restore",
+        context_id=context_id,
+        code="theorem line_one : True := trivial",
+        declarations=True,
+    )
+    backend = LeanInteractBackend(
+        BackendSettings(
+            project_dir=tmp_path,
+            context_fingerprint="0" * 64,
+            environment_schema_version=1,
+            raw_response_dir=tmp_path / "raw",
+            enable_parallel_elaboration=False,
+            isolate_incremental_commands=True,
+        )
+    )
+    width = len(backend._command_isolation_prefix(request))
+    raw = _raw([])
+    raw["messages"] = [
+        {
+            "severity": "warning",
+            "data": "line-one diagnostic",
+            "start_pos": {"line": 1, "column": width + 2},
+            "end_pos": {"line": 2, "column": 4},
+        }
+    ]
+    raw["declarations"] = [
+        {
+            "name": "line_one",
+            "range": {
+                "start": {"line": 1, "column": width},
+                "finish": {"line": 1, "column": width + 32},
+            },
+        }
+    ]
+    server = _Server(_Response(raw))
+    monkeypatch.setattr(backend, "_ensure_server", lambda: server)
+
+    result = backend.run(request)
+
+    assert result.messages[0]["start_pos"] == {"line": 1, "column": 2}
+    assert result.messages[0]["end_pos"] == {"line": 2, "column": 4}
+    assert result.declarations[0]["range"] == {
+        "start": {"line": 1, "column": 0},
+        "finish": {"line": 1, "column": 32},
+    }
+    persisted = json.loads(Path(result.raw_response_path or "").read_text(encoding="utf-8"))
+    assert persisted["response"]["declarations"][0]["range"]["start"]["column"] == width
+    assert persisted["transport_isolation"]["version"] == ("deterministic_request_nonce_prefix_v1")
+    assert persisted["transport_isolation"]["attempt"] == "0"
 
 
 def test_corrupt_core_environment_is_retried_on_fresh_server(

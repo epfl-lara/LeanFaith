@@ -392,6 +392,7 @@ def test_prepared_environment_disables_project_and_repl_rebuilds(
             environment_schema_version=1,
             raw_response_dir=tmp_path / "raw",
             environment_is_prepared=True,
+            enable_parallel_elaboration=False,
         )
     )
 
@@ -399,6 +400,7 @@ def test_prepared_environment_disables_project_and_repl_rebuilds(
 
     assert projects == [{"directory": tmp_path, "auto_build": False}]
     assert configs[0]["build_repl"] is False
+    assert configs[0]["enable_parallel_elaboration"] is False
 
 
 def test_environment_preflight_keeps_builds_enabled(
@@ -431,6 +433,7 @@ def test_environment_preflight_keeps_builds_enabled(
 
     assert projects == [{"directory": tmp_path, "auto_build": True}]
     assert configs[0]["build_repl"] is True
+    assert configs[0]["enable_parallel_elaboration"] is True
 
 
 def test_label_link_detects_target_id_mismatch() -> None:

@@ -262,7 +262,9 @@ def test_single_worker_constructs_and_closes_one_backend_per_chunk(
     pipeline._extract_sft_parallel(**kwargs)
     assert (constructed, closed, active, maximum_active) == (3, 3, 0, 1)
     assert len(observed_settings) == 3
-    assert all(not settings.enable_incremental_optimization for settings in observed_settings)
+    assert all(settings.enable_incremental_optimization for settings in observed_settings)
+    assert all(not settings.enable_parallel_elaboration for settings in observed_settings)
+    assert all(settings.isolate_incremental_commands for settings in observed_settings)
     assert all(
         settings.method_version == pipeline.SFT_CLASSIC_METHOD_VERSION
         for settings in observed_settings
@@ -272,7 +274,7 @@ def test_single_worker_constructs_and_closes_one_backend_per_chunk(
     assert (constructed, closed, active, maximum_active) == (3, 3, 0, 1)
 
 
-def test_direct_sft_path_uses_stateless_backend_and_binds_manifest(
+def test_direct_sft_path_uses_nonce_isolated_backend_and_binds_manifest(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     observed_settings: list[Any] = []
@@ -331,11 +333,16 @@ def test_direct_sft_path_uses_stateless_backend_and_binds_manifest(
     assert manifest == tmp_path / "manifest.json"
     assert stats["sources_processed"] == 1
     assert len(observed_settings) == 1
-    assert observed_settings[0].enable_incremental_optimization is False
+    assert observed_settings[0].enable_incremental_optimization is True
+    assert observed_settings[0].enable_parallel_elaboration is False
+    assert observed_settings[0].isolate_incremental_commands is True
     assert observed_settings[0].method_version == pipeline.SFT_CLASSIC_METHOD_VERSION
     config = observed_manifest["config_payload"]
     assert config["execution_isolation_policy"] == pipeline.SFT_CLASSIC_EXECUTION_POLICY
-    assert config["lean_incremental_optimization"] is False
+    assert config["lean_incremental_optimization"] is True
+    assert config["lean_parallel_elaboration"] is False
+    assert config["explicit_elab_async"] is False
+    assert config["lean_command_isolation"] == pipeline.SFT_CLASSIC_COMMAND_ISOLATION
     assert config["lean_method_version"] == pipeline.SFT_CLASSIC_METHOD_VERSION
     assert config["leaninteract_environment_setup"] == (pipeline.DEFAULT_ENVIRONMENT_SETUP_VERSION)
 
@@ -344,10 +351,11 @@ def test_direct_sft_path_uses_stateless_backend_and_binds_manifest(
     ("constant_name", "replacement"),
     [
         ("SFT_CLASSIC_EXECUTION_POLICY", "changed_isolation_policy_v2"),
+        ("SFT_CLASSIC_COMMAND_ISOLATION", "changed_command_isolation_v2"),
         ("SFT_CLASSIC_METHOD_VERSION", "changed_lean_method_v2"),
     ],
 )
-def test_sft_resume_rejects_stateless_policy_identity_drift(
+def test_sft_resume_rejects_execution_policy_identity_drift(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
     constant_name: str,
@@ -396,7 +404,12 @@ def test_sft_resume_rejects_stateless_policy_identity_drift(
     assert observed_job_payloads[-1]["execution_isolation_policy"] == (
         pipeline.SFT_CLASSIC_EXECUTION_POLICY
     )
-    assert observed_job_payloads[-1]["lean_incremental_optimization"] is False
+    assert observed_job_payloads[-1]["lean_incremental_optimization"] is True
+    assert observed_job_payloads[-1]["lean_parallel_elaboration"] is False
+    assert observed_job_payloads[-1]["explicit_elab_async"] is False
+    assert observed_job_payloads[-1]["lean_command_isolation"] == (
+        pipeline.SFT_CLASSIC_COMMAND_ISOLATION
+    )
     assert observed_job_payloads[-1]["lean_method_version"] == (pipeline.SFT_CLASSIC_METHOD_VERSION)
 
     monkeypatch.setattr(pipeline, constant_name, replacement)

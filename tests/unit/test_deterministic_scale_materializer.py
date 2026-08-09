@@ -1224,7 +1224,10 @@ def test_scale_inventory_freeze_cli_writes_and_replays_immutable_manifest(
     source, representation = _canonical_extracted_inventory()
     theorem_path = tmp_path / "theorems.jsonl"
     representation_path = tmp_path / "representations.jsonl"
-    manifest_path = tmp_path / "inventory.json"
+    # The first scientific freeze writes into a fresh nested artifact
+    # directory.  Its relative upstream bindings must be resolvable before the
+    # manifest itself exists.
+    manifest_path = tmp_path / "frozen" / "inventory.json"
     theorem_path.write_bytes(_canonical_model_bytes(source))
     representation_path.write_bytes(_canonical_model_bytes(representation))
     extraction_manifest, representation_manifest = _write_output_manifests(

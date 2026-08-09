@@ -32,7 +32,11 @@ from leanfaith.lean.extract_run import (
     merge_extraction_partitions,
     write_extraction_manifest,
 )
-from leanfaith.lean.leaninteract_backend import BackendSettings, LeanInteractBackend
+from leanfaith.lean.leaninteract_backend import (
+    COMMAND_ISOLATION_VERSION,
+    BackendSettings,
+    LeanInteractBackend,
+)
 from leanfaith.lean.project_registry import (
     ContextPayload,
     ProjectSpec,
@@ -79,8 +83,9 @@ FORMALRX_REVISION = "4b7c6b883e0859e9bd38620a539bdcef408f91b4"
 SFT_CLASSIC_REVISION = "0bf9f424309f668c2c2dd214aef6ec5d1d5c042f"
 SCALE_ENVIRONMENT_SETUP_VERSION = "parent_prebuilt_v1"
 DEFAULT_ENVIRONMENT_SETUP_VERSION = "backend_default_v1"
-SFT_CLASSIC_EXECUTION_POLICY = "shared_server_stateless_commands_v1"
-SFT_CLASSIC_METHOD_VERSION = "leaninteract_backend_v2/sft_classic_stateless_v1"
+SFT_CLASSIC_EXECUTION_POLICY = "shared_server_header_cache_nonce_sync_v1"
+SFT_CLASSIC_COMMAND_ISOLATION = COMMAND_ISOLATION_VERSION
+SFT_CLASSIC_METHOD_VERSION = "leaninteract_backend_v2/sft_classic_nonce_isolated_sync_v3"
 
 
 def _prepare_scale_lean_environment(
@@ -118,14 +123,12 @@ def _extract_sft_chunk(
     job_hash: str,
     environment_is_prepared: bool = False,
 ) -> ExtractStats:
-    """Process-safe extraction unit with one stable, stateless-command server.
+    """Process-safe extraction with cached imports and isolated commands.
 
-    Every dataset snippet is a complete, environment-free Lean command.  The
-    pinned REPL's incremental optimization keeps a trie of command-prefix
-    states across calls; a damaged prefix can therefore make one source row's
-    parser/environment state affect a later independent row.  Reuse the
-    process for bounded startup cost, but deliberately disable cross-command
-    incremental state for extraction correctness and replay stability.
+    Incrementality retains the REPL's import-header cache.  A deterministic
+    request-specific transport prefix prevents theorem-body trie states from
+    crossing request boundaries, and synchronous elaboration prevents
+    background work from surviving them.
     """
 
     backend = LeanInteractBackend(
@@ -137,7 +140,9 @@ def _extract_sft_chunk(
             memory_hard_limit_mb=memory_hard_limit_mb,
             environment_is_prepared=environment_is_prepared,
             method_version=SFT_CLASSIC_METHOD_VERSION,
-            enable_incremental_optimization=False,
+            enable_incremental_optimization=True,
+            enable_parallel_elaboration=False,
+            isolate_incremental_commands=True,
         )
     )
     try:
@@ -276,7 +281,10 @@ def _extract_sft_parallel(
                         "context_id": context_id,
                         "adapter": "extract_v2",
                         "execution_isolation_policy": SFT_CLASSIC_EXECUTION_POLICY,
-                        "lean_incremental_optimization": False,
+                        "lean_incremental_optimization": True,
+                        "lean_parallel_elaboration": False,
+                        "explicit_elab_async": False,
+                        "lean_command_isolation": SFT_CLASSIC_COMMAND_ISOLATION,
                         "lean_method_version": SFT_CLASSIC_METHOD_VERSION,
                         "code_tree_hash": code_tree_hash,
                         "code_bundle_hash": code_bundle_hash,
@@ -902,7 +910,9 @@ def run_extract(
                     raw_response_dir=raw_response_dir,
                     memory_hard_limit_mb=memory_hard_limit_mb,
                     method_version=SFT_CLASSIC_METHOD_VERSION,
-                    enable_incremental_optimization=False,
+                    enable_incremental_optimization=True,
+                    enable_parallel_elaboration=False,
+                    isolate_incremental_commands=True,
                 )
             )
             try:
@@ -966,7 +976,12 @@ def run_extract(
             "execution_isolation_policy": (
                 SFT_CLASSIC_EXECUTION_POLICY if source == "sft_classic" else None
             ),
-            "lean_incremental_optimization": source != "sft_classic",
+            "lean_incremental_optimization": True,
+            "lean_parallel_elaboration": source != "sft_classic",
+            "explicit_elab_async": False if source == "sft_classic" else None,
+            "lean_command_isolation": (
+                SFT_CLASSIC_COMMAND_ISOLATION if source == "sft_classic" else None
+            ),
             "lean_method_version": (
                 SFT_CLASSIC_METHOD_VERSION if source == "sft_classic" else None
             ),

@@ -374,6 +374,23 @@ def _validate_candidate(statement: str) -> None:
         )
 
 
+def normalize_variant_candidate(statement: str) -> str:
+    """Return the versioned whitespace normalization used for duplicate checks.
+
+    Operational collection audits reuse this exact function so a batch cannot
+    pass with duplicates that the proposer parser itself would reject inside a
+    single response.
+    """
+
+    return _normalized_candidate(statement)
+
+
+def validate_variant_candidate(statement: str) -> None:
+    """Apply the production parser's proof-stripped declaration boundary checks."""
+
+    _validate_candidate(statement)
+
+
 def parse_variant_proposer_output(raw_output: str) -> VariantProposalBatch:
     """Parse exactly one JSON object and reject ambiguous/proof-bearing candidates."""
 
@@ -649,7 +666,9 @@ __all__ = [
     "VariantProposalBatch",
     "materialize_provisional_variants",
     "materialize_verified_provisional_variants",
+    "normalize_variant_candidate",
     "parse_variant_proposer_output",
     "render_variant_proposer_prompt",
+    "validate_variant_candidate",
     "variant_provider_input_ids",
 ]

@@ -48,6 +48,7 @@ from leanfaith.lean.response_normalization import (
 from leanfaith.lean.session_policy import ServerMode
 
 METHOD_VERSION = "leaninteract_backend_v2"
+COMMAND_ISOLATION_VERSION = "deterministic_request_nonce_prefix_v1"
 
 _CORE_ENVIRONMENT_SECONDARY_ERRORS = (
     "Unknown constant `CoeFun`",
@@ -70,6 +71,8 @@ class BackendSettings:
     method_version: str = METHOD_VERSION
     verbose: bool = False
     enable_incremental_optimization: bool = True
+    enable_parallel_elaboration: bool = True
+    isolate_incremental_commands: bool = False
     environment_is_prepared: bool = False
 
 
@@ -111,6 +114,7 @@ class LeanInteractBackend:
             build_repl=build_environment,
             memory_hard_limit_mb=self._settings.memory_hard_limit_mb,
             enable_incremental_optimization=self._settings.enable_incremental_optimization,
+            enable_parallel_elaboration=self._settings.enable_parallel_elaboration,
             verbose=self._settings.verbose,
         )
 
@@ -180,12 +184,24 @@ class LeanInteractBackend:
                 self._server.kill()
             self._server = None
 
-    def close(self) -> None:
+    def reset_session(self) -> None:
+        """Discard all live REPL state while preserving immutable settings.
+
+        The next request lazily starts a fresh server (or pool).  This remains
+        the correctness-oracle and recovery boundary for callers that require
+        process isolation; scalable SFT extraction instead uses deterministic
+        per-request trie namespaces while sharing the import-header cache.
+        """
+
         self._drop_server()
         if self._pool is not None:
             with contextlib.suppress(Exception):
                 self._pool.close()
             self._pool = None
+        self._auto_fallback_active = False
+
+    def close(self) -> None:
+        self.reset_session()
 
     # -- raw persistence (§8.4: save before normalization) --------------------
 
@@ -196,6 +212,8 @@ class LeanInteractBackend:
         raw: dict[str, Any] | None,
         error: str | None,
     ) -> str:
+        isolation_prefix = self._command_isolation_prefix(request)
+        isolation_attempt = self._normalized_attempt(request)
         record = {
             "request": {
                 "request_id": request.request_id,
@@ -208,6 +226,16 @@ class LeanInteractBackend:
                 "allow_sorry": request.allow_sorry,
                 "timeout_seconds": request.timeout_seconds,
             },
+            "transport_isolation": (
+                {
+                    "version": COMMAND_ISOLATION_VERSION,
+                    "attempt": isolation_attempt,
+                    "prefix_sha256": sha256_hex(isolation_prefix.encode("ascii")),
+                    "prefix_width": len(isolation_prefix),
+                }
+                if isolation_prefix
+                else None
+            ),
             "request_hash": request_hash,
             "method_version": self._settings.method_version,
             "response": raw,
@@ -273,14 +301,76 @@ class LeanInteractBackend:
             file_content_hash=self._file_content_hash(request),
         )
 
+    def _command_isolation_prefix(self, request: LeanRequest) -> str:
+        """Unique, deterministic REPL-trie namespace for one code request.
+
+        The REPL's import-header cache canonicalizes away comments and
+        whitespace, while its incremental-state trie matches the full command
+        prefix.  A same-line ASCII comment therefore preserves shared import
+        caching but prevents any body snapshot from another request being
+        reused.  The request hash keeps equal semantic computations stable;
+        the request ID additionally separates independent submissions.
+        """
+
+        if not self._settings.isolate_incremental_commands or request.code is None:
+            return ""
+        nonce = sha256_hex(
+            (
+                f"{request.request_id}\0{self._request_hash(request)}\0"
+                f"{self._normalized_attempt(request)}"
+            ).encode()
+        )[:24]
+        return f"/-leanfaith-isolation:{nonce}-/ "
+
+    @staticmethod
+    def _normalized_attempt(request: LeanRequest) -> str:
+        attempt = str(request.metadata.get("attempt", "0")).strip()
+        return attempt or "0"
+
+    @classmethod
+    def _restore_prefixed_positions(cls, value: Any, *, prefix_width: int) -> Any:
+        """Return a deep JSON copy with line-one columns mapped to source code."""
+
+        if isinstance(value, list):
+            return [
+                cls._restore_prefixed_positions(item, prefix_width=prefix_width) for item in value
+            ]
+        if isinstance(value, dict):
+            restored = {
+                key: cls._restore_prefixed_positions(item, prefix_width=prefix_width)
+                for key, item in value.items()
+            }
+            line = restored.get("line")
+            column = restored.get("column")
+            if line == 1 and isinstance(column, int) and column >= prefix_width:
+                restored["column"] = column - prefix_width
+            return restored
+        return value
+
+    def _raw_for_normalization(self, request: LeanRequest, raw: dict[str, Any]) -> dict[str, Any]:
+        prefix = self._command_isolation_prefix(request)
+        if not prefix:
+            return raw
+        restored = self._restore_prefixed_positions(raw, prefix_width=len(prefix))
+        assert isinstance(restored, dict)
+        return restored
+
     def _build_repl_request(self, request: LeanRequest) -> Command | FileCommand:
         infotree = None if request.infotree == "none" else request.infotree
+        # Lean itself defaults ``Elab.async`` to true.  LeanInteract's config
+        # flag controls whether it injects ``true``; setting it to false does
+        # not inject an explicit false.  Isolation-sensitive callers therefore
+        # need both the config flag and this per-request option.
+        set_options: list[tuple[list[str], bool | int | str | list[str]]] | None = (
+            [(["Elab", "async"], False)] if not self._settings.enable_parallel_elaboration else None
+        )
         if request.code is not None:
             return Command(
-                cmd=request.code,
+                cmd=self._command_isolation_prefix(request) + request.code,
                 declarations=request.declarations,
                 root_goals=request.root_goals,
                 infotree=infotree,
+                set_options=set_options,
             )
         resolved = self._resolve_file_path(request)
         assert resolved is not None  # validate_request guarantees this
@@ -289,6 +379,7 @@ class LeanInteractBackend:
             declarations=request.declarations,
             root_goals=request.root_goals,
             infotree=infotree,
+            set_options=set_options,
         )
 
     def run(self, request: LeanRequest) -> LeanResult:
@@ -368,7 +459,7 @@ class LeanInteractBackend:
             return replace(recovered, elapsed_ms=elapsed_ms + recovered.elapsed_ms)
         return normalize_response(
             request,
-            raw,
+            self._raw_for_normalization(request, raw),
             request_hash=request_hash,
             context_fingerprint=self._settings.context_fingerprint,
             elapsed_ms=elapsed_ms,
@@ -436,7 +527,7 @@ class LeanInteractBackend:
         raw_path = self._persist_raw(request, request_hash, raw, None)
         return normalize_response(
             request,
-            raw,
+            self._raw_for_normalization(request, raw),
             request_hash=request_hash,
             context_fingerprint=self._settings.context_fingerprint,
             elapsed_ms=elapsed_ms,

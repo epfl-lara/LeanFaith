@@ -201,6 +201,7 @@ uv run leanfaith certify-lf022-proposer-route --help
 uv run leanfaith make-lf022-public-batch-request --help
 uv run leanfaith freeze-lf022-public-batch --help
 uv run leanfaith run-lf022-public-batch --help
+uv run leanfaith qa-lf022-prefix256 --help
 uv run leanfaith combine-deterministic-scale-passes --help
 uv run leanfaith audit-training-readiness --report-only
 ```

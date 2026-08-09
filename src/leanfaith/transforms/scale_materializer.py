@@ -3439,6 +3439,12 @@ def freeze_deterministic_scale_source_inventory(
         None if relocation_attestation is None else relocation_attestation.resolve()
     )
     output_path = manifest_path.resolve()
+    # Relative bindings in the inventory are resolved from the manifest's
+    # directory.  Materializing that directory before validating the bindings
+    # keeps first-run behavior identical to replay behavior; otherwise
+    # ``Path.resolve(strict=True)`` fails at the missing parent even when the
+    # referenced upstream artifact itself exists.
+    output_path.parent.mkdir(parents=True, exist_ok=True)
     theorems = _load_jsonl(theorem_path, TheoremRecord, wrapper_key="theorem")
     representations = _load_jsonl(representation_path, RepresentationRecord)
     representation_by_theorem = _validate_unique_inputs(theorems, representations)

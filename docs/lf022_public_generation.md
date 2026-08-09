@@ -348,6 +348,45 @@ Each family uses the same deterministic three-stage gate:
    `LIMIT=9206` for GLM. Existing deterministic task IDs replay from the global
    executor store, so widening the prefix must not repeat completed calls.
 
+After the live prefix finishes, first run the batch command again without
+credentials or `--execute-public-provisional` to create its exact offline
+replay report. Then run the fixed operational audit. The audit may itself run
+from newer QA code: it materializes the admission-bound code bundle in a
+private checkout and replays all executor terminals in an isolated subprocess
+whose `PYTHONPATH` contains only that historical source. Provider credentials
+are stripped, every loaded `leanfaith.*` module is origin-checked, and the
+report binds both the admitted historical code tree and the current QA
+implementation code tree. Changing executor behavior still requires a new
+reviewed admission; changing only QA code does not silently change replay
+semantics:
+
+```bash
+uv run leanfaith qa-lf022-prefix256 \
+  --root "$ROOT" \
+  --manifest "$MANIFEST" \
+  --offline-replay-report "$OFFLINE_REPLAY_REPORT" \
+  --output-dir "$BATCH_DIR/operational_qa_v1"
+```
+
+The command has no sampling or threshold options. It requires exactly 256
+validated terminals, an exact 256-task offline replay with zero network calls
+and orchestration errors, no `transport_unknown`, and at least 243 successful
+terminals. It independently reruns the admission-bound historical executor's
+exact network-free terminal reconstruction for every task, requires every
+historical terminal ID/path/SHA binding to match the current artifact set,
+freezes the historical module bindings, rejects unbound extra task artifacts,
+revalidates canonical provisional records with the production candidate
+parser, rejects duplicate normalized output globally, and freezes a
+hash-ranked 32-task reviewer JSONL. The report derives its complete failure-code
+set from its persisted counts and bindings, so a hand-constructed incoherent
+pass is invalid. The report and bundle are
+operational QA only: they create no semantic label, promotion,
+training/evaluation eligibility, or Gate credit. A failed threshold still
+produces an immutable no-go report and reviewer bundle; when fewer than 32 tasks
+succeeded, that failure-only bundle contains every successful task instead of
+silently rejecting before the no-go report is written. The command exits
+nonzero.
+
 Every stage uses its own immutable request and batch manifest. A failed gate
 requires a new reviewed contract/admission version; do not change the offset,
 drop failures from the denominator, or substitute more tasks. All live stages
@@ -470,6 +509,9 @@ proof bodies/placeholders, malformed declaration boundaries, and duplicated
 outputs. This is operational generation QA, not semantic labeling. A failed
 threshold requires a route or prompt review and a new versioned admission; it
 must not be bypassed by silently dropping failed tasks.
+
+Use `qa-lf022-prefix256` above for this audit; do not select the 32 examples by
+hand or substitute a different offline replay report.
 
 Every generated variant remains provisional, unresolved, unlabeled, and
 ineligible for training, evaluation, promotion, or Gate credit until later
