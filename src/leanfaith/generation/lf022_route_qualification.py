@@ -717,6 +717,11 @@ def certify_lf022_proposer_production_eligibility(
             task=task,
             verified_admission=verified,
             verified_task_inputs=inputs,
+            # Certification is an audit of an immutable historical attempt.
+            # The admission's already-validated code bundle defines the code
+            # identity that produced the terminal, so later repository work
+            # must not make that successful attempt uncertifiable.
+            observed_code_tree_hash=admission.code_tree_hash,
         )
     except (LF022ExecutionError, LF022ExecutorError, ValueError) as exc:
         raise LF022RouteQualificationError(f"qualification exact replay rejected: {exc}") from exc
@@ -870,6 +875,10 @@ def verify_lf022_proposer_production_eligibility(
             task=task,
             verified_admission=verified,
             verified_task_inputs=inputs,
+            # Eligibility verification replays the same immutable historical
+            # qualification and therefore uses its validated archived code
+            # identity rather than whichever worktree happens to inspect it.
+            observed_code_tree_hash=admission.code_tree_hash,
         )
     except (LF022ExecutionError, LF022ExecutorError, ValueError) as exc:
         raise LF022RouteQualificationError(

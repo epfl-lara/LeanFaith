@@ -2600,6 +2600,10 @@ def test_failed_qualification_supersession_is_append_only_and_replay_verified(
     assert recovery_live.terminal is not None
     assert recovery_live.terminal.status == "provisional_variants_created"
     v2_task_dir = _qualification_task_dir(tmp_path, v2_task)
+    post_qualification_change = tmp_path / "src/post_qualification_change.py"
+    post_qualification_change.parent.mkdir(parents=True, exist_ok=True)
+    post_qualification_change.write_text("VALUE = 'newer worktree'\n", encoding="utf-8")
+    assert collect_code_state(tmp_path).code_tree_hash != v2_admission.code_tree_hash
     certified = certify_lf022_proposer_production_eligibility(
         repo_root=tmp_path,
         qualification_admission_binding=LF022ArtifactBinding(
