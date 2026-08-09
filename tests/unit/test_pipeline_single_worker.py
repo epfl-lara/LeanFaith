@@ -265,6 +265,7 @@ def test_single_worker_constructs_and_closes_one_backend_per_chunk(
     assert all(settings.enable_incremental_optimization for settings in observed_settings)
     assert all(not settings.enable_parallel_elaboration for settings in observed_settings)
     assert all(settings.isolate_incremental_commands for settings in observed_settings)
+    assert all(settings.confirm_invalid_on_fresh_process for settings in observed_settings)
     assert all(
         settings.method_version == pipeline.SFT_CLASSIC_METHOD_VERSION
         for settings in observed_settings
@@ -336,6 +337,7 @@ def test_direct_sft_path_uses_nonce_isolated_backend_and_binds_manifest(
     assert observed_settings[0].enable_incremental_optimization is True
     assert observed_settings[0].enable_parallel_elaboration is False
     assert observed_settings[0].isolate_incremental_commands is True
+    assert observed_settings[0].confirm_invalid_on_fresh_process is True
     assert observed_settings[0].method_version == pipeline.SFT_CLASSIC_METHOD_VERSION
     config = observed_manifest["config_payload"]
     assert config["execution_isolation_policy"] == pipeline.SFT_CLASSIC_EXECUTION_POLICY
@@ -343,6 +345,7 @@ def test_direct_sft_path_uses_nonce_isolated_backend_and_binds_manifest(
     assert config["lean_parallel_elaboration"] is False
     assert config["explicit_elab_async"] is False
     assert config["lean_command_isolation"] == pipeline.SFT_CLASSIC_COMMAND_ISOLATION
+    assert config["lean_fresh_invalid_confirmation"] is True
     assert config["lean_method_version"] == pipeline.SFT_CLASSIC_METHOD_VERSION
     assert config["leaninteract_environment_setup"] == (pipeline.DEFAULT_ENVIRONMENT_SETUP_VERSION)
 
@@ -410,6 +413,7 @@ def test_sft_resume_rejects_execution_policy_identity_drift(
     assert observed_job_payloads[-1]["lean_command_isolation"] == (
         pipeline.SFT_CLASSIC_COMMAND_ISOLATION
     )
+    assert observed_job_payloads[-1]["lean_fresh_invalid_confirmation"] is True
     assert observed_job_payloads[-1]["lean_method_version"] == (pipeline.SFT_CLASSIC_METHOD_VERSION)
 
     monkeypatch.setattr(pipeline, constant_name, replacement)

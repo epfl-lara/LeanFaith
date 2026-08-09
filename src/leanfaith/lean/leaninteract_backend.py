@@ -88,6 +88,7 @@ class BackendSettings:
     enable_incremental_optimization: bool = True
     enable_parallel_elaboration: bool = True
     isolate_incremental_commands: bool = False
+    confirm_invalid_on_fresh_process: bool = False
     environment_is_prepared: bool = False
 
 
@@ -250,6 +251,73 @@ class LeanInteractBackend:
             self._drop_server()
         return replace(recovered, elapsed_ms=elapsed_ms + recovered.elapsed_ms)
 
+    def _fresh_invalid_confirmation_backend(self) -> LeanInteractBackend:
+        """Return the one-off correctness oracle for a provisional INVALID.
+
+        A long-lived REPL can lose imported parser state without emitting one
+        of the narrow core-corruption signatures above.  Semantic INVALID is
+        therefore not terminal for callers that opt into confirmation: replay
+        the exact request in a new stable process with neither incremental
+        trie reuse nor asynchronous elaboration.  The normal backend remains
+        the fast path; only provisional INVALID results pay this cost.
+        """
+
+        return LeanInteractBackend(
+            replace(
+                self._settings,
+                server_mode=ServerMode.STABLE,
+                workers=None,
+                enable_incremental_optimization=False,
+                enable_parallel_elaboration=False,
+                isolate_incremental_commands=False,
+                confirm_invalid_on_fresh_process=False,
+                # The original request already constructed a working REPL for
+                # this project.  Avoid repeating project/cache setup while
+                # still creating a genuinely new Lean server process.
+                environment_is_prepared=True,
+            )
+        )
+
+    def _confirm_invalid_result(
+        self,
+        request: LeanRequest,
+        result: LeanResult,
+        *,
+        originated_from_pool: bool = False,
+    ) -> LeanResult:
+        """Confirm an incremental INVALID in a fresh synchronous process."""
+
+        if (
+            not self._settings.confirm_invalid_on_fresh_process
+            or result.status != LeanStatus.INVALID
+            or request.metadata.get("fresh_invalid_confirmation") == "1"
+        ):
+            return result
+
+        # The shared process is no longer trusted once it disagrees with the
+        # fresh-process oracle, so discard it before replay.  Resetting first
+        # also prevents pool and stable state from coexisting during the
+        # confirmation request.
+        self.reset_session()
+        attempt = self._normalized_attempt(request)
+        confirmation_request = replace(
+            request,
+            metadata={
+                **dict(request.metadata),
+                "attempt": f"{attempt}-invalid-confirmation",
+                "fresh_invalid_confirmation": "1",
+            },
+        )
+        oracle = self._fresh_invalid_confirmation_backend()
+        try:
+            confirmed = oracle.run(confirmation_request)
+        finally:
+            oracle.close()
+        if originated_from_pool:
+            # The next pool group must be created lazily after the reset.
+            self._drop_server()
+        return replace(confirmed, elapsed_ms=result.elapsed_ms + confirmed.elapsed_ms)
+
     def _ensure_server(self) -> LeanServer:
         if self._server is None:
             config = self._repl_config()
@@ -282,8 +350,9 @@ class LeanInteractBackend:
 
         The next request lazily starts a fresh server (or pool).  This remains
         the correctness-oracle and recovery boundary for callers that require
-        process isolation; scalable SFT extraction instead uses deterministic
-        per-request trie namespaces while sharing the import-header cache.
+        process isolation; scalable SFT extraction uses deterministic
+        per-request trie namespaces for the fast path and a fresh-process
+        oracle before any INVALID becomes terminal.
         """
 
         self._drop_server()
@@ -540,7 +609,7 @@ class LeanInteractBackend:
         )
         if recovered is not None:
             return recovered
-        return normalize_response(
+        normalized = normalize_response(
             request,
             self._raw_for_normalization(request, raw),
             request_hash=request_hash,
@@ -548,6 +617,7 @@ class LeanInteractBackend:
             elapsed_ms=elapsed_ms,
             raw_response_path=raw_path,
         )
+        return self._confirm_invalid_result(request, normalized)
 
     def run_batch(self, requests: Sequence[LeanRequest]) -> list[LeanResult]:
         """One terminal result per request, in input order (§8.4).
@@ -618,13 +688,18 @@ class LeanInteractBackend:
         )
         if recovered is not None:
             return recovered
-        return normalize_response(
+        normalized = normalize_response(
             request,
             self._raw_for_normalization(request, raw),
             request_hash=request_hash,
             context_fingerprint=self._settings.context_fingerprint,
             elapsed_ms=elapsed_ms,
             raw_response_path=raw_path,
+        )
+        return self._confirm_invalid_result(
+            request,
+            normalized,
+            originated_from_pool=True,
         )
 
     def _run_batch_pooled(self, requests: Sequence[LeanRequest]) -> list[LeanResult]:

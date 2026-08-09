@@ -454,6 +454,70 @@ def test_pool_recovery_reacquires_pool_for_later_timeout_group(
         backend.close()
 
 
+def test_pool_invalid_confirmation_reacquires_pool_for_later_timeout_group(
+    monkeypatch: Any, tmp_path: Path
+) -> None:
+    invalid = _Response(_raw([{"severity": "error", "data": "expected token"}]))
+    first_pool = _BatchPool([invalid])
+    second_pool = _BatchPool([_Response(_raw([]))])
+    oracle_server = _Server(_Response(_raw([])))
+    backend = LeanInteractBackend(
+        BackendSettings(
+            project_dir=tmp_path,
+            context_fingerprint="0" * 64,
+            environment_schema_version=1,
+            raw_response_dir=tmp_path / "raw",
+            server_mode=ServerMode.POOL,
+            workers=1,
+            confirm_invalid_on_fresh_process=True,
+        )
+    )
+    oracle = LeanInteractBackend(
+        BackendSettings(
+            project_dir=tmp_path,
+            context_fingerprint="0" * 64,
+            environment_schema_version=1,
+            raw_response_dir=tmp_path / "raw",
+            enable_incremental_optimization=False,
+            enable_parallel_elaboration=False,
+            environment_is_prepared=True,
+        )
+    )
+    backend._pool = first_pool  # type: ignore[assignment]
+    oracle._server = oracle_server  # type: ignore[assignment]
+
+    def ensure_pool() -> _BatchPool:
+        if backend._pool is None:
+            backend._pool = second_pool  # type: ignore[assignment]
+        return backend._pool  # type: ignore[return-value]
+
+    monkeypatch.setattr(backend, "_ensure_pool", ensure_pool)
+    monkeypatch.setattr(backend, "_fresh_invalid_confirmation_backend", lambda: oracle)
+    requests = (
+        LeanRequest(
+            request_id="pool-provisional-invalid",
+            context_id="ctx:" + "0" * 64,
+            code="import Mathlib\ntheorem first : True := trivial",
+            timeout_seconds=1.0,
+        ),
+        LeanRequest(
+            request_id="pool-valid-after-confirmation",
+            context_id="ctx:" + "0" * 64,
+            code="import Mathlib\ntheorem second : True := trivial",
+            timeout_seconds=2.0,
+        ),
+    )
+
+    results = backend.run_batch(requests)
+
+    assert [result.status for result in results] == [LeanStatus.VALID, LeanStatus.VALID]
+    assert first_pool.timeout_calls == [1.0]
+    assert first_pool.closed
+    assert second_pool.timeout_calls == [2.0]
+    assert oracle_server.calls == 1
+    assert oracle_server.killed
+
+
 def test_repeated_corrupt_environment_returns_infrastructure_failure(
     monkeypatch: Any, tmp_path: Path
 ) -> None:
@@ -523,6 +587,192 @@ def test_ordinary_invalid_response_is_not_retried(monkeypatch: Any, tmp_path: Pa
         assert len(list((tmp_path / "raw").glob("*.json"))) == 1
     finally:
         backend.close()
+
+
+def test_sft_invalid_is_confirmed_by_fresh_nonincremental_process(
+    monkeypatch: Any, tmp_path: Path
+) -> None:
+    partial = _raw([{"severity": "error", "data": "expected token"}])
+    partial["declarations"] = [
+        {
+            "name": "algebra_304127",
+            "full_name": "algebra_304127",
+            "kind": "theorem",
+            "signature": {"pp": "(hf : ∀ x"},
+            "type": {"pp": ""},
+        }
+    ]
+    contaminated = _Server(_Response(partial))
+    valid = _Server(_Response(_raw([])))
+    backend = LeanInteractBackend(
+        BackendSettings(
+            project_dir=tmp_path,
+            context_fingerprint="0" * 64,
+            environment_schema_version=1,
+            raw_response_dir=tmp_path / "raw",
+            enable_incremental_optimization=True,
+            enable_parallel_elaboration=False,
+            isolate_incremental_commands=True,
+            confirm_invalid_on_fresh_process=True,
+        )
+    )
+    oracle = LeanInteractBackend(
+        BackendSettings(
+            project_dir=tmp_path,
+            context_fingerprint="0" * 64,
+            environment_schema_version=1,
+            raw_response_dir=tmp_path / "raw",
+            enable_incremental_optimization=False,
+            enable_parallel_elaboration=False,
+            isolate_incremental_commands=False,
+            environment_is_prepared=True,
+        )
+    )
+    backend._server = contaminated  # type: ignore[assignment]
+    oracle._server = valid  # type: ignore[assignment]
+    monkeypatch.setattr(backend, "_fresh_invalid_confirmation_backend", lambda: oracle)
+    request = LeanRequest(
+        request_id="sft-row-31995",
+        context_id="ctx:" + "0" * 64,
+        code=(
+            "import Mathlib\n"
+            "theorem algebra_304127 (hf : ∀ x ∈ Set.Icc 0 1, True) : True := trivial"
+        ),
+    )
+
+    result = backend.run(request)
+
+    assert result.status == LeanStatus.VALID
+    assert contaminated.calls == 1
+    assert contaminated.killed
+    assert valid.calls == 1
+    assert valid.killed
+    artifacts = sorted((tmp_path / "raw").glob("*.json"))
+    assert len(artifacts) == 2
+    payloads = [json.loads(path.read_text(encoding="utf-8")) for path in artifacts]
+    assert {payload["request_hash"] for payload in payloads} == {result.request_hash}
+    assert any("invalid-confirmation" in path.name for path in artifacts)
+    confirmation = next(
+        payload
+        for path, payload in zip(artifacts, payloads, strict=True)
+        if "invalid-confirmation" in path.name
+    )
+    assert confirmation["transport_isolation"] is None
+
+
+def test_fresh_invalid_confirmation_backend_has_oracle_settings(tmp_path: Path) -> None:
+    backend = LeanInteractBackend(
+        BackendSettings(
+            project_dir=tmp_path,
+            context_fingerprint="0" * 64,
+            environment_schema_version=1,
+            raw_response_dir=tmp_path / "raw",
+            server_mode=ServerMode.POOL,
+            workers=4,
+            enable_incremental_optimization=True,
+            enable_parallel_elaboration=True,
+            isolate_incremental_commands=True,
+            confirm_invalid_on_fresh_process=True,
+        )
+    )
+
+    oracle = backend._fresh_invalid_confirmation_backend()
+
+    assert oracle._settings.server_mode == ServerMode.STABLE
+    assert oracle._settings.workers is None
+    assert not oracle._settings.enable_incremental_optimization
+    assert not oracle._settings.enable_parallel_elaboration
+    assert not oracle._settings.isolate_incremental_commands
+    assert not oracle._settings.confirm_invalid_on_fresh_process
+    assert oracle._settings.environment_is_prepared
+
+
+def test_sft_semantic_invalid_remains_invalid_after_fresh_confirmation(
+    monkeypatch: Any, tmp_path: Path
+) -> None:
+    invalid_raw = _raw([{"severity": "error", "data": "type mismatch"}])
+    contaminated = _Server(_Response(invalid_raw))
+    confirmed_invalid = _Server(_Response(invalid_raw))
+    backend = LeanInteractBackend(
+        BackendSettings(
+            project_dir=tmp_path,
+            context_fingerprint="0" * 64,
+            environment_schema_version=1,
+            raw_response_dir=tmp_path / "raw",
+            confirm_invalid_on_fresh_process=True,
+        )
+    )
+    oracle = LeanInteractBackend(
+        BackendSettings(
+            project_dir=tmp_path,
+            context_fingerprint="0" * 64,
+            environment_schema_version=1,
+            raw_response_dir=tmp_path / "raw",
+            enable_incremental_optimization=False,
+            enable_parallel_elaboration=False,
+            environment_is_prepared=True,
+        )
+    )
+    backend._server = contaminated  # type: ignore[assignment]
+    oracle._server = confirmed_invalid  # type: ignore[assignment]
+    monkeypatch.setattr(backend, "_fresh_invalid_confirmation_backend", lambda: oracle)
+
+    result = backend.run(
+        LeanRequest(
+            request_id="sft-confirm-real-invalid",
+            context_id="ctx:" + "0" * 64,
+            code="import Mathlib\ntheorem bad : False := trivial",
+        )
+    )
+
+    assert result.status == LeanStatus.INVALID
+    assert contaminated.calls == confirmed_invalid.calls == 1
+    assert contaminated.killed and confirmed_invalid.killed
+    assert len(tuple((tmp_path / "raw").glob("*.json"))) == 2
+    assert result.raw_response_path is not None
+    assert "invalid-confirmation" in result.raw_response_path
+
+
+def test_sft_invalid_confirmation_infrastructure_failure_never_becomes_invalid(
+    monkeypatch: Any, tmp_path: Path
+) -> None:
+    contaminated = _Server(_Response(_raw([{"severity": "error", "data": "expected token"}])))
+    backend = LeanInteractBackend(
+        BackendSettings(
+            project_dir=tmp_path,
+            context_fingerprint="0" * 64,
+            environment_schema_version=1,
+            raw_response_dir=tmp_path / "raw",
+            confirm_invalid_on_fresh_process=True,
+        )
+    )
+    oracle = LeanInteractBackend(
+        BackendSettings(
+            project_dir=tmp_path,
+            context_fingerprint="0" * 64,
+            environment_schema_version=1,
+            raw_response_dir=tmp_path / "raw",
+            enable_incremental_optimization=False,
+            enable_parallel_elaboration=False,
+            environment_is_prepared=True,
+        )
+    )
+    backend._server = contaminated  # type: ignore[assignment]
+    monkeypatch.setattr(oracle, "_ensure_server", lambda: (_ for _ in ()).throw(OSError("boom")))
+    monkeypatch.setattr(backend, "_fresh_invalid_confirmation_backend", lambda: oracle)
+
+    result = backend.run(
+        LeanRequest(
+            request_id="sft-confirm-invalid-infra",
+            context_id="ctx:" + "0" * 64,
+            code="import Mathlib\ntheorem maybe_bad : True := trivial",
+        )
+    )
+
+    assert result.status == LeanStatus.SETUP_ERROR
+    assert result.infrastructure_error is not None
+    assert contaminated.killed
+    assert len(tuple((tmp_path / "raw").glob("*.json"))) == 2
 
 
 def test_ordinary_unknown_namespace_after_mathlib_is_not_retried(

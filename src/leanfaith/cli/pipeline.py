@@ -83,9 +83,11 @@ FORMALRX_REVISION = "4b7c6b883e0859e9bd38620a539bdcef408f91b4"
 SFT_CLASSIC_REVISION = "0bf9f424309f668c2c2dd214aef6ec5d1d5c042f"
 SCALE_ENVIRONMENT_SETUP_VERSION = "parent_prebuilt_v1"
 DEFAULT_ENVIRONMENT_SETUP_VERSION = "backend_default_v1"
-SFT_CLASSIC_EXECUTION_POLICY = "shared_server_header_cache_nonce_sync_core_recovery_v2"
+SFT_CLASSIC_EXECUTION_POLICY = "shared_server_nonce_sync_fresh_invalid_confirmation_v3"
 SFT_CLASSIC_COMMAND_ISOLATION = COMMAND_ISOLATION_VERSION
-SFT_CLASSIC_METHOD_VERSION = "leaninteract_backend_v3/sft_classic_nonce_isolated_sync_v4"
+SFT_CLASSIC_METHOD_VERSION = (
+    "leaninteract_backend_v3/sft_classic_nonce_sync_fresh_invalid_oracle_v5"
+)
 
 
 def _prepare_scale_lean_environment(
@@ -125,10 +127,11 @@ def _extract_sft_chunk(
 ) -> ExtractStats:
     """Process-safe extraction with cached imports and isolated commands.
 
-    Incrementality retains the REPL's import-header cache.  A deterministic
+    Incrementality retains the REPL's import-header cache. A deterministic
     request-specific transport prefix prevents theorem-body trie states from
-    crossing request boundaries, and synchronous elaboration prevents
-    background work from surviving them.
+    crossing request boundaries, synchronous elaboration prevents background
+    work from surviving them, and a fresh non-incremental process confirms
+    every provisional INVALID before it becomes a semantic terminal outcome.
     """
 
     backend = LeanInteractBackend(
@@ -143,6 +146,7 @@ def _extract_sft_chunk(
             enable_incremental_optimization=True,
             enable_parallel_elaboration=False,
             isolate_incremental_commands=True,
+            confirm_invalid_on_fresh_process=True,
         )
     )
     try:
@@ -285,6 +289,7 @@ def _extract_sft_parallel(
                         "lean_parallel_elaboration": False,
                         "explicit_elab_async": False,
                         "lean_command_isolation": SFT_CLASSIC_COMMAND_ISOLATION,
+                        "lean_fresh_invalid_confirmation": True,
                         "lean_method_version": SFT_CLASSIC_METHOD_VERSION,
                         "code_tree_hash": code_tree_hash,
                         "code_bundle_hash": code_bundle_hash,
@@ -913,6 +918,7 @@ def run_extract(
                     enable_incremental_optimization=True,
                     enable_parallel_elaboration=False,
                     isolate_incremental_commands=True,
+                    confirm_invalid_on_fresh_process=True,
                 )
             )
             try:
@@ -982,6 +988,7 @@ def run_extract(
             "lean_command_isolation": (
                 SFT_CLASSIC_COMMAND_ISOLATION if source == "sft_classic" else None
             ),
+            "lean_fresh_invalid_confirmation": source == "sft_classic",
             "lean_method_version": (
                 SFT_CLASSIC_METHOD_VERSION if source == "sft_classic" else None
             ),
