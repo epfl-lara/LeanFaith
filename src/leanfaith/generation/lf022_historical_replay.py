@@ -18,8 +18,9 @@ import subprocess
 import sys
 import tempfile
 from collections.abc import Iterator
+from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
-from typing import Literal, Self
+from typing import Literal, Self, TypeGuard
 
 from pydantic import Field, model_validator
 
@@ -293,24 +294,226 @@ def _copy_exact_file(
     return destination
 
 
-def _binding_candidates(value: object) -> list[tuple[str, str]]:
-    result: list[tuple[str, str]] = []
+def _is_sha256(value: object) -> TypeGuard[str]:
+    return (
+        isinstance(value, str)
+        and len(value) == 64
+        and all(character in "0123456789abcdef" for character in value)
+    )
+
+
+@dataclass(frozen=True)
+class _DiscoveredBinding:
+    path: str
+    sha256: str
+    follow_bindings: bool
+
+
+def _is_identifier(value: object, prefix: str) -> bool:
+    return (
+        isinstance(value, str)
+        and value.startswith(f"{prefix}:")
+        and _is_sha256(value.removeprefix(f"{prefix}:"))
+    )
+
+
+def _record_binding(
+    value: dict[object, object],
+    *,
+    path_key: str,
+    digest_key: str,
+    required: bool,
+    follow_bindings: bool,
+) -> list[_DiscoveredBinding]:
+    path = value.get(path_key)
+    digest = value.get(digest_key)
+    if not required and path is None and digest is None:
+        return []
+    if not isinstance(path, str) or not path or not _is_sha256(digest):
+        raise LF022HistoricalReplayError(
+            f"historical record has incomplete or invalid {path_key}/{digest_key} binding"
+        )
+    return [_DiscoveredBinding(path, digest, follow_bindings)]
+
+
+def _record_binding_list(
+    value: dict[object, object],
+    *,
+    paths_key: str,
+    digests_key: str,
+) -> list[_DiscoveredBinding]:
+    paths = value.get(paths_key)
+    digests = value.get(digests_key)
+    if (
+        not isinstance(paths, list)
+        or not paths
+        or not isinstance(digests, list)
+        or len(paths) != len(digests)
+    ):
+        raise LF022HistoricalReplayError(
+            f"historical record has incomplete or invalid {paths_key}/{digests_key} bindings"
+        )
+    result: list[_DiscoveredBinding] = []
+    for path, digest in zip(paths, digests, strict=True):
+        if not isinstance(path, str) or not path or not _is_sha256(digest):
+            raise LF022HistoricalReplayError(
+                f"historical record has incomplete or invalid {paths_key}/{digests_key} bindings"
+            )
+        result.append(_DiscoveredBinding(path, digest, True))
+    return result
+
+
+def _explicit_record_bindings(
+    value: dict[object, object],
+) -> list[_DiscoveredBinding] | None:
+    if _is_identifier(value.get("terminal_id"), "lf022_execution_terminal"):
+        terminal_bindings = _record_binding_list(
+            value,
+            paths_key="attempt_artifacts",
+            digests_key="attempt_sha256s",
+        )
+        terminal_bindings.extend(
+            _record_binding_list(
+                value,
+                paths_key="llm_attempt_artifacts",
+                digests_key="llm_attempt_sha256s",
+            )
+        )
+        terminal_bindings.extend(
+            _record_binding(
+                value,
+                path_key="llm_call_artifact",
+                digest_key="llm_call_sha256",
+                required=True,
+                follow_bindings=True,
+            )
+        )
+        terminal_bindings.extend(
+            _record_binding(
+                value,
+                path_key="variants_artifact",
+                digest_key="variants_sha256",
+                required=False,
+                follow_bindings=False,
+            )
+        )
+        return terminal_bindings
+
+    if (
+        _is_identifier(value.get("execution_task_id"), "lf022_execution_task")
+        and _is_identifier(value.get("provider_attempt_id"), "provider-attempt")
+        and isinstance(value.get("attempt_index"), int)
+        and not isinstance(value.get("attempt_index"), bool)
+    ):
+        execution_attempt_bindings: list[_DiscoveredBinding] = []
+        for path_key, digest_key in (
+            ("request_artifact", "request_sha256"),
+            ("wire_request_artifact", "wire_request_sha256"),
+            ("provider_raw_artifact", "provider_raw_sha256"),
+        ):
+            execution_attempt_bindings.extend(
+                _record_binding(
+                    value,
+                    path_key=path_key,
+                    digest_key=digest_key,
+                    required=True,
+                    follow_bindings=False,
+                )
+            )
+        response_keys = (
+            "wire_response_body_artifact",
+            "wire_response_body_sha256",
+            "wire_response_metadata_artifact",
+            "wire_response_metadata_sha256",
+        )
+        response_values = tuple(value.get(key) for key in response_keys)
+        if any(item is not None for item in response_values):
+            if any(item is None for item in response_values):
+                raise LF022HistoricalReplayError(
+                    "historical execution attempt has an incomplete wire response binding"
+                )
+            execution_attempt_bindings.extend(
+                _record_binding(
+                    value,
+                    path_key="wire_response_body_artifact",
+                    digest_key="wire_response_body_sha256",
+                    required=True,
+                    follow_bindings=False,
+                )
+            )
+            execution_attempt_bindings.extend(
+                _record_binding(
+                    value,
+                    path_key="wire_response_metadata_artifact",
+                    digest_key="wire_response_metadata_sha256",
+                    required=True,
+                    follow_bindings=False,
+                )
+            )
+        return execution_attempt_bindings
+
+    if _is_identifier(value.get("attempt_id"), "call_attempt") and _is_identifier(
+        value.get("call_id"), "call"
+    ):
+        llm_attempt_bindings = _record_binding(
+            value,
+            path_key="request_artifact",
+            digest_key="request_artifact_sha256",
+            required=False,
+            follow_bindings=False,
+        )
+        llm_attempt_bindings.extend(
+            _record_binding(
+                value,
+                path_key="raw_response_artifact",
+                digest_key="raw_response_sha256",
+                required=False,
+                follow_bindings=False,
+            )
+        )
+        return llm_attempt_bindings
+
+    if _is_identifier(value.get("call_id"), "call") and "attempt_id" not in value:
+        llm_call_bindings = _record_binding(
+            value,
+            path_key="request_artifact",
+            digest_key="request_artifact_sha256",
+            required=False,
+            follow_bindings=False,
+        )
+        llm_call_bindings.extend(
+            _record_binding(
+                value,
+                path_key="raw_output_artifact",
+                digest_key="raw_response_sha256",
+                required=False,
+                follow_bindings=False,
+            )
+        )
+        return llm_call_bindings
+    return None
+
+
+def _binding_candidates_with_policy(value: object) -> list[_DiscoveredBinding]:
+    result: list[_DiscoveredBinding] = []
     if isinstance(value, dict):
+        explicit = _explicit_record_bindings(value)
+        if explicit is not None:
+            return explicit
         path = value.get("path")
         digest = value.get("sha256")
-        if (
-            isinstance(path, str)
-            and isinstance(digest, str)
-            and len(digest) == 64
-            and all(character in "0123456789abcdef" for character in digest)
-        ):
-            result.append((path, digest))
+        if isinstance(path, str) and _is_sha256(digest):
+            result.append(_DiscoveredBinding(path, digest, True))
         for child in value.values():
-            result.extend(_binding_candidates(child))
+            result.extend(_binding_candidates_with_policy(child))
     elif isinstance(value, list):
         for child in value:
-            result.extend(_binding_candidates(child))
+            result.extend(_binding_candidates_with_policy(child))
     return result
+
+
+def _binding_candidates(value: object) -> list[tuple[str, str]]:
+    return [(binding.path, binding.sha256) for binding in _binding_candidates_with_policy(value)]
 
 
 def _json_values(path: Path) -> Iterator[object]:
@@ -335,27 +538,34 @@ def _copy_binding_closure(
     historical_root: Path,
     initial: tuple[LF022ArtifactBinding, ...],
 ) -> None:
-    queue: list[tuple[str, str]] = []
+    queue: list[tuple[str, str, bool]] = []
     discovered: dict[str, str] = {}
+    binding_scans_requested: set[str] = set()
+    binding_scans_completed: set[str] = set()
 
-    def enqueue(relative_text: str, digest: str) -> None:
+    def enqueue(relative_text: str, digest: str, *, follow_bindings: bool) -> None:
         prior = discovered.get(relative_text)
         if prior is not None:
             if prior != digest:
                 raise LF022HistoricalReplayError(
                     f"artifact closure has conflicting hashes for {relative_text}"
                 )
+            if follow_bindings and relative_text not in binding_scans_requested:
+                binding_scans_requested.add(relative_text)
+                queue.append((relative_text, digest, True))
             return
         if len(discovered) >= _ARTIFACT_BINDING_CLOSURE_LIMIT:
             raise LF022HistoricalReplayError("artifact binding closure exceeds safety limit")
         discovered[relative_text] = digest
-        queue.append((relative_text, digest))
+        if follow_bindings:
+            binding_scans_requested.add(relative_text)
+        queue.append((relative_text, digest, follow_bindings))
 
     for binding in initial:
-        enqueue(binding.path, binding.sha256)
+        enqueue(binding.path, binding.sha256, follow_bindings=True)
 
     while queue:
-        relative_text, digest = queue.pop()
+        relative_text, digest, follow_bindings = queue.pop()
         relative = _safe_relative(relative_text, label="bound artifact")
         copied = _copy_exact_file(
             source_root=source_root,
@@ -364,9 +574,16 @@ def _copy_binding_closure(
             expected_sha256=digest,
             label="bound artifact",
         )
+        if not follow_bindings or relative_text in binding_scans_completed:
+            continue
+        binding_scans_completed.add(relative_text)
         for value in _json_values(copied):
-            for child_path, child_digest in _binding_candidates(value):
-                enqueue(child_path, child_digest)
+            for child in _binding_candidates_with_policy(value):
+                enqueue(
+                    child.path,
+                    child.sha256,
+                    follow_bindings=child.follow_bindings,
+                )
 
 
 def _copy_task_directory(

@@ -14,6 +14,7 @@ import leanfaith.generation.lf022_historical_replay as historical_replay
 from leanfaith.config.hashing import canonical_json_bytes, hash_file
 from leanfaith.generation.lf022_historical_replay import (
     LF022HistoricalReplayError,
+    _binding_candidates,
     _copy_binding_closure,
     _json_values,
     _launch_historical_subprocess,
@@ -271,6 +272,301 @@ def test_jsonl_binding_scan_does_not_use_whole_file_read_text(
     monkeypatch.setattr(Path, "read_bytes", reject_read_bytes)
 
     assert tuple(_json_values(artifact)) == ({"index": 1}, {"index": 2})
+
+
+def test_binding_candidates_cover_explicit_historical_record_shapes() -> None:
+    digests = {
+        "attempt": "1" * 64,
+        "llm_attempt": "2" * 64,
+        "llm_call": "3" * 64,
+        "variants": "4" * 64,
+        "request": "5" * 64,
+        "wire_request": "6" * 64,
+        "wire_body": "7" * 64,
+        "wire_metadata": "8" * 64,
+        "provider_raw": "9" * 64,
+        "llm_request": "a" * 64,
+        "llm_raw": "b" * 64,
+        "call_request": "c" * 64,
+        "raw_output": "d" * 64,
+    }
+    terminal = {
+        "terminal_id": f"lf022_execution_terminal:{'e' * 64}",
+        "execution_task_id": f"lf022_execution_task:{'f' * 64}",
+        "attempt_artifacts": ["data/attempt.json"],
+        "attempt_sha256s": [digests["attempt"]],
+        "llm_attempt_artifacts": ["data/llm_attempt.json"],
+        "llm_attempt_sha256s": [digests["llm_attempt"]],
+        "llm_call_artifact": "data/llm_call.json",
+        "llm_call_sha256": digests["llm_call"],
+        "variants_artifact": "data/variants.jsonl",
+        "variants_sha256": digests["variants"],
+    }
+    attempt = {
+        "execution_task_id": f"lf022_execution_task:{'f' * 64}",
+        "provider_attempt_id": f"provider-attempt:{'1' * 64}",
+        "attempt_index": 0,
+        "request_artifact": "data/request.json",
+        "request_sha256": digests["request"],
+        "wire_request_artifact": "data/wire_request.json",
+        "wire_request_sha256": digests["wire_request"],
+        "wire_response_body_artifact": "data/wire_body.json",
+        "wire_response_body_sha256": digests["wire_body"],
+        "wire_response_metadata_artifact": "data/wire_metadata.json",
+        "wire_response_metadata_sha256": digests["wire_metadata"],
+        "provider_raw_artifact": "data/provider_raw.json",
+        "provider_raw_sha256": digests["provider_raw"],
+    }
+    llm_attempt = {
+        "attempt_id": f"call_attempt:{'2' * 64}",
+        "call_id": f"call:{'3' * 64}",
+        "attempt_index": 0,
+        "request_artifact": "data/llm_request.json",
+        "request_artifact_sha256": digests["llm_request"],
+        "raw_response_artifact": "data/llm_raw.json",
+        "raw_response_sha256": digests["llm_raw"],
+    }
+    llm_call = {
+        "call_id": f"call:{'3' * 64}",
+        "request_artifact": "data/call_request.json",
+        "request_artifact_sha256": digests["call_request"],
+        "raw_output_artifact": "data/raw_output.json",
+        "raw_response_sha256": digests["raw_output"],
+        "parsed_output": {
+            "path": "data/untrusted-generic.json",
+            "sha256": "0" * 64,
+            "request_artifact": "data/untrusted-suffix.json",
+            "request_artifact_sha256": "0" * 64,
+        },
+    }
+
+    assert set(_binding_candidates(terminal)) == {
+        ("data/attempt.json", digests["attempt"]),
+        ("data/llm_attempt.json", digests["llm_attempt"]),
+        ("data/llm_call.json", digests["llm_call"]),
+        ("data/variants.jsonl", digests["variants"]),
+    }
+    assert set(_binding_candidates(attempt)) == {
+        ("data/request.json", digests["request"]),
+        ("data/wire_request.json", digests["wire_request"]),
+        ("data/wire_body.json", digests["wire_body"]),
+        ("data/wire_metadata.json", digests["wire_metadata"]),
+        ("data/provider_raw.json", digests["provider_raw"]),
+    }
+    assert set(_binding_candidates(llm_attempt)) == {
+        ("data/llm_request.json", digests["llm_request"]),
+        ("data/llm_raw.json", digests["llm_raw"]),
+    }
+    assert set(_binding_candidates(llm_call)) == {
+        ("data/call_request.json", digests["call_request"]),
+        ("data/raw_output.json", digests["raw_output"]),
+    }
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {
+            "terminal_id": f"lf022_execution_terminal:{'1' * 64}",
+            "execution_task_id": f"lf022_execution_task:{'2' * 64}",
+            "attempt_artifacts": ["data/attempt-0.json", "data/attempt-1.json"],
+            "attempt_sha256s": ["3" * 64],
+            "llm_attempt_artifacts": ["data/llm-attempt.json"],
+            "llm_attempt_sha256s": ["4" * 64],
+            "llm_call_artifact": "data/llm-call.json",
+            "llm_call_sha256": "5" * 64,
+        },
+        {
+            "execution_task_id": f"lf022_execution_task:{'2' * 64}",
+            "provider_attempt_id": f"provider-attempt:{'3' * 64}",
+            "attempt_index": 0,
+            "request_artifact": "data/request.json",
+            "request_sha256": "not-a-digest",
+        },
+        {
+            "attempt_id": f"call_attempt:{'4' * 64}",
+            "call_id": f"call:{'5' * 64}",
+            "attempt_index": 0,
+            "request_artifact": "data/request.json",
+            "request_artifact_sha256": None,
+        },
+        {
+            "call_id": f"call:{'5' * 64}",
+            "raw_output_artifact": "data/raw-output.json",
+            "raw_response_sha256": None,
+        },
+        {
+            "terminal_id": f"lf022_execution_terminal:{'1' * 64}",
+            "execution_task_id": f"lf022_execution_task:{'2' * 64}",
+            "attempt_artifacts": ["data/attempt.json"],
+            "attempt_sha256s": ["3" * 64],
+            "llm_attempt_artifacts": ["data/llm-attempt.json"],
+            "llm_attempt_sha256s": ["4" * 64],
+            "llm_call_artifact": "data/llm-call.json",
+            "llm_call_sha256": "5" * 64,
+            "variants_artifact": "data/variants.jsonl",
+            "variants_sha256": None,
+        },
+        {
+            "execution_task_id": f"lf022_execution_task:{'2' * 64}",
+            "provider_attempt_id": f"provider-attempt:{'3' * 64}",
+            "attempt_index": 0,
+            "request_artifact": "data/request.json",
+            "request_sha256": "4" * 64,
+            "wire_request_artifact": "data/wire-request.json",
+            "wire_request_sha256": "5" * 64,
+            "provider_raw_artifact": "data/provider-raw.json",
+            "provider_raw_sha256": "6" * 64,
+            "wire_response_body_artifact": "data/wire-body.json",
+            "wire_response_body_sha256": None,
+        },
+        {
+            "execution_task_id": f"lf022_execution_task:{'2' * 64}",
+            "provider_attempt_id": f"provider-attempt:{'3' * 64}",
+            "attempt_index": 0,
+            "request_artifact": "data/request.json",
+            "request_sha256": "4" * 64,
+            "wire_request_artifact": "data/wire-request.json",
+            "wire_request_sha256": "5" * 64,
+            "provider_raw_artifact": "data/provider-raw.json",
+            "provider_raw_sha256": "6" * 64,
+            "wire_response_body_artifact": "data/wire-body.json",
+            "wire_response_body_sha256": "7" * 64,
+            "wire_response_metadata_artifact": "data/wire-metadata.json",
+            "wire_response_metadata_sha256": None,
+        },
+    ],
+)
+def test_binding_candidates_fail_closed_on_malformed_explicit_record_bindings(
+    payload: dict[str, object],
+) -> None:
+    with pytest.raises(LF022HistoricalReplayError):
+        _binding_candidates(payload)
+
+
+def test_binding_closure_copies_terminal_attempt_and_llm_call_leaves(tmp_path: Path) -> None:
+    source = tmp_path / "source"
+    historical = tmp_path / "historical"
+    historical.mkdir()
+
+    leaves = {
+        "request": source / "data/leaves/request.txt",
+        "wire_request": source / "data/leaves/wire_request.txt",
+        "wire_body": source / "data/leaves/wire_body.txt",
+        "wire_metadata": source / "data/leaves/wire_metadata.txt",
+        "provider_raw": source / "data/leaves/provider_raw.txt",
+        "llm_request": source / "data/leaves/llm_request.txt",
+        "llm_raw": source / "data/leaves/llm_raw.txt",
+        "call_request": source / "data/leaves/call_request.txt",
+        "call_output": source / "data/leaves/call_output.txt",
+        "variants": source / "data/leaves/variants.txt",
+    }
+    for name, path in leaves.items():
+        _write(path, f"{name}\n")
+
+    attempt = source / "data/executor/attempt.json"
+    attempt.parent.mkdir(parents=True, exist_ok=True)
+    attempt.write_bytes(
+        canonical_json_bytes(
+            {
+                "execution_task_id": f"lf022_execution_task:{'1' * 64}",
+                "provider_attempt_id": f"provider-attempt:{'2' * 64}",
+                "attempt_index": 0,
+                "request_artifact": leaves["request"].relative_to(source).as_posix(),
+                "request_sha256": hash_file(leaves["request"]),
+                "wire_request_artifact": leaves["wire_request"].relative_to(source).as_posix(),
+                "wire_request_sha256": hash_file(leaves["wire_request"]),
+                "wire_response_body_artifact": leaves["wire_body"].relative_to(source).as_posix(),
+                "wire_response_body_sha256": hash_file(leaves["wire_body"]),
+                "wire_response_metadata_artifact": leaves["wire_metadata"]
+                .relative_to(source)
+                .as_posix(),
+                "wire_response_metadata_sha256": hash_file(leaves["wire_metadata"]),
+                "provider_raw_artifact": leaves["provider_raw"].relative_to(source).as_posix(),
+                "provider_raw_sha256": hash_file(leaves["provider_raw"]),
+            }
+        )
+    )
+
+    llm_attempt = source / "data/executor/llm_attempt.json"
+    llm_attempt.write_bytes(
+        canonical_json_bytes(
+            {
+                "attempt_id": f"call_attempt:{'3' * 64}",
+                "call_id": f"call:{'4' * 64}",
+                "attempt_index": 0,
+                "request_artifact": leaves["llm_request"].relative_to(source).as_posix(),
+                "request_artifact_sha256": hash_file(leaves["llm_request"]),
+                "raw_response_artifact": leaves["llm_raw"].relative_to(source).as_posix(),
+                "raw_response_sha256": hash_file(leaves["llm_raw"]),
+            }
+        )
+    )
+
+    llm_call = source / "data/executor/llm_call.json"
+    llm_call.write_bytes(
+        canonical_json_bytes(
+            {
+                "call_id": f"call:{'4' * 64}",
+                "request_artifact": leaves["call_request"].relative_to(source).as_posix(),
+                "request_artifact_sha256": hash_file(leaves["call_request"]),
+                "raw_output_artifact": leaves["call_output"].relative_to(source).as_posix(),
+                "raw_response_sha256": hash_file(leaves["call_output"]),
+                "parsed_output": {
+                    "path": "data/untrusted-generic.json",
+                    "sha256": "0" * 64,
+                    "request_artifact": "data/untrusted-suffix.json",
+                    "request_artifact_sha256": "0" * 64,
+                },
+            }
+        )
+    )
+
+    terminal = source / "data/executor/terminal.json"
+    terminal.write_bytes(
+        canonical_json_bytes(
+            {
+                "terminal_id": f"lf022_execution_terminal:{'5' * 64}",
+                "execution_task_id": f"lf022_execution_task:{'1' * 64}",
+                "attempt_artifacts": [attempt.relative_to(source).as_posix()],
+                "attempt_sha256s": [hash_file(attempt)],
+                "llm_attempt_artifacts": [llm_attempt.relative_to(source).as_posix()],
+                "llm_attempt_sha256s": [hash_file(llm_attempt)],
+                "llm_call_artifact": llm_call.relative_to(source).as_posix(),
+                "llm_call_sha256": hash_file(llm_call),
+                "variants_artifact": leaves["variants"].relative_to(source).as_posix(),
+                "variants_sha256": hash_file(leaves["variants"]),
+            }
+        )
+    )
+
+    manifest = source / "data/manifest.json"
+    manifest.write_bytes(
+        canonical_json_bytes(
+            {
+                "terminal": {
+                    "path": terminal.relative_to(source).as_posix(),
+                    "sha256": hash_file(terminal),
+                }
+            }
+        )
+    )
+
+    _copy_binding_closure(
+        source_root=source,
+        historical_root=historical,
+        initial=(
+            LF022ArtifactBinding(
+                path=manifest.relative_to(source).as_posix(),
+                sha256=hash_file(manifest),
+            ),
+        ),
+    )
+
+    expected = [manifest, terminal, attempt, llm_attempt, llm_call, *leaves.values()]
+    for source_path in expected:
+        copied_path = historical / source_path.relative_to(source)
+        assert copied_path.read_bytes() == source_path.read_bytes()
 
 
 def test_binding_closure_discovers_children_from_streamed_jsonl(tmp_path: Path) -> None:
