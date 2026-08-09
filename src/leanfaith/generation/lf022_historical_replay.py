@@ -30,6 +30,8 @@ from leanfaith.generation.lf022_batch import VerifiedLF022BatchTask
 from leanfaith.generation.lf022_production import LF022ArtifactBinding
 from leanfaith.schemas.ids import HEX64_PATTERN, id_pattern
 
+_ARTIFACT_BINDING_CLOSURE_LIMIT = 100_000
+
 
 class LF022HistoricalReplayError(RuntimeError):
     """The admission-bound historical replay could not be established exactly."""
@@ -333,19 +335,27 @@ def _copy_binding_closure(
     historical_root: Path,
     initial: tuple[LF022ArtifactBinding, ...],
 ) -> None:
-    queue = [(binding.path, binding.sha256) for binding in initial]
-    observed: dict[str, str] = {}
-    while queue:
-        relative_text, digest = queue.pop()
-        prior = observed.get(relative_text)
+    queue: list[tuple[str, str]] = []
+    discovered: dict[str, str] = {}
+
+    def enqueue(relative_text: str, digest: str) -> None:
+        prior = discovered.get(relative_text)
         if prior is not None:
             if prior != digest:
                 raise LF022HistoricalReplayError(
                     f"artifact closure has conflicting hashes for {relative_text}"
                 )
-            continue
-        if len(observed) >= 100_000:
+            return
+        if len(discovered) >= _ARTIFACT_BINDING_CLOSURE_LIMIT:
             raise LF022HistoricalReplayError("artifact binding closure exceeds safety limit")
+        discovered[relative_text] = digest
+        queue.append((relative_text, digest))
+
+    for binding in initial:
+        enqueue(binding.path, binding.sha256)
+
+    while queue:
+        relative_text, digest = queue.pop()
         relative = _safe_relative(relative_text, label="bound artifact")
         copied = _copy_exact_file(
             source_root=source_root,
@@ -354,9 +364,9 @@ def _copy_binding_closure(
             expected_sha256=digest,
             label="bound artifact",
         )
-        observed[relative_text] = digest
         for value in _json_values(copied):
-            queue.extend(_binding_candidates(value))
+            for child_path, child_digest in _binding_candidates(value):
+                enqueue(child_path, child_digest)
 
 
 def _copy_task_directory(

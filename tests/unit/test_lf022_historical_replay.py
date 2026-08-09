@@ -10,6 +10,7 @@ from typing import Any, cast
 
 import pytest
 
+import leanfaith.generation.lf022_historical_replay as historical_replay
 from leanfaith.config.hashing import canonical_json_bytes, hash_file
 from leanfaith.generation.lf022_historical_replay import (
     LF022HistoricalReplayError,
@@ -281,14 +282,18 @@ def test_binding_closure_discovers_children_from_streamed_jsonl(tmp_path: Path) 
     _write(first, "first\n")
     _write(second, "second\n")
     records = source / "data/records.jsonl"
+    first_binding = {
+        "path": first.relative_to(source).as_posix(),
+        "sha256": hash_file(first),
+    }
     records.write_bytes(
-        canonical_json_bytes(
-            {"path": first.relative_to(source).as_posix(), "sha256": hash_file(first)}
-        )
+        canonical_json_bytes(first_binding)
         + b"\n"
         + canonical_json_bytes(
             {"path": second.relative_to(source).as_posix(), "sha256": hash_file(second)}
         )
+        + b"\n"
+        + canonical_json_bytes(first_binding)
         + b"\n"
     )
     manifest = source / "data/manifest.json"
@@ -316,6 +321,146 @@ def test_binding_closure_discovers_children_from_streamed_jsonl(tmp_path: Path) 
 
     assert (historical / first.relative_to(source)).read_bytes() == b"first\n"
     assert (historical / second.relative_to(source)).read_bytes() == b"second\n"
+
+
+def test_binding_closure_rejects_conflicting_duplicate_discovered_in_jsonl(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "source"
+    historical = tmp_path / "historical"
+    historical.mkdir()
+    child = source / "data/child.txt"
+    _write(child, "child\n")
+    child_path = child.relative_to(source).as_posix()
+    records = source / "data/records.jsonl"
+    records.write_bytes(
+        canonical_json_bytes({"path": child_path, "sha256": hash_file(child)})
+        + b"\n"
+        + canonical_json_bytes({"path": child_path, "sha256": "0" * 64})
+        + b"\n"
+    )
+    manifest = source / "data/manifest.json"
+    manifest.write_bytes(
+        canonical_json_bytes(
+            {
+                "records": {
+                    "path": records.relative_to(source).as_posix(),
+                    "sha256": hash_file(records),
+                }
+            }
+        )
+    )
+
+    with pytest.raises(LF022HistoricalReplayError, match="conflicting hashes"):
+        _copy_binding_closure(
+            source_root=source,
+            historical_root=historical,
+            initial=(
+                LF022ArtifactBinding(
+                    path=manifest.relative_to(source).as_posix(),
+                    sha256=hash_file(manifest),
+                ),
+            ),
+        )
+
+
+def test_binding_closure_duplicate_bindings_do_not_consume_unique_limit(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source = tmp_path / "source"
+    historical = tmp_path / "historical"
+    historical.mkdir()
+    child = source / "data/child.txt"
+    _write(child, "child\n")
+    binding = (
+        canonical_json_bytes(
+            {"path": child.relative_to(source).as_posix(), "sha256": hash_file(child)}
+        )
+        + b"\n"
+    )
+    records = source / "data/records.jsonl"
+    records.parent.mkdir(parents=True, exist_ok=True)
+    records.write_bytes(binding * 2_000)
+    manifest = source / "data/manifest.json"
+    manifest.write_bytes(
+        canonical_json_bytes(
+            {
+                "records": {
+                    "path": records.relative_to(source).as_posix(),
+                    "sha256": hash_file(records),
+                }
+            }
+        )
+    )
+    monkeypatch.setattr(historical_replay, "_ARTIFACT_BINDING_CLOSURE_LIMIT", 3)
+
+    _copy_binding_closure(
+        source_root=source,
+        historical_root=historical,
+        initial=(
+            LF022ArtifactBinding(
+                path=manifest.relative_to(source).as_posix(),
+                sha256=hash_file(manifest),
+            ),
+        ),
+    )
+
+    assert (historical / child.relative_to(source)).read_bytes() == b"child\n"
+
+
+def test_binding_closure_limit_rejects_extra_unique_before_child_copy(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source = tmp_path / "source"
+    historical = tmp_path / "historical"
+    historical.mkdir()
+    first = source / "data/first.txt"
+    second = source / "data/second.txt"
+    _write(first, "first\n")
+    _write(second, "second\n")
+    first_binding = (
+        canonical_json_bytes(
+            {"path": first.relative_to(source).as_posix(), "sha256": hash_file(first)}
+        )
+        + b"\n"
+    )
+    second_binding = (
+        canonical_json_bytes(
+            {"path": second.relative_to(source).as_posix(), "sha256": hash_file(second)}
+        )
+        + b"\n"
+    )
+    records = source / "data/records.jsonl"
+    records.write_bytes(first_binding * 2_000 + second_binding)
+    manifest = source / "data/manifest.json"
+    manifest.write_bytes(
+        canonical_json_bytes(
+            {
+                "records": {
+                    "path": records.relative_to(source).as_posix(),
+                    "sha256": hash_file(records),
+                }
+            }
+        )
+    )
+    monkeypatch.setattr(historical_replay, "_ARTIFACT_BINDING_CLOSURE_LIMIT", 3)
+
+    with pytest.raises(LF022HistoricalReplayError, match="closure exceeds safety limit"):
+        _copy_binding_closure(
+            source_root=source,
+            historical_root=historical,
+            initial=(
+                LF022ArtifactBinding(
+                    path=manifest.relative_to(source).as_posix(),
+                    sha256=hash_file(manifest),
+                ),
+            ),
+        )
+
+    assert not (historical / first.relative_to(source)).exists()
+    assert not (historical / second.relative_to(source)).exists()
 
 
 def test_historical_replay_rejects_tampered_bundle_binding(tmp_path: Path) -> None:
