@@ -79,6 +79,8 @@ FORMALRX_REVISION = "4b7c6b883e0859e9bd38620a539bdcef408f91b4"
 SFT_CLASSIC_REVISION = "0bf9f424309f668c2c2dd214aef6ec5d1d5c042f"
 SCALE_ENVIRONMENT_SETUP_VERSION = "parent_prebuilt_v1"
 DEFAULT_ENVIRONMENT_SETUP_VERSION = "backend_default_v1"
+SFT_CLASSIC_EXECUTION_POLICY = "shared_server_stateless_commands_v1"
+SFT_CLASSIC_METHOD_VERSION = "leaninteract_backend_v2/sft_classic_stateless_v1"
 
 
 def _prepare_scale_lean_environment(
@@ -116,7 +118,15 @@ def _extract_sft_chunk(
     job_hash: str,
     environment_is_prepared: bool = False,
 ) -> ExtractStats:
-    """Process-safe extraction unit with one stable LeanInteract server."""
+    """Process-safe extraction unit with one stable, stateless-command server.
+
+    Every dataset snippet is a complete, environment-free Lean command.  The
+    pinned REPL's incremental optimization keeps a trie of command-prefix
+    states across calls; a damaged prefix can therefore make one source row's
+    parser/environment state affect a later independent row.  Reuse the
+    process for bounded startup cost, but deliberately disable cross-command
+    incremental state for extraction correctness and replay stability.
+    """
 
     backend = LeanInteractBackend(
         BackendSettings(
@@ -126,6 +136,8 @@ def _extract_sft_chunk(
             raw_response_dir=raw_response_dir,
             memory_hard_limit_mb=memory_hard_limit_mb,
             environment_is_prepared=environment_is_prepared,
+            method_version=SFT_CLASSIC_METHOD_VERSION,
+            enable_incremental_optimization=False,
         )
     )
     try:
@@ -263,6 +275,9 @@ def _extract_sft_parallel(
                         "rows": rows[start:stop],
                         "context_id": context_id,
                         "adapter": "extract_v2",
+                        "execution_isolation_policy": SFT_CLASSIC_EXECUTION_POLICY,
+                        "lean_incremental_optimization": False,
+                        "lean_method_version": SFT_CLASSIC_METHOD_VERSION,
                         "code_tree_hash": code_tree_hash,
                         "code_bundle_hash": code_bundle_hash,
                         "memory_hard_limit_mb": memory_hard_limit_mb,
@@ -886,6 +901,8 @@ def run_extract(
                     environment_schema_version=1,
                     raw_response_dir=raw_response_dir,
                     memory_hard_limit_mb=memory_hard_limit_mb,
+                    method_version=SFT_CLASSIC_METHOD_VERSION,
+                    enable_incremental_optimization=False,
                 )
             )
             try:
@@ -946,6 +963,13 @@ def run_extract(
             "workers": workers,
             "chunk_size": chunk_size,
             "memory_hard_limit_mb": memory_hard_limit_mb,
+            "execution_isolation_policy": (
+                SFT_CLASSIC_EXECUTION_POLICY if source == "sft_classic" else None
+            ),
+            "lean_incremental_optimization": source != "sft_classic",
+            "lean_method_version": (
+                SFT_CLASSIC_METHOD_VERSION if source == "sft_classic" else None
+            ),
             "leaninteract_environment_setup": (
                 SCALE_ENVIRONMENT_SETUP_VERSION
                 if chunked_environment_setup

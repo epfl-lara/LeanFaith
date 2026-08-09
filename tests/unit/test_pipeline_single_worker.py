@@ -219,6 +219,7 @@ def test_single_worker_constructs_and_closes_one_backend_per_chunk(
     closed = 0
     active = 0
     maximum_active = 0
+    observed_settings: list[Any] = []
 
     class FakeBackend:
         def __init__(self, settings: Any) -> None:
@@ -226,6 +227,7 @@ def test_single_worker_constructs_and_closes_one_backend_per_chunk(
             constructed += 1
             active += 1
             maximum_active = max(maximum_active, active)
+            observed_settings.append(settings)
 
         def close(self) -> None:
             nonlocal closed, active
@@ -259,9 +261,147 @@ def test_single_worker_constructs_and_closes_one_backend_per_chunk(
 
     pipeline._extract_sft_parallel(**kwargs)
     assert (constructed, closed, active, maximum_active) == (3, 3, 0, 1)
+    assert len(observed_settings) == 3
+    assert all(not settings.enable_incremental_optimization for settings in observed_settings)
+    assert all(
+        settings.method_version == pipeline.SFT_CLASSIC_METHOD_VERSION
+        for settings in observed_settings
+    )
 
     pipeline._extract_sft_parallel(**kwargs)
     assert (constructed, closed, active, maximum_active) == (3, 3, 0, 1)
+
+
+def test_direct_sft_path_uses_stateless_backend_and_binds_manifest(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    observed_settings: list[Any] = []
+    observed_manifest: dict[str, Any] = {}
+    context_id = "ctx:" + "a" * 64
+    input_path = tmp_path / "sft.jsonl"
+    input_path.write_text('{"uuid":"fixture"}\n', encoding="utf-8")
+
+    class FakeBackend:
+        def __init__(self, settings: Any) -> None:
+            observed_settings.append(settings)
+
+        def close(self) -> None:
+            pass
+
+    monkeypatch.setattr(pipeline, "LeanInteractBackend", FakeBackend)
+    monkeypatch.setattr(
+        pipeline,
+        "build_mathlib_context",
+        lambda paths, project_dir: (
+            SimpleNamespace(context_id=context_id, context_fingerprint="a" * 64),
+            "b" * 64,
+        ),
+    )
+    monkeypatch.setattr(
+        pipeline,
+        "collect_code_state",
+        lambda root: SimpleNamespace(code_tree_hash="c" * 64),
+    )
+    monkeypatch.setattr(pipeline, "hash_file", lambda path: "d" * 64)
+    monkeypatch.setattr(
+        pipeline,
+        "extract_sft_classic_rows",
+        lambda backend, rows, **kwargs: _terminal_stats(len(rows)),
+    )
+
+    def fake_manifest(stats: ExtractStats, **kwargs: Any) -> Path:
+        observed_manifest.update(kwargs)
+        return tmp_path / "manifest.json"
+
+    monkeypatch.setattr(pipeline, "write_extraction_manifest", fake_manifest)
+
+    manifest, stats = pipeline.run_extract(
+        paths=RepoPaths(root=tmp_path),
+        source="sft_classic",
+        project_dir=tmp_path / "mathlib",
+        input_path=input_path,
+        out_dir=tmp_path / "out",
+        limit=None,
+        split="train",
+        row_offset=0,
+        workers=1,
+        chunk_size=100,
+    )
+
+    assert manifest == tmp_path / "manifest.json"
+    assert stats["sources_processed"] == 1
+    assert len(observed_settings) == 1
+    assert observed_settings[0].enable_incremental_optimization is False
+    assert observed_settings[0].method_version == pipeline.SFT_CLASSIC_METHOD_VERSION
+    config = observed_manifest["config_payload"]
+    assert config["execution_isolation_policy"] == pipeline.SFT_CLASSIC_EXECUTION_POLICY
+    assert config["lean_incremental_optimization"] is False
+    assert config["lean_method_version"] == pipeline.SFT_CLASSIC_METHOD_VERSION
+    assert config["leaninteract_environment_setup"] == (pipeline.DEFAULT_ENVIRONMENT_SETUP_VERSION)
+
+
+@pytest.mark.parametrize(
+    ("constant_name", "replacement"),
+    [
+        ("SFT_CLASSIC_EXECUTION_POLICY", "changed_isolation_policy_v2"),
+        ("SFT_CLASSIC_METHOD_VERSION", "changed_lean_method_v2"),
+    ],
+)
+def test_sft_resume_rejects_stateless_policy_identity_drift(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    constant_name: str,
+    replacement: str,
+) -> None:
+    observed_job_payloads: list[dict[str, Any]] = []
+    real_hash_canonical = pipeline.hash_canonical
+
+    def capture_hash(payload: object) -> str:
+        if isinstance(payload, dict) and payload.get("source") == "sft_classic":
+            observed_job_payloads.append(dict(payload))
+        return real_hash_canonical(payload)
+
+    def fake_chunk(**job: Any) -> ExtractStats:
+        stats = _terminal_stats(len(job["rows"]))
+        pipeline._write_chunk_marker(
+            Path(job["out_dir"]),
+            job_hash=str(job["job_hash"]),
+            payload=stats.as_dict(),
+        )
+        return stats
+
+    monkeypatch.setattr(pipeline, "hash_canonical", capture_hash)
+    monkeypatch.setattr(pipeline, "_extract_sft_chunk", fake_chunk)
+    monkeypatch.setattr(pipeline, "merge_extraction_partitions", lambda *args, **kwargs: None)
+    kwargs = {
+        "project_dir": tmp_path,
+        "context_fingerprint": "a" * 64,
+        "context_id": "ctx:" + "a" * 64,
+        "raw_response_dir": tmp_path / "raw",
+        "rows": [{"row": 0}],
+        "source_row_indices": [0],
+        "split": "train",
+        "row_offset": 0,
+        "out_dir": tmp_path / "out",
+        "workers": 1,
+        "chunk_size": 1,
+        "run_id": "run:stateless-identity",
+        "memory_hard_limit_mb": None,
+        "resume_work_dir": tmp_path / "work",
+        "code_tree_hash": "b" * 64,
+        "code_bundle_hash": "c" * 64,
+    }
+
+    pipeline._extract_sft_parallel(**kwargs)
+    assert observed_job_payloads[-1]["execution_isolation_policy"] == (
+        pipeline.SFT_CLASSIC_EXECUTION_POLICY
+    )
+    assert observed_job_payloads[-1]["lean_incremental_optimization"] is False
+    assert observed_job_payloads[-1]["lean_method_version"] == (pipeline.SFT_CLASSIC_METHOD_VERSION)
+
+    monkeypatch.setattr(pipeline, constant_name, replacement)
+    with pytest.raises(ValueError, match="resume chunk job hash mismatch"):
+        pipeline._extract_sft_parallel(**kwargs)
 
 
 def test_run_extract_replays_exact_mathlib_file_frame(monkeypatch: Any, tmp_path: Path) -> None:
