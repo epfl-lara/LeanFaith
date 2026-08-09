@@ -83,9 +83,9 @@ FORMALRX_REVISION = "4b7c6b883e0859e9bd38620a539bdcef408f91b4"
 SFT_CLASSIC_REVISION = "0bf9f424309f668c2c2dd214aef6ec5d1d5c042f"
 SCALE_ENVIRONMENT_SETUP_VERSION = "parent_prebuilt_v1"
 DEFAULT_ENVIRONMENT_SETUP_VERSION = "backend_default_v1"
-SFT_CLASSIC_EXECUTION_POLICY = "shared_server_header_cache_nonce_sync_v1"
+SFT_CLASSIC_EXECUTION_POLICY = "shared_server_header_cache_nonce_sync_core_recovery_v2"
 SFT_CLASSIC_COMMAND_ISOLATION = COMMAND_ISOLATION_VERSION
-SFT_CLASSIC_METHOD_VERSION = "leaninteract_backend_v2/sft_classic_nonce_isolated_sync_v3"
+SFT_CLASSIC_METHOD_VERSION = "leaninteract_backend_v3/sft_classic_nonce_isolated_sync_v4"
 
 
 def _prepare_scale_lean_environment(

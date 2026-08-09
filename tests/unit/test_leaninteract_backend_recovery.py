@@ -7,8 +7,11 @@ import json
 from pathlib import Path
 from typing import Any
 
+import pytest
+
 from leanfaith.lean.leaninteract_backend import BackendSettings, LeanInteractBackend
 from leanfaith.lean.protocol import LeanRequest, LeanResult, LeanStatus
+from leanfaith.lean.session_policy import ServerMode
 from leanfaith.representations import (
     RepresentationBatch,
     TheoremForRepresentation,
@@ -47,6 +50,20 @@ class _Pool:
 
     def close(self) -> None:
         self.closed = True
+
+
+class _BatchPool(_Pool):
+    def __init__(self, responses: list[_Response]) -> None:
+        super().__init__()
+        self.responses = responses
+        self.timeout_calls: list[float] = []
+
+    def run_batch(self, requests: list[object], *, timeout_per_cmd: float) -> list[_Response]:
+        if self.closed:
+            raise RuntimeError("pool used after close")
+        assert len(requests) == len(self.responses)
+        self.timeout_calls.append(timeout_per_cmd)
+        return self.responses
 
 
 def _raw(messages: list[dict[str, str]]) -> dict[str, Any]:
@@ -240,6 +257,247 @@ def test_corrupt_core_environment_is_retried_on_fresh_server(
         backend.close()
 
 
+@pytest.mark.parametrize(
+    ("import_header", "missing_namespace"),
+    (
+        ("import Mathlib", "unknown namespace `Real`"),
+        ("import Mathlib", "unknown namespace `Classical`"),
+        ("import Mathlib", "unknown namespace `Topology`"),
+        ("import /- inline -/ Mathlib", "unknown namespace `Real`"),
+        ("import Mathlib /- trailing\n-/", "unknown namespace `Real`"),
+        (
+            "\n".join(
+                (
+                    "import Mathlib.Analysis.SpecialFunctions.Exp",
+                    "import Mathlib.Tactic.Positivity.Core",
+                    "import Mathlib.Algebra.Ring.NegOnePow",
+                    "import Mathlib.Analysis.SpecialFunctions.Trigonometric.Basic",
+                )
+            ),
+            "unknown namespace `Topology`",
+        ),
+        (
+            "\n".join(
+                (
+                    "/- copyright fixture -/",
+                    "module",
+                    "",
+                    "public import Mathlib.Algebra.Algebra.Equiv",
+                    "public import Mathlib.LinearAlgebra.Span.Basic",
+                )
+            ),
+            "unknown namespace `Real`",
+        ),
+    ),
+)
+def test_corrupt_mathlib_environment_is_retried_on_fresh_server(
+    monkeypatch: Any, tmp_path: Path, import_header: str, missing_namespace: str
+) -> None:
+    corrupt = _Server(
+        _Response(
+            _raw(
+                [
+                    {"severity": "error", "data": missing_namespace},
+                    {"severity": "error", "data": "Unknown constant `OfNat`"},
+                ]
+            )
+        )
+    )
+    recovered = _Server(_Response(_raw([])))
+    servers = iter((corrupt, recovered))
+    backend = LeanInteractBackend(
+        BackendSettings(
+            project_dir=tmp_path,
+            context_fingerprint="0" * 64,
+            environment_schema_version=1,
+            raw_response_dir=tmp_path / "raw",
+        )
+    )
+
+    def ensure_server() -> _Server:
+        if backend._server is None:
+            backend._server = next(servers)  # type: ignore[assignment]
+        return backend._server  # type: ignore[return-value]
+
+    monkeypatch.setattr(backend, "_ensure_server", ensure_server)
+    request = LeanRequest(
+        request_id="gate2-mathlib-recovery",
+        context_id="ctx:" + "0" * 64,
+        code=f"{import_header}\ntheorem recovered : (1 : Nat) = 1 := rfl",
+    )
+    try:
+        result = backend.run(request)
+        assert result.status == LeanStatus.VALID
+        assert corrupt.calls == 1
+        assert corrupt.killed
+        assert recovered.calls == 1
+        artifacts = sorted((tmp_path / "raw").glob("*.json"))
+        assert len(artifacts) == 2
+        assert any("core-recovery" in path.name for path in artifacts)
+    finally:
+        backend.close()
+
+
+def test_pool_response_uses_same_environment_recovery_path(
+    monkeypatch: Any, tmp_path: Path
+) -> None:
+    corrupt = _Response(
+        _raw(
+            [
+                {"severity": "error", "data": "unknown namespace `Real`"},
+                {"severity": "error", "data": "Unknown constant `OfNat`"},
+            ]
+        )
+    )
+    recovered_server = _Server(_Response(_raw([])))
+    pool = _Pool()
+    backend = LeanInteractBackend(
+        BackendSettings(
+            project_dir=tmp_path,
+            context_fingerprint="0" * 64,
+            environment_schema_version=1,
+            raw_response_dir=tmp_path / "raw",
+            server_mode=ServerMode.POOL,
+        )
+    )
+    backend._pool = pool  # type: ignore[assignment]
+
+    def ensure_server() -> _Server:
+        if backend._server is None:
+            backend._server = recovered_server  # type: ignore[assignment]
+        return backend._server  # type: ignore[return-value]
+
+    monkeypatch.setattr(backend, "_ensure_server", ensure_server)
+    request = LeanRequest(
+        request_id="gate2-pool-mathlib-recovery",
+        context_id="ctx:" + "0" * 64,
+        code="import Mathlib\ntheorem recovered : (1 : Nat) = 1 := rfl",
+    )
+    try:
+        result = backend._normalize_pool_item(
+            request,
+            backend._request_hash(request),
+            corrupt,
+            7,
+        )
+        assert result.status == LeanStatus.VALID
+        assert result.elapsed_ms >= 7
+        assert pool.closed
+        assert backend._pool is None
+        assert recovered_server.calls == 1
+        assert recovered_server.killed
+        assert len(list((tmp_path / "raw").glob("*.json"))) == 2
+    finally:
+        backend.close()
+
+
+def test_pool_recovery_reacquires_pool_for_later_timeout_group(
+    monkeypatch: Any, tmp_path: Path
+) -> None:
+    corrupt = _Response(
+        _raw(
+            [
+                {"severity": "error", "data": "unknown namespace `Real`"},
+                {"severity": "error", "data": "Unknown constant `OfNat`"},
+            ]
+        )
+    )
+    first_pool = _BatchPool([corrupt])
+    second_pool = _BatchPool([_Response(_raw([]))])
+    recovered_server = _Server(_Response(_raw([])))
+    backend = LeanInteractBackend(
+        BackendSettings(
+            project_dir=tmp_path,
+            context_fingerprint="0" * 64,
+            environment_schema_version=1,
+            raw_response_dir=tmp_path / "raw",
+            server_mode=ServerMode.POOL,
+        )
+    )
+    backend._pool = first_pool  # type: ignore[assignment]
+
+    def ensure_pool() -> _BatchPool:
+        if backend._pool is None:
+            backend._pool = second_pool  # type: ignore[assignment]
+        return backend._pool  # type: ignore[return-value]
+
+    def ensure_server() -> _Server:
+        if backend._server is None:
+            backend._server = recovered_server  # type: ignore[assignment]
+        return backend._server  # type: ignore[return-value]
+
+    monkeypatch.setattr(backend, "_ensure_pool", ensure_pool)
+    monkeypatch.setattr(backend, "_ensure_server", ensure_server)
+    requests = (
+        LeanRequest(
+            request_id="pool-corrupt-first-group",
+            context_id="ctx:" + "0" * 64,
+            code="import Mathlib\ntheorem first : (1 : Nat) = 1 := rfl",
+            timeout_seconds=1.0,
+        ),
+        LeanRequest(
+            request_id="pool-valid-second-group",
+            context_id="ctx:" + "0" * 64,
+            code="import Mathlib\ntheorem second : True := trivial",
+            timeout_seconds=2.0,
+        ),
+    )
+    try:
+        results = backend.run_batch(requests)
+        assert [result.status for result in results] == [LeanStatus.VALID, LeanStatus.VALID]
+        assert first_pool.timeout_calls == [1.0]
+        assert first_pool.closed
+        assert second_pool.timeout_calls == [2.0]
+        assert recovered_server.calls == 1
+        assert recovered_server.killed
+    finally:
+        backend.close()
+
+
+def test_repeated_corrupt_environment_returns_infrastructure_failure(
+    monkeypatch: Any, tmp_path: Path
+) -> None:
+    corrupt_raw = _raw(
+        [
+            {"severity": "error", "data": "unknown namespace `Real`"},
+            {"severity": "error", "data": "Unknown constant `OfNat`"},
+        ]
+    )
+    first = _Server(_Response(corrupt_raw))
+    second = _Server(_Response(corrupt_raw))
+    servers = iter((first, second))
+    backend = LeanInteractBackend(
+        BackendSettings(
+            project_dir=tmp_path,
+            context_fingerprint="0" * 64,
+            environment_schema_version=1,
+            raw_response_dir=tmp_path / "raw",
+        )
+    )
+
+    def ensure_server() -> _Server:
+        if backend._server is None:
+            backend._server = next(servers)  # type: ignore[assignment]
+        return backend._server  # type: ignore[return-value]
+
+    monkeypatch.setattr(backend, "_ensure_server", ensure_server)
+    try:
+        result = backend.run(
+            LeanRequest(
+                request_id="gate2-repeated-mathlib-corruption",
+                context_id="ctx:" + "0" * 64,
+                code="import Mathlib\ntheorem recovered : (1 : Nat) = 1 := rfl",
+            )
+        )
+        assert result.status == LeanStatus.CRASH
+        assert result.infrastructure_error == "core_environment_corruption_after_recovery"
+        assert first.calls == second.calls == 1
+        assert first.killed and second.killed
+        assert len(list((tmp_path / "raw").glob("*.json"))) == 2
+    finally:
+        backend.close()
+
+
 def test_ordinary_invalid_response_is_not_retried(monkeypatch: Any, tmp_path: Path) -> None:
     invalid = _Server(_Response(_raw([{"severity": "error", "data": "type mismatch"}])))
     backend = LeanInteractBackend(
@@ -263,6 +521,156 @@ def test_ordinary_invalid_response_is_not_retried(monkeypatch: Any, tmp_path: Pa
         assert invalid.calls == 1
         assert not invalid.killed
         assert len(list((tmp_path / "raw").glob("*.json"))) == 1
+    finally:
+        backend.close()
+
+
+def test_ordinary_unknown_namespace_after_mathlib_is_not_retried(
+    monkeypatch: Any, tmp_path: Path
+) -> None:
+    invalid = _Server(
+        _Response(
+            _raw(
+                [
+                    {"severity": "error", "data": "unknown namespace `UserTypo`"},
+                    {"severity": "error", "data": "Unknown constant `OfNat`"},
+                ]
+            )
+        )
+    )
+    backend = LeanInteractBackend(
+        BackendSettings(
+            project_dir=tmp_path,
+            context_fingerprint="0" * 64,
+            environment_schema_version=1,
+            raw_response_dir=tmp_path / "raw",
+        )
+    )
+    monkeypatch.setattr(backend, "_ensure_server", lambda: invalid)
+    try:
+        result = backend.run(
+            LeanRequest(
+                request_id="ordinary-mathlib-invalid",
+                context_id="ctx:" + "0" * 64,
+                code="import Mathlib\nopen UserTypo\ntheorem ok : True := trivial",
+            )
+        )
+        assert result.status == LeanStatus.INVALID
+        assert invalid.calls == 1
+        assert not invalid.killed
+        assert len(list((tmp_path / "raw").glob("*.json"))) == 1
+    finally:
+        backend.close()
+
+
+def test_corruption_markers_without_mathlib_import_are_not_retried(
+    monkeypatch: Any, tmp_path: Path
+) -> None:
+    invalid = _Server(
+        _Response(
+            _raw(
+                [
+                    {"severity": "error", "data": "unknown namespace `Real`"},
+                    {"severity": "error", "data": "Unknown constant `OfNat`"},
+                ]
+            )
+        )
+    )
+    backend = LeanInteractBackend(
+        BackendSettings(
+            project_dir=tmp_path,
+            context_fingerprint="0" * 64,
+            environment_schema_version=1,
+            raw_response_dir=tmp_path / "raw",
+        )
+    )
+    monkeypatch.setattr(backend, "_ensure_server", lambda: invalid)
+    try:
+        result = backend.run(
+            LeanRequest(
+                request_id="ordinary-no-mathlib-invalid",
+                context_id="ctx:" + "0" * 64,
+                code="theorem bad : False := trivial",
+            )
+        )
+        assert result.status == LeanStatus.INVALID
+        assert invalid.calls == 1
+        assert not invalid.killed
+        assert len(list((tmp_path / "raw").glob("*.json"))) == 1
+    finally:
+        backend.close()
+
+
+def test_commented_mathlib_import_does_not_trigger_recovery(
+    monkeypatch: Any, tmp_path: Path
+) -> None:
+    invalid = _Server(
+        _Response(
+            _raw(
+                [
+                    {"severity": "error", "data": "unknown namespace `Real`"},
+                    {"severity": "error", "data": "Unknown constant `OfNat`"},
+                ]
+            )
+        )
+    )
+    backend = LeanInteractBackend(
+        BackendSettings(
+            project_dir=tmp_path,
+            context_fingerprint="0" * 64,
+            environment_schema_version=1,
+            raw_response_dir=tmp_path / "raw",
+        )
+    )
+    monkeypatch.setattr(backend, "_ensure_server", lambda: invalid)
+    try:
+        result = backend.run(
+            LeanRequest(
+                request_id="commented-mathlib-import",
+                context_id="ctx:" + "0" * 64,
+                code=("prelude\n/-\nimport Mathlib\n-/\nopen Real\n#check (1)"),
+            )
+        )
+        assert result.status == LeanStatus.INVALID
+        assert invalid.calls == 1
+        assert not invalid.killed
+    finally:
+        backend.close()
+
+
+def test_mathlib_import_after_non_header_command_does_not_trigger_recovery(
+    monkeypatch: Any, tmp_path: Path
+) -> None:
+    invalid = _Server(
+        _Response(
+            _raw(
+                [
+                    {"severity": "error", "data": "unknown namespace `Real`"},
+                    {"severity": "error", "data": "Unknown constant `OfNat`"},
+                ]
+            )
+        )
+    )
+    backend = LeanInteractBackend(
+        BackendSettings(
+            project_dir=tmp_path,
+            context_fingerprint="0" * 64,
+            environment_schema_version=1,
+            raw_response_dir=tmp_path / "raw",
+        )
+    )
+    monkeypatch.setattr(backend, "_ensure_server", lambda: invalid)
+    try:
+        result = backend.run(
+            LeanRequest(
+                request_id="late-mathlib-import",
+                context_id="ctx:" + "0" * 64,
+                code="prelude\n#check True\nimport Mathlib\nopen Real\n#check (1)",
+            )
+        )
+        assert result.status == LeanStatus.INVALID
+        assert invalid.calls == 1
+        assert not invalid.killed
     finally:
         backend.close()
 

@@ -45,17 +45,21 @@ from leanfaith.transforms.protocol import (
     build_transformation_audit,
     build_variant_draft,
 )
-from leanfaith.transforms.registry import TransformationExecution
+from leanfaith.transforms.registry import TransformationExecution, load_transformation_registry
 from leanfaith.transforms.scale_materializer import (
     DeterministicScaleArtifacts,
     DeterministicScaleConfig,
     DeterministicScaleError,
     ScaleDraftResult,
     ScaleFailure,
+    ScaleInventoryPartitionBinding,
     ScaleQuarantineRecord,
     ScaleRuleResult,
+    ScaleSourceInventoryManifest,
     ScaleSourceShard,
+    ScaleUpstreamManifestBinding,
     _AdmissionState,
+    _build_run_spec,
     _candidate_inline_source,
     _candidate_raw_request_ids,
     _candidate_validation,
@@ -70,10 +74,15 @@ from leanfaith.transforms.scale_materializer import (
     _project_records,
     _purge_candidate_raw_artifacts,
     _representation_payload_hash,
+    _representation_retention_ids,
     _require_exact_resume_replay,
+    _revalidate_inventory_partition_hashes,
+    _scan_representation_inventory,
     _seed,
     _selection_key,
+    _validate_inventory_record_bindings,
     _validate_resume_shard,
+    _validate_theorem_inputs,
     _validate_unique_inputs,
     _write_new_atomic,
 )
@@ -340,12 +349,14 @@ def _runtime_for_shard(shard: ScaleSourceShard) -> _StaticRuleRuntime:
     return _StaticRuleRuntime(TransformationExecution(attempt=result.attempt, drafts=drafts))
 
 
-def _canonical_extracted_inventory() -> tuple[TheoremRecord, RepresentationRecord]:
+def _canonical_extracted_inventory(
+    index: int = 0,
+) -> tuple[TheoremRecord, RepresentationRecord]:
     source = "mathlib"
     revision = "fixture-revision"
-    source_record = "Mathlib/Fixture.lean"
-    full_name = "Fixture.t"
-    signature_hash = "9" * 64
+    source_record = f"Mathlib/Fixture{index}.lean"
+    full_name = f"Fixture.t{index}"
+    signature_hash = hash_canonical({"fixture_signature": index})
     context_id = theorem_record().context_id
     theorem_id = make_id(
         "thm",
@@ -1045,6 +1056,296 @@ def test_source_inventory_rejects_extraction_identity_and_representation_tamperi
             (source,),
             (representation.model_copy(update={"content_hash": "0" * 64}),),
         )
+
+
+def test_representation_inventory_streams_all_rows_but_retains_only_requested(
+    tmp_path: Path,
+) -> None:
+    inventories = tuple(_canonical_extracted_inventory(index) for index in range(3))
+    theorems = tuple(item[0] for item in inventories)
+    representations = tuple(item[1] for item in inventories)
+    path = tmp_path / "representations.jsonl"
+    path.write_bytes(b"".join(_canonical_model_bytes(item) for item in representations))
+
+    scan = _scan_representation_inventory(
+        path,
+        theorem_by_id=_validate_theorem_inputs(theorems),
+        retain_theorem_ids=(theorems[1].theorem_id,),
+    )
+
+    assert scan.record_count == 3
+    assert scan.context_ids == frozenset({theorems[0].context_id})
+    assert scan.retained_by_theorem == {
+        theorems[1].theorem_id: representations[1],
+    }
+
+
+def test_representation_inventory_validates_corrupt_unretained_row(tmp_path: Path) -> None:
+    inventories = tuple(_canonical_extracted_inventory(index) for index in range(3))
+    theorems = tuple(item[0] for item in inventories)
+    representations = [item[1] for item in inventories]
+    representations[2] = representations[2].model_copy(update={"content_hash": "0" * 64})
+    path = tmp_path / "representations.jsonl"
+    path.write_bytes(b"".join(_canonical_model_bytes(item) for item in representations))
+
+    with pytest.raises(DeterministicScaleError, match="content hash mismatch"):
+        _scan_representation_inventory(
+            path,
+            theorem_by_id=_validate_theorem_inputs(theorems),
+            retain_theorem_ids=(theorems[0].theorem_id,),
+        )
+
+
+def test_representation_inventory_rejects_duplicate_and_missing_unretained_rows(
+    tmp_path: Path,
+) -> None:
+    inventories = tuple(_canonical_extracted_inventory(index) for index in range(3))
+    theorems = tuple(item[0] for item in inventories)
+    representations = tuple(item[1] for item in inventories)
+    path = tmp_path / "representations.jsonl"
+    path.write_bytes(
+        b"".join(
+            _canonical_model_bytes(item)
+            for item in (representations[0], representations[1], representations[1])
+        )
+    )
+    theorem_by_id = _validate_theorem_inputs(theorems)
+
+    with pytest.raises(DeterministicScaleError, match="duplicate representation"):
+        _scan_representation_inventory(
+            path,
+            theorem_by_id=theorem_by_id,
+            retain_theorem_ids=(theorems[0].theorem_id,),
+        )
+
+    path.write_bytes(b"".join(_canonical_model_bytes(item) for item in representations[:2]))
+    with pytest.raises(DeterministicScaleError, match="does not cover every theorem"):
+        _scan_representation_inventory(
+            path,
+            theorem_by_id=theorem_by_id,
+            retain_theorem_ids=(theorems[0].theorem_id,),
+        )
+
+
+def test_representation_inventory_rejects_unretained_row_outside_theorem_inventory(
+    tmp_path: Path,
+) -> None:
+    inventories = tuple(_canonical_extracted_inventory(index) for index in range(4))
+    theorems = tuple(item[0] for item in inventories[:3])
+    representations = (
+        inventories[0][1],
+        inventories[1][1],
+        inventories[3][1],
+    )
+    path = tmp_path / "representations.jsonl"
+    path.write_bytes(b"".join(_canonical_model_bytes(item) for item in representations))
+
+    with pytest.raises(DeterministicScaleError, match="outside the theorem inventory"):
+        _scan_representation_inventory(
+            path,
+            theorem_by_id=_validate_theorem_inputs(theorems),
+            retain_theorem_ids=(theorems[0].theorem_id,),
+        )
+
+
+def test_streamed_representation_contexts_remain_inventory_gating_inputs(
+    tmp_path: Path,
+) -> None:
+    inventories = tuple(_canonical_extracted_inventory(index) for index in range(2))
+    theorems = tuple(item[0] for item in inventories)
+    first, second = (item[1] for item in inventories)
+    second = second.model_copy(update={"context_id": "ctx:" + "f" * 64})
+    second = second.model_copy(update={"content_hash": _representation_payload_hash(second)})
+    path = tmp_path / "representations.jsonl"
+    path.write_bytes(_canonical_model_bytes(first) + _canonical_model_bytes(second))
+    scan = _scan_representation_inventory(
+        path,
+        theorem_by_id=_validate_theorem_inputs(theorems),
+        retain_theorem_ids=(theorems[0].theorem_id,),
+    )
+    manifest = ScaleSourceInventoryManifest(
+        context_id=theorems[0].context_id,
+        theorem_partition=ScaleInventoryPartitionBinding(
+            path="theorems.jsonl",
+            sha256="1" * 64,
+            record_count=2,
+        ),
+        representation_partition=ScaleInventoryPartitionBinding(
+            path=path.name,
+            sha256=hash_file(path),
+            record_count=2,
+        ),
+        theorem_upstream_manifest=ScaleUpstreamManifestBinding(
+            path="theorem-manifest.json",
+            sha256="2" * 64,
+            manifest_kind="output_manifest",
+        ),
+        representation_upstream_manifest=ScaleUpstreamManifestBinding(
+            path="representation-manifest.json",
+            sha256="3" * 64,
+            manifest_kind="output_manifest",
+        ),
+    )
+
+    with pytest.raises(DeterministicScaleError, match="contexts differ"):
+        _validate_inventory_record_bindings(
+            manifest,
+            theorems=theorems,
+            representation_count=scan.record_count,
+            representation_context_ids=scan.context_ids,
+        )
+
+
+def test_representation_retention_is_shard_local_except_for_global_n10() -> None:
+    unary = load_config(
+        _ROOT / "configs/transformations/deterministic_scale_unary_sharded_v1.yaml",
+        DeterministicScaleConfig,
+    ).config
+    n10 = load_config(
+        _ROOT / "configs/transformations/deterministic_scale_n10_global_v1.yaml",
+        DeterministicScaleConfig,
+    ).config
+    universe = ("thm:a", "thm:b", "thm:c")
+    selected = ("thm:b",)
+
+    assert (
+        _representation_retention_ids(
+            unary,
+            source_universe_ids=universe,
+            selected_ids=selected,
+        )
+        == selected
+    )
+    assert (
+        _representation_retention_ids(
+            n10,
+            source_universe_ids=universe,
+            selected_ids=selected,
+        )
+        == universe
+    )
+
+
+def test_inventory_partition_rehash_detects_post_scan_mutation(tmp_path: Path) -> None:
+    theorem, representation = _canonical_extracted_inventory()
+    theorem_path = tmp_path / "theorems.jsonl"
+    representation_path = tmp_path / "representations.jsonl"
+    theorem_path.write_bytes(_canonical_model_bytes(theorem))
+    representation_path.write_bytes(_canonical_model_bytes(representation))
+    manifest = ScaleSourceInventoryManifest(
+        context_id=theorem.context_id,
+        theorem_partition=ScaleInventoryPartitionBinding(
+            path=theorem_path.name,
+            sha256=hash_file(theorem_path),
+            record_count=1,
+        ),
+        representation_partition=ScaleInventoryPartitionBinding(
+            path=representation_path.name,
+            sha256=hash_file(representation_path),
+            record_count=1,
+        ),
+        theorem_upstream_manifest=ScaleUpstreamManifestBinding(
+            path="theorem-manifest.json",
+            sha256="a" * 64,
+            manifest_kind="output_manifest",
+        ),
+        representation_upstream_manifest=ScaleUpstreamManifestBinding(
+            path="representation-manifest.json",
+            sha256="b" * 64,
+            manifest_kind="output_manifest",
+        ),
+    )
+
+    scan = _scan_representation_inventory(
+        representation_path,
+        theorem_by_id=_validate_theorem_inputs((theorem,)),
+        retain_theorem_ids=(theorem.theorem_id,),
+    )
+    assert scan.retained_by_theorem == {theorem.theorem_id: representation}
+    _revalidate_inventory_partition_hashes(
+        manifest,
+        theorem_path=theorem_path,
+        representation_path=representation_path,
+    )
+    representation_path.write_bytes(b"{}\n")
+    with pytest.raises(DeterministicScaleError, match="changed while validating"):
+        _revalidate_inventory_partition_hashes(
+            manifest,
+            theorem_path=theorem_path,
+            representation_path=representation_path,
+        )
+
+
+def test_run_spec_uses_inventory_bound_partition_hashes_not_changed_live_paths(
+    tmp_path: Path,
+) -> None:
+    theorem, representation = _canonical_extracted_inventory()
+    theorem_path = tmp_path / "theorems.jsonl"
+    representation_path = tmp_path / "representations.jsonl"
+    theorem_path.write_bytes(_canonical_model_bytes(theorem))
+    representation_path.write_bytes(_canonical_model_bytes(representation))
+    theorem_sha256 = hash_file(theorem_path)
+    representation_sha256 = hash_file(representation_path)
+    support = {
+        name: tmp_path / f"{name}.json"
+        for name in (
+            "inventory",
+            "theorem-upstream",
+            "representation-upstream",
+            "benchmark",
+        )
+    }
+    for path in support.values():
+        path.write_text("{}\n", encoding="utf-8")
+    project = tmp_path / "project"
+    project.mkdir()
+    loaded_config = load_config(
+        _ROOT / "configs/transformations/deterministic_scale_unary_sharded_v1.yaml",
+        DeterministicScaleConfig,
+    )
+    code = CodeState(
+        git_revision="a" * 40,
+        git_dirty=False,
+        base_git_commit="a" * 40,
+        code_tree_hash="b" * 64,
+        tracked_diff_hash="c" * 64,
+    )
+
+    theorem_path.write_bytes(b'{"changed":true}\n')
+    representation_path.write_bytes(b'{"changed":true}\n')
+    spec = _build_run_spec(
+        theorem_path=theorem_path,
+        theorem_input_sha256=theorem_sha256,
+        representation_path=representation_path,
+        representation_input_sha256=representation_sha256,
+        source_inventory_manifest_path=support["inventory"],
+        theorem_upstream_manifest_path=support["theorem-upstream"],
+        representation_upstream_manifest_path=support["representation-upstream"],
+        loaded_config=loaded_config,
+        loaded_registry=load_transformation_registry(_ROOT),
+        benchmark=cast(
+            ActiveBenchmarkRegistry,
+            type("_Benchmark", (), {"manifest_path": support["benchmark"]})(),
+        ),
+        context_id=theorem.context_id,
+        context_sha256="d" * 64,
+        project_dir=project,
+        project_revision="e" * 40,
+        project_tree_hash="f" * 40,
+        code=code,
+        source_universe_ids=(theorem.theorem_id,),
+        source_shard_assignments=(0,),
+        selected_ids=(theorem.theorem_id,),
+        max_sources=1,
+        shard_count=1,
+        shard_index=0,
+        memory_hard_limit_mb=4096,
+    )
+
+    assert hash_file(theorem_path) != theorem_sha256
+    assert hash_file(representation_path) != representation_sha256
+    assert spec.theorem_input_sha256 == theorem_sha256
+    assert spec.representation_input_sha256 == representation_sha256
 
 
 def test_authoritative_inventory_manifest_rejects_self_consistent_partition_rewrite(

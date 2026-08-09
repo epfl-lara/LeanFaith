@@ -26,7 +26,7 @@ import json
 import os
 import subprocess
 from collections import Counter, defaultdict
-from collections.abc import Iterator, Mapping, Sequence
+from collections.abc import Collection, Iterator, Mapping, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass, replace
 from pathlib import Path
@@ -44,7 +44,11 @@ from leanfaith.config.models import StrictModel
 from leanfaith.config.paths import RepoPaths
 from leanfaith.datasets import ActiveBenchmarkRegistry, load_active_benchmark_registry
 from leanfaith.lean.extraction import EXTRACTION_SCHEMA_VERSION
-from leanfaith.lean.leaninteract_backend import BackendSettings, LeanInteractBackend
+from leanfaith.lean.leaninteract_backend import (
+    COMMAND_ISOLATION_VERSION,
+    BackendSettings,
+    LeanInteractBackend,
+)
 from leanfaith.lean.project_registry import load_environment_lock
 from leanfaith.lean.protocol import LeanRequest, LeanStatus
 from leanfaith.lean.session_policy import RetryPolicy, run_with_retries
@@ -102,6 +106,12 @@ from leanfaith.transforms.registry import (
 )
 
 _HEX64_PATTERN = r"^[0-9a-f]{64}$"
+DETERMINISTIC_SCALE_EXECUTION_ISOLATION_POLICY = (
+    "fresh_backend_per_source_header_cache_nonce_sync_v2"
+)
+DETERMINISTIC_SCALE_METHOD_VERSION = (
+    "leaninteract_backend_v3/deterministic_scale_fresh_source_nonce_sync_v3"
+)
 _VALID_SOURCE_STATUSES = frozenset(
     {
         ValidationStatus.ELABORATES,
@@ -603,7 +613,7 @@ class ScaleSourceInventoryManifest(StrictModel):
 class DeterministicScaleRunSpec(StrictModel):
     """Immutable semantic identity of a resumable scale run."""
 
-    schema_version: Literal[3] = 3
+    schema_version: Literal[4] = 4
     artifact_kind: Literal["deterministic_scale_run_spec"] = "deterministic_scale_run_spec"
     run_spec_hash: str = Field(pattern=_HEX64_PATTERN)
     shard_set_spec_hash: str = Field(pattern=_HEX64_PATTERN)
@@ -628,8 +638,14 @@ class DeterministicScaleRunSpec(StrictModel):
     project_revision: str
     project_tree_hash: str = Field(pattern=r"^[0-9a-f]{40}(?:[0-9a-f]{24})?$")
     code: CodeState
-    execution_isolation_policy: Literal["per_source_stateless_v1"] = "per_source_stateless_v1"
-    lean_incremental_optimization: Literal[False] = False
+    execution_isolation_policy: Literal["fresh_backend_per_source_header_cache_nonce_sync_v2"]
+    lean_incremental_optimization: Literal[True]
+    lean_parallel_elaboration: Literal[False]
+    explicit_elab_async: Literal[False]
+    lean_command_isolation: Literal["deterministic_request_nonce_prefix_v1"]
+    lean_method_version: Literal[
+        "leaninteract_backend_v3/deterministic_scale_fresh_source_nonce_sync_v3"
+    ]
     replay_raw_response_policy: Literal["separate_unbound_directory_v1"] = (
         "separate_unbound_directory_v1"
     )
@@ -749,6 +765,15 @@ class _CandidateValidation:
     request_hash: str
 
 
+@dataclass(frozen=True, slots=True)
+class _RepresentationInventoryScan:
+    """Validated repr_v3 inventory with only execution-needed records retained."""
+
+    retained_by_theorem: Mapping[str, RepresentationRecord]
+    record_count: int
+    context_ids: frozenset[str]
+
+
 def _reject_duplicate_keys(pairs: list[tuple[str, object]]) -> dict[str, object]:
     result: dict[str, object] = {}
     for key, value in pairs:
@@ -762,13 +787,14 @@ def _reject_nonfinite(text: str) -> float:
     raise ValueError(f"non-finite JSON constant {text!r}")
 
 
-def _load_jsonl[RecordT: StrictModel](
+def _iter_jsonl[RecordT: StrictModel](
     path: Path,
     model: type[RecordT],
     *,
     wrapper_key: str | None = None,
-) -> tuple[RecordT, ...]:
-    records: list[RecordT] = []
+) -> Iterator[RecordT]:
+    """Strictly parse JSONL one record at a time without retaining the file."""
+
     try:
         handle = path.open("r", encoding="utf-8")
     except OSError as exc:
@@ -785,12 +811,20 @@ def _load_jsonl[RecordT: StrictModel](
                 )
                 if wrapper_key is not None and isinstance(raw, dict) and wrapper_key in raw:
                     raw = raw[wrapper_key]
-                records.append(model.model_validate(raw))
+                yield model.model_validate(raw)
             except Exception as exc:
                 raise DeterministicScaleError(
                     f"{path}:{line_number}: invalid {model.__name__}: {exc}"
                 ) from exc
-    return tuple(records)
+
+
+def _load_jsonl[RecordT: StrictModel](
+    path: Path,
+    model: type[RecordT],
+    *,
+    wrapper_key: str | None = None,
+) -> tuple[RecordT, ...]:
+    return tuple(_iter_jsonl(path, model, wrapper_key=wrapper_key))
 
 
 def _load_json_document(path: Path) -> dict[str, object]:
@@ -1014,7 +1048,7 @@ def _validate_trusted_upstream_manifests(
     theorem_path: Path,
     representation_path: Path,
     theorems: Sequence[TheoremRecord],
-    representations: Sequence[RepresentationRecord],
+    representation_count: int,
     repo_root: Path,
 ) -> tuple[Path, Path]:
     theorem_manifest_path = _resolve_manifest_binding_path(
@@ -1090,7 +1124,7 @@ def _validate_trusted_upstream_manifests(
         theorem_path=theorem_path,
         representation_path=representation_path,
         theorem_count=len(theorems),
-        representation_count=len(representations),
+        representation_count=representation_count,
         context_id=inventory.context_id,
         repo_root=repo_root,
         allow_content_addressed_relocation=allow_content_addressed_relocation,
@@ -1144,24 +1178,44 @@ def _validate_inventory_record_bindings(
     manifest: ScaleSourceInventoryManifest,
     *,
     theorems: Sequence[TheoremRecord],
-    representations: Sequence[RepresentationRecord],
+    representation_count: int,
+    representation_context_ids: Collection[str],
 ) -> None:
     if len(theorems) != manifest.theorem_partition.record_count:
         raise DeterministicScaleError(
             "theorem partition count differs from the authoritative inventory manifest"
         )
-    if len(representations) != manifest.representation_partition.record_count:
+    if representation_count != manifest.representation_partition.record_count:
         raise DeterministicScaleError(
             "representation partition count differs from the authoritative inventory manifest"
         )
     contexts = {
         *(theorem.context_id for theorem in theorems),
-        *(representation.context_id for representation in representations),
+        *representation_context_ids,
     }
     if contexts != {manifest.context_id}:
         raise DeterministicScaleError(
             "inventory record contexts differ from the authoritative inventory manifest"
         )
+
+
+def _revalidate_inventory_partition_hashes(
+    manifest: ScaleSourceInventoryManifest,
+    *,
+    theorem_path: Path,
+    representation_path: Path,
+) -> None:
+    """Close the parse/selection TOCTOU window before any run output is created."""
+
+    bindings = (
+        ("theorem", manifest.theorem_partition, theorem_path),
+        ("representation", manifest.representation_partition, representation_path),
+    )
+    for label, binding, path in bindings:
+        if hash_file(path) != binding.sha256:
+            raise DeterministicScaleError(
+                f"{label} partition changed while validating the source inventory"
+            )
 
 
 def _canonical_model_bytes(model: StrictModel) -> bytes:
@@ -1368,6 +1422,19 @@ def _validate_shard_execution_policy(
             "admission are global. Use a sharded unary-only profile, then execute N10 "
             "as a dedicated shard_count=1 global pass."
         )
+
+
+def _representation_retention_ids(
+    config: DeterministicScaleConfig,
+    *,
+    source_universe_ids: tuple[str, ...],
+    selected_ids: tuple[str, ...],
+) -> tuple[str, ...]:
+    """Retain shard-local reprs for unary work and the full donor universe for N10."""
+
+    if "n10_nearby_theorem" in config.active_rule_ids:
+        return source_universe_ids
+    return selected_ids
 
 
 def _candidate_inline_source(
@@ -2978,11 +3045,23 @@ def _isolated_scale_backend(
     *,
     raw_response_dir: Path,
 ) -> Iterator[LeanInteractBackend]:
-    """Yield one fresh stateless backend for exactly one source theorem."""
+    """Yield one fresh, nonce-isolated backend for exactly one source theorem."""
 
-    if settings.enable_incremental_optimization:
+    if not settings.enable_incremental_optimization:
         raise DeterministicScaleError(
-            "deterministic scale execution requires Lean incrementality to be disabled"
+            "deterministic scale execution requires incremental import-header caching"
+        )
+    if settings.enable_parallel_elaboration:
+        raise DeterministicScaleError(
+            "deterministic scale execution requires parallel elaboration to be disabled"
+        )
+    if not settings.isolate_incremental_commands:
+        raise DeterministicScaleError(
+            "deterministic scale execution requires deterministic command isolation"
+        )
+    if settings.method_version != DETERMINISTIC_SCALE_METHOD_VERSION:
+        raise DeterministicScaleError(
+            "deterministic scale execution requires the current versioned Lean method"
         )
     backend = LeanInteractBackend(
         replace(
@@ -3156,7 +3235,9 @@ def _shard_set_spec_payload(data: Mapping[str, object]) -> dict[str, object]:
 def _build_run_spec(
     *,
     theorem_path: Path,
+    theorem_input_sha256: str,
     representation_path: Path,
+    representation_input_sha256: str,
     source_inventory_manifest_path: Path,
     theorem_upstream_manifest_path: Path,
     representation_upstream_manifest_path: Path,
@@ -3178,12 +3259,12 @@ def _build_run_spec(
     memory_hard_limit_mb: int | None,
 ) -> DeterministicScaleRunSpec:
     data: dict[str, object] = {
-        "schema_version": 3,
+        "schema_version": 4,
         "artifact_kind": "deterministic_scale_run_spec",
         "theorem_input_path": str(theorem_path.resolve()),
-        "theorem_input_sha256": hash_file(theorem_path),
+        "theorem_input_sha256": theorem_input_sha256,
         "representation_input_path": str(representation_path.resolve()),
-        "representation_input_sha256": hash_file(representation_path),
+        "representation_input_sha256": representation_input_sha256,
         "source_inventory_manifest_path": str(source_inventory_manifest_path.resolve()),
         "source_inventory_manifest_sha256": hash_file(source_inventory_manifest_path),
         "theorem_upstream_manifest_path": str(theorem_upstream_manifest_path.resolve()),
@@ -3203,8 +3284,12 @@ def _build_run_spec(
         "project_revision": project_revision,
         "project_tree_hash": project_tree_hash,
         "code": code,
-        "execution_isolation_policy": "per_source_stateless_v1",
-        "lean_incremental_optimization": False,
+        "execution_isolation_policy": DETERMINISTIC_SCALE_EXECUTION_ISOLATION_POLICY,
+        "lean_incremental_optimization": True,
+        "lean_parallel_elaboration": False,
+        "explicit_elab_async": False,
+        "lean_command_isolation": COMMAND_ISOLATION_VERSION,
+        "lean_method_version": DETERMINISTIC_SCALE_METHOD_VERSION,
         "replay_raw_response_policy": "separate_unbound_directory_v1",
         "memory_hard_limit_mb": memory_hard_limit_mb,
         "shard_assignment_scheme": "root_component_greedy_v1",
@@ -3345,10 +3430,11 @@ def _write_partitions(
     return paths, hashes
 
 
-def _validate_unique_inputs(
+def _validate_theorem_inputs(
     theorems: Sequence[TheoremRecord],
-    representations: Sequence[RepresentationRecord],
-) -> dict[str, RepresentationRecord]:
+) -> dict[str, TheoremRecord]:
+    """Validate extraction identity/ancestry and return the unique theorem map."""
+
     theorem_ids = [theorem.theorem_id for theorem in theorems]
     if len(theorem_ids) != len(set(theorem_ids)):
         raise DeterministicScaleError("theorem input contains duplicate theorem IDs")
@@ -3389,32 +3475,98 @@ def _validate_unique_inputs(
             raise DeterministicScaleError(
                 f"theorem extraction ancestry mismatch for {theorem.theorem_id}"
             )
-    by_theorem: dict[str, RepresentationRecord] = {}
-    for representation in representations:
-        if representation.theorem_id not in theorem_by_id:
-            raise DeterministicScaleError(
-                "representation input references theorem outside the theorem inventory: "
-                f"{representation.theorem_id}"
-            )
-        if representation.theorem_id in by_theorem:
-            raise DeterministicScaleError(
-                f"duplicate representation for theorem {representation.theorem_id}"
-            )
-        expected_representation_id = make_id(
-            REPRESENTATION_PREFIX,
-            {
-                "theorem_id": representation.theorem_id,
-                "normalization_version": NORMALIZATION_VERSION,
-            },
+    return theorem_by_id
+
+
+def _validate_representation_input(
+    representation: RepresentationRecord,
+    *,
+    theorem_by_id: Mapping[str, TheoremRecord],
+    seen_theorem_ids: set[str],
+) -> None:
+    theorem_id = representation.theorem_id
+    if theorem_id not in theorem_by_id:
+        raise DeterministicScaleError(
+            f"representation input references theorem outside the theorem inventory: {theorem_id}"
         )
-        if representation.representation_id != expected_representation_id:
-            raise DeterministicScaleError(
-                f"representation ID mismatch for {representation.theorem_id}"
-            )
-        if representation.content_hash != _representation_payload_hash(representation):
-            raise DeterministicScaleError(
-                f"representation content hash mismatch for {representation.theorem_id}"
-            )
+    if theorem_id in seen_theorem_ids:
+        raise DeterministicScaleError(f"duplicate representation for theorem {theorem_id}")
+    expected_representation_id = make_id(
+        REPRESENTATION_PREFIX,
+        {
+            "theorem_id": theorem_id,
+            "normalization_version": NORMALIZATION_VERSION,
+        },
+    )
+    if representation.representation_id != expected_representation_id:
+        raise DeterministicScaleError(f"representation ID mismatch for {theorem_id}")
+    if representation.content_hash != _representation_payload_hash(representation):
+        raise DeterministicScaleError(f"representation content hash mismatch for {theorem_id}")
+    seen_theorem_ids.add(theorem_id)
+
+
+def _scan_representation_inventory(
+    path: Path,
+    *,
+    theorem_by_id: Mapping[str, TheoremRecord],
+    retain_theorem_ids: Collection[str],
+) -> _RepresentationInventoryScan:
+    """Validate every repr_v3 row while retaining only execution-needed records."""
+
+    retained_ids = frozenset(retain_theorem_ids)
+    unknown_retained_ids = retained_ids - theorem_by_id.keys()
+    if unknown_retained_ids:
+        raise DeterministicScaleError(
+            "requested retained representation lies outside the theorem inventory: "
+            f"{sorted(unknown_retained_ids)[:3]}"
+        )
+    retained: dict[str, RepresentationRecord] = {}
+    seen: set[str] = set()
+    contexts: set[str] = set()
+    count = 0
+    for representation in _iter_jsonl(path, RepresentationRecord):
+        _validate_representation_input(
+            representation,
+            theorem_by_id=theorem_by_id,
+            seen_theorem_ids=seen,
+        )
+        count += 1
+        contexts.add(representation.context_id)
+        if representation.theorem_id in retained_ids:
+            retained[representation.theorem_id] = representation
+    if len(seen) != len(theorem_by_id):
+        missing = sorted(theorem_by_id.keys() - seen)
+        raise DeterministicScaleError(
+            "representation inventory does not cover every theorem: "
+            f"missing={missing[:3]}; missing_count={len(missing)}"
+        )
+    if retained.keys() != retained_ids:
+        missing_retained = sorted(retained_ids - retained.keys())
+        raise DeterministicScaleError(
+            f"representation inventory omitted execution-required theorems: {missing_retained[:3]}"
+        )
+    return _RepresentationInventoryScan(
+        retained_by_theorem=retained,
+        record_count=count,
+        context_ids=frozenset(contexts),
+    )
+
+
+def _validate_unique_inputs(
+    theorems: Sequence[TheoremRecord],
+    representations: Sequence[RepresentationRecord],
+) -> dict[str, RepresentationRecord]:
+    """Fully materialized validator retained for inventory freezing and fixtures."""
+
+    theorem_by_id = _validate_theorem_inputs(theorems)
+    by_theorem: dict[str, RepresentationRecord] = {}
+    seen: set[str] = set()
+    for representation in representations:
+        _validate_representation_input(
+            representation,
+            theorem_by_id=theorem_by_id,
+            seen_theorem_ids=seen,
+        )
         by_theorem[representation.theorem_id] = representation
     return by_theorem
 
@@ -3519,7 +3671,7 @@ def freeze_deterministic_scale_source_inventory(
         theorem_path=theorem_path,
         representation_path=representation_path,
         theorems=theorems,
-        representations=representations,
+        representation_count=len(representations),
         repo_root=repo_root.resolve(),
     )
     manifest_sha256 = _write_new_atomic(output_path, _canonical_model_bytes(manifest))
@@ -3585,24 +3737,7 @@ def run_deterministic_scale_materialization(
         representation_path=representation_path,
     )
     theorems = _load_jsonl(theorem_path, TheoremRecord, wrapper_key="theorem")
-    representations = _load_jsonl(representation_path, RepresentationRecord)
-    _validate_inventory_record_bindings(
-        inventory_manifest,
-        theorems=theorems,
-        representations=representations,
-    )
-    representation_by_theorem = _validate_unique_inputs(theorems, representations)
-    theorem_upstream_manifest_path, representation_upstream_manifest_path = (
-        _validate_trusted_upstream_manifests(
-            inventory_manifest,
-            inventory_manifest_path=inventory_manifest_path,
-            theorem_path=theorem_path,
-            representation_path=representation_path,
-            theorems=theorems,
-            representations=representations,
-            repo_root=paths.root,
-        )
-    )
+    theorem_by_id = _validate_theorem_inputs(theorems)
     ordered = tuple(
         sorted(theorems, key=lambda theorem: _selection_key(config.base_seed, theorem.theorem_id))
     )
@@ -3626,6 +3761,40 @@ def run_deterministic_scale_materialization(
     selected_ids = tuple(theorem.theorem_id for theorem in selected)
     if not selected:
         raise DeterministicScaleError("deterministic shard assignment selected zero sources")
+    retained_representation_ids = _representation_retention_ids(
+        config,
+        source_universe_ids=source_universe_ids,
+        selected_ids=selected_ids,
+    )
+    representation_scan = _scan_representation_inventory(
+        representation_path,
+        theorem_by_id=theorem_by_id,
+        retain_theorem_ids=retained_representation_ids,
+    )
+    representation_by_theorem = representation_scan.retained_by_theorem
+    _validate_inventory_record_bindings(
+        inventory_manifest,
+        theorems=theorems,
+        representation_count=representation_scan.record_count,
+        representation_context_ids=representation_scan.context_ids,
+    )
+    theorem_upstream_manifest_path, representation_upstream_manifest_path = (
+        _validate_trusted_upstream_manifests(
+            inventory_manifest,
+            inventory_manifest_path=inventory_manifest_path,
+            theorem_path=theorem_path,
+            representation_path=representation_path,
+            theorems=theorems,
+            representation_count=representation_scan.record_count,
+            repo_root=paths.root,
+        )
+    )
+    _revalidate_inventory_partition_hashes(
+        inventory_manifest,
+        theorem_path=theorem_path,
+        representation_path=representation_path,
+    )
+    selected_theorem_by_id = {theorem.theorem_id: theorem for theorem in selected}
 
     # Import lazily to avoid making transformation-domain code depend on the
     # Typer command module during import.
@@ -3675,7 +3844,9 @@ def run_deterministic_scale_materialization(
     code = collect_code_state(paths.root)
     run_spec = _build_run_spec(
         theorem_path=theorem_path,
+        theorem_input_sha256=inventory_manifest.theorem_partition.sha256,
         representation_path=representation_path,
+        representation_input_sha256=inventory_manifest.representation_partition.sha256,
         source_inventory_manifest_path=inventory_manifest_path,
         theorem_upstream_manifest_path=theorem_upstream_manifest_path,
         representation_upstream_manifest_path=representation_upstream_manifest_path,
@@ -3703,6 +3874,11 @@ def run_deterministic_scale_materialization(
     replay_audit_path = output / "full_lean_replay_audit.json"
 
     with _run_lock(output):
+        _revalidate_inventory_partition_hashes(
+            inventory_manifest,
+            theorem_path=theorem_path,
+            representation_path=representation_path,
+        )
         preexisting = tuple(path for path in output.iterdir() if path.name != "run.lock")
         if preexisting and not resume:
             raise DeterministicScaleError(
@@ -3788,7 +3964,10 @@ def run_deterministic_scale_materialization(
             environment_schema_version=load_environment_lock(paths).environment_schema_version,
             raw_response_dir=producer_raw_response_dir,
             memory_hard_limit_mb=memory_hard_limit_mb,
-            enable_incremental_optimization=False,
+            method_version=DETERMINISTIC_SCALE_METHOD_VERSION,
+            enable_incremental_optimization=True,
+            enable_parallel_elaboration=False,
+            isolate_incremental_commands=True,
         )
         state = _AdmissionState(
             root_counts=Counter(),
@@ -3809,12 +3988,15 @@ def run_deterministic_scale_materialization(
             representation: RepresentationRecord | None,
             donors: Sequence[TheoremRecord],
         ) -> ScaleSourceShard:
-            """Build one source in a fresh, stateless Lean session.
+            """Build one source in a fresh, nonce-isolated Lean session.
 
             A recovered incremental LeanInteract session previously poisoned
             later theorem checks while returning ordinary INVALID responses.
-            Source-level process isolation plus disabled incrementality makes
-            every source independent of earlier retry/restart trajectories.
+            A fresh backend makes every source independent of earlier retry/
+            restart trajectories. Within that source, incremental import-header
+            caching remains enabled, while deterministic command nonces prevent
+            body-state reuse and explicit ``Elab.async=false`` removes parallel
+            elaboration races.
             """
 
             nonlocal environment_prepared
@@ -3876,7 +4058,7 @@ def run_deterministic_scale_materialization(
                 expected_index=global_index,
                 source=theorem,
                 source_representation=representation_by_theorem.get(theorem.theorem_id),
-                theorem_by_id={record.theorem_id: record for record in selected},
+                theorem_by_id=selected_theorem_by_id,
                 representation_by_theorem=representation_by_theorem,
                 expected_donors=expected_donors,
                 config=config,
@@ -3943,6 +4125,11 @@ def run_deterministic_scale_materialization(
             expected_revision=run_spec.project_revision,
             expected_tree_hash=run_spec.project_tree_hash,
         )
+        _revalidate_inventory_partition_hashes(
+            inventory_manifest,
+            theorem_path=theorem_path,
+            representation_path=representation_path,
+        )
         projected = _project_records(shards)
         partition_paths, partition_hashes = _write_partitions(output, projected)
         status_counts = Counter(result.status for shard in shards for result in shard.rule_results)
@@ -4005,6 +4192,8 @@ def run_deterministic_scale_materialization(
 
 
 __all__ = [
+    "DETERMINISTIC_SCALE_EXECUTION_ISOLATION_POLICY",
+    "DETERMINISTIC_SCALE_METHOD_VERSION",
     "DeterministicScaleArtifacts",
     "DeterministicScaleConfig",
     "DeterministicScaleError",

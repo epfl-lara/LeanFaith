@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import json
 import shutil
+from dataclasses import replace
 from pathlib import Path
 from typing import cast
 
@@ -13,10 +15,14 @@ from leanfaith.cli.app import app
 from leanfaith.config.hashing import hash_canonical, hash_file
 from leanfaith.config.loading import load_config
 from leanfaith.config.paths import RepoPaths
+from leanfaith.lean.leaninteract_backend import COMMAND_ISOLATION_VERSION, BackendSettings
+from leanfaith.lean.protocol import LeanRequest
 from leanfaith.schemas import QualityTier, make_id
 from leanfaith.schemas.manifest import CodeState, collect_code_state
 from leanfaith.schemas.theorem import TheoremRecord
 from leanfaith.transforms.scale_materializer import (
+    DETERMINISTIC_SCALE_EXECUTION_ISOLATION_POLICY,
+    DETERMINISTIC_SCALE_METHOD_VERSION,
     DeterministicScaleArtifacts,
     DeterministicScaleConfig,
     DeterministicScaleError,
@@ -107,7 +113,7 @@ def _make_run_spec(
         if assignment == shard_index
     )
     data: dict[str, object] = {
-        "schema_version": 3,
+        "schema_version": 4,
         "artifact_kind": "deterministic_scale_run_spec",
         "theorem_input_path": str(theorem_path),
         "theorem_input_sha256": hash_file(theorem_path),
@@ -132,8 +138,12 @@ def _make_run_spec(
         "project_revision": "5" * 40,
         "project_tree_hash": "6" * 40,
         "code": code,
-        "execution_isolation_policy": "per_source_stateless_v1",
-        "lean_incremental_optimization": False,
+        "execution_isolation_policy": DETERMINISTIC_SCALE_EXECUTION_ISOLATION_POLICY,
+        "lean_incremental_optimization": True,
+        "lean_parallel_elaboration": False,
+        "explicit_elab_async": False,
+        "lean_command_isolation": COMMAND_ISOLATION_VERSION,
+        "lean_method_version": DETERMINISTIC_SCALE_METHOD_VERSION,
         "replay_raw_response_policy": "separate_unbound_directory_v1",
         "memory_hard_limit_mb": 49152,
         "shard_assignment_scheme": "root_component_greedy_v1",
@@ -168,7 +178,7 @@ def _make_run_spec(
     )
 
 
-def test_run_spec_binds_stateless_per_source_execution_policy(
+def test_run_spec_binds_fresh_per_source_incremental_isolation_policy(
     tmp_path: Path,
 ) -> None:
     shard_dirs, _, _ = _fixture_shard_set(tmp_path)
@@ -176,9 +186,13 @@ def test_run_spec_binds_stateless_per_source_execution_policy(
         (shard_dirs[0] / "run_spec.json").read_text(encoding="utf-8")
     )
 
-    assert spec.schema_version == 3
-    assert spec.execution_isolation_policy == "per_source_stateless_v1"
-    assert spec.lean_incremental_optimization is False
+    assert spec.schema_version == 4
+    assert spec.execution_isolation_policy == DETERMINISTIC_SCALE_EXECUTION_ISOLATION_POLICY
+    assert spec.lean_incremental_optimization is True
+    assert spec.lean_parallel_elaboration is False
+    assert spec.explicit_elab_async is False
+    assert spec.lean_command_isolation == COMMAND_ISOLATION_VERSION
+    assert spec.lean_method_version == DETERMINISTIC_SCALE_METHOD_VERSION
     assert spec.replay_raw_response_policy == "separate_unbound_directory_v1"
     assert spec.memory_hard_limit_mb == 49152
 
@@ -195,7 +209,29 @@ def test_run_spec_binds_stateless_per_source_execution_policy(
     assert changed_run_hash != spec.run_spec_hash
 
 
-def test_isolated_scale_backend_is_fresh_stateless_and_closes(
+def test_run_spec_rejects_legacy_disabled_incrementality_schema(tmp_path: Path) -> None:
+    shard_dirs, _, _ = _fixture_shard_set(tmp_path)
+    current = json.loads((shard_dirs[0] / "run_spec.json").read_text(encoding="utf-8"))
+    current.update(
+        {
+            "schema_version": 3,
+            "execution_isolation_policy": "per_source_stateless_v1",
+            "lean_incremental_optimization": False,
+        }
+    )
+    for field in (
+        "lean_parallel_elaboration",
+        "explicit_elab_async",
+        "lean_command_isolation",
+        "lean_method_version",
+    ):
+        current.pop(field)
+
+    with pytest.raises(ValueError):
+        DeterministicScaleRunSpec.model_validate(current)
+
+
+def test_isolated_scale_backend_is_fresh_incremental_nonce_sync_and_closes(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
@@ -213,12 +249,15 @@ def test_isolated_scale_backend_is_fresh_stateless_and_closes(
             self.closed = True
 
     monkeypatch.setattr(scale_materializer, "LeanInteractBackend", FakeBackend)
-    settings = scale_materializer.BackendSettings(
+    settings = BackendSettings(
         project_dir=tmp_path,
         context_fingerprint="0" * 64,
         environment_schema_version=1,
         raw_response_dir=tmp_path / "producer",
-        enable_incremental_optimization=False,
+        method_version=DETERMINISTIC_SCALE_METHOD_VERSION,
+        enable_incremental_optimization=True,
+        enable_parallel_elaboration=False,
+        isolate_incremental_commands=True,
     )
 
     with _isolated_scale_backend(
@@ -227,7 +266,10 @@ def test_isolated_scale_backend_is_fresh_stateless_and_closes(
     ) as first:
         assert first is observed[0]
         assert first.settings.environment_is_prepared is True  # type: ignore[attr-defined]
-        assert first.settings.enable_incremental_optimization is False  # type: ignore[attr-defined]
+        assert first.settings.enable_incremental_optimization is True  # type: ignore[attr-defined]
+        assert first.settings.enable_parallel_elaboration is False  # type: ignore[attr-defined]
+        assert first.settings.isolate_incremental_commands is True  # type: ignore[attr-defined]
+        assert first.settings.method_version == DETERMINISTIC_SCALE_METHOD_VERSION  # type: ignore[attr-defined]
         assert first.settings.raw_response_dir == tmp_path / "producer"  # type: ignore[attr-defined]
     with _isolated_scale_backend(
         settings,
@@ -238,6 +280,97 @@ def test_isolated_scale_backend_is_fresh_stateless_and_closes(
         assert second.settings.raw_response_dir == tmp_path / "replay"  # type: ignore[attr-defined]
 
     assert all(item.closed for item in observed)  # type: ignore[attr-defined]
+
+
+@pytest.mark.parametrize(
+    ("invalid_field", "match"),
+    (
+        ("incremental", "incremental import-header"),
+        ("parallel", "parallel elaboration"),
+        ("isolation", "command isolation"),
+        ("method", "versioned Lean method"),
+    ),
+)
+def test_isolated_scale_backend_rejects_unbound_transport_settings(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    invalid_field: str,
+    match: str,
+) -> None:
+    from leanfaith.transforms import scale_materializer
+
+    class UnexpectedBackend:
+        def __init__(self, settings: object) -> None:
+            del settings
+            raise AssertionError("invalid settings must fail before backend construction")
+
+    monkeypatch.setattr(scale_materializer, "LeanInteractBackend", UnexpectedBackend)
+    settings = BackendSettings(
+        project_dir=tmp_path,
+        context_fingerprint="0" * 64,
+        environment_schema_version=1,
+        raw_response_dir=tmp_path / "raw",
+        method_version=DETERMINISTIC_SCALE_METHOD_VERSION,
+        enable_incremental_optimization=True,
+        enable_parallel_elaboration=False,
+        isolate_incremental_commands=True,
+    )
+    if invalid_field == "incremental":
+        invalid = replace(settings, enable_incremental_optimization=False)
+    elif invalid_field == "parallel":
+        invalid = replace(settings, enable_parallel_elaboration=True)
+    elif invalid_field == "isolation":
+        invalid = replace(settings, isolate_incremental_commands=False)
+    else:
+        invalid = replace(settings, method_version="retired-scale-method")
+
+    with (
+        pytest.raises(DeterministicScaleError, match=match),
+        _isolated_scale_backend(
+            invalid,
+            raw_response_dir=tmp_path / "raw",
+        ),
+    ):
+        raise AssertionError("context body must not run")
+
+
+def test_scale_transport_evidence_binds_nonce_and_method_version(tmp_path: Path) -> None:
+    from leanfaith.lean.leaninteract_backend import LeanInteractBackend
+
+    backend = LeanInteractBackend(
+        BackendSettings(
+            project_dir=tmp_path,
+            context_fingerprint="0" * 64,
+            environment_schema_version=1,
+            raw_response_dir=tmp_path / "raw",
+            method_version=DETERMINISTIC_SCALE_METHOD_VERSION,
+            enable_incremental_optimization=True,
+            enable_parallel_elaboration=False,
+            isolate_incremental_commands=True,
+            environment_is_prepared=True,
+        )
+    )
+    request = LeanRequest(
+        request_id="det-scale-transport-fixture-validate",
+        context_id="ctx:" + "0" * 64,
+        code="import Mathlib\nexample : True := by trivial\n",
+        allow_sorry=False,
+        metadata={"attempt": 0},
+    )
+
+    request_hash = backend._request_hash(request)
+    raw_path = Path(backend._persist_raw(request, request_hash, {"messages": []}, None))
+    payload = json.loads(raw_path.read_text(encoding="utf-8"))
+
+    assert payload["request_hash"] == request_hash
+    assert payload["method_version"] == DETERMINISTIC_SCALE_METHOD_VERSION
+    assert payload["transport_isolation"] == {
+        "attempt": "0",
+        "prefix_sha256": payload["transport_isolation"]["prefix_sha256"],
+        "prefix_width": len(backend._command_isolation_prefix(request)),
+        "version": COMMAND_ISOLATION_VERSION,
+    }
+    assert len(payload["transport_isolation"]["prefix_sha256"]) == 64
 
 
 def _write_ineligible_shard_output(

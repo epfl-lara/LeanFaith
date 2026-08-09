@@ -23,6 +23,7 @@ from leanfaith.config.paths import find_repo_root
 from leanfaith.lean.leaninteract_backend import LeanInteractBackend
 from leanfaith.lean.protocol import LeanRequest, LeanResult, LeanStatus
 from leanfaith.lean.session_policy import RetryPolicy, run_with_retries
+from leanfaith.lean.source_scan import scan_lean_line
 from leanfaith.representations.atoms import (
     operator_tree,
     parse_lfjson_line,
@@ -465,7 +466,7 @@ def _hoist_inline_imports(source: str) -> tuple[str, str]:
     block_depth = 0
     for line in source.splitlines():
         initial_depth = block_depth
-        first_code, block_depth = _scan_lean_line(line, block_depth)
+        first_code, block_depth = scan_lean_line(line, block_depth)
         # Only move a real top-level preamble command. In particular, prose
         # such as `import geometry;` inside a nested Lean block comment must
         # remain a comment. Requiring balanced comments on the line avoids
@@ -492,59 +493,6 @@ def _hoist_inline_imports(source: str) -> tuple[str, str]:
                 continue
         body.append(line)
     return "\n".join(dict.fromkeys(imports)), "\n".join(body)
-
-
-def _scan_lean_line(line: str, block_depth: int) -> tuple[int | None, int]:
-    """Return the first top-level code offset and ending block-comment depth.
-
-    Lean block comments nest.  Comment delimiters inside string literals do
-    not affect nesting, and a line comment ends scanning for that line.  This
-    small lexer intentionally answers only what import hoisting needs; Lean
-    remains the authority for parsing the resulting command.
-    """
-
-    first_code: int | None = None
-    in_string = False
-    escaped = False
-    index = 0
-    while index < len(line):
-        if block_depth:
-            if line.startswith("/-", index):
-                block_depth += 1
-                index += 2
-            elif line.startswith("-/", index):
-                block_depth -= 1
-                index += 2
-            else:
-                index += 1
-            continue
-
-        if in_string:
-            char = line[index]
-            if escaped:
-                escaped = False
-            elif char == "\\":
-                escaped = True
-            elif char == '"':
-                in_string = False
-            index += 1
-            continue
-
-        if line.startswith("--", index):
-            break
-        if line.startswith("/-", index):
-            block_depth += 1
-            index += 2
-            continue
-
-        char = line[index]
-        if first_code is None and not char.isspace():
-            first_code = index
-        if char == '"':
-            in_string = True
-        index += 1
-
-    return first_code, block_depth
 
 
 def _retry_check_views(

@@ -26,6 +26,17 @@ The materializer fails closed if an active N10 rule is combined with
 `--shard-count` greater than one. The unary shard merger also recomputes this
 policy. The global N10 output is a separate provisional partition set.
 
+Each worker still parses and validates every theorem and every `repr_v3` row
+against the immutable inventory, including IDs, content hashes, context, exact
+coverage, counts, and upstream manifests. To avoid retaining the complete
+large representation partition in every process, a unary worker keeps only the
+full representation records assigned to its shard. The dedicated global N10
+pass keeps the complete selected source universe because any eligible theorem
+may be a donor. Both input partitions are hashed again after the streaming scan
+and before any run output is created. This retention optimization does not
+change source ordering, root-component shard assignments, donor scheduling, or
+exact replay semantics.
+
 Manual concatenation of the two partition sets is scientifically invalid. After
 both passes have independently completed and merged, authorize them together
 with:
@@ -46,6 +57,15 @@ authorizes downstream code to treat the two outputs together. It does not make
 the provisional records training-eligible.
 
 ## Resume and merge verification
+
+Every source theorem runs in a fresh LeanInteract backend. Within that source,
+incremental optimization remains enabled so repeated commands reuse only the
+import-header cache. Every semantic command receives the versioned deterministic
+nonce prefix, and Lean elaboration is explicitly synchronous
+(``Elab.async=false``). These settings and the Lean method version are bound by
+the schema-v4 run spec and therefore by both run-spec hashes. Producer and
+replay raw-response trees retain the transport-isolation evidence emitted by
+the backend.
 
 `--resume` always performs exact deterministic replay, including Lean
 elaboration and candidate representation, for each persisted source shard.
@@ -79,9 +99,11 @@ unresolved; the merged manifest records `training_eligible=false`.
 
 ## Legacy journal recovery and migration
 
-There is no in-place scientific migration for legacy schema-v1 run
-specs/journal directories or for schema-v2 shard sets produced with
-shard-local N10 scheduling.
+There is no in-place scientific migration for legacy schema-v1 through
+schema-v3 run specs/journal directories. This includes schema-v2 shard sets
+produced with shard-local N10 scheduling and schema-v3 scale runs that disabled
+incrementality instead of combining fresh per-source backends with deterministic
+command isolation.
 
 For a legacy directory:
 

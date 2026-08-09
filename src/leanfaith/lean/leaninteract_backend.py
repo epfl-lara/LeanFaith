@@ -46,14 +46,29 @@ from leanfaith.lean.response_normalization import (
     normalize_response,
 )
 from leanfaith.lean.session_policy import ServerMode
+from leanfaith.lean.source_scan import has_top_level_import_family
 
-METHOD_VERSION = "leaninteract_backend_v2"
+METHOD_VERSION = "leaninteract_backend_v3"
 COMMAND_ISOLATION_VERSION = "deterministic_request_nonce_prefix_v1"
 
 _CORE_ENVIRONMENT_SECONDARY_ERRORS = (
     "Unknown constant `CoeFun`",
     "Unknown constant `Lean.ParserDescr`",
     "The expected type of `.default`\n  BinderInfo",
+)
+
+# A second corruption shape was observed during the frozen Gate-2 replay:
+# after a previously valid ``import Mathlib`` prefix had been reused, the REPL
+# returned a normal command response whose environment lacked basic Mathlib
+# namespaces and even ``OfNat``.  These diagnostics are impossible after a
+# successful Mathlib import in the pinned project.  Keep the markers exact and
+# require the request itself to import ``Mathlib``; an ordinary
+# user typo such as ``unknown namespace `Foo``` must remain a semantic INVALID.
+_MATHLIB_ENVIRONMENT_CORRUPTION_ERRORS = (
+    "unknown namespace `Real`",
+    "unknown namespace `Classical`",
+    "unknown namespace `Topology`",
+    "Unknown constant `OfNat`",
 )
 
 
@@ -138,24 +153,102 @@ class LeanInteractBackend:
         """Detect the impossible core-import failure observed in Gate 3.
 
         LeanInteract's incremental REPL optimization can occasionally reuse a
-        damaged prefix environment: a command beginning with ``import Lean``
-        then reports that the ``Lean`` namespace and core constants do not
-        exist. This is an infrastructure/session failure, not a theorem
-        verdict. Keep the detector deliberately narrow so ordinary invalid
-        Lean programs are never retried as infrastructure failures.
+        damaged prefix environment.  Two observed, independently replayed
+        signatures are recognized: ``import Lean`` followed by missing Lean
+        core declarations, and ``import Mathlib`` followed by missing standard
+        Mathlib namespaces/basic ``OfNat`` infrastructure.  Both are
+        infrastructure/session failures, not theorem verdicts.  Keep the
+        detector deliberately narrow so ordinary invalid Lean programs are
+        never retried as infrastructure failures.
         """
 
         code = request.code
-        if code is None or not code.lstrip("\ufeff \t\r\n").startswith("import Lean\n"):
+        if code is None:
             return False
+        stripped_code = code.lstrip("\ufeff \t\r\n")
+        imports_mathlib = has_top_level_import_family(stripped_code, "Mathlib")
         errors = "\n".join(
             str(message.get("data", ""))
             for message in raw.get("messages") or ()
             if message.get("severity") == "error"
         )
-        return "unknown namespace `Lean`" in errors and any(
-            marker in errors for marker in _CORE_ENVIRONMENT_SECONDARY_ERRORS
+        lean_corruption = stripped_code.startswith("import Lean\n") and (
+            "unknown namespace `Lean`" in errors
+            and any(marker in errors for marker in _CORE_ENVIRONMENT_SECONDARY_ERRORS)
         )
+        mathlib_corruption = imports_mathlib and (
+            "Unknown constant `OfNat`" in errors
+            and any(
+                marker in errors
+                for marker in _MATHLIB_ENVIRONMENT_CORRUPTION_ERRORS
+                if marker != "Unknown constant `OfNat`"
+            )
+        )
+        return lean_corruption or mathlib_corruption
+
+    def _recover_corrupted_environment(
+        self,
+        request: LeanRequest,
+        *,
+        request_hash: str,
+        raw: dict[str, Any],
+        raw_path: str,
+        elapsed_ms: int,
+        originated_from_pool: bool = False,
+    ) -> LeanResult | None:
+        """Recover one impossible imported environment, independent of mode.
+
+        Stable and pooled requests share this path so a poisoned response can
+        never become a semantic INVALID merely because it was dispatched by a
+        different server mode. The corrupt raw response is already persisted
+        before this method runs.
+        """
+
+        if not self._core_environment_is_corrupted(request, raw):
+            return None
+        if request.metadata.get("core_environment_recovery") == "1":
+            # A fresh process returned the same impossible import environment.
+            # Never normalize that infrastructure failure as a semantic
+            # INVALID. The caller's bounded infrastructure retry policy may
+            # now make its next outer attempt with a fresh process; if it also
+            # fails, the row remains an explicit crash rather than a false
+            # theorem verdict.
+            self.reset_session()
+            normalized = normalize_response(
+                request,
+                self._raw_for_normalization(request, raw),
+                request_hash=request_hash,
+                context_fingerprint=self._settings.context_fingerprint,
+                elapsed_ms=elapsed_ms,
+                raw_response_path=raw_path,
+            )
+            return replace(
+                normalized,
+                status=LeanStatus.CRASH,
+                infrastructure_error="core_environment_corruption_after_recovery",
+            )
+
+        # Pool workers cannot be individually identified through LeanInteract's
+        # returned item. Reset the whole pool/session, then retry this request
+        # exactly once through a fresh stable process. Other already-returned
+        # pool items remain independently normalizable.
+        self.reset_session()
+        attempt = str(request.metadata.get("attempt", "0"))
+        recovery_request = replace(
+            request,
+            metadata={
+                **dict(request.metadata),
+                "attempt": f"{attempt}-core-recovery",
+                "core_environment_recovery": "1",
+            },
+        )
+        recovered = self.run(recovery_request)
+        if originated_from_pool:
+            # Pool recovery deliberately uses a stable one-off process. Do not
+            # retain it alongside the replacement pool used by later batch
+            # groups.
+            self._drop_server()
+        return replace(recovered, elapsed_ms=elapsed_ms + recovered.elapsed_ms)
 
     def _ensure_server(self) -> LeanServer:
         if self._server is None:
@@ -438,25 +531,15 @@ class LeanInteractBackend:
 
         raw = response.model_dump(mode="json")
         raw_path = self._persist_raw(request, request_hash, raw, None)
-        if request.metadata.get(
-            "core_environment_recovery"
-        ) != "1" and self._core_environment_is_corrupted(request, raw):
-            # Preserve the corrupt raw response, discard the poisoned REPL,
-            # and retry exactly once on a fresh process. Attempt metadata is
-            # excluded from the request hash but gives the retry a distinct,
-            # append-only raw-artifact path.
-            self._drop_server()
-            attempt = str(request.metadata.get("attempt", "0"))
-            recovery_request = replace(
-                request,
-                metadata={
-                    **dict(request.metadata),
-                    "attempt": f"{attempt}-core-recovery",
-                    "core_environment_recovery": "1",
-                },
-            )
-            recovered = self.run(recovery_request)
-            return replace(recovered, elapsed_ms=elapsed_ms + recovered.elapsed_ms)
+        recovered = self._recover_corrupted_environment(
+            request,
+            request_hash=request_hash,
+            raw=raw,
+            raw_path=raw_path,
+            elapsed_ms=elapsed_ms,
+        )
+        if recovered is not None:
+            return recovered
         return normalize_response(
             request,
             self._raw_for_normalization(request, raw),
@@ -525,6 +608,16 @@ class LeanInteractBackend:
             )
         raw = item.model_dump(mode="json")  # type: ignore[attr-defined]
         raw_path = self._persist_raw(request, request_hash, raw, None)
+        recovered = self._recover_corrupted_environment(
+            request,
+            request_hash=request_hash,
+            raw=raw,
+            raw_path=raw_path,
+            elapsed_ms=elapsed_ms,
+            originated_from_pool=True,
+        )
+        if recovered is not None:
+            return recovered
         return normalize_response(
             request,
             self._raw_for_normalization(request, raw),
@@ -544,7 +637,7 @@ class LeanInteractBackend:
         # Pool construction failure is a SETUP_ERROR for the whole batch
         # (§8.3), never CRASH/INTERNAL_ERROR.
         try:
-            pool = self._ensure_pool()
+            self._ensure_pool()
         except Exception as exc:
             elapsed_ms = int((time.monotonic() - started) * 1000)
             return [
@@ -565,6 +658,9 @@ class LeanInteractBackend:
             indices = groups[timeout_seconds]
             group_started = time.monotonic()
             try:
+                # A prior group's corruption recovery resets the pool. Never
+                # reuse a captured, already-closed pool across timeout groups.
+                pool = self._ensure_pool()
                 raw_results = pool.run_batch(
                     [self._build_repl_request(requests[i]) for i in indices],
                     timeout_per_cmd=timeout_seconds,
