@@ -36,7 +36,12 @@ from leanfaith.generation.lf022_production import (
 from leanfaith.generation.lf022_public_pool import LF022PublicPoolAudit
 from leanfaith.schemas.manifest import collect_code_state
 
-LF022SupportedProposerFamily = Literal["moonshot_kimi_k2", "qwen3", "glm5"]
+LF022SupportedProposerFamily = Literal[
+    "moonshot_kimi_k2",
+    "qwen3",
+    "glm5",
+    "deepseek_v4",
+]
 
 _RAW_CATALOG_PATH = (
     "reports/generation/lf022_rcp_public_smoke_v3/catalog/"
@@ -146,6 +151,30 @@ _ROUTES: dict[LF022SupportedProposerFamily, _RouteSpec] = {
             "thinking_fields_forbidden": False,
         },
     ),
+    "deepseek_v4": _RouteSpec(
+        model_id="deepseek-ai/DeepSeek-V4-Pro",
+        canonical_family="deepseek-ai/deepseek-v4-pro",
+        contract_id="deepseek_v4_proposer_qualification_v1",
+        contract_path="configs/generation/lf022_deepseek_v4_proposer_qualification_v1.yaml",
+        prompt_path="prompts/proposers/lean_variant_v1.txt",
+        execution_scope="one_item_proposer_qualification_only",
+        decoding={
+            "temperature": 0.0,
+            "top_p": 1.0,
+            "top_k": None,
+            "min_p": None,
+            "presence_penalty": None,
+            "repetition_penalty": None,
+            "max_tokens": 8_192,
+            "seed": 42,
+            "stream": False,
+            "thinking_mode": "enabled",
+            "reasoning_effort": "high",
+            "chat_template_enable_thinking": True,
+            "chat_template_thinking": None,
+            "thinking_fields_forbidden": False,
+        },
+    ),
 }
 
 _RECOVERY_ROUTES: dict[Literal["qwen3", "glm5"], _RouteSpec] = {
@@ -199,7 +228,7 @@ _RECOVERY_ROUTES: dict[Literal["qwen3", "glm5"], _RouteSpec] = {
     ),
 }
 
-_QUALIFIED_PRODUCTION_ROUTES: dict[Literal["qwen3", "glm5"], _RouteSpec] = {
+_QUALIFIED_PRODUCTION_ROUTES: dict[Literal["qwen3", "glm5", "deepseek_v4"], _RouteSpec] = {
     family: _RouteSpec(
         model_id=spec.model_id,
         canonical_family=spec.canonical_family,
@@ -211,6 +240,15 @@ _QUALIFIED_PRODUCTION_ROUTES: dict[Literal["qwen3", "glm5"], _RouteSpec] = {
     )
     for family, spec in _RECOVERY_ROUTES.items()
 }
+_QUALIFIED_PRODUCTION_ROUTES["deepseek_v4"] = _RouteSpec(
+    model_id=_ROUTES["deepseek_v4"].model_id,
+    canonical_family=_ROUTES["deepseek_v4"].canonical_family,
+    contract_id=_ROUTES["deepseek_v4"].contract_id,
+    contract_path=_ROUTES["deepseek_v4"].contract_path,
+    prompt_path=_ROUTES["deepseek_v4"].prompt_path,
+    execution_scope="public_provisional_g_open",
+    decoding=_ROUTES["deepseek_v4"].decoding,
+)
 
 _QUALIFIED_KIMI_V4_ROUTE = _RouteSpec(
     model_id="moonshotai/Kimi-K2.7-Code",
@@ -359,7 +397,7 @@ def _freeze_lf022_execution_admission(
         )
     qualified_scientific = (
         expected_profile == "scientific_production_scaffold"
-        and proposer_family_id in {"moonshot_kimi_k2", "qwen3", "glm5"}
+        and proposer_family_id in {"moonshot_kimi_k2", "qwen3", "glm5", "deepseek_v4"}
     )
     if qualified_scientific != (proposer_production_eligibility_path is not None):
         raise LF022AdmissionFreezeError(
@@ -373,8 +411,10 @@ def _freeze_lf022_execution_admission(
             else _QUALIFIED_PRODUCTION_ROUTES[proposer_family_id]
         )
     elif qualification_supersession_path is not None:
-        if proposer_family_id == "moonshot_kimi_k2":
-            raise LF022AdmissionFreezeError("Kimi cannot use a qualification supersession")
+        if proposer_family_id not in _RECOVERY_ROUTES:
+            raise LF022AdmissionFreezeError(
+                "this proposer has no reviewed qualification supersession route"
+            )
         spec = _RECOVERY_ROUTES[proposer_family_id]
     else:
         spec = _ROUTES[proposer_family_id]
@@ -459,7 +499,7 @@ def _freeze_lf022_execution_admission(
             )
         if proposer_family_id == "moonshot_kimi_k2":
             raise LF022AdmissionFreezeError(
-                "derived diagnostic subpools support only qwen3 or glm5"
+                "derived diagnostic subpools do not support the archived Kimi route"
             )
         from leanfaith.generation.lf022_diagnostic_subpool import (
             LF022DiagnosticSubpoolError,
@@ -816,13 +856,13 @@ def freeze_lf022_scientific_qualified_execution_admission(
     *,
     repo_root: Path,
     public_pool_audit_path: Path,
-    proposer_family_id: Literal["qwen3", "glm5"],
+    proposer_family_id: Literal["qwen3", "glm5", "deepseek_v4"],
     proposer_production_eligibility_path: Path,
     code_bundle_path: Path,
     output_path: Path,
     provider_catalog_raw_path: Path | None = None,
 ) -> FrozenLF022ExecutionAdmission:
-    """Admit one replay-qualified Qwen/GLM route over the scientific public pool."""
+    """Admit one replay-qualified proposer route over the scientific public pool."""
 
     return _freeze_lf022_execution_admission(
         repo_root=repo_root,

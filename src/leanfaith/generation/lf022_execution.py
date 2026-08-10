@@ -176,6 +176,7 @@ class LF022RCPDecodingContract(StrictModel):
         "qwen3_5_proposer_qualification_v2",
         "glm5_2_proposer_qualification_v1",
         "glm5_2_proposer_qualification_v2",
+        "deepseek_v4_proposer_qualification_v1",
     ]
     temperature: float = Field(ge=0.0, le=2.0)
     top_p: float = Field(gt=0.0, le=1.0)
@@ -276,6 +277,22 @@ class LF022RCPDecodingContract(StrictModel):
                 "thinking_fields_forbidden": False,
             },
             "glm5_2_proposer_qualification_v2": {
+                "temperature": 0.0,
+                "top_p": 1.0,
+                "top_k": None,
+                "min_p": None,
+                "presence_penalty": None,
+                "repetition_penalty": None,
+                "max_tokens": 8192,
+                "seed": 42,
+                "stream": False,
+                "thinking_mode": "enabled",
+                "reasoning_effort": "high",
+                "chat_template_enable_thinking": True,
+                "chat_template_thinking": None,
+                "thinking_fields_forbidden": False,
+            },
+            "deepseek_v4_proposer_qualification_v1": {
                 "temperature": 0.0,
                 "top_p": 1.0,
                 "top_k": None,
@@ -396,11 +413,18 @@ class LF022RCPRouteBinding(StrictModel):
                     "public_provisional_g_open",
                 ),
             ),
+            "deepseek-ai/DeepSeek-V4-Pro": (
+                "deepseek_v4",
+                "deepseek-ai/deepseek-v4-pro",
+                ("deepseek_v4_proposer_qualification_v1",),
+                (
+                    "one_item_proposer_qualification_only",
+                    "public_provisional_g_open",
+                ),
+            ),
         }.get(self.model_id)
         if expected is None:
-            raise ValueError(
-                "route is outside the exact reviewed LF-022 Kimi/Qwen/GLM proposer scope"
-            )
+            raise ValueError("route is outside the exact reviewed LF-022 proposer scope")
         expected_family, expected_canonical, expected_contracts, allowed_scopes = expected
         if isinstance(expected_contracts, str):
             expected_contracts = (expected_contracts,)
@@ -500,7 +524,7 @@ class LF022QualificationClaim(StrictModel):
 
     schema_version: Literal[1, 2] = 1
     claim_id: str = Field(pattern=id_pattern("lf022_qualification_claim"))
-    proposer_family_id: Literal["qwen3", "glm5"]
+    proposer_family_id: Literal["qwen3", "glm5", "deepseek_v4"]
     model_id: str
     execution_scope: Literal["one_item_proposer_qualification_only"]
     admission_id: str = Field(pattern=id_pattern("lf022_execution_admission"))
@@ -582,6 +606,7 @@ class LF022GOpenExecutionAdmission(StrictModel):
                 "kimi_k2_7_public_proposer_v4",
                 "qwen3_5_proposer_qualification_v2",
                 "glm5_2_proposer_qualification_v2",
+                "deepseek_v4_proposer_qualification_v1",
             }
         )
         if requires_eligibility != (self.artifacts.proposer_production_eligibility is not None):
@@ -794,10 +819,10 @@ def make_lf022_qualification_claim(
     admission: LF022GOpenExecutionAdmission,
     task: LF022GOpenExecutionTask,
 ) -> LF022QualificationClaim:
-    """Bind the one repository-global Qwen/GLM qualification task."""
+    """Bind one repository-global qualification task for a reviewed proposer."""
 
-    if admission.route.proposer_family_id not in {"qwen3", "glm5"}:
-        raise LF022ExecutionError("only Qwen/GLM routes may reserve a qualification claim")
+    if admission.route.proposer_family_id not in {"qwen3", "glm5", "deepseek_v4"}:
+        raise LF022ExecutionError("route may not reserve a proposer qualification claim")
     if admission.route.execution_scope != "one_item_proposer_qualification_only":
         raise LF022ExecutionError("qualification claim requires the one-item execution scope")
     if task.execution_admission_id != admission.admission_id:
@@ -1147,6 +1172,9 @@ def _verify_reviewed_route_contract(
         "glm5_2_proposer_qualification_v2": (
             "configs/generation/lf022_glm5_2_proposer_qualification_v2.yaml"
         ),
+        "deepseek_v4_proposer_qualification_v1": (
+            "configs/generation/lf022_deepseek_v4_proposer_qualification_v1.yaml"
+        ),
     }[route.decoding.contract_id]
     if contract_path.as_posix().split("/")[-len(PurePosixPath(required_contract).parts) :] != list(
         PurePosixPath(required_contract).parts
@@ -1178,14 +1206,30 @@ def _verify_reviewed_route_contract(
             "qualification route differs from exact role-aware proposer contract"
         )
     transport_evidence = qualification.prior_transport_evidence
-    if (
+    common_transport_mismatch = (
         transport_evidence.artifact != required_evidence
         or transport_evidence.sha256 != hash_file(evidence_path)
-        or route.model_id not in {judge.model for judge in evidence.verified_success.judge_calls}
         or evidence.verified_success.proposer == route.model_id
-    ):
-        raise LF022ExecutionError("qualification route lacks exact judge-transport-only evidence")
+    )
     capability = qualification.wire_capability_policy
+    if route.proposer_family_id == "deepseek_v4":
+        accepted_failure = capability.accepted_failure_manifest
+        terminal_evidence = tuple(
+            item
+            for item in evidence.terminal_attempts
+            if accepted_failure is not None
+            and item.get("config_file") == "configs/generation/lf022_rcp_public_smoke_v2.yaml"
+            and item.get("status") == "terminal_failure"
+            and item.get("failure_manifest") == accepted_failure.artifact
+            and item.get("failure_manifest_sha256") == accepted_failure.sha256
+        )
+        transport_mismatch = len(terminal_evidence) != 1
+    else:
+        transport_mismatch = route.model_id not in {
+            judge.model for judge in evidence.verified_success.judge_calls
+        }
+    if common_transport_mismatch or transport_mismatch:
+        raise LF022ExecutionError("qualification route lacks exact judge-transport-only evidence")
     if (
         capability.evidence != transport_evidence
         or qualification.decoding.reasoning_effort not in capability.reasoning_effort_values
@@ -1220,45 +1264,97 @@ def _verify_reviewed_route_contract(
         raise LF022ExecutionError(
             "qualification reasoning capability differs from exact accepted wire bytes"
         )
-    accepted_manifest_path = _bound_path(
-        repo_root=repo_root,
-        binding=LF022ArtifactBinding(
-            path=evidence.verified_success.manifest,
-            sha256=evidence.verified_success.manifest_sha256,
-        ),
-        label="qualification replay manifest",
-    )
-    try:
-        accepted_manifest_raw = accepted_manifest_path.read_bytes()
-        accepted_manifest = json.loads(accepted_manifest_raw)
-    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
-        raise LF022ExecutionError(f"invalid qualification replay manifest: {exc}") from exc
-    if (
-        not isinstance(accepted_manifest, dict)
-        or accepted_manifest_raw != canonical_json_bytes(accepted_manifest) + b"\n"
-        or not isinstance(accepted_manifest.get("call_artifacts"), list)
-    ):
-        raise LF022ExecutionError("qualification replay manifest is not canonical call evidence")
-    matching_calls = tuple(
-        item
-        for item in accepted_manifest["call_artifacts"]
-        if isinstance(item, dict)
-        and item.get("call_label") == capability.accepted_call_label
-        and item.get("model_id") == route.model_id
-        and item.get("role") == "judge"
-        and item.get("parse_status") == "parsed"
-        and item.get("wire_request_artifact") == capability.accepted_wire_request.artifact
-        and item.get("wire_request_sha256") == capability.accepted_wire_request.sha256
-    )
-    if len(matching_calls) != 1:
-        raise LF022ExecutionError(
-            "qualification accepted wire request is not one exact replay-manifest call"
+    if capability.accepted_evidence_status == "parsed_success_manifest":
+        accepted_manifest_path = _bound_path(
+            repo_root=repo_root,
+            binding=LF022ArtifactBinding(
+                path=evidence.verified_success.manifest,
+                sha256=evidence.verified_success.manifest_sha256,
+            ),
+            label="qualification replay manifest",
         )
-    accepted_call = matching_calls[0]
-    response_artifact = accepted_call.get("wire_response_artifact")
-    response_sha256 = accepted_call.get("wire_response_sha256")
-    if not isinstance(response_artifact, str) or not isinstance(response_sha256, str):
-        raise LF022ExecutionError("qualification accepted call lacks bound response bytes")
+        try:
+            accepted_manifest_raw = accepted_manifest_path.read_bytes()
+            accepted_manifest = json.loads(accepted_manifest_raw)
+        except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+            raise LF022ExecutionError(f"invalid qualification replay manifest: {exc}") from exc
+        if (
+            not isinstance(accepted_manifest, dict)
+            or accepted_manifest_raw != canonical_json_bytes(accepted_manifest) + b"\n"
+            or not isinstance(accepted_manifest.get("call_artifacts"), list)
+        ):
+            raise LF022ExecutionError(
+                "qualification replay manifest is not canonical call evidence"
+            )
+        matching_calls = tuple(
+            item
+            for item in accepted_manifest["call_artifacts"]
+            if isinstance(item, dict)
+            and item.get("call_label") == capability.accepted_call_label
+            and item.get("model_id") == route.model_id
+            and item.get("role") == "judge"
+            and item.get("parse_status") == "parsed"
+            and item.get("wire_request_artifact") == capability.accepted_wire_request.artifact
+            and item.get("wire_request_sha256") == capability.accepted_wire_request.sha256
+        )
+        if len(matching_calls) != 1:
+            raise LF022ExecutionError(
+                "qualification accepted wire request is not one exact replay-manifest call"
+            )
+        accepted_call = matching_calls[0]
+        response_artifact = accepted_call.get("wire_response_artifact")
+        response_sha256 = accepted_call.get("wire_response_sha256")
+        if not isinstance(response_artifact, str) or not isinstance(response_sha256, str):
+            raise LF022ExecutionError("qualification accepted call lacks bound response bytes")
+    else:
+        accepted_response = capability.accepted_wire_response
+        accepted_failure = capability.accepted_failure_manifest
+        assert accepted_response is not None
+        assert accepted_failure is not None
+        response_artifact = accepted_response.artifact
+        response_sha256 = accepted_response.sha256
+        failure_path = _bound_path(
+            repo_root=repo_root,
+            binding=LF022ArtifactBinding(
+                path=accepted_failure.artifact,
+                sha256=accepted_failure.sha256,
+            ),
+            label="qualification accepted failure manifest",
+        )
+        try:
+            failure_raw = failure_path.read_bytes()
+            failure = json.loads(failure_raw)
+        except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+            raise LF022ExecutionError(
+                f"invalid qualification accepted failure manifest: {exc}"
+            ) from exc
+        if (
+            not isinstance(failure, dict)
+            or failure_raw != canonical_json_bytes(failure) + b"\n"
+            or failure.get("error_type") != "JudgeOutputParseError"
+            or failure.get("terminal") is not True
+            or failure.get("semantic_labels_created") is not False
+            or failure.get("training_eligible") is not False
+            or not isinstance(failure.get("artifacts"), list)
+        ):
+            raise LF022ExecutionError(
+                "qualification failure manifest is not a canonical parse-failure terminal"
+            )
+        artifact_pairs = {
+            (item.get("artifact"), item.get("sha256"))
+            for item in failure["artifacts"]
+            if isinstance(item, dict)
+        }
+        if {
+            (
+                capability.accepted_wire_request.artifact,
+                capability.accepted_wire_request.sha256,
+            ),
+            (response_artifact, response_sha256),
+        } - artifact_pairs:
+            raise LF022ExecutionError(
+                "qualification failure manifest does not bind request and response bytes"
+            )
     accepted_response_path = _bound_path(
         repo_root=repo_root,
         binding=LF022ArtifactBinding(
@@ -1295,7 +1391,9 @@ def _verify_reviewed_route_contract(
                 "Qwen proposer qualification does not bind portfolio-v2 decoding"
             )
     elif qualification.portfolio_source is not None:
-        raise LF022ExecutionError("GLM proposer qualification must not invent a portfolio-v2 route")
+        raise LF022ExecutionError(
+            "non-Qwen proposer qualification must not invent a portfolio-v2 route"
+        )
 
 
 def _verify_reviewed_v2_portfolio(
@@ -1303,7 +1401,7 @@ def _verify_reviewed_v2_portfolio(
     path: Path,
     route: LF022RCPRouteBinding,
 ) -> None:
-    """Bind Kimi/Qwen baseline identity to portfolio v2; GLM is separately scoped."""
+    """Bind portfolio routes; separately reviewed late-added families stay absent."""
 
     required = "configs/generation/rcp_provider_portfolio_v2.yaml"
     if path.as_posix().split("/")[-len(PurePosixPath(required).parts) :] != list(
@@ -1322,9 +1420,11 @@ def _verify_reviewed_v2_portfolio(
         for value in routes
         if isinstance(value, dict) and value.get("route_id") == route.model_id
     )
-    if route.proposer_family_id == "glm5":
+    if route.proposer_family_id in {"glm5", "deepseek_v4"}:
         if matching:
-            raise LF022ExecutionError("GLM unexpectedly aliases a portfolio-v2 route")
+            raise LF022ExecutionError(
+                "late-added proposer unexpectedly aliases a portfolio-v2 route"
+            )
         return
     if len(matching) != 1:
         raise LF022ExecutionError("route is absent or duplicated in reviewed RCP portfolio")
@@ -1412,7 +1512,13 @@ class _LF022WireCapabilityPolicy(StrictModel):
     unsupported_reasoning_fields: Literal["reject"]
     evidence: _LF022TransportEvidence
     accepted_call_label: str = Field(min_length=1)
+    accepted_evidence_status: Literal[
+        "parsed_success_manifest",
+        "terminal_parse_failure_after_http_success",
+    ] = "parsed_success_manifest"
     accepted_wire_request: _LF022QualificationArtifact
+    accepted_wire_response: _LF022QualificationArtifact | None = None
+    accepted_failure_manifest: _LF022QualificationArtifact | None = None
 
     @model_validator(mode="after")
     def _exact_values(self) -> Self:
@@ -1420,6 +1526,17 @@ class _LF022WireCapabilityPolicy(StrictModel):
             raise ValueError("only explicitly accepted reasoning_effort='high' is supported")
         if self.chat_template_enable_thinking_values != (True,):
             raise ValueError("only explicitly accepted enable_thinking=true is supported")
+        failure_evidence = self.accepted_evidence_status == (
+            "terminal_parse_failure_after_http_success"
+        )
+        has_response = self.accepted_wire_response is not None
+        has_failure = self.accepted_failure_manifest is not None
+        if (failure_evidence and not (has_response and has_failure)) or (
+            not failure_evidence and (has_response or has_failure)
+        ):
+            raise ValueError(
+                "terminal parse-failure capability requires exact response and failure manifest"
+            )
         return self
 
 
@@ -1455,6 +1572,7 @@ class _LF022ProposerQualificationContract(StrictModel):
         "qwen3_5_proposer_qualification_v2",
         "glm5_2_proposer_qualification_v1",
         "glm5_2_proposer_qualification_v2",
+        "deepseek_v4_proposer_qualification_v1",
     ]
     role: Literal["proposer"]
     qualification_status: Literal["pending_one_item_live_qualification"]
@@ -1539,7 +1657,7 @@ def verify_lf022_execution_admission(
         plan.profile != "diagnostic_scaffold" or audit.selected_count != 1 or len(plan.tasks) != 2
     ):
         raise LF022ExecutionError(
-            "unqualified Qwen/GLM proposer routes are restricted to one-item qualification"
+            "unqualified proposer routes are restricted to one-item qualification"
         )
     if (
         audit.outputs.family_matrix != plan.artifacts.family_matrix
@@ -1587,6 +1705,7 @@ def verify_lf022_execution_admission(
     expected_qualified_production_contract = {
         "qwen3": "qwen3_5_proposer_qualification_v2",
         "glm5": "glm5_2_proposer_qualification_v2",
+        "deepseek_v4": "deepseek_v4_proposer_qualification_v1",
     }.get(route.proposer_family_id)
     if route.decoding.contract_id == "kimi_k2_7_public_proposer_v4":
         expected_qualified_production_contract = "kimi_k2_7_public_proposer_v4"
@@ -1702,7 +1821,7 @@ def verify_lf022_execution_admission(
                 "Kimi-v4 production eligibility belongs to a different route or matrix"
             )
     elif (
-        route.proposer_family_id in {"qwen3", "glm5"}
+        route.proposer_family_id in {"qwen3", "glm5", "deepseek_v4"}
         and route.execution_scope == "public_provisional_g_open"
     ):
         from leanfaith.generation.lf022_route_qualification import (

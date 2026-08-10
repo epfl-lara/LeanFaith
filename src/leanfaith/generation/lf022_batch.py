@@ -69,8 +69,9 @@ _ROUTE_ORDER = {
     "moonshot_kimi_k2": 0,
     "qwen3": 1,
     "glm5": 2,
+    "deepseek_v4": 3,
 }
-_QUALIFICATION_FAMILIES = frozenset({"qwen3", "glm5"})
+_QUALIFICATION_FAMILIES = frozenset({"qwen3", "glm5", "deepseek_v4"})
 _PRIVATE_MARKERS = ("formalmathatepfl/sft_classic", "sft_classic")
 _ARCHIVED_KIMI_V3_CONTRACT_ID = "kimi_k2_7_public_smoke_v3"
 
@@ -186,7 +187,7 @@ def _binding(repo_root: Path, path: Path, payload: bytes) -> LF022ArtifactBindin
 class LF022BatchRouteFreezeRequest(StrictModel):
     """Reviewed exact task selection for one admitted RCP proposer route."""
 
-    proposer_family_id: Literal["moonshot_kimi_k2", "qwen3", "glm5"]
+    proposer_family_id: Literal["moonshot_kimi_k2", "qwen3", "glm5", "deepseek_v4"]
     public_pool_audit_id: str = Field(pattern=id_pattern("lf022_public_pool_audit"))
     allocation_plan_id: str = Field(pattern=id_pattern("lf022_production_plan"))
     execution_artifacts: LF022ExecutionArtifacts
@@ -210,7 +211,7 @@ class LF022BatchRouteFreezeRequest(StrictModel):
             and self.route.execution_scope == "one_item_proposer_qualification_only"
         )
         if pending_qualification and len(self.allocation_task_ids) != 1:
-            raise ValueError("unqualified Qwen/GLM routes require exactly one allocation task")
+            raise ValueError("unqualified proposer routes require exactly one allocation task")
         if (
             self.proposer_family_id == "moonshot_kimi_k2"
             and self.route.execution_scope != "public_provisional_g_open"
@@ -251,7 +252,7 @@ class LF022BatchFreezeRequest(StrictModel):
         if len(families) != len(set(families)):
             raise ValueError("batch route proposer families must be unique")
         if families != tuple(sorted(families, key=_ROUTE_ORDER.__getitem__)):
-            raise ValueError("batch routes must use canonical Kimi/Qwen/GLM order")
+            raise ValueError("batch routes must use canonical proposer-family order")
         expected = _content_id("lf022_batch_request", self, id_field="request_id")
         if self.request_id != expected:
             raise ValueError("request_id does not match canonical batch request")
@@ -297,7 +298,7 @@ class LF022BatchTaskBinding(StrictModel):
 class LF022BatchRouteManifest(StrictModel):
     """Frozen admission and tasks for one exact proposer route."""
 
-    proposer_family_id: Literal["moonshot_kimi_k2", "qwen3", "glm5"]
+    proposer_family_id: Literal["moonshot_kimi_k2", "qwen3", "glm5", "deepseek_v4"]
     model_id: str
     execution_scope: Literal[
         "public_provisional_g_open",
@@ -334,13 +335,13 @@ class LF022BatchRouteManifest(StrictModel):
                 or len(self.tasks) != 1
                 or self.qualification_claim is None
             ):
-                raise ValueError("Qwen/GLM remain restricted to one qualification task")
+                raise ValueError("unqualified proposers remain restricted to one task")
         elif qualified_production:
             if (
                 self.qualification_state != "production_live_qualified"
                 or self.qualification_claim is not None
             ):
-                raise ValueError("Qwen/GLM production requires replay-verified live qualification")
+                raise ValueError("proposer production requires replay-verified live qualification")
         elif (
             self.execution_scope != "public_provisional_g_open"
             or self.qualification_state != "production_route_reviewed"
@@ -578,9 +579,7 @@ def freeze_lf022_public_batch(
         )
         if pending_qualification:
             if admission.route.execution_scope != "one_item_proposer_qualification_only":
-                raise LF022BatchError(
-                    "Qwen/GLM cannot enter a production batch before qualification"
-                )
+                raise LF022BatchError("an unqualified proposer cannot enter a production batch")
         elif admission.route.execution_scope != "public_provisional_g_open":
             raise LF022BatchError("Kimi route lacks reviewed public provisional scope")
 
@@ -740,7 +739,7 @@ class LF022BatchJournalEvent(StrictModel):
     event_id: str = Field(pattern=id_pattern("lf022_batch_event"))
     batch_id: str = Field(pattern=id_pattern("lf022_public_batch"))
     execution_task_id: str = Field(pattern=id_pattern("lf022_execution_task"))
-    proposer_family_id: Literal["moonshot_kimi_k2", "qwen3", "glm5"]
+    proposer_family_id: Literal["moonshot_kimi_k2", "qwen3", "glm5", "deepseek_v4"]
     phase: Literal["preflight", "terminal", "error"]
     status: str = Field(min_length=1)
     preflight_id: str | None = Field(default=None, pattern=id_pattern("lf022_execution_preflight"))

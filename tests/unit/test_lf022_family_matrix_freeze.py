@@ -22,6 +22,7 @@ from leanfaith.generation.lf022_family_matrix_freeze import (
 
 ROOT = Path(__file__).resolve().parents[2]
 CONFIG = ROOT / "configs/generation/lf022_production_family_matrix_freeze_v1.yaml"
+CONFIG_V2 = ROOT / "configs/generation/lf022_production_family_matrix_freeze_v2.yaml"
 
 
 def test_canonical_freeze_inputs_are_tracked_for_clean_checkout_replay() -> None:
@@ -139,6 +140,40 @@ def test_freeze_is_structurally_valid_but_scientifically_blocked() -> None:
         "Qwen/Qwen3.6-35B-A3B",
         "Qwen/Qwen3-30B-A3B-Instruct-2507",
         "Qwen/Qwen3-VL-235B-A22B-Thinking",
+    )
+
+
+def test_v2_freeze_replaces_failed_glm_proposer_with_deepseek() -> None:
+    loaded = load_config(CONFIG_V2, LF022FamilyMatrixFreezeConfig).config
+    bundle = build_lf022_family_matrix_freeze(
+        repo_root=ROOT,
+        config_path=CONFIG_V2,
+    )
+
+    assert bundle.family_matrix.proposer_family_ids == (
+        "moonshot_kimi_k2",
+        "qwen3",
+        "deepseek_v4",
+    )
+    assert "glm5" not in bundle.family_matrix.proposer_family_ids
+    assert bundle.family_matrix.judge_family_ids == (
+        "moonshot_kimi_k2",
+        "qwen3",
+        "glm5",
+        "deepseek_v4",
+    )
+    assert bundle.report.network_requests_performed == 0
+    assert bundle.report.route_execution_authorized is False
+    assert bundle.report.semantic_labels_created is False
+    assert bundle.report.training_eligible is False
+
+    persisted_matrix = ROOT / loaded.outputs.family_matrix
+    persisted_report = ROOT / loaded.outputs.freeze_report
+    assert persisted_matrix.read_bytes() == canonical_json_bytes(
+        bundle.family_matrix.model_dump(mode="json")
+    )
+    assert persisted_report.read_bytes() == canonical_json_bytes(
+        bundle.report.model_dump(mode="json")
     )
 
 

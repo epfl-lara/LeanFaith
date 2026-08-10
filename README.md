@@ -186,12 +186,14 @@ dataset probe (PLAN.md §9.2).
   components. Source capacity creates no label and does not change the
   `NOT_READY` training decision.
 - **Generation identities are frozen but scientific execution remains
-  blocked:** Kimi-K2.7-Code, Qwen3.5-397B, and GLM-5.2 are the proposed
-  proposer families; DeepSeek is the required fourth supervision family and
-  Codex is fully held out. The offline freeze preserves the failed DeepSeek
-  structured-output qualification instead of silently authorizing it. Gate 5
-  human adjudication and a separately reviewed execution admission are still
-  required.
+  blocked:** the original matrix proposed Kimi-K2.7-Code, Qwen3.5-397B, and
+  GLM-5.2. Because the live GLM route now fails with HTTP 403, a versioned v2
+  matrix instead proposes Kimi, Qwen, and DeepSeek while preserving GLM as
+  historical/non-proposer supervision evidence. DeepSeek has exact prior HTTP
+  transport evidence but remains blocked pending one strict proposer
+  qualification and replay; no prior judge response is treated as proposer
+  evidence. Codex remains fully held out. Gate 5 human adjudication and a
+  separately reviewed execution admission are still required.
 
 Stable gate-facing commands are available through `leanfaith`:
 

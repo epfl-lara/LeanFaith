@@ -15,13 +15,17 @@ records, or Gate credit.
   exact replay-verified v2 proposer eligibility.
 - `zai-org/GLM-5.2` may enter scientific production only through its exact
   replay-verified v2 proposer eligibility.
+- `deepseek-ai/DeepSeek-V4-Pro` has exact prior HTTP transport evidence but no
+  proposer qualification yet. Its versioned diagnostic route must pass one
+  strict public `G_open` execution and exact replay before any production
+  eligibility can be created.
 
 The matching `*_production_route_v1.yaml` files are non-executable policy
 templates. Only a content-addressed execution admission that binds a verified
 eligibility record can activate a production route.
 
-Qwen and GLM were previously observed as judges. That is transport evidence,
-not proposer qualification. Their qualification contracts bind the exact
+Qwen, GLM, and DeepSeek were previously observed as judges. That is transport
+evidence, not proposer qualification. Their qualification contracts bind the exact
 model, provider catalog, prompt, decoding fields, code bundle, allocation, and
 public source. `reasoning_effort=high` and
 `chat_template_kwargs.enable_thinking=true` are sent only because those exact
@@ -34,7 +38,7 @@ The route runner consumes an execution admission; a route-contract YAML is not
 an admission. Build the family-specific one-source diagnostic allocation and
 freeze the execution admission entirely offline before resolving credentials.
 
-For Qwen and GLM, derive the diagnostic pool from the already immutable,
+For Qwen, GLM, and DeepSeek, derive the diagnostic pool from the already immutable,
 exact-replayed `repr_v3` public pool. Do **not** rematerialize that pool from the
 old extraction after extraction-only code changes, weaken/refreeze its reviewed
 reuse attestation, or fall back to the old pre-`repr_v3` smoke representations.
@@ -49,7 +53,7 @@ ROOT=/localhome/milikic/LeanFaith
 cd "$ROOT"
 test -z "$(git status --porcelain)"
 
-# Set one family at a time: qwen3 or glm5.
+# Set one family at a time: qwen3, glm5, or deepseek_v4.
 FAMILY=qwen3
 QUAL_ROOT="artifacts/generation/lf022_${FAMILY}_diagnostic_from_v3_max"
 PARENT_AUDIT="artifacts/generation/lf022_public_v3_max_c799f54c/audit.json"
@@ -58,6 +62,9 @@ uv run leanfaith derive-lf022-diagnostic-subpool \
   --parent-pool-audit "$PARENT_AUDIT" \
   --proposer-family "$FAMILY" \
   --out-dir "$QUAL_ROOT"
+
+# DeepSeek alone additionally binds the versioned replacement matrix:
+#   --family-matrix configs/generation/lf022_production_family_matrix_v2.json
 
 BUNDLE_JSON=$(
   uv run leanfaith freeze-code-bundle \

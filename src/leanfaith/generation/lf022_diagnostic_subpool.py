@@ -51,7 +51,7 @@ from leanfaith.schemas.ids import HEX64_PATTERN, id_pattern, make_id
 from leanfaith.schemas.manifest import collect_code_state
 from leanfaith.schemas.theorem import ContextRecord, RepresentationRecord, TheoremRecord
 
-LF022DiagnosticProposerFamily = Literal["qwen3", "glm5"]
+LF022DiagnosticProposerFamily = Literal["qwen3", "glm5", "deepseek_v4"]
 
 
 class LF022DiagnosticSubpoolError(ValueError):
@@ -61,13 +61,17 @@ class LF022DiagnosticSubpoolError(ValueError):
 class LF022DiagnosticSubpoolDerivation(StrictModel):
     """Content-addressed lineage from one parent pool to one diagnostic source."""
 
-    schema_version: Literal[1] = 1
+    schema_version: Literal[1, 2] = 1
     derivation_id: str = Field(pattern=id_pattern("lf022_diagnostic_subpool_derivation"))
     derivation_kind: Literal["immutable_parent_public_pool_subset"]
     selection_policy: Literal["parent_selection_order_first_v1"]
     parent_pool_audit: LF022ArtifactBinding
     parent_pool_audit_id: str = Field(pattern=id_pattern("lf022_public_pool_audit"))
     parent_outputs: LF022PublicPoolOutputArtifacts
+    derived_family_matrix: LF022ArtifactBinding | None = Field(
+        default=None,
+        exclude_if=lambda value: value is None,
+    )
     proposer_family_id: LF022DiagnosticProposerFamily
     selected_source_admission_record_id: str = Field(pattern=id_pattern("lf022_source_admission"))
     selected_source_locator_id: str = Field(pattern=HEX64_PATTERN)
@@ -91,6 +95,17 @@ class LF022DiagnosticSubpoolDerivation(StrictModel):
 
     @model_validator(mode="after")
     def _content_addressed(self) -> LF022DiagnosticSubpoolDerivation:
+        if self.schema_version == 1 and self.derived_family_matrix is not None:
+            raise ValueError("schema_version 1 cannot replace the parent family matrix")
+        if self.proposer_family_id == "deepseek_v4":
+            if self.schema_version != 2 or self.derived_family_matrix is None:
+                raise ValueError(
+                    "DeepSeek diagnostic derivations require a bound replacement family matrix"
+                )
+        elif self.schema_version != 1 or self.derived_family_matrix is not None:
+            raise ValueError(
+                "legacy Qwen/GLM diagnostic derivations must preserve schema_version 1"
+            )
         expected = make_id(
             "lf022_diagnostic_subpool_derivation",
             self.model_dump(mode="json", exclude={"derivation_id"}),
@@ -642,6 +657,18 @@ def verify_lf022_diagnostic_subpool(
         LF022ProductionFamilyMatrix,
         label="derived family matrix",
     )
+    expected_family_matrix = (
+        derivation.derived_family_matrix
+        if derivation.derived_family_matrix is not None
+        else parent.outputs.family_matrix
+    )
+    if (
+        audit.outputs.family_matrix != expected_family_matrix
+        or derivation.proposer_family_id not in family_matrix.proposer_family_ids
+    ):
+        raise LF022DiagnosticSubpoolError(
+            "derived family matrix is not the exact proposer-authorized derivation binding"
+        )
     admission = _load_json(
         repo_root,
         audit.outputs.admission,
@@ -719,6 +746,7 @@ def derive_lf022_diagnostic_subpool(
     parent_pool_audit_path: Path,
     proposer_family_id: LF022DiagnosticProposerFamily,
     output_directory: Path,
+    replacement_family_matrix_path: Path | None = None,
 ) -> DerivedLF022DiagnosticSubpool:
     """Create and exact-replay one family-specific diagnostic subpool offline."""
 
@@ -747,6 +775,28 @@ def derive_lf022_diagnostic_subpool(
             "parent must be one non-derived, public-only, non-executable pool"
         )
     _parent_plan(repo_root=root, parent=parent)
+    if proposer_family_id == "deepseek_v4":
+        if replacement_family_matrix_path is None:
+            raise LF022DiagnosticSubpoolError(
+                "DeepSeek diagnostic derivation requires --family-matrix"
+            )
+        family_matrix_binding = _binding(
+            root,
+            replacement_family_matrix_path,
+            label="replacement family matrix",
+        )
+        if family_matrix_binding == parent.outputs.family_matrix:
+            raise LF022DiagnosticSubpoolError(
+                "DeepSeek replacement family matrix must differ from the parent matrix"
+            )
+        derivation_schema_version = 2
+    else:
+        if replacement_family_matrix_path is not None:
+            raise LF022DiagnosticSubpoolError(
+                "replacement family matrices are reserved for DeepSeek qualification"
+            )
+        family_matrix_binding = parent.outputs.family_matrix
+        derivation_schema_version = 1
     selected_theorem_id = parent.selection_order_theorem_ids[0]
     source, theorem, representation, context, clearance = _parent_records(
         repo_root=root,
@@ -764,12 +814,17 @@ def derive_lf022_diagnostic_subpool(
     )
     output = _output_directory(root, output_directory)
     derivation_payload: dict[str, object] = {
-        "schema_version": 1,
+        "schema_version": derivation_schema_version,
         "derivation_kind": "immutable_parent_public_pool_subset",
         "selection_policy": "parent_selection_order_first_v1",
         "parent_pool_audit": parent_binding.model_dump(mode="json"),
         "parent_pool_audit_id": parent.audit_id,
         "parent_outputs": parent.outputs.model_dump(mode="json"),
+        **(
+            {"derived_family_matrix": family_matrix_binding.model_dump(mode="json")}
+            if derivation_schema_version == 2
+            else {}
+        ),
         "proposer_family_id": proposer_family_id,
         "selected_source_admission_record_id": source.admission_record_id,
         "selected_source_locator_id": source.source_locator_id,
@@ -832,12 +887,16 @@ def derive_lf022_diagnostic_subpool(
     )
     family_matrix = _load_json(
         root,
-        parent.outputs.family_matrix,
+        family_matrix_binding,
         LF022ProductionFamilyMatrix,
-        label="parent family matrix",
+        label="derived family matrix",
     )
+    if proposer_family_id not in family_matrix.proposer_family_ids:
+        raise LF022DiagnosticSubpoolError(
+            "selected proposer is not authorized by the derived family matrix"
+        )
     artifacts = LF022ProductionArtifactSet(
-        family_matrix=parent.outputs.family_matrix,
+        family_matrix=family_matrix_binding,
         public_source_authorization_registry=(parent.outputs.public_source_authorization_registry),
         benchmark_registry_manifest=parent.outputs.benchmark_registry_manifest,
         active_benchmark_registry=parent.active_benchmark_registry,
@@ -869,7 +928,7 @@ def derive_lf022_diagnostic_subpool(
         plan=plan,
     )
     outputs = LF022PublicPoolOutputArtifacts(
-        family_matrix=parent.outputs.family_matrix,
+        family_matrix=family_matrix_binding,
         upstream_extraction_output_manifest=(parent.outputs.upstream_extraction_output_manifest),
         upstream_representation_output_manifest=(
             parent.outputs.upstream_representation_output_manifest

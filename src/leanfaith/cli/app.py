@@ -3245,7 +3245,7 @@ def materialize_lf022_public_pool_command(
             "--diagnostic-proposer-family",
             help=(
                 "For a one-source diagnostic scaffold only, assign both tasks "
-                "to moonshot_kimi_k2, qwen3, or glm5."
+                "to moonshot_kimi_k2, qwen3, glm5, or deepseek_v4."
             ),
         ),
     ] = None,
@@ -3308,12 +3308,22 @@ def derive_lf022_diagnostic_subpool_command(
     ],
     proposer_family: Annotated[
         str,
-        typer.Option("--proposer-family", help="qwen3 or glm5."),
+        typer.Option("--proposer-family", help="qwen3, glm5, or deepseek_v4."),
     ],
     output_directory: Annotated[
         Path,
         typer.Option("--out-dir", help="Repository-local immutable output directory."),
     ],
+    family_matrix: Annotated[
+        Path | None,
+        typer.Option(
+            "--family-matrix",
+            help=(
+                "Replacement family matrix; required only for the DeepSeek "
+                "qualification derivation."
+            ),
+        ),
+    ] = None,
     root_dir: Annotated[
         Path | None,
         typer.Option("--root", help="Repository root override."),
@@ -3329,8 +3339,8 @@ def derive_lf022_diagnostic_subpool_command(
         derive_lf022_diagnostic_subpool,
     )
 
-    if proposer_family not in {"qwen3", "glm5"}:
-        typer.echo("--proposer-family must be qwen3 or glm5", err=True)
+    if proposer_family not in {"qwen3", "glm5", "deepseek_v4"}:
+        typer.echo("--proposer-family must be qwen3, glm5, or deepseek_v4", err=True)
         raise typer.Exit(code=2)
     paths = RepoPaths.discover(root_dir) if root_dir is None else RepoPaths(root=root_dir)
     try:
@@ -3339,6 +3349,7 @@ def derive_lf022_diagnostic_subpool_command(
             parent_pool_audit_path=parent_pool_audit,
             proposer_family_id=cast(LF022DiagnosticProposerFamily, proposer_family),
             output_directory=output_directory,
+            replacement_family_matrix_path=family_matrix,
         )
     except (LF022DiagnosticSubpoolError, OSError, ValueError) as exc:
         typer.echo(
@@ -3548,14 +3559,14 @@ def certify_lf022_proposer_route_command(
         Path,
         typer.Option(
             "--qualification-admission",
-            help="Frozen one-item Qwen/GLM qualification admission JSON.",
+            help="Frozen one-item proposer qualification admission JSON.",
         ),
     ],
     qualification_task_path: Annotated[
         Path,
         typer.Option(
             "--qualification-task",
-            help="Frozen one-item Qwen/GLM qualification task JSON.",
+            help="Frozen one-item proposer qualification task JSON.",
         ),
     ],
     root_dir: Annotated[
@@ -3932,7 +3943,7 @@ def freeze_lf022_proposer_admission_command(
         str,
         typer.Option(
             "--proposer-family",
-            help="qwen3 or glm5; the Kimi-v3 route is archived.",
+            help="qwen3, glm5, or deepseek_v4; the Kimi-v3 route is archived.",
         ),
     ],
     code_bundle_path: Annotated[
@@ -3984,7 +3995,7 @@ def freeze_lf022_proposer_admission_command(
             err=True,
         )
         raise typer.Exit(code=2)
-    allowed_families = {"qwen3", "glm5"}
+    allowed_families = {"qwen3", "glm5", "deepseek_v4"}
     if proposer_family_id not in allowed_families:
         typer.echo("--proposer-family is not a supported public LF-022 proposer", err=True)
         raise typer.Exit(code=2)
@@ -4114,7 +4125,7 @@ def freeze_lf022_scientific_qualified_admission_command(
         str,
         typer.Option(
             "--proposer-family",
-            help="Replay-qualified scientific proposer: qwen3 or glm5.",
+            help="Replay-qualified scientific proposer: qwen3, glm5, or deepseek_v4.",
         ),
     ],
     proposer_production_eligibility_path: Annotated[
@@ -4150,7 +4161,7 @@ def freeze_lf022_scientific_qualified_admission_command(
         typer.Option("--root", help="Repository root override."),
     ] = None,
 ) -> None:
-    """Freeze a replay-qualified Qwen/GLM route over the scientific public pool."""
+    """Freeze a replay-qualified proposer route over the scientific public pool."""
     from typing import Literal, cast
 
     from leanfaith.config.paths import RepoPaths
@@ -4159,8 +4170,8 @@ def freeze_lf022_scientific_qualified_admission_command(
         freeze_lf022_scientific_qualified_execution_admission,
     )
 
-    if proposer_family_id not in {"qwen3", "glm5"}:
-        typer.echo("--proposer-family must be qwen3 or glm5", err=True)
+    if proposer_family_id not in {"qwen3", "glm5", "deepseek_v4"}:
+        typer.echo("--proposer-family must be qwen3, glm5, or deepseek_v4", err=True)
         raise typer.Exit(code=2)
     paths = RepoPaths.discover(root_dir) if root_dir is None else RepoPaths(root=root_dir)
 
@@ -4173,7 +4184,7 @@ def freeze_lf022_scientific_qualified_admission_command(
         result = freeze_lf022_scientific_qualified_execution_admission(
             repo_root=paths.root,
             public_pool_audit_path=anchored(public_pool_audit_path) or public_pool_audit_path,
-            proposer_family_id=cast(Literal["qwen3", "glm5"], proposer_family_id),
+            proposer_family_id=cast(Literal["qwen3", "glm5", "deepseek_v4"], proposer_family_id),
             proposer_production_eligibility_path=(
                 anchored(proposer_production_eligibility_path)
                 or proposer_production_eligibility_path

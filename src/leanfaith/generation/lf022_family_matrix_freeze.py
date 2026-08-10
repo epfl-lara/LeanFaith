@@ -1,17 +1,16 @@
 """Offline, fail-closed LF-022 production-family matrix freeze.
 
-This module turns already persisted model/catalog evidence into the
+This module turns already persisted model/catalog evidence into a versioned
 ``LF022ProductionFamilyMatrix`` consumed by the allocation-only LF-022
 planner.  It deliberately has no provider client and grants no execution,
 label, supervision, training, evaluation-independence, or Gate permission.
 
-The current v1 freeze is intentionally *blocked* as a scientific production
-admission: Kimi, Qwen, and GLM completed the public LF-022 smoke, while the
-fourth supervision family required by the G_sci role-separation contract
-(DeepSeek) failed strict structured-output parsing.  Exact local checkpoints
-are recorded as inactive evidence, not silently promoted into untested judge
-or SCI-validator roles.  OpenAI Codex remains wholly supervision-excluded as
-the proposed primary evaluation family.
+The original v1 allocation used GLM as its third proposer.  A versioned v2
+allocation may replace that unavailable route with DeepSeek while preserving
+all v1 artifacts byte-for-byte.  The prior DeepSeek judge parse failure remains
+explicit evidence rather than being misrepresented as judge qualification.
+OpenAI Codex remains wholly supervision-excluded as the proposed primary
+evaluation family.
 """
 
 from __future__ import annotations
@@ -46,7 +45,7 @@ _RCP_ACTIVE_MODELS = (
     "zai-org/GLM-5.2",
     "deepseek-ai/DeepSeek-V4-Pro",
 )
-_PROPOSERS = ("moonshot_kimi_k2", "qwen3", "glm5")
+_PROPOSERS_V1 = ("moonshot_kimi_k2", "qwen3", "glm5")
 _TRAINING_ROLE_FAMILIES = (
     "moonshot_kimi_k2",
     "qwen3",
@@ -129,8 +128,12 @@ class LF022FamilyMatrixFreezeConfig(StrictModel):
     """Evidence bindings and immutable output paths for the v1 freeze."""
 
     schema_version: Literal[1] = 1
-    config_id: Literal["lf022_production_family_matrix_freeze_v1"]
+    config_id: Literal[
+        "lf022_production_family_matrix_freeze_v1",
+        "lf022_production_family_matrix_freeze_v2",
+    ]
     status: Literal["proposal_fail_closed_no_execution"]
+    proposer_family_ids: tuple[str, str, str] = _PROPOSERS_V1
     rcp_catalog_wire: FreezeArtifactBinding
     remote_portfolio: FreezeArtifactBinding
     successful_lf022_smoke_config: FreezeArtifactBinding
@@ -144,6 +147,20 @@ class LF022FamilyMatrixFreezeConfig(StrictModel):
     supervision_eligible: Literal[False] = False
     training_eligible: Literal[False] = False
     gate_credit_eligible: Literal[False] = False
+
+    @model_validator(mode="after")
+    def _versioned_proposers(self) -> Self:
+        expected = {
+            "lf022_production_family_matrix_freeze_v1": _PROPOSERS_V1,
+            "lf022_production_family_matrix_freeze_v2": (
+                "moonshot_kimi_k2",
+                "qwen3",
+                "deepseek_v4",
+            ),
+        }[self.config_id]
+        if self.proposer_family_ids != expected:
+            raise ValueError("proposer families differ from the versioned freeze policy")
+        return self
 
 
 class InactiveLocalFamilyPin(StrictModel):
@@ -546,7 +563,7 @@ def build_lf022_family_matrix_freeze(
     )
     matrix = make_lf022_production_family_matrix(
         family_registry=family_registry,
-        proposer_family_ids=_PROPOSERS,
+        proposer_family_ids=cfg.proposer_family_ids,
         judge_family_ids=_TRAINING_ROLE_FAMILIES,
         sci_validator_family_ids=_TRAINING_ROLE_FAMILIES,
         heldout_eval_family_id=_HELDOUT_FAMILY,
@@ -568,7 +585,7 @@ def build_lf022_family_matrix_freeze(
         "codex_catalog": codex_catalog_binding.model_dump(mode="json"),
         "family_matrix": matrix_binding.model_dump(mode="json"),
         "family_matrix_id": matrix.matrix_id,
-        "proposer_family_ids": list(_PROPOSERS),
+        "proposer_family_ids": list(cfg.proposer_family_ids),
         "judge_family_ids": list(_TRAINING_ROLE_FAMILIES),
         "sci_validator_family_ids": list(_TRAINING_ROLE_FAMILIES),
         "heldout_eval_family_id": _HELDOUT_FAMILY,
@@ -581,6 +598,10 @@ def build_lf022_family_matrix_freeze(
                 "DeepSeek-V4-Pro is the required fourth distinct supervision family, "
                 "but its only LF-022 judge smoke failed strict structured-output parsing; "
                 "a separately reviewed successful qualification is required."
+                if cfg.config_id == "lf022_production_family_matrix_freeze_v1"
+                else "DeepSeek-V4-Pro has only judge-role HTTP transport evidence ending in "
+                "strict parse failure; proposer and judge roles require separate exact "
+                "qualifications before any generated output can become supervision."
             ),
             (
                 "The exact RCP checkpoint revisions are provider-undisclosed; the freeze "

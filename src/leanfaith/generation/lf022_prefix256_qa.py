@@ -117,7 +117,7 @@ class LF022Prefix256ReviewerItem(StrictModel):
     batch_id: str = Field(pattern=id_pattern("lf022_public_batch"))
     execution_task_id: str = Field(pattern=id_pattern("lf022_execution_task"))
     execution_admission_id: str = Field(pattern=id_pattern("lf022_execution_admission"))
-    proposer_family_id: Literal["moonshot_kimi_k2", "qwen3", "glm5"]
+    proposer_family_id: Literal["moonshot_kimi_k2", "qwen3", "glm5", "deepseek_v4"]
     model_id: str = Field(min_length=1)
     source_theorem_id: str = Field(pattern=id_pattern("thm"))
     source_representation_id: str | None = Field(default=None, pattern=id_pattern("repr"))
@@ -237,7 +237,7 @@ class LF022Prefix256OperationalQAReport(StrictModel):
     qa_status: Literal["passed", "failed"]
     batch_id: str = Field(pattern=id_pattern("lf022_public_batch"))
     execution_admission_id: str = Field(pattern=id_pattern("lf022_execution_admission"))
-    proposer_family_id: Literal["moonshot_kimi_k2", "qwen3", "glm5"]
+    proposer_family_id: Literal["moonshot_kimi_k2", "qwen3", "glm5", "deepseek_v4"]
     model_id: str = Field(min_length=1)
     qa_implementation_code_tree_hash: str = Field(pattern=HEX64_PATTERN)
     historical_code_tree_hash: str = Field(pattern=HEX64_PATTERN)

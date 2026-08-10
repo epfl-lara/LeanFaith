@@ -192,11 +192,16 @@ def create_public_batch_request(
             + ", ".join(missing)
         )
     proposer_family_id = admission.route.proposer_family_id
-    if proposer_family_id not in {"moonshot_kimi_k2", "qwen3", "glm5"}:
+    if proposer_family_id not in {
+        "moonshot_kimi_k2",
+        "qwen3",
+        "glm5",
+        "deepseek_v4",
+    }:
         raise ValueError("execution admission uses an unsupported proposer family")
     route = LF022BatchRouteFreezeRequest(
         proposer_family_id=cast(
-            Literal["moonshot_kimi_k2", "qwen3", "glm5"],
+            Literal["moonshot_kimi_k2", "qwen3", "glm5", "deepseek_v4"],
             proposer_family_id,
         ),
         public_pool_audit_id=admission.public_pool_audit_id,

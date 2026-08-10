@@ -18,7 +18,11 @@ from leanfaith.generation.lf022_diagnostic_subpool import (
     verify_lf022_diagnostic_subpool,
 )
 from leanfaith.generation.lf022_execution import LF022ExecutionError, _load_strict_json
-from leanfaith.generation.lf022_production import LF022ArtifactBinding
+from leanfaith.generation.lf022_production import (
+    LF022ArtifactBinding,
+    LF022ProductionFamilyMatrix,
+    make_lf022_production_family_matrix,
+)
 from leanfaith.schemas.ids import make_id
 from tests.unit.test_lf022_executor import _fixture
 
@@ -140,6 +144,55 @@ def test_derivation_rejects_parent_drift_and_cross_family_replay(
             audit=derived.materialized.audit,
             expected_proposer_family_id="qwen3",
         )
+
+
+def test_deepseek_derivation_requires_and_binds_replacement_matrix(
+    tmp_path: Path,
+) -> None:
+    _fixture(tmp_path)
+    parent_matrix_path = tmp_path / "configs/generation/lf022_production_family_matrix_v1.json"
+    parent_matrix = LF022ProductionFamilyMatrix.model_validate_json(parent_matrix_path.read_bytes())
+    replacement = make_lf022_production_family_matrix(
+        family_registry=parent_matrix.family_registry,
+        proposer_family_ids=("moonshot_kimi_k2", "qwen3", "deepseek_v4"),
+        judge_family_ids=parent_matrix.judge_family_ids,
+        sci_validator_family_ids=parent_matrix.sci_validator_family_ids,
+        heldout_eval_family_id=parent_matrix.heldout_eval_family_id,
+    )
+    replacement_path = tmp_path / "configs/generation/lf022_production_family_matrix_v2.json"
+    replacement_path.write_bytes(canonical_json_bytes(replacement.model_dump(mode="json")))
+
+    with pytest.raises(
+        LF022DiagnosticSubpoolError,
+        match="requires --family-matrix",
+    ):
+        derive_lf022_diagnostic_subpool(
+            repo_root=tmp_path,
+            parent_pool_audit_path=tmp_path / "artifacts/public_pool_audit.json",
+            proposer_family_id="deepseek_v4",
+            output_directory=tmp_path / "artifacts/deepseek_missing_matrix",
+        )
+
+    derived = derive_lf022_diagnostic_subpool(
+        repo_root=tmp_path,
+        parent_pool_audit_path=tmp_path / "artifacts/public_pool_audit.json",
+        proposer_family_id="deepseek_v4",
+        output_directory=tmp_path / "artifacts/deepseek",
+        replacement_family_matrix_path=replacement_path,
+    )
+
+    assert derived.derivation.schema_version == 2
+    assert derived.derivation.derived_family_matrix is not None
+    assert (
+        derived.materialized.audit.outputs.family_matrix == derived.derivation.derived_family_matrix
+    )
+    assert {task.proposer_family_id for task in derived.materialized.plan.tasks} == {"deepseek_v4"}
+    verify_lf022_diagnostic_subpool(
+        repo_root=tmp_path,
+        audit=derived.materialized.audit,
+        expected_proposer_family_id="deepseek_v4",
+        expected_code_tree_hash=derived.derivation.attesting_code_tree_hash,
+    )
 
 
 def test_derivation_rejects_recontent_addressed_wrong_task_lineage(

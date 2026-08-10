@@ -53,10 +53,11 @@ from leanfaith.schemas.llm import LLMCallRecord
 from leanfaith.schemas.manifest import require_utc
 from leanfaith.schemas.variant import VariantRecord
 
-_QUALIFICATION_FAMILIES = frozenset({"qwen3", "glm5"})
+_QUALIFICATION_FAMILIES = frozenset({"qwen3", "glm5", "deepseek_v4"})
 _MODEL_BY_FAMILY = {
     "qwen3": "Qwen/Qwen3.5-397B-A17B",
     "glm5": "zai-org/GLM-5.2",
+    "deepseek_v4": "deepseek-ai/DeepSeek-V4-Pro",
 }
 
 
@@ -173,7 +174,7 @@ class LF022QualifiedProposerProductionEligibility(StrictModel):
     schema_version: Literal[1] = 1
     eligibility_id: str = Field(pattern=id_pattern("lf022_route_eligibility"))
     status: Literal["live_qualification_replay_verified"]
-    proposer_family_id: Literal["qwen3", "glm5"]
+    proposer_family_id: Literal["qwen3", "glm5", "deepseek_v4"]
     model_id: str
     deployment_id: str
     canonical_family: str
@@ -185,6 +186,7 @@ class LF022QualifiedProposerProductionEligibility(StrictModel):
         "qwen3_5_proposer_qualification_v2",
         "glm5_2_proposer_qualification_v1",
         "glm5_2_proposer_qualification_v2",
+        "deepseek_v4_proposer_qualification_v1",
     ]
     decoding_contract_hash: str = Field(pattern=HEX64_PATTERN)
     family_matrix_id: str = Field(pattern=id_pattern("lf022_family_matrix"))
@@ -238,6 +240,7 @@ class LF022QualifiedProposerProductionEligibility(StrictModel):
                 "glm5_2_proposer_qualification_v1",
                 "glm5_2_proposer_qualification_v2",
             },
+            "deepseek_v4": {"deepseek_v4_proposer_qualification_v1"},
         }[self.proposer_family_id]
         if self.decoding_contract_id not in expected_contracts:
             raise ValueError("eligibility decoding contract differs from proposer family")
@@ -695,7 +698,7 @@ def certify_lf022_proposer_production_eligibility(
         or admission.route.execution_scope != "one_item_proposer_qualification_only"
     ):
         raise LF022RouteQualificationError(
-            "only an exact one-item Qwen/GLM qualification may create eligibility"
+            "only an exact one-item reviewed proposer qualification may create eligibility"
         )
     try:
         verified = verify_lf022_execution_admission(
