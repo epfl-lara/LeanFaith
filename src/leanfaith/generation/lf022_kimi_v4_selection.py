@@ -80,6 +80,7 @@ CurrentParserOutcome = Literal[
 ]
 KimiV4ImplementationRole = Literal[
     "challenge_selector",
+    "requalification_executor",
     "batch_lineage_loader",
     "execution_record_loader",
     "historical_replay",
@@ -91,6 +92,10 @@ KimiV4ImplementationRole = Literal[
 
 _CURRENT_IMPLEMENTATION_PATHS: tuple[tuple[KimiV4ImplementationRole, str], ...] = (
     ("challenge_selector", "src/leanfaith/generation/lf022_kimi_v4_selection.py"),
+    (
+        "requalification_executor",
+        "src/leanfaith/generation/lf022_kimi_v4_requalification.py",
+    ),
     ("batch_lineage_loader", "src/leanfaith/generation/lf022_batch.py"),
     ("execution_record_loader", "src/leanfaith/generation/lf022_executor.py"),
     ("historical_replay", "src/leanfaith/generation/lf022_historical_replay.py"),

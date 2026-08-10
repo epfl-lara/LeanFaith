@@ -4572,6 +4572,125 @@ def verify_lf022_kimi_v4_challenge_command(
     )
 
 
+@app.command("run-lf022-kimi-v4-requalification")
+def run_lf022_kimi_v4_requalification_command(
+    selection: Annotated[
+        Path,
+        typer.Option("--selection", help="Verified content-addressed Kimi-v4 selection."),
+    ],
+    stage: Annotated[
+        str,
+        typer.Option(
+            "--stage",
+            help="capability, remaining, or replay; remaining is gated by capability success.",
+        ),
+    ] = "replay",
+    execute_public_requalification: Annotated[
+        bool,
+        typer.Option(
+            "--execute-public-requalification",
+            help="Explicitly authorize the selected public-only Kimi-v4 calls.",
+        ),
+    ] = False,
+    root_dir: Annotated[
+        Path | None,
+        typer.Option("--root", help="Repository root override."),
+    ] = None,
+) -> None:
+    """Run the one-call capability gate or its strictly gated 15-case challenge."""
+    import os
+    from typing import cast
+
+    from leanfaith.config.hashing import hash_file
+    from leanfaith.config.paths import RepoPaths, RepoRootNotFoundError
+    from leanfaith.generation.lf022_kimi_v4_requalification import (
+        KimiV4RuntimeCredentials,
+        KimiV4Stage,
+        LF022KimiV4RequalificationError,
+        run_verified_kimi_v4_requalification,
+    )
+    from leanfaith.generation.lf022_kimi_v4_selection import (
+        LF022KimiV4SelectionError,
+        verify_lf022_kimi_v4_challenge_selection,
+    )
+    from leanfaith.generation.lf022_production import LF022ArtifactBinding
+    from leanfaith.generation.rcp_provider import UrllibOpenAICompatibleRCPTransport
+
+    try:
+        if stage not in {"capability", "remaining", "replay"}:
+            raise ValueError("stage must be capability, remaining, or replay")
+        paths = RepoPaths.discover(root_dir) if root_dir is None else RepoPaths(root=root_dir)
+        root = paths.root.resolve(strict=True)
+        candidate = (selection if selection.is_absolute() else root / selection).resolve(
+            strict=True
+        )
+        relative = candidate.relative_to(root).as_posix()
+        verified = verify_lf022_kimi_v4_challenge_selection(
+            repo_root=root,
+            selection_binding=LF022ArtifactBinding(
+                path=relative,
+                sha256=hash_file(candidate),
+            ),
+        )
+        credentials = None
+        transport = None
+        if execute_public_requalification:
+            credentials = KimiV4RuntimeCredentials(
+                base_url=os.environ.get("RCP_BASE_URL", ""),
+                api_key=os.environ.get("RCP_API_KEY", ""),
+            )
+            transport = UrllibOpenAICompatibleRCPTransport()
+        result = run_verified_kimi_v4_requalification(
+            repo_root=root,
+            selection=verified,
+            stage=cast(KimiV4Stage, stage),
+            execute_public_requalification=execute_public_requalification,
+            credentials=credentials,
+            transport=transport,
+        )
+    except (
+        LF022KimiV4RequalificationError,
+        LF022KimiV4SelectionError,
+        RepoRootNotFoundError,
+        OSError,
+        ValueError,
+    ) as exc:
+        typer.echo(f"Kimi-v4 requalification rejected: {exc}", err=True)
+        raise typer.Exit(code=2) from exc
+    typer.echo(
+        json.dumps(
+            {
+                "status": "complete" if result.terminals else "preflight_only",
+                "stage": result.stage,
+                "terminal_count": len(result.terminals),
+                "terminal_status_counts": dict(
+                    sorted(
+                        {
+                            status: sum(item.status == status for item in result.terminals)
+                            for status in {item.status for item in result.terminals}
+                        }.items()
+                    )
+                ),
+                "network_calls_this_run": result.network_calls_this_run,
+                "qualification_status": (
+                    result.qualification.status if result.qualification is not None else None
+                ),
+                "qualification_path": (
+                    str(result.qualification_path)
+                    if result.qualification_path is not None
+                    else None
+                ),
+                "production_admission_created": False,
+                "promotion_enabled": False,
+                "semantic_labels_created": False,
+                "training_eligible": False,
+            },
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+    )
+
+
 @app.command("audit-training-readiness")
 def audit_training_readiness_command(
     config_path: Annotated[
