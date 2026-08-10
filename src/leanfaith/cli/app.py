@@ -5305,6 +5305,132 @@ def materialize_deterministic_v2_d0_scale_command(
     )
 
 
+@app.command("materialize-deterministic-v2-e2-scale")
+def materialize_deterministic_v2_e2_scale_command(
+    theorem_path: Annotated[
+        Path,
+        typer.Option("--theorems", help="Canonical TheoremRecord JSONL partition."),
+    ],
+    representation_path: Annotated[
+        Path,
+        typer.Option(
+            "--representations",
+            help="Canonical RepresentationRecord JSONL partition aligned by theorem ID.",
+        ),
+    ],
+    project_dir: Annotated[
+        Path,
+        typer.Option("--project-dir", help="Pinned Lean project used by LeanInteract."),
+    ],
+    output_dir: Annotated[
+        Path,
+        typer.Option("--output-dir", help="Create-or-resume hash-bound E2 scale root."),
+    ],
+    profile_path: Annotated[
+        Path,
+        typer.Option("--profile", help="Exact experimental E2 execution profile."),
+    ] = Path("configs/transformations/v2_e2_p15_experimental.yaml"),
+    import_header_path: Annotated[
+        Path | None,
+        typer.Option("--import-header", help="Optional shared Lean import-header file."),
+    ] = None,
+    batch_size: Annotated[int, typer.Option("--batch-size", min=1)] = 128,
+    max_sources: Annotated[
+        int | None,
+        typer.Option("--max-sources", min=1, help="Deterministic source-prefix limit."),
+    ] = None,
+    workers: Annotated[int, typer.Option("--workers", min=1)] = 8,
+    memory_hard_limit_mb: Annotated[
+        int | None,
+        typer.Option("--memory-hard-limit-mb", min=1),
+    ] = None,
+    base_seed: Annotated[int, typer.Option("--base-seed")] = 0,
+    raw_response_dir: Annotated[
+        Path | None,
+        typer.Option("--raw-response-dir", help="LeanInteract raw-response directory."),
+    ] = None,
+    root_dir: Annotated[
+        Path | None,
+        typer.Option("--root", help="Repository root override."),
+    ] = None,
+) -> None:
+    """Run/resume LF-033 P15 through LeanServerPool as provisional E2 data."""
+    import json
+    from dataclasses import replace
+
+    from leanfaith.config.paths import RepoPaths
+    from leanfaith.lean.leaninteract_backend import BackendSettings, LeanInteractBackend
+    from leanfaith.lean.session_policy import ServerMode
+    from leanfaith.schemas.theorem import TheoremRecord
+    from leanfaith.transforms.v2_e2_p15_runtime import build_v2_e2_p15_runtime
+    from leanfaith.transforms.v2_e2_scale_run import V2E2ScaleRunError, run_v2_e2_scale
+
+    paths = RepoPaths.discover(root_dir) if root_dir is None else RepoPaths(root=root_dir)
+
+    def anchored(path: Path) -> Path:
+        return path if path.is_absolute() else paths.root / path
+
+    try:
+        resolved_theorems = anchored(theorem_path).resolve(strict=True)
+        with resolved_theorems.open("rb") as handle:
+            first_line = handle.readline()
+        if not first_line.endswith(b"\n"):
+            raise V2E2ScaleRunError("theorem partition is empty or lacks JSONL framing")
+        first_payload = json.loads(first_line)
+        if isinstance(first_payload, dict) and "theorem" in first_payload:
+            first_payload = first_payload["theorem"]
+        first_theorem = TheoremRecord.model_validate(first_payload)
+        import_header = (
+            ""
+            if import_header_path is None
+            else anchored(import_header_path).read_text(encoding="utf-8")
+        )
+        resolved_output = anchored(output_dir)
+        raw_dir = (
+            anchored(raw_response_dir)
+            if raw_response_dir is not None
+            else resolved_output / "raw_lean"
+        )
+        settings = BackendSettings(
+            project_dir=anchored(project_dir),
+            context_fingerprint=first_theorem.context_id.removeprefix("ctx:"),
+            environment_schema_version=1,
+            raw_response_dir=raw_dir,
+            server_mode=ServerMode.POOL,
+            workers=workers,
+            memory_hard_limit_mb=memory_hard_limit_mb,
+        )
+        LeanInteractBackend.prepare_environment(settings)
+        backend = LeanInteractBackend(replace(settings, environment_is_prepared=True))
+        try:
+            artifacts = run_v2_e2_scale(
+                backend=backend,
+                runtime=build_v2_e2_p15_runtime(
+                    paths.root,
+                    path=anchored(profile_path),
+                ),
+                theorem_path=resolved_theorems,
+                representation_path=anchored(representation_path),
+                project_dir=anchored(project_dir),
+                import_header=import_header,
+                output_dir=resolved_output,
+                batch_size=batch_size,
+                base_seed=base_seed,
+                max_sources=max_sources,
+            )
+        finally:
+            backend.close()
+    except (OSError, ValueError, V2E2ScaleRunError) as exc:
+        typer.echo(f"deterministic-v2 E2 scale rejected: {exc}", err=True)
+        raise typer.Exit(code=1) from exc
+    typer.echo(
+        "deterministic-v2 E2 scale complete; "
+        f"results={artifacts.result_count} output={artifacts.output_dir} "
+        f"manifest={artifacts.manifest_path} resolved_labels=0 promoted_items=0 "
+        "training_eligible=false"
+    )
+
+
 def main() -> None:
     app()
 
