@@ -63,6 +63,7 @@ def doctor(
     )
 
     paths = RepoPaths.discover(root_dir) if root_dir is None else RepoPaths(root=root_dir)
+
     lock_refused = False
     if write_lock_flag:
         changed, message = write_lock(paths, force=force)
@@ -1172,6 +1173,7 @@ def generate_deterministic_command(
             "gate_4a_closed=false gate_4b_closed=false"
         )
         return
+
     if freeze_scale_inventory:
         missing = [
             name
@@ -1396,6 +1398,119 @@ def generate_deterministic_command(
         f"report={result.report_path} run_manifest={result.run_manifest_path} "
         "generated_drafts=0"
     )
+
+
+@app.command("run-deterministic-shards")
+def run_deterministic_shards_command(
+    theorem_jsonl: Annotated[
+        Path,
+        typer.Option("--theorems", help="Immutable source TheoremRecord JSONL."),
+    ],
+    representation_jsonl: Annotated[
+        Path,
+        typer.Option(
+            "--representations",
+            help="Matching repr_v3 RepresentationRecord JSONL.",
+        ),
+    ],
+    source_inventory_manifest: Annotated[
+        Path,
+        typer.Option(
+            "--source-inventory-manifest",
+            help="Authoritative deterministic source inventory manifest.",
+        ),
+    ],
+    project_dir: Annotated[
+        Path,
+        typer.Option("--project-dir", help="Pinned mathlib checkout."),
+    ],
+    output_root: Annotated[
+        Path,
+        typer.Option(
+            "--output-root",
+            help="Parent for isolated shard directories plus logs/status.",
+        ),
+    ],
+    shard_count: Annotated[
+        int,
+        typer.Option("--shard-count", min=1, help="Total immutable source shard count."),
+    ],
+    shard_indices: Annotated[
+        list[int] | None,
+        typer.Option(
+            "--shard-index",
+            min=0,
+            help="Selected zero-based shard; repeat as needed (default: every shard).",
+        ),
+    ] = None,
+    max_parallel: Annotated[
+        int,
+        typer.Option(
+            "--max-parallel",
+            min=1,
+            help="Maximum independent shard processes to run concurrently.",
+        ),
+    ] = 1,
+    resume_incomplete: Annotated[
+        bool,
+        typer.Option(
+            "--resume-incomplete",
+            help="Skip completed shards and exact-resume incomplete shard journals.",
+        ),
+    ] = False,
+    root_dir: Annotated[
+        Path | None,
+        typer.Option("--root", help="Repository root override."),
+    ] = None,
+    scale_config: Annotated[
+        Path | None,
+        typer.Option("--scale-config", help="Deterministic scale-policy YAML override."),
+    ] = None,
+    max_sources: Annotated[
+        int | None,
+        typer.Option("--max-sources", min=1, help="Shared source-universe prefix limit."),
+    ] = None,
+    memory_hard_limit_mb: Annotated[
+        int | None,
+        typer.Option("--memory-hard-limit-mb", min=256),
+    ] = None,
+) -> None:
+    """Run independent deterministic materializer shards with bounded concurrency."""
+    from leanfaith.config.paths import RepoPaths
+    from leanfaith.transforms.shard_launcher import (
+        DeterministicShardLaunchError,
+        run_deterministic_shards,
+    )
+
+    paths = RepoPaths.discover(root_dir) if root_dir is None else RepoPaths(root=root_dir)
+    try:
+        summary = run_deterministic_shards(
+            paths=paths,
+            theorem_jsonl=theorem_jsonl,
+            representation_jsonl=representation_jsonl,
+            source_inventory_manifest=source_inventory_manifest,
+            project_dir=project_dir,
+            output_root=output_root,
+            shard_count=shard_count,
+            shard_indices=shard_indices,
+            max_parallel=max_parallel,
+            resume_incomplete=resume_incomplete,
+            scale_config=scale_config,
+            max_sources=max_sources,
+            memory_hard_limit_mb=memory_hard_limit_mb,
+        )
+    except (DeterministicShardLaunchError, OSError, ValueError) as exc:
+        typer.echo(f"deterministic shard launch FAILED: {exc}", err=True)
+        raise typer.Exit(code=1) from exc
+    typer.echo(
+        "deterministic shard launch complete; "
+        f"succeeded={len(summary.succeeded_shards)} "
+        f"skipped_complete={len(summary.skipped_complete_shards)} "
+        f"failed={len(summary.failed_shards)} "
+        f"summary={output_root.resolve() / 'orchestration/latest_summary.json'}"
+    )
+    if not summary.ok:
+        raise typer.Exit(code=1)
 
 
 @app.command("combine-deterministic-scale-passes")
@@ -3421,6 +3536,199 @@ def certify_lf022_proposer_route_command(
         f"eligibility={result.eligibility_path} network_calls_this_run=0 "
         "candidate_quality=provisional outputs_unresolved=true semantic_labels_created=0 "
         "training_eligible=false evaluation_eligible=false gate_credit_claimed=false"
+    )
+
+
+@app.command("check-lf022-provisional-lean")
+def check_lf022_provisional_lean_command(
+    project: Annotated[
+        list[str],
+        typer.Option(
+            "--project",
+            help="Repeat SOURCE_ID=PROJECT_DIR for every source present in the input.",
+        ),
+    ],
+    input_root: Annotated[
+        Path,
+        typer.Option(
+            "--input-root",
+            help="Resumable LF-022 execution root containing tasks/*/*.",
+        ),
+    ] = Path("data/lf022_execution"),
+    output_root: Annotated[
+        Path,
+        typer.Option(
+            "--output-root",
+            help="Separate resumable output root; source variants remain immutable.",
+        ),
+    ] = Path("data/lf022_lean_checks/v1"),
+    workers: Annotated[
+        int,
+        typer.Option("--workers", min=1, help="Explicit LeanServerPool worker count."),
+    ] = 4,
+    chunk_size: Annotated[
+        int,
+        typer.Option("--chunk-size", min=1, help="Maximum independent requests per pool batch."),
+    ] = 64,
+    timeout_seconds: Annotated[
+        float,
+        typer.Option("--timeout-seconds", min=0.001, help="Per-candidate Lean timeout."),
+    ] = 120.0,
+    max_attempts: Annotated[
+        int,
+        typer.Option(
+            "--max-attempts",
+            min=1,
+            help="Bounded attempts; only crash/internal-error/timeout outcomes retry.",
+        ),
+    ] = 2,
+    memory_hard_limit_mb: Annotated[
+        int | None,
+        typer.Option(
+            "--memory-hard-limit-mb",
+            min=1,
+            help="Optional per-REPL Linux hard limit; omitted leaves LeanInteract default.",
+        ),
+    ] = None,
+    limit: Annotated[
+        int | None,
+        typer.Option("--limit", min=1, help="Deterministic prefix limit for a smoke run."),
+    ] = None,
+    root_dir: Annotated[
+        Path | None,
+        typer.Option("--root", help="Repository root override."),
+    ] = None,
+) -> None:
+    """Lean-check provisional LF-022 variants with a resumable worker pool."""
+    from leanfaith.config.paths import RepoPaths
+    from leanfaith.generation.lf022_lean_check import (
+        LF022LeanCheckError,
+        check_lf022_provisional_candidates,
+        parse_project_mappings,
+    )
+    from leanfaith.lean.project_registry import load_environment_lock
+
+    paths = RepoPaths.discover(root_dir) if root_dir is None else RepoPaths(root=root_dir)
+
+    def anchored(path: Path) -> Path:
+        return path if path.is_absolute() else paths.root / path
+
+    try:
+        mappings = parse_project_mappings(project, repo_root=paths.root)
+        result = check_lf022_provisional_candidates(
+            repo_root=paths.root,
+            input_root=anchored(input_root),
+            output_root=anchored(output_root),
+            project_dirs=mappings,
+            workers=workers,
+            chunk_size=chunk_size,
+            timeout_seconds=timeout_seconds,
+            max_attempts=max_attempts,
+            memory_hard_limit_mb=memory_hard_limit_mb,
+            environment_schema_version=load_environment_lock(paths).environment_schema_version,
+            limit=limit,
+        )
+    except (LF022LeanCheckError, OSError, ValueError) as exc:
+        typer.echo(f"LF-022 pooled Lean check rejected: {exc}", err=True)
+        raise typer.Exit(code=2) from exc
+    typer.echo(
+        f"checked={result.manifest.record_count} executed={result.executed_count} "
+        f"reused={result.reused_count} workers={workers} "
+        f"outcomes={json.dumps(result.manifest.outcome_counts, sort_keys=True)} "
+        f"manifest={result.manifest_path} semantic_labels_created=0 "
+        "silver_records_created=0 training_eligible=false evaluation_eligible=false"
+    )
+
+
+@app.command("audit-lf022-codex")
+def audit_lf022_codex_command(
+    checks_path: Annotated[
+        Path,
+        typer.Option(
+            "--checks",
+            help="Canonical checks.jsonl from check-lf022-provisional-lean.",
+        ),
+    ],
+    output_root: Annotated[
+        Path,
+        typer.Option(
+            "--output-root",
+            help="Separate immutable/resumable audit-only artifact root.",
+        ),
+    ] = Path("data/lf022_codex_audit/v1"),
+    model: Annotated[
+        str,
+        typer.Option("--model", help="Codex judge model; defaults to gpt-5.6-sol."),
+    ] = "gpt-5.6-sol",
+    reasoning_effort: Annotated[
+        str,
+        typer.Option("--reasoning-effort", help="Codex reasoning effort."),
+    ] = "xhigh",
+    timeout_seconds: Annotated[
+        int,
+        typer.Option("--timeout-seconds", min=1, help="Timeout per one-pair invocation."),
+    ] = 1800,
+    termination_grace_seconds: Annotated[
+        int,
+        typer.Option(
+            "--termination-grace-seconds",
+            min=1,
+            help="Grace period before a timed-out Codex process is killed.",
+        ),
+    ] = 10,
+    max_attempts: Annotated[
+        int,
+        typer.Option(
+            "--max-attempts",
+            min=1,
+            help="Maximum immutable attempts per pair across resumptions.",
+        ),
+    ] = 2,
+    limit: Annotated[
+        int | None,
+        typer.Option("--limit", min=1, help="Audit only the first N Lean-valid pairs."),
+    ] = None,
+    root_dir: Annotated[
+        Path | None,
+        typer.Option("--root", help="Repository root override."),
+    ] = None,
+) -> None:
+    """Judge Lean-valid public LF-022 pairs sequentially for audit only."""
+    from leanfaith.config.paths import RepoPaths
+    from leanfaith.generation.lf022_codex_audit import (
+        LF022CodexAuditError,
+        audit_lean_valid_lf022_pairs,
+    )
+
+    paths = RepoPaths.discover(root_dir) if root_dir is None else RepoPaths(root=root_dir)
+
+    def anchored(path: Path) -> Path:
+        return path if path.is_absolute() else paths.root / path
+
+    try:
+        result = audit_lean_valid_lf022_pairs(
+            repo_root=paths.root,
+            checks_path=anchored(checks_path),
+            output_root=anchored(output_root),
+            model=model,
+            reasoning_effort=reasoning_effort,
+            timeout_seconds=timeout_seconds,
+            termination_grace_seconds=termination_grace_seconds,
+            max_attempts=max_attempts,
+            limit=limit,
+        )
+    except (LF022CodexAuditError, OSError, ValueError) as exc:
+        typer.echo(f"LF-022 Codex audit rejected: {exc}", err=True)
+        raise typer.Exit(code=2) from exc
+    manifest = result.manifest
+    typer.echo(
+        f"eligible={manifest.eligible_count} completed={manifest.completed_count} "
+        f"invoked={manifest.invoked_count} reused={manifest.reused_count} "
+        f"exhausted={manifest.exhausted_count} statuses="
+        f"{json.dumps(manifest.attempt_status_counts, sort_keys=True)} "
+        f"manifest={result.manifest_path} audit_only=true semantic_labels_created=0 "
+        "silver_records_created=0 training_eligible=false evaluation_eligible=false "
+        "gate_credit_claimed=false"
     )
 
 

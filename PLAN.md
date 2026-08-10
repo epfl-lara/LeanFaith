@@ -2,9 +2,9 @@
 
 **Working title:** *LeanFaith: A Lightweight, Calibrated, and Reference-Aware Metric for Autoformalization Faithfulness*
 **Document purpose:** implementation specification for a coding agent and research roadmap for the project team  
-**Status:** Gates 0 (internal research only), 1, 2, historical Gate 3 (`repr_v2`), current Gate-3 `repr_v3` revalidation, 4G, and the mechanical Gate 5G passed; `repr_v3` is scientifically validated on the unchanged frozen 10,000-record denominator, while historical `repr_v2` artifacts remain versioned historical evidence; the additive benchmark-signature and overlap freeze passed; LF-019 and LF-020 are complete; Gates 4A and 4B remain open; LF-021 completed 16 replay-verified scalable tranches (1,440 terminal invocations), yielding 299 compile-and-benchmark-clear members and 250 unique problem-aware eligible units; the production CSPRNG froze a 240-item, 31-stratum human prevalence frame and the reference-aware blinded two-annotator export is operationally materialized; LF-022 now has a fail-closed software foundation and one complete public-source Kimi/Qwen/GLM smoke with exact offline replay, but that smoke created no label, promotion, supervision, training, evaluation, or gate-credit record; Gate 5 remains open pending genuine human adjudication and Gates 6G/6 remain open pending admitted production collection and promotion; the hardened fail-closed training-data audit is `NOT_READY` with zero safe F1 labels, no production LF-022 SCI/open artifacts, no frozen training inventory, and zero of four gold products
+**Status:** Gates 0 (internal research only), 1, 2, historical Gate 3 (`repr_v2`), current Gate-3 `repr_v3` revalidation, 4G, and the mechanical Gate 5G passed; `repr_v3` is scientifically validated on the unchanged frozen 10,000-record denominator, while historical `repr_v2` artifacts remain versioned historical evidence; the additive benchmark-signature and overlap freeze passed; LF-019 and LF-020 are complete; Gates 4A and 4B remain open; LF-021 completed 16 replay-verified scalable tranches (1,440 terminal invocations), yielding 299 compile-and-benchmark-clear members and 250 unique problem-aware eligible units; the production CSPRNG froze a 240-item, 31-stratum human prevalence frame and the reference-aware blinded two-annotator export is operationally materialized; LF-022 has 668 parsed public `G_open` provisional variants from Kimi/Qwen/GLM, of which the production four-worker LeanInteract checker confirms 493 elaborate with a placeholder and 175 are invalid; a resumable GPT-5.6 Sol audit is operational for public Lean-valid pairs but remains audit-only and creates no label, promotion, supervision, training, evaluation, or gate-credit record; deterministic scale-out has one complete 1,741-pair shard and 15 isolated resumable shards running over the remaining frozen public source universe; Gate 5 remains open pending genuine human adjudication and Gates 6G/6 remain open pending promotion; the hardened fail-closed training-data audit remains `NOT_READY` with zero safe F1 labels, no frozen training inventory, and zero of four gold products
 **Revision:** 4.1
-**Last revised:** 2026-07-30
+**Last revised:** 2026-08-10
 **Canonical filename:** `PLAN.md`  
 **Primary Python–Lean interface:** [LeanInteract](https://github.com/augustepoiroux/LeanInteract)  
 **Initial LeanInteract pin:** `lean-interact==0.11.4`  
@@ -27,6 +27,7 @@
 14. Requires a binder-normalized identity fingerprint, alpha-invariance, collision, proof-leakage, and name-versus-inline audits without making graphs a blocker.
 15. Keeps localization, generated repair, graph work, staffing, schedules, compensation, budgets, and hardware prescriptions outside the flagship path.
 16. Records the fresh `repr_v3` Gate-3 revalidation on the unchanged frozen 5,000-mathlib plus 5,000-`sft_classic` denominator without rewriting the historical `repr_v2` decision.
+17. Adds a post-Gate-4G deterministic-v2 research track with reserved narrow family scopes, evidence classes, family/mechanism holdouts, and unchanged v1/gate/promotion semantics.
 
 ---
 ## 0. How this document must be used
@@ -479,6 +480,7 @@ leanfaith/
     transformations/
       registry.yaml
       v1.yaml
+      v2.yaml
       replacement_table_v1.yaml
       lf018_pre_scale_v1.yaml
       lf019_positive_fixtures_v1.yaml
@@ -491,6 +493,27 @@ leanfaith/
       n03_drop_hypothesis.yaml
       n07_literal_bound.yaml
       n10_nearby_theorem.yaml
+      v2/
+        p05_resolved_names.yaml
+        p06_implicit_arguments.yaml
+        p07_coercion_surface.yaml
+        p08_type_ascription.yaml
+        p09_projection_direct.yaml
+        p10_constructor_direct.yaml
+        p11_bounded_quantifier.yaml
+        p12_proof_arrow_binder.yaml
+        p13_restricted_eta.yaml
+        p14_binder_permutation.yaml
+        p15_root_iff_reversal.yaml
+        p16_conjunction_reassociation.yaml
+        p17_hypothesis_packing.yaml
+        n11_bound_variable.yaml
+        n12_implication_converse.yaml
+        n13_witness_dependency.yaml
+        n14_negation_scope.yaml
+        n15_conjunct_omission.yaml
+        n16_domain_guard.yaml
+        n17_role_arguments.yaml
     evidence/
       portfolio_v1.yaml
       counterexample_v1.yaml
@@ -1941,6 +1964,135 @@ No “high-confidence mutation” shortcut. Search `not_found`/`not_proved` does
 
 Applicability fixtures; deterministic seeded output; capture/dependency property tests; re-elaboration; round trips; atom/structural golden diffs; no self-promotion from intended labels; N10 two-ancestry grouping; disabled-family rejection; immutable audit-stat recomputation.
 
+### 15.10 Additive deterministic-v2 expansion contract
+
+The eight-family v1 profile and its accepted Gate-4G evidence are immutable.
+Broader deterministic coverage is an additive research track, not a rewrite of
+`configs/transformations/v1.yaml`, an edit to an accepted v1 rule, or a
+retroactive change to `reports/gates/gate_4g.json`. A changed matcher,
+allowlist, site-selection policy, inverse, or certificate always creates a new
+family/version. New families begin disabled while their contracts and coverage
+probes are reviewed, then may become `experimental`; none begins silver or
+gold-promoted.
+
+The v2 track addresses a known scientific limitation: three narrow
+presentation positives and five controlled negative mechanisms validate the
+pipeline, but cannot by themselves show generalization beyond transformation
+artifacts. The positive deficit is especially important because real Lean
+statements vary through expected-type elaboration, explicitness, coercions,
+projections, constructors, bounded binders, and other interface presentations.
+
+V2 uses the existing schemas and promotion routes:
+
+- compilation, deterministic intention, exact-expression comparison, a local
+  certificate, semantic-atom alignment, or a structural direction is evidence,
+  never by itself a `ResolvedLabel`;
+- `gold_conservative_transform` still requires §15.4 and the unchanged blinded
+  Gate-4A family audit;
+- negative or directional supervision still requires exactly one §15.7 route;
+  a structural direction may be audit/provenance, but cannot introduce a new
+  promotion route without a versioned policy revision;
+- an interface change not already approved by the semantic policy remains
+  provisional and human-audited; and
+- v2 work must not delay LF-021 human labeling or authorize training from
+  unresolved transformation outputs.
+
+### 15.11 V2 evidence classes
+
+Every candidate family declares one initial evidence class. The class controls
+validation and review, not labels:
+
+1. **E0 — exact elaborated-type presentation:** source and candidate
+   independently elaborate through LeanInteract in one frozen context; after
+   alpha-normalizing binder names, canonicalizing universe metavariable IDs,
+   and removing source-position metadata only, their complete theorem-type
+   expressions are identical. No unfolding, general definitional-equality
+   search, simplifier, or tactic is allowed. A family-specific inverse and
+   role-preserving semantic-atom alignment are also required.
+2. **E1 — one certified local presentation step:** one explicitly matched
+   beta/eta-like or macro step with a family-owned redex certificate and
+   free-variable/dependency checks. It begins provisional even when certified.
+3. **E2 — semantic-atom isomorphism:** atoms and roles align, but binder,
+   connective, or hypothesis packaging changes. It remains a human-audited
+   positive candidate unless a later semantic-policy version resolves it.
+4. **D0 — certified semantic delta:** one family-owned atom, role, scope,
+   dependency, guard, or argument-slot delta. The candidate remains
+   provisional and any supervision uses §15.7.
+
+For E0, identical elaborated-type hashes are an expected pair feature, not a
+reason to discard the pair. All surfaces join one equivalence/ancestry
+component. Cross-source collisions union the relevant split groups or cause
+fail-closed exclusion before split assignment.
+
+### 15.12 Candidate v2 portfolio
+
+These IDs reserve design scope only. They are not active until their code,
+config, focused tests, coverage report, and registry decision are accepted.
+
+| Family | Class | Narrow initial scope |
+|---|---|---|
+| P05 resolved names | E0 | uniquely resolved global-name qualification/dequalification; reject shadowing, aliases, private/macro-generated names, and ambiguous suffixes |
+| P06 implicit arguments | E0 | surface/omit ordinary non-instance implicits while preserving the application spine; exclude instance implicits, `autoParam`, `optParam`, coercion-inserted applications, and metavariables |
+| P07 coercion surface | E0 | expose/hide one already-elaborated `Coe`/`CoeT`-style hop; exclude `CoeFun`, `CoeSort`, chains, proof obligations, and ambiguity |
+| P08 type ascriptions | E0 | insert/remove one redundant, instantiated, source-printable term ascription with exact whole-expression identity |
+| P09 projections | E0 | named/numeric projection syntax versus the identical direct projection node; exclude coercion fields, record updates, and ambiguous receivers |
+| P10 constructors | E0 | anonymous constructor/known tuple surface versus the same constructor expression; restrict to one-to-one single-constructor mappings |
+| P11 bounded quantifiers | E0 | one exact bounded `forall`/`exists` expansion or contraction with the same binder, membership instance, guard role, and body |
+| P12 proof arrow/binder | E0 | `P -> Q` versus an unused explicit proof binder; exclude dependent, implicit, instance, and non-`Prop` domains |
+| P13 restricted eta | E1 | one explicit nondependent function-eta step with a syntactic redex and free-variable certificate; no general definitional equality |
+| P14 independent binder permutation | E2 | one adjacent explicit universal-binder swap with no dependency; proof, implicit, and instance binders excluded |
+| P15 root `Iff` reversal | E2 | swap only distinct root-conclusion sides; never nested or under another connective |
+| P16 conjunction reassociation | E2 | rotate only a top-level conjunctive conclusion while preserving exact atom order |
+| P17 hypothesis packing | E2 | curry/pack two nondependent propositional hypotheses without reordering; exclude data and instance binders |
+| N11 bound-variable substitution | D0 | replace one explicit occurrence with a distinct in-scope binder of the same alpha-normalized type |
+| N12 implication converse | D0 | swap distinct root nondependent hypothesis/conclusion roles; exclude `Iff` and nested implication |
+| N13 witness dependency | D0 | `forall x, exists y, R` versus `exists y, forall x, R` when the witness type is independent; record structural direction only |
+| N14 negation scope | D0 | move one `Not` across one universal binder without dualization, De Morgan rewriting, or classical normalization |
+| N15 conjunct omission | D0 | remove one distinct top-level conclusion conjunct; record structural direction and retained order |
+| N16 domain guard removal | D0 | remove the exact bounded-quantifier membership guard; keep P11/N03/N15 ownership disjoint |
+| N17 role-sensitive arguments | D0 | swap explicit, independent, same-typed slots from a manually audited head/position allowlist; deny symmetric heads and N01/N07 scope |
+
+P14–P17 do not become automatic positives from logical equivalence or human
+plausibility. P13 stays provisional pending its local certificate and blinded
+audit. P05/P08 are lower-value surface families and must be capped and ablated
+so they cannot dominate the positive pool.
+
+### 15.13 V2 staging, audits, and shortcut controls
+
+The first implementation tranche is P11, P06, P07, P09, P10, and P12. P05/P08
+follow as controlled surface ablations. P13 and P14–P17 remain separate
+provisional studies. N11 is the first negative expansion; N12–N17 follow only
+after family-overlap ownership and E-code mappings are frozen.
+
+Before enabling a family, freeze its source and elaborated-node matchers,
+excluded cases, candidate-site ordering, seed behavior, inverse, allowed
+expression difference, evidence class, overlap precedence, coverage
+denominators, and audit strata. Every attempt stores all considered sites and
+rejection reasons plus the selected span/node path, resolved constants and
+binders, source/candidate validation, inverse/certificate result, atom
+alignment or delta, hashes, and split/dedup outcome.
+
+Each family additionally requires trace/certificate corruption tests,
+registry-overlap tests, changed-span properties, clean source/candidate
+LeanInteract elaboration, context-drift rejection, and component-level
+split/dedup tests. Exact-expression utilities may be shared, but applicability
+and certification remain family-owned; there is no generic equivalent-rewrite
+executor.
+
+Evaluation includes seen-family/unseen-ancestry, whole-family holdout, and
+mechanism-superclass holdout slices. Table families also hold out complete
+constants, coercion classes, projections, constructors, predicates, or role
+pairs. Model inputs never contain family IDs, seeds, traces, certificates,
+source paths, or transformation status. Report family-macro averages and
+surface-cue diagnostics, cap descendants per source, and bootstrap by ancestry
+component rather than generated pair.
+
+Rejected automatic-positive shortcuts include unrestricted automation,
+theorem lookup, mutual provability, general definitional-equality
+normalization, broad unfolding/folding, algebraic/propositional normalization,
+semantic fusion, tautological padding, equality-hypothesis rewriting,
+arbitrary pretty-print/reparse, and equality orientation.
+
 ---
 
 ## 16. Counterexample and symbolic evidence pipeline
@@ -2940,6 +3092,22 @@ After annotation pilot, each family/version has blinded `n≥200`, point precisi
 
 After pilot, each promoted item uses exactly one §15.7 route and corresponding tier. Family refinement audit is 50–100; no intention-confidence shortcut. Others remain provisional.
 
+**Post-Gate-4G deterministic-v2 track**
+
+The additive §15.10–§15.13 track may design, coverage-probe, implement, and
+quarantine new family versions after LF-016–LF-020 and historical Gate 4G are
+accepted. It does not reopen or rewrite the eight-family Gate-4G decision.
+Before any v2 family is activated, a new version-specific generation addendum
+must bind its profile/registry hashes, clean replay, failure accounting,
+LeanInteract validation, overlap ownership, and split/denylist audits. The
+addendum grants mechanical generation credit only; Gates 4A/4B and every
+promotion route remain unchanged.
+
+V2 configs and artifacts use new paths and IDs. They cannot be mixed into a v1
+run, relabel a v1 pair, or reuse an accepted v1 audit as family-level evidence.
+The v2 track is permitted in parallel with genuine LF-021 annotation because
+all v2 outputs remain quarantined and it does not satisfy or block Gate 5.
+
 ### Phase 5 — Real autoformalization outputs and prevalence
 
 **Tasks**
@@ -3300,7 +3468,7 @@ Appendices G/H pass; clean reconstruction succeeds; every headline number traces
 
 ## 26. Initial coding-agent backlog
 
-Each item closes only with code, tests, artifacts, and acceptance evidence. Items are ordered; an item may not start before its predecessors' acceptance evidence exists. Parallel-track exception (matching §24.0): LF-021 may begin once LF-001–LF-013 are accepted (post-Gate-2 quarantined real-output collection), and LF-023 once LF-001–LF-015 are accepted (post-Gate-3 annotation tooling), regardless of intervening item numbers.
+Each item closes only with code, tests, artifacts, and acceptance evidence. Items are ordered; an item may not start before its predecessors' acceptance evidence exists. Parallel-track exceptions (matching §24.0): LF-021 may begin once LF-001–LF-013 are accepted (post-Gate-2 quarantined real-output collection); LF-023 may begin once LF-001–LF-015 are accepted (post-Gate-3 annotation tooling); and LF-031 may begin once LF-016–LF-020 and historical Gate 4G are accepted. LF-032 follows LF-031, LF-033 follows LF-032, and LF-034 follows LF-031 plus the frozen overlap/E-code design; this v2 track may run alongside LF-021–LF-030 but grants no labels, promotion, Gate-5 closure, or training readiness.
 
 1. **LF-001 — scaffold/tooling:** pyproject/uv/Typer/Ruff/Pytest/mypy/pre-commit; strict core modules.
 2. **LF-002 — config loader:** strict schemas, hashes, secret references (including `HF_TOKEN`), unknown-key failure.
@@ -3332,6 +3500,10 @@ Each item closes only with code, tests, artifacts, and acceptance evidence. Item
 28. **LF-028 — M0–M3:** tokenizer audit, models, heads, swap, hybrid, calibration development.
 29. **LF-029 — M4/application:** NL–Lean, final calibration, frozen reranking and selective escalation.
 30. **LF-030 — M5/external/release:** graph experiment, CSLib/Physlib adapters + `heldout_project_test` construction (strong-paper track), sealed suites, statistics, artifact assembly.
+31. **LF-031 — deterministic-v2 contract:** freeze `configs/transformations/v2.yaml`, disabled candidate registry entries, E0/E1/E2/D0 certificate contracts, coverage probes, family-overlap ownership, held-out-mechanism design, and a generation-addendum schema; no new family becomes executable in this item.
+32. **LF-032 — first v2 conservative positives:** implement P11/P06/P07/P09/P10/P12 as separately switchable experimental E0 families with exact whole-type identity, family-specific inverses, atom alignment, fail-closed context checks, and clean replay evidence. They remain provisional pending Gate 4A.
+33. **LF-033 — secondary/provisional v2 positives:** implement and independently evaluate capped P05/P08 surface ablations, then separately study P13 and human-audited P14–P17 without introducing an automatic-positive shortcut or broadening an existing family version.
+34. **LF-034 — v2 negative/directional candidates:** implement N11 first, then N12–N17 after overlap ownership and E-code mappings are accepted; store atom/role/scope/dependency deltas and structural direction only as evidence until an existing §15.7 promotion route resolves an item.
 
 Acceptance for every LF item: declared paths exist; unit/integration/golden/property tests relevant to scope pass; mypy/Ruff pass on touched core; command writes manifest; failure paths tested; milestone/gate report updated; no forbidden label inference.
 
@@ -3384,12 +3556,22 @@ sources/{mathlib,sft_classic,sft_classic_numina,lean_workbook,
          proofnetverif,cslib,physlib}.yaml
 generation/{providers,problem_pool,real_outputs,llm_variants}.yaml
 judges/{weak_supervision,primary_eval}.yaml
-transformations/{registry,v1,replacement_table_v1,
+transformations/{registry,v1,v2,replacement_table_v1,
                  lf018_pre_scale_v1,lf019_positive_fixtures_v1,
                  lf019_smoke_v1,
                  p01_alpha,p02_binders,p04_notation_lite,
                  n01_operator,n02_quantifier,n03_drop_hypothesis,
                  n07_literal_bound,n10_nearby_theorem}.yaml
+transformations/v2/{p05_resolved_names,p06_implicit_arguments,
+                    p07_coercion_surface,p08_type_ascription,
+                    p09_projection_direct,p10_constructor_direct,
+                    p11_bounded_quantifier,p12_proof_arrow_binder,
+                    p13_restricted_eta,p14_binder_permutation,
+                    p15_root_iff_reversal,p16_conjunction_reassociation,
+                    p17_hypothesis_packing,n11_bound_variable,
+                    n12_implication_converse,n13_witness_dependency,
+                    n14_negation_scope,n15_conjunct_omission,
+                    n16_domain_guard,n17_role_arguments}.yaml
 evidence/{portfolio_v1,counterexample_v1,sampling_v1}.yaml
 annotation/{tool,pilot,main}.yaml
 splits/v0.yaml

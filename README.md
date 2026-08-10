@@ -138,6 +138,24 @@ dataset probe (PLAN.md §9.2).
   deployment, and family-separation artifacts for later production scaling;
   it authorizes no network call or label. See
   `reports/milestones/phase_6_llm_data.md`.
+- **Active data-production checkpoint (2026-08-10):** the preserved public
+  LF-022 execution contains 668 parsed provisional variants.  The production
+  four-worker LeanInteract checker has now processed every one: 493 elaborate
+  with a proof placeholder and 175 are confirmed invalid.  By proposer, the
+  mechanically valid counts are Qwen 310/439, Kimi 181/227, and GLM 2/2.
+  These are useful Lean--Lean candidate pairs, but elaboration is not a
+  semantic label.  A separate resumable GPT-5.6 Sol audit is running one public
+  valid pair per invocation and is explicitly audit-only: it creates no gold,
+  silver, training, evaluation, or gate-credit records.  The canonical check
+  manifest is
+  `/storage/milikic/leanfaith/lf022_lean_checks/rcp_5e672b9_v1/manifest.json`.
+- **Deterministic scale-out running:** the first frozen unary shard produced
+  1,741 typechecked provisional pairs from 1,737 public mathlib statements.
+  Shards 1--15 are now launched through the bounded, isolated, resumable shard
+  orchestrator with four concurrent shard processes.  The full frozen source
+  universe contains 27,786 public statements.  All deterministic candidates
+  remain provisional; no semantic label or promotion follows from generation
+  or typechecking alone.
 - **Public LF-022 scale-out preparation is deterministic and still
   non-executable:** a pinned, progressively expandable mathlib file frame
   feeds exact extraction and representation runs. The production pool admits
@@ -202,6 +220,9 @@ uv run leanfaith make-lf022-public-batch-request --help
 uv run leanfaith freeze-lf022-public-batch --help
 uv run leanfaith run-lf022-public-batch --help
 uv run leanfaith qa-lf022-prefix256 --help
+uv run leanfaith check-lf022-provisional-lean --help
+uv run leanfaith audit-lf022-codex --help
+uv run leanfaith run-deterministic-shards --help
 uv run leanfaith combine-deterministic-scale-passes --help
 uv run leanfaith audit-training-readiness --report-only
 ```
