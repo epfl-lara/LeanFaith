@@ -3594,6 +3594,58 @@ def certify_lf022_proposer_route_command(
     )
 
 
+@app.command("certify-lf022-kimi-v4-route")
+def certify_lf022_kimi_v4_route_command(
+    selection_path: Annotated[
+        Path,
+        typer.Option("--selection", help="Frozen 16-item Kimi-v4 challenge selection JSON."),
+    ],
+    qualification_path: Annotated[
+        Path,
+        typer.Option("--qualification", help="Completed Kimi-v4 qualification JSON."),
+    ],
+    family_matrix_path: Annotated[
+        Path,
+        typer.Option("--family-matrix", help="Scientific production family-matrix JSON."),
+    ],
+    root_dir: Annotated[
+        Path | None,
+        typer.Option("--root", help="Repository root override."),
+    ] = None,
+) -> None:
+    """Replay all challenge evidence and certify only Kimi-v4 route eligibility."""
+
+    from leanfaith.cli.lf022_route_qualification import certify_kimi_v4_route
+    from leanfaith.config.paths import RepoPaths
+    from leanfaith.generation.lf022_kimi_v4_eligibility import (
+        LF022KimiV4EligibilityError,
+    )
+
+    paths = RepoPaths.discover(root_dir) if root_dir is None else RepoPaths(root=root_dir)
+
+    def anchored(path: Path) -> Path:
+        return path if path.is_absolute() else paths.root / path
+
+    try:
+        result = certify_kimi_v4_route(
+            repo_root=paths.root,
+            selection_path=anchored(selection_path),
+            qualification_path=anchored(qualification_path),
+            family_matrix_path=anchored(family_matrix_path),
+        )
+    except (LF022KimiV4EligibilityError, OSError, ValueError) as exc:
+        typer.echo(f"LF-022 Kimi-v4 route certification rejected: {exc}", err=True)
+        raise typer.Exit(code=2) from exc
+    typer.echo(
+        f"family={result.eligibility.proposer_family_id} "
+        f"model={result.eligibility.model_id} "
+        f"eligibility_id={result.eligibility.eligibility_id} "
+        f"eligibility={result.eligibility_path} network_calls_this_run=0 "
+        "candidate_quality=provisional outputs_unresolved=true semantic_labels_created=0 "
+        "training_eligible=false evaluation_eligible=false gate_credit_claimed=false"
+    )
+
+
 @app.command("check-lf022-provisional-lean")
 def check_lf022_provisional_lean_command(
     project: Annotated[
@@ -3982,6 +4034,13 @@ def freeze_lf022_scientific_kimi_admission_command(
             help="Repository-local immutable Kimi execution admission JSON.",
         ),
     ],
+    proposer_production_eligibility_path: Annotated[
+        Path | None,
+        typer.Option(
+            "--proposer-production-eligibility",
+            help="Canonical replay-verified Kimi-v4 eligibility JSON.",
+        ),
+    ] = None,
     provider_catalog_raw_path: Annotated[
         Path | None,
         typer.Option(
@@ -3994,7 +4053,7 @@ def freeze_lf022_scientific_kimi_admission_command(
         typer.Option("--root", help="Repository root override."),
     ] = None,
 ) -> None:
-    """Reject the archived Kimi-v3 scientific admission path."""
+    """Freeze Kimi-v4 only after the 16-item challenge is replay-certified."""
     from leanfaith.config.paths import RepoPaths
     from leanfaith.generation.lf022_admission_freeze import (
         LF022AdmissionFreezeError,
@@ -4015,6 +4074,7 @@ def freeze_lf022_scientific_kimi_admission_command(
             code_bundle_path=anchored(code_bundle_path) or code_bundle_path,
             output_path=anchored(output_path) or output_path,
             provider_catalog_raw_path=anchored(provider_catalog_raw_path),
+            proposer_production_eligibility_path=anchored(proposer_production_eligibility_path),
         )
     except (LF022AdmissionFreezeError, OSError, ValueError) as exc:
         typer.echo(f"LF-022 scientific Kimi admission freeze rejected: {exc}", err=True)

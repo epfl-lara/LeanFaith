@@ -406,8 +406,8 @@ parsing (including one valid structure literal containing `:=`), and two to
 avoidable max-parallel HTTP 429 responses. The v4 work does not rewrite or
 silently reinterpret those terminal artifacts.
 
-`configs/generation/lf022_kimi_k2_7_proposer_v4.yaml` is a pending
-requalification contract, not a production admission. It binds the v2 prompt,
+`configs/generation/lf022_kimi_k2_7_proposer_v4.yaml` is the reviewed
+requalification contract, not by itself a production admission. It binds the v2 prompt,
 32,768-token high-reasoning request, transient-HTTP-only retry policy, one
 maximum in-flight request, and a capability-first 16-case decision rule. The
 first selected case is the only permitted capability call. The other 15 calls
@@ -453,13 +453,47 @@ uv run leanfaith verify-lf022-kimi-v4-challenge \
   --selection artifacts/generation/lf022_kimi_v4_challenge_selection_v2/<sha256>.json
 ```
 
-The requalification decision is fixed before live access: at least 14/16 must
-strictly parse, no selected response may exhaust its output budget or be an
-HTTP-200 empty response, and neither selected historical declaration-boundary
-failure may repeat. Passing still requires a distinct reviewed qualification
-artifact before any larger Kimi admission. Until the live capability call and
-remaining challenge exist, Kimi-v4 remains non-executable and cannot authorize
-production, supervision, promotion, evaluation, or Gate credit.
+The requalification decision was fixed before live access: at least 14/16 had
+to strictly parse, no selected response could exhaust its output budget or be
+an HTTP-200 empty response, and neither selected historical declaration-
+boundary failure could repeat. The live challenge completed on 2026-08-10 with
+16/16 strict parsed variants, zero output-budget exhaustion, zero HTTP-200
+empty responses, and no repeated proof-bearing parser failure. Two first
+attempts received HTTP 429 and then succeeded under the frozen transient-only
+retry policy. The qualification is immutable at:
+
+```text
+data/lf022_kimi_v4_requalification/v1/643258f3a8bd89e88a00d9a37e778431d3268ed28e68f831d943e29220f82c37/qualification.json
+```
+
+Certify the route without credentials. The certifier validates the archived
+selection code bundle and every semantics-bound implementation file, then
+replays all sixteen persisted terminals through the selected requalification
+semantics:
+
+```bash
+ROOT=/localhome/milikic/LeanFaith
+SELECTION="artifacts/generation/lf022_kimi_v4_challenge_selection_v2/643258f3a8bd89e88a00d9a37e778431d3268ed28e68f831d943e29220f82c37.json"
+QUALIFICATION="data/lf022_kimi_v4_requalification/v1/643258f3a8bd89e88a00d9a37e778431d3268ed28e68f831d943e29220f82c37/qualification.json"
+MATRIX="artifacts/generation/lf022_public_v3_max_c799f54c/family_matrix.json"
+
+env -u RCP_BASE_URL -u RCP_API_KEY -u OPENAI_BASE_URL -u OPENAI_API_KEY \
+  uv run leanfaith certify-lf022-kimi-v4-route \
+    --root "$ROOT" \
+    --selection "$SELECTION" \
+    --qualification "$QUALIFICATION" \
+    --family-matrix "$MATRIX"
+```
+
+Certification produced the content-addressed eligibility ID
+`lf022_kimi_v4_route_eligibility:15c29ee78b7915bf04c1e40b6b95346f452ebd49cfdf0eb79ef2ad20418fe553`.
+It replays all sixteen terminals with zero network calls and writes one
+canonical route-only eligibility record under
+`data/lf022_execution/production_eligibility/`. New Kimi scientific admissions
+must bind that record, the v4 contract, v2 prompt, exact public family matrix,
+and a current clean code bundle. Missing, changed, or cross-route eligibility
+fails before transport. Qualification and eligibility create no semantic
+label, silver/gold promotion, training/evaluation eligibility, or Gate credit.
 
 ## Archived Kimi-v3 scientific route
 
@@ -471,9 +505,10 @@ terminals, and raw responses remain immutable evidence and may still be replayed
 with the ordinary commands in offline mode. They cannot be extended into a new
 prefix or full run.
 
-There is intentionally no Kimi-v4 live runner yet. Freezing the v4 challenge is
-only an offline selection step; a future capability-first runner requires a
-separate reviewed implementation and qualification artifact.
+The capability-first runner is restricted to the frozen challenge. Ordinary
+production uses the standard public-batch executor only after replay-verified
+eligibility and a separately frozen Kimi-v4 scientific admission exist. The
+historical v3 admission remains archived and cannot be extended.
 
 ## Separation and privacy invariants
 

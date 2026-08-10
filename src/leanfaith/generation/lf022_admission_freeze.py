@@ -12,7 +12,7 @@ import os
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
-from typing import Literal, cast
+from typing import Literal
 
 from leanfaith.config.code_bundle import validate_code_bundle
 from leanfaith.config.hashing import canonical_json_bytes, hash_file
@@ -45,7 +45,6 @@ _RAW_CATALOG_PATH = (
 _NORMALIZED_CATALOG_PATH = "configs/generation/lf022_rcp_catalog_snapshot_v1.json"
 _PORTFOLIO_PATH = "configs/generation/rcp_provider_portfolio_v2.yaml"
 _EVIDENCE_PATH = "reports/generation/lf022_rcp_public_smoke_qualification_v1.json"
-_PROMPT_PATH = "prompts/proposers/lean_variant_v1.txt"
 
 
 class LF022AdmissionFreezeError(ValueError):
@@ -66,6 +65,7 @@ class _RouteSpec:
     canonical_family: str
     contract_id: str
     contract_path: str
+    prompt_path: str
     execution_scope: Literal[
         "public_provisional_g_open",
         "one_item_proposer_qualification_only",
@@ -79,6 +79,7 @@ _ROUTES: dict[LF022SupportedProposerFamily, _RouteSpec] = {
         canonical_family="moonshotai/kimi-k2",
         contract_id="kimi_k2_7_public_smoke_v3",
         contract_path="configs/generation/lf022_rcp_public_smoke_v3.yaml",
+        prompt_path="prompts/proposers/lean_variant_v1.txt",
         execution_scope="public_provisional_g_open",
         decoding={
             "temperature": 1.0,
@@ -102,6 +103,7 @@ _ROUTES: dict[LF022SupportedProposerFamily, _RouteSpec] = {
         canonical_family="qwen/qwen3",
         contract_id="qwen3_5_proposer_qualification_v1",
         contract_path="configs/generation/lf022_qwen3_5_proposer_qualification_v1.yaml",
+        prompt_path="prompts/proposers/lean_variant_v1.txt",
         execution_scope="one_item_proposer_qualification_only",
         decoding={
             "temperature": 0.6,
@@ -125,6 +127,7 @@ _ROUTES: dict[LF022SupportedProposerFamily, _RouteSpec] = {
         canonical_family="zai-org/glm-5.2",
         contract_id="glm5_2_proposer_qualification_v1",
         contract_path="configs/generation/lf022_glm5_2_proposer_qualification_v1.yaml",
+        prompt_path="prompts/proposers/lean_variant_v1.txt",
         execution_scope="one_item_proposer_qualification_only",
         decoding={
             "temperature": 0.0,
@@ -151,6 +154,7 @@ _RECOVERY_ROUTES: dict[Literal["qwen3", "glm5"], _RouteSpec] = {
         canonical_family="qwen/qwen3",
         contract_id="qwen3_5_proposer_qualification_v2",
         contract_path="configs/generation/lf022_qwen3_5_proposer_qualification_v2.yaml",
+        prompt_path="prompts/proposers/lean_variant_v1.txt",
         execution_scope="one_item_proposer_qualification_only",
         decoding={
             "temperature": 0.6,
@@ -174,6 +178,7 @@ _RECOVERY_ROUTES: dict[Literal["qwen3", "glm5"], _RouteSpec] = {
         canonical_family="zai-org/glm-5.2",
         contract_id="glm5_2_proposer_qualification_v2",
         contract_path="configs/generation/lf022_glm5_2_proposer_qualification_v2.yaml",
+        prompt_path="prompts/proposers/lean_variant_v1.txt",
         execution_scope="one_item_proposer_qualification_only",
         decoding={
             "temperature": 0.0,
@@ -200,11 +205,37 @@ _QUALIFIED_PRODUCTION_ROUTES: dict[Literal["qwen3", "glm5"], _RouteSpec] = {
         canonical_family=spec.canonical_family,
         contract_id=spec.contract_id,
         contract_path=spec.contract_path,
+        prompt_path=spec.prompt_path,
         execution_scope="public_provisional_g_open",
         decoding=spec.decoding,
     )
     for family, spec in _RECOVERY_ROUTES.items()
 }
+
+_QUALIFIED_KIMI_V4_ROUTE = _RouteSpec(
+    model_id="moonshotai/Kimi-K2.7-Code",
+    canonical_family="moonshotai/kimi-k2",
+    contract_id="kimi_k2_7_public_proposer_v4",
+    contract_path="configs/generation/lf022_kimi_k2_7_proposer_v4.yaml",
+    prompt_path="prompts/proposers/lean_variant_v2.txt",
+    execution_scope="public_provisional_g_open",
+    decoding={
+        "temperature": 1.0,
+        "top_p": 0.95,
+        "top_k": None,
+        "min_p": None,
+        "presence_penalty": None,
+        "repetition_penalty": None,
+        "max_tokens": 32_768,
+        "seed": 42,
+        "stream": False,
+        "thinking_mode": "forced_thinking",
+        "reasoning_effort": "high",
+        "chat_template_enable_thinking": True,
+        "chat_template_thinking": None,
+        "thinking_fields_forbidden": False,
+    },
+)
 
 
 def _repo_file_binding(
@@ -328,15 +359,19 @@ def _freeze_lf022_execution_admission(
         )
     qualified_scientific = (
         expected_profile == "scientific_production_scaffold"
-        and proposer_family_id in {"qwen3", "glm5"}
+        and proposer_family_id in {"moonshot_kimi_k2", "qwen3", "glm5"}
     )
     if qualified_scientific != (proposer_production_eligibility_path is not None):
         raise LF022AdmissionFreezeError(
-            "scientific Qwen/GLM admission requires exactly one production eligibility; "
-            "diagnostic and Kimi admissions forbid it"
+            "scientific qualified admission requires exactly one production eligibility; "
+            "diagnostic admissions forbid it"
         )
     if qualified_scientific:
-        spec = _QUALIFIED_PRODUCTION_ROUTES[cast(Literal["qwen3", "glm5"], proposer_family_id)]
+        spec = (
+            _QUALIFIED_KIMI_V4_ROUTE
+            if proposer_family_id == "moonshot_kimi_k2"
+            else _QUALIFIED_PRODUCTION_ROUTES[proposer_family_id]
+        )
     elif qualification_supersession_path is not None:
         if proposer_family_id == "moonshot_kimi_k2":
             raise LF022AdmissionFreezeError("Kimi cannot use a qualification supersession")
@@ -555,7 +590,34 @@ def _freeze_lf022_execution_admission(
             raise LF022AdmissionFreezeError(
                 "qualification supersession belongs to a different recovery route"
             )
-    if eligibility_binding is not None:
+    if eligibility_binding is not None and proposer_family_id == "moonshot_kimi_k2":
+        from leanfaith.generation.lf022_kimi_v4_eligibility import (
+            LF022KimiV4EligibilityError,
+            verify_lf022_kimi_v4_production_eligibility,
+        )
+
+        try:
+            kimi_eligibility = verify_lf022_kimi_v4_production_eligibility(
+                repo_root=root,
+                eligibility_binding=eligibility_binding,
+            )
+        except LF022KimiV4EligibilityError as exc:
+            raise LF022AdmissionFreezeError(
+                f"Kimi-v4 production eligibility exact replay rejected: {exc}"
+            ) from exc
+        if (
+            kimi_eligibility.proposer_family_id != proposer_family_id
+            or kimi_eligibility.model_id != spec.model_id
+            or kimi_eligibility.decoding_contract_id != spec.contract_id
+            or kimi_eligibility.v4_contract != reviewed_route_contract_binding
+            or kimi_eligibility.v4_prompt.path != spec.prompt_path
+            or kimi_eligibility.family_matrix != plan.artifacts.family_matrix
+            or kimi_eligibility.family_matrix_id != plan.family_matrix_id
+        ):
+            raise LF022AdmissionFreezeError(
+                "Kimi-v4 production eligibility belongs to a different route or matrix"
+            )
+    elif eligibility_binding is not None:
         from leanfaith.generation.lf022_route_qualification import (
             LF022RouteQualificationError,
             verify_lf022_proposer_production_eligibility,
@@ -599,7 +661,7 @@ def _freeze_lf022_execution_admission(
         ),
         prompt_template=_repo_file_binding(
             root,
-            _PROMPT_PATH,
+            spec.prompt_path,
             label="reviewed proposer prompt",
         ),
         code_bundle=code_bundle_binding,
@@ -728,26 +790,25 @@ def freeze_lf022_scientific_kimi_execution_admission(
     code_bundle_path: Path,
     output_path: Path,
     provider_catalog_raw_path: Path | None = None,
+    proposer_production_eligibility_path: Path | None = None,
 ) -> FrozenLF022ExecutionAdmission:
-    """Reject new Kimi-v3 scientific admissions while retaining the legacy API.
+    """Admit Kimi-v4 only after its exact 16-item challenge passes and replays."""
 
-    Existing immutable v3 admissions remain readable for offline historical
-    replay.  The failed prefix-256 audit archived this production route, so a
-    current caller must complete the separately versioned Kimi-v4
-    requalification before any new scientific admission can exist.
-    """
-
-    del (
-        repo_root,
-        public_pool_audit_path,
-        code_bundle_path,
-        output_path,
-        provider_catalog_raw_path,
-    )
-    raise LF022AdmissionFreezeError(
-        "Kimi-v3 scientific admission is archived after the failed prefix-256 audit; "
-        "historical artifacts are offline-replay-only and Kimi-v4 requalification "
-        "does not yet authorize production"
+    if proposer_production_eligibility_path is None:
+        raise LF022AdmissionFreezeError(
+            "Kimi-v3 scientific admission is archived after the failed prefix-256 audit; "
+            "Kimi-v4 requires one replay-verified production eligibility"
+        )
+    return _freeze_lf022_execution_admission(
+        repo_root=repo_root,
+        public_pool_audit_path=public_pool_audit_path,
+        proposer_family_id="moonshot_kimi_k2",
+        code_bundle_path=code_bundle_path,
+        output_path=output_path,
+        provider_catalog_raw_path=provider_catalog_raw_path,
+        qualification_supersession_path=None,
+        proposer_production_eligibility_path=proposer_production_eligibility_path,
+        expected_profile="scientific_production_scaffold",
     )
 
 

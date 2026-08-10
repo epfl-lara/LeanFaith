@@ -153,6 +153,15 @@ dataset probe (PLAN.md §9.2).
   `reports/generation/lf022_codex_sol_xhigh_v2_summary.md`. The canonical check
   manifest remains
   `/storage/milikic/leanfaith/lf022_lean_checks/rcp_5e672b9_v1/manifest.json`.
+- **Kimi-v4 challenge passed, production admission remains fail-closed:** the
+  frozen 16-item hard-case requalification produced 16/16 strict variants,
+  with two transient HTTP-429 attempts successfully retried and no truncation,
+  empty response, or parser failure. The route certifier must replay all
+  sixteen terminals with zero network calls before it can create route-only
+  eligibility. That record still creates no label, promotion, training
+  example, evaluation example, or gate credit; larger Kimi collection requires
+  a separate exact scientific admission. See
+  `docs/lf022_public_generation.md`.
 - **Deterministic scale-out running:** the first frozen unary shard produced
   1,741 typechecked provisional pairs from 1,737 public mathlib statements.
   Shards 1--15 are now launched through the bounded, isolated, resumable shard

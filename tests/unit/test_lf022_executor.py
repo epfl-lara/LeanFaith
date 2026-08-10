@@ -68,6 +68,10 @@ from leanfaith.generation.lf022_executor import (
     execute_lf022_g_open_task,
     prepare_lf022_g_open_execution,
 )
+from leanfaith.generation.lf022_kimi_v4_eligibility import (
+    LF022_KIMI_V4_ELIGIBILITY_PATH,
+    LF022KimiV4ProductionEligibility,
+)
 from leanfaith.generation.lf022_production import (
     LF022ArtifactBinding,
     LF022JSONLArtifactBinding,
@@ -1089,6 +1093,138 @@ def test_freeze_scientific_kimi_admission_cli_is_archived(tmp_path: Path) -> Non
     assert not output.exists()
 
 
+def test_freeze_scientific_kimi_v4_admission_binds_exact_eligibility(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    historical, task = _fixture(
+        tmp_path,
+        profile="scientific_production_scaffold",
+    )
+    v4_contract = _copy_repo_artifact(
+        tmp_path,
+        "configs/generation/lf022_kimi_k2_7_proposer_v4.yaml",
+    )
+    v4_prompt = _copy_repo_artifact(
+        tmp_path,
+        "prompts/proposers/lean_variant_v2.txt",
+    )
+    plan = LF022ProductionPlanManifest.model_validate_json(
+        (tmp_path / historical.artifacts.allocation_plan.path).read_bytes()
+    )
+    matrix = LF022ProductionFamilyMatrix.model_validate_json(
+        (tmp_path / plan.artifacts.family_matrix.path).read_bytes()
+    )
+    judges = tuple(
+        sorted(
+            family
+            for family in matrix.judge_family_ids
+            if family not in {"moonshot_kimi_k2", matrix.heldout_eval_family_id}
+        )
+    )
+    validators = tuple(
+        sorted(
+            family
+            for family in matrix.sci_validator_family_ids
+            if family not in {"moonshot_kimi_k2", matrix.heldout_eval_family_id}
+        )
+    )
+    v4_decoding = LF022RCPDecodingContract.model_validate(
+        {
+            **historical.route.decoding.model_dump(mode="json"),
+            "contract_id": "kimi_k2_7_public_proposer_v4",
+            "max_tokens": 32_768,
+        }
+    )
+    placeholder = historical.artifacts.reviewed_route_evidence
+    eligibility_payload: dict[str, object] = {
+        "schema_version": 1,
+        "status": "kimi_v4_challenge_replay_verified",
+        "proposer_family_id": "moonshot_kimi_k2",
+        "model_id": "moonshotai/Kimi-K2.7-Code",
+        "deployment_id": "moonshotai/Kimi-K2.7-Code",
+        "canonical_family": "moonshotai/kimi-k2",
+        "provider_id": "epfl_rcp",
+        "catalog_snapshot_id": historical.route.catalog_snapshot_id,
+        "route_snapshot_revision": historical.route.route_snapshot_revision,
+        "decoding_contract_id": "kimi_k2_7_public_proposer_v4",
+        "decoding_contract_hash": hash_canonical(v4_decoding.model_dump(mode="json")),
+        "v4_contract": v4_contract.model_dump(mode="json"),
+        "v4_prompt": v4_prompt.model_dump(mode="json"),
+        "selection_id": f"lf022_kimi_v4_selection:{'2' * 64}",
+        "selection": placeholder.model_dump(mode="json"),
+        "selection_code_tree_hash": "3" * 64,
+        "selection_code_bundle": placeholder.model_dump(mode="json"),
+        "qualification_id": f"lf022_kimi_v4_qualification:{'4' * 64}",
+        "qualification": placeholder.model_dump(mode="json"),
+        "qualification_status": "passed",
+        "qualification_terminal_count": 16,
+        "strict_parse_success_count": 16,
+        "replay_network_calls": 0,
+        "family_matrix_id": matrix.matrix_id,
+        "family_matrix": plan.artifacts.family_matrix.model_dump(mode="json"),
+        "judge_family_ids": list(judges),
+        "permitted_validator_family_ids": list(validators),
+        "heldout_eval_family_id": matrix.heldout_eval_family_id,
+        "heldout_eval_supervision_excluded": True,
+        "production_execution_scope": "public_provisional_g_open",
+        "public_sources_only": True,
+        "private_source_content_forbidden": True,
+        "output_quality_tier": "provisional",
+        "outputs_unresolved": True,
+        "semantic_labels_created": False,
+        "silver_promotion_enabled": False,
+        "gold_promotion_enabled": False,
+        "training_eligible": False,
+        "evaluation_eligible": False,
+        "gate_credit_claimed": False,
+    }
+    eligibility = LF022KimiV4ProductionEligibility.model_validate(
+        {
+            **eligibility_payload,
+            "eligibility_id": make_id(
+                "lf022_kimi_v4_route_eligibility",
+                eligibility_payload,
+            ),
+        }
+    )
+    eligibility_binding = _write_json(
+        tmp_path,
+        LF022_KIMI_V4_ELIGIBILITY_PATH,
+        eligibility.model_dump(mode="json"),
+    )
+    from leanfaith.generation import lf022_kimi_v4_eligibility
+
+    monkeypatch.setattr(
+        lf022_kimi_v4_eligibility,
+        "verify_lf022_kimi_v4_production_eligibility",
+        lambda **_: eligibility,
+    )
+    current_tree_hash = collect_code_state(tmp_path).code_tree_hash
+    assert current_tree_hash is not None
+    code_bundle = _code_bundle(tmp_path, code_tree_hash=current_tree_hash)
+    output = tmp_path / "artifacts/kimi_v4_scientific_execution_admission.json"
+    frozen = freeze_lf022_scientific_kimi_execution_admission(
+        repo_root=tmp_path,
+        public_pool_audit_path=tmp_path / "artifacts/public_pool_audit.json",
+        proposer_production_eligibility_path=tmp_path / eligibility_binding.path,
+        code_bundle_path=tmp_path / code_bundle.path,
+        provider_catalog_raw_path=tmp_path / historical.artifacts.provider_catalog_raw.path,
+        output_path=output,
+    )
+    assert frozen.admission.schema_version == 2
+    assert frozen.admission.route.decoding.contract_id == "kimi_k2_7_public_proposer_v4"
+    assert frozen.admission.route.decoding.max_tokens == 32_768
+    assert frozen.admission.artifacts.prompt_template == v4_prompt
+    assert frozen.admission.artifacts.proposer_production_eligibility == eligibility_binding
+    assert frozen.admission.outputs_provisional_only is True
+    assert frozen.admission.semantic_labels_created is False
+    assert frozen.admission.training_eligible is False
+    assert frozen.admission.evaluation_eligible is False
+    assert frozen.admission.gate_credit_claimed is False
+    assert task.allocation_task.proposer_family_id == "moonshot_kimi_k2"
+
+
 @pytest.mark.parametrize(
     ("model_id", "family_id", "contract_id"),
     (
@@ -1748,7 +1884,8 @@ def test_unreviewed_vl_route_is_rejected() -> None:
         )
 
 
-def test_kimi_v4_contract_is_recognized_but_not_live_admissible() -> None:
+def test_kimi_v4_contract_requires_replay_verified_eligibility(tmp_path: Path) -> None:
+    historical, _ = _fixture(tmp_path)
     decoding = LF022RCPDecodingContract(
         contract_id="kimi_k2_7_public_proposer_v4",
         temperature=1.0,
@@ -1759,18 +1896,26 @@ def test_kimi_v4_contract_is_recognized_but_not_live_admissible() -> None:
         reasoning_effort="high",
         chat_template_enable_thinking=True,
     )
-    with pytest.raises(ValueError, match="differs from the reviewed proposer route"):
-        LF022RCPRouteBinding(
-            provider_id="epfl_rcp",
-            model_id="moonshotai/Kimi-K2.7-Code",
-            deployment_id="moonshotai/Kimi-K2.7-Code",
-            proposer_family_id="moonshot_kimi_k2",
-            canonical_family="moonshotai/kimi-k2",
-            catalog_snapshot_id=f"lf022_provider_catalog:{'d' * 64}",
-            route_snapshot_revision=f"rcp-catalog-sha256:{'e' * 64}",
-            underlying_checkpoint_revision_status="provider_not_disclosed",
-            execution_scope="public_provisional_g_open",
-            decoding=decoding,
+    route = LF022RCPRouteBinding(
+        provider_id="epfl_rcp",
+        model_id="moonshotai/Kimi-K2.7-Code",
+        deployment_id="moonshotai/Kimi-K2.7-Code",
+        proposer_family_id="moonshot_kimi_k2",
+        canonical_family="moonshotai/kimi-k2",
+        catalog_snapshot_id=historical.route.catalog_snapshot_id,
+        route_snapshot_revision=historical.route.route_snapshot_revision,
+        underlying_checkpoint_revision_status="provider_not_disclosed",
+        execution_scope="public_provisional_g_open",
+        decoding=decoding,
+    )
+    with pytest.raises(ValueError, match="qualified production scope requires"):
+        make_lf022_g_open_execution_admission(
+            public_pool_audit_id=historical.public_pool_audit_id,
+            allocation_plan_id=historical.allocation_plan_id,
+            artifacts=historical.artifacts,
+            route=route,
+            retry_policy=historical.retry_policy,
+            code_tree_hash=historical.code_tree_hash,
         )
 
 
