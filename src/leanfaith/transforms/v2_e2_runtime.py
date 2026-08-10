@@ -6,6 +6,10 @@ from pathlib import Path
 
 from leanfaith.config.loading import load_yaml_mapping
 from leanfaith.config.paths import find_repo_root
+from leanfaith.transforms.v2_e2_p14_runtime import (
+    V2E2P14Runtime,
+    build_v2_e2_p14_runtime,
+)
 from leanfaith.transforms.v2_e2_p15_runtime import (
     V2E2P15Runtime,
     build_v2_e2_p15_runtime,
@@ -19,7 +23,7 @@ from leanfaith.transforms.v2_e2_p17_runtime import (
     build_v2_e2_p17_runtime,
 )
 
-type V2E2Runtime = V2E2P15Runtime | V2E2P16Runtime | V2E2P17Runtime
+type V2E2Runtime = V2E2P14Runtime | V2E2P15Runtime | V2E2P16Runtime | V2E2P17Runtime
 
 
 def build_v2_e2_runtime(
@@ -34,6 +38,8 @@ def build_v2_e2_runtime(
     if not resolved.is_relative_to(root.resolve()):
         raise ValueError("v2 E2 config escapes the repository")
     profile_id = load_yaml_mapping(resolved).get("profile_id")
+    if profile_id == "deterministic_v2_e2_p14_experimental":
+        return build_v2_e2_p14_runtime(root, path=resolved)
     if profile_id == "deterministic_v2_e2_p15_experimental":
         return build_v2_e2_p15_runtime(root, path=resolved)
     if profile_id == "deterministic_v2_e2_p16_experimental":

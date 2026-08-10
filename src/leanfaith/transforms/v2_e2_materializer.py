@@ -18,17 +18,20 @@ from leanfaith.schemas.variant import (
 )
 
 E2ProfileId = Literal[
+    "deterministic_v2_e2_p14_experimental",
     "deterministic_v2_e2_p15_experimental",
     "deterministic_v2_e2_p16_experimental",
     "deterministic_v2_e2_p17_experimental",
 ]
 E2RuleId = Literal[
+    "p14_independent_binder_permutation",
     "p15_root_iff_reversal",
     "p16_conjunction_reassociation",
     "p17_hypothesis_packing",
 ]
 
 _PROFILE_RULE = {
+    "deterministic_v2_e2_p14_experimental": "p14_independent_binder_permutation",
     "deterministic_v2_e2_p15_experimental": "p15_root_iff_reversal",
     "deterministic_v2_e2_p16_experimental": "p16_conjunction_reassociation",
     "deterministic_v2_e2_p17_experimental": "p17_hypothesis_packing",

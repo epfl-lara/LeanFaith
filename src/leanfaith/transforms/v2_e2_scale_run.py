@@ -43,12 +43,14 @@ class V2E2ScaleRunSpec(StrictModel):
         "deterministic_v2_e2_scale_run_spec"
     )
     profile_id: Literal[
+        "deterministic_v2_e2_p14_experimental",
         "deterministic_v2_e2_p15_experimental",
         "deterministic_v2_e2_p16_experimental",
         "deterministic_v2_e2_p17_experimental",
     ]
     profile_config_hash: str = Field(pattern=_HEX64)
     rule_id: Literal[
+        "p14_independent_binder_permutation",
         "p15_root_iff_reversal",
         "p16_conjunction_reassociation",
         "p17_hypothesis_packing",
