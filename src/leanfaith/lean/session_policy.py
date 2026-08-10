@@ -61,6 +61,20 @@ class RetryOutcome:
         return len(self.attempts) > 1
 
 
+@dataclass(frozen=True, slots=True)
+class BatchRetryOutcome:
+    """Ordered final results and per-request attempt lineage for one batch."""
+
+    results: tuple[LeanResult, ...]
+    attempts: tuple[tuple[LeanResult, ...], ...]
+
+    @property
+    def retried_count(self) -> int:
+        """Number of input requests that required at least one retry."""
+
+        return sum(len(lineage) > 1 for lineage in self.attempts)
+
+
 def run_with_retries(
     run: Callable[[LeanRequest], LeanResult],
     request: LeanRequest,
@@ -84,6 +98,54 @@ def run_with_retries(
         if result.status not in policy.retry_statuses:
             break
     return RetryOutcome(result=attempts[-1], attempts=tuple(attempts))
+
+
+def run_batch_with_retries(
+    run_batch: Callable[[Sequence[LeanRequest]], Sequence[LeanResult]],
+    requests: Sequence[LeanRequest],
+    policy: RetryPolicy | None = None,
+) -> BatchRetryOutcome:
+    """Run independent requests concurrently while retrying infrastructure failures.
+
+    Each batch attempt contains only the still-retryable requests. Results and
+    full attempt lineages are restored to the original input order. A batch
+    runner must return exactly one result per submitted request; violating this
+    contract fails closed instead of silently misaligning theorem records.
+    """
+
+    policy = policy or RetryPolicy()
+    if not requests:
+        return BatchRetryOutcome(results=(), attempts=())
+
+    histories: list[list[LeanResult]] = [[] for _ in requests]
+    pending = list(range(len(requests)))
+    for attempt_index in range(policy.max_attempts):
+        attempt_requests = [
+            replace(
+                requests[index],
+                metadata={**dict(requests[index].metadata), "attempt": str(attempt_index)},
+            )
+            for index in pending
+        ]
+        attempt_results = tuple(run_batch(attempt_requests))
+        if len(attempt_results) != len(attempt_requests):
+            raise ValueError("batch runner returned a different number of results than requests")
+        next_pending: list[int] = []
+        for index, result in zip(pending, attempt_results, strict=True):
+            histories[index].append(result)
+            if result.status in policy.retry_statuses:
+                next_pending.append(index)
+        pending = next_pending
+        if not pending:
+            break
+
+    lineages = tuple(tuple(history) for history in histories)
+    if any(not lineage for lineage in lineages):
+        raise AssertionError("every batch request must have at least one result")
+    return BatchRetryOutcome(
+        results=tuple(lineage[-1] for lineage in lineages),
+        attempts=lineages,
+    )
 
 
 def semantic_identity(results: Sequence[LeanResult]) -> tuple[tuple[str, str], ...]:

@@ -13,6 +13,7 @@ from __future__ import annotations
 import datetime
 import json
 import re
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
@@ -22,7 +23,11 @@ from leanfaith.config.hashing import canonical_json_bytes, sha256_hex
 from leanfaith.config.paths import find_repo_root
 from leanfaith.lean.leaninteract_backend import LeanInteractBackend
 from leanfaith.lean.protocol import LeanRequest, LeanResult, LeanStatus
-from leanfaith.lean.session_policy import RetryPolicy, run_with_retries
+from leanfaith.lean.session_policy import (
+    RetryPolicy,
+    run_batch_with_retries,
+    run_with_retries,
+)
 from leanfaith.lean.source_scan import scan_lean_line
 from leanfaith.representations.atoms import (
     operator_tree,
@@ -71,9 +76,32 @@ def _run_representation_requests(
     backend: LeanInteractBackend,
     requests: list[LeanRequest],
 ) -> list[LeanResult]:
-    """Keep each theorem request independent while preserving retry lineage."""
+    """Run independent theorem requests through the configured server pool.
 
-    return [_run_representation_request(backend, request) for request in requests]
+    Stable/auto backends remain sequential through ``LeanBackend.run_batch``;
+    pool mode distributes the requests over persistent LeanInteract workers.
+    Only infrastructure failures are retried, and input ordering is retained.
+    """
+
+    backend_batch = getattr(backend, "run_batch", None)
+    batch_runner: Callable[[Sequence[LeanRequest]], Sequence[LeanResult]]
+    if not callable(backend_batch):
+        # Small unit-test and downstream protocol doubles written before the
+        # canonical batch method remain valid. Production backends always use
+        # ``run_batch`` and therefore reach LeanServerPool in pool mode.
+        def sequential_batch(items: Sequence[LeanRequest]) -> Sequence[LeanResult]:
+            return [backend.run(item) for item in items]
+
+        batch_runner = sequential_batch
+    else:
+        batch_runner = backend_batch
+    return list(
+        run_batch_with_retries(
+            batch_runner,
+            requests,
+            _REPRESENTATION_RETRY_POLICY,
+        ).results
+    )
 
 
 @lru_cache(maxsize=1)

@@ -10,6 +10,7 @@ from leanfaith.lean.protocol import LeanRequest, LeanResult, LeanStatus
 from leanfaith.lean.session_policy import (
     RetryPolicy,
     ServerMode,
+    run_batch_with_retries,
     run_with_retries,
     semantic_identity,
 )
@@ -105,3 +106,62 @@ def test_semantic_identity_projection() -> None:
 
 def test_server_mode_spellings() -> None:
     assert {mode.value for mode in ServerMode} == {"stable", "auto", "pool"}
+
+
+def test_batch_retries_only_infrastructure_failures_and_preserves_order() -> None:
+    requests = [
+        LeanRequest(
+            request_id=f"r{index}",
+            context_id=_CTX,
+            code=f"theorem t{index} : True := trivial",
+        )
+        for index in range(3)
+    ]
+    calls: list[tuple[tuple[str, str], ...]] = []
+
+    def run_batch(items: object) -> list[LeanResult]:
+        batch = list(items)  # type: ignore[arg-type]
+        calls.append(tuple((item.request_id, str(item.metadata["attempt"])) for item in batch))
+        results: list[LeanResult] = []
+        for item in batch:
+            status = (
+                LeanStatus.CRASH
+                if item.request_id == "r1" and item.metadata["attempt"] == "0"
+                else LeanStatus.INVALID
+                if item.request_id == "r2"
+                else LeanStatus.VALID
+            )
+            results.append(
+                LeanResult(
+                    request_id=item.request_id,
+                    request_hash=(item.request_id[-1] or "0") * 64,
+                    context_id=_CTX,
+                    context_fingerprint="0" * 64,
+                    status=status,
+                )
+            )
+        return results
+
+    outcome = run_batch_with_retries(
+        run_batch,  # type: ignore[arg-type]
+        requests,
+        RetryPolicy(max_attempts=2),
+    )
+    assert calls == [(("r0", "0"), ("r1", "0"), ("r2", "0")), (("r1", "1"),)]
+    assert [result.request_id for result in outcome.results] == ["r0", "r1", "r2"]
+    assert [result.status for result in outcome.results] == [
+        LeanStatus.VALID,
+        LeanStatus.VALID,
+        LeanStatus.INVALID,
+    ]
+    assert [len(lineage) for lineage in outcome.attempts] == [1, 2, 1]
+    assert outcome.retried_count == 1
+
+
+def test_batch_retry_empty_and_cardinality_mismatch_fail_closed() -> None:
+    empty = run_batch_with_retries(lambda requests: (), ())
+    assert empty.results == ()
+    assert empty.attempts == ()
+
+    with pytest.raises(ValueError, match="different number"):
+        run_batch_with_retries(lambda requests: (), (_request(),))
