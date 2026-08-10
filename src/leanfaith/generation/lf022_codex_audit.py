@@ -214,6 +214,121 @@ class LF022CodexAuditManifest(StrictModel):
     gate_credit_claimed: Literal[False] = False
 
 
+class LF022CodexAuditSummaryBucket(StrictModel):
+    """Aggregate verdict diagnostics for one proposer or the whole audit."""
+
+    total_count: int = Field(ge=0, strict=True)
+    same_claim_counts: dict[str, int]
+    relation_counts: dict[str, int]
+    implication_counts: dict[str, int]
+    error_type_counts: dict[str, int]
+    needs_expert_review_count: int = Field(ge=0, strict=True)
+    confidence_count: int = Field(ge=0, strict=True)
+    confidence_mean: float | None = Field(default=None, ge=0.0, le=1.0)
+    confidence_min: float | None = Field(default=None, ge=0.0, le=1.0)
+    confidence_max: float | None = Field(default=None, ge=0.0, le=1.0)
+
+    @model_validator(mode="after")
+    def _reconciled(self) -> Self:
+        if sum(self.same_claim_counts.values()) != self.total_count:
+            raise ValueError("same-claim counts do not reconcile")
+        if sum(self.relation_counts.values()) != self.total_count:
+            raise ValueError("relation counts do not reconcile")
+        if sum(self.implication_counts.values()) != self.total_count:
+            raise ValueError("implication counts do not reconcile")
+        if self.needs_expert_review_count > self.total_count:
+            raise ValueError("expert-review count exceeds total")
+        if self.confidence_count > self.total_count:
+            raise ValueError("confidence count exceeds total")
+        values = (self.confidence_mean, self.confidence_min, self.confidence_max)
+        if self.confidence_count == 0:
+            if any(value is not None for value in values):
+                raise ValueError("empty confidence aggregate must be null")
+        elif any(value is None for value in values):
+            raise ValueError("nonempty confidence aggregate must be complete")
+        elif cast(float, self.confidence_min) > cast(float, self.confidence_max):
+            raise ValueError("confidence minimum exceeds maximum")
+        return self
+
+
+class LF022CodexAuditSummary(StrictModel):
+    """Hash-bound diagnostic summary; explicitly not semantic supervision."""
+
+    schema_version: Literal[1] = 1
+    method_version: Literal["lf022_codex_audit_summary_v1"] = "lf022_codex_audit_summary_v1"
+    summary_id: str = Field(pattern=id_pattern("lf022_codex_audit_summary"))
+    audit_manifest: str
+    audit_manifest_sha256: str = Field(pattern=HEX64_PATTERN)
+    audit_method_version: Literal["lf022_codex_audit_v2"]
+    checks_artifact: str
+    checks_sha256: str = Field(pattern=HEX64_PATTERN)
+    response_artifact_set_sha256: str = Field(pattern=HEX64_PATTERN)
+    model: str
+    reasoning_effort: str
+    total_check_count: int = Field(ge=0, strict=True)
+    lean_check_outcome_counts: dict[str, int]
+    lean_valid_check_count: int = Field(ge=0, strict=True)
+    lean_invalid_check_count: int = Field(ge=0, strict=True)
+    completed_judgment_count: int = Field(ge=0, strict=True)
+    overall: LF022CodexAuditSummaryBucket
+    by_proposer_family: dict[str, LF022CodexAuditSummaryBucket]
+    audit_only: Literal[True] = True
+    human_labels_created: Literal[False] = False
+    semantic_labels_created: Literal[False] = False
+    silver_records_created: Literal[False] = False
+    training_eligible: Literal[False] = False
+    evaluation_eligible: Literal[False] = False
+    gate_credit_claimed: Literal[False] = False
+
+    @model_validator(mode="after")
+    def _coherent_summary(self) -> Self:
+        if sum(self.lean_check_outcome_counts.values()) != self.total_check_count:
+            raise ValueError("Lean-check outcome counts do not reconcile")
+        expected_valid = sum(
+            count
+            for outcome, count in self.lean_check_outcome_counts.items()
+            if outcome in _VALID_OUTCOMES
+        )
+        if self.lean_valid_check_count != expected_valid:
+            raise ValueError("Lean-valid count differs from outcome counts")
+        if self.lean_invalid_check_count != self.lean_check_outcome_counts.get("invalid", 0):
+            raise ValueError("Lean-invalid count differs from outcome counts")
+        if self.lean_valid_check_count + self.lean_invalid_check_count != self.total_check_count:
+            raise ValueError("final summary requires every non-valid check to be invalid")
+        if self.completed_judgment_count != self.lean_valid_check_count:
+            raise ValueError("summary requires one completed judgment per Lean-valid check")
+        if self.overall.total_count != self.completed_judgment_count:
+            raise ValueError("overall judgment total does not reconcile")
+        if sum(bucket.total_count for bucket in self.by_proposer_family.values()) != (
+            self.completed_judgment_count
+        ):
+            raise ValueError("proposer-family totals do not reconcile")
+        values = self.model_dump(
+            mode="json",
+            exclude={"summary_id", "audit_manifest", "checks_artifact"},
+        )
+        expected = make_id("lf022_codex_audit_summary", values)
+        if self.summary_id != expected:
+            raise ValueError("summary_id does not match summary content")
+        return self
+
+
+@dataclass(frozen=True, slots=True)
+class LF022CodexAuditSummaryResult:
+    summary: LF022CodexAuditSummary
+    json_path: Path
+    markdown_path: Path
+
+
+@dataclass(frozen=True, slots=True)
+class _VerifiedAuditJudgment:
+    audit_item_id: str
+    proposer_family_id: str
+    response: JudgeResponse
+    final_message_sha256: str
+    parsed_response_sha256: str
+
+
 @dataclass(frozen=True, slots=True)
 class ProcessCapture:
     status: Literal["completed", "timeout", "interrupted"]
@@ -781,6 +896,337 @@ def audit_lean_valid_lf022_pairs(
     )
 
 
+def _load_check_inventory(checks_path: Path) -> tuple[LF022LeanCheckRecord, ...]:
+    if checks_path.is_symlink() or not checks_path.is_file():
+        raise LF022CodexAuditError(f"checks artifact is missing: {checks_path}")
+    records: list[LF022LeanCheckRecord] = []
+    seen: set[str] = set()
+    for line_number, raw in enumerate(checks_path.read_bytes().splitlines(keepends=True), start=1):
+        if not raw.endswith(b"\n"):
+            raise LF022CodexAuditError(f"checks line lacks final newline: {line_number}")
+        try:
+            record = LF022LeanCheckRecord.model_validate_json(raw)
+        except ValueError as exc:
+            raise LF022CodexAuditError(f"invalid check line {line_number}: {exc}") from exc
+        if record.check_id in seen:
+            raise LF022CodexAuditError(f"duplicate check ID {record.check_id}")
+        seen.add(record.check_id)
+        records.append(record)
+    return tuple(records)
+
+
+def _request_path_argument(argv: tuple[str, ...], option: str) -> Path:
+    try:
+        index = argv.index(option)
+        value = argv[index + 1]
+    except (ValueError, IndexError) as exc:
+        raise LF022CodexAuditError(f"Codex request lacks {option}") from exc
+    return Path(value).resolve()
+
+
+def _proposer_family_for_check(
+    check: LF022LeanCheckRecord,
+    item: LF022CodexAuditInput,
+    *,
+    repo_root: Path,
+) -> str:
+    _, artifact, _ = _load_variant_for_check(check, repo_root=repo_root)
+    task_path = artifact.with_name("task.json")
+    if task_path.is_symlink() or not task_path.is_file():
+        raise LF022CodexAuditError(f"LF-022 task is missing beside variant: {task_path}")
+    if hash_file(task_path) != item.source_task_sha256:
+        raise LF022CodexAuditError(f"audit input does not bind task: {task_path}")
+    try:
+        task = LF022GOpenExecutionTask.model_validate_json(task_path.read_bytes())
+    except ValueError as exc:
+        raise LF022CodexAuditError(f"invalid LF-022 task {task_path}: {exc}") from exc
+    return task.allocation_task.proposer_family_id
+
+
+def _make_summary_bucket(
+    judgments: Sequence[_VerifiedAuditJudgment],
+) -> LF022CodexAuditSummaryBucket:
+    same_claim = Counter(item.response.same_claim_answer for item in judgments)
+    relations = Counter(
+        item.response.relation.value if item.response.relation is not None else "null"
+        for item in judgments
+    )
+    implications = Counter(
+        f"A={item.response.a_implies_b},B={item.response.b_implies_a}" for item in judgments
+    )
+    errors = Counter(error_type for item in judgments for error_type in item.response.error_types)
+    confidences = [item.response.confidence for item in judgments]
+    return LF022CodexAuditSummaryBucket(
+        total_count=len(judgments),
+        same_claim_counts=dict(sorted(same_claim.items())),
+        relation_counts=dict(sorted(relations.items())),
+        implication_counts=dict(sorted(implications.items())),
+        error_type_counts=dict(sorted(errors.items())),
+        needs_expert_review_count=sum(item.response.needs_expert_review for item in judgments),
+        confidence_count=len(confidences),
+        confidence_mean=(sum(confidences) / len(confidences) if confidences else None),
+        confidence_min=min(confidences, default=None),
+        confidence_max=max(confidences, default=None),
+    )
+
+
+def _render_summary_markdown(summary: LF022CodexAuditSummary) -> bytes:
+    def counts(values: dict[str, int]) -> str:
+        return ", ".join(f"`{key}` {value}" for key, value in values.items()) or "none"
+
+    lines = [
+        "# LF-022 Codex audit summary",
+        "",
+        "This is a hash-verified diagnostic summary. It creates no human or semantic",
+        "labels and contributes no training, evaluation, silver-promotion, or gate credit.",
+        "",
+        "## Bound artifacts",
+        "",
+        f"- Summary ID: `{summary.summary_id}`",
+        f"- Audit manifest SHA-256: `{summary.audit_manifest_sha256}`",
+        f"- Lean checks SHA-256: `{summary.checks_sha256}`",
+        f"- Verified response set SHA-256: `{summary.response_artifact_set_sha256}`",
+        f"- Judge: `{summary.model}` with reasoning `{summary.reasoning_effort}`",
+        "",
+        "## Mechanical filtering",
+        "",
+        f"- Total generated candidates checked by Lean: {summary.total_check_count}",
+        f"- Lean-valid candidates audited: {summary.lean_valid_check_count}",
+        f"- Lean-invalid candidates: {summary.lean_invalid_check_count}",
+        f"- Completed Codex judgments: {summary.completed_judgment_count}",
+        f"- Lean outcomes: {counts(summary.lean_check_outcome_counts)}",
+        "",
+        "## Audit verdicts",
+        "",
+        f"- Same-claim answers: {counts(summary.overall.same_claim_counts)}",
+        f"- Relations: {counts(summary.overall.relation_counts)}",
+        f"- Directional implications: {counts(summary.overall.implication_counts)}",
+        f"- Error types: {counts(summary.overall.error_type_counts)}",
+        f"- Needs expert review: {summary.overall.needs_expert_review_count}",
+        f"- Mean confidence: {summary.overall.confidence_mean:.6f}",
+        "",
+        "## By proposer family",
+        "",
+        "| Proposer | Audited | Same claim | Not same | Ambiguous | Uncertain | Mean confidence |",
+        "|---|---:|---:|---:|---:|---:|---:|",
+    ]
+    for family, bucket in summary.by_proposer_family.items():
+        lines.append(
+            "| "
+            f"`{family}` | {bucket.total_count} | "
+            f"{bucket.same_claim_counts.get('same_claim', 0)} | "
+            f"{bucket.same_claim_counts.get('not_same_claim', 0)} | "
+            f"{bucket.same_claim_counts.get('ambiguous', 0)} | "
+            f"{bucket.same_claim_counts.get('uncertain', 0)} | "
+            f"{cast(float, bucket.confidence_mean):.6f} |"
+        )
+    lines.extend(
+        [
+            "",
+            "## Scientific status",
+            "",
+            "These judgments are useful evidence about the quality of the generated pairs,",
+            "but they come from one judge family and one AB presentation. They therefore do",
+            "not satisfy LeanFaith's two-family, swapped-order weak-consensus contract and are",
+            "not human gold.",
+            "",
+        ]
+    )
+    return "\n".join(lines).encode("utf-8")
+
+
+def summarize_completed_lf022_codex_audit(
+    *,
+    repo_root: Path,
+    checks_path: Path,
+    audit_root: Path,
+    output_json_path: Path,
+    output_markdown_path: Path,
+) -> LF022CodexAuditSummaryResult:
+    """Verify every completed audit artifact and write a diagnostic-only summary."""
+
+    repo_root = repo_root.resolve()
+    checks_path = checks_path.resolve()
+    audit_root = audit_root.resolve()
+    output_json_path = output_json_path.resolve()
+    output_markdown_path = output_markdown_path.resolve()
+    if output_json_path == output_markdown_path:
+        raise LF022CodexAuditError("summary JSON and Markdown paths must differ")
+    if output_json_path.is_relative_to(audit_root) or output_markdown_path.is_relative_to(
+        audit_root
+    ):
+        raise LF022CodexAuditError("summary outputs must remain outside the immutable audit root")
+
+    manifest_path = audit_root / "manifest.json"
+    if manifest_path.is_symlink() or not manifest_path.is_file():
+        raise LF022CodexAuditError(f"audit manifest is missing: {manifest_path}")
+    try:
+        manifest = LF022CodexAuditManifest.model_validate_json(manifest_path.read_bytes())
+    except ValueError as exc:
+        raise LF022CodexAuditError(f"invalid audit manifest: {exc}") from exc
+    if _resolve_artifact(manifest.checks_artifact, repo_root=repo_root) != checks_path:
+        raise LF022CodexAuditError("audit manifest references a different checks artifact")
+    if hash_file(checks_path) != manifest.checks_sha256:
+        raise LF022CodexAuditError("checks artifact hash differs from audit manifest")
+
+    checks = _load_check_inventory(checks_path)
+    outcome_counts = dict(sorted(Counter(check.outcome for check in checks).items()))
+    unsupported = sorted(set(outcome_counts) - {*_VALID_OUTCOMES, "invalid"})
+    if unsupported:
+        raise LF022CodexAuditError(
+            "final summary requires all non-valid Lean checks to be invalid; found "
+            + ", ".join(unsupported)
+        )
+    checks_by_id = {check.check_id: check for check in checks}
+    items = load_lean_valid_audit_inputs(checks_path=checks_path, repo_root=repo_root)
+    if manifest.eligible_count != len(items):
+        raise LF022CodexAuditError("audit manifest eligible count differs from checks")
+    if manifest.ordered_audit_item_ids_sha256 != hash_canonical(
+        [item.audit_item_id for item in items]
+    ):
+        raise LF022CodexAuditError("audit manifest ordered input hash differs from checks")
+    if (
+        manifest.completed_count != len(items)
+        or manifest.exhausted_count != 0
+        or manifest.attempt_status_counts != {"completed": len(items)}
+    ):
+        raise LF022CodexAuditError("audit is not complete and clean")
+
+    verified: list[_VerifiedAuditJudgment] = []
+    response_bindings: list[dict[str, object]] = []
+    for item in items:
+        check = checks_by_id.get(item.lean_check_id)
+        if check is None:
+            raise LF022CodexAuditError(f"audit item lacks Lean check {item.lean_check_id}")
+        item_dir = _item_dir(audit_root, item.audit_item_id)
+        input_path = item_dir / "input.json"
+        if input_path.read_bytes() != _canonical_line(item):
+            raise LF022CodexAuditError(f"audit input replay mismatch: {input_path}")
+        completed_path = item_dir / "completed.json"
+        terminal = _load_completed(completed_path, item)
+        attempt_dir = item_dir / "attempts" / f"{terminal.attempt_index:04d}"
+        terminal_path = attempt_dir / "terminal.json"
+        if terminal_path.read_bytes() != _canonical_line(terminal):
+            raise LF022CodexAuditError(f"terminal/completed mismatch: {attempt_dir}")
+        try:
+            request = LF022CodexAuditAttempt.model_validate_json(
+                (attempt_dir / "request.json").read_bytes()
+            )
+        except (OSError, ValueError) as exc:
+            raise LF022CodexAuditError(f"invalid audit request: {attempt_dir}: {exc}") from exc
+        if (
+            request.audit_item_id != item.audit_item_id
+            or request.attempt_index != terminal.attempt_index
+            or request.model != manifest.model
+            or request.reasoning_effort != manifest.reasoning_effort
+        ):
+            raise LF022CodexAuditError(f"request does not bind manifest/input: {attempt_dir}")
+        prompt = render_blinded_judge_prompt(item.presentation).text.encode("utf-8")
+        if (item_dir / "prompt.txt").read_bytes() != prompt or request.prompt_sha256 != sha256_hex(
+            prompt
+        ):
+            raise LF022CodexAuditError(f"prompt replay mismatch: {item_dir}")
+        schema_path = _request_path_argument(request.argv, "--output-schema")
+        final_path = _request_path_argument(request.argv, "-o")
+        if final_path != (attempt_dir / "final_message.json").resolve():
+            raise LF022CodexAuditError(f"request final-message path mismatch: {attempt_dir}")
+        if hash_file(schema_path) != request.output_schema_sha256:
+            raise LF022CodexAuditError(f"response schema hash mismatch: {attempt_dir}")
+        stdout_path = attempt_dir / "stdout.jsonl"
+        stderr_path = attempt_dir / "stderr.txt"
+        final_path = attempt_dir / "final_message.json"
+        parsed_path = attempt_dir / "parsed_response.json"
+        if hash_file(stdout_path) != terminal.stdout_sha256:
+            raise LF022CodexAuditError(f"stdout hash mismatch: {attempt_dir}")
+        if hash_file(stderr_path) != terminal.stderr_sha256:
+            raise LF022CodexAuditError(f"stderr hash mismatch: {attempt_dir}")
+        if hash_file(final_path) != terminal.final_message_sha256:
+            raise LF022CodexAuditError(f"final response hash mismatch: {attempt_dir}")
+        if hash_file(parsed_path) != terminal.parsed_response_sha256:
+            raise LF022CodexAuditError(f"parsed response hash mismatch: {attempt_dir}")
+        try:
+            response = parse_blinded_judge_output(final_path.read_text(encoding="utf-8"))
+        except (OSError, UnicodeDecodeError, ValueError) as exc:
+            raise LF022CodexAuditError(
+                f"final response replay failed: {attempt_dir}: {exc}"
+            ) from exc
+        if parsed_path.read_bytes() != _canonical_line(response):
+            raise LF022CodexAuditError(f"parsed response replay mismatch: {attempt_dir}")
+        proposer_family_id = _proposer_family_for_check(check, item, repo_root=repo_root)
+        verified_item = _VerifiedAuditJudgment(
+            audit_item_id=item.audit_item_id,
+            proposer_family_id=proposer_family_id,
+            response=response,
+            final_message_sha256=terminal.final_message_sha256,
+            parsed_response_sha256=terminal.parsed_response_sha256,
+        )
+        verified.append(verified_item)
+        response_bindings.append(
+            {
+                "audit_item_id": verified_item.audit_item_id,
+                "proposer_family_id": proposer_family_id,
+                "final_message_sha256": verified_item.final_message_sha256,
+                "parsed_response_sha256": verified_item.parsed_response_sha256,
+            }
+        )
+
+    grouped: dict[str, list[_VerifiedAuditJudgment]] = {}
+    for judgment in verified:
+        grouped.setdefault(judgment.proposer_family_id, []).append(judgment)
+    overall = _make_summary_bucket(verified)
+    by_proposer_family = {
+        family: _make_summary_bucket(grouped[family]) for family in sorted(grouped)
+    }
+    values: dict[str, object] = {
+        "schema_version": 1,
+        "method_version": "lf022_codex_audit_summary_v1",
+        "audit_manifest": str(manifest_path),
+        "audit_manifest_sha256": hash_file(manifest_path),
+        "audit_method_version": manifest.method_version,
+        "checks_artifact": str(checks_path),
+        "checks_sha256": hash_file(checks_path),
+        "response_artifact_set_sha256": hash_canonical(response_bindings),
+        "model": manifest.model,
+        "reasoning_effort": manifest.reasoning_effort,
+        "total_check_count": len(checks),
+        "lean_check_outcome_counts": outcome_counts,
+        "lean_valid_check_count": len(items),
+        "lean_invalid_check_count": outcome_counts.get("invalid", 0),
+        "completed_judgment_count": len(verified),
+        "overall": overall.model_dump(mode="json"),
+        "by_proposer_family": {
+            family: bucket.model_dump(mode="json") for family, bucket in by_proposer_family.items()
+        },
+        "audit_only": True,
+        "human_labels_created": False,
+        "semantic_labels_created": False,
+        "silver_records_created": False,
+        "training_eligible": False,
+        "evaluation_eligible": False,
+        "gate_credit_claimed": False,
+    }
+    summary = LF022CodexAuditSummary.model_validate(
+        {
+            **values,
+            "summary_id": make_id(
+                "lf022_codex_audit_summary",
+                {
+                    key: value
+                    for key, value in values.items()
+                    if key not in {"audit_manifest", "checks_artifact"}
+                },
+            ),
+        }
+    )
+    _write_atomic(output_json_path, _canonical_line(summary))
+    _write_atomic(output_markdown_path, _render_summary_markdown(summary))
+    return LF022CodexAuditSummaryResult(
+        summary=summary,
+        json_path=output_json_path,
+        markdown_path=output_markdown_path,
+    )
+
+
 __all__ = [
     "DEFAULT_CODEX_AUDIT_MODEL",
     "DEFAULT_CODEX_REASONING_EFFORT",
@@ -789,9 +1235,13 @@ __all__ = [
     "LF022CodexAuditManifest",
     "LF022CodexAuditPrivacyError",
     "LF022CodexAuditRunResult",
+    "LF022CodexAuditSummary",
+    "LF022CodexAuditSummaryBucket",
+    "LF022CodexAuditSummaryResult",
     "LF022CodexAuditTerminal",
     "ProcessCapture",
     "SubprocessCodexAuditExecutor",
     "audit_lean_valid_lf022_pairs",
     "load_lean_valid_audit_inputs",
+    "summarize_completed_lf022_codex_audit",
 ]

@@ -3787,6 +3787,66 @@ def audit_lf022_codex_command(
     )
 
 
+@app.command("summarize-lf022-codex-audit")
+def summarize_lf022_codex_audit_command(
+    checks_path: Annotated[
+        Path,
+        typer.Option("--checks", help="Exact checks.jsonl bound by the audit manifest."),
+    ],
+    audit_root: Annotated[
+        Path,
+        typer.Option("--audit-root", help="Completed immutable LF-022 Codex audit root."),
+    ],
+    output_json: Annotated[
+        Path,
+        typer.Option("--output-json", help="Destination for the verified JSON summary."),
+    ] = Path("reports/generation/lf022_codex_audit_summary.json"),
+    output_markdown: Annotated[
+        Path,
+        typer.Option("--output-markdown", help="Destination for the readable summary."),
+    ] = Path("reports/generation/lf022_codex_audit_summary.md"),
+    root_dir: Annotated[
+        Path | None,
+        typer.Option("--root", help="Repository root override."),
+    ] = None,
+) -> None:
+    """Verify and summarize a complete audit without creating labels."""
+    from leanfaith.config.paths import RepoPaths
+    from leanfaith.generation.lf022_codex_audit import (
+        LF022CodexAuditError,
+        summarize_completed_lf022_codex_audit,
+    )
+
+    paths = RepoPaths.discover(root_dir) if root_dir is None else RepoPaths(root=root_dir)
+
+    def anchored(path: Path) -> Path:
+        return path if path.is_absolute() else paths.root / path
+
+    try:
+        result = summarize_completed_lf022_codex_audit(
+            repo_root=paths.root,
+            checks_path=anchored(checks_path),
+            audit_root=anchored(audit_root),
+            output_json_path=anchored(output_json),
+            output_markdown_path=anchored(output_markdown),
+        )
+    except (LF022CodexAuditError, OSError, ValueError) as exc:
+        typer.echo(f"LF-022 Codex audit summary rejected: {exc}", err=True)
+        raise typer.Exit(code=2) from exc
+    summary = result.summary
+    typer.echo(
+        f"checks={summary.total_check_count} lean_valid={summary.lean_valid_check_count} "
+        f"judged={summary.completed_judgment_count} "
+        f"same_claim={summary.overall.same_claim_counts.get('same_claim', 0)} "
+        f"not_same_claim={summary.overall.same_claim_counts.get('not_same_claim', 0)} "
+        f"uncertain={summary.overall.same_claim_counts.get('uncertain', 0)} "
+        f"summary={result.json_path} report={result.markdown_path} "
+        "audit_only=true human_labels_created=0 semantic_labels_created=0 "
+        "silver_records_created=0 training_eligible=false evaluation_eligible=false "
+        "gate_credit_claimed=false"
+    )
+
+
 @app.command("freeze-lf022-proposer-admission")
 def freeze_lf022_proposer_admission_command(
     public_pool_audit_path: Annotated[

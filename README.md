@@ -144,10 +144,14 @@ dataset probe (PLAN.md §9.2).
   with a proof placeholder and 175 are confirmed invalid.  By proposer, the
   mechanically valid counts are Qwen 310/439, Kimi 181/227, and GLM 2/2.
   These are useful Lean--Lean candidate pairs, but elaboration is not a
-  semantic label.  A separate resumable GPT-5.6 Sol audit is running one public
-  valid pair per invocation and is explicitly audit-only: it creates no gold,
-  silver, training, evaluation, or gate-credit records.  The canonical check
-  manifest is
+  semantic label.  The separate GPT-5.6 Sol audit has completed all 493 public
+  valid pairs: it judged 483 not-same-claim, 9 same-claim, and 1 uncertain.
+  Every stored input and response was replayed against its recorded hash.  This
+  remains a single-family, one-orientation diagnostic audit rather than human
+  gold or the registered two-family weak-consensus route; it creates no gold,
+  silver, training, evaluation, or gate-credit records.  See
+  `reports/generation/lf022_codex_sol_xhigh_v2_summary.md`. The canonical check
+  manifest remains
   `/storage/milikic/leanfaith/lf022_lean_checks/rcp_5e672b9_v1/manifest.json`.
 - **Deterministic scale-out running:** the first frozen unary shard produced
   1,741 typechecked provisional pairs from 1,737 public mathlib statements.
@@ -222,6 +226,7 @@ uv run leanfaith run-lf022-public-batch --help
 uv run leanfaith qa-lf022-prefix256 --help
 uv run leanfaith check-lf022-provisional-lean --help
 uv run leanfaith audit-lf022-codex --help
+uv run leanfaith summarize-lf022-codex-audit --help
 uv run leanfaith run-deterministic-shards --help
 uv run leanfaith merge-deterministic-shards --help
 uv run leanfaith probe-deterministic-v2-coverage --help
