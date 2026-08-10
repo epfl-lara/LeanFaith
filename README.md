@@ -253,11 +253,14 @@ Lean, emitting variants, or creating labels. A signal count is an upper bound,
 not proof that the corresponding transformation is applicable.
 
 The additive deterministic-v2 execution profiles are separate from that
-frozen design registry.  Their scale commands re-elaborate each emitted
-candidate and rebuild its representations through LeanInteract.  P15 root-Iff
-reversal is persisted as E2 positive structural evidence only: even a clean
-result remains provisional, unresolved, unpromoted, and unavailable to
-training until the later label/promotion policy authorizes it.
+frozen design registry. Their scale commands re-elaborate each emitted
+candidate and rebuild its representations through LeanInteract. P15 root-Iff
+reversal and P16 exact three-atom root-conjunction reassociation use separate
+strict profiles but share the same profile-aware E2 scale command. Both are
+persisted as E2 positive structural evidence only: even a clean result remains
+provisional, unresolved, unpromoted, and unavailable to training until the
+later label/promotion policy authorizes it. Select P16 with
+`--profile configs/transformations/v2_e2_p16_experimental.yaml`.
 
 The default Codex/LLM pair-judge prompt is the reviewed v2 contract. It keeps
 F1 claim faithfulness (`same_claim_answer`, `relation`) separate from F2

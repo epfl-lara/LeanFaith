@@ -5354,7 +5354,7 @@ def materialize_deterministic_v2_e2_scale_command(
         typer.Option("--root", help="Repository root override."),
     ] = None,
 ) -> None:
-    """Run/resume LF-033 P15 through LeanServerPool as provisional E2 data."""
+    """Run/resume one LF-033 E2 profile through LeanServerPool."""
     import json
     from dataclasses import replace
 
@@ -5362,7 +5362,7 @@ def materialize_deterministic_v2_e2_scale_command(
     from leanfaith.lean.leaninteract_backend import BackendSettings, LeanInteractBackend
     from leanfaith.lean.session_policy import ServerMode
     from leanfaith.schemas.theorem import TheoremRecord
-    from leanfaith.transforms.v2_e2_p15_runtime import build_v2_e2_p15_runtime
+    from leanfaith.transforms.v2_e2_runtime import build_v2_e2_runtime
     from leanfaith.transforms.v2_e2_scale_run import V2E2ScaleRunError, run_v2_e2_scale
 
     paths = RepoPaths.discover(root_dir) if root_dir is None else RepoPaths(root=root_dir)
@@ -5405,7 +5405,7 @@ def materialize_deterministic_v2_e2_scale_command(
         try:
             artifacts = run_v2_e2_scale(
                 backend=backend,
-                runtime=build_v2_e2_p15_runtime(
+                runtime=build_v2_e2_runtime(
                     paths.root,
                     path=anchored(profile_path),
                 ),

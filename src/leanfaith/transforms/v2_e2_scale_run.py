@@ -1,4 +1,4 @@
-"""Resumable persisted scale runner for LF-033 experimental E2 P15."""
+"""Resumable persisted scale runner for LF-033 experimental E2 families."""
 
 from __future__ import annotations
 
@@ -23,8 +23,8 @@ from leanfaith.transforms.v2_e0_scale_run import (
     _iter_jsonl,
     _write_immutable,
 )
-from leanfaith.transforms.v2_e2_materializer import V2E2MaterializationResult
-from leanfaith.transforms.v2_e2_p15_runtime import V2E2P15Runtime
+from leanfaith.transforms.v2_e2_materializer import E2RuleId, V2E2MaterializationResult
+from leanfaith.transforms.v2_e2_runtime import V2E2Runtime
 from leanfaith.transforms.v2_e2_scale import (
     V2E2MaterializationInput,
     materialize_v2_e2_batch,
@@ -42,9 +42,12 @@ class V2E2ScaleRunSpec(StrictModel):
     artifact_kind: Literal["deterministic_v2_e2_scale_run_spec"] = (
         "deterministic_v2_e2_scale_run_spec"
     )
-    profile_id: Literal["deterministic_v2_e2_p15_experimental"]
+    profile_id: Literal[
+        "deterministic_v2_e2_p15_experimental",
+        "deterministic_v2_e2_p16_experimental",
+    ]
     profile_config_hash: str = Field(pattern=_HEX64)
-    rule_id: Literal["p15_root_iff_reversal"]
+    rule_id: Literal["p15_root_iff_reversal", "p16_conjunction_reassociation"]
     theorem_partition: str
     theorem_partition_sha256: str = Field(pattern=_HEX64)
     representation_partition: str
@@ -98,13 +101,13 @@ class V2E2ScaleRunArtifacts:
     result_count: int
 
 
-def _seed(base_seed: int, theorem_id: str) -> int:
+def _seed(base_seed: int, theorem_id: str, rule_id: str = "p15_root_iff_reversal") -> int:
     payload = canonical_json_bytes(
         {
             "schema": "deterministic_v2_e2_scale_seed_v1",
             "base_seed": base_seed,
             "theorem_id": theorem_id,
-            "rule_id": "p15_root_iff_reversal",
+            "rule_id": rule_id,
         }
     )
     return int.from_bytes(hashlib.sha256(payload).digest()[:8], "big", signed=False)
@@ -168,6 +171,7 @@ def _inventory(
     *,
     base_seed: int,
     max_sources: int | None,
+    rule_id: str = "p15_root_iff_reversal",
 ) -> tuple[int, str, str, str]:
     theorem_ids: list[str] = []
     attempt_keys: list[tuple[str, str, str, int]] = []
@@ -184,8 +188,8 @@ def _inventory(
             (
                 theorem.theorem_id,
                 representation.representation_id,
-                "p15_root_iff_reversal",
-                _seed(base_seed, theorem.theorem_id),
+                rule_id,
+                _seed(base_seed, theorem.theorem_id, rule_id),
             )
         )
     if context_id is None:
@@ -202,13 +206,14 @@ def _ordered_attempts(
     aligned: Sequence[tuple[TheoremRecord, RepresentationRecord]],
     *,
     base_seed: int,
+    rule_id: E2RuleId = "p15_root_iff_reversal",
 ) -> tuple[V2E2MaterializationInput, ...]:
     return tuple(
         V2E2MaterializationInput(
             theorem=theorem,
             representation=representation,
-            rule_id="p15_root_iff_reversal",
-            seed=_seed(base_seed, theorem.theorem_id),
+            rule_id=rule_id,
+            seed=_seed(base_seed, theorem.theorem_id, rule_id),
         )
         for theorem, representation in aligned
     )
@@ -228,7 +233,7 @@ def _batch_payload(results: Sequence[V2E2MaterializationResult]) -> bytes:
 def _load_batch(
     path: Path,
     expected: Sequence[V2E2MaterializationInput],
-    runtime: V2E2P15Runtime,
+    runtime: V2E2Runtime,
 ) -> tuple[V2E2MaterializationResult, ...]:
     try:
         results = tuple(_iter_jsonl(path, V2E2MaterializationResult))
@@ -306,7 +311,7 @@ def _assemble_results(path: Path, journal_paths: Sequence[Path]) -> str:
 def run_v2_e2_scale(
     *,
     backend: LeanInteractBackend,
-    runtime: V2E2P15Runtime,
+    runtime: V2E2Runtime,
     theorem_path: Path,
     representation_path: Path,
     project_dir: Path,
@@ -316,7 +321,7 @@ def run_v2_e2_scale(
     base_seed: int = 0,
     max_sources: int | None = None,
 ) -> V2E2ScaleRunArtifacts:
-    """Stream, run, or resume one exact P15 inventory through LeanInteract."""
+    """Stream, run, or resume one exact E2 inventory through LeanInteract."""
 
     if batch_size < 1:
         raise V2E2ScaleRunError("batch_size must be positive")
@@ -328,16 +333,18 @@ def run_v2_e2_scale(
     output_dir = output_dir.resolve()
     if output_dir in {theorem_path.parent, representation_path.parent}:
         raise V2E2ScaleRunError("output directory cannot overwrite an input directory")
+    (rule_id,) = runtime.rule_ids
     source_count, context_id, theorem_ids_hash, attempt_keys_hash = _inventory(
         theorem_path,
         representation_path,
         base_seed=base_seed,
         max_sources=max_sources,
+        rule_id=rule_id,
     )
     spec = V2E2ScaleRunSpec(
         profile_id=runtime.loaded.config.profile_id,
         profile_config_hash=runtime.generation_config_hash,
-        rule_id="p15_root_iff_reversal",
+        rule_id=rule_id,
         theorem_partition=str(theorem_path),
         theorem_partition_sha256=hash_file(theorem_path),
         representation_partition=str(representation_path),
@@ -393,7 +400,7 @@ def run_v2_e2_scale(
         representation_path,
         max_sources=max_sources,
     ):
-        batch_inputs.extend(_ordered_attempts((pair,), base_seed=base_seed))
+        batch_inputs.extend(_ordered_attempts((pair,), base_seed=base_seed, rule_id=rule_id))
         if len(batch_inputs) == batch_size:
             process_batch(batch_index, batch_inputs)
             batch_inputs = []

@@ -1,4 +1,4 @@
-"""Pooled LeanInteract materialization for LF-033 experimental E2 P15."""
+"""Pooled LeanInteract materialization for LF-033 experimental E2 families."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ from pathlib import Path
 from leanfaith.lean.leaninteract_backend import LeanInteractBackend
 from leanfaith.lean.protocol import LeanRequest, LeanStatus
 from leanfaith.representations import TheoremForRepresentation, build_representations
-from leanfaith.schemas.enums import Polarity, ValidationStatus
+from leanfaith.schemas.enums import Polarity, ValidationStatus, ViewStatus
 from leanfaith.schemas.theorem import RepresentationRecord, TheoremRecord
 from leanfaith.schemas.variant import TransformationAttempt, VariantDraft
 from leanfaith.transforms.materialize import build_derived_theorem_record
@@ -20,7 +20,7 @@ from leanfaith.transforms.v2_e2_materializer import (
     V2E2MaterializationResult,
     build_v2_e2_result,
 )
-from leanfaith.transforms.v2_e2_p15_runtime import V2E2P15Runtime
+from leanfaith.transforms.v2_e2_runtime import V2E2Runtime
 
 
 class V2E2ScaleError(ValueError):
@@ -45,7 +45,7 @@ class _GeneratedCandidate:
 
 
 def _common(
-    runtime: V2E2P15Runtime,
+    runtime: V2E2Runtime,
     item: V2E2MaterializationInput,
     attempt: TransformationAttempt,
 ) -> dict[str, object]:
@@ -94,13 +94,13 @@ def _representation_input(candidate: TheoremRecord) -> TheoremForRepresentation:
 def materialize_v2_e2_batch(
     *,
     backend: LeanInteractBackend,
-    runtime: V2E2P15Runtime,
+    runtime: V2E2Runtime,
     inputs: Sequence[V2E2MaterializationInput],
     context_id: str,
     project_dir: Path,
     import_header: str,
 ) -> tuple[V2E2MaterializationResult, ...]:
-    """Materialize a homogeneous P15 batch while preserving order/cardinality."""
+    """Materialize one homogeneous E2 profile while preserving order/cardinality."""
 
     if not inputs:
         return ()
@@ -135,7 +135,7 @@ def materialize_v2_e2_batch(
             ordered[index] = build_v2_e2_result(terminal_status="no_output", **common)
             continue
         if len(execution.drafts) != 1:
-            raise V2E2ScaleError("P15 must emit at most one draft per input")
+            raise V2E2ScaleError("an E2 rule must emit at most one draft per input")
         draft = execution.drafts[0]
         generated.append(
             _GeneratedCandidate(
@@ -172,9 +172,17 @@ def materialize_v2_e2_batch(
             raise V2E2ScaleError("candidate Lean batch did not preserve request order")
         if lean_result.context_id != context_id:
             raise V2E2ScaleError("candidate Lean result context does not match batch context")
-        if lean_result.status not in {LeanStatus.VALID, LeanStatus.VALID_WITH_SORRY}:
+        if lean_result.status == LeanStatus.INVALID:
             ordered[generated_item.index] = build_v2_e2_result(
                 terminal_status="candidate_invalid",
+                draft=generated_item.draft,
+                failure_codes=(f"lean_{lean_result.status.value}",),
+                **common,
+            )
+            continue
+        if lean_result.status not in {LeanStatus.VALID, LeanStatus.VALID_WITH_SORRY}:
+            ordered[generated_item.index] = build_v2_e2_result(
+                terminal_status="candidate_infrastructure_error",
                 draft=generated_item.draft,
                 failure_codes=(f"lean_{lean_result.status.value}",),
                 **common,
@@ -228,6 +236,28 @@ def materialize_v2_e2_batch(
             raise V2E2ScaleError("candidate representation order changed")
         if candidate_representation.context_id != context_id:
             raise V2E2ScaleError("candidate representation context changed")
+        required_views = runtime.loaded.config.required_candidate_views
+        failed_views = tuple(
+            sorted(
+                view
+                for view in required_views
+                if (
+                    candidate_representation.alpha_identity_fingerprint is None
+                    if view == "alpha_identity_fingerprint"
+                    else candidate_representation.view_status.get(view) != ViewStatus.OK
+                )
+            )
+        )
+        if failed_views:
+            ordered[generated_item.index] = build_v2_e2_result(
+                terminal_status="candidate_representation_failed",
+                draft=generated_item.draft,
+                candidate_theorem=candidate,
+                candidate_representation=candidate_representation,
+                failure_codes=tuple(f"representation_{view}_failed" for view in failed_views),
+                **common,
+            )
+            continue
         audit = runtime.audit(
             generated_item.item.rule_id,
             generated_item.item.theorem,
@@ -272,7 +302,7 @@ def materialize_v2_e2_batch(
         )
 
     if any(item is None for item in ordered):
-        raise V2E2ScaleError("not every P15 input reached a terminal result")
+        raise V2E2ScaleError("not every E2 input reached a terminal result")
     return tuple(item for item in ordered if item is not None)
 
 

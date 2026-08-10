@@ -17,8 +17,16 @@ from leanfaith.schemas.variant import (
     VariantRecord,
 )
 
-E2ProfileId = Literal["deterministic_v2_e2_p15_experimental"]
-E2RuleId = Literal["p15_root_iff_reversal"]
+E2ProfileId = Literal[
+    "deterministic_v2_e2_p15_experimental",
+    "deterministic_v2_e2_p16_experimental",
+]
+E2RuleId = Literal["p15_root_iff_reversal", "p16_conjunction_reassociation"]
+
+_PROFILE_RULE = {
+    "deterministic_v2_e2_p15_experimental": "p15_root_iff_reversal",
+    "deterministic_v2_e2_p16_experimental": "p16_conjunction_reassociation",
+}
 
 
 class V2E2MaterializationResult(StrictModel):
@@ -34,6 +42,7 @@ class V2E2MaterializationResult(StrictModel):
         "not_applicable",
         "no_output",
         "candidate_invalid",
+        "candidate_infrastructure_error",
         "candidate_representation_failed",
         "audit_quarantined",
         "provisional_variant",
@@ -51,7 +60,7 @@ class V2E2MaterializationResult(StrictModel):
 
     @model_validator(mode="after")
     def _coherent(self) -> V2E2MaterializationResult:
-        if self.rule_id != "p15_root_iff_reversal" or self.attempt.rule_id != self.rule_id:
+        if _PROFILE_RULE[self.profile_id] != self.rule_id or self.attempt.rule_id != self.rule_id:
             raise ValueError("E2 profile, rule, and attempt identities do not align")
         if self.failure_codes != tuple(sorted(set(self.failure_codes))):
             raise ValueError("failure_codes must be sorted and unique")
