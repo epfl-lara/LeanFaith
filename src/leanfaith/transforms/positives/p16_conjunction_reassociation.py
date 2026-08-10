@@ -273,8 +273,23 @@ def _parse_surface(
 ) -> tuple[Association, tuple[str, str, str]]:
     start, end = _strip_outer(mask, start, end)
     outer = _top_level_ands(mask, start, end)
+    if len(outer) == 2:
+        first, second = outer
+        spans = (
+            _trim(mask, start, first),
+            _trim(mask, first + 1, second),
+            _trim(mask, second + 1, end),
+        )
+        # Lean's infix declaration for conjunction is right associative.  The
+        # elaborated operator-tree comparison below remains authoritative and
+        # rejects the site if local syntax changes that interpretation.
+        surface_association: Association = "right"
+        atoms = cast(tuple[str, str, str], tuple(source[a:b] for a, b in spans))
+        if any(not atom for atom in atoms):
+            raise P16ConjunctionReassociationError("empty_conjunction_atom")
+        return surface_association, atoms
     if len(outer) != 1:
-        raise P16ConjunctionReassociationError("expected_one_explicit_surface_root_conjunction")
+        raise P16ConjunctionReassociationError("expected_explicit_three_atom_surface_conjunction")
     operator = outer[0]
     left_bounds = _strip_outer(mask, start, operator)
     right_bounds = _strip_outer(mask, operator + 1, end)

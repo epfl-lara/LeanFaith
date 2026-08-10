@@ -173,6 +173,14 @@ def test_p16_supports_both_explicit_association_directions() -> None:
     assert site.candidate_text == "((P) ∧ (Q)) ∧ (R)"
 
 
+def test_p16_supports_lean_right_associative_surface_notation() -> None:
+    source = "theorem p16 (P Q R : Prop) : P ∧ Q ∧ R := by sorry"
+    (site,) = enumerate_p16_sites(source, operator_tree(_root(association="right")))
+    assert site.source_association == "right"
+    assert site.atom_texts == ("P", "Q", "R")
+    assert site.candidate_text == "((P) ∧ (Q)) ∧ (R)"
+
+
 def test_p16_and_n15_scopes_are_mutually_exclusive() -> None:
     assert enumerate_n15_sites(_SOURCE, operator_tree(_root())) == ()
     binary = "theorem n15 (P Q : Prop) : P ∧ Q := by sorry"
@@ -184,7 +192,6 @@ def test_p16_and_n15_scopes_are_mutually_exclusive() -> None:
     ("source", "root"),
     [
         ("theorem p16 (P Q : Prop) : (P ∧ Q) ∧ P := by sorry", _root(duplicate=True)),
-        ("theorem p16 (P Q R : Prop) : P ∧ Q ∧ R := by sorry", _root(association="right")),
         ("theorem p16 (P Q R : Prop) : (P ∧ Q) ∧ (R ∧ P) := by sorry", _root()),
         ("theorem p16 (P Q R : Prop) : (P /- c -/ ∧ Q) ∧ R := by sorry", _root()),
         ("theorem p16 (P Q R : Prop) : (if P then Q else R) ∧ Q ∧ R := by sorry", _root()),
