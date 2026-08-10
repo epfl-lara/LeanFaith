@@ -3701,6 +3701,16 @@ def check_lf022_provisional_lean_command(
         int | None,
         typer.Option("--limit", min=1, help="Deterministic prefix limit for a smoke run."),
     ] = None,
+    batch_manifest: Annotated[
+        Path | None,
+        typer.Option(
+            "--batch-manifest",
+            help=(
+                "Optional canonical LF-022 public batch manifest; when supplied, check only "
+                "successful variants from its exact execution-task set."
+            ),
+        ),
+    ] = None,
     root_dir: Annotated[
         Path | None,
         typer.Option("--root", help="Repository root override."),
@@ -3734,6 +3744,7 @@ def check_lf022_provisional_lean_command(
             memory_hard_limit_mb=memory_hard_limit_mb,
             environment_schema_version=load_environment_lock(paths).environment_schema_version,
             limit=limit,
+            batch_manifest_path=(anchored(batch_manifest) if batch_manifest is not None else None),
         )
     except (LF022LeanCheckError, OSError, ValueError) as exc:
         typer.echo(f"LF-022 pooled Lean check rejected: {exc}", err=True)

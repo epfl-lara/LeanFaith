@@ -153,14 +153,18 @@ dataset probe (PLAN.md §9.2).
   `reports/generation/lf022_codex_sol_xhigh_v2_summary.md`. The canonical check
   manifest remains
   `/storage/milikic/leanfaith/lf022_lean_checks/rcp_5e672b9_v1/manifest.json`.
-- **Kimi-v4 challenge passed, production admission remains fail-closed:** the
+- **Kimi-v4 challenge passed and the first bounded production tranche is active:** the
   frozen 16-item hard-case requalification produced 16/16 strict variants,
   with two transient HTTP-429 attempts successfully retried and no truncation,
-  empty response, or parser failure. The route certifier must replay all
-  sixteen terminals with zero network calls before it can create route-only
-  eligibility. That record still creates no label, promotion, training
-  example, evaluation example, or gate credit; larger Kimi collection requires
-  a separate exact scientific admission. See
+  empty response, or parser failure. The route certifier replayed all sixteen
+  terminals with zero network calls, and the resulting route-only eligibility
+  was bound into a clean scientific admission. One ordinary generated theorem
+  then passed exact offline replay and LeanInteract elaboration before the
+  isolated 256-task tranche was launched. Batch-scoped Lean checking now binds
+  the exact content-addressed generation manifest, so historical executor
+  outputs cannot leak into a tranche's mechanical validation. These records
+  still create no label, promotion, training example, evaluation example, or
+  gate credit. See
   `docs/lf022_public_generation.md`.
 - **Deterministic scale-out running:** the first frozen unary shard produced
   1,741 typechecked provisional pairs from 1,737 public mathlib statements.

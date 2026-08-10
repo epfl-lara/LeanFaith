@@ -8,8 +8,9 @@ records, or Gate credit.
 ## Supported proposer routes
 
 - `moonshotai/Kimi-K2.7-Code` v3 is archived and offline-replay-only after its
-  failed prefix-256 audit. Kimi-v4 is a pending offline requalification design,
-  not an executable route.
+  failed prefix-256 audit. Kimi-v4 may enter scientific production only through
+  its 16/16 hard-case qualification and the exact replay-certified route
+  eligibility described below.
 - `Qwen/Qwen3.5-397B-A17B` may enter scientific production only through its
   exact replay-verified v2 proposer eligibility.
 - `zai-org/GLM-5.2` may enter scientific production only through its exact
@@ -523,3 +524,22 @@ historical v3 admission remains archived and cannot be extended.
   `--execute-public-provisional` flag and runtime-only credentials.
 - Request bytes, raw response bytes, retries, parse failures, and terminal
   results are content-addressed and resumable.
+
+### Batch-scoped Lean validation
+
+After a frozen batch finishes and replays exactly, validate only its successful
+provisional variants by binding the checker to that batch manifest:
+
+```bash
+uv run leanfaith check-lf022-provisional-lean \
+  --project mathlib=/path/to/mathlib4 \
+  --input-root data/lf022_execution \
+  --batch-manifest data/<batch>/batch_manifest.json \
+  --output-root /separate/content-addressed/check-root
+```
+
+The batch selector is canonical and content-addressed. Every selected execution
+task must have a terminal artifact at its canonical location; unrelated tasks
+under the shared executor root are ignored. The output manifest records the
+batch ID, manifest path/hash, and selected task count. This stage establishes
+Lean elaboration only and creates no semantic label or training eligibility.

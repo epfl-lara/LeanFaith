@@ -24,6 +24,7 @@ from pydantic import Field, model_validator
 
 from leanfaith.config.hashing import canonical_json_bytes, hash_canonical, hash_file, sha256_hex
 from leanfaith.config.models import StrictModel
+from leanfaith.generation.lf022_batch import LF022PublicBatchManifest
 from leanfaith.lean.leaninteract_backend import BackendSettings, LeanInteractBackend
 from leanfaith.lean.project_registry import read_git_revision
 from leanfaith.lean.protocol import LeanRequest, LeanResult, LeanStatus
@@ -157,9 +158,13 @@ def _check_record_id(record: LF022LeanCheckRecord) -> str:
 class LF022LeanCheckManifest(StrictModel):
     """Deterministic summary of one current input snapshot."""
 
-    schema_version: Literal[1] = 1
-    method_version: Literal["lf022_provisional_lean_check_v1"] = "lf022_provisional_lean_check_v1"
+    schema_version: Literal[2] = 2
+    method_version: Literal["lf022_provisional_lean_check_v2"] = "lf022_provisional_lean_check_v2"
     input_root: str
+    selection_batch_id: str | None = None
+    selection_batch_manifest: str | None = None
+    selection_batch_manifest_sha256: str | None = Field(default=None, pattern=HEX64_PATTERN)
+    selected_execution_task_count: int | None = Field(default=None, ge=1, strict=True)
     input_set_hash: str = Field(pattern=HEX64_PATTERN)
     record_count: int = Field(ge=0, strict=True)
     ordered_variant_ids_hash: str = Field(pattern=HEX64_PATTERN)
@@ -171,6 +176,20 @@ class LF022LeanCheckManifest(StrictModel):
     silver_records_created: Literal[False] = False
     training_eligible: Literal[False] = False
     evaluation_eligible: Literal[False] = False
+
+    @model_validator(mode="after")
+    def _selection_binding_is_complete(self) -> Self:
+        values = (
+            self.selection_batch_id,
+            self.selection_batch_manifest,
+            self.selection_batch_manifest_sha256,
+            self.selected_execution_task_count,
+        )
+        if any(value is not None for value in values) and not all(
+            value is not None for value in values
+        ):
+            raise ValueError("batch selection binding must be present or absent as one unit")
+        return self
 
 
 @dataclass(frozen=True, slots=True)
@@ -249,15 +268,42 @@ def _discover_candidates(
     input_root: Path,
     project_dirs: Mapping[str, Path],
     limit: int | None,
+    selected_execution_task_ids: tuple[str, ...] | None,
+    selected_task_content_hashes: Mapping[str, str] | None,
 ) -> tuple[_Candidate, ...]:
     candidates: list[_Candidate] = []
     seen_variant_ids: set[str] = set()
-    for terminal_path in sorted(input_root.glob("tasks/*/*/terminal.json")):
+    if selected_execution_task_ids is None:
+        terminal_paths = tuple(sorted(input_root.glob("tasks/*/*/terminal.json")))
+    else:
+        terminal_paths_list: list[Path] = []
+        for execution_task_id in selected_execution_task_ids:
+            digest = execution_task_id.removeprefix("lf022_execution_task:")
+            terminal_path = input_root / "tasks" / digest[:2] / digest / "terminal.json"
+            if not terminal_path.is_file():
+                raise LF022LeanCheckError(
+                    f"selected execution task lacks terminal artifact: {execution_task_id}"
+                )
+            terminal_paths_list.append(terminal_path)
+        terminal_paths = tuple(terminal_paths_list)
+    for terminal_path in terminal_paths:
         terminal = _load_json_mapping(terminal_path, label="terminal")
-        if terminal.get("status") != "provisional_variants_created":
-            continue
+        path_execution_task_id = "lf022_execution_task:" + terminal_path.parent.name
         task_path = terminal_path.with_name("task.json")
         task = _load_json_mapping(task_path, label="task")
+        task_execution_task_id = _required_text(task, "execution_task_id", label=str(task_path))
+        if task_execution_task_id != path_execution_task_id:
+            raise LF022LeanCheckError(
+                f"task/path execution ID mismatch for {task_execution_task_id}"
+            )
+        if selected_task_content_hashes is not None:
+            expected_content_hash = selected_task_content_hashes[path_execution_task_id]
+            if hash_canonical(task) != expected_content_hash:
+                raise LF022LeanCheckError(
+                    f"executor task differs from selected batch task: {path_execution_task_id}"
+                )
+        if terminal.get("status") != "provisional_variants_created":
+            continue
         source = task.get("source")
         if not isinstance(source, dict):
             raise LF022LeanCheckError(f"task {task_path} lacks source object")
@@ -347,6 +393,54 @@ def _discover_candidates(
             if limit is not None and len(candidates) >= limit:
                 return tuple(candidates)
     return tuple(candidates)
+
+
+def _load_batch_selection(
+    *, repo_root: Path, batch_manifest_path: Path
+) -> tuple[LF022PublicBatchManifest, tuple[str, ...], dict[str, str], str]:
+    """Load one canonical content-addressed batch as a check input selector."""
+
+    raw = batch_manifest_path.read_bytes()
+    try:
+        manifest = LF022PublicBatchManifest.model_validate_json(raw)
+    except ValueError as exc:
+        raise LF022LeanCheckError(
+            f"invalid LF-022 batch selector {batch_manifest_path}: {exc}"
+        ) from exc
+    if raw != canonical_json_bytes(manifest.model_dump(mode="json")):
+        raise LF022LeanCheckError(
+            f"LF-022 batch selector is not canonical JSON: {batch_manifest_path}"
+        )
+    task_ids: list[str] = []
+    task_content_hashes: dict[str, str] = {}
+    for route in manifest.routes:
+        for task in route.tasks:
+            task_ids.append(task.execution_task_id)
+            frozen_task_path = repo_root / task.task.path
+            if not frozen_task_path.is_file() or hash_file(frozen_task_path) != task.task.sha256:
+                raise LF022LeanCheckError(
+                    f"selected batch task binding failed: {task.execution_task_id}"
+                )
+            frozen_task = _load_json_mapping(frozen_task_path, label="selected batch task")
+            frozen_execution_task_id = _required_text(
+                frozen_task, "execution_task_id", label=str(frozen_task_path)
+            )
+            if frozen_execution_task_id != task.execution_task_id:
+                raise LF022LeanCheckError(
+                    f"selected batch task ID differs from its binding: {task.execution_task_id}"
+                )
+            task_content_hashes[task.execution_task_id] = hash_canonical(frozen_task)
+    ordered_task_ids = tuple(task_ids)
+    if len(ordered_task_ids) != manifest.total_task_count or len(set(ordered_task_ids)) != len(
+        ordered_task_ids
+    ):
+        raise LF022LeanCheckError("LF-022 batch selector contains inconsistent task IDs")
+    return (
+        manifest,
+        ordered_task_ids,
+        task_content_hashes,
+        _artifact_label(batch_manifest_path, repo_root),
+    )
 
 
 def _validation_source(candidate: _Candidate) -> tuple[str, str]:
@@ -588,6 +682,7 @@ def check_lf022_provisional_candidates(
     memory_hard_limit_mb: int | None = None,
     environment_schema_version: int = 1,
     limit: int | None = None,
+    batch_manifest_path: Path | None = None,
     backend_factory: BackendFactory = LeanInteractBackend,
     prepare_environment: PrepareEnvironment = LeanInteractBackend.prepare_environment,
 ) -> LF022LeanCheckRunResult:
@@ -604,17 +699,39 @@ def check_lf022_provisional_candidates(
         raise LF022LeanCheckError("timeout_seconds must be positive")
     if limit is not None and limit < 1:
         raise LF022LeanCheckError("limit must be positive when supplied")
+    if limit is not None and batch_manifest_path is not None:
+        raise LF022LeanCheckError("--limit cannot truncate an exact --batch-manifest selection")
     repo_root = repo_root.resolve()
     input_root = input_root.resolve()
     output_root = output_root.resolve()
     if output_root == input_root or output_root.is_relative_to(input_root):
         raise LF022LeanCheckError("output_root must not be inside the immutable input root")
 
+    selection_manifest: LF022PublicBatchManifest | None = None
+    selection_manifest_label: str | None = None
+    selection_manifest_sha256: str | None = None
+    selected_execution_task_ids: tuple[str, ...] | None = None
+    selected_task_content_hashes: dict[str, str] | None = None
+    if batch_manifest_path is not None:
+        batch_manifest_path = batch_manifest_path.resolve()
+        (
+            selection_manifest,
+            selected_execution_task_ids,
+            selected_task_content_hashes,
+            selection_manifest_label,
+        ) = _load_batch_selection(
+            repo_root=repo_root,
+            batch_manifest_path=batch_manifest_path,
+        )
+        selection_manifest_sha256 = hash_file(batch_manifest_path)
+
     candidates = _discover_candidates(
         repo_root=repo_root,
         input_root=input_root,
         project_dirs=project_dirs,
         limit=limit,
+        selected_execution_task_ids=selected_execution_task_ids,
+        selected_task_content_hashes=selected_task_content_hashes,
     )
     input_hashes = {
         candidate.variant_path: hash_file(candidate.variant_path) for candidate in candidates
@@ -736,6 +853,14 @@ def check_lf022_provisional_candidates(
     ]
     manifest = LF022LeanCheckManifest(
         input_root=_artifact_label(input_root, repo_root),
+        selection_batch_id=(
+            selection_manifest.batch_id if selection_manifest is not None else None
+        ),
+        selection_batch_manifest=selection_manifest_label,
+        selection_batch_manifest_sha256=selection_manifest_sha256,
+        selected_execution_task_count=(
+            selection_manifest.total_task_count if selection_manifest is not None else None
+        ),
         input_set_hash=hash_canonical(input_projection),
         record_count=len(ordered),
         ordered_variant_ids_hash=hash_canonical([record.variant_id for record in ordered]),
