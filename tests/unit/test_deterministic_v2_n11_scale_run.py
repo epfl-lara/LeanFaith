@@ -125,6 +125,11 @@ def test_n11_persisted_scale_rejects_changed_input_against_run_spec(
     run_v2_d0_scale(**arguments)
     lines = theorem_path.read_text(encoding="utf-8").splitlines(keepends=True)
     theorem_path.write_text("".join(reversed(lines)), encoding="utf-8")
+    representation_lines = representation_path.read_text(encoding="utf-8").splitlines(keepends=True)
+    representation_path.write_text(
+        "".join(reversed(representation_lines)),
+        encoding="utf-8",
+    )
 
     with pytest.raises(V2D0ScaleRunError, match="immutable artifact conflict"):
         run_v2_d0_scale(**arguments)
@@ -140,7 +145,7 @@ def test_n11_persisted_scale_rejects_misaligned_partitions_before_lean(
     )
     backend = _BatchBackend(())
 
-    with pytest.raises(V2D0ScaleRunError, match="partition counts differ"):
+    with pytest.raises(V2D0ScaleRunError, match="records without representations"):
         run_v2_d0_scale(
             backend=cast(LeanInteractBackend, backend),
             runtime=build_v2_d0_runtime(),

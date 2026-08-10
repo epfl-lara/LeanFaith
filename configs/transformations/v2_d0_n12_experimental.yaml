@@ -1,6 +1,6 @@
 schema_version: 1
 profile_id: deterministic_v2_d0_n12_experimental
-profile_version: 1.0.0
+profile_version: 1.1.0
 status: experimental
 portfolio_id: leanfaith_deterministic_v2_design
 portfolio_config_hash: f48e2dfd4555e71dfd07518330f33d222894fa935fb81b6c9e7678a8a1a66594
@@ -9,7 +9,7 @@ candidate_pool: deterministic_v2_d0_n12_experimental
 active_rules:
   - family_id: n12_implication_converse
     rule_id: n12_implication_converse
-    rule_version: 1.0.0
+    rule_version: 1.1.0
     implementation_key: n12_implication_converse
     evidence_class: D0
     intended_error_types: [E26, E30]
@@ -21,7 +21,7 @@ required_candidate_views:
 require_same_context_reelaboration: true
 require_exact_inverse_replay: true
 require_exact_root_converse: true
-require_direct_declared_prop_sides: true
+require_candidate_prop_reelaboration: true
 failed_proof_search_is_negative_evidence: false
 resolved_label_count: 0
 promoted_item_count: 0

@@ -2,10 +2,10 @@
 
 The initial executable scope is deliberately narrower than arbitrary
 implication converse. It accepts declarations whose final explicit header
-binder is ``(h : P)`` and whose conclusion is ``Q``, where ``P`` and ``Q`` are
-distinct, earlier, explicitly declared proposition variables. The elaborated
-type must be exactly the corresponding outer-forall chain and neither side may
-depend on ``h``.
+binder is ``(h : P)`` and whose root conclusion is ``Q``. The source and
+candidate must both elaborate as theorem propositions in one frozen context,
+the elaborated type must be exactly the corresponding outer-forall chain, and
+neither side may depend on ``h``.
 
 Generation changes ``(h : P) : Q`` to ``(h : Q) : P``. The audit independently
 reconstructs the only permitted expression-tree delta, including the required
@@ -50,7 +50,6 @@ from leanfaith.transforms.protocol import (
     verify_variant_draft_id,
 )
 
-_IDENTIFIER = re.compile(r"[A-Za-z_][A-Za-z0-9_']*")
 _VALID_ELABORATION = frozenset(
     {
         ValidationStatus.ELABORATES,
@@ -85,11 +84,9 @@ class ImplicationConverseSite:
     conclusion_start: int
     conclusion_end: int
     hypothesis_name: str
-    premise_name: str
-    conclusion_name: str
+    premise_text: str
+    conclusion_text: str
     hypothesis_outer_index: int
-    premise_outer_index: int
-    conclusion_outer_index: int
     source_root_hash: str
     expected_candidate_root_hash: str
 
@@ -102,11 +99,9 @@ class ImplicationConverseSite:
                 "conclusion_start": self.conclusion_start,
                 "conclusion_end": self.conclusion_end,
                 "hypothesis_name": self.hypothesis_name,
-                "premise_name": self.premise_name,
-                "conclusion_name": self.conclusion_name,
+                "premise_text_hash": hash_canonical({"text": self.premise_text}),
+                "conclusion_text_hash": hash_canonical({"text": self.conclusion_text}),
                 "hypothesis_outer_index": self.hypothesis_outer_index,
-                "premise_outer_index": self.premise_outer_index,
-                "conclusion_outer_index": self.conclusion_outer_index,
                 "source_root_hash": self.source_root_hash,
                 "expected_candidate_root_hash": self.expected_candidate_root_hash,
             }
@@ -257,18 +252,6 @@ def certify_implication_converse(
     )
 
 
-def _direct_prop_names(surface: tuple[_SurfaceBinder, ...]) -> dict[str, int]:
-    result: dict[str, int] = {}
-    for item in surface:
-        if (
-            item.group.kind == BinderKind.EXPLICIT
-            and not item.group.has_comment
-            and item.group.type_tokens == ("Prop",)
-        ):
-            result[item.name] = item.outer_index
-    return result
-
-
 def _is_iff(node: dict[str, Any]) -> bool:
     current: object = node
     while isinstance(current, dict) and current.get("k") == "app":
@@ -306,44 +289,28 @@ def enumerate_n12_sites(
         or analysis.binders[-1].binder_info != "default"
     ):
         return ()
-    prop_names = _direct_prop_names(surface[:-1])
-    if len(hypothesis.group.type_tokens) != 1:
+    premise_text = hypothesis.group.type_text
+    if not premise_text.strip():
         return ()
-    premise_name = hypothesis.group.type_tokens[0]
-    conclusion_text = source[conclusion_start_raw:conclusion_end_raw]
-    leading = len(conclusion_text) - len(conclusion_text.lstrip())
-    trailing = len(conclusion_text) - len(conclusion_text.rstrip())
+    raw_conclusion = source[conclusion_start_raw:conclusion_end_raw]
+    leading = len(raw_conclusion) - len(raw_conclusion.lstrip())
+    trailing = len(raw_conclusion) - len(raw_conclusion.rstrip())
     conclusion_start = conclusion_start_raw + leading
     conclusion_end = conclusion_end_raw - trailing
-    conclusion_name = source[conclusion_start:conclusion_end]
-    if (
-        _IDENTIFIER.fullmatch(premise_name) is None
-        or _IDENTIFIER.fullmatch(conclusion_name) is None
-        or premise_name == conclusion_name
-        or premise_name not in prop_names
-        or conclusion_name not in prop_names
-        or _is_iff(cast(dict[str, Any], analysis.conclusion))
-    ):
+    conclusion_text = source[conclusion_start:conclusion_end]
+    if not conclusion_text.strip() or _is_iff(cast(dict[str, Any], analysis.conclusion)):
         return ()
 
     hypothesis_outer_index = hypothesis.outer_index
-    premise_outer_index = prop_names[premise_name]
-    conclusion_outer_index = prop_names[conclusion_name]
-    domain = analysis.binders[-1].domain
-    conclusion = analysis.conclusion
-    expected_domain_index = hypothesis_outer_index - 1 - premise_outer_index
-    expected_conclusion_index = hypothesis_outer_index - conclusion_outer_index
-    if domain != {"k": "bvar", "i": expected_domain_index}:
-        return ()
-    if conclusion != {"k": "bvar", "i": expected_conclusion_index}:
-        return ()
-
     type_offset = hypothesis.group.original_text.find(hypothesis.group.type_text)
     if type_offset < 0 or hypothesis.group.original_text.count(hypothesis.group.type_text) != 1:
         return ()
     hypothesis_type_start = hypothesis.group.start + type_offset
     hypothesis_type_end = hypothesis_type_start + len(hypothesis.group.type_text)
-    if mask[hypothesis_type_start:hypothesis_type_end] != hypothesis.group.type_text:
+    if (
+        mask[hypothesis_type_start:hypothesis_type_end] != premise_text
+        or mask[conclusion_start:conclusion_end] != conclusion_text
+    ):
         return ()
     try:
         root = cast(dict[str, Any], operator_tree_view["root"])
@@ -357,11 +324,9 @@ def enumerate_n12_sites(
             conclusion_start=conclusion_start,
             conclusion_end=conclusion_end,
             hypothesis_name=hypothesis.name,
-            premise_name=premise_name,
-            conclusion_name=conclusion_name,
+            premise_text=premise_text,
+            conclusion_text=conclusion_text,
             hypothesis_outer_index=hypothesis_outer_index,
-            premise_outer_index=premise_outer_index,
-            conclusion_outer_index=conclusion_outer_index,
             source_root_hash=hash_canonical(root),
             expected_candidate_root_hash=hash_canonical(expected),
         ),
@@ -374,8 +339,8 @@ def _trace(
     generation_config_hash: str,
     inverse: bool,
 ) -> tuple[dict[str, JsonValue], ...]:
-    left_text = site.premise_name
-    right_text = site.conclusion_name
+    left_text = site.premise_text
+    right_text = site.conclusion_text
     left_start = site.hypothesis_type_start
     right_start = site.conclusion_start
     if inverse:
@@ -435,8 +400,8 @@ def _expected_structural_diff(site: ImplicationConverseSite) -> dict[str, JsonVa
         "delta_kind": "root_implication_converse",
         "evidence_class": "D0",
         "hypothesis_outer_index": site.hypothesis_outer_index,
-        "premise_outer_index": site.premise_outer_index,
-        "conclusion_outer_index": site.conclusion_outer_index,
+        "premise_text_hash": hash_canonical({"text": site.premise_text}),
+        "conclusion_text_hash": hash_canonical({"text": site.conclusion_text}),
         "source_root_hash": site.source_root_hash,
         "expected_candidate_root_hash": site.expected_candidate_root_hash,
     }
@@ -449,7 +414,7 @@ class N12ImplicationConverseRule:
     rule_id = "n12_implication_converse"
     family_id = "n12_implication_converse"
     implementation_key = "n12_implication_converse"
-    rule_version = "1.0.0"
+    rule_version = "1.1.0"
 
     def __init__(self, *, generation_config_hash: str, candidate_pool: str) -> None:
         if re.fullmatch(r"[0-9a-f]{64}", generation_config_hash) is None:
@@ -509,7 +474,8 @@ class N12ImplicationConverseRule:
             reason_codes=(),
             matched_nodes=(
                 f"root_converse:{site.hypothesis_outer_index}:"
-                f"{site.premise_name}:{site.conclusion_name}",
+                f"{hash_canonical({'text': site.premise_text})}:"
+                f"{hash_canonical({'text': site.conclusion_text})}",
             ),
             required_capabilities=_REQUIRED_CAPABILITIES,
         )

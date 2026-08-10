@@ -56,6 +56,44 @@ def _root(*, converse: bool = False) -> dict[str, object]:
     }
 
 
+def _complex_root(*, converse: bool = False) -> dict[str, object]:
+    true = {"k": "const", "n": "True", "us": "[]"}
+    false = {"k": "const", "n": "False", "us": "[]"}
+    premise = {
+        "k": "app",
+        "fn": {"k": "app", "fn": {"k": "const", "n": "And", "us": "[]"}, "arg": true},
+        "arg": true,
+    }
+    conclusion = {
+        "k": "app",
+        "fn": {
+            "k": "app",
+            "fn": {"k": "const", "n": "Or", "us": "[]"},
+            "arg": true,
+        },
+        "arg": false,
+    }
+    return {
+        "k": "forall",
+        "bi": "default",
+        "dom": conclusion if converse else premise,
+        "body": premise if converse else conclusion,
+    }
+
+
+def _nested_root() -> dict[str, object]:
+    root = _root()
+    assert isinstance(root["body"], dict)
+    assert isinstance(root["body"]["body"], dict)
+    root["body"]["body"]["body"] = {
+        "k": "forall",
+        "bi": "default",
+        "dom": {"k": "bvar", "i": 1},
+        "body": {"k": "bvar", "i": 3},
+    }
+    return root
+
+
 def _records(
     source: str,
     key: str,
@@ -140,12 +178,28 @@ def _candidate_records(
 def test_n12_enumerates_one_surface_and_expr_aligned_site() -> None:
     (site,) = enumerate_n12_sites(_SOURCE, operator_tree(_root()))
     assert site.hypothesis_name == "h"
-    assert site.premise_name == "Premise"
-    assert site.conclusion_name == "Goal"
+    assert site.premise_text == "Premise"
+    assert site.conclusion_text == "Goal"
     assert site.hypothesis_outer_index == 2
-    assert site.premise_outer_index == 0
-    assert site.conclusion_outer_index == 1
     assert build_implication_converse_root(_root(), 2) == _root(converse=True)
+
+
+def test_n12_supports_complex_root_proposition_sides() -> None:
+    source = "theorem n12_complex (h : True ∧ True) : True ∨ False := by sorry"
+    (site,) = enumerate_n12_sites(source, operator_tree(_complex_root()))
+    assert site.premise_text == "True ∧ True"
+    assert site.conclusion_text == "True ∨ False"
+    assert build_implication_converse_root(_complex_root(), 0) == _complex_root(converse=True)
+
+    theorem, representation = _records(source, "complex", _complex_root())
+    rule = N12ImplicationConverseRule(
+        generation_config_hash="b" * 64,
+        candidate_pool="fixture",
+    )
+    draft = rule.generate(theorem, representation, seed=7)[0]
+    assert draft.candidate_code == (
+        "theorem n12_complex (h : True ∨ False) : True ∧ True := by sorry"
+    )
 
 
 @pytest.mark.parametrize(
@@ -170,12 +224,8 @@ def test_n12_enumerates_one_surface_and_expr_aligned_site() -> None:
             _root(),
         ),
         (
-            "theorem expression (P Q : Prop) (h : P) : P ∧ Q := by sorry",
-            _root(),
-        ),
-        (
             "theorem nested (P Q : Prop) (h : P) : Q → P := by sorry",
-            _root(),
+            _nested_root(),
         ),
     ],
 )

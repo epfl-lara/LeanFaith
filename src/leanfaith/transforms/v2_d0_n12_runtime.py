@@ -43,7 +43,7 @@ class V2D0N12ExecutionError(ValueError):
 class V2D0N12RuleBinding(StrictModel):
     family_id: Literal["n12_implication_converse"]
     rule_id: Literal["n12_implication_converse"]
-    rule_version: Literal["1.0.0"]
+    rule_version: Literal["1.1.0"]
     implementation_key: Literal["n12_implication_converse"]
     evidence_class: Literal["D0"]
     intended_error_types: tuple[Literal["E26", "E30"], ...]
@@ -81,7 +81,7 @@ class V2D0N12ExecutionConfig(StrictModel):
     require_same_context_reelaboration: Literal[True] = True
     require_exact_inverse_replay: Literal[True] = True
     require_exact_root_converse: Literal[True] = True
-    require_direct_declared_prop_sides: Literal[True] = True
+    require_candidate_prop_reelaboration: Literal[True] = True
     failed_proof_search_is_negative_evidence: Literal[False] = False
     resolved_label_count: Literal[0] = 0
     promoted_item_count: Literal[0] = 0
