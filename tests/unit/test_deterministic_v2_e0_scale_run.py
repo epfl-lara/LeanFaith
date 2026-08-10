@@ -128,7 +128,7 @@ def test_persisted_scale_rejects_changed_order_against_existing_run_spec(
     lines = theorem_path.read_text(encoding="utf-8").splitlines(keepends=True)
     theorem_path.write_text("".join(reversed(lines)), encoding="utf-8")
 
-    with pytest.raises(V2E0ScaleRunError, match="immutable artifact conflict"):
+    with pytest.raises(V2E0ScaleRunError, match="order mismatch"):
         run_v2_e0_scale(**arguments)
 
 
@@ -140,7 +140,7 @@ def test_persisted_scale_rejects_misaligned_partitions_before_lean(tmp_path: Pat
     )
     backend = _BatchBackend(())
 
-    with pytest.raises(V2E0ScaleRunError, match="partition counts differ"):
+    with pytest.raises(V2E0ScaleRunError, match="records without representations"):
         run_v2_e0_scale(
             backend=cast(LeanInteractBackend, backend),
             runtime=build_v2_e0_runtime(),

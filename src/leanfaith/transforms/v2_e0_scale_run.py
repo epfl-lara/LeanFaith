@@ -137,38 +137,92 @@ def _iter_jsonl[RecordT: StrictModel](
                 ) from exc
 
 
-def _load_inputs(
+def _iter_aligned_inputs(
     theorem_path: Path,
     representation_path: Path,
-) -> tuple[tuple[TheoremRecord, RepresentationRecord], ...]:
-    theorems = tuple(_iter_jsonl(theorem_path, TheoremRecord, wrapper_key="theorem"))
-    representations = tuple(_iter_jsonl(representation_path, RepresentationRecord))
-    if not theorems:
-        raise V2E0ScaleRunError("theorem partition is empty")
-    if len(theorems) != len(representations):
-        raise V2E0ScaleRunError("theorem and representation partition counts differ")
-    by_theorem: dict[str, RepresentationRecord] = {}
-    for record in representations:
-        if record.theorem_id in by_theorem:
-            raise V2E0ScaleRunError(f"duplicate representation for {record.theorem_id}")
-        by_theorem[record.theorem_id] = record
-    if len({item.theorem_id for item in theorems}) != len(theorems):
-        raise V2E0ScaleRunError("theorem partition contains duplicate theorem IDs")
-    missing = [item.theorem_id for item in theorems if item.theorem_id not in by_theorem]
-    extra = sorted(set(by_theorem) - {item.theorem_id for item in theorems})
-    if missing or extra:
-        raise V2E0ScaleRunError(
-            f"theorem/representation identity mismatch: missing={missing[:3]} extra={extra[:3]}"
-        )
-    aligned = tuple((theorem, by_theorem[theorem.theorem_id]) for theorem in theorems)
-    contexts = {
-        context
-        for theorem, representation in aligned
-        for context in (theorem.context_id, representation.context_id)
-    }
-    if len(contexts) != 1:
-        raise V2E0ScaleRunError("v2 scale input must have exactly one Lean context")
-    return aligned
+    *,
+    max_sources: int | None,
+) -> Iterator[tuple[TheoremRecord, RepresentationRecord]]:
+    """Stream two canonical, order-aligned partitions with bounded live memory."""
+
+    theorem_iter = _iter_jsonl(theorem_path, TheoremRecord, wrapper_key="theorem")
+    representation_iter = _iter_jsonl(representation_path, RepresentationRecord)
+    seen: set[str] = set()
+    context_id: str | None = None
+    count = 0
+    while max_sources is None or count < max_sources:
+        try:
+            theorem = next(theorem_iter)
+        except StopIteration:
+            try:
+                next(representation_iter)
+            except StopIteration:
+                return
+            raise V2E0ScaleRunError("representation partition contains extra records") from None
+        try:
+            representation = next(representation_iter)
+        except StopIteration:
+            raise V2E0ScaleRunError(
+                "theorem partition contains records without representations"
+            ) from None
+        if theorem.theorem_id != representation.theorem_id:
+            raise V2E0ScaleRunError(
+                "streaming theorem/representation order mismatch: "
+                f"{theorem.theorem_id} != {representation.theorem_id}"
+            )
+        if theorem.theorem_id in seen:
+            raise V2E0ScaleRunError(
+                f"duplicate theorem ID in selected inventory: {theorem.theorem_id}"
+            )
+        seen.add(theorem.theorem_id)
+        if theorem.context_id != representation.context_id:
+            raise V2E0ScaleRunError(f"source context mismatch for {theorem.theorem_id}")
+        if context_id is None:
+            context_id = theorem.context_id
+        elif theorem.context_id != context_id:
+            raise V2E0ScaleRunError("v2 scale input must have exactly one Lean context")
+        count += 1
+        yield theorem, representation
+
+
+def _inventory(
+    theorem_path: Path,
+    representation_path: Path,
+    *,
+    runtime: V2E0Runtime,
+    base_seed: int,
+    max_sources: int | None,
+) -> tuple[int, int, str, str, str]:
+    theorem_ids: list[str] = []
+    attempt_keys: list[tuple[str, str, V2E0RuleId, int]] = []
+    context_id: str | None = None
+    for theorem, representation in _iter_aligned_inputs(
+        theorem_path,
+        representation_path,
+        max_sources=max_sources,
+    ):
+        if context_id is None:
+            context_id = theorem.context_id
+        theorem_ids.append(theorem.theorem_id)
+        for rule_id in runtime.rule_ids:
+            typed_rule_id = cast(V2E0RuleId, rule_id)
+            attempt_keys.append(
+                (
+                    theorem.theorem_id,
+                    representation.representation_id,
+                    typed_rule_id,
+                    _seed(base_seed, theorem.theorem_id, typed_rule_id),
+                )
+            )
+    if context_id is None:
+        raise V2E0ScaleRunError("selected v2 E0 source inventory is empty")
+    return (
+        len(theorem_ids),
+        len(attempt_keys),
+        context_id,
+        hash_canonical(theorem_ids),
+        hash_canonical(attempt_keys),
+    )
 
 
 def _seed(base_seed: int, theorem_id: str, rule_id: str) -> int:
@@ -255,6 +309,62 @@ def _load_batch(
     return results
 
 
+def _combined_hash_and_size(paths: Sequence[Path]) -> tuple[str, int]:
+    digest = hashlib.sha256()
+    size = 0
+    for source in paths:
+        with source.open("rb") as handle:
+            while chunk := handle.read(1024 * 1024):
+                digest.update(chunk)
+                size += len(chunk)
+    return digest.hexdigest(), size
+
+
+def _assemble_results(path: Path, journal_paths: Sequence[Path]) -> str:
+    """Atomically concatenate immutable journals without retaining every result."""
+
+    expected_hash, expected_size = _combined_hash_and_size(journal_paths)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if path.exists():
+        if (
+            path.is_symlink()
+            or not path.is_file()
+            or path.stat().st_size != expected_size
+            or hash_file(path) != expected_hash
+        ):
+            raise V2E0ScaleRunError(f"immutable artifact conflict: {path}")
+        return expected_hash
+    descriptor, temporary_name = tempfile.mkstemp(
+        prefix=f".{path.name}.",
+        suffix=".partial",
+        dir=path.parent,
+    )
+    temporary = Path(temporary_name)
+    try:
+        with os.fdopen(descriptor, "wb") as output:
+            for source in journal_paths:
+                with source.open("rb") as handle:
+                    while chunk := handle.read(1024 * 1024):
+                        output.write(chunk)
+            output.flush()
+            os.fsync(output.fileno())
+        if temporary.stat().st_size != expected_size or hash_file(temporary) != expected_hash:
+            raise V2E0ScaleRunError("streamed result assembly hash mismatch")
+        try:
+            os.link(temporary, path)
+        except FileExistsError:
+            if (
+                path.is_symlink()
+                or not path.is_file()
+                or path.stat().st_size != expected_size
+                or hash_file(path) != expected_hash
+            ):
+                raise V2E0ScaleRunError(f"concurrent immutable conflict: {path}") from None
+        return expected_hash
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
 def run_v2_e0_scale(
     *,
     backend: LeanInteractBackend,
@@ -280,15 +390,13 @@ def run_v2_e0_scale(
     output_dir = output_dir.resolve()
     if output_dir in {theorem_path.parent, representation_path.parent}:
         raise V2E0ScaleRunError("output directory cannot overwrite an input directory")
-    aligned = _load_inputs(theorem_path, representation_path)
-    if max_sources is not None:
-        aligned = aligned[:max_sources]
-    context_id = aligned[0][0].context_id
-    attempts = _ordered_attempts(aligned, runtime, base_seed=base_seed)
-    attempt_keys = [
-        (item.theorem.theorem_id, item.representation.representation_id, item.rule_id, item.seed)
-        for item in attempts
-    ]
+    source_count, attempt_count, context_id, theorem_ids_hash, attempt_keys_hash = _inventory(
+        theorem_path,
+        representation_path,
+        runtime=runtime,
+        base_seed=base_seed,
+        max_sources=max_sources,
+    )
     spec = V2E0ScaleRunSpec(
         profile_id=runtime.loaded.config.profile_id,
         profile_config_hash=runtime.generation_config_hash,
@@ -302,18 +410,25 @@ def run_v2_e0_scale(
         base_seed=base_seed,
         batch_size=batch_size,
         max_sources=max_sources,
-        source_count=len(aligned),
-        attempt_count=len(attempts),
-        ordered_theorem_ids_sha256=hash_canonical([theorem.theorem_id for theorem, _ in aligned]),
-        ordered_attempt_keys_sha256=hash_canonical(attempt_keys),
+        source_count=source_count,
+        attempt_count=attempt_count,
+        ordered_theorem_ids_sha256=theorem_ids_hash,
+        ordered_attempt_keys_sha256=attempt_keys_hash,
     )
     run_spec_path = output_dir / "run_spec.json"
     _write_immutable(run_spec_path, _canonical_line(spec))
 
-    all_results: list[V2E0MaterializationResult] = []
     journal_entries: list[tuple[str, str]] = []
-    for batch_index, start in enumerate(range(0, len(attempts), batch_size)):
-        batch_inputs = attempts[start : start + batch_size]
+    journal_paths: list[Path] = []
+    statuses: Counter[str] = Counter()
+    family_statuses: Counter[str] = Counter()
+    result_count = 0
+
+    def process_batch(
+        batch_index: int,
+        batch_inputs: Sequence[V2E0MaterializationInput],
+    ) -> None:
+        nonlocal result_count
         batch_path = output_dir / "journal" / f"batch_{batch_index:06d}.jsonl"
         if batch_path.exists():
             batch_results = _load_batch(batch_path, batch_inputs, runtime)
@@ -327,17 +442,39 @@ def run_v2_e0_scale(
                 import_header=import_header,
             )
             _write_immutable(batch_path, _batch_payload(batch_results))
-        all_results.extend(batch_results)
+        result_count += len(batch_results)
+        statuses.update(item.terminal_status for item in batch_results)
+        family_statuses.update(f"{item.rule_id}:{item.terminal_status}" for item in batch_results)
         journal_entries.append((batch_path.name, hash_file(batch_path)))
+        journal_paths.append(batch_path)
+
+    batch_inputs: list[V2E0MaterializationInput] = []
+    batch_index = 0
+    for pair in _iter_aligned_inputs(
+        theorem_path,
+        representation_path,
+        max_sources=max_sources,
+    ):
+        for attempt in _ordered_attempts((pair,), runtime, base_seed=base_seed):
+            batch_inputs.append(attempt)
+            if len(batch_inputs) == batch_size:
+                process_batch(batch_index, batch_inputs)
+                batch_inputs = []
+                batch_index += 1
+    if batch_inputs:
+        process_batch(batch_index, batch_inputs)
+
+    if result_count != attempt_count:
+        raise V2E0ScaleRunError(
+            f"streamed result count mismatch: {result_count} != {attempt_count}"
+        )
 
     results_path = output_dir / "results.jsonl"
-    results_sha256 = _write_immutable(results_path, _batch_payload(all_results))
-    statuses = Counter(item.terminal_status for item in all_results)
-    family_statuses = Counter(f"{item.rule_id}:{item.terminal_status}" for item in all_results)
+    results_sha256 = _assemble_results(results_path, journal_paths)
     manifest = V2E0ScaleRunManifest(
         run_spec_sha256=hash_file(run_spec_path),
         batch_count=len(journal_entries),
-        result_count=len(all_results),
+        result_count=result_count,
         terminal_status_counts=dict(sorted(statuses.items())),
         family_status_counts=dict(sorted(family_statuses.items())),
         journal_tree_hash=hash_canonical(journal_entries),
@@ -350,7 +487,7 @@ def run_v2_e0_scale(
         run_spec_path=run_spec_path,
         manifest_path=manifest_path,
         results_path=results_path,
-        result_count=len(all_results),
+        result_count=result_count,
     )
 
 

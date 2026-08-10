@@ -140,6 +140,7 @@ class _RetryingBenchmarkBackend:
 
         final: list[LeanResult | None] = [None] * len(requests)
         pending = list(range(len(requests)))
+        delegate_batch = getattr(self._delegate, "run_batch", None)
         for attempt_index in range(_BENCHMARK_RETRY_POLICY.max_attempts):
             attempt_requests = [
                 replace(
@@ -152,7 +153,16 @@ class _RetryingBenchmarkBackend:
                 for index in pending
             ]
             try:
-                batch_results: Sequence[object] = self._delegate.run_batch(attempt_requests)
+                if callable(delegate_batch):
+                    batch_results: Sequence[object] = delegate_batch(attempt_requests)
+                else:
+                    sequential_results: list[object] = []
+                    for attempt_request in attempt_requests:
+                        try:
+                            sequential_results.append(self._delegate.run(attempt_request))
+                        except Exception as exc:
+                            sequential_results.append(exc)
+                    batch_results = sequential_results
                 if len(batch_results) != len(attempt_requests):
                     raise RuntimeError(
                         "benchmark backend returned a batch with the wrong result count: "
