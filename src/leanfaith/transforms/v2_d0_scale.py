@@ -1,4 +1,4 @@
-"""Pooled LeanInteract materialization for LF-034's experimental N11 slice."""
+"""Pooled LeanInteract materialization for LF-034 experimental D0 families."""
 
 from __future__ import annotations
 
@@ -20,12 +20,13 @@ from leanfaith.transforms.v2_d0_materializer import (
     build_v2_d0_result,
 )
 from leanfaith.transforms.v2_d0_n12_runtime import V2D0N12Runtime
+from leanfaith.transforms.v2_d0_n13_runtime import V2D0N13Runtime
 from leanfaith.transforms.v2_d0_runtime import V2D0Runtime
 from leanfaith.transforms.v2_e0_materializer import _inline_candidate_source
 
 
 class V2D0ScaleError(ValueError):
-    """A pooled N11 request violated fail-closed orchestration."""
+    """A pooled D0 request violated fail-closed orchestration."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -46,7 +47,7 @@ class _GeneratedCandidate:
 
 
 def _common(
-    runtime: V2D0Runtime | V2D0N12Runtime,
+    runtime: V2D0Runtime | V2D0N12Runtime | V2D0N13Runtime,
     item: V2D0MaterializationInput,
     attempt: TransformationAttempt,
 ) -> dict[str, object]:
@@ -71,8 +72,9 @@ def _candidate_request(candidate: _GeneratedCandidate) -> LeanRequest:
         allow_sorry=True,
         timeout_seconds=300.0,
         metadata={
-            "artifact_kind": "v2_d0_n11_candidate",
+            "artifact_kind": "v2_d0_candidate",
             "draft_id": candidate.draft.draft_id,
+            "rule_id": candidate.item.rule_id,
         },
     )
 
@@ -93,13 +95,13 @@ def _representation_input(candidate: TheoremRecord) -> TheoremForRepresentation:
 def materialize_v2_d0_batch(
     *,
     backend: LeanInteractBackend,
-    runtime: V2D0Runtime | V2D0N12Runtime,
+    runtime: V2D0Runtime | V2D0N12Runtime | V2D0N13Runtime,
     inputs: Sequence[V2D0MaterializationInput],
     context_id: str,
     project_dir: Path,
     import_header: str,
 ) -> tuple[V2D0MaterializationResult, ...]:
-    """Materialize a homogeneous N11 batch while preserving order/cardinality."""
+    """Materialize a homogeneous D0 batch while preserving order/cardinality."""
 
     if not inputs:
         return ()

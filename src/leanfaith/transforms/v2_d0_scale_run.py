@@ -1,4 +1,4 @@
-"""Resumable persisted scale runner for LF-034's experimental N11 profile."""
+"""Resumable persisted scale runner for LF-034 experimental D0 profiles."""
 
 from __future__ import annotations
 
@@ -23,6 +23,7 @@ from leanfaith.transforms.v2_d0_materializer import (
     V2D0MaterializationResult,
 )
 from leanfaith.transforms.v2_d0_n12_runtime import V2D0N12Runtime
+from leanfaith.transforms.v2_d0_n13_runtime import V2D0N13Runtime
 from leanfaith.transforms.v2_d0_runtime import V2D0Runtime
 from leanfaith.transforms.v2_d0_scale import (
     V2D0MaterializationInput,
@@ -39,7 +40,7 @@ _HEX64 = r"^[0-9a-f]{64}$"
 
 
 class V2D0ScaleRunError(RuntimeError):
-    """A persisted N11 run violated its exact replay contract."""
+    """A persisted D0 run violated its exact replay contract."""
 
 
 class V2D0ScaleRunSpec(StrictModel):
@@ -117,7 +118,7 @@ def _seed(base_seed: int, theorem_id: str, rule_id: D0RuleId) -> int:
 
 def _ordered_attempts(
     aligned: Sequence[tuple[TheoremRecord, RepresentationRecord]],
-    runtime: V2D0Runtime | V2D0N12Runtime,
+    runtime: V2D0Runtime | V2D0N12Runtime | V2D0N13Runtime,
     *,
     base_seed: int,
 ) -> tuple[V2D0MaterializationInput, ...]:
@@ -193,7 +194,7 @@ def _inventory(
     theorem_path: Path,
     representation_path: Path,
     *,
-    runtime: V2D0Runtime | V2D0N12Runtime,
+    runtime: V2D0Runtime | V2D0N12Runtime | V2D0N13Runtime,
     base_seed: int,
     max_sources: int | None,
 ) -> tuple[int, str, str, str]:
@@ -241,7 +242,7 @@ def _batch_payload(results: Sequence[V2D0MaterializationResult]) -> bytes:
 def _load_batch(
     path: Path,
     expected: Sequence[V2D0MaterializationInput],
-    runtime: V2D0Runtime | V2D0N12Runtime,
+    runtime: V2D0Runtime | V2D0N12Runtime | V2D0N13Runtime,
 ) -> tuple[V2D0MaterializationResult, ...]:
     try:
         results = tuple(_iter_jsonl(path, V2D0MaterializationResult))
@@ -321,7 +322,7 @@ def _assemble_results(path: Path, journal_paths: Sequence[Path]) -> str:
 def run_v2_d0_scale(
     *,
     backend: LeanInteractBackend,
-    runtime: V2D0Runtime | V2D0N12Runtime,
+    runtime: V2D0Runtime | V2D0N12Runtime | V2D0N13Runtime,
     theorem_path: Path,
     representation_path: Path,
     project_dir: Path,

@@ -20,10 +20,12 @@ from leanfaith.schemas.variant import (
 D0ProfileId = Literal[
     "deterministic_v2_d0_n11_experimental",
     "deterministic_v2_d0_n12_experimental",
+    "deterministic_v2_d0_n13_experimental",
 ]
 D0RuleId = Literal[
     "n11_bound_variable_substitution",
     "n12_implication_converse",
+    "n13_witness_dependency",
 ]
 
 
@@ -59,6 +61,7 @@ class V2D0MaterializationResult(StrictModel):
         expected_rule = {
             "deterministic_v2_d0_n11_experimental": "n11_bound_variable_substitution",
             "deterministic_v2_d0_n12_experimental": "n12_implication_converse",
+            "deterministic_v2_d0_n13_experimental": "n13_witness_dependency",
         }[self.profile_id]
         if self.rule_id != expected_rule or self.attempt.rule_id != self.rule_id:
             raise ValueError("D0 profile, rule, and attempt identities do not align")
