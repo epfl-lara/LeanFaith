@@ -273,8 +273,28 @@ def test_summary_bucket_reconciles_verdicts_and_multilabel_errors() -> None:
         }
     )
     judgments = [
-        audit._VerifiedAuditJudgment("item-a", "kimi", first, "1" * 64, "2" * 64),
-        audit._VerifiedAuditJudgment("item-b", "qwen", second, "3" * 64, "4" * 64),
+        audit._VerifiedAuditJudgment(
+            "item-a",
+            "check-a",
+            "pair-a",
+            "variant-a",
+            ("source-a", "variant-a"),
+            "kimi",
+            first,
+            "1" * 64,
+            "2" * 64,
+        ),
+        audit._VerifiedAuditJudgment(
+            "item-b",
+            "check-b",
+            "pair-b",
+            "variant-b",
+            ("source-b", "variant-b"),
+            "qwen",
+            second,
+            "3" * 64,
+            "4" * 64,
+        ),
     ]
 
     bucket = audit._make_summary_bucket(judgments)
@@ -312,6 +332,7 @@ def test_completed_summary_replays_hashes_and_rejects_tampering(
     monkeypatch.setattr(audit, "_proposer_family_for_check", lambda *_args, **_kwargs: "qwen3")
     json_path = tmp_path / "reports" / "summary.json"
     markdown_path = tmp_path / "reports" / "summary.md"
+    findings_path = tmp_path / "reports" / "findings.jsonl"
 
     result = audit.summarize_completed_lf022_codex_audit(
         repo_root=tmp_path,
@@ -319,12 +340,20 @@ def test_completed_summary_replays_hashes_and_rejects_tampering(
         audit_root=audit_root,
         output_json_path=json_path,
         output_markdown_path=markdown_path,
+        output_findings_path=findings_path,
     )
 
     assert result.summary.completed_judgment_count == 1
     assert result.summary.by_proposer_family["qwen3"].total_count == 1
     assert result.summary.human_labels_created is False
     assert result.summary.training_eligible is False
+    finding = audit.LF022CodexAuditFinding.model_validate_json(
+        findings_path.read_bytes().splitlines()[0]
+    )
+    assert finding.pair_id == item.pair.pair_id
+    assert finding.semantic_label is False
+    assert finding.training_eligible is False
+    assert result.summary.findings_sha256 == audit.sha256_hex(findings_path.read_bytes())
     assert "not human gold" in markdown_path.read_text(encoding="utf-8")
     assert audit.LF022CodexAuditSummary.model_validate_json(json_path.read_bytes()) == (
         result.summary
@@ -340,4 +369,5 @@ def test_completed_summary_replays_hashes_and_rejects_tampering(
             audit_root=audit_root,
             output_json_path=json_path,
             output_markdown_path=markdown_path,
+            output_findings_path=findings_path,
         )

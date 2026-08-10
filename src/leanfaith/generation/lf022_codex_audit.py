@@ -263,6 +263,8 @@ class LF022CodexAuditSummary(StrictModel):
     checks_artifact: str
     checks_sha256: str = Field(pattern=HEX64_PATTERN)
     response_artifact_set_sha256: str = Field(pattern=HEX64_PATTERN)
+    findings_artifact: str
+    findings_sha256: str = Field(pattern=HEX64_PATTERN)
     model: str
     reasoning_effort: str
     total_check_count: int = Field(ge=0, strict=True)
@@ -305,7 +307,12 @@ class LF022CodexAuditSummary(StrictModel):
             raise ValueError("proposer-family totals do not reconcile")
         values = self.model_dump(
             mode="json",
-            exclude={"summary_id", "audit_manifest", "checks_artifact"},
+            exclude={
+                "summary_id",
+                "audit_manifest",
+                "checks_artifact",
+                "findings_artifact",
+            },
         )
         expected = make_id("lf022_codex_audit_summary", values)
         if self.summary_id != expected:
@@ -318,11 +325,58 @@ class LF022CodexAuditSummaryResult:
     summary: LF022CodexAuditSummary
     json_path: Path
     markdown_path: Path
+    findings_path: Path
+
+
+class LF022CodexAuditFinding(StrictModel):
+    """One compact audit-only verdict bound to its public pair and raw response."""
+
+    schema_version: Literal[1] = 1
+    finding_id: str = Field(pattern=id_pattern("lf022_codex_audit_finding"))
+    audit_item_id: str = Field(pattern=id_pattern("lf022_codex_audit_item"))
+    lean_check_id: str = Field(pattern=id_pattern("lf022_lean_check"))
+    pair_id: str = Field(pattern=id_pattern("pair"))
+    variant_id: str = Field(pattern=id_pattern("var"))
+    source_record_ids: tuple[str, ...] = Field(min_length=2)
+    proposer_family_id: str = Field(min_length=1)
+    same_claim_answer: Literal[
+        "same_claim",
+        "not_same_claim",
+        "ambiguous",
+        "uncertain",
+    ]
+    relation: str | None
+    a_implies_b: Literal["yes", "no", "unknown"]
+    b_implies_a: Literal["yes", "no", "unknown"]
+    error_types: tuple[str, ...]
+    confidence: float = Field(ge=0.0, le=1.0)
+    needs_expert_review: bool
+    final_message_sha256: str = Field(pattern=HEX64_PATTERN)
+    parsed_response_sha256: str = Field(pattern=HEX64_PATTERN)
+    audit_only: Literal[True] = True
+    human_label: Literal[False] = False
+    semantic_label: Literal[False] = False
+    silver_record: Literal[False] = False
+    training_eligible: Literal[False] = False
+    evaluation_eligible: Literal[False] = False
+    gate_credit_claimed: Literal[False] = False
+
+    @model_validator(mode="after")
+    def _content_addressed(self) -> Self:
+        values = self.model_dump(mode="json", exclude={"finding_id"})
+        expected = make_id("lf022_codex_audit_finding", values)
+        if self.finding_id != expected:
+            raise ValueError("finding_id does not match finding content")
+        return self
 
 
 @dataclass(frozen=True, slots=True)
 class _VerifiedAuditJudgment:
     audit_item_id: str
+    lean_check_id: str
+    pair_id: str
+    variant_id: str
+    source_record_ids: tuple[str, ...]
     proposer_family_id: str
     response: JudgeResponse
     final_message_sha256: str
@@ -970,6 +1024,41 @@ def _make_summary_bucket(
     )
 
 
+def _make_audit_finding(item: _VerifiedAuditJudgment) -> LF022CodexAuditFinding:
+    response = item.response
+    values: dict[str, object] = {
+        "schema_version": 1,
+        "audit_item_id": item.audit_item_id,
+        "lean_check_id": item.lean_check_id,
+        "pair_id": item.pair_id,
+        "variant_id": item.variant_id,
+        "source_record_ids": item.source_record_ids,
+        "proposer_family_id": item.proposer_family_id,
+        "same_claim_answer": response.same_claim_answer,
+        "relation": response.relation.value if response.relation is not None else None,
+        "a_implies_b": response.a_implies_b,
+        "b_implies_a": response.b_implies_a,
+        "error_types": tuple(sorted(response.error_types)),
+        "confidence": response.confidence,
+        "needs_expert_review": response.needs_expert_review,
+        "final_message_sha256": item.final_message_sha256,
+        "parsed_response_sha256": item.parsed_response_sha256,
+        "audit_only": True,
+        "human_label": False,
+        "semantic_label": False,
+        "silver_record": False,
+        "training_eligible": False,
+        "evaluation_eligible": False,
+        "gate_credit_claimed": False,
+    }
+    return LF022CodexAuditFinding.model_validate(
+        {
+            **values,
+            "finding_id": make_id("lf022_codex_audit_finding", values),
+        }
+    )
+
+
 def _render_summary_markdown(summary: LF022CodexAuditSummary) -> bytes:
     def counts(values: dict[str, int]) -> str:
         return ", ".join(f"`{key}` {value}" for key, value in values.items()) or "none"
@@ -986,6 +1075,7 @@ def _render_summary_markdown(summary: LF022CodexAuditSummary) -> bytes:
         f"- Audit manifest SHA-256: `{summary.audit_manifest_sha256}`",
         f"- Lean checks SHA-256: `{summary.checks_sha256}`",
         f"- Verified response set SHA-256: `{summary.response_artifact_set_sha256}`",
+        f"- Compact findings SHA-256: `{summary.findings_sha256}`",
         f"- Judge: `{summary.model}` with reasoning `{summary.reasoning_effort}`",
         "",
         "## Mechanical filtering",
@@ -1042,6 +1132,7 @@ def summarize_completed_lf022_codex_audit(
     audit_root: Path,
     output_json_path: Path,
     output_markdown_path: Path,
+    output_findings_path: Path,
 ) -> LF022CodexAuditSummaryResult:
     """Verify every completed audit artifact and write a diagnostic-only summary."""
 
@@ -1050,11 +1141,11 @@ def summarize_completed_lf022_codex_audit(
     audit_root = audit_root.resolve()
     output_json_path = output_json_path.resolve()
     output_markdown_path = output_markdown_path.resolve()
-    if output_json_path == output_markdown_path:
-        raise LF022CodexAuditError("summary JSON and Markdown paths must differ")
-    if output_json_path.is_relative_to(audit_root) or output_markdown_path.is_relative_to(
-        audit_root
-    ):
+    output_findings_path = output_findings_path.resolve()
+    output_paths = {output_json_path, output_markdown_path, output_findings_path}
+    if len(output_paths) != 3:
+        raise LF022CodexAuditError("summary JSON, Markdown, and findings paths must differ")
+    if any(path.is_relative_to(audit_root) for path in output_paths):
         raise LF022CodexAuditError("summary outputs must remain outside the immutable audit root")
 
     manifest_path = audit_root / "manifest.json"
@@ -1155,6 +1246,10 @@ def summarize_completed_lf022_codex_audit(
         proposer_family_id = _proposer_family_for_check(check, item, repo_root=repo_root)
         verified_item = _VerifiedAuditJudgment(
             audit_item_id=item.audit_item_id,
+            lean_check_id=item.lean_check_id,
+            pair_id=item.pair.pair_id,
+            variant_id=item.variant_id,
+            source_record_ids=item.pair.source_record_ids,
             proposer_family_id=proposer_family_id,
             response=response,
             final_message_sha256=terminal.final_message_sha256,
@@ -1177,6 +1272,9 @@ def summarize_completed_lf022_codex_audit(
     by_proposer_family = {
         family: _make_summary_bucket(grouped[family]) for family in sorted(grouped)
     }
+    findings = tuple(_make_audit_finding(item) for item in verified)
+    findings_bytes = b"".join(_canonical_line(finding) for finding in findings)
+    findings_sha256 = sha256_hex(findings_bytes)
     values: dict[str, object] = {
         "schema_version": 1,
         "method_version": "lf022_codex_audit_summary_v1",
@@ -1186,6 +1284,8 @@ def summarize_completed_lf022_codex_audit(
         "checks_artifact": str(checks_path),
         "checks_sha256": hash_file(checks_path),
         "response_artifact_set_sha256": hash_canonical(response_bindings),
+        "findings_artifact": str(output_findings_path),
+        "findings_sha256": findings_sha256,
         "model": manifest.model,
         "reasoning_effort": manifest.reasoning_effort,
         "total_check_count": len(checks),
@@ -1213,17 +1313,19 @@ def summarize_completed_lf022_codex_audit(
                 {
                     key: value
                     for key, value in values.items()
-                    if key not in {"audit_manifest", "checks_artifact"}
+                    if key not in {"audit_manifest", "checks_artifact", "findings_artifact"}
                 },
             ),
         }
     )
+    _write_atomic(output_findings_path, findings_bytes)
     _write_atomic(output_json_path, _canonical_line(summary))
     _write_atomic(output_markdown_path, _render_summary_markdown(summary))
     return LF022CodexAuditSummaryResult(
         summary=summary,
         json_path=output_json_path,
         markdown_path=output_markdown_path,
+        findings_path=output_findings_path,
     )
 
 
@@ -1231,6 +1333,7 @@ __all__ = [
     "DEFAULT_CODEX_AUDIT_MODEL",
     "DEFAULT_CODEX_REASONING_EFFORT",
     "LF022CodexAuditError",
+    "LF022CodexAuditFinding",
     "LF022CodexAuditInput",
     "LF022CodexAuditManifest",
     "LF022CodexAuditPrivacyError",

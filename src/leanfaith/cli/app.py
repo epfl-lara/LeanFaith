@@ -3805,6 +3805,13 @@ def summarize_lf022_codex_audit_command(
         Path,
         typer.Option("--output-markdown", help="Destination for the readable summary."),
     ] = Path("reports/generation/lf022_codex_audit_summary.md"),
+    output_findings: Annotated[
+        Path,
+        typer.Option(
+            "--output-findings",
+            help="Destination for compact audit-only per-pair findings.",
+        ),
+    ] = Path("reports/generation/lf022_codex_audit_findings.jsonl"),
     root_dir: Annotated[
         Path | None,
         typer.Option("--root", help="Repository root override."),
@@ -3829,6 +3836,7 @@ def summarize_lf022_codex_audit_command(
             audit_root=anchored(audit_root),
             output_json_path=anchored(output_json),
             output_markdown_path=anchored(output_markdown),
+            output_findings_path=anchored(output_findings),
         )
     except (LF022CodexAuditError, OSError, ValueError) as exc:
         typer.echo(f"LF-022 Codex audit summary rejected: {exc}", err=True)
@@ -3841,6 +3849,7 @@ def summarize_lf022_codex_audit_command(
         f"not_same_claim={summary.overall.same_claim_counts.get('not_same_claim', 0)} "
         f"uncertain={summary.overall.same_claim_counts.get('uncertain', 0)} "
         f"summary={result.json_path} report={result.markdown_path} "
+        f"findings={result.findings_path} "
         "audit_only=true human_labels_created=0 semantic_labels_created=0 "
         "silver_records_created=0 training_eligible=false evaluation_eligible=false "
         "gate_credit_claimed=false"

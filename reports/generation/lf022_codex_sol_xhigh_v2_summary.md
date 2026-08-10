@@ -5,10 +5,11 @@ labels and contributes no training, evaluation, silver-promotion, or gate credit
 
 ## Bound artifacts
 
-- Summary ID: `lf022_codex_audit_summary:b39c9dc66a43db2a98dca5c0e4b9eddd31c7e68437dc406ab79f9579e29e0328`
+- Summary ID: `lf022_codex_audit_summary:a8f47095a787ccf25efd90c3666a4f72c728ecc226e8d02f43136f6fe4c53380`
 - Audit manifest SHA-256: `b2866946d6a8285ddaff79a60c3d7f91520907aebf681165a931c1701f99f8c3`
 - Lean checks SHA-256: `657ec8e8f0b5ec6557b138a06608e998a26bead8fbd7ac6cd8415c586b43cd92`
 - Verified response set SHA-256: `c9835730ce718e2e491bf1282769c98e8cba222cd040e57302e82e58ad70c1b5`
+- Compact findings SHA-256: `69f37377902c5328bb0fa87e8dd014f3f19be095a228f2b3d3d805dcef451824`
 - Judge: `gpt-5.6-sol` with reasoning `xhigh`
 
 ## Mechanical filtering
