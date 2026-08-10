@@ -5200,6 +5200,10 @@ def materialize_deterministic_v2_d0_scale_command(
         V2D0N14Runtime,
         build_v2_d0_n14_runtime,
     )
+    from leanfaith.transforms.v2_d0_n15_runtime import (
+        V2D0N15Runtime,
+        build_v2_d0_n15_runtime,
+    )
     from leanfaith.transforms.v2_d0_runtime import V2D0Runtime, build_v2_d0_runtime
     from leanfaith.transforms.v2_d0_scale_run import V2D0ScaleRunError, run_v2_d0_scale
 
@@ -5225,7 +5229,7 @@ def materialize_deterministic_v2_d0_scale_command(
         )
         resolved_profile = anchored(profile_path).resolve(strict=True)
         profile_id = load_yaml_mapping(resolved_profile).get("profile_id")
-        runtime: V2D0Runtime | V2D0N12Runtime | V2D0N13Runtime | V2D0N14Runtime
+        runtime: V2D0Runtime | V2D0N12Runtime | V2D0N13Runtime | V2D0N14Runtime | V2D0N15Runtime
         if profile_id == "deterministic_v2_d0_n11_experimental":
             runtime = build_v2_d0_runtime(paths.root, path=resolved_profile)
         elif profile_id == "deterministic_v2_d0_n12_experimental":
@@ -5234,6 +5238,8 @@ def materialize_deterministic_v2_d0_scale_command(
             runtime = build_v2_d0_n13_runtime(paths.root, path=resolved_profile)
         elif profile_id == "deterministic_v2_d0_n14_experimental":
             runtime = build_v2_d0_n14_runtime(paths.root, path=resolved_profile)
+        elif profile_id == "deterministic_v2_d0_n15_experimental":
+            runtime = build_v2_d0_n15_runtime(paths.root, path=resolved_profile)
         else:
             raise V2D0ScaleRunError(f"unsupported D0 profile_id: {profile_id!r}")
         resolved_output = anchored(output_dir)
