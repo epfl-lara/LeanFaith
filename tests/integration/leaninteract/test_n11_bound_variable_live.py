@@ -18,6 +18,11 @@ from leanfaith.schemas.ids import make_id
 from leanfaith.schemas.theorem import TheoremRecord
 from leanfaith.transforms.materialize import build_derived_theorem_record
 from leanfaith.transforms.negatives.n11_bound_variable import N11BoundVariableRule
+from leanfaith.transforms.v2_d0_runtime import build_v2_d0_runtime
+from leanfaith.transforms.v2_d0_scale import (
+    V2D0MaterializationInput,
+    materialize_v2_d0_batch,
+)
 from tests.unit.record_factories import theorem_record
 
 pytestmark = [
@@ -132,5 +137,59 @@ def test_n11_live_candidate_elaborates_and_has_one_certified_bvar_delta(
         assert audit.recommended_quality_tier == QualityTier.PROVISIONAL
         assert audit.metadata["resolved_semantic_label"] is False
         assert audit.metadata["training_eligible"] is False
+    finally:
+        backend.close()
+
+
+def test_n11_live_pooled_materializer_creates_only_provisional_variant(
+    tmp_path: Path,
+) -> None:
+    backend = LeanInteractBackend(
+        BackendSettings(
+            project_dir=_FIXTURES,
+            context_fingerprint=_CTX_FP,
+            environment_schema_version=1,
+            raw_response_dir=tmp_path / "raw-scale",
+            enable_parallel_elaboration=False,
+        )
+    )
+    try:
+        source = _source_theorem()
+        (source_representation,) = build_representations(
+            backend,
+            [
+                TheoremForRepresentation(
+                    theorem_id=source.theorem_id,
+                    full_name="n11_live",
+                    proof_stripped=_SOURCE,
+                    context_id=_CTX,
+                    inline_declaration=True,
+                    inline_source=source.inline_elaboration_source,
+                )
+            ],
+            imports="import LeanFaithFixtures",
+            created_at=_NOW,
+        )
+        (result,) = materialize_v2_d0_batch(
+            backend=backend,
+            runtime=build_v2_d0_runtime(),
+            inputs=(
+                V2D0MaterializationInput(
+                    theorem=source,
+                    representation=source_representation,
+                    rule_id="n11_bound_variable_substitution",
+                    seed=7,
+                ),
+            ),
+            context_id=_CTX,
+            project_dir=_FIXTURES,
+            import_header="import LeanFaithFixtures",
+        )
+        assert result.terminal_status == "provisional_variant"
+        assert result.variant is not None
+        assert result.variant.polarity_metadata.value == "negative"
+        assert result.resolved_label_count == 0
+        assert result.promoted_item_count == 0
+        assert result.training_eligible is False
     finally:
         backend.close()
