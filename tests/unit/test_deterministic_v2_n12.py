@@ -1,0 +1,294 @@
+"""Focused LF-034 tests for the provisional N12 D0 family."""
+
+from __future__ import annotations
+
+import hashlib
+
+import pytest
+
+from leanfaith.representations import alpha_identity_fingerprint
+from leanfaith.representations.atoms import operator_tree, semantic_atoms
+from leanfaith.schemas import CANONICAL_VIEW_NAMES, ViewStatus, make_id
+from leanfaith.schemas.enums import IntendedRelation, QualityTier, ValidationStatus
+from leanfaith.schemas.theorem import RepresentationRecord, TheoremRecord
+from leanfaith.transforms.materialize import build_derived_theorem_record
+from leanfaith.transforms.negatives.n12_implication_converse import (
+    N12ImplicationConverseError,
+    N12ImplicationConverseRule,
+    apply_n12_trace,
+    build_implication_converse_root,
+    certify_implication_converse,
+    enumerate_n12_sites,
+)
+from leanfaith.transforms.v2_d0_n12_runtime import (
+    V2D0N12ExecutionError,
+    build_v2_d0_n12_runtime,
+    load_v2_d0_n12_execution_config,
+)
+from tests.unit.record_factories import representation_record, theorem_record
+
+_SOURCE = "theorem n12 (Premise Goal : Prop) (h : Premise) : Goal := by sorry"
+
+
+def _root(*, converse: bool = False) -> dict[str, object]:
+    prop = {"k": "sort", "u": "0"}
+    return {
+        "k": "forall",
+        "bi": "default",
+        "dom": prop,
+        "body": {
+            "k": "forall",
+            "bi": "default",
+            "dom": prop,
+            "body": {
+                "k": "forall",
+                "bi": "default",
+                "dom": {"k": "bvar", "i": 0 if converse else 1},
+                "body": {"k": "bvar", "i": 2 if converse else 1},
+            },
+        },
+    }
+
+
+def _records(
+    source: str,
+    key: str,
+    root: dict[str, object],
+) -> tuple[TheoremRecord, RepresentationRecord]:
+    theorem_id = make_id("thm", {"n12": key})
+    ancestry_id = make_id("anc", {"n12": key})
+    theorem = theorem_record(
+        theorem_id=theorem_id,
+        ancestry_id=ancestry_id,
+        root_ancestry_ids=(ancestry_id,),
+        declaration_name="n12",
+        declaration_full_name="n12",
+        proof_stripped_declaration=source,
+        inline_elaboration_source="import LeanFaithFixtures\n" + source,
+        statement_content_hash=hashlib.sha256(source.encode()).hexdigest(),
+    )
+    statuses = {
+        name: (
+            ViewStatus.OK
+            if name
+            in {
+                "raw_proof_stripped",
+                "headless",
+                "signature_pp",
+                "signature_explicit",
+                "semantic_atoms",
+                "operator_tree",
+            }
+            else ViewStatus.NOT_ATTEMPTED
+        )
+        for name in CANONICAL_VIEW_NAMES
+    }
+    representation = representation_record(
+        representation_id=make_id("repr", {"n12": key}),
+        theorem_id=theorem_id,
+        raw_proof_stripped=source,
+        headless="(Premise Goal : Prop) (h : Premise) : Goal",
+        signature_pp="∀ (Premise Goal : Prop), Premise → Goal",
+        signature_explicit="∀ (Premise Goal : Prop), Premise → Goal",
+        semantic_atoms=semantic_atoms(root),
+        operator_tree=operator_tree(root),
+        alpha_identity_fingerprint=alpha_identity_fingerprint(root),
+        view_status=statuses,
+    )
+    return theorem, representation
+
+
+def _candidate_records(
+    source: TheoremRecord,
+    source_representation: RepresentationRecord,
+    draft_code: str,
+) -> tuple[TheoremRecord, RepresentationRecord]:
+    rule = N12ImplicationConverseRule(
+        generation_config_hash="b" * 64,
+        candidate_pool="fixture",
+    )
+    draft = rule.generate(source, source_representation, seed=7)[0]
+    assert draft.candidate_code == draft_code
+    candidate = build_derived_theorem_record(
+        draft=draft,
+        sources=(source,),
+        primary_source_id=source.theorem_id,
+        elaboration_status=ValidationStatus.ELABORATES_WITH_PLACEHOLDER,
+        inline_elaboration_source="import LeanFaithFixtures\n" + draft_code,
+    )
+    candidate_root = _root(converse=True)
+    candidate_representation = source_representation.model_copy(
+        update={
+            "representation_id": make_id("repr", {"n12_candidate": candidate.theorem_id}),
+            "theorem_id": candidate.theorem_id,
+            "raw_proof_stripped": draft_code,
+            "signature_explicit": "∀ (Premise Goal : Prop), Goal → Premise",
+            "semantic_atoms": semantic_atoms(candidate_root),
+            "operator_tree": operator_tree(candidate_root),
+            "alpha_identity_fingerprint": alpha_identity_fingerprint(candidate_root),
+        }
+    )
+    return candidate, candidate_representation
+
+
+def test_n12_enumerates_one_surface_and_expr_aligned_site() -> None:
+    (site,) = enumerate_n12_sites(_SOURCE, operator_tree(_root()))
+    assert site.hypothesis_name == "h"
+    assert site.premise_name == "Premise"
+    assert site.conclusion_name == "Goal"
+    assert site.hypothesis_outer_index == 2
+    assert site.premise_outer_index == 0
+    assert site.conclusion_outer_index == 1
+    assert build_implication_converse_root(_root(), 2) == _root(converse=True)
+
+
+@pytest.mark.parametrize(
+    ("source", "root"),
+    [
+        (
+            "theorem same (P : Prop) (h : P) : P := by sorry",
+            {
+                "k": "forall",
+                "bi": "default",
+                "dom": {"k": "sort", "u": "0"},
+                "body": {
+                    "k": "forall",
+                    "bi": "default",
+                    "dom": {"k": "bvar", "i": 0},
+                    "body": {"k": "bvar", "i": 1},
+                },
+            },
+        ),
+        (
+            "theorem implicit (P Q : Prop) {h : P} : Q := by sorry",
+            _root(),
+        ),
+        (
+            "theorem expression (P Q : Prop) (h : P) : P ∧ Q := by sorry",
+            _root(),
+        ),
+        (
+            "theorem nested (P Q : Prop) (h : P) : Q → P := by sorry",
+            _root(),
+        ),
+    ],
+)
+def test_n12_rejects_identical_implicit_complex_and_nested_cases(
+    source: str,
+    root: dict[str, object],
+) -> None:
+    assert enumerate_n12_sites(source, operator_tree(root)) == ()
+
+
+def test_n12_generation_has_exact_inverse_even_with_different_name_lengths() -> None:
+    theorem, representation = _records(_SOURCE, "generate", _root())
+    rule = N12ImplicationConverseRule(
+        generation_config_hash="b" * 64,
+        candidate_pool="fixture",
+    )
+    draft = rule.generate(theorem, representation, seed=7)[0]
+    assert draft.candidate_code == (
+        "theorem n12 (Premise Goal : Prop) (h : Goal) : Premise := by sorry"
+    )
+    assert draft.intended_relation == IntendedRelation.NEAR_MISS
+    assert draft.intended_error_types == ("E26", "E30")
+    assert draft.inverse_trace is not None
+    assert apply_n12_trace(draft.candidate_code, draft.inverse_trace) == _SOURCE
+    assert draft.metadata["resolved_semantic_label"] is False
+    assert draft.metadata["training_eligible"] is False
+
+
+def test_n12_structural_certificate_accepts_only_exact_converse() -> None:
+    certificate = certify_implication_converse(_root(), _root(converse=True), 2)
+    assert certificate.hypothesis_outer_index == 2
+    assert certificate.source_root_hash != certificate.candidate_root_hash
+
+    corrupted = _root(converse=True)
+    assert isinstance(corrupted["body"], dict)
+    assert isinstance(corrupted["body"]["body"], dict)
+    corrupted["body"]["body"]["body"] = {"k": "bvar", "i": 1}
+    with pytest.raises(N12ImplicationConverseError, match="not_exact_root_converse"):
+        certify_implication_converse(_root(), corrupted, 2)
+
+
+def test_n12_clean_audit_is_provisional_without_semantic_credit() -> None:
+    theorem, representation = _records(_SOURCE, "audit", _root())
+    rule = N12ImplicationConverseRule(
+        generation_config_hash="b" * 64,
+        candidate_pool="fixture",
+    )
+    draft = rule.generate(theorem, representation, seed=7)[0]
+    candidate, candidate_representation = _candidate_records(
+        theorem,
+        representation,
+        draft.candidate_code,
+    )
+    audit = rule.audit(
+        theorem,
+        representation,
+        candidate,
+        candidate_representation,
+        draft,
+    )
+    assert audit.violation_codes == ()
+    assert audit.recommended_quality_tier == QualityTier.PROVISIONAL
+    assert audit.structural_diff_ok is True
+    assert audit.inverse_or_roundtrip_ok is True
+    assert audit.metadata["evidence_class"] == "D0"
+    assert audit.metadata["failed_proof_search_used"] is False
+    assert audit.metadata["resolved_semantic_label"] is False
+    assert audit.metadata["training_eligible"] is False
+
+
+def test_n12_audit_quarantines_structural_corruption() -> None:
+    theorem, representation = _records(_SOURCE, "corrupt", _root())
+    rule = N12ImplicationConverseRule(
+        generation_config_hash="b" * 64,
+        candidate_pool="fixture",
+    )
+    draft = rule.generate(theorem, representation, seed=7)[0]
+    candidate, candidate_representation = _candidate_records(
+        theorem,
+        representation,
+        draft.candidate_code,
+    )
+    corrupted = candidate_representation.model_copy(
+        update={"operator_tree": operator_tree(_root())}
+    )
+    audit = rule.audit(theorem, representation, candidate, corrupted, draft)
+    assert audit.recommended_quality_tier == QualityTier.UNKNOWN
+    assert "candidate_not_exact_root_converse" in audit.violation_codes
+
+
+def test_n12_trace_corruption_fails_closed() -> None:
+    theorem, representation = _records(_SOURCE, "trace", _root())
+    rule = N12ImplicationConverseRule(
+        generation_config_hash="b" * 64,
+        candidate_pool="fixture",
+    )
+    draft = rule.generate(theorem, representation, seed=7)[0]
+    step = {**draft.transformation_trace[0], "left_text": "Wrong"}
+    with pytest.raises(N12ImplicationConverseError, match="expected_text_mismatch"):
+        apply_n12_trace(_SOURCE, (step,))
+
+
+def test_n12_profile_binds_portfolio_and_dispatches_only_n12() -> None:
+    loaded = load_v2_d0_n12_execution_config()
+    assert loaded.config.profile_id == "deterministic_v2_d0_n12_experimental"
+    assert loaded.config.active_rules[0].intended_error_types == ("E26", "E30")
+    assert loaded.config.resolved_label_count == 0
+    assert loaded.config.promoted_item_count == 0
+    assert loaded.config.training_eligible is False
+
+    theorem, representation = _records(_SOURCE, "runtime", _root())
+    runtime = build_v2_d0_n12_runtime()
+    execution = runtime.execute(
+        "n12_implication_converse",
+        theorem,
+        representation,
+        seed=7,
+    )
+    assert execution.attempt.terminal_outcome == "generated"
+    assert len(execution.drafts) == 1
+    with pytest.raises(V2D0N12ExecutionError, match="outside the N12 profile"):
+        runtime.execute("n11_bound_variable_substitution", theorem, representation, seed=7)
