@@ -5,7 +5,7 @@ from __future__ import annotations
 import datetime
 import json
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Literal
 
 import typer
 
@@ -4874,6 +4874,132 @@ def probe_deterministic_v2_coverage_command(
         f"representations={report.representation_record_count} "
         f"family_signal_hits={total_hits} lean_requests=0 drafts=0 labels=0 "
         "interpretation=upper_bound_signal_not_applicability"
+    )
+
+
+@app.command("materialize-deterministic-v2-e0")
+def materialize_deterministic_v2_e0_command(
+    theorem_path: Annotated[
+        Path,
+        typer.Option("--theorem", help="One canonical TheoremRecord JSON object."),
+    ],
+    representation_path: Annotated[
+        Path,
+        typer.Option(
+            "--representation",
+            help="The source theorem's canonical RepresentationRecord JSON object.",
+        ),
+    ],
+    rule_id: Annotated[
+        str,
+        typer.Option(
+            "--rule-id",
+            help="Exactly p11_bounded_quantifiers or p12_proof_arrow_binder.",
+        ),
+    ],
+    project_dir: Annotated[
+        Path,
+        typer.Option("--project-dir", help="Pinned Lean project used by LeanInteract."),
+    ],
+    output_path: Annotated[
+        Path,
+        typer.Option("--output", help="New create-only provisional result JSON path."),
+    ],
+    import_header_path: Annotated[
+        Path | None,
+        typer.Option(
+            "--import-header",
+            help="Optional import-header text file for sources without inline/file context.",
+        ),
+    ] = None,
+    seed: Annotated[int, typer.Option("--seed")] = 0,
+    raw_response_dir: Annotated[
+        Path | None,
+        typer.Option("--raw-response-dir", help="LeanInteract raw-response directory."),
+    ] = None,
+    root_dir: Annotated[
+        Path | None,
+        typer.Option("--root", help="Repository root override."),
+    ] = None,
+) -> None:
+    """Run one experimental P11/P12 E0 candidate through LeanInteract."""
+    from typing import cast
+
+    from leanfaith.config.paths import RepoPaths
+    from leanfaith.lean.leaninteract_backend import BackendSettings, LeanInteractBackend
+    from leanfaith.schemas.theorem import RepresentationRecord, TheoremRecord
+    from leanfaith.transforms.v2_e0_materializer import (
+        V2E0MaterializationError,
+        materialize_v2_e0_candidate,
+        read_single_record,
+        write_v2_e0_result,
+    )
+    from leanfaith.transforms.v2_e0_runtime import build_v2_e0_runtime
+
+    paths = RepoPaths.discover(root_dir) if root_dir is None else RepoPaths(root=root_dir)
+
+    def anchored(path: Path) -> Path:
+        return path if path.is_absolute() else paths.root / path
+
+    allowed = {"p11_bounded_quantifiers", "p12_proof_arrow_binder"}
+    if rule_id not in allowed:
+        typer.echo("--rule-id must be p11_bounded_quantifiers or p12_proof_arrow_binder", err=True)
+        raise typer.Exit(code=2)
+    try:
+        theorem = cast(
+            TheoremRecord,
+            read_single_record(anchored(theorem_path), TheoremRecord),
+        )
+        representation = cast(
+            RepresentationRecord,
+            read_single_record(
+                anchored(representation_path),
+                RepresentationRecord,
+            ),
+        )
+        import_header = (
+            ""
+            if import_header_path is None
+            else anchored(import_header_path).read_text(encoding="utf-8")
+        )
+        runtime = build_v2_e0_runtime(paths.root)
+        raw_dir = (
+            anchored(raw_response_dir)
+            if raw_response_dir is not None
+            else anchored(output_path).parent / "raw_lean"
+        )
+        backend = LeanInteractBackend(
+            BackendSettings(
+                project_dir=anchored(project_dir),
+                context_fingerprint=theorem.context_id.removeprefix("ctx:"),
+                environment_schema_version=1,
+                raw_response_dir=raw_dir,
+            )
+        )
+        try:
+            result = materialize_v2_e0_candidate(
+                backend=backend,
+                runtime=runtime,
+                theorem=theorem,
+                representation=representation,
+                rule_id=cast(
+                    Literal["p11_bounded_quantifiers", "p12_proof_arrow_binder"],
+                    rule_id,
+                ),
+                seed=seed,
+                project_dir=anchored(project_dir),
+                import_header=import_header,
+            )
+        finally:
+            backend.close()
+        digest = write_v2_e0_result(result, anchored(output_path))
+    except (OSError, ValueError, V2E0MaterializationError) as exc:
+        typer.echo(f"deterministic-v2 E0 materialization rejected: {exc}", err=True)
+        raise typer.Exit(code=1) from exc
+    typer.echo(
+        "deterministic-v2 E0 materialization complete; "
+        f"status={result.terminal_status} output={anchored(output_path)} "
+        f"sha256={digest} resolved_labels=0 promoted_items=0 training_eligible=false"
     )
 
 
