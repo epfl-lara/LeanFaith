@@ -19,6 +19,7 @@ from leanfaith.schemas.enums import QualityTier
 from leanfaith.schemas.theorem import RepresentationRecord, TheoremRecord
 from leanfaith.schemas.variant import TransformationAudit, VariantDraft
 from leanfaith.transforms.protocol import (
+    TransformationRule,
     build_transformation_attempt,
     verify_variant_draft_id,
 )
@@ -31,7 +32,33 @@ SemanticVersion = Annotated[
     Field(pattern=r"^[0-9]+\.[0-9]+\.[0-9]+$", strict=True),
 ]
 
-_ACTIVE_RULE_IDS = ("p11_bounded_quantifiers", "p12_proof_arrow_binder")
+V2E0RuleId = Literal[
+    "p06_implicit_arguments",
+    "p07_coercion_surface",
+    "p09_projections",
+    "p10_constructors",
+    "p11_bounded_quantifiers",
+    "p12_proof_arrow_binder",
+]
+V2E0ProfileId = Literal[
+    "deterministic_v2_e0_experimental",
+    "deterministic_v2_e0_lf032_experimental",
+]
+
+_PROFILE_RULE_IDS: dict[str, tuple[str, ...]] = {
+    "deterministic_v2_e0_experimental": (
+        "p11_bounded_quantifiers",
+        "p12_proof_arrow_binder",
+    ),
+    "deterministic_v2_e0_lf032_experimental": (
+        "p06_implicit_arguments",
+        "p07_coercion_surface",
+        "p09_projections",
+        "p10_constructors",
+        "p11_bounded_quantifiers",
+        "p12_proof_arrow_binder",
+    ),
+}
 
 
 class V2E0ExecutionError(ValueError):
@@ -39,10 +66,10 @@ class V2E0ExecutionError(ValueError):
 
 
 class V2E0RuleBinding(StrictModel):
-    family_id: Literal["p11_bounded_quantifiers", "p12_proof_arrow_binder"]
-    rule_id: Literal["p11_bounded_quantifiers", "p12_proof_arrow_binder"]
+    family_id: V2E0RuleId
+    rule_id: V2E0RuleId
     rule_version: SemanticVersion
-    implementation_key: Literal["p11_bounded_quantifiers", "p12_proof_arrow_binder"]
+    implementation_key: V2E0RuleId
     evidence_class: Literal[V2EvidenceClass.E0] = V2EvidenceClass.E0
 
     @model_validator(mode="after")
@@ -54,13 +81,16 @@ class V2E0RuleBinding(StrictModel):
 
 class V2E0ExecutionConfig(StrictModel):
     schema_version: Literal[1] = 1
-    profile_id: Literal["deterministic_v2_e0_experimental"]
+    profile_id: V2E0ProfileId
     profile_version: SemanticVersion
     status: Literal["experimental"]
     portfolio_id: Literal["leanfaith_deterministic_v2_design"]
     portfolio_config_hash: Sha256
     accepted_v1_effective_registry_hash: Sha256
-    candidate_pool: Literal["deterministic_v2_e0_experimental"]
+    candidate_pool: Literal[
+        "deterministic_v2_e0_experimental",
+        "deterministic_v2_e0_lf032_experimental",
+    ]
     active_rules: tuple[V2E0RuleBinding, ...]
     required_candidate_views: tuple[
         Literal[
@@ -82,8 +112,11 @@ class V2E0ExecutionConfig(StrictModel):
 
     @model_validator(mode="after")
     def _exact_slice(self) -> V2E0ExecutionConfig:
-        if tuple(item.rule_id for item in self.active_rules) != _ACTIVE_RULE_IDS:
-            raise ValueError("v2 E0 slice must contain exactly P11 then P12")
+        expected = _PROFILE_RULE_IDS[self.profile_id]
+        if tuple(item.rule_id for item in self.active_rules) != expected:
+            raise ValueError(f"v2 E0 profile {self.profile_id} must contain exactly {expected}")
+        if self.candidate_pool != self.profile_id:
+            raise ValueError("v2 E0 candidate_pool must equal profile_id")
         if self.required_candidate_views != (
             "alpha_identity_fingerprint",
             "operator_tree",
@@ -126,23 +159,41 @@ class V2E0Runtime:
     """Code-owned dispatcher for exactly P11 and P12."""
 
     def __init__(self, loaded: LoadedConfig[V2E0ExecutionConfig]) -> None:
+        from leanfaith.transforms.positives.p06_p10_surface import (
+            P06ImplicitArgumentsRule,
+            P10ConstructorsRule,
+        )
         from leanfaith.transforms.positives.v2_e0 import (
             P11BoundedQuantifierRule,
             P12ProofArrowBinderRule,
+        )
+        from leanfaith.transforms.positives.v2_e0_p07_p09 import (
+            P07CoercionSurfaceRule,
+            P09ProjectionSurfaceRule,
         )
 
         self.loaded = loaded
         self.generation_config_hash = loaded.config_hash
         self.portfolio_hash = loaded.config.portfolio_config_hash
-        self._rules = {
+        constructor_args = {
+            "generation_config_hash": loaded.config_hash,
+            "candidate_pool": loaded.config.candidate_pool,
+        }
+        supported = {
+            "p06_implicit_arguments": P06ImplicitArgumentsRule(**constructor_args),
+            "p07_coercion_surface": P07CoercionSurfaceRule(**constructor_args),
+            "p09_projections": P09ProjectionSurfaceRule(**constructor_args),
+            "p10_constructors": P10ConstructorsRule(**constructor_args),
             "p11_bounded_quantifiers": P11BoundedQuantifierRule(
-                generation_config_hash=loaded.config_hash,
-                candidate_pool=loaded.config.candidate_pool,
+                **constructor_args,
             ),
             "p12_proof_arrow_binder": P12ProofArrowBinderRule(
-                generation_config_hash=loaded.config_hash,
-                candidate_pool=loaded.config.candidate_pool,
+                **constructor_args,
             ),
+        }
+        self._rules: dict[str, TransformationRule] = {
+            rule_id: supported[rule_id]
+            for rule_id in (binding.rule_id for binding in loaded.config.active_rules)
         }
 
     @property

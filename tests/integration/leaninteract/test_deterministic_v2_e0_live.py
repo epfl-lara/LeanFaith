@@ -7,7 +7,7 @@ import hashlib
 import shutil
 from collections.abc import Iterator
 from pathlib import Path
-from typing import Literal, cast
+from typing import cast
 
 import pytest
 
@@ -16,7 +16,7 @@ from leanfaith.lean.leaninteract_backend import BackendSettings, LeanInteractBac
 from leanfaith.representations import TheoremForRepresentation, build_representations
 from leanfaith.schemas import TheoremRecord, ValidationStatus, make_id
 from leanfaith.transforms.v2_e0_materializer import materialize_v2_e0_candidate
-from leanfaith.transforms.v2_e0_runtime import build_v2_e0_runtime
+from leanfaith.transforms.v2_e0_runtime import V2E0RuleId, build_v2_e0_runtime
 
 pytestmark = [
     pytest.mark.lean,
@@ -27,6 +27,7 @@ _FIXTURES = find_repo_root(Path(__file__).parent) / "tests" / "lean_fixtures"
 _CONTEXT_FINGERPRINT = "0" * 64
 _CONTEXT_ID = f"ctx:{_CONTEXT_FINGERPRINT}"
 _CREATED_AT = datetime.datetime(2026, 8, 10, tzinfo=datetime.UTC)
+_PROFILE = Path("configs/transformations/v2_e0_lf032_experimental.yaml")
 
 
 @pytest.fixture(scope="module")
@@ -67,25 +68,54 @@ def _source(code: str, name: str) -> TheoremRecord:
 
 
 @pytest.mark.parametrize(
-    ("rule_id", "name", "code"),
+    ("rule_id", "name", "code", "expected_status"),
     [
+        (
+            "p06_implicit_arguments",
+            "v2_e0_live_implicit",
+            "theorem v2_e0_live_implicit (xs : List Nat) : "
+            "@List.length Nat xs = xs.length := by sorry",
+            "provisional_variant",
+        ),
+        (
+            "p07_coercion_surface",
+            "v2_e0_live_coercion",
+            "theorem v2_e0_live_coercion (n : Nat) : (↑n : Int) = 0 := by sorry",
+            "not_applicable",
+        ),
+        (
+            "p09_projections",
+            "v2_e0_live_projection",
+            "theorem v2_e0_live_projection (p : Nat × Nat) : p.1 = 0 := by sorry",
+            "provisional_variant",
+        ),
+        (
+            "p10_constructors",
+            "v2_e0_live_constructor",
+            "theorem v2_e0_live_constructor (a : Nat) (b : Bool) : "
+            "(⟨a, b⟩ : Nat × Bool) = (a, b) := by sorry",
+            "provisional_variant",
+        ),
         (
             "p11_bounded_quantifiers",
             "v2_e0_live_bounded",
             "theorem v2_e0_live_bounded (s : List Nat) (P : Nat → Prop) : ∀ x ∈ s, P x := by sorry",
+            "provisional_variant",
         ),
         (
             "p12_proof_arrow_binder",
             "v2_e0_live_arrow",
             "theorem v2_e0_live_arrow (P Q : Prop) : P → Q := by sorry",
+            "provisional_variant",
         ),
     ],
 )
-def test_p11_p12_materialize_with_exact_live_identity(
+def test_lf032_materializes_only_with_exact_live_identity(
     backend: LeanInteractBackend,
     rule_id: str,
     name: str,
     code: str,
+    expected_status: str,
 ) -> None:
     source = _source(code, name)
     source_representation = build_representations(
@@ -106,19 +136,20 @@ def test_p11_p12_materialize_with_exact_live_identity(
 
     result = materialize_v2_e0_candidate(
         backend=backend,
-        runtime=build_v2_e0_runtime(),
+        runtime=build_v2_e0_runtime(path=_PROFILE),
         theorem=source,
         representation=source_representation,
-        rule_id=cast(
-            Literal["p11_bounded_quantifiers", "p12_proof_arrow_binder"],
-            rule_id,
-        ),
+        rule_id=cast(V2E0RuleId, rule_id),
         seed=11,
         project_dir=_FIXTURES,
         import_header="import LeanFaithFixtures",
     )
 
-    assert result.terminal_status == "provisional_variant"
+    assert result.terminal_status == expected_status
+    if expected_status == "not_applicable":
+        assert result.variant is None
+        assert result.attempt.applicability.reason_codes
+        return
     assert result.variant is not None
     assert result.candidate_representation is not None
     assert result.audit is not None

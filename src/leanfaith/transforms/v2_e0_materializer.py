@@ -31,7 +31,7 @@ from leanfaith.schemas.variant import (
 )
 from leanfaith.transforms.materialize import build_derived_theorem_record
 from leanfaith.transforms.protocol import build_deterministic_variant_record
-from leanfaith.transforms.v2_e0_runtime import V2E0Runtime
+from leanfaith.transforms.v2_e0_runtime import V2E0ProfileId, V2E0RuleId, V2E0Runtime
 
 
 class V2E0MaterializationError(ValueError):
@@ -41,9 +41,9 @@ class V2E0MaterializationError(ValueError):
 class V2E0MaterializationResult(StrictModel):
     schema_version: Literal[1] = 1
     result_id: str
-    profile_id: Literal["deterministic_v2_e0_experimental"]
+    profile_id: V2E0ProfileId
     profile_config_hash: str
-    rule_id: Literal["p11_bounded_quantifiers", "p12_proof_arrow_binder"]
+    rule_id: V2E0RuleId
     terminal_status: Literal[
         "not_applicable",
         "no_output",
@@ -175,7 +175,7 @@ def materialize_v2_e0_candidate(
     runtime: V2E0Runtime,
     theorem: TheoremRecord,
     representation: RepresentationRecord,
-    rule_id: Literal["p11_bounded_quantifiers", "p12_proof_arrow_binder"],
+    rule_id: V2E0RuleId,
     seed: int,
     project_dir: Path,
     import_header: str,

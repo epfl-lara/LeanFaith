@@ -5,7 +5,7 @@ from __future__ import annotations
 import datetime
 import json
 from pathlib import Path
-from typing import Annotated, Literal
+from typing import Annotated
 
 import typer
 
@@ -4894,7 +4894,7 @@ def materialize_deterministic_v2_e0_command(
         str,
         typer.Option(
             "--rule-id",
-            help="Exactly p11_bounded_quantifiers or p12_proof_arrow_binder.",
+            help="One rule enabled by the selected deterministic-v2 E0 profile.",
         ),
     ],
     project_dir: Annotated[
@@ -4905,6 +4905,13 @@ def materialize_deterministic_v2_e0_command(
         Path,
         typer.Option("--output", help="New create-only provisional result JSON path."),
     ],
+    profile_path: Annotated[
+        Path,
+        typer.Option(
+            "--profile",
+            help="Versioned deterministic-v2 E0 execution profile.",
+        ),
+    ] = Path("configs/transformations/v2_e0_lf032_experimental.yaml"),
     import_header_path: Annotated[
         Path | None,
         typer.Option(
@@ -4922,7 +4929,7 @@ def materialize_deterministic_v2_e0_command(
         typer.Option("--root", help="Repository root override."),
     ] = None,
 ) -> None:
-    """Run one experimental P11/P12 E0 candidate through LeanInteract."""
+    """Run one experimental LF-032 E0 candidate through LeanInteract."""
     from typing import cast
 
     from leanfaith.config.paths import RepoPaths
@@ -4934,17 +4941,13 @@ def materialize_deterministic_v2_e0_command(
         read_single_record,
         write_v2_e0_result,
     )
-    from leanfaith.transforms.v2_e0_runtime import build_v2_e0_runtime
+    from leanfaith.transforms.v2_e0_runtime import V2E0RuleId, build_v2_e0_runtime
 
     paths = RepoPaths.discover(root_dir) if root_dir is None else RepoPaths(root=root_dir)
 
     def anchored(path: Path) -> Path:
         return path if path.is_absolute() else paths.root / path
 
-    allowed = {"p11_bounded_quantifiers", "p12_proof_arrow_binder"}
-    if rule_id not in allowed:
-        typer.echo("--rule-id must be p11_bounded_quantifiers or p12_proof_arrow_binder", err=True)
-        raise typer.Exit(code=2)
     try:
         theorem = cast(
             TheoremRecord,
@@ -4962,7 +4965,11 @@ def materialize_deterministic_v2_e0_command(
             if import_header_path is None
             else anchored(import_header_path).read_text(encoding="utf-8")
         )
-        runtime = build_v2_e0_runtime(paths.root)
+        runtime = build_v2_e0_runtime(paths.root, path=anchored(profile_path))
+        if rule_id not in runtime.rule_ids:
+            raise ValueError(
+                f"rule {rule_id!r} is not enabled by profile {runtime.loaded.config.profile_id}"
+            )
         raw_dir = (
             anchored(raw_response_dir)
             if raw_response_dir is not None
@@ -4982,10 +4989,7 @@ def materialize_deterministic_v2_e0_command(
                 runtime=runtime,
                 theorem=theorem,
                 representation=representation,
-                rule_id=cast(
-                    Literal["p11_bounded_quantifiers", "p12_proof_arrow_binder"],
-                    rule_id,
-                ),
+                rule_id=cast(V2E0RuleId, rule_id),
                 seed=seed,
                 project_dir=anchored(project_dir),
                 import_header=import_header,
