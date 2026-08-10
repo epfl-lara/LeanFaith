@@ -23,6 +23,7 @@ from leanfaith.transforms.v2_d0_n12_runtime import V2D0N12Runtime
 from leanfaith.transforms.v2_d0_n13_runtime import V2D0N13Runtime
 from leanfaith.transforms.v2_d0_n14_runtime import V2D0N14Runtime
 from leanfaith.transforms.v2_d0_n15_runtime import V2D0N15Runtime
+from leanfaith.transforms.v2_d0_n16_runtime import V2D0N16Runtime
 from leanfaith.transforms.v2_d0_runtime import V2D0Runtime
 from leanfaith.transforms.v2_e0_materializer import _inline_candidate_source
 
@@ -49,7 +50,12 @@ class _GeneratedCandidate:
 
 
 def _common(
-    runtime: V2D0Runtime | V2D0N12Runtime | V2D0N13Runtime | V2D0N14Runtime | V2D0N15Runtime,
+    runtime: V2D0Runtime
+    | V2D0N12Runtime
+    | V2D0N13Runtime
+    | V2D0N14Runtime
+    | V2D0N15Runtime
+    | V2D0N16Runtime,
     item: V2D0MaterializationInput,
     attempt: TransformationAttempt,
 ) -> dict[str, object]:
@@ -97,7 +103,12 @@ def _representation_input(candidate: TheoremRecord) -> TheoremForRepresentation:
 def materialize_v2_d0_batch(
     *,
     backend: LeanInteractBackend,
-    runtime: V2D0Runtime | V2D0N12Runtime | V2D0N13Runtime | V2D0N14Runtime | V2D0N15Runtime,
+    runtime: V2D0Runtime
+    | V2D0N12Runtime
+    | V2D0N13Runtime
+    | V2D0N14Runtime
+    | V2D0N15Runtime
+    | V2D0N16Runtime,
     inputs: Sequence[V2D0MaterializationInput],
     context_id: str,
     project_dir: Path,

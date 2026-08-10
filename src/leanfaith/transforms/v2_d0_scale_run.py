@@ -26,6 +26,7 @@ from leanfaith.transforms.v2_d0_n12_runtime import V2D0N12Runtime
 from leanfaith.transforms.v2_d0_n13_runtime import V2D0N13Runtime
 from leanfaith.transforms.v2_d0_n14_runtime import V2D0N14Runtime
 from leanfaith.transforms.v2_d0_n15_runtime import V2D0N15Runtime
+from leanfaith.transforms.v2_d0_n16_runtime import V2D0N16Runtime
 from leanfaith.transforms.v2_d0_runtime import V2D0Runtime
 from leanfaith.transforms.v2_d0_scale import (
     V2D0MaterializationInput,
@@ -120,7 +121,12 @@ def _seed(base_seed: int, theorem_id: str, rule_id: D0RuleId) -> int:
 
 def _ordered_attempts(
     aligned: Sequence[tuple[TheoremRecord, RepresentationRecord]],
-    runtime: V2D0Runtime | V2D0N12Runtime | V2D0N13Runtime | V2D0N14Runtime | V2D0N15Runtime,
+    runtime: V2D0Runtime
+    | V2D0N12Runtime
+    | V2D0N13Runtime
+    | V2D0N14Runtime
+    | V2D0N15Runtime
+    | V2D0N16Runtime,
     *,
     base_seed: int,
 ) -> tuple[V2D0MaterializationInput, ...]:
@@ -196,7 +202,12 @@ def _inventory(
     theorem_path: Path,
     representation_path: Path,
     *,
-    runtime: V2D0Runtime | V2D0N12Runtime | V2D0N13Runtime | V2D0N14Runtime | V2D0N15Runtime,
+    runtime: V2D0Runtime
+    | V2D0N12Runtime
+    | V2D0N13Runtime
+    | V2D0N14Runtime
+    | V2D0N15Runtime
+    | V2D0N16Runtime,
     base_seed: int,
     max_sources: int | None,
 ) -> tuple[int, str, str, str]:
@@ -244,7 +255,12 @@ def _batch_payload(results: Sequence[V2D0MaterializationResult]) -> bytes:
 def _load_batch(
     path: Path,
     expected: Sequence[V2D0MaterializationInput],
-    runtime: V2D0Runtime | V2D0N12Runtime | V2D0N13Runtime | V2D0N14Runtime | V2D0N15Runtime,
+    runtime: V2D0Runtime
+    | V2D0N12Runtime
+    | V2D0N13Runtime
+    | V2D0N14Runtime
+    | V2D0N15Runtime
+    | V2D0N16Runtime,
 ) -> tuple[V2D0MaterializationResult, ...]:
     try:
         results = tuple(_iter_jsonl(path, V2D0MaterializationResult))
@@ -324,7 +340,12 @@ def _assemble_results(path: Path, journal_paths: Sequence[Path]) -> str:
 def run_v2_d0_scale(
     *,
     backend: LeanInteractBackend,
-    runtime: V2D0Runtime | V2D0N12Runtime | V2D0N13Runtime | V2D0N14Runtime | V2D0N15Runtime,
+    runtime: V2D0Runtime
+    | V2D0N12Runtime
+    | V2D0N13Runtime
+    | V2D0N14Runtime
+    | V2D0N15Runtime
+    | V2D0N16Runtime,
     theorem_path: Path,
     representation_path: Path,
     project_dir: Path,
