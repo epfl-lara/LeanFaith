@@ -5179,14 +5179,16 @@ def materialize_deterministic_v2_d0_scale_command(
         typer.Option("--root", help="Repository root override."),
     ] = None,
 ) -> None:
-    """Run/resume the experimental LF-034 N11 inventory through LeanServerPool."""
+    """Run/resume one experimental LF-034 D0 inventory through LeanServerPool."""
     import json
     from dataclasses import replace
 
+    from leanfaith.config.loading import load_yaml_mapping
     from leanfaith.config.paths import RepoPaths
     from leanfaith.lean.leaninteract_backend import BackendSettings, LeanInteractBackend
     from leanfaith.lean.session_policy import ServerMode
     from leanfaith.schemas.theorem import TheoremRecord
+    from leanfaith.transforms.v2_d0_n12_runtime import build_v2_d0_n12_runtime
     from leanfaith.transforms.v2_d0_runtime import build_v2_d0_runtime
     from leanfaith.transforms.v2_d0_scale_run import V2D0ScaleRunError, run_v2_d0_scale
 
@@ -5210,6 +5212,14 @@ def materialize_deterministic_v2_d0_scale_command(
             if import_header_path is None
             else anchored(import_header_path).read_text(encoding="utf-8")
         )
+        resolved_profile = anchored(profile_path).resolve(strict=True)
+        profile_id = load_yaml_mapping(resolved_profile).get("profile_id")
+        if profile_id == "deterministic_v2_d0_n11_experimental":
+            runtime = build_v2_d0_runtime(paths.root, path=resolved_profile)
+        elif profile_id == "deterministic_v2_d0_n12_experimental":
+            runtime = build_v2_d0_n12_runtime(paths.root, path=resolved_profile)
+        else:
+            raise V2D0ScaleRunError(f"unsupported D0 profile_id: {profile_id!r}")
         resolved_output = anchored(output_dir)
         raw_dir = (
             anchored(raw_response_dir)
@@ -5230,7 +5240,7 @@ def materialize_deterministic_v2_d0_scale_command(
         try:
             artifacts = run_v2_d0_scale(
                 backend=backend,
-                runtime=build_v2_d0_runtime(paths.root, path=anchored(profile_path)),
+                runtime=runtime,
                 theorem_path=resolved_theorems,
                 representation_path=anchored(representation_path),
                 project_dir=anchored(project_dir),

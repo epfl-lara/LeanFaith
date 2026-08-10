@@ -17,15 +17,24 @@ from leanfaith.schemas.variant import (
     VariantRecord,
 )
 
+D0ProfileId = Literal[
+    "deterministic_v2_d0_n11_experimental",
+    "deterministic_v2_d0_n12_experimental",
+]
+D0RuleId = Literal[
+    "n11_bound_variable_substitution",
+    "n12_implication_converse",
+]
+
 
 class V2D0MaterializationResult(StrictModel):
-    """One terminal N11 attempt with zero semantic or training credit."""
+    """One terminal D0 attempt with zero semantic or training credit."""
 
     schema_version: Literal[1] = 1
     result_id: str
-    profile_id: Literal["deterministic_v2_d0_n11_experimental"]
+    profile_id: D0ProfileId
     profile_config_hash: str
-    rule_id: Literal["n11_bound_variable_substitution"]
+    rule_id: D0RuleId
     terminal_status: Literal[
         "not_applicable",
         "no_output",
@@ -47,6 +56,12 @@ class V2D0MaterializationResult(StrictModel):
 
     @model_validator(mode="after")
     def _coherent(self) -> V2D0MaterializationResult:
+        expected_rule = {
+            "deterministic_v2_d0_n11_experimental": "n11_bound_variable_substitution",
+            "deterministic_v2_d0_n12_experimental": "n12_implication_converse",
+        }[self.profile_id]
+        if self.rule_id != expected_rule or self.attempt.rule_id != self.rule_id:
+            raise ValueError("D0 profile, rule, and attempt identities do not align")
         if self.failure_codes != tuple(sorted(set(self.failure_codes))):
             raise ValueError("failure_codes must be sorted and unique")
         if self.terminal_status == "provisional_variant":
@@ -96,4 +111,9 @@ def build_v2_d0_result(**data: object) -> V2D0MaterializationResult:
     )
 
 
-__all__ = ["V2D0MaterializationResult", "build_v2_d0_result"]
+__all__ = [
+    "D0ProfileId",
+    "D0RuleId",
+    "V2D0MaterializationResult",
+    "build_v2_d0_result",
+]

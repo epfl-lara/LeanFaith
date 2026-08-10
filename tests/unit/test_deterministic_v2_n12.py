@@ -3,10 +3,14 @@
 from __future__ import annotations
 
 import hashlib
+from pathlib import Path
+from typing import cast
 
 import pytest
 
-from leanfaith.representations import alpha_identity_fingerprint
+from leanfaith.lean.leaninteract_backend import LeanInteractBackend
+from leanfaith.lean.protocol import LeanStatus
+from leanfaith.representations import TheoremForRepresentation, alpha_identity_fingerprint
 from leanfaith.representations.atoms import operator_tree, semantic_atoms
 from leanfaith.schemas import CANONICAL_VIEW_NAMES, ViewStatus, make_id
 from leanfaith.schemas.enums import IntendedRelation, QualityTier, ValidationStatus
@@ -25,7 +29,9 @@ from leanfaith.transforms.v2_d0_n12_runtime import (
     build_v2_d0_n12_runtime,
     load_v2_d0_n12_execution_config,
 )
+from leanfaith.transforms.v2_d0_scale_run import run_v2_d0_scale
 from tests.unit.record_factories import representation_record, theorem_record
+from tests.unit.test_deterministic_v2_n11_scale import _BatchBackend
 
 _SOURCE = "theorem n12 (Premise Goal : Prop) (h : Premise) : Goal := by sorry"
 
@@ -292,3 +298,63 @@ def test_n12_profile_binds_portfolio_and_dispatches_only_n12() -> None:
     assert len(execution.drafts) == 1
     with pytest.raises(V2D0N12ExecutionError, match="outside the N12 profile"):
         runtime.execute("n11_bound_variable_substitution", theorem, representation, seed=7)
+
+
+def test_n12_persisted_scale_binds_profile_and_rule(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    import leanfaith.transforms.v2_d0_scale as scale_module
+
+    theorem, representation = _records(_SOURCE, "scale", _root())
+    theorem_path = tmp_path / "theorems.jsonl"
+    representation_path = tmp_path / "representations.jsonl"
+    theorem_path.write_text(theorem.model_dump_json() + "\n", encoding="utf-8")
+    representation_path.write_text(
+        representation.model_dump_json() + "\n",
+        encoding="utf-8",
+    )
+
+    def fake_build(
+        backend: object,
+        inputs: list[TheoremForRepresentation],
+        **kwargs: object,
+    ) -> list[RepresentationRecord]:
+        del backend, kwargs
+        assert len(inputs) == 1
+        item = inputs[0]
+        candidate_root = _root(converse=True)
+        return [
+            representation.model_copy(
+                update={
+                    "representation_id": make_id("repr", {"n12_scale_candidate": item.theorem_id}),
+                    "theorem_id": item.theorem_id,
+                    "raw_proof_stripped": item.proof_stripped,
+                    "signature_explicit": "∀ (Premise Goal : Prop), Goal → Premise",
+                    "semantic_atoms": semantic_atoms(candidate_root),
+                    "operator_tree": operator_tree(candidate_root),
+                    "alpha_identity_fingerprint": alpha_identity_fingerprint(candidate_root),
+                }
+            )
+        ]
+
+    monkeypatch.setattr(scale_module, "build_representations", fake_build)
+    backend = _BatchBackend((LeanStatus.VALID_WITH_SORRY,))
+    artifacts = run_v2_d0_scale(
+        backend=cast(LeanInteractBackend, backend),
+        runtime=build_v2_d0_n12_runtime(),
+        theorem_path=theorem_path,
+        representation_path=representation_path,
+        project_dir=tmp_path,
+        import_header="import LeanFaithFixtures",
+        output_dir=tmp_path / "run",
+        batch_size=1,
+        base_seed=13,
+    )
+    assert artifacts.result_count == 1
+    spec = artifacts.run_spec_path.read_text(encoding="utf-8")
+    assert '"profile_id":"deterministic_v2_d0_n12_experimental"' in spec
+    assert '"rule_id":"n12_implication_converse"' in spec
+    result = artifacts.results_path.read_text(encoding="utf-8")
+    assert '"terminal_status":"provisional_variant"' in result
+    assert '"training_eligible":false' in result

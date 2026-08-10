@@ -15,10 +15,12 @@ from leanfaith.schemas.variant import TransformationAttempt, VariantDraft
 from leanfaith.transforms.materialize import build_derived_theorem_record
 from leanfaith.transforms.protocol import build_deterministic_variant_record
 from leanfaith.transforms.v2_d0_materializer import (
+    D0RuleId,
     V2D0MaterializationResult,
     build_v2_d0_result,
 )
-from leanfaith.transforms.v2_d0_runtime import N11RuleId, V2D0Runtime
+from leanfaith.transforms.v2_d0_n12_runtime import V2D0N12Runtime
+from leanfaith.transforms.v2_d0_runtime import V2D0Runtime
 from leanfaith.transforms.v2_e0_materializer import _inline_candidate_source
 
 
@@ -30,7 +32,7 @@ class V2D0ScaleError(ValueError):
 class V2D0MaterializationInput:
     theorem: TheoremRecord
     representation: RepresentationRecord
-    rule_id: N11RuleId
+    rule_id: D0RuleId
     seed: int
 
 
@@ -44,7 +46,7 @@ class _GeneratedCandidate:
 
 
 def _common(
-    runtime: V2D0Runtime,
+    runtime: V2D0Runtime | V2D0N12Runtime,
     item: V2D0MaterializationInput,
     attempt: TransformationAttempt,
 ) -> dict[str, object]:
@@ -91,7 +93,7 @@ def _representation_input(candidate: TheoremRecord) -> TheoremForRepresentation:
 def materialize_v2_d0_batch(
     *,
     backend: LeanInteractBackend,
-    runtime: V2D0Runtime,
+    runtime: V2D0Runtime | V2D0N12Runtime,
     inputs: Sequence[V2D0MaterializationInput],
     context_id: str,
     project_dir: Path,
@@ -132,7 +134,7 @@ def materialize_v2_d0_batch(
             ordered[index] = build_v2_d0_result(terminal_status="no_output", **common)
             continue
         if len(execution.drafts) != 1:
-            raise V2D0ScaleError("N11 must emit at most one draft per input")
+            raise V2D0ScaleError("a unary D0 rule must emit at most one draft per input")
         draft = execution.drafts[0]
         generated.append(
             _GeneratedCandidate(

@@ -15,7 +15,12 @@ from leanfaith.config.hashing import canonical_json_bytes, hash_canonical, hash_
 from leanfaith.config.models import StrictModel
 from leanfaith.lean.leaninteract_backend import LeanInteractBackend
 from leanfaith.schemas.theorem import RepresentationRecord, TheoremRecord
-from leanfaith.transforms.v2_d0_materializer import V2D0MaterializationResult
+from leanfaith.transforms.v2_d0_materializer import (
+    D0ProfileId,
+    D0RuleId,
+    V2D0MaterializationResult,
+)
+from leanfaith.transforms.v2_d0_n12_runtime import V2D0N12Runtime
 from leanfaith.transforms.v2_d0_runtime import V2D0Runtime
 from leanfaith.transforms.v2_d0_scale import (
     V2D0MaterializationInput,
@@ -41,8 +46,9 @@ class V2D0ScaleRunSpec(StrictModel):
     artifact_kind: Literal["deterministic_v2_d0_scale_run_spec"] = (
         "deterministic_v2_d0_scale_run_spec"
     )
-    profile_id: Literal["deterministic_v2_d0_n11_experimental"]
+    profile_id: D0ProfileId
     profile_config_hash: str = Field(pattern=_HEX64)
+    rule_id: D0RuleId
     theorem_partition: str
     theorem_partition_sha256: str = Field(pattern=_HEX64)
     representation_partition: str
@@ -96,13 +102,13 @@ class V2D0ScaleRunArtifacts:
     result_count: int
 
 
-def _seed(base_seed: int, theorem_id: str) -> int:
+def _seed(base_seed: int, theorem_id: str, rule_id: D0RuleId) -> int:
     payload = canonical_json_bytes(
         {
-            "schema": "deterministic_v2_d0_n11_scale_seed_v1",
+            "schema": "deterministic_v2_d0_scale_seed_v1",
             "base_seed": base_seed,
             "theorem_id": theorem_id,
-            "rule_id": "n11_bound_variable_substitution",
+            "rule_id": rule_id,
         }
     )
     return int.from_bytes(hashlib.sha256(payload).digest()[:8], "big", signed=False)
@@ -110,15 +116,19 @@ def _seed(base_seed: int, theorem_id: str) -> int:
 
 def _ordered_attempts(
     aligned: Sequence[tuple[TheoremRecord, RepresentationRecord]],
+    runtime: V2D0Runtime | V2D0N12Runtime,
     *,
     base_seed: int,
 ) -> tuple[V2D0MaterializationInput, ...]:
+    if len(runtime.rule_ids) != 1:
+        raise V2D0ScaleRunError("persisted D0 profiles must contain exactly one rule")
+    rule_id = runtime.rule_ids[0]
     return tuple(
         V2D0MaterializationInput(
             theorem=theorem,
             representation=representation,
-            rule_id="n11_bound_variable_substitution",
-            seed=_seed(base_seed, theorem.theorem_id),
+            rule_id=rule_id,
+            seed=_seed(base_seed, theorem.theorem_id, rule_id),
         )
         for theorem, representation in aligned
     )
@@ -138,7 +148,7 @@ def _batch_payload(results: Sequence[V2D0MaterializationResult]) -> bytes:
 def _load_batch(
     path: Path,
     expected: Sequence[V2D0MaterializationInput],
-    runtime: V2D0Runtime,
+    runtime: V2D0Runtime | V2D0N12Runtime,
 ) -> tuple[V2D0MaterializationResult, ...]:
     try:
         results = tuple(_iter_jsonl(path, V2D0MaterializationResult))
@@ -162,7 +172,7 @@ def _load_batch(
 def run_v2_d0_scale(
     *,
     backend: LeanInteractBackend,
-    runtime: V2D0Runtime,
+    runtime: V2D0Runtime | V2D0N12Runtime,
     theorem_path: Path,
     representation_path: Path,
     project_dir: Path,
@@ -193,7 +203,7 @@ def run_v2_d0_scale(
     if not aligned:
         raise V2D0ScaleRunError("selected N11 source inventory is empty")
     context_id = aligned[0][0].context_id
-    attempts = _ordered_attempts(aligned, base_seed=base_seed)
+    attempts = _ordered_attempts(aligned, runtime, base_seed=base_seed)
     attempt_keys = [
         (item.theorem.theorem_id, item.representation.representation_id, item.rule_id, item.seed)
         for item in attempts
@@ -201,6 +211,7 @@ def run_v2_d0_scale(
     spec = V2D0ScaleRunSpec(
         profile_id=runtime.loaded.config.profile_id,
         profile_config_hash=runtime.generation_config_hash,
+        rule_id=runtime.rule_ids[0],
         theorem_partition=str(theorem_path),
         theorem_partition_sha256=hash_file(theorem_path),
         representation_partition=str(representation_path),
