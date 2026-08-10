@@ -38,7 +38,7 @@ from leanfaith.generation.weak_supervision import (
 from leanfaith.schemas.ids import HEX64_PATTERN, id_pattern, make_id
 from leanfaith.schemas.variant import VariantRecord
 
-LF022_CODEX_AUDIT_VERSION: Literal["lf022_codex_audit_v1"] = "lf022_codex_audit_v1"
+LF022_CODEX_AUDIT_VERSION: Literal["lf022_codex_audit_v2"] = "lf022_codex_audit_v2"
 DEFAULT_CODEX_AUDIT_MODEL = "gpt-5.6-sol"
 DEFAULT_CODEX_REASONING_EFFORT = "xhigh"
 _PRIVATE_MARKERS = ("formalmathatepfl/sft_classic", "sft_classic")
@@ -194,7 +194,7 @@ class LF022CodexAuditManifest(StrictModel):
     """Mutable summary rebuilt from immutable item and attempt artifacts."""
 
     schema_version: Literal[1] = 1
-    method_version: Literal["lf022_codex_audit_v1"] = LF022_CODEX_AUDIT_VERSION
+    method_version: Literal["lf022_codex_audit_v2"] = LF022_CODEX_AUDIT_VERSION
     checks_artifact: str
     checks_sha256: str = Field(pattern=HEX64_PATTERN)
     model: str

@@ -47,10 +47,19 @@ from leanfaith.schemas.weak_supervision import (
 )
 
 JUDGE_TEMPLATE_ID = "lean_pair_blinded"
-JUDGE_TEMPLATE_VERSION = "v1"
-DEFAULT_JUDGE_TEMPLATE = (
+JUDGE_TEMPLATE_VERSION_V1 = "v1"
+JUDGE_TEMPLATE_VERSION_V2 = "v2"
+JUDGE_TEMPLATE_VERSION = JUDGE_TEMPLATE_VERSION_V2
+JUDGE_TEMPLATE_V1 = (
     Path(__file__).resolve().parents[3] / "prompts" / "judges" / "lean_pair_blinded_v1.txt"
 )
+DEFAULT_JUDGE_TEMPLATE = (
+    Path(__file__).resolve().parents[3] / "prompts" / "judges" / "lean_pair_blinded_v2.txt"
+)
+_JUDGE_TEMPLATE_VERSION_BY_SHA256 = {
+    "6515abda33e18cc3a805f5ff8ec60029412e47e0e7b0852b71bef0659b912223": (JUDGE_TEMPLATE_VERSION_V1),
+    "199002c55f9b8ec132c02fad024731856da08c189432169c8624221ec1b37907": (JUDGE_TEMPLATE_VERSION_V2),
+}
 
 _MIN_RANDOMIZATION_BYTES = 32
 _TASK_DOMAIN = b"leanfaith-lf022-judge-task-v1\0"
@@ -121,7 +130,10 @@ class JudgeResponse(StrictModel):
                 RelationLabel.INCOMPARABLE,
                 RelationLabel.UNRELATED,
             }:
-                raise ValueError("not_same_claim requires a non-equivalent terminal relation")
+                raise ValueError(
+                    "not_same_claim requires relation=A_stronger, B_stronger, "
+                    "incomparable, or unrelated"
+                )
         elif self.same_claim_answer == "ambiguous":
             if self.relation is not RelationLabel.AMBIGUOUS:
                 raise ValueError("ambiguous requires relation=ambiguous")
@@ -362,6 +374,12 @@ def render_blinded_judge_prompt(
             "task provenance forbids external transmission",
         )
     template, template_sha256 = _load_template(template_path)
+    template_version = _JUDGE_TEMPLATE_VERSION_BY_SHA256.get(template_sha256)
+    if template_version is None:
+        raise JudgePromptError(
+            JudgePromptErrorCode.TEMPLATE_CONTRACT,
+            "template hash is not a reviewed blinded judge prompt version",
+        )
     payload = canonical_json_bytes(task.visible_payload()).decode("utf-8")
     text = template.replace(_TEMPLATE_HASH_TOKEN, template_sha256).replace(
         _INPUT_JSON_TOKEN, payload
@@ -379,7 +397,7 @@ def render_blinded_judge_prompt(
         )
     return RenderedJudgePrompt(
         template_id=JUDGE_TEMPLATE_ID,
-        template_version=JUDGE_TEMPLATE_VERSION,
+        template_version=template_version,
         template_sha256=template_sha256,
         render_sha256=sha256_hex(text.encode("utf-8")),
         task_id=task.task_id,
@@ -567,7 +585,7 @@ def materialize_verified_judgment_evidence(
     if (
         call.provider_slot != task.judge_slot
         or call.prompt_template_id != JUDGE_TEMPLATE_ID
-        or call.prompt_template_version != JUDGE_TEMPLATE_VERSION
+        or call.prompt_template_version != rendered.template_version
         or call.prompt_template_hash != rendered.template_sha256
         or call.prompt_render_hash != rendered.render_sha256
         or call.input_ids != expected_input_ids

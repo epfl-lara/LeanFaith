@@ -15,6 +15,10 @@ from leanfaith.generation.providers import (
     persist_provider_request,
 )
 from leanfaith.generation.weak_supervision import (
+    DEFAULT_JUDGE_TEMPLATE,
+    JUDGE_TEMPLATE_V1,
+    JUDGE_TEMPLATE_VERSION_V1,
+    JUDGE_TEMPLATE_VERSION_V2,
     FamilySeparationMatrix,
     JudgeOutputErrorCode,
     JudgeOutputParseError,
@@ -130,6 +134,33 @@ def test_swapped_presentations_are_reproducible_blinded_and_inverse() -> None:
     assert '"opaque_task_token"' in rendered.text
 
 
+def test_default_judge_prompt_is_v2_and_keeps_v1_renderable() -> None:
+    task = next(
+        task
+        for task in make_swapped_presentations(
+            source=_source(),
+            judge_slot="judge_A",
+            randomization_key=b"judge-prompt-version-test-key!!!",
+        )
+        if task.orientation == "AB"
+    )
+
+    current = render_blinded_judge_prompt(task)
+    legacy = render_blinded_judge_prompt(task, template_path=JUDGE_TEMPLATE_V1)
+
+    assert DEFAULT_JUDGE_TEMPLATE.name == "lean_pair_blinded_v2.txt"
+    assert current.template_version == JUDGE_TEMPLATE_VERSION_V2
+    assert legacy.template_version == JUDGE_TEMPLATE_VERSION_V1
+    assert legacy.template_sha256 == (
+        "6515abda33e18cc3a805f5ff8ec60029412e47e0e7b0852b71bef0659b912223"
+    )
+    assert "F1 — claim faithfulness" in current.text
+    assert "F2 — truth-level implication" in current.text
+    assert "if and only if" in current.text
+    assert "mutually derivable" in current.text
+    assert "F1 — claim faithfulness" not in legacy.text
+
+
 def test_judge_task_rejects_forbidden_external_transmission() -> None:
     with pytest.raises(ValueError, match="external_transmission_allowed"):
         _source(
@@ -155,6 +186,15 @@ def test_judge_task_rejects_forbidden_external_transmission() -> None:
         ),
         (
             _response(answer="same_claim", relation="A_stronger"),
+            JudgeOutputErrorCode.INCOHERENT,
+        ),
+        (
+            _response(
+                answer="not_same_claim",
+                relation="equivalent",
+                a_to_b="yes",
+                b_to_a="yes",
+            ),
             JudgeOutputErrorCode.INCOHERENT,
         ),
         (
@@ -459,7 +499,7 @@ def test_verified_judgment_materializer_requires_raw_bound_public_lineage(
         provider_slot="judge_A",
         model_family="qwen3",
         prompt_template_id="lean_pair_blinded",
-        prompt_template_version="v1",
+        prompt_template_version=rendered.template_version,
         execution_mode="replay",
         parse_status=ParseStatus.PARSED,
         parsed_output=parsed.model_dump(mode="json", by_alias=True),

@@ -223,9 +223,38 @@ uv run leanfaith qa-lf022-prefix256 --help
 uv run leanfaith check-lf022-provisional-lean --help
 uv run leanfaith audit-lf022-codex --help
 uv run leanfaith run-deterministic-shards --help
+uv run leanfaith merge-deterministic-shards --help
+uv run leanfaith probe-deterministic-v2-coverage --help
 uv run leanfaith combine-deterministic-scale-passes --help
 uv run leanfaith audit-training-readiness --report-only
 ```
+
+After every launcher shard has completed, merge the whole run without manually
+enumerating producer directories:
+
+```bash
+uv run leanfaith merge-deterministic-shards \
+  --output-root /path/to/deterministic-run \
+  --output-dir /path/to/deterministic-run/merged \
+  --expected-shard-count 16
+```
+
+The command refuses active, incomplete, noncanonical, or mixed-lineage shard
+sets. It delegates to the scientific merger, which replays Lean checks,
+reconstructs provenance from the immutable source inventory, rejects duplicate
+pairs/variants, and writes content-addressed outputs. Re-running the same
+command safely resumes or verifies identical atomic outputs.
+
+`probe-deterministic-v2-coverage` is a read-only design probe. It reports broad
+surface signals for the disabled P05–P17/N11–N17 portfolio without executing
+Lean, emitting variants, or creating labels. A signal count is an upper bound,
+not proof that the corresponding transformation is applicable.
+
+The default Codex/LLM pair-judge prompt is the reviewed v2 contract. It keeps
+F1 claim faithfulness (`same_claim_answer`, `relation`) separate from F2
+truth-level implication (`A_implies_B`, `B_implies_A`) and rejects incoherent
+outputs rather than silently normalizing them. The immutable v1 prompt remains
+available only for replaying its versioned artifacts.
 
 Qwen3.5 and GLM-5.2 public production routes remain blocked until one exact
 live proposer qualification per family succeeds and the persisted result is

@@ -1,0 +1,484 @@
+schema_version: 1
+portfolio_id: leanfaith_deterministic_v2_design
+portfolio_version: 1.0.0
+status: design_only
+
+# These hashes bind the already accepted v1 decision. LF-031 adds a separate
+# design portfolio and must never mutate or reinterpret any v1 byte.
+accepted_v1:
+  registry_path: configs/transformations/registry.yaml
+  registry_sha256: 5b8941264d1223069d6cb8c49b54e6e719abf3961820cd9d979113164db9d786
+  profile_path: configs/transformations/v1.yaml
+  profile_sha256: 9396c50fc088384e4085d95841f1c38ef898f3348580b4be15584e4edc03c2da
+  promotion_policy_path: policies/transformation_promotion_v1.yaml
+  promotion_policy_sha256: e41064eb4a6572d0283821ce7b9be21d211d8f149afe00d62e3e241446941cf3
+  effective_registry_hash: 8a5316dacba064d9b3b13e12dfd46cd707445ecc520101a9374463f336f6466f
+
+coverage_probe:
+  detector_version: v2_coverage_signals_v1
+  interpretation: upper_bound_signal_not_applicability
+  required_views: [headless, raw_proof_stripped]
+  probe_only: true
+  executes_lean: false
+  mutates_input_data: false
+  emits_drafts: false
+  emits_labels: false
+
+# Every entry is design-only and disabled. A later LF item must create a new,
+# versioned execution profile and generation addendum before any rule exists.
+families:
+  - family_id: n11_bound_variable_substitution
+    family_version: 1.0.0
+    polarity: negative
+    status: disabled
+    implementation_status: design_only
+    evidence_class: D0
+    intended_relation: near_miss
+    intended_error_types: [E16, E26]
+    detector: same_typed_binders
+    narrow_scope: Replace one explicit occurrence with a distinct in-scope binder of the same alpha-normalized type.
+    excluded_cases:
+      - dependent binder types
+      - identical source and target binders
+      - implicit or instance binders
+      - role-sensitive function argument slots owned by N17
+    executable: false
+    draft_emission_authorized: false
+    label_emission_authorized: false
+
+  - family_id: n12_implication_converse
+    family_version: 1.0.0
+    polarity: negative
+    status: disabled
+    implementation_status: design_only
+    evidence_class: D0
+    intended_relation: near_miss
+    intended_error_types: [E26, E30]
+    detector: implication_surface
+    narrow_scope: Swap distinct root nondependent proposition hypothesis and conclusion roles.
+    excluded_cases:
+      - Iff conclusions
+      - dependent implications
+      - nested implications
+      - proposition-identical sides
+    executable: false
+    draft_emission_authorized: false
+    label_emission_authorized: false
+
+  - family_id: n13_witness_dependency
+    family_version: 1.0.0
+    polarity: negative
+    status: disabled
+    implementation_status: design_only
+    evidence_class: D0
+    intended_relation: near_miss
+    intended_error_types: [E05, E22]
+    detector: forall_exists_nesting
+    narrow_scope: Swap one forall-exists nesting when the witness type is independent of the universal binder.
+    excluded_cases:
+      - dependent witness types
+      - implicit or instance binders
+      - more than one quantifier swap
+      - nested connective normalization
+    executable: false
+    draft_emission_authorized: false
+    label_emission_authorized: false
+
+  - family_id: n14_negation_scope
+    family_version: 1.0.0
+    polarity: negative
+    status: disabled
+    implementation_status: design_only
+    evidence_class: D0
+    intended_relation: near_miss
+    intended_error_types: [E04, E26]
+    detector: negation_quantifier
+    narrow_scope: Move one Not across one explicit universal binder without logical normalization.
+    excluded_cases:
+      - De Morgan rewriting
+      - classical dualization
+      - implicit or instance binders
+      - multiple quantifiers
+    executable: false
+    draft_emission_authorized: false
+    label_emission_authorized: false
+
+  - family_id: n15_conjunct_omission
+    family_version: 1.0.0
+    polarity: negative
+    status: disabled
+    implementation_status: design_only
+    evidence_class: D0
+    intended_relation: near_miss
+    intended_error_types: [E20, E26]
+    detector: conjunction_surface
+    narrow_scope: Remove one distinct top-level conclusion conjunct while retaining the surviving atom order.
+    excluded_cases:
+      - conjunction reassociation owned by P16
+      - duplicate conjuncts
+      - hypothesis deletion owned by N03
+      - nested conjunct omission
+    executable: false
+    draft_emission_authorized: false
+    label_emission_authorized: false
+
+  - family_id: n16_domain_guard_removal
+    family_version: 1.0.0
+    polarity: negative
+    status: disabled
+    implementation_status: design_only
+    evidence_class: D0
+    intended_relation: near_miss
+    intended_error_types: [E01, E20, E26]
+    detector: bounded_guard
+    narrow_scope: Remove exactly one bounded-quantifier membership guard and preserve the quantified body.
+    excluded_cases:
+      - arbitrary hypothesis deletion owned by N03
+      - bounded presentation changes owned by P11
+      - conjunct omission owned by N15
+      - multiple guards
+    executable: false
+    draft_emission_authorized: false
+    label_emission_authorized: false
+
+  - family_id: n17_role_sensitive_arguments
+    family_version: 1.0.0
+    polarity: negative
+    status: disabled
+    implementation_status: design_only
+    evidence_class: D0
+    intended_relation: near_miss
+    intended_error_types: [E12, E30]
+    detector: role_argument_slots
+    narrow_scope: Swap explicit independent same-typed slots admitted by a manually audited head-position allowlist.
+    excluded_cases:
+      - N01 operator replacement scope
+      - N07 literal mutation scope
+      - bare bound-variable replacement owned by N11
+      - symmetric heads
+    executable: false
+    draft_emission_authorized: false
+    label_emission_authorized: false
+
+  - family_id: p05_resolved_names
+    family_version: 1.0.0
+    polarity: positive
+    status: disabled
+    implementation_status: design_only
+    evidence_class: E0
+    intended_relation: equivalent
+    intended_error_types: []
+    detector: qualified_identifier
+    narrow_scope: Qualify or dequalify one uniquely resolved public global name while preserving the exact elaborated type.
+    excluded_cases:
+      - aliases
+      - ambiguous suffixes
+      - macro-generated names
+      - private names
+      - shadowed names
+    executable: false
+    draft_emission_authorized: false
+    label_emission_authorized: false
+
+  - family_id: p06_implicit_arguments
+    family_version: 1.0.0
+    polarity: positive
+    status: disabled
+    implementation_status: design_only
+    evidence_class: E0
+    intended_relation: equivalent
+    intended_error_types: []
+    detector: explicit_application
+    narrow_scope: Surface or omit ordinary non-instance implicit arguments while preserving one elaborated application spine.
+    excluded_cases:
+      - autoParam or optParam arguments
+      - coercion-inserted applications
+      - instance implicits
+      - metavariables
+      - nested application rewrites
+    executable: false
+    draft_emission_authorized: false
+    label_emission_authorized: false
+
+  - family_id: p07_coercion_surface
+    family_version: 1.0.0
+    polarity: positive
+    status: disabled
+    implementation_status: design_only
+    evidence_class: E0
+    intended_relation: equivalent
+    intended_error_types: []
+    detector: coercion_constant
+    narrow_scope: Expose or hide one already elaborated Coe or CoeT-style hop.
+    excluded_cases:
+      - CoeFun
+      - CoeSort
+      - ambiguous expected types
+      - coercion chains
+      - proof obligations
+    executable: false
+    draft_emission_authorized: false
+    label_emission_authorized: false
+
+  - family_id: p08_type_ascriptions
+    family_version: 1.0.0
+    polarity: positive
+    status: disabled
+    implementation_status: design_only
+    evidence_class: E0
+    intended_relation: equivalent
+    intended_error_types: []
+    detector: type_ascription
+    narrow_scope: Insert or remove one redundant instantiated source-printable term ascription with exact type identity.
+    excluded_cases:
+      - binder declarations
+      - coercion syntax owned by P07
+      - metavariable-containing types
+      - non-source-printable inferred types
+    executable: false
+    draft_emission_authorized: false
+    label_emission_authorized: false
+
+  - family_id: p09_projections
+    family_version: 1.0.0
+    polarity: positive
+    status: disabled
+    implementation_status: design_only
+    evidence_class: E0
+    intended_relation: equivalent
+    intended_error_types: []
+    detector: projection_expr
+    narrow_scope: Switch named or numeric projection surface syntax for the identical direct projection node.
+    excluded_cases:
+      - ambiguous receivers
+      - coercion fields
+      - projection chains
+      - record updates
+    executable: false
+    draft_emission_authorized: false
+    label_emission_authorized: false
+
+  - family_id: p10_constructors
+    family_version: 1.0.0
+    polarity: positive
+    status: disabled
+    implementation_status: design_only
+    evidence_class: E0
+    intended_relation: equivalent
+    intended_error_types: []
+    detector: constructor_surface
+    narrow_scope: Switch anonymous-constructor or known tuple syntax for one identical single-constructor expression.
+    excluded_cases:
+      - ambiguous expected types
+      - dependent constructor fields
+      - multiple constructors
+      - nested constructor rewrites
+    executable: false
+    draft_emission_authorized: false
+    label_emission_authorized: false
+
+  - family_id: p11_bounded_quantifiers
+    family_version: 1.0.0
+    polarity: positive
+    status: disabled
+    implementation_status: design_only
+    evidence_class: E0
+    intended_relation: equivalent
+    intended_error_types: []
+    detector: bounded_quantifier
+    narrow_scope: Expand or contract one exact bounded forall or exists with the same binder, membership instance, guard role, and body.
+    excluded_cases:
+      - arbitrary guard deletion owned by N16
+      - changed membership instances
+      - multiple bounded binders
+      - reordered guards
+    executable: false
+    draft_emission_authorized: false
+    label_emission_authorized: false
+
+  - family_id: p12_proof_arrow_binder
+    family_version: 1.0.0
+    polarity: positive
+    status: disabled
+    implementation_status: design_only
+    evidence_class: E0
+    intended_relation: equivalent
+    intended_error_types: []
+    detector: proof_arrow
+    narrow_scope: Switch one proposition arrow for an unused explicit proof binder while preserving the exact theorem type.
+    excluded_cases:
+      - dependent binders
+      - implicit or instance binders
+      - non-Prop domains
+      - used proof binder names
+    executable: false
+    draft_emission_authorized: false
+    label_emission_authorized: false
+
+  - family_id: p13_restricted_eta
+    family_version: 1.0.0
+    polarity: positive
+    status: disabled
+    implementation_status: design_only
+    evidence_class: E1
+    intended_relation: equivalent
+    intended_error_types: []
+    detector: eta_surface
+    narrow_scope: Apply one explicit nondependent function eta step with a syntactic redex and free-variable certificate.
+    excluded_cases:
+      - dependent functions
+      - general definitional equality
+      - implicit or instance binders
+      - multiple eta steps
+    executable: false
+    draft_emission_authorized: false
+    label_emission_authorized: false
+
+  - family_id: p14_independent_binder_permutation
+    family_version: 1.0.0
+    polarity: positive
+    status: disabled
+    implementation_status: design_only
+    evidence_class: E2
+    intended_relation: equivalent
+    intended_error_types: []
+    detector: adjacent_explicit_binders
+    narrow_scope: Swap one adjacent pair of explicit universal binders after proving both dependency directions absent.
+    excluded_cases:
+      - dependent binder pairs
+      - implicit binders
+      - instance binders
+      - proof binders
+    executable: false
+    draft_emission_authorized: false
+    label_emission_authorized: false
+
+  - family_id: p15_root_iff_reversal
+    family_version: 1.0.0
+    polarity: positive
+    status: disabled
+    implementation_status: design_only
+    evidence_class: E2
+    intended_relation: equivalent
+    intended_error_types: []
+    detector: iff_surface
+    narrow_scope: Reverse two distinct sides of the root conclusion Iff only.
+    excluded_cases:
+      - Iff under another connective
+      - identical Iff sides
+      - implication converse owned by N12
+      - nested Iff
+    executable: false
+    draft_emission_authorized: false
+    label_emission_authorized: false
+
+  - family_id: p16_conjunction_reassociation
+    family_version: 1.0.0
+    polarity: positive
+    status: disabled
+    implementation_status: design_only
+    evidence_class: E2
+    intended_relation: equivalent
+    intended_error_types: []
+    detector: conjunction_chain
+    narrow_scope: Rotate one top-level conjunction association while preserving exact atom order.
+    excluded_cases:
+      - conjunct omission owned by N15
+      - conjunction commutation
+      - duplicate conjuncts
+      - nested non-root rewrites
+    executable: false
+    draft_emission_authorized: false
+    label_emission_authorized: false
+
+  - family_id: p17_hypothesis_packing
+    family_version: 1.0.0
+    polarity: positive
+    status: disabled
+    implementation_status: design_only
+    evidence_class: E2
+    intended_relation: equivalent
+    intended_error_types: []
+    detector: multiple_propositional_hypotheses
+    narrow_scope: Curry or pack exactly two nondependent propositional hypotheses without reordering.
+    excluded_cases:
+      - data binders
+      - dependent hypotheses
+      - instance binders
+      - proof-arrow presentation owned by P12
+    executable: false
+    draft_emission_authorized: false
+    label_emission_authorized: false
+
+overlap_ownership:
+  - mechanism_id: bound_variable_occurrence
+    owner_family_id: n11_bound_variable_substitution
+    excluded_family_ids: [n17_role_sensitive_arguments]
+    rationale: N11 owns bare binder occurrences; N17 is restricted to allowlisted function slots.
+  - mechanism_id: bounded_quantifier_presentation
+    owner_family_id: p11_bounded_quantifiers
+    excluded_family_ids: [n16_domain_guard_removal]
+    rationale: P11 may only change presentation while N16 owns semantic guard deletion.
+  - mechanism_id: conjunct_omission
+    owner_family_id: n15_conjunct_omission
+    excluded_family_ids: [p16_conjunction_reassociation]
+    rationale: N15 owns removal and may not claim reassociation-only sites.
+  - mechanism_id: conjunction_reassociation
+    owner_family_id: p16_conjunction_reassociation
+    excluded_family_ids: [n15_conjunct_omission]
+    rationale: P16 preserves all atoms while N15 removes one atom.
+  - mechanism_id: constructor_surface
+    owner_family_id: p10_constructors
+    excluded_family_ids: [p09_projections]
+    rationale: Constructor syntax and projection syntax use disjoint expression nodes.
+  - mechanism_id: domain_guard_removal
+    owner_family_id: n16_domain_guard_removal
+    excluded_family_ids: [n15_conjunct_omission, p11_bounded_quantifiers]
+    rationale: N16 owns bounded guards; generic conjunct omission and presentation rewrites are excluded.
+  - mechanism_id: elaborated_coercion_hop
+    owner_family_id: p07_coercion_surface
+    excluded_family_ids: [p08_type_ascriptions]
+    rationale: P07 requires an elaborated coercion node; a surface ascription alone belongs to P08.
+  - mechanism_id: projection_surface
+    owner_family_id: p09_projections
+    excluded_family_ids: [p07_coercion_surface, p10_constructors]
+    rationale: P09 owns direct projection nodes and excludes coercion or constructor edits.
+  - mechanism_id: proof_arrow_presentation
+    owner_family_id: p12_proof_arrow_binder
+    excluded_family_ids: [n12_implication_converse, p17_hypothesis_packing]
+    rationale: P12 changes one unused proof-binder presentation without swapping or packing claims.
+  - mechanism_id: role_sensitive_argument_slot
+    owner_family_id: n17_role_sensitive_arguments
+    excluded_family_ids: [n11_bound_variable_substitution]
+    rationale: N17 requires an allowlisted head-position pair; N11 cannot operate there.
+  - mechanism_id: root_iff_reversal
+    owner_family_id: p15_root_iff_reversal
+    excluded_family_ids: [n12_implication_converse]
+    rationale: Root Iff reversal is separate from implication converse.
+  - mechanism_id: root_implication_converse
+    owner_family_id: n12_implication_converse
+    excluded_family_ids: [p15_root_iff_reversal]
+    rationale: N12 operates only on implication and cannot consume Iff sites.
+  - mechanism_id: syntactic_type_ascription
+    owner_family_id: p08_type_ascriptions
+    excluded_family_ids: [p07_coercion_surface]
+    rationale: P08 owns surface ascriptions without claiming an elaborated coercion hop.
+
+mechanism_holdouts:
+  - mechanism_superclass: connective_scope_delta
+    family_ids: [n12_implication_converse, n14_negation_scope, n15_conjunct_omission, n16_domain_guard_removal]
+  - mechanism_superclass: local_eta
+    family_ids: [p13_restricted_eta]
+  - mechanism_superclass: proposition_packaging
+    family_ids: [p14_independent_binder_permutation, p15_root_iff_reversal, p16_conjunction_reassociation, p17_hypothesis_packing]
+  - mechanism_superclass: quantifier_dependency_delta
+    family_ids: [n13_witness_dependency]
+  - mechanism_superclass: surface_presentation
+    family_ids: [p05_resolved_names, p06_implicit_arguments, p07_coercion_surface, p08_type_ascriptions, p09_projections, p10_constructors, p11_bounded_quantifiers, p12_proof_arrow_binder]
+  - mechanism_superclass: variable_role_delta
+    family_ids: [n11_bound_variable_substitution, n17_role_sensitive_arguments]
+
+runtime_registry_created: false
+any_family_executable: false
+draft_emission_authorized: false
+label_emission_authorized: false

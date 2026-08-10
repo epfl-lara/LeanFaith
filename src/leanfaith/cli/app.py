@@ -1513,6 +1513,61 @@ def run_deterministic_shards_command(
         raise typer.Exit(code=1)
 
 
+@app.command("merge-deterministic-shards")
+def merge_deterministic_shards_command(
+    output_root: Annotated[
+        Path,
+        typer.Option(
+            "--output-root",
+            help="Completed run-deterministic-shards output root.",
+        ),
+    ],
+    output_dir: Annotated[
+        Path,
+        typer.Option(
+            "--output-dir",
+            help="Content-addressed merged inventory output directory.",
+        ),
+    ],
+    expected_shard_count: Annotated[
+        int | None,
+        typer.Option(
+            "--expected-shard-count",
+            min=1,
+            help="Optional operator assertion for the complete shard count.",
+        ),
+    ] = None,
+    root_dir: Annotated[
+        Path | None,
+        typer.Option("--root", help="Repository root override."),
+    ] = None,
+) -> None:
+    """Discover, audit, replay, and atomically merge one complete shard run."""
+    from leanfaith.config.paths import RepoPaths
+    from leanfaith.transforms.scale_materializer import DeterministicScaleError
+    from leanfaith.transforms.shard_merge import merge_deterministic_shard_run
+
+    paths = RepoPaths.discover(root_dir) if root_dir is None else RepoPaths(root=root_dir)
+    try:
+        merged = merge_deterministic_shard_run(
+            paths=paths,
+            output_root=output_root,
+            output_dir=output_dir,
+            expected_shard_count=expected_shard_count,
+        )
+    except (DeterministicScaleError, OSError, ValueError) as exc:
+        typer.echo(f"deterministic shard-run merge FAILED: {exc}", err=True)
+        raise typer.Exit(code=1) from exc
+    typer.echo(
+        "deterministic shard-run merge complete; "
+        f"output={merged.output_dir} "
+        f"manifest={merged.manifest_path} "
+        f"manifest_sha256={merged.manifest_sha256} "
+        f"merged_manifest_hash={merged.merged_manifest_hash} "
+        "output_tier=provisional training_eligible=false"
+    )
+
+
 @app.command("combine-deterministic-scale-passes")
 def combine_deterministic_scale_passes_command(
     unary_merged_output_dir: Annotated[
@@ -4763,6 +4818,63 @@ def close_extended_gate5g_command(
             f"Extended Gate 5G explicitly finalized: {result.gate_report_path} "
             f"sha256={result.gate_report_sha256}"
         )
+
+
+@app.command("probe-deterministic-v2-coverage")
+def probe_deterministic_v2_coverage_command(
+    representations_path: Annotated[
+        Path,
+        typer.Option(
+            "--representations",
+            help="Immutable repr_v3 RepresentationRecord JSONL to inspect read-only.",
+        ),
+    ],
+    output_path: Annotated[
+        Path,
+        typer.Option(
+            "--output",
+            help="New canonical LF-031 coverage report path; existing files are rejected.",
+        ),
+    ],
+    config_path: Annotated[
+        Path | None,
+        typer.Option(
+            "--config",
+            help="LF-031 v2 design config override (defaults to configs/transformations/v2.yaml).",
+        ),
+    ] = None,
+    root_dir: Annotated[
+        Path | None,
+        typer.Option("--root", help="Repository root override."),
+    ] = None,
+) -> None:
+    """Report broad v2 design signals without Lean execution, drafts, or labels."""
+    from leanfaith.config.paths import RepoPaths
+    from leanfaith.transforms.v2_coverage import run_v2_coverage_probe
+
+    paths = RepoPaths.discover(root_dir) if root_dir is None else RepoPaths(root=root_dir)
+
+    def anchored(path: Path) -> Path:
+        return path if path.is_absolute() else paths.root / path
+
+    try:
+        report, digest = run_v2_coverage_probe(
+            representations_path=anchored(representations_path),
+            output_path=anchored(output_path),
+            repo_root=paths.root,
+            config_path=None if config_path is None else anchored(config_path),
+        )
+    except (OSError, ValueError) as exc:
+        typer.echo(f"LF-031 deterministic-v2 coverage probe rejected: {exc}", err=True)
+        raise typer.Exit(code=2) from exc
+    total_hits = sum(item.theorem_hit_count for item in report.family_coverage)
+    typer.echo(
+        "LF-031 deterministic-v2 coverage probe OK; "
+        f"report={anchored(output_path)} sha256={digest} "
+        f"representations={report.representation_record_count} "
+        f"family_signal_hits={total_hits} lean_requests=0 drafts=0 labels=0 "
+        "interpretation=upper_bound_signal_not_applicability"
+    )
 
 
 def main() -> None:

@@ -41,7 +41,7 @@ def _repo_relative(value: str, *, field: str) -> None:
 
 class LF022PromptConfig(StrictModel):
     template_id: Literal["lean_variant", "lean_pair_blinded"]
-    template_version: Literal["v1"]
+    template_version: Literal["v1", "v2"]
     path: str
     sha256: str = Field(pattern=HEX64_PATTERN)
     parser_id: Literal[
@@ -56,7 +56,8 @@ class LF022PromptConfig(StrictModel):
         _repo_relative(self.path, field="prompt.path")
         if self.template_id == "lean_variant":
             if (
-                self.parser_id != "strict_llm_variant_json_v1"
+                self.template_version != "v1"
+                or self.parser_id != "strict_llm_variant_json_v1"
                 or self.proof_free_declarations_only is not True
             ):
                 raise ValueError("lean_variant requires its strict parser and proof-free policy")

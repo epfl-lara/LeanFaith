@@ -66,7 +66,6 @@ from leanfaith.generation.rcp_qualification_v1 import (
 )
 from leanfaith.generation.weak_supervision import (
     JUDGE_TEMPLATE_ID,
-    JUDGE_TEMPLATE_VERSION,
     FamilySeparationMatrix,
     JudgeOrientation,
     JudgePresentation,
@@ -80,6 +79,9 @@ from leanfaith.generation.weak_supervision import (
     parse_blinded_judge_output,
     render_blinded_judge_prompt,
     validate_family_separation,
+)
+from leanfaith.generation.weak_supervision import (
+    JUDGE_TEMPLATE_VERSION_V1 as JUDGE_TEMPLATE_VERSION,
 )
 from leanfaith.lean.protocol import LeanBackend, LeanRequest, LeanStatus
 from leanfaith.schemas.enums import (

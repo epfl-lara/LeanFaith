@@ -149,6 +149,7 @@ def test_audit_is_raw_first_exact_codex_command_and_resumable(
         executor=executor,
     )
     assert result.manifest.completed_count == 1
+    assert result.manifest.method_version == "lf022_codex_audit_v2"
     assert result.manifest.invoked_count == 1
     assert result.manifest.audit_only is True
     assert result.manifest.semantic_labels_created is False
@@ -167,6 +168,8 @@ def test_audit_is_raw_first_exact_codex_command_and_resumable(
     assert "shell_environment_policy.inherit=none" in argv
     assert argv[-1] == "-"
     assert b"source (n : Nat)" in executor.calls[0][1]
+    assert b"F1 \xe2\x80\x94 claim faithfulness" in executor.calls[0][1]
+    assert b"F2 \xe2\x80\x94 truth-level implication" in executor.calls[0][1]
     assert b"lf022_codex_audit_item" not in executor.calls[0][1]
 
     replay_executor = FakeExecutor([])
@@ -179,6 +182,30 @@ def test_audit_is_raw_first_exact_codex_command_and_resumable(
     assert replay.manifest.invoked_count == 0
     assert replay.manifest.reused_count == 1
     assert not replay_executor.calls
+
+
+def test_v2_audit_identity_does_not_reuse_v1_prompt_results() -> None:
+    item = _input()
+    v1_id = make_id(
+        "lf022_codex_audit_item",
+        {
+            "schema": "lf022_codex_audit_v1",
+            "lean_check_id": item.lean_check_id,
+            "variant_id": item.variant_id,
+            "pair_id": item.pair.pair_id,
+            "pair_admission_sha256": item.pair.admission_sha256,
+            "presentation_task_id": item.presentation.task_id,
+            "source_task_sha256": item.source_task_sha256,
+            "source_variant_artifact_sha256": item.source_variant_artifact_sha256,
+            "source_variant_line_sha256": item.source_variant_line_sha256,
+        },
+    )
+
+    assert item.audit_item_id != v1_id
+    with pytest.raises(ValueError, match="audit_item_id"):
+        LF022CodexAuditInput.model_validate(
+            {**item.model_dump(mode="json"), "audit_item_id": v1_id}
+        )
 
 
 def test_failed_parse_is_not_completed_and_next_run_retries(

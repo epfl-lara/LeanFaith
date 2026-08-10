@@ -29,7 +29,7 @@ ROOT = Path(__file__).resolve().parents[2]
 VARIANTS_CONFIG = ROOT / "configs/generation/llm_variants_v1.yaml"
 JUDGES_CONFIG = ROOT / "configs/judges/weak_supervision.yaml"
 PROPOSER_PROMPT = ROOT / "prompts/proposers/lean_variant_v1.txt"
-JUDGE_PROMPT = ROOT / "prompts/judges/lean_pair_blinded_v1.txt"
+JUDGE_PROMPT = ROOT / "prompts/judges/lean_pair_blinded_v2.txt"
 
 
 def _proposer_output() -> str:
@@ -109,6 +109,7 @@ def test_checked_in_lf022_foundation_is_typed_and_fail_closed() -> None:
     assert not loaded.variants.config.outputs.semantic_labels_created
     assert not loaded.judges.config.outputs.promoted_silver_write_enabled
     assert loaded.judges.config.aggregation.output_record == "WeakConsensusCandidateRecordV1"
+    assert loaded.judges.config.prompt.template_version == "v2"
     assert loaded.proposer_prompt_sha256 == hash_file(PROPOSER_PROMPT)
     assert loaded.judge_prompt_sha256 == hash_file(JUDGE_PROMPT)
 

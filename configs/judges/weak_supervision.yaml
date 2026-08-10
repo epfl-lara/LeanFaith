@@ -4,9 +4,9 @@ plan_sections: ["17.7", "17.8", "17.9", "23.10", "24.phase_6", "Appendix_E"]
 
 prompt:
   template_id: lean_pair_blinded
-  template_version: v1
-  path: prompts/judges/lean_pair_blinded_v1.txt
-  sha256: 6515abda33e18cc3a805f5ff8ec60029412e47e0e7b0852b71bef0659b912223
+  template_version: v2
+  path: prompts/judges/lean_pair_blinded_v2.txt
+  sha256: 199002c55f9b8ec132c02fad024731856da08c189432169c8624221ec1b37907
   parser_id: strict_blinded_judgment_json_v1
   strict_json_only: true
 
