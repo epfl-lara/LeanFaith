@@ -1,8 +1,8 @@
-"""Separate experimental runtime for the first executable deterministic-v2 slice.
+"""Separate experimental runtime for conservative deterministic-v2 E0 slices.
 
-This module activates only P11 and P12.  It does not modify or extend the
-accepted v1 registry, and it cannot resolve labels, promote families, or mark
-its output training-eligible.
+Every executable profile is exact and code-owned.  None modifies the accepted
+v1 registry or can resolve labels, promote families, or mark output
+training-eligible.
 """
 
 from __future__ import annotations
@@ -33,8 +33,10 @@ SemanticVersion = Annotated[
 ]
 
 V2E0RuleId = Literal[
+    "p05_resolved_names",
     "p06_implicit_arguments",
     "p07_coercion_surface",
+    "p08_type_ascriptions",
     "p09_projections",
     "p10_constructors",
     "p11_bounded_quantifiers",
@@ -43,6 +45,7 @@ V2E0RuleId = Literal[
 V2E0ProfileId = Literal[
     "deterministic_v2_e0_experimental",
     "deterministic_v2_e0_lf032_experimental",
+    "deterministic_v2_e0_lf033_surface_experimental",
 ]
 
 _PROFILE_RULE_IDS: dict[str, tuple[str, ...]] = {
@@ -57,6 +60,10 @@ _PROFILE_RULE_IDS: dict[str, tuple[str, ...]] = {
         "p10_constructors",
         "p11_bounded_quantifiers",
         "p12_proof_arrow_binder",
+    ),
+    "deterministic_v2_e0_lf033_surface_experimental": (
+        "p05_resolved_names",
+        "p08_type_ascriptions",
     ),
 }
 
@@ -90,6 +97,7 @@ class V2E0ExecutionConfig(StrictModel):
     candidate_pool: Literal[
         "deterministic_v2_e0_experimental",
         "deterministic_v2_e0_lf032_experimental",
+        "deterministic_v2_e0_lf033_surface_experimental",
     ]
     active_rules: tuple[V2E0RuleBinding, ...]
     required_candidate_views: tuple[
@@ -156,9 +164,13 @@ def load_v2_e0_execution_config(
 
 
 class V2E0Runtime:
-    """Code-owned dispatcher for exactly P11 and P12."""
+    """Code-owned dispatcher for exactly one selected E0 profile."""
 
     def __init__(self, loaded: LoadedConfig[V2E0ExecutionConfig]) -> None:
+        from leanfaith.transforms.positives.p05_p08_surface import (
+            P05ResolvedGlobalNamesRule,
+            P08TypeAscriptionsRule,
+        )
         from leanfaith.transforms.positives.p06_p10_surface import (
             P06ImplicitArgumentsRule,
             P10ConstructorsRule,
@@ -180,8 +192,10 @@ class V2E0Runtime:
             "candidate_pool": loaded.config.candidate_pool,
         }
         supported = {
+            "p05_resolved_names": P05ResolvedGlobalNamesRule(**constructor_args),
             "p06_implicit_arguments": P06ImplicitArgumentsRule(**constructor_args),
             "p07_coercion_surface": P07CoercionSurfaceRule(**constructor_args),
+            "p08_type_ascriptions": P08TypeAscriptionsRule(**constructor_args),
             "p09_projections": P09ProjectionSurfaceRule(**constructor_args),
             "p10_constructors": P10ConstructorsRule(**constructor_args),
             "p11_bounded_quantifiers": P11BoundedQuantifierRule(
@@ -209,7 +223,9 @@ class V2E0Runtime:
     ) -> TransformationExecution:
         rule = self._rules.get(rule_id)
         if rule is None:
-            raise V2E0ExecutionError(f"rule {rule_id!r} is outside the P11/P12 slice")
+            raise V2E0ExecutionError(
+                f"rule {rule_id!r} is outside profile {self.loaded.config.profile_id}"
+            )
         if theorem.theorem_id != representation.theorem_id:
             raise V2E0ExecutionError("source theorem/representation lineage mismatch")
         if theorem.context_id != representation.context_id:
@@ -263,7 +279,9 @@ class V2E0Runtime:
     ) -> TransformationAudit:
         rule = self._rules.get(rule_id)
         if rule is None:
-            raise V2E0ExecutionError(f"rule {rule_id!r} is outside the P11/P12 slice")
+            raise V2E0ExecutionError(
+                f"rule {rule_id!r} is outside profile {self.loaded.config.profile_id}"
+            )
         return rule.audit(
             source,
             source_representation,

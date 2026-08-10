@@ -120,7 +120,7 @@ def test_v2_execution_profile_is_exact_and_additive() -> None:
     assert loaded.config.resolved_label_count == 0
     assert loaded.config.promoted_item_count == 0
     assert loaded.config.training_eligible is False
-    with pytest.raises(V2E0ExecutionError, match="outside the P11/P12 slice"):
+    with pytest.raises(V2E0ExecutionError, match="outside profile"):
         theorem, representation = _source_records(_P11_SOURCE, "outside")
         runtime.execute("p01_alpha", theorem, representation, 0)
 
