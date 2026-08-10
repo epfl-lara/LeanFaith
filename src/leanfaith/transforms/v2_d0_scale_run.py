@@ -27,6 +27,7 @@ from leanfaith.transforms.v2_d0_n13_runtime import V2D0N13Runtime
 from leanfaith.transforms.v2_d0_n14_runtime import V2D0N14Runtime
 from leanfaith.transforms.v2_d0_n15_runtime import V2D0N15Runtime
 from leanfaith.transforms.v2_d0_n16_runtime import V2D0N16Runtime
+from leanfaith.transforms.v2_d0_n17_runtime import V2D0N17Runtime
 from leanfaith.transforms.v2_d0_runtime import V2D0Runtime
 from leanfaith.transforms.v2_d0_scale import (
     V2D0MaterializationInput,
@@ -126,7 +127,8 @@ def _ordered_attempts(
     | V2D0N13Runtime
     | V2D0N14Runtime
     | V2D0N15Runtime
-    | V2D0N16Runtime,
+    | V2D0N16Runtime
+    | V2D0N17Runtime,
     *,
     base_seed: int,
 ) -> tuple[V2D0MaterializationInput, ...]:
@@ -207,7 +209,8 @@ def _inventory(
     | V2D0N13Runtime
     | V2D0N14Runtime
     | V2D0N15Runtime
-    | V2D0N16Runtime,
+    | V2D0N16Runtime
+    | V2D0N17Runtime,
     base_seed: int,
     max_sources: int | None,
 ) -> tuple[int, str, str, str]:
@@ -260,7 +263,8 @@ def _load_batch(
     | V2D0N13Runtime
     | V2D0N14Runtime
     | V2D0N15Runtime
-    | V2D0N16Runtime,
+    | V2D0N16Runtime
+    | V2D0N17Runtime,
 ) -> tuple[V2D0MaterializationResult, ...]:
     try:
         results = tuple(_iter_jsonl(path, V2D0MaterializationResult))
@@ -345,7 +349,8 @@ def run_v2_d0_scale(
     | V2D0N13Runtime
     | V2D0N14Runtime
     | V2D0N15Runtime
-    | V2D0N16Runtime,
+    | V2D0N16Runtime
+    | V2D0N17Runtime,
     theorem_path: Path,
     representation_path: Path,
     project_dir: Path,

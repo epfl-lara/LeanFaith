@@ -24,6 +24,7 @@ from leanfaith.transforms.v2_d0_n13_runtime import V2D0N13Runtime
 from leanfaith.transforms.v2_d0_n14_runtime import V2D0N14Runtime
 from leanfaith.transforms.v2_d0_n15_runtime import V2D0N15Runtime
 from leanfaith.transforms.v2_d0_n16_runtime import V2D0N16Runtime
+from leanfaith.transforms.v2_d0_n17_runtime import V2D0N17Runtime
 from leanfaith.transforms.v2_d0_runtime import V2D0Runtime
 from leanfaith.transforms.v2_e0_materializer import _inline_candidate_source
 
@@ -55,7 +56,8 @@ def _common(
     | V2D0N13Runtime
     | V2D0N14Runtime
     | V2D0N15Runtime
-    | V2D0N16Runtime,
+    | V2D0N16Runtime
+    | V2D0N17Runtime,
     item: V2D0MaterializationInput,
     attempt: TransformationAttempt,
 ) -> dict[str, object]:
@@ -108,7 +110,8 @@ def materialize_v2_d0_batch(
     | V2D0N13Runtime
     | V2D0N14Runtime
     | V2D0N15Runtime
-    | V2D0N16Runtime,
+    | V2D0N16Runtime
+    | V2D0N17Runtime,
     inputs: Sequence[V2D0MaterializationInput],
     context_id: str,
     project_dir: Path,
