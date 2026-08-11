@@ -3563,6 +3563,55 @@ def audit_deterministic_composition_chains_command(
     )
 
 
+@app.command("postprocess-deterministic-composition-unique-pairs")
+def postprocess_deterministic_composition_unique_pairs_command(
+    seed_dir: Annotated[
+        Path,
+        typer.Option("--seed-dir", help="Exact immutable composition seed directory."),
+    ],
+    chain_dir: Annotated[
+        Path,
+        typer.Option("--chain-dir", help="Exact immutable composition chain-v1 directory."),
+    ],
+    output_dir: Annotated[
+        Path,
+        typer.Option("--output-dir", help="New immutable unique-pair audit directory."),
+    ],
+    root_dir: Annotated[
+        Path | None,
+        typer.Option("--root", help="Repository root override."),
+    ] = None,
+) -> None:
+    """Deduplicate chain receipts and separate alpha returns from novel pairs."""
+    from leanfaith.config.paths import RepoPaths
+    from leanfaith.transforms.composition_unique_pairs import (
+        CompositionUniquePairError,
+        postprocess_deterministic_v2_composition_unique_pairs,
+    )
+
+    paths = RepoPaths.discover(root_dir) if root_dir is None else RepoPaths(root=root_dir)
+
+    def anchored(path: Path) -> Path:
+        return path if path.is_absolute() else paths.root / path
+
+    try:
+        artifacts = postprocess_deterministic_v2_composition_unique_pairs(
+            seed_dir=anchored(seed_dir),
+            chain_dir=anchored(chain_dir),
+            output_dir=anchored(output_dir),
+        )
+    except (CompositionUniquePairError, OSError, ValueError) as exc:
+        typer.echo(f"Deterministic composition unique-pair postprocess rejected: {exc}", err=True)
+        raise typer.Exit(code=2) from exc
+    typer.echo(
+        f"unique_pair_set_id={artifacts.unique_pair_set_id} "
+        f"gross_chains={artifacts.gross_chain_count} unique_pairs={artifacts.unique_pair_count} "
+        f"status={'replayed' if artifacts.replayed else 'postprocessed'} "
+        "semantic_labels_created=0 promoted_items=0 training_eligible=false "
+        "evaluation_eligible=false gate_credit=false"
+    )
+
+
 @app.command("freeze-lf022-family-matrix")
 def freeze_lf022_family_matrix_command(
     config_path: Annotated[
@@ -4444,6 +4493,70 @@ def summarize_lf022_codex_audit_command(
         "audit_only=true human_labels_created=0 semantic_labels_created=0 "
         "silver_records_created=0 training_eligible=false evaluation_eligible=false "
         "gate_credit_claimed=false"
+    )
+
+
+@app.command("build-lf022-merged-checked-inventory")
+def build_lf022_merged_checked_inventory_command(
+    output_dir: Annotated[
+        Path,
+        typer.Option(
+            "--output-dir",
+            help="New immutable audit-only inventory root, or an exact prior replay.",
+        ),
+    ],
+    spec_path: Annotated[
+        Path,
+        typer.Option("--spec", help="Content-addressed four-partition inventory spec."),
+    ] = Path("configs/generation/lf022_merged_checked_inventory_v1.yaml"),
+    expected_spec_sha256: Annotated[
+        str,
+        typer.Option(
+            "--expected-spec-sha256",
+            help="Exact raw SHA-256 of the reviewed inventory spec.",
+        ),
+    ] = "6c8c56757b4fbb78dd3ebb6fc1311dba78f1f522de875e4e9680f12536cd8434",
+    root_dir: Annotated[
+        Path | None,
+        typer.Option("--root", help="Repository root override."),
+    ] = None,
+) -> None:
+    """Build the bounded audit-only LF-022 checked inventory; never claim readiness."""
+    from leanfaith.config.paths import RepoPaths
+    from leanfaith.generation.lf022_merged_inventory import (
+        LF022MergedInventoryError,
+        build_lf022_merged_checked_inventory,
+        write_lf022_merged_checked_inventory,
+    )
+
+    paths = RepoPaths.discover(root_dir) if root_dir is None else RepoPaths(root=root_dir)
+
+    def anchored(path: Path) -> Path:
+        return path if path.is_absolute() else paths.root / path
+
+    try:
+        bundle = build_lf022_merged_checked_inventory(
+            spec_path=anchored(spec_path),
+            expected_spec_sha256=expected_spec_sha256,
+        )
+        result = write_lf022_merged_checked_inventory(
+            bundle,
+            output_dir=anchored(output_dir),
+        )
+    except (OSError, ValueError, LF022MergedInventoryError) as exc:
+        typer.echo(f"LF-022 merged checked inventory rejected: {exc}", err=True)
+        raise typer.Exit(code=2) from exc
+    typer.echo(
+        "LF-022 merged checked inventory complete; "
+        f"inventory_id={result.report.inventory_id} "
+        f"gross={result.report.counts.gross_observation_count} "
+        f"unique_pairs={result.report.counts.unique_pair_key_count} "
+        f"valid_unique_pairs={result.report.counts.lean_valid_unique_pair_key_count} "
+        f"audited_unique_pairs={result.report.counts.audited_unique_pair_key_count} "
+        f"manifest={result.report_path} replayed={str(result.replayed).lower()} "
+        "audit_only=true readiness_claimed=false generation_complete=false "
+        "semantic_labels_created=0 silver_records_created=0 gold_records_created=0 "
+        "training_eligible=false evaluation_eligible=false gate_credit_claimed=false"
     )
 
 

@@ -375,13 +375,26 @@ def _read_jsonl[ModelT: StrictModel](
     return records
 
 
-def _pair_hash(variant: VariantRecord) -> str:
+def source_candidate_pair_hash(variant: VariantRecord) -> str:
+    """Return the canonical LF-022 source/candidate pair key.
+
+    This key deliberately ignores generation and checking lineage.  It groups
+    observations only when they have the same sorted source theorem IDs and
+    the same candidate statement bytes.  Inventory and overlap tools must use
+    this helper rather than inventing local approximations.
+    """
+
     return hash_canonical(
         {
             "source_theorem_ids": sorted(variant.source_theorem_ids),
             "candidate_code_hash": variant.candidate_code_hash,
         }
     )
+
+
+# Compatibility alias for existing internal tests and older callers.  New code
+# uses the public name above.
+_pair_hash = source_candidate_pair_hash
 
 
 def _validate_terminal_artifacts(
@@ -773,7 +786,7 @@ def _inventory_collection(
                 proposer_model=spec.proposer_model,
                 variant_id=variant.variant_id,
                 candidate_content_hash=variant.candidate_code_hash,
-                pair_hash=_pair_hash(variant),
+                pair_hash=source_candidate_pair_hash(variant),
             )
         )
     bucket = _bucket_from_observations(
