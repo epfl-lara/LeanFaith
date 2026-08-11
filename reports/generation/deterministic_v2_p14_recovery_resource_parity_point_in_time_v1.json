@@ -1,0 +1,228 @@
+{
+  "artifact_kind": "deterministic_v2_p14_recovery_resource_parity_point_in_time",
+  "captured_at_utc": "2026-08-11T16:36:11Z",
+  "code_commit": "fd196dd3ef9cfce490151632b7121c69e62567b4",
+  "conclusions": {
+    "legacy_p14_recovery_admissible_for_audit_combination": true,
+    "legacy_p14_recovery_training_eligible": false,
+    "operational_workers": 1,
+    "schema3_memory_limit_mb": null,
+    "schema3_workers_4_admissible": false
+  },
+  "legacy_p14_recovery": {
+    "combined_audit": {
+      "audit_only": true,
+      "evaluation_eligible": false,
+      "gate_credit": false,
+      "gross_observation_count": 1888,
+      "gross_observations": {
+        "path": "/storage/milikic/leanfaith/deterministic_v2/composition_second_hops/chain_8c18476_v1/audit/p14_recovery_combined_fd196dd_v1/gross_observations.jsonl",
+        "sha256": "98ec0d8fcbe66df6dc5b415b22b07a7684d5cf54a16370bfcb95e9fc6e509854"
+      },
+      "manifest": {
+        "path": "/storage/milikic/leanfaith/deterministic_v2/composition_second_hops/chain_8c18476_v1/audit/p14_recovery_combined_fd196dd_v1/manifest.json",
+        "sha256": "35be53204e6fad877c2fcb34cdc5d5e4ae758b25a7149562200d3712716249b3"
+      },
+      "promoted_item_count": 0,
+      "provisional_observation_count": 1888,
+      "resolved_label_count": 0,
+      "root_file_count": 3,
+      "root_tree_hash": "2cbcfdea571eddd7d13c102e804b318299b9c29a9129a82b9aab49eaf7b9f29c",
+      "semantic_labels_created": false,
+      "training_eligible": false,
+      "unique_pair_count": 1888,
+      "unique_pairs": {
+        "path": "/storage/milikic/leanfaith/deterministic_v2/composition_second_hops/chain_8c18476_v1/audit/p14_recovery_combined_fd196dd_v1/unique_pairs.jsonl",
+        "sha256": "d909a956a22817600039b76971424ba978f1c3de67fbb05ed81f994ac30967e0"
+      },
+      "validation": "existing normal combiner output validated against its schema, file hashes, and 1,888-line gross and unique outputs"
+    },
+    "exact_delta": {
+      "changed_journal_file_count": 1,
+      "changed_journal_line": {
+        "batch_line_number": 42,
+        "new_line_sha256": "3ee337e2ea10cf8a7f97bb94f752790446e3b04f9db8cd49da084c3d24f3b5e9",
+        "old_line_sha256": "f182d6b37ed35e04c449ee52be54e794099ccce95004401cd45546c38972d576",
+        "relative_path": "journal/batch_000016.jsonl"
+      },
+      "changed_result_line_count": 1,
+      "new_result_id": "v2e2_result:fa8f63eb5aa6e7c5c3f7514c11565e198b0177266c4ac37e50ddec04c0aa803a",
+      "new_terminal_status": "provisional_variant",
+      "old_result_id": "v2e2_result:fe0b81b7f5582ae5b6dffbc0c1aa20cd3f978b0c3c01a687678c4be67e743e7c",
+      "old_terminal_status": "candidate_infrastructure_error",
+      "result_line_number": 1066,
+      "unchanged_journal_file_count": 61,
+      "unchanged_result_line_count": 3940
+    },
+    "lean_validation": {
+      "candidate_validation_attempt_count": 1,
+      "candidate_validation_attempts": [
+        {
+          "allow_sorry": true,
+          "raw_response_relative_path": "raw_lean/98f7607f49a988316e4f5ed285184531ba0f1936f12fb7346b7830cc9aadf448.3ed1caa1.json",
+          "raw_response_sha256": "a4bd58d3a65fbe4207b71585d21860266a4a8c86e3e279c0b98ba34c9375d09a",
+          "status": "valid_with_sorry",
+          "timeout_seconds": 600.0
+        }
+      ],
+      "pipeline_attempt_count": 2,
+      "representation_attempt": {
+        "raw_response_relative_path": "raw_lean/973a4229338e3531051e2e866942a8bcf409a214b4054fd8dcc7e5855e91257d.d2247e78.json",
+        "raw_response_sha256": "fdfd21a4270f34af39e0675e1f95b6e1668d9cfacaa5425e46e0e7ced497cb72",
+        "status": "valid_with_sorry"
+      },
+      "resolved_lean_version": "v4.31.0-rc1",
+      "toolchain": "leanprover/lean4:v4.31.0-rc1"
+    },
+    "parent": {
+      "file_count": 5087,
+      "journal_batch_000016_sha256": "92d589a3d6c89034999fc2aaffe8059ad57e7f6f4f55e040ec6ebaec719fa5d1",
+      "manifest_sha256": "e99deb2525271f9dc660617970562381b419319d31bb95c34492f36d9e0e57e8",
+      "path": "/storage/milikic/leanfaith/deterministic_v2/composition_second_hops/chain_8c18476_v1/full/p14",
+      "results_sha256": "585a27622710eab18ba22bcf9e944296f980b503fed1e1f2c81578e9e5c3bdf5",
+      "root_tree_hash": "126c9a1da9b59eb51b5c9f31c621a716ef9512e3ac629bbec21c8a112a47b89f",
+      "run_spec_sha256": "a2513d818735fb9e879df8bf47939fb8ab41defe934973c548bad5522f5ad8e0",
+      "unchanged_at_capture": true
+    },
+    "recovered": {
+      "file_count": 5091,
+      "journal_batch_000016_sha256": "a88cf81edf509287dbf63294fd8b0ee65872fe86d2ee6ee9f863f0d88abec327",
+      "loader_observation_count": 1888,
+      "manifest_sha256": "de5b4590fb73c68cc67411fc129375932cdcc1453d82b500a96e08fe6f593312",
+      "normal_loader_accepted": true,
+      "path": "/storage/milikic/leanfaith/deterministic_v2/composition_second_hops/chain_8c18476_v1/full/p14_recovered_fd196dd_v1",
+      "promoted_item_count": 0,
+      "provisional_variant_count": 1888,
+      "recovery_receipt_sha256": "a5875525242e73dabc5dc745e666c3253c260f512e0c6f997f63894d63acfadf",
+      "recovery_spec_sha256": "8a00d2d221a1cb1d2f96fa5d59aa58b6f89b6d242a8bb8b79cce20a5acff53e1",
+      "resolved_label_count": 0,
+      "results_sha256": "e34eba09a05ad4f3f1917bc5b228d4a8549c0e9f0795297afb264c7f5ff064e1",
+      "root_tree_hash": "631508e9e32c235c4064cc22528216f484ff884de41de72db4137fb4ee4e0bfc",
+      "run_spec_byte_identical_to_parent": true,
+      "run_spec_sha256": "a2513d818735fb9e879df8bf47939fb8ab41defe934973c548bad5522f5ad8e0",
+      "schema_version": 2,
+      "training_eligible": false
+    }
+  },
+  "schema3_resource_and_parity": {
+    "bounded_memory_parity": {
+      "candidate_infrastructure_error_count_each": 43,
+      "candidate_retry_count_each": 2,
+      "execution_outputs_byte_identical": true,
+      "failure_evidence": {
+        "all_raw_responses_contain": "failed to create thread",
+        "erroring_raw_response_count_each": 86,
+        "not_applicable_count_each": 21,
+        "raw_response_tree_hash_each": "9a0c53da721946751350e1f2ff5c4530eb1f5ae6cad8401a915edfbf37251c74",
+        "results_sha256_each": "3bca6500d8221e3ba30f7530542b3857a924b0c0242f337d8c7196f38895c551"
+      },
+      "memory_hard_limit_mb": 12288,
+      "note": "Results, journal, and raw-response trees are byte-identical. Run specs differ only in workers, so whole roots and manifests are intentionally not byte-identical.",
+      "w1": {
+        "admissible": false,
+        "loader_rejection": "materialization root contains an infrastructure-error result at line 1",
+        "manifest_sha256": "0ae81b71fee3e1d1e0309661b5e0d8764c324a373aaec5b27caf0d3adf870a46",
+        "path": "/storage/milikic/leanfaith/deterministic_v2/composition_second_hops/chain_fd196dd_schema3_v1/smoke_parity/p14_w1",
+        "root_file_count": 90,
+        "root_tree_hash": "bf2eacee4f3f41acf46ee2cd061536c67c31cf01b47cc641c2753134a8ddd452",
+        "run_spec_sha256": "b06f88464a3306c24bb2c40ee8aa186137c8ca0db8d975d5c80d1426dd75bf7c",
+        "workers": 1
+      },
+      "w4": {
+        "admissible": false,
+        "loader_rejection": "materialization root contains an infrastructure-error result at line 1",
+        "manifest_sha256": "c81b723db3491fa4d2d42108ebd05b5c060abda43345e0aa1d200034db3932ef",
+        "path": "/storage/milikic/leanfaith/deterministic_v2/composition_second_hops/chain_fd196dd_schema3_v1/smoke_parity/p14_w4",
+        "root_file_count": 90,
+        "root_tree_hash": "ec3b30b642b29ddb3c0aceb026d6e64ed82adeb1f153d4adf3d39fe916b94488",
+        "run_spec_sha256": "c96744d74d8329ac2383d370d3c834e1fedc503e2b16884569d3b37629194cd0",
+        "workers": 4
+      }
+    },
+    "no_limit_full_w1": {
+      "audit_quarantined_count": 11,
+      "candidate_infrastructure_error_count": 0,
+      "loader_accepted": true,
+      "manifest_sha256": "8a09a97e91596ffbb1cddc473a6335c10e8e913eede2b81f93487e1bf480b609",
+      "memory_hard_limit_mb": null,
+      "not_applicable_count": 21,
+      "path": "/storage/milikic/leanfaith/deterministic_v2/composition_second_hops/chain_fd196dd_schema3_v1/smoke_parity_nomem/p14_w1",
+      "promoted_item_count": 0,
+      "provisional_variant_count": 32,
+      "raw_response_file_count": 86,
+      "raw_response_tree_hash": "72a91710bc82651c669fda56992529966aa4df8ded74fcb722cdbb3d5c06f23a",
+      "resolved_label_count": 0,
+      "result_count": 64,
+      "results_sha256": "ce31dacbcaabf481a711cd75f80430d32bec32a09e1fc49bb49247cdc78cfbff",
+      "root_file_count": 90,
+      "root_tree_hash": "46d72515181906ae3fdd4f120e6416a8dab207b059c1382c460d85ee538486c0",
+      "run_spec_sha256": "365b0e71eadcfed01d1e69113485f31f9618461e8ac5aca6c0e5e5d443d668bb",
+      "training_eligible": false,
+      "workers": 1
+    },
+    "no_limit_one_example_w1": {
+      "loader_accepted": true,
+      "manifest_sha256": "efbacb980022880bc091c8dd2350540545e80af69a6708c0b32454c92db32b9f",
+      "memory_hard_limit_mb": null,
+      "path": "/storage/milikic/leanfaith/deterministic_v2/composition_second_hops/chain_fd196dd_schema3_v1/smoke_resource_probe/p14_w1_nomem_1",
+      "provisional_variant_count": 1,
+      "raw_response_file_count": 2,
+      "raw_response_tree_hash": "23204ed950470383b93a84869748d6f2760fa855ef530045755d6dfc8fdeeca3",
+      "result_count": 1,
+      "results_sha256": "2e2bb4182659b3a2930b176d85c475a945b91d6c164a23ebbbb759e5bf8ebea7",
+      "root_file_count": 6,
+      "root_tree_hash": "71426214b53b700017c30bed7c94379c3bb86367f40984c1ac525982d74e3620",
+      "run_spec_sha256": "010f360a809dd6a3ca03c457a4a5a1879fa26b2357bf076cc38d5d15b2612067",
+      "workers": 1
+    },
+    "no_limit_w4_incomplete": {
+      "admissible": false,
+      "live_process_present_at_capture": false,
+      "loader_rejection": "materialization root is incomplete",
+      "memory_hard_limit_mb": null,
+      "operator_memory_observation": {
+        "persisted_monitor_artifact": false,
+        "repl_rss_gib_approx": [
+          34,
+          21,
+          16
+        ],
+        "source": "operator process monitoring during execution",
+        "system_memory_gib_approx": 54,
+        "warning": "Approximate RSS figures are observational, are not reconstructible from the immutable root, and are non-additive when processes share pages."
+      },
+      "partial_raw_error_counts": {
+        "error_null_success_responses": 85,
+        "memory_error_responses": 4,
+        "raw_response_files": 89,
+        "retry_files": 2
+      },
+      "path": "/storage/milikic/leanfaith/deterministic_v2/composition_second_hops/chain_fd196dd_schema3_v1/smoke_parity_nomem/p14_w4",
+      "published_journal_present": false,
+      "published_manifest_present": false,
+      "published_results_present": false,
+      "raw_response_tree_hash": "ecff6648a546e6abaea0bd7e08e72a4e8ee6bf869746274994d591e3cf754133",
+      "root_file_count": 90,
+      "root_tree_hash": "016816381f973eb683417fe44bebc293b056382a6992461ddffcba1f558ad5cf",
+      "run_spec_sha256": "ee62fef235f0bd49029845ae30177e1d169179b144fcafb7de391a8f2f246c3b",
+      "termination": "terminated before publication after excessive concurrent REPL memory growth",
+      "workers": 4
+    },
+    "operational_decision": {
+      "memory_hard_limit_mb": null,
+      "rationale": "The 12,288 MiB limit deterministically caused thread-creation crashes, while unlimited workers=1 completed the 64-example smoke with zero infrastructure errors. Unlimited workers=4 did not publish a root and exhibited excessive concurrent REPL memory use.",
+      "workers": 1
+    },
+    "schema_version": 3
+  },
+  "schema_version": 1,
+  "scope": "Point-in-time, audit-only record of the exact legacy P14 recovery and schema-3 P14 resource/parity observations. It creates no labels, promotions, training eligibility, evaluation eligibility, or gate credit.",
+  "verification": {
+    "commands_were_read_only": true,
+    "parent_tree_binding_recomputed": true,
+    "recovered_normal_loader_executed": true,
+    "result_and_journal_line_diff_recomputed": true,
+    "resource_raw_errors_scanned": true,
+    "schema3_normal_loaders_executed": true
+  }
+}
