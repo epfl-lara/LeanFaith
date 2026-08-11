@@ -1,0 +1,137 @@
+{
+  "artifact_class": "exploratory_inventory",
+  "audit_code_commit": "147b6bc84146c11bfc6325b32779cda74dd2c064",
+  "audit_date": "2026-08-11",
+  "audit_only": true,
+  "clean_base_combination": {
+    "combination_hash": "5fae432e9a39d4259e4c9bfecf36a893355ea54a495aaf8462917cec7ad7ba4d",
+    "duplicate_excess_count": 0,
+    "duplicate_group_count": 0,
+    "gross_observation_count": 2004,
+    "gross_output_sha256": "a78a913a7e0f8741eda579701c902f972e0ba1a628b3f00bff8fa481b440a6d5",
+    "manifest_sha256": "5a2d190b0536397f449503d45fab7746589fa6b15917a84d69feab2749dfd830",
+    "root_binding_count": 10,
+    "unique_output_sha256": "3553a388e1a0dbeaf86691cbfcd7454a0125acf63c92c2856bb88189289685e2",
+    "unique_pair_count": 2004
+  },
+  "deduplication_semantics": {
+    "semantic_uniqueness_claimed": false,
+    "unique_pair_count_meaning": "unique context_id + source_theorem_ids + candidate_code_hash groups",
+    "wider_candidate_and_alpha_overlaps": "reported separately and retained for later near-duplicate grouping"
+  },
+  "duplicate_root_correction": {
+    "content_identical_binding_groups": [
+      {
+        "family_id": "n15_conjunct_omission",
+        "relocation_stable_root_binding_id": "detprov_root:0327b0d6c3d4bd9f386ea74ec572d8b2d4517205664d88f52274068eca1623f2",
+        "redundant_root_count": 1
+      },
+      {
+        "family_id": "n16_domain_guard_removal",
+        "relocation_stable_root_binding_id": "detprov_root:fc32b27fff8a212540e92288bdd905981fa243d237f0cb0068169109fe12fa5a",
+        "redundant_root_count": 1
+      }
+    ],
+    "directory_tree_comparison": "byte_identical",
+    "failed_attempt_exit_code": 1,
+    "failed_attempt_log_sha256": "57d884a2f2304f0c87ca0be2f3013537949e46346a5f54cd0b315bb0ca40346e",
+    "failed_attempt_reason": "duplicate materialization root bindings detected",
+    "legacy_gross_observation_count": 2006,
+    "legacy_unique_pair_count": 2004,
+    "lost_exact_pair_keys": 0,
+    "new_gross_observation_count": 2004,
+    "new_unique_pair_count": 2004
+  },
+  "family_counts": {
+    "n11_bound_variable_substitution": 233,
+    "n12_implication_converse": 419,
+    "n15_conjunct_omission": 1,
+    "n16_domain_guard_removal": 1,
+    "p09_projections": 2,
+    "p11_bounded_quantifiers": 264,
+    "p14_independent_binder_permutation": 1143,
+    "p15_root_iff_reversal": 173,
+    "p16_conjunction_reassociation": 1
+  },
+  "final_combination": {
+    "combination_hash": "fbe939a86a275aa413fbe602aec6fd93e7f324613631d0f0851a2668c7bcc4f0",
+    "duplicate_excess_count": 0,
+    "duplicate_group_count": 0,
+    "gross_observation_count": 2237,
+    "gross_output_sha256": "31660fea716039ec0831a8d50256feb7817776ee4330ef32f9a6970c2981f2f7",
+    "manifest_sha256": "cd2e5322976ed2c7518cec1c95f1fb4bd24038db281b4c4ef2ebf8c0d3b071a8",
+    "root_binding_count": 11,
+    "unique_output_sha256": "8cd557a53cc035ff9a81f47618dcf6c09170be705b3db2b1ef321250e2d76829",
+    "unique_pair_count": 2237
+  },
+  "frozen_source": {
+    "record_count": 27786,
+    "representation_partition_sha256": "c799f54c60d3eb3f45a0fa473231ba991e871b7de440c65b037436721037e505",
+    "source": "mathlib",
+    "theorem_partition_sha256": "7f1a157bfb818b49d082dcc58de221bdddb67f6e8309554395baeb29850838d7"
+  },
+  "launcher_sha256": {
+    "clean_base_corrected_v3": "544768ccaaee3ea0618bcf5caf11bed3c9e2fff6089bf98f066b276008f9a94e",
+    "clean_base_failed_duplicate_v2": "b593da671efd4f30a48dd2d04344f07825d52daedad5d0683a933945517d32b5",
+    "final_combination_corrected_v2": "0946b83980c66abc59879e16193d933d6ad27f197b29bc81548de45b43f17691",
+    "final_combination_superseded_v1": "4850b000c7ac938e4a0f75bde753cb0757e27bf2f37951a3c59d054b03e5c7d7",
+    "n11_clean_replay_v1": "54ed538bd60fbad2d2a05a302f9ef9d975bbd31003c2217d7758edc46badcb70"
+  },
+  "n11_clean_replay": {
+    "batch_count": 218,
+    "infrastructure_failure_count": 0,
+    "journal_tree_hash": "52ddabe8a81524e3b7b7998c0da2cdc95ef81481e4d9b9707682cddda43e6e4c",
+    "manifest_sha256": "107f4592e8bf3177dc7fc17cb2e200a386f66202301ec67696b2506d713932b8",
+    "materialization_code_commit": "99ee0e07c8234b36071fdf03f81b6823ab1b1e82",
+    "results_sha256": "836fa8285cc13e28fe7ddd6d97d849766c89ed74c97d2606e7a0aaeb4d316d68",
+    "run_spec_sha256": "0e15372c36357e87b847eaf28f10cace38137e363a10ecfa54f1d1747b25f16a",
+    "status_counts": {
+      "audit_quarantined": 961,
+      "candidate_invalid": 117,
+      "not_applicable": 26475,
+      "provisional_variant": 233
+    },
+    "terminal_result_count": 27786
+  },
+  "overlap_audits": {
+    "alpha_candidate_key": {
+      "duplicate_excess_count": 3,
+      "duplicate_group_count": 3,
+      "key_available_count": 2237,
+      "observation_count": 2237,
+      "unique_key_count": 2234
+    },
+    "ancestry_candidate_key": {
+      "duplicate_excess_count": 0,
+      "duplicate_group_count": 0,
+      "key_available_count": 2237,
+      "observation_count": 2237,
+      "unique_key_count": 2237
+    },
+    "candidate_code_key": {
+      "duplicate_excess_count": 5,
+      "duplicate_group_count": 4,
+      "key_available_count": 2237,
+      "observation_count": 2237,
+      "unique_key_count": 2232
+    },
+    "exact_pair_key": {
+      "duplicate_excess_count": 0,
+      "duplicate_group_count": 0,
+      "key_available_count": 2237,
+      "observation_count": 2237,
+      "unique_key_count": 2237
+    }
+  },
+  "policy": {
+    "evaluation_eligible": false,
+    "gate_credit": false,
+    "private_text_in_report": false,
+    "promoted_item_count": 0,
+    "resolved_label_count": 0,
+    "semantic_labels_created": false,
+    "training_eligible": false
+  },
+  "schema_version": 1,
+  "status": "completed_provisional_inventory"
+}

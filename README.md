@@ -179,6 +179,15 @@ dataset probe (PLAN.md §9.2).
   snapshot contained 1,166 distinct source/candidate pairs with zero exact
   cross-model duplication. Those live snapshots are inventory evidence only,
   not semantic labels or training admission.
+- **First LF-022 judging inventory is inspectable and replay-stable:** all 201
+  Lean-valid Kimi prefix-256 pairs are packaged as 201 unique judge-visible
+  payloads. Deduplication binds Lean A, Lean B, and optional natural language;
+  a relocated rebuild reproduced byte-identical records, sample, summary, and
+  manifest. The inventory schedules 804 future calls for two independent judge
+  families in both statement orders. The prior Codex verdict is retained only
+  as a diagnostic, so this milestone still creates zero semantic labels,
+  silver records, training examples, evaluation examples, or gate credit. See
+  `reports/generation/lf022_supervision_candidates_kimi_prefix256_v2.md`.
 - **Deterministic unary scale-out materialized:** all 16 producer shards over
   the frozen 27,786-statement public universe completed. A separate
   content-audit merge at code revision `645a9a8` verified immutable inputs,
@@ -191,18 +200,16 @@ dataset probe (PLAN.md §9.2).
   audit explicitly records `training_eligible=false`,
   `evaluation_eligible=false`, and `gate_credit=false`; no semantic label or
   promotion follows from generation or typechecking alone.
-- **Deterministic-v2 public expansion materialized, with contaminated roots
-  removed:** the original seven-family follow-up completed, but the new
-  fail-closed combiner found one `lean_crash` in its N11 root and infrastructure
-  failures in an older standalone P15 root. Those roots are excluded rather
-  than counted. The remaining clean roots contain 2,006 gross observations and
-  2,004 exact source/candidate pairs; 1,999 candidate-code hashes are distinct.
-  A clean isolated N11 replay is running against the same frozen 27,786-source
-  denominator. The earlier 2,241 portfolio number is therefore historical and
-  is not an accepted clean inventory. No count is a semantic label or
-  confirmatory training admission. See
-  `reports/transformation_audits/lf033_public_followup_examples.md` and
-  `reports/transformation_audits/lf033_public_followup_materialization_v1.json`.
+- **Deterministic-v2 public expansion is cleanly materialized:** duplicate
+  byte-identical N15/N16 rerun roots were removed without losing any of the
+  2,004 pre-N11 exact pair keys. The isolated N11 replay completed all 27,786
+  source attempts without an infrastructure failure and added 233 provisional
+  pairs. The final all-clean inventory therefore contains **2,237 exact
+  source/candidate groups** across 11 unique roots, including 2,232 distinct
+  candidate-code keys and 2,234 distinct alpha keys. The earlier 2,241 number
+  and 2,006 gross count are preserved only as historical/superseded audit
+  context. No count is a semantic label or confirmatory training admission.
+  See `reports/transformation_audits/lf033_public_all_clean_inventory_v1.md`.
 - **Private deterministic-v2 first full portfolio complete:** all configured
   deterministic-v2 families ran over the exact frozen 5,000-statement
   `sft_classic` Gate-3 subset. The fail-closed combination contains 5,497 exact
@@ -214,6 +221,15 @@ dataset probe (PLAN.md §9.2).
   no private theorem text is committed. Every pair remains intention-only,
   unresolved, and ineligible for training, evaluation, promotion, or gate
   credit.
+- **P12 deterministic expansion is ready for Lean scale materialization:** a
+  separate P12 v1.1 matcher adds complex, visibly propositional root proof
+  arrows without changing the accepted P12 v1.0 bytes or effective hash. Its
+  read-only probe finds 89 opportunities in the frozen private 5,000 statements
+  and 278 in the public 27,786 statements. Nested arrows, data-function
+  domains, dependent binders, and unsupported syntax fail closed. These 367
+  opportunities are upper bounds until same-context LeanInteract
+  re-elaboration and the complete E0 identity audit finish. See
+  `reports/transformation_audits/p12_v110_prescale_yield_v1.md`.
 - **Public LF-022 scale-out preparation is deterministic and still
   non-executable:** a pinned, progressively expandable mathlib file frame
   feeds exact extraction and representation runs. The production pool admits

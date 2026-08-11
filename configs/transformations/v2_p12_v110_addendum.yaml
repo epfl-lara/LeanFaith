@@ -1,0 +1,23 @@
+schema_version: 1
+addendum_id: deterministic_v2_p12_v110_matcher_expansion
+addendum_version: 1.0.0
+status: experimental
+base_portfolio_id: leanfaith_deterministic_v2_design
+base_portfolio_config_hash: f48e2dfd4555e71dfd07518330f33d222894fa935fb81b6c9e7678a8a1a66594
+family_id: p12_proof_arrow_binder
+base_family_version: 1.0.0
+expanded_family_version: 1.1.0
+change_kind: matcher_expansion
+scope: Root proof arrows with a source-visible proposition operator or a declared Prop variable.
+excluded_cases:
+  - arbitrary predicate applications without source-visible proposition evidence
+  - control or quantifier prefixes whose apparent arrow is not the conclusion root
+  - dependent named proof binders
+  - nested arrows
+  - non-Prop data-function binders
+  - operator tokens containing the arrow glyph
+require_exact_inverse_replay: true
+require_existing_e0_audit: true
+resolved_label_count: 0
+promoted_item_count: 0
+training_eligible: false

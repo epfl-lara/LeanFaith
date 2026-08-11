@@ -335,6 +335,246 @@ def enumerate_p12_sites(source: str) -> tuple[PresentationSite, ...]:
     return tuple(sites)
 
 
+_P12_V110_PROP_OPERATORS = frozenset(
+    {
+        "↔",
+        "∧",
+        "∨",  # noqa: RUF001 - intentional Lean logical-or glyph
+        "∈",
+        "∉",
+        "≠",
+        "≤",
+        "≥",
+        "⊂",
+        "⊆",
+    }
+)
+
+
+def _p12_v110_outer_parentheses(expression: str) -> str:
+    """Remove only parentheses that enclose the complete expression."""
+
+    result = expression.strip()
+    while result.startswith("(") and result.endswith(")"):
+        depth = 0
+        closes_at_end = False
+        for index, character in enumerate(result):
+            if character == "(":
+                depth += 1
+            elif character == ")":
+                depth -= 1
+                if depth < 0:
+                    return result
+                if depth == 0:
+                    closes_at_end = index == len(result) - 1
+                    break
+        if not closes_at_end:
+            break
+        result = result[1:-1].strip()
+    return result
+
+
+def _p12_v110_top_level_arrow(expression: str) -> int | None:
+    """Return the first root arrow, excluding arrows nested in delimiters."""
+
+    stack: list[str] = []
+    open_to_close = {"(": ")", "{": "}", "[": "]", "⦃": "⦄"}
+    close_to_open = {close: open_ for open_, close in open_to_close.items()}
+    for index, character in enumerate(expression):
+        if character in open_to_close:
+            stack.append(character)
+        elif character in close_to_open:
+            if not stack or stack[-1] != close_to_open[character]:
+                return None
+            stack.pop()
+        elif (
+            character == "→"
+            and not stack
+            and index > 0
+            and index + 1 < len(expression)
+            and expression[index - 1].isspace()
+            and expression[index + 1].isspace()
+        ):
+            return index
+    return None
+
+
+def _p12_v110_contains_arrow_glyph(expression: str) -> bool:
+    """Reject every arrow glyph in a proposed domain, including decorations."""
+
+    return "→" in expression
+
+
+def _p12_v110_is_syntactic_prop(expression: str, proposition_names: frozenset[str]) -> bool:
+    """Recognize a deliberately narrow, source-visible proposition grammar.
+
+    P12 must not turn a data-function binder such as ``Nat → Nat`` into a
+    purported proof binder.  The v1.1 expansion therefore accepts only a
+    proposition variable declared as ``Prop`` or a domain with a visible
+    proposition constructor/operator at its root.  Candidate re-elaboration
+    and the E0 whole-type identity audit remain authoritative afterwards.
+    """
+
+    candidate = _p12_v110_outer_parentheses(expression)
+    if not candidate:
+        return False
+    # This check must precede relation/connective recognition: a domain such
+    # as ``(x = 0 → True)`` contains equality but is outside P12 v1.1's
+    # single-root-arrow contract.  Nested arrows and decorated arrow operators
+    # belong to later, separately versioned families.
+    if _p12_v110_contains_arrow_glyph(candidate):
+        return False
+    if candidate in proposition_names or candidate in {"False", "True"}:
+        return True
+    if candidate.startswith("¬") or re.match(r"^Not(?:\s|\()", candidate):
+        return True
+    # An unparenthesized binder/control prefix means the apparent arrow belongs
+    # below that construct rather than at the theorem conclusion root.
+    if re.match(r"^(?:∀|∃|fun\b|if\b|let\b|match\b)", candidate):
+        return False
+
+    stack: list[str] = []
+    open_to_close = {"(": ")", "{": "}", "[": "]", "⦃": "⦄"}
+    close_to_open = {close: open_ for open_, close in open_to_close.items()}
+    for index, character in enumerate(candidate):
+        if character in open_to_close:
+            stack.append(character)
+        elif character in close_to_open:
+            if not stack or stack[-1] != close_to_open[character]:
+                return False
+            stack.pop()
+        elif not stack and character in _P12_V110_PROP_OPERATORS:
+            return True
+        elif (
+            not stack
+            and character in {"=", "<", ">"}
+            and index > 0
+            and index + 1 < len(candidate)
+            and candidate[index - 1].isspace()
+            and candidate[index + 1].isspace()
+        ):
+            # Requiring token-separating whitespace rejects Bool equality
+            # ``==``, pipelines ``<|``/``|>``, assignment ``:=``, and other
+            # data-valued operators that merely contain a relation glyph.
+            return True
+    return False
+
+
+def _p12_v110_named_binder(
+    conclusion: str,
+    proposition_names: frozenset[str],
+) -> tuple[str, str, int] | None:
+    """Parse one immediate explicit binder followed by a root arrow."""
+
+    leading = len(conclusion) - len(conclusion.lstrip())
+    if leading == len(conclusion) or conclusion[leading] != "(":
+        return None
+    depth = 0
+    close: int | None = None
+    for index in range(leading, len(conclusion)):
+        character = conclusion[index]
+        if character == "(":
+            depth += 1
+        elif character == ")":
+            depth -= 1
+            if depth == 0:
+                close = index
+                break
+            if depth < 0:
+                return None
+    if close is None:
+        return None
+    tail = conclusion[close + 1 :]
+    arrow_match = re.match(r"\s+→(?=\s)", tail)
+    if arrow_match is None:
+        return None
+    binder_text = conclusion[leading + 1 : close]
+    binder_match = re.match(
+        rf"^\s*(?P<binder>{_IDENTIFIER})\s*:\s*(?P<domain>.+?)\s*$", binder_text
+    )
+    if binder_match is None:
+        return None
+    domain = binder_match.group("domain")
+    if not _p12_v110_is_syntactic_prop(domain, proposition_names):
+        return None
+    arrow_end = close + 1 + arrow_match.end()
+    return binder_match.group("binder"), domain, arrow_end
+
+
+def enumerate_p12_v110_sites(source: str) -> tuple[PresentationSite, ...]:
+    """Expand P12 to root arrows with visibly propositional complex domains.
+
+    This is a versioned expansion rather than a mutation of P12 v1.0.  It
+    supports equality, order/membership relations, logical connectives,
+    negation, ``True``/``False``, and declared ``Prop`` variables.  Arbitrary
+    predicate applications and quantifier/control prefixes fail closed.
+    """
+
+    mask, conclusion_start, conclusion_end = _signature_bounds(source)
+    proposition_names = _proposition_names(mask[:conclusion_start])
+    conclusion = mask[conclusion_start:conclusion_end]
+    named = _p12_v110_named_binder(conclusion, proposition_names)
+    if named is not None:
+        binder, domain, arrow_end = named
+        remainder = mask[conclusion_start + arrow_end : conclusion_end]
+        if re.search(rf"\b{re.escape(binder)}\b", remainder) is None:
+            leading_length = len(conclusion) - len(conclusion.lstrip())
+            start = conclusion_start
+            end = conclusion_start + arrow_end
+            if "--" in source[start:end] or "/-" in source[start:end]:
+                return ()
+            leading = source[start : start + leading_length]
+            sites = (
+                PresentationSite(
+                    operation="binder_to_arrow_v110",
+                    start=start,
+                    end=end,
+                    source_text=source[start:end],
+                    replacement_text=f"{leading}({domain.strip()}) →",
+                    metadata=(
+                        ("binder", binder),
+                        ("domain_grammar", "visible_proposition_root"),
+                    ),
+                ),
+            )
+            return sites
+        return ()
+
+    arrow_index = _p12_v110_top_level_arrow(conclusion)
+    if arrow_index is None:
+        return ()
+    domain = conclusion[:arrow_index]
+    if not _p12_v110_is_syntactic_prop(domain, proposition_names):
+        return ()
+    leading_length = len(domain) - len(domain.lstrip())
+    domain_text = source[conclusion_start + leading_length : conclusion_start + arrow_index].strip()
+    if not domain_text:
+        return ()
+    binder = "_h_p12v110"
+    suffix = 0
+    while re.search(rf"\b{re.escape(binder)}\b", mask):
+        suffix += 1
+        binder = f"_h_p12v110_{suffix}"
+    start = conclusion_start
+    end = conclusion_start + arrow_index + 1
+    if "--" in source[start:end] or "/-" in source[start:end]:
+        return ()
+    leading = source[start : start + leading_length]
+    return (
+        PresentationSite(
+            operation="arrow_to_binder_v110",
+            start=start,
+            end=end,
+            source_text=source[start:end],
+            replacement_text=f"{leading}({binder} : {domain_text}) →",
+            metadata=(
+                ("binder", binder),
+                ("domain_grammar", "visible_proposition_root"),
+            ),
+        ),
+    )
+
+
 def _choose_site(
     sites: tuple[PresentationSite, ...],
     *,
@@ -691,12 +931,26 @@ class P12ProofArrowBinderRule(_E0PresentationRule):
         return enumerate_p12_sites(source)
 
 
+class P12ProofArrowBinderV110Rule(_E0PresentationRule):
+    """P12 v1.1 complex root proof-arrow presentation expansion."""
+
+    rule_id = "p12_proof_arrow_binder"
+    family_id = "p12_proof_arrow_binder"
+    implementation_key = "p12_proof_arrow_binder"
+    rule_version = "1.1.0"
+
+    def _sites(self, source: str) -> tuple[PresentationSite, ...]:
+        return enumerate_p12_v110_sites(source)
+
+
 __all__ = [
     "P11BoundedQuantifierRule",
     "P12ProofArrowBinderRule",
+    "P12ProofArrowBinderV110Rule",
     "PresentationSite",
     "V2E0RuleError",
     "apply_presentation_trace",
     "enumerate_p11_sites",
     "enumerate_p12_sites",
+    "enumerate_p12_v110_sites",
 ]

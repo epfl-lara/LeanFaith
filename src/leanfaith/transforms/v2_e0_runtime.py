@@ -12,7 +12,8 @@ from typing import Annotated, Literal
 
 from pydantic import Field, model_validator
 
-from leanfaith.config.loading import LoadedConfig, load_config
+from leanfaith.config.hashing import hash_file
+from leanfaith.config.loading import LoadedConfig, load_config, load_yaml_mapping
 from leanfaith.config.models import StrictModel
 from leanfaith.config.paths import find_repo_root
 from leanfaith.schemas.enums import QualityTier
@@ -46,6 +47,7 @@ V2E0ProfileId = Literal[
     "deterministic_v2_e0_experimental",
     "deterministic_v2_e0_lf032_experimental",
     "deterministic_v2_e0_lf033_surface_experimental",
+    "deterministic_v2_e0_p12_v110_experimental",
 ]
 
 _PROFILE_RULE_IDS: dict[str, tuple[str, ...]] = {
@@ -65,7 +67,14 @@ _PROFILE_RULE_IDS: dict[str, tuple[str, ...]] = {
         "p05_resolved_names",
         "p08_type_ascriptions",
     ),
+    "deterministic_v2_e0_p12_v110_experimental": ("p12_proof_arrow_binder",),
 }
+
+_PROFILE_RULE_VERSIONS: dict[str, tuple[str, ...]] = {
+    profile_id: tuple("1.0.0" for _ in rule_ids)
+    for profile_id, rule_ids in _PROFILE_RULE_IDS.items()
+}
+_PROFILE_RULE_VERSIONS["deterministic_v2_e0_p12_v110_experimental"] = ("1.1.0",)
 
 
 class V2E0ExecutionError(ValueError):
@@ -86,6 +95,34 @@ class V2E0RuleBinding(StrictModel):
         return self
 
 
+class P12V110Addendum(StrictModel):
+    """Immutable authorization for P12's additive v1.1 matcher expansion."""
+
+    schema_version: Literal[1] = 1
+    addendum_id: Literal["deterministic_v2_p12_v110_matcher_expansion"]
+    addendum_version: Literal["1.0.0"]
+    status: Literal["experimental"]
+    base_portfolio_id: Literal["leanfaith_deterministic_v2_design"]
+    base_portfolio_config_hash: Sha256
+    family_id: Literal["p12_proof_arrow_binder"]
+    base_family_version: Literal["1.0.0"]
+    expanded_family_version: Literal["1.1.0"]
+    change_kind: Literal["matcher_expansion"]
+    scope: str = Field(min_length=1, strict=True)
+    excluded_cases: tuple[str, ...] = Field(min_length=1)
+    require_exact_inverse_replay: Literal[True] = True
+    require_existing_e0_audit: Literal[True] = True
+    resolved_label_count: Literal[0] = 0
+    promoted_item_count: Literal[0] = 0
+    training_eligible: Literal[False] = False
+
+    @model_validator(mode="after")
+    def _canonical(self) -> P12V110Addendum:
+        if self.excluded_cases != tuple(sorted(set(self.excluded_cases))):
+            raise ValueError("P12 v1.1 excluded cases must be sorted and unique")
+        return self
+
+
 class V2E0ExecutionConfig(StrictModel):
     schema_version: Literal[1] = 1
     profile_id: V2E0ProfileId
@@ -98,6 +135,7 @@ class V2E0ExecutionConfig(StrictModel):
         "deterministic_v2_e0_experimental",
         "deterministic_v2_e0_lf032_experimental",
         "deterministic_v2_e0_lf033_surface_experimental",
+        "deterministic_v2_e0_p12_v110_experimental",
     ]
     active_rules: tuple[V2E0RuleBinding, ...]
     required_candidate_views: tuple[
@@ -123,6 +161,11 @@ class V2E0ExecutionConfig(StrictModel):
         expected = _PROFILE_RULE_IDS[self.profile_id]
         if tuple(item.rule_id for item in self.active_rules) != expected:
             raise ValueError(f"v2 E0 profile {self.profile_id} must contain exactly {expected}")
+        expected_versions = _PROFILE_RULE_VERSIONS[self.profile_id]
+        if tuple(item.rule_version for item in self.active_rules) != expected_versions:
+            raise ValueError(
+                f"v2 E0 profile {self.profile_id} must use rule versions {expected_versions}"
+            )
         if self.candidate_pool != self.profile_id:
             raise ValueError("v2 E0 candidate_pool must equal profile_id")
         if self.required_candidate_views != (
@@ -135,6 +178,15 @@ class V2E0ExecutionConfig(StrictModel):
         return self
 
 
+class V2E0P12V110ExecutionConfig(V2E0ExecutionConfig):
+    """P12 v1.1 profile with an explicit immutable design addendum."""
+
+    profile_id: Literal["deterministic_v2_e0_p12_v110_experimental"]
+    candidate_pool: Literal["deterministic_v2_e0_p12_v110_experimental"]
+    version_addendum_path: Literal["configs/transformations/v2_p12_v110_addendum.yaml"]
+    version_addendum_sha256: Sha256
+
+
 def load_v2_e0_execution_config(
     repo_root: Path | None = None,
     *,
@@ -144,7 +196,13 @@ def load_v2_e0_execution_config(
     resolved = (path or root / "configs/transformations/v2_e0_experimental.yaml").resolve()
     if not resolved.is_relative_to(root.resolve()):
         raise V2E0ExecutionError("v2 E0 execution config escapes the repository")
-    loaded = load_config(resolved, V2E0ExecutionConfig)
+    raw = load_yaml_mapping(resolved)
+    config_type: type[V2E0ExecutionConfig] = (
+        V2E0P12V110ExecutionConfig
+        if raw.get("profile_id") == "deterministic_v2_e0_p12_v110_experimental"
+        else V2E0ExecutionConfig
+    )
+    loaded = load_config(resolved, config_type)
     portfolio = load_v2_portfolio(root)
     if loaded.config.portfolio_config_hash != portfolio.config_hash:
         raise V2E0ExecutionError("v2 E0 profile does not bind the current v2 portfolio")
@@ -160,6 +218,23 @@ def load_v2_e0_execution_config(
             raise V2E0ExecutionError(f"{binding.family_id} is not an E0 design")
         if design.executable or design.draft_emission_authorized:
             raise V2E0ExecutionError("LF-031 design config was mutated into an executor")
+    if loaded.config.profile_id == "deterministic_v2_e0_p12_v110_experimental":
+        if not isinstance(loaded.config, V2E0P12V110ExecutionConfig):
+            raise V2E0ExecutionError("P12 v1.1 profile lacks its versioned config schema")
+        addendum_path = (root / loaded.config.version_addendum_path).resolve()
+        if not addendum_path.is_relative_to(root.resolve()):
+            raise V2E0ExecutionError("P12 v1.1 addendum escapes the repository")
+        if hash_file(addendum_path) != loaded.config.version_addendum_sha256:
+            raise V2E0ExecutionError("P12 v1.1 addendum byte hash changed")
+        addendum = load_config(addendum_path, P12V110Addendum).config
+        design = designs[addendum.family_id]
+        binding = loaded.config.active_rules[0]
+        if not (
+            addendum.base_portfolio_config_hash == portfolio.config_hash
+            and design.family_version == addendum.base_family_version
+            and binding.rule_version == addendum.expanded_family_version
+        ):
+            raise V2E0ExecutionError("P12 v1.1 addendum does not bind its base design/version")
     return loaded
 
 
@@ -178,6 +253,7 @@ class V2E0Runtime:
         from leanfaith.transforms.positives.v2_e0 import (
             P11BoundedQuantifierRule,
             P12ProofArrowBinderRule,
+            P12ProofArrowBinderV110Rule,
         )
         from leanfaith.transforms.positives.v2_e0_p07_p09 import (
             P07CoercionSurfaceRule,
@@ -205,6 +281,10 @@ class V2E0Runtime:
                 **constructor_args,
             ),
         }
+        if loaded.config.profile_id == "deterministic_v2_e0_p12_v110_experimental":
+            supported["p12_proof_arrow_binder"] = P12ProofArrowBinderV110Rule(
+                **constructor_args,
+            )
         self._rules: dict[str, TransformationRule] = {
             rule_id: supported[rule_id]
             for rule_id in (binding.rule_id for binding in loaded.config.active_rules)
