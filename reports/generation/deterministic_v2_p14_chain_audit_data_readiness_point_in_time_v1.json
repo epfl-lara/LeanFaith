@@ -1,0 +1,233 @@
+{
+  "artifact_kind": "deterministic_v2_p14_chain_audit_data_readiness_point_in_time",
+  "captured_at_utc": "2026-08-11T17:14:01Z",
+  "code_commit": "fecdb3411a25f8d97c506e9748566c1f7b1ddff2",
+  "p14_chain_audit": {
+    "artifact_root": "/storage/milikic/leanfaith/deterministic_v2/composition_second_hops/chain_8c18476_v1/audit/chains_p14_recovered_fd196dd_v1",
+    "chain_set_id": "detcomp_chain_set:9db5e410eb07be5a7c3437c19c4ce14ca5d0949579d576a2535c5fa17af29cdc",
+    "files": {
+      "chains": {
+        "byte_count": 6496682,
+        "path": "/storage/milikic/leanfaith/deterministic_v2/composition_second_hops/chain_8c18476_v1/audit/chains_p14_recovered_fd196dd_v1/chains.jsonl",
+        "sha256": "e6de0fa715a7ceb6892e22e0753aea756dbe1f67df39775bed82b8a2c4ae3940"
+      },
+      "manifest": {
+        "byte_count": 11634,
+        "path": "/storage/milikic/leanfaith/deterministic_v2/composition_second_hops/chain_8c18476_v1/audit/chains_p14_recovered_fd196dd_v1/manifest.json",
+        "sha256": "d25b08560a616c82221bde18b69662f761390a6641e0d7d3e096bbe7dc7314e6"
+      }
+    },
+    "first_hop_seed_binding": {
+      "manifest": {
+        "path": "/storage/milikic/leanfaith/deterministic_v2/composition_seeds/all_public_private_p12_p18_n18_6ac2068_v2/manifest.json",
+        "sha256": "dba3314d4f5e19f08c0115fc0dc7bb265712fd5622c123a60eec4223d2ab0d30"
+      },
+      "seed_count": 3941,
+      "seed_records": {
+        "path": "/storage/milikic/leanfaith/deterministic_v2/composition_seeds/all_public_private_p12_p18_n18_6ac2068_v2/seeds.jsonl",
+        "sha256": "5f424037dc4a12495a417f569f7b32d3cb8fccfddb5ef35aafa4bb8482cd6543"
+      },
+      "seed_set_id": "detcomp_seed_set:f90ff4800e3c992967f3f5213053a6057fbc31591178d180127ef9cb8a74d926"
+    },
+    "mechanical_counts": {
+      "chain_count": 1888,
+      "chain_depth": 2,
+      "chain_kind_counts": {
+        "P_to_P": 1888
+      },
+      "input_seed_count": 3941,
+      "second_hop_result_count": 3941,
+      "second_hop_rule_counts": {
+        "p14_independent_binder_permutation": 1888
+      },
+      "second_hop_terminal_status_counts": {
+        "audit_quarantined": 622,
+        "candidate_invalid": 3,
+        "not_applicable": 1428,
+        "provisional_variant": 1888
+      }
+    },
+    "novelty_audit": {
+      "alpha_cycle_by_first_hop_rule": {
+        "p14_independent_binder_permutation": 1328,
+        "p15_root_iff_reversal": 2,
+        "p16_conjunction_reassociation": 0,
+        "p17_hypothesis_packing": 0,
+        "p18_root_equality_symmetry": 3
+      },
+      "alpha_cycle_count": 1333,
+      "alpha_novel_by_first_hop_rule": {
+        "p14_independent_binder_permutation": 294,
+        "p15_root_iff_reversal": 29,
+        "p16_conjunction_reassociation": 11,
+        "p17_hypothesis_packing": 1,
+        "p18_root_equality_symmetry": 220
+      },
+      "alpha_novel_count": 555,
+      "comparison": "final_alpha_identity_fingerprint versus the bound seed source_alpha_identity_fingerprint",
+      "exact_raw_source_final_content_hash_return_count": 0,
+      "unique_identity_bound_raw_pair_count": 1888,
+      "unique_identity_bound_raw_pair_key": "(original_source_theorem_id, final_candidate_code_hash)",
+      "warning": "Only 555 chains are alpha-novel relative to their original source. The other 1,333 mechanically return to the source alpha identity and must not be described as 1,333 additional novel claims."
+    },
+    "policy": {
+      "audit_only": true,
+      "evaluation_eligible": false,
+      "gate_credit": false,
+      "negative_source_admitted": false,
+      "promoted_item_count": 0,
+      "resolved_label_count": 0,
+      "semantic_labels_created": false,
+      "training_eligible": false
+    },
+    "second_hop_materialization_binding": {
+      "context_id": "ctx:0cd06826b8767b3bc951c0eb00c802424af95785b558f9f8a61f18694a86c4ce",
+      "manifest_sha256": "de5b4590fb73c68cc67411fc129375932cdcc1453d82b500a96e08fe6f593312",
+      "memory_hard_limit_mb": null,
+      "results_sha256": "e34eba09a05ad4f3f1917bc5b228d4a8549c0e9f0795297afb264c7f5ff064e1",
+      "root_binding_id": "detprov_root:359596c5c515b60feef03f1d4fe3aaed18bc165dd1ef7729c6b9d3ae3dfd91ce",
+      "root_tree_hash": "631508e9e32c235c4064cc22528216f484ff884de41de72db4137fb4ee4e0bfc",
+      "run_spec_sha256": "a2513d818735fb9e879df8bf47939fb8ab41defe934973c548bad5522f5ad8e0",
+      "workers": 1
+    },
+    "validation": {
+      "all_chain_ids_unique": true,
+      "all_chains_are_p_to_p": true,
+      "all_chains_have_null_semantic_label_id": true,
+      "all_chains_have_zero_promoted_items": true,
+      "all_chains_have_zero_resolved_labels": true,
+      "all_chains_ineligible_for_evaluation": true,
+      "all_chains_ineligible_for_gate_credit": true,
+      "all_chains_ineligible_for_training": true,
+      "all_second_hops_are_p14": true,
+      "chain_file_hash_matches_manifest": true,
+      "chain_line_count_matches_manifest": true,
+      "missing_seed_bindings": 0,
+      "second_hop_terminal_counts_reconcile": true
+    }
+  },
+  "current_data_readiness": {
+    "counts_are_additive": false,
+    "deterministic_13_family_schema3_smoke": {
+      "artifact": {
+        "path": "reports/generation/deterministic_v2_schema3_13_family_smoke_receipt_point_in_time_v1.json",
+        "sha256": "08fbe7f204087a4dce07e0af04c0e3c04a1a257795db6807d62429a1688967"
+      },
+      "attempt_count": 832,
+      "family_count": 13,
+      "provisional_count": 145,
+      "scope": "smoke_only",
+      "training_eligible": false
+    },
+    "deterministic_composition_seed_pool": {
+      "clean_positive_e2_seed_count": 3941,
+      "negative_source_admitted": false,
+      "training_eligible": false
+    },
+    "deterministic_p14_composition_chains": {
+      "alpha_cycle_count": 1333,
+      "alpha_novel_count": 555,
+      "audit_only_chain_count": 1888,
+      "training_eligible": false
+    },
+    "deterministic_unary_inventory": {
+      "artifact": {
+        "path": "reports/transformation_audits/lf033_equality_composition_inventory_v1.json",
+        "sha256": "0a853ac12084d141e23da9546a81c9c9a03c7971e39aaf874508645c5c573168"
+      },
+      "mathlib_unique_pair_count": 3738,
+      "sft_classic_unique_pair_count": 7470,
+      "training_eligible": false,
+      "unique_pair_count": 11208
+    },
+    "lf021_real_output_inventory": {
+      "artifact": {
+        "path": "reports/generation/lf021_post_exhaustion_frame_v1/decisions/0574621043042ed62b486260de9bf633797f2471217f502be25b9aec3a46a19c.json",
+        "sha256": "e780d3bc6150f2fafe576170be792b6f13e60d7ef35567912d27d03b63d8eabc"
+      },
+      "benchmark_clear_compiling_observation_count": 299,
+      "duplicate_member_count": 49,
+      "frame_item_count": 240,
+      "raw_invocation_count": 1440,
+      "semantic_labels_created": false,
+      "supervision_eligible": false,
+      "unique_problem_aware_unit_count": 250
+    },
+    "lf022_llm_inventory_read_only_replay": {
+      "audit_conflict_pair_key_counts": {
+        "any_core_tuple": 51,
+        "directional_implications": 20,
+        "relation": 32,
+        "same_claim": 3
+      },
+      "audited_gross_observation_count": 1412,
+      "audited_unique_pair_count": 1080,
+      "audited_unique_variant_id_count": 1103,
+      "binding_failure_count": 0,
+      "canonical_pair_key": "sha256(canonical_json({source_theorem_ids: sorted(source_theorem_ids), candidate_code_hash: candidate_code_hash}))",
+      "duplicate_pair_observation_count": 465,
+      "gross_observation_count": 1967,
+      "input_partitions": [
+        {
+          "check_manifest_sha256": "5b7bdf168d4158406b7ddefc6fa3e545346f9aba676608bb964be3d0882ad77e",
+          "checks_sha256": "657ec8e8f0b5ec6557b138a06608e998a26bead8fbd7ac6cd8415c586b43cd92",
+          "id": "legacy668",
+          "observation_count": 668
+        },
+        {
+          "check_manifest_sha256": "8805cec56a157ce955354b63d54e9714948856e437ead076f59b3295656b253d",
+          "checks_sha256": "46972e934b26e9ee6df112a6e135223f83267b58e93ccde2be79e40d6ed54810",
+          "id": "kimi248",
+          "observation_count": 248
+        },
+        {
+          "check_manifest_sha256": "f106d1a299c89eca5b5c82df562bb6522b42ca1de79b9d2caa91dd1a042d65e9",
+          "checks_sha256": "b53736c22fb7cc134081e33a9a4f7e5e1724d0e3f170b6930b05658ef0a2d6c4",
+          "id": "qwen1019",
+          "observation_count": 1019
+        },
+        {
+          "check_manifest_sha256": "0b49c3304efd102459986196d1a3e4eb52577b20ae120ff5004126b215bb3744",
+          "checks_sha256": "3334fb5964b83a110e498cafb2136b983168ad6780ec5c3fa85932aca4482b26",
+          "id": "deepseek32",
+          "observation_count": 32
+        }
+      ],
+      "pair_key_caveat": "variant_id contains generation lineage, including llm_call_id and proposal_index, so repeated observations of the same source theorem and candidate text may have different variant IDs. Current totals therefore use the canonical source-plus-candidate pair key for data-unit accounting.",
+      "semantic_labels_created": false,
+      "training_eligible": false,
+      "unique_candidate_content_count": 1502,
+      "unique_pair_count": 1502,
+      "unique_variant_id_count": 1529,
+      "valid_gross_observation_count": 1439,
+      "valid_pair_without_audit_count": 26,
+      "valid_unique_candidate_content_count": 1106,
+      "valid_unique_pair_count": 1106,
+      "valid_unique_variant_id_count": 1130
+    },
+    "training_readiness": {
+      "artifact": {
+        "path": "reports/model_selection/training_data_readiness_v1.json",
+        "sha256": "8b20325087a094a2e27f5f30b98f9a81c710cd3e68a08c77820f9c9d7ba9d97a"
+      },
+      "effective_nonduplicate_training_record_count": 0,
+      "safe_f1_label_count": 0,
+      "status": "NOT_READY",
+      "training_execution_authorized": false
+    },
+    "interpretation": "These counts describe overlapping artifacts at different pipeline stages. They must not be summed into a dataset size. Generated, Lean-valid, audited, semantically resolved, promoted, and training-eligible are distinct states."
+  },
+  "interpretation_boundary": {
+    "audit_only": true,
+    "evaluation_eligible": false,
+    "gate_credit": false,
+    "human_labels_created": false,
+    "promoted_item_count": 0,
+    "resolved_label_count": 0,
+    "semantic_labels_created": false,
+    "silver_records_created": false,
+    "training_eligible": false
+  },
+  "schema_version": 1,
+  "status": "validated_point_in_time_audit_only"
+}
