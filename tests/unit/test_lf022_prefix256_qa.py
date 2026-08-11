@@ -81,6 +81,8 @@ def test_historical_replay_compatibility_accepts_terminal_references_and_restore
             "path": "data/executor/terminal.json",
             "sha256": "3" * 64,
         },
+        "status": "provisional_variants_created",
+        "terminal_error_code": None,
     }
     original = historical_replay_module._explicit_record_bindings
     with pytest.raises(LF022HistoricalReplayError):

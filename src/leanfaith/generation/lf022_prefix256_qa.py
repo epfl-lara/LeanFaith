@@ -83,7 +83,7 @@ _PROOF_BODY_PATTERN = re.compile(
     re.IGNORECASE | re.MULTILINE,
 )
 _HISTORICAL_REPLAY_COMPATIBILITY_LOCK = threading.Lock()
-_FULL_TERMINAL_RECORD_FIELDS = frozenset(
+_FULL_TERMINAL_BINDING_FIELDS = frozenset(
     {
         "attempt_artifacts",
         "attempt_sha256s",
@@ -93,10 +93,6 @@ _FULL_TERMINAL_RECORD_FIELDS = frozenset(
         "llm_call_sha256",
         "variants_artifact",
         "variants_sha256",
-        "terminal_error_code",
-        "provisional_variant_count",
-        "execution_admission_id",
-        "status",
     }
 )
 
@@ -131,7 +127,7 @@ def _run_terminal_reference_compatible_historical_replay(
         if (
             isinstance(terminal_id, str)
             and terminal_id.startswith("lf022_execution_terminal:")
-            and not _FULL_TERMINAL_RECORD_FIELDS.intersection(value)
+            and not _FULL_TERMINAL_BINDING_FIELDS.intersection(value)
         ):
             return None
         return original(value)
