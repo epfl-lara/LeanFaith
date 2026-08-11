@@ -518,6 +518,36 @@ def load_provider_request(path: Path) -> ProviderRequest:
     return request
 
 
+def load_provider_raw_response(
+    path: Path,
+    *,
+    request: ProviderRequest | None = None,
+) -> ProviderRawResponse:
+    """Reload one canonical raw response and optionally verify its request binding.
+
+    This is the public, network-free replay primitive for higher-level batch
+    orchestrators.  Keeping the canonical-byte and request-binding checks in
+    the provider module prevents callers from implementing weaker ad-hoc JSON
+    readers.
+    """
+
+    response = _load_raw_response(path)
+    if request is not None:
+        _validate_response_binding(response, request)
+    return response
+
+
+def provider_raw_response_path(root: Path, request: ProviderRequest) -> Path:
+    """Return the canonical raw-first artifact path for one provider request."""
+
+    return _raw_response_path(
+        root,
+        request_hash=request.request_hash,
+        attempt_id=request.attempt_id,
+        attempt_index=request.attempt_index,
+    )
+
+
 def _validate_response_binding(
     response: ProviderRawResponse,
     request: ProviderRequest,
@@ -1277,9 +1307,11 @@ __all__ = [
     "bridge_provider_result_to_generic_llm_lineage",
     "bridge_provider_result_to_llm_lineage",
     "create_provider_request_for_problem",
+    "load_provider_raw_response",
     "load_provider_request",
     "persist_provider_raw_response",
     "persist_provider_request",
+    "provider_raw_response_path",
     "verify_generic_llm_call_artifacts",
     "verify_llm_call_artifacts",
 ]

@@ -694,7 +694,11 @@ def build_weak_consensus_candidate(
         all_evidence_ids.append(record.evidence_id)
         all_call_ids.append(_evidence_metadata(record, "llm_call_id"))
 
-    families = sorted({family for family, _ in usable})
+    # Persist the configured design even when one or both families produced no
+    # parseable evidence.  Operational failures belong in LLMCallRecord; the
+    # aggregate must still retain one explicit, non-trainable ``incomplete``
+    # record for every scheduled pair.
+    families = sorted(expected_slots)
     status: WeakConsensusStatus
     consensus_value: JudgmentValue | None = None
     if len(families) != 2 or any(
@@ -745,15 +749,8 @@ def build_weak_consensus_candidate(
                 )
 
     judge_families = tuple(families)
-    if len(judge_families) < 2:
-        # The strict persisted schema requires the configured two-family
-        # design even for incomplete runtime inputs.  Callers must supply the
-        # intended families explicitly by retaining at least one terminal
-        # parsed vote from each family; malformed/no-response calls remain in
-        # LLMCallRecord and are summarized separately.
-        raise ValueError("candidate aggregation requires evidence from two judge families")
-    if len(judge_families) > 2:
-        raise ValueError("candidate aggregation accepts exactly two judge families")
+    if len(judge_families) != 2:
+        raise ValueError("candidate aggregation requires exactly two configured judge families")
     typed_families = (judge_families[0], judge_families[1])
     sorted_evidence_ids = tuple(sorted(all_evidence_ids))
     candidate_id = make_weak_consensus_id(

@@ -3100,6 +3100,155 @@ def validate_lf022_command(
     )
 
 
+@app.command("prepare-lf022-weak-batch")
+def prepare_lf022_weak_batch_command(
+    spec_path: Annotated[
+        Path,
+        typer.Option("--spec", help="Canonical offline weak-batch JSON spec."),
+    ],
+    spec_sha256: Annotated[
+        str,
+        typer.Option("--spec-sha256", help="Expected SHA-256 of --spec."),
+    ],
+    randomization_key_path: Annotated[
+        Path,
+        typer.Option(
+            "--randomization-key-file",
+            help="Binary file containing at least 32 bytes; only its hash is persisted.",
+        ),
+    ],
+    output_dir: Annotated[
+        Path,
+        typer.Option("--output-dir", help="Immutable prepared-batch artifact directory."),
+    ],
+    root_dir: Annotated[
+        Path | None,
+        typer.Option("--root", help="Repository root override."),
+    ] = None,
+) -> None:
+    """Prepare four blinded judge requests per pair; perform zero provider calls."""
+    from leanfaith.config.paths import RepoPaths
+    from leanfaith.generation.lf022_weak_batch import (
+        LF022WeakBatchError,
+        prepare_lf022_weak_batch,
+    )
+
+    paths = RepoPaths.discover(root_dir) if root_dir is None else RepoPaths(root=root_dir)
+
+    def anchored(path: Path) -> Path:
+        return path if path.is_absolute() else paths.root / path
+
+    try:
+        records, manifest = prepare_lf022_weak_batch(
+            repo_root=paths.root,
+            spec_path=anchored(spec_path),
+            expected_spec_sha256=spec_sha256,
+            randomization_key=anchored(randomization_key_path).read_bytes(),
+            output_dir=anchored(output_dir),
+        )
+    except (LF022WeakBatchError, OSError, ValueError) as exc:
+        typer.echo(f"LF-022 weak-batch preparation rejected: {exc}", err=True)
+        raise typer.Exit(code=2) from exc
+    typer.echo(
+        f"batch_id={manifest.batch_id} pairs={manifest.dispatch_pair_count} "
+        f"cells={len(records)} provider_calls=0 semantic_labels_created=0 "
+        "silver_records_created=0 training_eligible=false"
+    )
+
+
+@app.command("replay-finalize-lf022-weak-batch")
+def replay_finalize_lf022_weak_batch_command(
+    batch_root: Annotated[
+        Path,
+        typer.Option(
+            "--batch-root",
+            help="Prepared batch containing canonical raw responses under raw/<judge_slot>/.",
+        ),
+    ],
+    root_dir: Annotated[
+        Path | None,
+        typer.Option("--root", help="Repository root override."),
+    ] = None,
+) -> None:
+    """Replay persisted raw responses and finalize non-trainable weak evidence."""
+    from leanfaith.config.paths import RepoPaths
+    from leanfaith.generation.lf022_weak_batch import (
+        LF022WeakBatchError,
+        finalize_lf022_weak_batch,
+        replay_lf022_weak_batch,
+    )
+    from leanfaith.generation.providers import ProviderError
+
+    paths = RepoPaths.discover(root_dir) if root_dir is None else RepoPaths(root=root_dir)
+    resolved = batch_root if batch_root.is_absolute() else paths.root / batch_root
+    try:
+        terminals, execution = replay_lf022_weak_batch(batch_root=resolved)
+        evidence, candidates, finalization = finalize_lf022_weak_batch(batch_root=resolved)
+    except (LF022WeakBatchError, ProviderError, OSError, ValueError) as exc:
+        typer.echo(f"LF-022 weak-batch replay rejected: {exc}", err=True)
+        raise typer.Exit(code=2) from exc
+    typer.echo(
+        f"execution_id={execution.execution_id} finalization_id={finalization.finalization_id} "
+        f"terminals={len(terminals)} evidence={len(evidence)} candidates={len(candidates)} "
+        "provider_calls=0 semantic_labels_created=0 silver_records_created=0 "
+        "training_eligible=false"
+    )
+
+
+@app.command("prepare-deterministic-composition-seeds")
+def prepare_deterministic_composition_seeds_command(
+    combination_dir: Annotated[
+        Path,
+        typer.Option(
+            "--combination-dir",
+            help="Completed immutable provisional-pair combination directory.",
+        ),
+    ],
+    materialization_roots: Annotated[
+        list[Path],
+        typer.Option(
+            "--materialization-root",
+            "-r",
+            help="Bound completed materialization root; repeat for every combined root.",
+        ),
+    ],
+    output_dir: Annotated[
+        Path,
+        typer.Option("--output-dir", help="New immutable seed-output directory."),
+    ],
+    root_dir: Annotated[
+        Path | None,
+        typer.Option("--root", help="Repository root override."),
+    ] = None,
+) -> None:
+    """Prepare label-free E2 positives as deterministic second-hop seeds."""
+    from leanfaith.config.paths import RepoPaths
+    from leanfaith.transforms.composition_seed import (
+        CompositionSeedError,
+        prepare_deterministic_v2_composition_seeds,
+    )
+
+    paths = RepoPaths.discover(root_dir) if root_dir is None else RepoPaths(root=root_dir)
+
+    def anchored(path: Path) -> Path:
+        return path if path.is_absolute() else paths.root / path
+
+    try:
+        artifacts = prepare_deterministic_v2_composition_seeds(
+            combination_dir=anchored(combination_dir),
+            materialization_roots=[anchored(path) for path in materialization_roots],
+            output_dir=anchored(output_dir),
+        )
+    except (CompositionSeedError, OSError, ValueError) as exc:
+        typer.echo(f"Deterministic composition-seed preparation rejected: {exc}", err=True)
+        raise typer.Exit(code=2) from exc
+    typer.echo(
+        f"seed_set_id={artifacts.seed_set_id} seeds={artifacts.seed_count} "
+        f"status={'replayed' if artifacts.replayed else 'prepared'} "
+        "semantic_labels_created=0 training_eligible=false"
+    )
+
+
 @app.command("freeze-lf022-family-matrix")
 def freeze_lf022_family_matrix_command(
     config_path: Annotated[

@@ -188,6 +188,15 @@ dataset probe (PLAN.md §9.2).
   as a diagnostic, so this milestone still creates zero semantic labels,
   silver records, training examples, evaluation examples, or gate credit. See
   `reports/generation/lf022_supervision_candidates_kimi_prefix256_v2.md`.
+- **LF-022 two-family batch execution is now implemented but remains
+  offline-only:** a self-contained, raw-first batch binds the canonical
+  production family matrix, enforces proposer/judge/held-out role separation,
+  prepares both statement orders for each of two independent judge families,
+  resumes from canonical raw responses, and finalizes only non-trainable weak
+  consensus candidates. The current schema accepts deterministic fixtures or
+  replay providers only; a separate versioned live-provider admission is still
+  required before any network call. No new semantic, silver, training,
+  evaluation, or gate-credit record follows from this implementation.
 - **Deterministic unary scale-out materialized:** all 16 producer shards over
   the frozen 27,786-statement public universe completed. A separate
   content-audit merge at code revision `645a9a8` verified immutable inputs,
@@ -236,6 +245,17 @@ dataset probe (PLAN.md §9.2).
   `reports/transformation_audits/p12_v110_scale_materialization_v1.md` and the
   inspectable public pairs in
   `reports/transformation_audits/p12_v110_public_examples_v1.md`.
+- **Equality-root deterministic expansion and safe composition groundwork are
+  implemented:** P18 equality symmetry and N18 equality-polarity runs completed
+  over both the frozen 5,000 private statements and 27,786 public statements,
+  producing 3,293 provisional variants before cross-family deduplication. The
+  exact combiner correctly rejected two preserved infrastructure failures in
+  the historical public P12 root; an isolated single-worker P12 replay is in
+  progress instead of weakening the admission rule. A separate immutable seed
+  boundary now admits only clean, certificate-backed P14--P18 positive outputs
+  for a second deterministic hop. This enables controlled P-to-P and P-to-N
+  experiments while blocking N-to-anything chains; it creates no labels or
+  training eligibility.
 - **Public LF-022 scale-out preparation is deterministic and still
   non-executable:** a pinned, progressively expandable mathlib file frame
   feeds exact extraction and representation runs. The production pool admits
@@ -298,6 +318,8 @@ uv run leanfaith write-annotation-agreement --help
 uv run leanfaith write-adjudication-queue --help
 uv run leanfaith validate-lf022 --help
 uv run leanfaith freeze-lf022-family-matrix
+uv run leanfaith prepare-lf022-weak-batch --help
+uv run leanfaith replay-finalize-lf022-weak-batch --help
 uv run leanfaith materialize-lf022-public-pool --help
 uv run leanfaith lf022-rcp-smoke --help
 uv run leanfaith freeze-lf022-proposer-admission --help
@@ -314,6 +336,7 @@ uv run leanfaith merge-deterministic-shards --help
 uv run leanfaith probe-deterministic-v2-coverage --help
 uv run leanfaith materialize-deterministic-v2-d0-scale --help
 uv run leanfaith materialize-deterministic-v2-e2-scale --help
+uv run leanfaith prepare-deterministic-composition-seeds --help
 uv run leanfaith combine-deterministic-scale-passes --help
 uv run leanfaith audit-training-readiness --report-only
 ```
