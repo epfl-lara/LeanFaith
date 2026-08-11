@@ -381,12 +381,24 @@ def test_binding_candidates_treat_terminal_references_as_generic_bindings() -> N
             "sha256": "6" * 64,
         },
         "current_parser_outcome": "strict_variant_success",
+        "terminal_error_code": None,
+        "terminal_status": "provisional_variants_created",
+    }
+    journal_reference = {
+        "execution_task_id": f"lf022_execution_task:{'7' * 64}",
+        "terminal_id": f"lf022_execution_terminal:{'8' * 64}",
+        "terminal_artifact": {
+            "path": "data/journal/terminal.json",
+            "sha256": "9" * 64,
+        },
+        "status": "provisional_variants_created",
     }
 
     assert _binding_candidates(terminal_reference) == [("data/executor/terminal.json", digest)]
     assert _binding_candidates(challenge_selection_reference) == [
         ("data/challenge/terminal.json", "6" * 64)
     ]
+    assert _binding_candidates(journal_reference) == [("data/journal/terminal.json", "9" * 64)]
 
 
 @pytest.mark.parametrize(
