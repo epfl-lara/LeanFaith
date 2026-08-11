@@ -2,8 +2,10 @@
 
 **Audit date:** 2026-08-11
 
-**Disposition:** read-only exact-family prefilter; nonzero families queued for
-LeanInteract materialization, with no labels, promotion, or training credit
+**Disposition:** read-only exact-family prefilter completed; all scheduled
+public follow-up families materialized with LeanInteract, while private
+materialization remains queued. No output has label, promotion, or training
+credit.
 
 This audit called each implemented family's own site enumerator over the
 frozen Gate-3 corpus. It did not generate variants or infer semantic labels.
@@ -57,12 +59,46 @@ outside the conservative parser contract. These are explicit exclusions, not
 accepted or silently dropped pairs. Tree-backed families completed the scan
 without enumerator exceptions.
 
-## Queued materialization
+## Completed public follow-up materialization
 
-The public follow-up queue materializes P14, P15, N11, and N12, followed by the
-six exact public opportunities from P16, N15, and N16. The public corpus has
-zero P16/N13/N14/N17 opportunities except for P16's one site, so empty public
-full runs are not launched for N13, N14, or N17.
+The public follow-up queue completed all seven scheduled family passes over
+the full 27,786-statement public corpus:
+
+```text
+/storage/milikic/leanfaith/deterministic_v2/
+  run_e2f071a_followup_public_exploratory_v1
+```
+
+| Family | Provisional | Quarantined | Invalid | Representation failed | Not applicable |
+|---|---:|---:|---:|---:|---:|
+| P14 independent binder permutation | 1,143 | 264 | 15 | 19 | 26,345 |
+| P15 root-Iff reversal | 173 | 0 | 8 | 0 | 27,605 |
+| N11 bound-variable substitution | 233 | 960 | 118 | 0 | 26,475 |
+| N12 implication converse | 419 | 12 | 29 | 0 | 27,326 |
+| P16 conjunction reassociation | 1 | 0 | 0 | 0 | 27,785 |
+| N15 conjunct omission | 1 | 1 | 0 | 0 | 27,784 |
+| N16 domain-guard removal | 1 | 0 | 0 | 0 | 27,785 |
+| **Total** | **1,971** | **1,237** | **170** | **19** | **191,105** |
+
+The 194,502 terminal rows equal `27,786 x 7`. All 1,971 provisional rows have
+unique result, variant, and candidate-theorem IDs. Candidate code hashes have
+1,966 unique values. Four candidate-code hash values recur, accounting for
+five occurrences beyond their first; all arise from different source
+statements and root ancestries. There are zero repeated `(source ancestry,
+candidate code hash)` pairs.
+
+The machine-readable binding and exact manifest/result hashes are stored in:
+
+```text
+reports/transformation_audits/
+  lf033_public_followup_materialization_v1.json
+```
+
+Together with LF-032's 270 clean public deterministic-v2 variants, the current
+public deterministic-v2 exploratory pool contains **2,241 provisional pairs**.
+This is a data-volume result, not a family-promotion or F1-label claim.
+
+## Queued private materialization
 
 After the private v1 deterministic merge, the private portfolio queue runs all
 nonzero profiles above, including the E0 surface profile and P17's single

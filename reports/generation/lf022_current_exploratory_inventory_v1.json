@@ -1,0 +1,204 @@
+{
+  "artifact_class": "exploratory_inventory",
+  "completed_fixed_artifacts": [
+    {
+      "artifact_id": "lf022_historical_kimi_qwen_glm_checked_v1",
+      "codex_judged_count": 493,
+      "codex_judgment_counts": {
+        "not_same_claim": 483,
+        "same_claim": 9,
+        "uncertain": 1
+      },
+      "codex_relation_counts": {
+        "A_stronger": 57,
+        "B_stronger": 197,
+        "equivalent": 9,
+        "incomparable": 229,
+        "null": 1
+      },
+      "evidence": {
+        "audit_manifest": {
+          "path": "/storage/milikic/leanfaith/lf022_codex_audit/sol_xhigh_v2/manifest.json",
+          "sha256": "b2866946d6a8285ddaff79a60c3d7f91520907aebf681165a931c1701f99f8c3"
+        },
+        "audit_summary": {
+          "path": "reports/generation/lf022_codex_sol_xhigh_v2_summary.json",
+          "sha256": "4f82f1b00f4f5dd4cd04b3c3c72946d37c54512f657d451d6d16dd33b7fe6d5c"
+        },
+        "findings": {
+          "path": "reports/generation/lf022_codex_sol_xhigh_v2_findings.jsonl",
+          "sha256": "69f37377902c5328bb0fa87e8dd014f3f19be095a228f2b3d3d805dcef451824"
+        },
+        "lean_check_manifest": {
+          "path": "/storage/milikic/leanfaith/lf022_lean_checks/rcp_5e672b9_v1/manifest.json",
+          "sha256": "5b7bdf168d4158406b7ddefc6fa3e545346f9aba676608bb964be3d0882ad77e"
+        },
+        "lean_checks": {
+          "path": "/storage/milikic/leanfaith/lf022_lean_checks/rcp_5e672b9_v1/checks.jsonl",
+          "sha256": "657ec8e8f0b5ec6557b138a06608e998a26bead8fbd7ac6cd8415c586b43cd92"
+        }
+      },
+      "generated_variant_count": 668,
+      "lean_invalid_count": 175,
+      "lean_valid_with_placeholder_count": 493,
+      "model_breakdown": {
+        "Qwen/Qwen3.5-397B-A17B": {
+          "codex_judged": 310,
+          "generated": 439,
+          "lean_invalid": 129,
+          "lean_valid_with_placeholder": 310
+        },
+        "moonshotai/Kimi-K2.7-Code": {
+          "codex_judged": 181,
+          "generated": 227,
+          "lean_invalid": 46,
+          "lean_valid_with_placeholder": 181
+        },
+        "zai-org/GLM-5.2": {
+          "codex_judged": 2,
+          "generated": 2,
+          "lean_invalid": 0,
+          "lean_valid_with_placeholder": 2
+        }
+      },
+      "status": "completed_audit_only"
+    },
+    {
+      "artifact_id": "lf022_kimi_v4_prefix256_v1",
+      "codex_judged_count": 201,
+      "codex_judgment_counts": {
+        "ambiguous": 1,
+        "not_same_claim": 198,
+        "same_claim": 2
+      },
+      "codex_relation_counts": {
+        "A_stronger": 12,
+        "B_stronger": 83,
+        "ambiguous": 1,
+        "equivalent": 2,
+        "incomparable": 103
+      },
+      "evidence": {
+        "audit_manifest": {
+          "path": "/storage/milikic/leanfaith/lf022_codex_audits/kimi_v4_641d13d_prefix256_v1/manifest.json",
+          "sha256": "b2ea47f15495f88e8d1bb5703c3e7622c9b7b5a221685c0ed7526d27bf402c17"
+        },
+        "audit_summary": {
+          "path": "reports/generation/lf022_kimi_v4_prefix256_codex_sol_xhigh_audit_v1.json",
+          "sha256": "f5a68222412aba5bb56236aa3d1400f5fc14882ce045018de69eabab49a6e6be"
+        },
+        "batch_manifest": {
+          "path": "/localhome/milikic/LeanFaith-kimi-641d13d/data/lf022_kimi_v4_scientific_641d13d/prefix_256/batch/batch_manifest.json",
+          "sha256": "1e0d6c8b86224ddab31930756e755a9ea6a51970745322248c66f99c2c6ffb1f"
+        },
+        "findings": {
+          "path": "reports/generation/lf022_kimi_v4_prefix256_codex_sol_xhigh_findings_v1.jsonl",
+          "sha256": "9552a840db82eb9e0600d3e8dec15bc8467085027b658a648a8f9eeba8e79b69"
+        },
+        "lean_check_manifest": {
+          "path": "/storage/milikic/leanfaith/lf022_lean_checks/kimi_v4_641d13d_prefix256_v1/manifest.json",
+          "sha256": "8805cec56a157ce955354b63d54e9714948856e437ead076f59b3295656b253d"
+        },
+        "lean_checks": {
+          "path": "/storage/milikic/leanfaith/lf022_lean_checks/kimi_v4_641d13d_prefix256_v1/checks.jsonl",
+          "sha256": "46972e934b26e9ee6df112a6e135223f83267b58e93ccde2be79e40d6ed54810"
+        },
+        "operational_qa_report": {
+          "path": "/localhome/milikic/LeanFaith-kimi-qa-97c250b/data/lf022_kimi_v4_scientific_641d13d/prefix_256/batch/operational_qa_v1/qa_report.json",
+          "sha256": "f2e088ea35f2d4a425c47abd78d6644c05f1268b2c46899a2d590d64a6734565"
+        },
+        "reviewer_sample": {
+          "path": "/localhome/milikic/LeanFaith-kimi-qa-97c250b/data/lf022_kimi_v4_scientific_641d13d/prefix_256/batch/operational_qa_v1/reviewer_sample_v1.jsonl",
+          "sha256": "036a39ff1f8bad92bfcb94a4a43b4d3251a6adc71be7ec8a8ccdad9828ca30ce"
+        }
+      },
+      "generated_variant_count": 248,
+      "generation_terminal_counts": {
+        "proposer_parse_failed": 2,
+        "provider_exhausted": 6,
+        "provisional_variants_created": 248
+      },
+      "lean_invalid_count": 47,
+      "lean_valid_with_placeholder_count": 201,
+      "model_breakdown": {
+        "moonshotai/Kimi-K2.7-Code": {
+          "codex_judged": 201,
+          "generated": 248,
+          "lean_invalid": 47,
+          "lean_valid_with_placeholder": 201
+        }
+      },
+      "operational_qa_status": "passed",
+      "status": "completed_audit_only",
+      "task_count": 256,
+      "unique_normalized_output_count_within_batch": 248
+    }
+  ],
+  "completed_gross_observation_totals": {
+    "codex_judged": 694,
+    "generated": 916,
+    "lean_invalid": 222,
+    "lean_valid_with_placeholder": 694
+  },
+  "deduplication": {
+    "cross_artifact_deduplication_performed": false,
+    "gross_totals_are_unique_pair_counts": false,
+    "note": "The completed totals are arithmetic sums of two versioned artifacts. They are not a unique-pair count, and this inventory makes no claim about cross-run theorem, candidate, or normalized-output overlap."
+  },
+  "live_snapshots": [
+    {
+      "artifact_id": "lf022_qwen3_full9207_live_snapshot_20260811T052857Z",
+      "batch_manifest": {
+        "path": "/localhome/milikic/LeanFaith-rcp-5e672b9/data/lf022_qwen3_scientific_5e672b9/prefix_9207/batch/batch_manifest.json",
+        "sha256": "b40557e0dc179bc6e9132242da62f7bd4d7afef782b3cea7c25c199ed7c5cf98"
+      },
+      "captured_at_utc": "2026-08-11T05:28:57Z",
+      "codex_judged_in_postgeneration_pipeline": 0,
+      "generated_variant_count_observed": 855,
+      "lean_checked_in_postgeneration_pipeline": 0,
+      "model_id": "Qwen/Qwen3.5-397B-A17B",
+      "remaining_without_terminal": 8330,
+      "snapshot_digest": "938d649f25e776d91b437b53c7349ea9c26a2317efc8b5b9ce6a267fb462aee0",
+      "snapshot_only": true,
+      "status": "live_partial_generation",
+      "terminal_count": 877,
+      "terminal_error_counts": {
+        "output_budget_exhausted": 16,
+        "proof_bearing_candidate": 1,
+        "transport_unknown": 5
+      },
+      "terminal_status_counts": {
+        "proposer_parse_failed": 1,
+        "provider_exhausted": 16,
+        "provisional_variants_created": 855,
+        "transport_unknown": 5
+      },
+      "total_task_count": 9207
+    }
+  ],
+  "queued_not_generated": [
+    {
+      "artifact_id": "lf022_kimi_v4_full9207",
+      "batch_manifest": {
+        "path": "/localhome/milikic/LeanFaith-kimi-641d13d/data/lf022_kimi_v4_scientific_641d13d/full_9207/batch/batch_manifest.json",
+        "sha256": "09204ebb1e4b8caeb3e99cacde6e0f59146da38ef30562ec8a20f302145b3ed3"
+      },
+      "generated_variant_count": 0,
+      "model_id": "moonshotai/Kimi-K2.7-Code",
+      "status": "frozen_queued_behind_qwen",
+      "total_task_count": 9207
+    }
+  ],
+  "schema_version": 1,
+  "snapshot_created_at_utc": "2026-08-11T05:28:57Z",
+  "status": "EXPLORATORY_ONLY",
+  "training_and_label_policy": {
+    "evaluation_eligible": false,
+    "gate_credit_claimed": false,
+    "human_labels_created": false,
+    "semantic_labels_created": false,
+    "silver_records_created": false,
+    "training_eligible": false,
+    "warning": "Lean elaboration and Codex judgments are validation/audit evidence only. Neither is a resolved F1 semantic label or authorization for training, evaluation, promotion, or gate credit."
+  }
+}

@@ -1,0 +1,107 @@
+{
+  "artifact_kind": "deterministic_v2_public_followup_audit",
+  "audit_id": "lf033_public_followup_materialization_v1",
+  "corpus_statement_count": 27786,
+  "cross_family_duplicate_audit": {
+    "provisional_candidate_code_hash_count": 1966,
+    "repeated_candidate_code_hash_excess_occurrence_count": 5,
+    "repeated_candidate_code_hash_group_count": 4,
+    "provisional_candidate_theorem_id_count": 1971,
+    "provisional_result_id_count": 1971,
+    "provisional_variant_id_count": 1971,
+    "same_source_and_candidate_code_duplicate_group_count": 0
+  },
+  "family_runs": [
+    {
+      "family_id": "p14_independent_binder_permutation",
+      "manifest_path": "/storage/milikic/leanfaith/deterministic_v2/run_e2f071a_followup_public_exploratory_v1/p14/manifest.json",
+      "manifest_sha256": "ebb905332d2ec235db28fe589e05d9d2e535cc340b4a97c632be10ff5b8093ab",
+      "results_sha256": "32680b4ca6b1618f049279018e933646feab66f86227460ff058181d3438b13b",
+      "terminal_status_counts": {
+        "audit_quarantined": 264,
+        "candidate_invalid": 15,
+        "candidate_representation_failed": 19,
+        "not_applicable": 26345,
+        "provisional_variant": 1143
+      }
+    },
+    {
+      "family_id": "p15_root_iff_reversal",
+      "manifest_path": "/storage/milikic/leanfaith/deterministic_v2/run_e2f071a_followup_public_exploratory_v1/p15/manifest.json",
+      "manifest_sha256": "92bd2a9e2a49cc6c8141facc7dfe99e9803f15be61420d56f9ab32f6a3dd5a04",
+      "results_sha256": "01b013dde550a5d145d1812d2457af6ba9dfe20fa1c63e26690b77f69cf6face",
+      "terminal_status_counts": {
+        "candidate_invalid": 8,
+        "not_applicable": 27605,
+        "provisional_variant": 173
+      }
+    },
+    {
+      "family_id": "n11_bound_variable_substitution",
+      "manifest_path": "/storage/milikic/leanfaith/deterministic_v2/run_e2f071a_followup_public_exploratory_v1/n11/manifest.json",
+      "manifest_sha256": "32c4aee7f1ea58e6ef9b460f29afaeb74a80023c95ee8d418fceb5f9aece8da7",
+      "results_sha256": "51d81985418ae4304bf197cb78409ac8cfc126b648d2c9ed32afff84b874318e",
+      "terminal_status_counts": {
+        "audit_quarantined": 960,
+        "candidate_invalid": 118,
+        "not_applicable": 26475,
+        "provisional_variant": 233
+      }
+    },
+    {
+      "family_id": "n12_implication_converse",
+      "manifest_path": "/storage/milikic/leanfaith/deterministic_v2/run_e2f071a_followup_public_exploratory_v1/n12/manifest.json",
+      "manifest_sha256": "426423c07df2bf567a9240456a9e6184f7ac994b7714db4a0fbc51eb89c1f5d4",
+      "results_sha256": "ff3856b27e1118f7aeaaed8949ac2cc3d0454e6f870725a3410f3acf02eff6be",
+      "terminal_status_counts": {
+        "audit_quarantined": 12,
+        "candidate_invalid": 29,
+        "not_applicable": 27326,
+        "provisional_variant": 419
+      }
+    },
+    {
+      "family_id": "p16_conjunction_reassociation",
+      "manifest_path": "/storage/milikic/leanfaith/deterministic_v2/run_e2f071a_followup_public_exploratory_v1/p16/manifest.json",
+      "manifest_sha256": "fe0c824eccfecef3a13a8f231d789e059f03a6be06af5747b772ba603ad2ecfd",
+      "results_sha256": "09baafcb83bafe5a42edf452a6617b8de2bdb5d7c0685127d6efd1fac52e28f7",
+      "terminal_status_counts": {
+        "not_applicable": 27785,
+        "provisional_variant": 1
+      }
+    },
+    {
+      "family_id": "n15_conjunct_omission",
+      "manifest_path": "/storage/milikic/leanfaith/deterministic_v2/run_e2f071a_followup_public_exploratory_v1/n15/manifest.json",
+      "manifest_sha256": "7a8b33ef454b61b46599c6433c1c2a0facfdeaed7beffa53602423b811a56529",
+      "results_sha256": "0bf25f7ae9ab5522616b4d11cecaacc6a57ea1a297f69b38afa860fc6c39390e",
+      "terminal_status_counts": {
+        "audit_quarantined": 1,
+        "not_applicable": 27784,
+        "provisional_variant": 1
+      }
+    },
+    {
+      "family_id": "n16_domain_guard_removal",
+      "manifest_path": "/storage/milikic/leanfaith/deterministic_v2/run_e2f071a_followup_public_exploratory_v1/n16/manifest.json",
+      "manifest_sha256": "9c8286c44fa78e4c8b80fa3a9c506f527727de214554b305a98865e79e5add3e",
+      "results_sha256": "7de8d1918a76c859bb4b0ce08013b2bcc616226940bb7a0540fdc113a817fa96",
+      "terminal_status_counts": {
+        "not_applicable": 27785,
+        "provisional_variant": 1
+      }
+    }
+  ],
+  "labels_created": false,
+  "promoted_item_count": 0,
+  "result_count": 194502,
+  "schema_version": 1,
+  "terminal_status_counts": {
+    "audit_quarantined": 1237,
+    "candidate_invalid": 170,
+    "candidate_representation_failed": 19,
+    "not_applicable": 191105,
+    "provisional_variant": 1971
+  },
+  "training_eligible": false
+}
