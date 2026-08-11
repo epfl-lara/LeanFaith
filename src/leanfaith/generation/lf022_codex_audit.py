@@ -371,7 +371,7 @@ class LF022CodexAuditFinding(StrictModel):
 
 
 @dataclass(frozen=True, slots=True)
-class _VerifiedAuditJudgment:
+class LF022VerifiedCodexAuditJudgment:
     audit_item_id: str
     lean_check_id: str
     pair_id: str
@@ -381,6 +381,23 @@ class _VerifiedAuditJudgment:
     response: JudgeResponse
     final_message_sha256: str
     parsed_response_sha256: str
+
+
+@dataclass(frozen=True, slots=True)
+class LF022VerifiedCodexAudit:
+    """Fully replay-verified, audit-only Codex evidence and its exact binding."""
+
+    manifest: LF022CodexAuditManifest
+    manifest_path: Path
+    checks: tuple[LF022LeanCheckRecord, ...]
+    lean_check_outcome_counts: dict[str, int]
+    items: tuple[LF022CodexAuditInput, ...]
+    judgments: tuple[LF022VerifiedCodexAuditJudgment, ...]
+    response_artifact_set_sha256: str
+
+
+# Compatibility alias for existing internal tests and callers; new code uses the public name.
+_VerifiedAuditJudgment = LF022VerifiedCodexAuditJudgment
 
 
 @dataclass(frozen=True, slots=True)
@@ -998,7 +1015,7 @@ def _proposer_family_for_check(
 
 
 def _make_summary_bucket(
-    judgments: Sequence[_VerifiedAuditJudgment],
+    judgments: Sequence[LF022VerifiedCodexAuditJudgment],
 ) -> LF022CodexAuditSummaryBucket:
     same_claim = Counter(item.response.same_claim_answer for item in judgments)
     relations = Counter(
@@ -1024,7 +1041,7 @@ def _make_summary_bucket(
     )
 
 
-def _make_audit_finding(item: _VerifiedAuditJudgment) -> LF022CodexAuditFinding:
+def _make_audit_finding(item: LF022VerifiedCodexAuditJudgment) -> LF022CodexAuditFinding:
     response = item.response
     values: dict[str, object] = {
         "schema_version": 1,
@@ -1125,29 +1142,18 @@ def _render_summary_markdown(summary: LF022CodexAuditSummary) -> bytes:
     return "\n".join(lines).encode("utf-8")
 
 
-def summarize_completed_lf022_codex_audit(
+def verify_completed_lf022_codex_audit(
     *,
     repo_root: Path,
     checks_path: Path,
     audit_root: Path,
-    output_json_path: Path,
-    output_markdown_path: Path,
-    output_findings_path: Path,
-) -> LF022CodexAuditSummaryResult:
-    """Verify every completed audit artifact and write a diagnostic-only summary."""
+    require_complete_clean: bool = True,
+) -> LF022VerifiedCodexAudit:
+    """Replay and verify every completed Codex audit artifact without writing output."""
 
     repo_root = repo_root.resolve()
     checks_path = checks_path.resolve()
     audit_root = audit_root.resolve()
-    output_json_path = output_json_path.resolve()
-    output_markdown_path = output_markdown_path.resolve()
-    output_findings_path = output_findings_path.resolve()
-    output_paths = {output_json_path, output_markdown_path, output_findings_path}
-    if len(output_paths) != 3:
-        raise LF022CodexAuditError("summary JSON, Markdown, and findings paths must differ")
-    if any(path.is_relative_to(audit_root) for path in output_paths):
-        raise LF022CodexAuditError("summary outputs must remain outside the immutable audit root")
-
     manifest_path = audit_root / "manifest.json"
     if manifest_path.is_symlink() or not manifest_path.is_file():
         raise LF022CodexAuditError(f"audit manifest is missing: {manifest_path}")
@@ -1161,11 +1167,14 @@ def summarize_completed_lf022_codex_audit(
         raise LF022CodexAuditError("checks artifact hash differs from audit manifest")
 
     checks = _load_check_inventory(checks_path)
-    outcome_counts = dict(sorted(Counter(check.outcome for check in checks).items()))
+    outcome_counts: dict[str, int] = {
+        str(outcome): count
+        for outcome, count in sorted(Counter(check.outcome for check in checks).items())
+    }
     unsupported = sorted(set(outcome_counts) - {*_VALID_OUTCOMES, "invalid"})
     if unsupported:
         raise LF022CodexAuditError(
-            "final summary requires all non-valid Lean checks to be invalid; found "
+            "completed audit verification requires all non-valid Lean checks to be invalid; found "
             + ", ".join(unsupported)
         )
     checks_by_id = {check.check_id: check for check in checks}
@@ -1176,16 +1185,36 @@ def summarize_completed_lf022_codex_audit(
         [item.audit_item_id for item in items]
     ):
         raise LF022CodexAuditError("audit manifest ordered input hash differs from checks")
-    if (
+    if require_complete_clean and (
         manifest.completed_count != len(items)
         or manifest.exhausted_count != 0
         or manifest.attempt_status_counts != {"completed": len(items)}
     ):
         raise LF022CodexAuditError("audit is not complete and clean")
 
-    verified: list[_VerifiedAuditJudgment] = []
-    response_bindings: list[dict[str, object]] = []
+    expected_completed_paths: dict[Path, LF022CodexAuditInput] = {}
     for item in items:
+        completed_path = _item_dir(audit_root, item.audit_item_id) / "completed.json"
+        if completed_path.is_symlink():
+            raise LF022CodexAuditError(f"completed audit cannot be a symlink: {completed_path}")
+        if completed_path.is_file():
+            expected_completed_paths[completed_path.resolve()] = item
+    observed_completed_paths: dict[Path, Path] = {}
+    for path in (audit_root / "items").glob("*/*/completed.json"):
+        if path.is_symlink() or not path.is_file():
+            raise LF022CodexAuditError(f"completed audit is not a regular file: {path}")
+        observed_completed_paths[path.resolve()] = path
+    if set(observed_completed_paths) != set(expected_completed_paths):
+        raise LF022CodexAuditError(
+            "completed audit artifacts are missing, extra, or stored at noncanonical paths"
+        )
+    if len(expected_completed_paths) != manifest.completed_count:
+        raise LF022CodexAuditError("audit manifest completed count differs from artifacts")
+
+    verified: list[LF022VerifiedCodexAuditJudgment] = []
+    response_bindings: list[dict[str, object]] = []
+    for completed_path in sorted(expected_completed_paths):
+        item = expected_completed_paths[completed_path]
         check = checks_by_id.get(item.lean_check_id)
         if check is None:
             raise LF022CodexAuditError(f"audit item lacks Lean check {item.lean_check_id}")
@@ -1193,7 +1222,6 @@ def summarize_completed_lf022_codex_audit(
         input_path = item_dir / "input.json"
         if input_path.read_bytes() != _canonical_line(item):
             raise LF022CodexAuditError(f"audit input replay mismatch: {input_path}")
-        completed_path = item_dir / "completed.json"
         terminal = _load_completed(completed_path, item)
         attempt_dir = item_dir / "attempts" / f"{terminal.attempt_index:04d}"
         terminal_path = attempt_dir / "terminal.json"
@@ -1244,7 +1272,7 @@ def summarize_completed_lf022_codex_audit(
         if parsed_path.read_bytes() != _canonical_line(response):
             raise LF022CodexAuditError(f"parsed response replay mismatch: {attempt_dir}")
         proposer_family_id = _proposer_family_for_check(check, item, repo_root=repo_root)
-        verified_item = _VerifiedAuditJudgment(
+        verified_item = LF022VerifiedCodexAuditJudgment(
             audit_item_id=item.audit_item_id,
             lean_check_id=item.lean_check_id,
             pair_id=item.pair.pair_id,
@@ -1264,8 +1292,53 @@ def summarize_completed_lf022_codex_audit(
                 "parsed_response_sha256": verified_item.parsed_response_sha256,
             }
         )
+    return LF022VerifiedCodexAudit(
+        manifest=manifest,
+        manifest_path=manifest_path,
+        checks=checks,
+        lean_check_outcome_counts=outcome_counts,
+        items=items,
+        judgments=tuple(verified),
+        response_artifact_set_sha256=hash_canonical(response_bindings),
+    )
 
-    grouped: dict[str, list[_VerifiedAuditJudgment]] = {}
+
+def summarize_completed_lf022_codex_audit(
+    *,
+    repo_root: Path,
+    checks_path: Path,
+    audit_root: Path,
+    output_json_path: Path,
+    output_markdown_path: Path,
+    output_findings_path: Path,
+) -> LF022CodexAuditSummaryResult:
+    """Verify every completed audit artifact and write a diagnostic-only summary."""
+
+    repo_root = repo_root.resolve()
+    checks_path = checks_path.resolve()
+    audit_root = audit_root.resolve()
+    output_json_path = output_json_path.resolve()
+    output_markdown_path = output_markdown_path.resolve()
+    output_findings_path = output_findings_path.resolve()
+    output_paths = {output_json_path, output_markdown_path, output_findings_path}
+    if len(output_paths) != 3:
+        raise LF022CodexAuditError("summary JSON, Markdown, and findings paths must differ")
+    if any(path.is_relative_to(audit_root) for path in output_paths):
+        raise LF022CodexAuditError("summary outputs must remain outside the immutable audit root")
+
+    verified_audit = verify_completed_lf022_codex_audit(
+        repo_root=repo_root,
+        checks_path=checks_path,
+        audit_root=audit_root,
+    )
+    manifest = verified_audit.manifest
+    manifest_path = verified_audit.manifest_path
+    checks = verified_audit.checks
+    outcome_counts = verified_audit.lean_check_outcome_counts
+    items = verified_audit.items
+    verified = verified_audit.judgments
+
+    grouped: dict[str, list[LF022VerifiedCodexAuditJudgment]] = {}
     for judgment in verified:
         grouped.setdefault(judgment.proposer_family_id, []).append(judgment)
     overall = _make_summary_bucket(verified)
@@ -1283,7 +1356,7 @@ def summarize_completed_lf022_codex_audit(
         "audit_method_version": manifest.method_version,
         "checks_artifact": str(checks_path),
         "checks_sha256": hash_file(checks_path),
-        "response_artifact_set_sha256": hash_canonical(response_bindings),
+        "response_artifact_set_sha256": verified_audit.response_artifact_set_sha256,
         "findings_artifact": str(output_findings_path),
         "findings_sha256": findings_sha256,
         "model": manifest.model,
@@ -1342,9 +1415,12 @@ __all__ = [
     "LF022CodexAuditSummaryBucket",
     "LF022CodexAuditSummaryResult",
     "LF022CodexAuditTerminal",
+    "LF022VerifiedCodexAudit",
+    "LF022VerifiedCodexAuditJudgment",
     "ProcessCapture",
     "SubprocessCodexAuditExecutor",
     "audit_lean_valid_lf022_pairs",
     "load_lean_valid_audit_inputs",
     "summarize_completed_lf022_codex_audit",
+    "verify_completed_lf022_codex_audit",
 ]

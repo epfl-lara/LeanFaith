@@ -354,12 +354,31 @@ def test_completed_summary_replays_hashes_and_rejects_tampering(
     assert finding.semantic_label is False
     assert finding.training_eligible is False
     assert result.summary.findings_sha256 == audit.sha256_hex(findings_path.read_bytes())
+    assert result.summary.response_artifact_set_sha256 == audit.hash_canonical(
+        [
+            {
+                "audit_item_id": item.audit_item_id,
+                "proposer_family_id": "qwen3",
+                "final_message_sha256": finding.final_message_sha256,
+                "parsed_response_sha256": finding.parsed_response_sha256,
+            }
+        ]
+    )
     assert "not human gold" in markdown_path.read_text(encoding="utf-8")
     assert audit.LF022CodexAuditSummary.model_validate_json(json_path.read_bytes()) == (
         result.summary
     )
 
     item_dir = audit._item_dir(audit_root, item.audit_item_id)
+    final_path = item_dir / "attempts" / "0000" / "final_message.json"
+    final_path.write_text("{}\n", encoding="utf-8")
+    with pytest.raises(audit.LF022CodexAuditError, match="final response hash mismatch"):
+        audit.verify_completed_lf022_codex_audit(
+            repo_root=tmp_path,
+            checks_path=checks_path,
+            audit_root=audit_root,
+        )
+    final_path.write_bytes(_response())
     parsed_path = item_dir / "attempts" / "0000" / "parsed_response.json"
     parsed_path.write_text("{}\n", encoding="utf-8")
     with pytest.raises(audit.LF022CodexAuditError, match="parsed response hash mismatch"):
@@ -370,4 +389,38 @@ def test_completed_summary_replays_hashes_and_rejects_tampering(
             output_json_path=json_path,
             output_markdown_path=markdown_path,
             output_findings_path=findings_path,
+        )
+
+
+def test_completed_verifier_rejects_noncanonical_completed_path(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    item = _input()
+    checks_path = tmp_path / "checks" / "checks.jsonl"
+    checks_path.parent.mkdir()
+    checks_path.write_text("{}\n", encoding="utf-8")
+    audit_root = tmp_path / "audit"
+    monkeypatch.setattr(audit, "load_lean_valid_audit_inputs", lambda **_kwargs: (item,))
+    executor = FakeExecutor(
+        [ProcessCapture("completed", 0, b'{"type":"turn.completed"}\n', b"", _response())]
+    )
+    audit.audit_lean_valid_lf022_pairs(
+        repo_root=tmp_path,
+        checks_path=checks_path,
+        output_root=audit_root,
+        executor=executor,
+    )
+    check = SimpleNamespace(check_id=item.lean_check_id, outcome="elaborates")
+    monkeypatch.setattr(audit, "_load_check_inventory", lambda _path: (check,))
+    monkeypatch.setattr(audit, "_proposer_family_for_check", lambda *_args, **_kwargs: "qwen3")
+    canonical = audit._item_dir(audit_root, item.audit_item_id) / "completed.json"
+    wrong = audit_root / "items" / "ff" / "wrong-item" / "completed.json"
+    wrong.parent.mkdir(parents=True)
+    canonical.replace(wrong)
+
+    with pytest.raises(audit.LF022CodexAuditError, match="noncanonical paths"):
+        audit.verify_completed_lf022_codex_audit(
+            repo_root=tmp_path,
+            checks_path=checks_path,
+            audit_root=audit_root,
         )
