@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import signal
 from collections.abc import Sequence
 from pathlib import Path
 
@@ -13,6 +14,7 @@ from leanfaith.transforms.composition_smoke_launcher import (
     CompositionSmokeLaunchSpec,
     SmokeFamilyPlan,
     SmokeRootReceipt,
+    SubprocessFamilyExecutor,
     _family_command,
     _without_id,
     run_composition_smokes,
@@ -238,3 +240,81 @@ def test_launcher_rejects_existing_partial_root_instead_of_resuming(
             process_executor=executor,
         )
     assert executor.calls == []
+
+
+@pytest.mark.parametrize("termination_signal", [signal.SIGTERM, signal.SIGHUP])
+def test_subprocess_executor_terminates_child_group_and_restores_signal_handlers(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    termination_signal: signal.Signals,
+) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+    (project / "lean-toolchain").write_text("leanprover/lean4:v4.31.0-rc1\n", encoding="utf-8")
+    handlers: dict[int, object] = {
+        signal.SIGTERM: signal.SIG_DFL,
+        signal.SIGHUP: signal.SIG_DFL,
+    }
+
+    def fake_getsignal(signum: int) -> object:
+        return handlers[signum]
+
+    def fake_signal(signum: int, handler: object) -> object:
+        previous = handlers[signum]
+        handlers[signum] = handler
+        return previous
+
+    class FakeProcess:
+        pid = 4242
+
+        def __init__(self) -> None:
+            self.wait_calls: list[float | None] = []
+
+        def wait(self, timeout: float | None = None) -> int:
+            self.wait_calls.append(timeout)
+            if timeout is None:
+                handler = handlers[termination_signal]
+                assert callable(handler)
+                handler(termination_signal, None)
+            return 0
+
+    process = FakeProcess()
+    killed: list[tuple[int, int]] = []
+    monkeypatch.setattr(
+        "leanfaith.transforms.composition_smoke_launcher.signal.getsignal",
+        fake_getsignal,
+    )
+    monkeypatch.setattr(
+        "leanfaith.transforms.composition_smoke_launcher.signal.signal",
+        fake_signal,
+    )
+    monkeypatch.setattr(
+        "leanfaith.transforms.composition_smoke_launcher.subprocess.Popen",
+        lambda *_args, **_kwargs: process,
+    )
+    monkeypatch.setattr(
+        "leanfaith.transforms.composition_smoke_launcher.os.killpg",
+        lambda pid, signum: killed.append((pid, signum)),
+    )
+
+    executor = SubprocessFamilyExecutor()
+    with pytest.raises(CompositionSmokeLaunchError, match="interrupted by signal"):
+        executor.execute(
+            family="p14",
+            command=(
+                "/python-test",
+                "-m",
+                "leanfaith.cli.app",
+                "materialize-deterministic-v2-e2-scale",
+                "--project-dir",
+                str(project),
+            ),
+            cwd=tmp_path,
+            log_path=tmp_path / "p14.log",
+            lock_path=tmp_path / "p14.lock",
+        )
+
+    assert killed == [(4242, signal.SIGTERM)]
+    assert process.wait_calls == [None, 10]
+    assert handlers[signal.SIGTERM] == signal.SIG_DFL
+    assert handlers[signal.SIGHUP] == signal.SIG_DFL

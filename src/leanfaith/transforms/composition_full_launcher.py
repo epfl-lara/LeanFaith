@@ -20,6 +20,7 @@ from leanfaith.transforms.composition_seed import (
 )
 from leanfaith.transforms.composition_smoke_launcher import (
     FAMILY_DEFINITIONS,
+    CompositionSmokeLaunchError,
     FamilyProcessExecutor,
     SubprocessFamilyExecutor,
     _canonical_model,
@@ -474,31 +475,49 @@ def run_composition_full_scale(
             log_path = orchestration / "logs" / f"{plan.family}.log"
             command = _family_command(spec, plan)
             if root.exists():
+                if root.is_symlink() or not root.is_dir():
+                    raise CompositionFullLaunchError(
+                        f"family {plan.family} root is not a real directory: {root}"
+                    )
                 log_path.parent.mkdir(parents=True, exist_ok=True)
                 if not log_path.exists():
                     log_path.write_text(
                         f"validated existing root {root} for launch {spec.launch_id}\n",
                         encoding="utf-8",
                     )
-                validated = _validate_full_root(
-                    plan=plan,
-                    seed_dir=seed_dir,
-                    project_dir=project_dir,
-                    log_path=log_path,
-                    reused=True,
-                )
-                prior[plan.family] = FullFamilyStatus(
-                    family=plan.family,
-                    state="reused",
-                    root_path=str(root),
-                    log_path=str(log_path),
-                    command=command,
-                    finished_at=_utcnow(),
-                    exit_code=0,
-                )
-                roots.append(validated)
-                _write_atomic(status_path, _canonical_model(_status(spec, prior)))
-                continue
+                try:
+                    validated = _validate_full_root(
+                        plan=plan,
+                        seed_dir=seed_dir,
+                        project_dir=project_dir,
+                        log_path=log_path,
+                        reused=True,
+                    )
+                except CompositionFullLaunchError as exc:
+                    # Schema-3 materializers journal immutable batches and can
+                    # resume a compatible partial root.  Invoke the exact same
+                    # child command; its immutable run-spec checks reject a
+                    # conflicting or foreign root before any journal reuse.
+                    with log_path.open("ab", buffering=0) as log:
+                        log.write(
+                            (
+                                "existing root is not complete; attempting exact "
+                                f"journal resume: {exc}\n"
+                            ).encode()
+                        )
+                else:
+                    prior[plan.family] = FullFamilyStatus(
+                        family=plan.family,
+                        state="reused",
+                        root_path=str(root),
+                        log_path=str(log_path),
+                        command=command,
+                        finished_at=_utcnow(),
+                        exit_code=0,
+                    )
+                    roots.append(validated)
+                    _write_atomic(status_path, _canonical_model(_status(spec, prior)))
+                    continue
             running = FullFamilyStatus(
                 family=plan.family,
                 state="running",
@@ -517,10 +536,19 @@ def run_composition_full_scale(
                     log_path=log_path,
                     lock_path=orchestration / "locks" / f"{plan.family}.lock",
                 )
-            except KeyboardInterrupt as exc:
+            except (KeyboardInterrupt, CompositionSmokeLaunchError) as exc:
                 executor.terminate()
+                prior[plan.family] = running.model_copy(
+                    update={
+                        "state": "failed",
+                        "finished_at": _utcnow(),
+                        "error": f"materializer interrupted: {exc}",
+                    }
+                )
+                _write_atomic(status_path, _canonical_model(_status(spec, prior)))
                 raise CompositionFullLaunchError(
-                    f"full launch interrupted during {plan.family}; partial roots are rejected"
+                    f"full launch interrupted during {plan.family}; a compatible partial "
+                    "root is retained for exact journal resume"
                 ) from exc
             if exit_code != 0:
                 prior[plan.family] = running.model_copy(

@@ -15,10 +15,12 @@ import signal
 import subprocess
 import sys
 import tempfile
-from collections.abc import Iterator, Mapping, Sequence
+import threading
+from collections.abc import Callable, Iterator, Mapping, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
+from types import FrameType
 from typing import IO, Literal, Protocol
 
 from pydantic import Field, model_validator
@@ -44,6 +46,14 @@ _EMPTY_SHA256 = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b85
 
 class CompositionSmokeLaunchError(RuntimeError):
     """The smoke launcher or one of its immutable inputs failed closed."""
+
+
+class _FamilyProcessSignalError(CompositionSmokeLaunchError):
+    """A termination signal interrupted one materializer process."""
+
+    def __init__(self, signum: int) -> None:
+        self.signum = signum
+        super().__init__(f"family materializer interrupted by signal {signum}")
 
 
 RunKind = Literal["e2", "d0"]
@@ -290,9 +300,41 @@ class SubprocessFamilyExecutor:
                 start_new_session=True,
                 pass_fds=(family_lock.fileno(),),
             )
+            previous_handlers: dict[
+                int,
+                Callable[[int, FrameType | None], object] | int | None,
+            ] = {}
+
+            def raise_signal(signum: int, _frame: FrameType | None) -> None:
+                raise _FamilyProcessSignalError(signum)
+
+            if threading.current_thread() is threading.main_thread():
+                for signum in (signal.SIGTERM, signal.SIGHUP):
+                    previous_handlers[signum] = signal.getsignal(signum)
+                    signal.signal(signum, raise_signal)
+
+            handlers_restored = False
+
+            def restore_handlers() -> None:
+                nonlocal handlers_restored
+                if handlers_restored:
+                    return
+                for signum, previous in previous_handlers.items():
+                    signal.signal(signum, previous)
+                handlers_restored = True
+
             try:
-                exit_code = self._process.wait()
+                try:
+                    exit_code = self._process.wait()
+                except BaseException:
+                    # Restore the ordinary handlers before waiting for the
+                    # process group to stop.  A repeated TERM/HUP must not
+                    # recursively interrupt cleanup.
+                    restore_handlers()
+                    self.terminate()
+                    raise
             finally:
+                restore_handlers()
                 self._process = None
             log.write(f"=== {family} finished exit_code={exit_code} ===\n".encode())
             fcntl.flock(family_lock.fileno(), fcntl.LOCK_UN)
