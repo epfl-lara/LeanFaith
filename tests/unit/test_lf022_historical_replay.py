@@ -363,32 +363,6 @@ def test_binding_candidates_cover_explicit_historical_record_shapes() -> None:
     }
 
 
-def test_binding_candidates_treat_terminal_references_as_generic_bindings() -> None:
-    digest = "1" * 64
-    terminal_reference = {
-        "execution_task_id": f"lf022_execution_task:{'2' * 64}",
-        "terminal_id": f"lf022_execution_terminal:{'3' * 64}",
-        "terminal_artifact": {
-            "path": "data/executor/terminal.json",
-            "sha256": digest,
-        },
-    }
-    challenge_selection_reference = {
-        "execution_task_id": f"lf022_execution_task:{'4' * 64}",
-        "terminal_id": f"lf022_execution_terminal:{'5' * 64}",
-        "terminal": {
-            "path": "data/challenge/terminal.json",
-            "sha256": "6" * 64,
-        },
-        "current_parser_outcome": "strict_variant_success",
-    }
-
-    assert _binding_candidates(terminal_reference) == [("data/executor/terminal.json", digest)]
-    assert _binding_candidates(challenge_selection_reference) == [
-        ("data/challenge/terminal.json", "6" * 64)
-    ]
-
-
 @pytest.mark.parametrize(
     "payload",
     [

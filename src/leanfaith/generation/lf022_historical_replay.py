@@ -32,22 +32,6 @@ from leanfaith.generation.lf022_production import LF022ArtifactBinding
 from leanfaith.schemas.ids import HEX64_PATTERN, id_pattern
 
 _ARTIFACT_BINDING_CLOSURE_LIMIT = 100_000
-_TERMINAL_RECORD_FIELDS = frozenset(
-    {
-        "attempt_artifacts",
-        "attempt_sha256s",
-        "llm_attempt_artifacts",
-        "llm_attempt_sha256s",
-        "llm_call_artifact",
-        "llm_call_sha256",
-        "variants_artifact",
-        "variants_sha256",
-        "terminal_error_code",
-        "provisional_variant_count",
-        "execution_admission_id",
-        "status",
-    }
-)
 
 
 class LF022HistoricalReplayError(RuntimeError):
@@ -382,15 +366,7 @@ def _record_binding_list(
 def _explicit_record_bindings(
     value: dict[object, object],
 ) -> list[_DiscoveredBinding] | None:
-    # Several immutable reports store a lightweight terminal *reference* with
-    # only ``terminal_id`` plus a nested ``terminal_artifact``/``terminal``
-    # binding.  Treating every object with a terminal ID as the complete
-    # executor terminal shape makes those valid reports look like malformed
-    # terminals.  The full record is distinguished by its terminal-only
-    # execution fields; references continue through the generic binding walk.
-    if _is_identifier(
-        value.get("terminal_id"), "lf022_execution_terminal"
-    ) and _TERMINAL_RECORD_FIELDS.intersection(value):
+    if _is_identifier(value.get("terminal_id"), "lf022_execution_terminal"):
         terminal_bindings = _record_binding_list(
             value,
             paths_key="attempt_artifacts",
