@@ -111,7 +111,7 @@
     "deterministic_13_family_schema3_smoke": {
       "artifact": {
         "path": "reports/generation/deterministic_v2_schema3_13_family_smoke_receipt_point_in_time_v1.json",
-        "sha256": "08fbe7f204087a4dce07e0af04c0e3c04a1a257795db6807d62429a1688967"
+        "sha256": "08fbe7f204087a4dce07e9e0af04c0e3c04a1a257795db6807d62429a1688967"
       },
       "attempt_count": 832,
       "family_count": 13,

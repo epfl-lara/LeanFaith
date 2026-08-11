@@ -86,7 +86,7 @@ audit-only rather than interpret Codex judgments as resolved labels.
 | Summary | SHA-256 |
 |---|---|
 | `reports/transformation_audits/lf033_equality_composition_inventory_v1.json` | `0a853ac12084d141e23da9546a81c9c9a03c7971e39aaf874508645c5c573168` |
-| `reports/generation/deterministic_v2_schema3_13_family_smoke_receipt_point_in_time_v1.json` | `08fbe7f204087a4dce07e0af04c0e3c04a1a257795db6807d62429a1688967` |
+| `reports/generation/deterministic_v2_schema3_13_family_smoke_receipt_point_in_time_v1.json` | `08fbe7f204087a4dce07e9e0af04c0e3c04a1a257795db6807d62429a1688967` |
 | `reports/generation/lf021_post_exhaustion_frame_v1/decisions/0574621043042ed62b486260de9bf633797f2471217f502be25b9aec3a46a19c.json` | `e780d3bc6150f2fafe576170be792b6f13e60d7ef35567912d27d03b63d8eabc` |
 | `reports/model_selection/training_data_readiness_v1.json` | `8b20325087a094a2e27f5f30b98f9a81c710cd3e68a08c77820f9c9d7ba9d97a` |
 
