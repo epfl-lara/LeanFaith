@@ -401,6 +401,20 @@ def test_binding_candidates_treat_terminal_references_as_generic_bindings() -> N
     assert _binding_candidates(journal_reference) == [("data/journal/terminal.json", "9" * 64)]
 
 
+def test_binding_candidates_do_not_follow_module_provenance() -> None:
+    module_binding = {
+        "module_name": "leanfaith.generation.lf022_batch",
+        "path": "src/leanfaith/generation/lf022_batch.py",
+        "sha256": "1" * 64,
+    }
+
+    assert _binding_candidates(module_binding) == []
+
+    malformed = {**module_binding, "path": "data/not-source.py"}
+    with pytest.raises(LF022HistoricalReplayError, match="module binding is malformed"):
+        _binding_candidates(malformed)
+
+
 @pytest.mark.parametrize(
     "payload",
     [

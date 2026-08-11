@@ -378,6 +378,24 @@ def _record_binding_list(
 def _explicit_record_bindings(
     value: dict[object, object],
 ) -> list[_DiscoveredBinding] | None:
+    module_name = value.get("module_name")
+    if isinstance(module_name, str) and (
+        module_name == "leanfaith" or module_name.startswith("leanfaith.")
+    ):
+        path = value.get("path")
+        digest = value.get("sha256")
+        if (
+            not isinstance(path, str)
+            or not (path == "src/leanfaith/__init__.py" or path.startswith("src/leanfaith/"))
+            or not _is_sha256(digest)
+        ):
+            raise LF022HistoricalReplayError("historical module binding is malformed")
+        # Module bindings nested in audit/selection reports describe the code
+        # that produced those reports. They are provenance, not replay-time
+        # artifact dependencies. The admission-bound code bundle is the sole
+        # code authority and is verified independently before and after replay.
+        return []
+
     # Several immutable reports store a lightweight terminal *reference* with
     # only ``terminal_id`` plus a nested ``terminal_artifact``/``terminal``
     # binding.  Treating every object with a terminal ID as the complete
