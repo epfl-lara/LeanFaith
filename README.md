@@ -221,15 +221,21 @@ dataset probe (PLAN.md §9.2).
   no private theorem text is committed. Every pair remains intention-only,
   unresolved, and ineligible for training, evaluation, promotion, or gate
   credit.
-- **P12 deterministic expansion is ready for Lean scale materialization:** a
+- **P12 deterministic expansion is fully materialized and replay-verified:** a
   separate P12 v1.1 matcher adds complex, visibly propositional root proof
   arrows without changing the accepted P12 v1.0 bytes or effective hash. Its
   read-only probe finds 89 opportunities in the frozen private 5,000 statements
   and 278 in the public 27,786 statements. Nested arrows, data-function
-  domains, dependent binders, and unsupported syntax fail closed. These 367
-  opportunities are upper bounds until same-context LeanInteract
-  re-elaboration and the complete E0 identity audit finish. See
-  `reports/transformation_audits/p12_v110_prescale_yield_v1.md`.
+  domains, dependent binders, and unsupported syntax fail closed. Same-context
+  LeanInteract re-elaboration plus the complete E0 identity audit accepted 82
+  private and 99 public records: **181 provisional records / 179 distinct
+  source-candidate text pairs**. A complete
+  offline resume replay reproduced both result sets and manifests byte for
+  byte. Two public attempts ended in `lean_crash` and remain infrastructure
+  failures, not semantic negatives. See
+  `reports/transformation_audits/p12_v110_scale_materialization_v1.md` and the
+  inspectable public pairs in
+  `reports/transformation_audits/p12_v110_public_examples_v1.md`.
 - **Public LF-022 scale-out preparation is deterministic and still
   non-executable:** a pinned, progressively expandable mathlib file frame
   feeds exact extraction and representation runs. The production pool admits
