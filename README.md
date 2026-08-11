@@ -250,12 +250,15 @@ dataset probe (PLAN.md §9.2).
   over both the frozen 5,000 private statements and 27,786 public statements,
   producing 3,293 provisional variants before cross-family deduplication. The
   exact combiner correctly rejected two preserved infrastructure failures in
-  the historical public P12 root; an isolated single-worker P12 replay is in
-  progress instead of weakening the admission rule. A separate immutable seed
-  boundary now admits only clean, certificate-backed P14--P18 positive outputs
-  for a second deterministic hop. This enables controlled P-to-P and P-to-N
-  experiments while blocking N-to-anything chains; it creates no labels or
-  training eligibility.
+  the historical public P12 root. An isolated single-worker P12 replay then
+  completed all 27,786 results with zero infrastructure failures, without
+  weakening the admission rule. Recombining 30 exact public/private roots
+  produced **11,208 unique exact source/candidate pairs** with zero exact
+  duplicate excess. A separate immutable seed boundary admits only clean,
+  certificate-backed P14--P18 positive outputs for a second deterministic hop.
+  This enables controlled P-to-P and P-to-N experiments while blocking
+  N-to-anything chains; it creates no labels or training eligibility. See
+  `reports/transformation_audits/lf033_equality_composition_inventory_v1.md`.
 - **Public LF-022 scale-out preparation is deterministic and still
   non-executable:** a pinned, progressively expandable mathlib file frame
   feeds exact extraction and representation runs. The production pool admits

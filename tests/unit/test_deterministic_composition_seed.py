@@ -29,11 +29,20 @@ from leanfaith.transforms.composition_seed import (
     _admit_e2_observation,
     _load_bound_roots,
     _load_combination,
+    _ValidatedRoot,
     prepare_deterministic_v2_composition_seeds,
 )
-from leanfaith.transforms.provisional_pair_combine import combine_provisional_pair_roots
+from leanfaith.transforms.provisional_pair_combine import (
+    _iter_jsonl_objects,
+    _load_run_models,
+    _load_source_inventory,
+    combine_provisional_pair_roots,
+)
 from leanfaith.transforms.scale_materializer import _representation_payload_hash
-from leanfaith.transforms.v2_e2_materializer import build_v2_e2_result
+from leanfaith.transforms.v2_e2_materializer import (
+    V2E2MaterializationResult,
+    build_v2_e2_result,
+)
 from leanfaith.transforms.v2_e2_p18_runtime import build_v2_e2_p18_runtime
 from leanfaith.transforms.v2_e2_scale_run import run_v2_e2_scale
 from tests.unit.test_deterministic_v2_n11_scale import _BatchBackend
@@ -47,7 +56,12 @@ def _canonical_line(value: object) -> bytes:
     return canonical_json_bytes(value) + b"\n"
 
 
-def _make_e2_root(monkeypatch: pytest.MonkeyPatch, root: Path) -> Path:
+def _make_e2_root(
+    monkeypatch: pytest.MonkeyPatch,
+    root: Path,
+    *,
+    status: LeanStatus = LeanStatus.VALID_WITH_SORRY,
+) -> Path:
     root.mkdir(parents=True)
     theorem, representation = _records(_SOURCE, "composition-seed", _root())
     theorem = theorem.model_copy(
@@ -96,7 +110,7 @@ def _make_e2_root(monkeypatch: pytest.MonkeyPatch, root: Path) -> Path:
 
     monkeypatch.setattr(scale_module, "build_representations", fake_build)
     output = root / "e2-run"
-    backend = _BatchBackend((LeanStatus.VALID_WITH_SORRY,), workers=1)
+    backend = _BatchBackend((status,), workers=1)
     run_v2_e2_scale(
         backend=cast(LeanInteractBackend, backend),
         runtime=build_v2_e2_p18_runtime(),
@@ -117,8 +131,17 @@ def _make_combination(
     tmp_path: Path,
     *,
     include_d0: bool = False,
+    include_unused_e2: bool = False,
 ) -> tuple[Path, tuple[Path, ...]]:
     roots: list[Path] = [_make_e2_root(monkeypatch, tmp_path / "e2")]
+    if include_unused_e2:
+        roots.append(
+            _make_e2_root(
+                monkeypatch,
+                tmp_path / "e2-unused",
+                status=LeanStatus.INVALID,
+            )
+        )
     if include_d0:
         d0_root = tmp_path / "d0"
         d0_root.mkdir()
@@ -216,6 +239,7 @@ def test_composition_seed_admission_rejects_missing_certificate_and_derived_sour
     (root,) = _load_bound_roots(
         materialization_roots=roots,
         manifest=combination_manifest,
+        gross_observations=(observation,),
     ).values()
     result = root.results_by_line[observation.result_line_number]
     assert result.audit is not None
@@ -250,6 +274,110 @@ def test_composition_seed_admission_rejects_missing_certificate_and_derived_sour
     )
     with pytest.raises(CompositionSeedError, match="already derived"):
         _admit_e2_observation(observation, derived_root)
+
+
+def test_composition_seed_retains_only_records_needed_by_e2_observations(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    combination, roots = _make_combination(
+        monkeypatch,
+        tmp_path,
+        include_d0=True,
+        include_unused_e2=True,
+    )
+    combination_manifest, gross, _ = _load_combination(combination)
+    loaded = _load_bound_roots(
+        materialization_roots=roots,
+        manifest=combination_manifest,
+        gross_observations=gross,
+    )
+
+    for root_binding_id, root in loaded.items():
+        selected = tuple(
+            observation
+            for observation in gross
+            if observation.root_binding_id == root_binding_id and root.binding.run_kind == "e2"
+        )
+        assert set(root.results_by_line) == {
+            observation.result_line_number for observation in selected
+        }
+        assert set(root.source_theorems) == {
+            theorem_id for observation in selected for theorem_id in observation.source_theorem_ids
+        }
+        assert set(root.source_representations) == {
+            representation_id
+            for observation in selected
+            for representation_id in observation.source_representation_ids
+        }
+
+    unused_e2 = next(
+        root
+        for root in loaded.values()
+        if root.binding.run_kind == "e2" and root.binding.provisional_count == 0
+    )
+    assert unused_e2.results_by_line == {}
+    assert unused_e2.source_theorems == {}
+    assert unused_e2.source_representations == {}
+
+
+def test_composition_seed_selective_retention_preserves_exact_output_bytes(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    import leanfaith.transforms.composition_seed as composition_seed_module
+
+    combination, roots = _make_combination(
+        monkeypatch,
+        tmp_path,
+        include_d0=True,
+        include_unused_e2=True,
+    )
+    selective_loader = composition_seed_module._load_bound_roots
+
+    def full_retention_loader(**kwargs: object) -> dict[str, _ValidatedRoot]:
+        selected = selective_loader(**kwargs)  # type: ignore[arg-type]
+        full: dict[str, _ValidatedRoot] = {}
+        for root_binding_id, root in selected.items():
+            run_kind, spec, _ = _load_run_models(root.path)
+            if run_kind != "e2":
+                full[root_binding_id] = root
+                continue
+            inventory = _load_source_inventory(spec)
+            results: dict[int, V2E2MaterializationResult] = {}
+            for line_number, raw, _ in _iter_jsonl_objects(root.path / "results.jsonl"):
+                results[line_number] = V2E2MaterializationResult.model_validate(raw)
+            full[root_binding_id] = replace(
+                root,
+                results_by_line=results,
+                source_theorems=inventory.by_theorem_id,
+                source_representations={
+                    representation.representation_id: representation
+                    for _, representation in inventory.ordered
+                },
+            )
+        return full
+
+    monkeypatch.setattr(composition_seed_module, "_load_bound_roots", full_retention_loader)
+    full_output = prepare_deterministic_v2_composition_seeds(
+        combination_dir=combination,
+        materialization_roots=roots,
+        output_dir=tmp_path / "full-retention-seeds",
+    )
+    monkeypatch.setattr(composition_seed_module, "_load_bound_roots", selective_loader)
+    selective_output = prepare_deterministic_v2_composition_seeds(
+        combination_dir=combination,
+        materialization_roots=tuple(reversed(roots)),
+        output_dir=tmp_path / "selective-retention-seeds",
+    )
+
+    for full_path, selective_path in (
+        (full_output.seeds_path, selective_output.seeds_path),
+        (full_output.theorem_path, selective_output.theorem_path),
+        (full_output.representation_path, selective_output.representation_path),
+        (full_output.manifest_path, selective_output.manifest_path),
+    ):
+        assert selective_path.read_bytes() == full_path.read_bytes()
 
 
 def test_composition_seed_cli_reports_machine_readable_success_and_error(

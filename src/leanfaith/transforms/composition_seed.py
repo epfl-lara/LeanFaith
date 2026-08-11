@@ -355,10 +355,24 @@ def _load_bound_roots(
     *,
     materialization_roots: Sequence[Path],
     manifest: ProvisionalPairCombinationManifest,
+    gross_observations: Sequence[ProvisionalPairObservation],
 ) -> dict[str, _ValidatedRoot]:
     if not materialization_roots:
         raise CompositionSeedError("at least one bound materialization root is required")
     expected_bindings = {item.root_binding_id: item for item in manifest.root_bindings}
+    expected_observations: dict[str, dict[str, ProvisionalPairObservation]] = {
+        root_binding_id: {} for root_binding_id in expected_bindings
+    }
+    for observation in gross_observations:
+        by_id = expected_observations.get(observation.root_binding_id)
+        if by_id is None:
+            raise CompositionSeedError(
+                "combination observation references an unbound materialization root"
+            )
+        if observation.observation_id in by_id:
+            raise CompositionSeedError("combination contains a duplicate root observation")
+        by_id[observation.observation_id] = observation
+
     loaded: dict[str, _ValidatedRoot] = {}
     for path in sorted({item.resolve(strict=True) for item in materialization_roots}):
         try:
@@ -375,15 +389,55 @@ def _load_bound_roots(
         if root.binding.root_binding_id in loaded:
             raise CompositionSeedError("duplicate materialization root binding")
 
-        run_kind, spec, _ = _load_run_models(path)
-        source_inventory = _load_source_inventory(spec)
-        source_representations = {
-            representation.representation_id: representation
-            for _, representation in source_inventory.ordered
+        root_binding_id = root.binding.root_binding_id
+        rebound_observations = {
+            observation.observation_id: observation for observation in root.observations
         }
+        if rebound_observations != expected_observations[root_binding_id]:
+            raise CompositionSeedError("bound root observations differ from combination")
+        binding = root.binding
+        # _load_root deliberately validates the complete immutable root.  Drop
+        # its materialized observation tuple before loading the source
+        # inventory again so the peak is bounded by one root, not all roots.
+        del root
+
+        run_kind, spec, _ = _load_run_models(path)
+        selected_observations = tuple(expected_observations[root_binding_id].values())
+        required_result_lines = {
+            observation.result_line_number for observation in selected_observations
+        }
+        required_theorem_ids = {
+            theorem_id
+            for observation in selected_observations
+            for theorem_id in observation.source_theorem_ids
+        }
+        required_representation_ids = {
+            representation_id
+            for observation in selected_observations
+            for representation_id in observation.source_representation_ids
+        }
+
+        source_theorems: dict[str, TheoremRecord] = {}
+        source_representations: dict[str, RepresentationRecord] = {}
+        if run_kind == "e2" and selected_observations:
+            source_inventory = _load_source_inventory(spec)
+            source_theorems = {
+                theorem_id: theorem
+                for theorem_id, theorem in source_inventory.by_theorem_id.items()
+                if theorem_id in required_theorem_ids
+            }
+            source_representations = {
+                representation.representation_id: representation
+                for _, representation in source_inventory.ordered
+                if representation.representation_id in required_representation_ids
+            }
+            del source_inventory
+
         results: dict[int, V2E2MaterializationResult] = {}
-        if run_kind == "e2":
+        if run_kind == "e2" and required_result_lines:
             for line_number, raw, raw_line in _iter_jsonl_objects(path / "results.jsonl"):
+                if line_number not in required_result_lines:
+                    continue
                 try:
                     result = V2E2MaterializationResult.model_validate(raw)
                 except ValueError as exc:
@@ -395,11 +449,11 @@ def _load_bound_roots(
                         f"non-canonical E2 result at {path}/results.jsonl:{line_number}"
                     )
                 results[line_number] = result
-        loaded[root.binding.root_binding_id] = _ValidatedRoot(
+        loaded[root_binding_id] = _ValidatedRoot(
             path=path,
-            binding=root.binding,
+            binding=binding,
             results_by_line=results,
-            source_theorems=source_inventory.by_theorem_id,
+            source_theorems=source_theorems,
             source_representations=source_representations,
         )
     if set(loaded) != set(expected_bindings):
@@ -674,17 +728,11 @@ def prepare_deterministic_v2_composition_seeds(
     """Prepare immutable clean-E2 intermediate sources for a second hop."""
 
     manifest, gross, _ = _load_combination(combination_dir)
-    roots = _load_bound_roots(materialization_roots=materialization_roots, manifest=manifest)
-    rebound_observations = {
-        observation.observation_id: observation
-        for root in roots.values()
-        for observation in _load_root(root.path).observations
-    }
-    if set(rebound_observations) != {item.observation_id for item in gross}:
-        raise CompositionSeedError("bound roots do not reproduce combination observations")
-    for observation in gross:
-        if rebound_observations[observation.observation_id] != observation:
-            raise CompositionSeedError("bound root observation differs from combination")
+    roots = _load_bound_roots(
+        materialization_roots=materialization_roots,
+        manifest=manifest,
+        gross_observations=gross,
+    )
 
     excluded: Counter[str] = Counter()
     admitted: list[_AdmittedObservation] = []
