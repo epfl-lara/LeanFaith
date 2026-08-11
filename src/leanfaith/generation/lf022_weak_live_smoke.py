@@ -93,6 +93,13 @@ _DEEPSEEK_FAMILY = "deepseek_v4"
 _DEEPSEEK_MODEL = "deepseek-ai/DeepSeek-V4-Pro"
 _QWEN_PROPOSER_FAMILY = "qwen3"
 _QWEN_PROPOSER_MODEL = "Qwen/Qwen3.5-397B-A17B"
+# High-reasoning RCP routes can spend substantially longer than one minute in
+# provider-side queueing and inference.  New live-smoke freezes therefore use
+# the production LF-022 policy's maximum request timeout.  The policy remains
+# a single attempt: reaching this bound creates a terminal transport-unknown
+# record and never authorizes an automatic resend.  Historical content-
+# addressed 60-second smoke artifacts remain parseable and replay-only.
+_REQUEST_TIMEOUT_SECONDS = 3_600
 
 
 class LF022WeakLiveSmokeError(RuntimeError):
@@ -890,7 +897,7 @@ def freeze_lf022_weak_live_smoke_inputs(
         producer_commit=code_state.git_revision,
         retry_policy=LF022RCPRetryPolicy(
             max_attempts=1,
-            request_timeout_seconds=60,
+            request_timeout_seconds=_REQUEST_TIMEOUT_SECONDS,
             base_delay_seconds=0.0,
             maximum_delay_seconds=0.0,
             retryable_http_statuses=(408, 429, 500, 502, 503, 504),

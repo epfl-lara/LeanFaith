@@ -7223,6 +7223,115 @@ def freeze_transform_source_subset_command(
     )
 
 
+@app.command("freeze-experimental-machine-supervision")
+def freeze_experimental_machine_supervision_command(
+    audit_dir: Annotated[
+        Path,
+        typer.Option(
+            "--audit-dir",
+            help="Frozen deterministic provisional-pair audit directory.",
+        ),
+    ],
+    positive_seed_dir: Annotated[
+        Path,
+        typer.Option(
+            "--positive-seed-dir",
+            help="Frozen certificate-backed E2 composition-seed directory.",
+        ),
+    ],
+    output_dir: Annotated[
+        Path,
+        typer.Option(
+            "--output-dir",
+            help="New immutable corpus directory, or an exact prior replay.",
+        ),
+    ],
+    config_path: Annotated[
+        Path | None,
+        typer.Option(
+            "--config",
+            help="Pinned experimental-corpus selection policy.",
+        ),
+    ] = None,
+    root_dir: Annotated[
+        Path | None,
+        typer.Option("--root", help="Repository root override."),
+    ] = None,
+) -> None:
+    """Freeze the opt-in 2k machine-supervision learning corpus."""
+    from leanfaith.config.paths import RepoPaths
+    from leanfaith.datasets.experimental_machine_supervision import (
+        ExperimentalMachineSupervisionError,
+        freeze_experimental_machine_supervision,
+        load_experimental_machine_supervision_config,
+    )
+
+    paths = RepoPaths.discover(root_dir) if root_dir is None else RepoPaths(root=root_dir)
+
+    def anchored(path: Path) -> Path:
+        return path if path.is_absolute() else paths.root / path
+
+    selected_config = (
+        paths.root / "configs/data/experimental_machine_supervision_mathlib_2k_v1.yaml"
+        if config_path is None
+        else anchored(config_path)
+    )
+    try:
+        loaded = load_experimental_machine_supervision_config(selected_config)
+        artifacts = freeze_experimental_machine_supervision(
+            repo_root=paths.root,
+            audit_dir=anchored(audit_dir),
+            positive_seed_dir=anchored(positive_seed_dir),
+            output_dir=anchored(output_dir),
+            config=loaded.config,
+            config_hash=loaded.config_hash,
+        )
+    except (OSError, ValueError, ExperimentalMachineSupervisionError) as exc:
+        typer.echo(f"experimental machine-supervision freeze rejected: {exc}", err=True)
+        raise typer.Exit(code=1) from exc
+    typer.echo(
+        "experimental machine-supervision corpus ready; "
+        f"dataset={artifacts.dataset_id} records={artifacts.record_count} "
+        f"replayed={str(artifacts.replayed).lower()} manifest={artifacts.manifest_path} "
+        "scientific_training_eligible=false evaluation_eligible=false"
+    )
+
+
+@app.command("verify-experimental-machine-supervision")
+def verify_experimental_machine_supervision_command(
+    output_dir: Annotated[
+        Path,
+        typer.Option("--output-dir", help="Frozen experimental-corpus directory."),
+    ],
+    skip_external_inputs: Annotated[
+        bool,
+        typer.Option(
+            "--skip-external-inputs",
+            help="Verify corpus bytes without re-reading its external lineage inputs.",
+        ),
+    ] = False,
+) -> None:
+    """Verify corpus hashes, quotas, ancestry splits, and opt-in policy."""
+    from leanfaith.datasets.experimental_machine_supervision import (
+        ExperimentalMachineSupervisionError,
+        verify_experimental_machine_supervision,
+    )
+
+    try:
+        manifest = verify_experimental_machine_supervision(
+            output_dir,
+            verify_external_inputs=not skip_external_inputs,
+        )
+    except (OSError, ValueError, ExperimentalMachineSupervisionError) as exc:
+        typer.echo(f"experimental machine-supervision verification failed: {exc}", err=True)
+        raise typer.Exit(code=1) from exc
+    typer.echo(
+        "experimental machine-supervision corpus verified; "
+        f"dataset={manifest.dataset_id} records={manifest.record_count} "
+        "scientific_training_eligible=false evaluation_eligible=false"
+    )
+
+
 def main() -> None:
     app()
 

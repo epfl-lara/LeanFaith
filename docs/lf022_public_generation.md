@@ -169,9 +169,15 @@ env -u OPENAI_BASE_URL -u OPENAI_API_KEY \
 
 The executor is serial, allows one attempt per cell and no more than four
 network calls, persists the wire response before parsing, and resumes completed
-cells instead of sending them again. An unknown transport outcome is terminal
-and is never retried automatically. Runtime credentials are held only in
-memory and are not serialized or printed.
+cells instead of sending them again. New freezes bind a 3,600-second maximum
+request timeout, matching the production LF-022 policy so provider queueing or
+high-reasoning inference is not mistaken for a failure after one minute. This
+is a maximum, not a delay: responses that finish sooner return immediately.
+An unknown transport outcome at that bound is terminal and is never retried
+automatically. Runtime credentials are held only in memory and are not
+serialized or printed. Earlier content-addressed 60-second smoke artifacts are
+preserved as historical evidence and must not be mutated or resent; use a new
+freeze and admission for another live qualification attempt.
 
 After all four cells are terminal, verify every content-addressed artifact with
 credentials removed. Offline replay refuses to make a request if any terminal

@@ -312,7 +312,7 @@ def _prepare_live_foundation(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
         producer_commit=COMMIT,
         retry_policy=LF022RCPRetryPolicy(
             max_attempts=1,
-            request_timeout_seconds=60,
+            request_timeout_seconds=3600,
             base_delay_seconds=0.0,
             maximum_delay_seconds=0.0,
             retryable_http_statuses=(408, 429, 500, 502, 503, 504),
@@ -372,12 +372,16 @@ class FakeTransport:
         self.returned_model = returned_model
         self.calls = 0
         self.payloads: list[dict[str, object]] = []
+        self.timeouts: list[int] = []
 
     def post_json(self, **kwargs: object) -> RCPWireResponse:
         self.calls += 1
         payload = kwargs["payload"]
         assert isinstance(payload, dict)
         self.payloads.append(payload)
+        timeout_seconds = kwargs["timeout_seconds"]
+        assert isinstance(timeout_seconds, int)
+        self.timeouts.append(timeout_seconds)
         if self.failures:
             raise self.failures.pop(0)
         body = canonical_json_bytes(
@@ -423,7 +427,7 @@ def _execute(
 def test_fresh_four_cell_smoke_and_offline_replay(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    batch, admission_path, admission_sha, selector, _ = _prepare_live_foundation(
+    batch, admission_path, admission_sha, selector, admission = _prepare_live_foundation(
         tmp_path, monkeypatch
     )
     kimi = FakeTransport(KIMI_MODEL)
@@ -436,8 +440,11 @@ def test_fresh_four_cell_smoke_and_offline_replay(
     )
 
     assert selector.eligible_candidate_count == 1
+    assert admission.retry_policy.max_attempts == 1
+    assert admission.retry_policy.request_timeout_seconds == 3600
     assert len(terminals) == 4
     assert kimi.calls + deepseek.calls == 4
+    assert kimi.timeouts + deepseek.timeouts == [3600, 3600, 3600, 3600]
     assert manifest.status_counts == {"response_received": 4}
     assert manifest.parsed_evidence_count == 4
     assert manifest.supervision_eligible is False
@@ -457,6 +464,20 @@ def test_fresh_four_cell_smoke_and_offline_replay(
     assert replayed == terminals
     assert replay_manifest == manifest
     assert kimi.calls + deepseek.calls == 4
+
+    # A finalized smoke may be re-executed for verification, but every
+    # committed terminal must replay locally rather than reach a transport.
+    rerun_kimi = FakeTransport(KIMI_MODEL)
+    rerun_deepseek = FakeTransport(DEEPSEEK_MODEL)
+    rerun_terminals, rerun_manifest = _execute(
+        batch_root=batch,
+        admission_path=admission_path,
+        admission_sha=admission_sha,
+        transports={"judge_A": rerun_kimi, "judge_B": rerun_deepseek},
+    )
+    assert rerun_terminals == terminals
+    assert rerun_manifest == manifest
+    assert rerun_kimi.calls + rerun_deepseek.calls == 0
 
 
 def test_finalized_manifest_rejects_missing_cell_state_before_transport(
@@ -698,6 +719,8 @@ def test_offline_freeze_authors_exact_claims_and_config_deterministically(
     assert first == second
     assert hash_file(first.config_path) == first.config_sha256
     config = LF022WeakLiveSmokeConfig.model_validate_json(first.config_path.read_bytes())
+    assert config.retry_policy.max_attempts == 1
+    assert config.retry_policy.request_timeout_seconds == 3600
     assert config.parent_candidate_records_sha256 == hash_file(
         batch / "inputs/candidate_records.jsonl"
     )
