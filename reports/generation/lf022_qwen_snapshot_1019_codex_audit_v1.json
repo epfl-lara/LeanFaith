@@ -1,0 +1,170 @@
+{
+  "artifact_class": "point_in_time_audit_inventory",
+  "audit": {
+    "attempt_status_counts": {
+      "completed": 718
+    },
+    "completed_judgment_count": 718,
+    "confidence": {
+      "count": 718,
+      "maximum": 0.99,
+      "mean": 0.9882869080779945,
+      "minimum": 0.9
+    },
+    "error_type_counts": {
+      "E01": 145,
+      "E03": 1,
+      "E08": 1,
+      "E10": 2,
+      "E11": 1,
+      "E17": 1
+    },
+    "exhausted_count": 0,
+    "implication_counts": {
+      "A=no,B=no": 7,
+      "A=no,B=yes": 569,
+      "A=unknown,B=unknown": 5,
+      "A=yes,B=no": 10,
+      "A=yes,B=unknown": 2,
+      "A=yes,B=yes": 125
+    },
+    "invoked_count": 717,
+    "judge_model": "gpt-5.6-sol",
+    "judge_reasoning_effort": "xhigh",
+    "method_version": "lf022_codex_audit_v2",
+    "needs_expert_review_count": 1,
+    "relation_counts": {
+      "A_stronger": 98,
+      "B_stronger": 286,
+      "ambiguous": 1,
+      "equivalent": 16,
+      "incomparable": 316,
+      "unrelated": 1
+    },
+    "response_artifact_set_sha256": "b88ab25256d257fdd6421ed2a155e3cf33c63e2f3acdde6d6e790aaf371cf717",
+    "reused_count": 1,
+    "same_claim_counts": {
+      "ambiguous": 1,
+      "not_same_claim": 701,
+      "same_claim": 16
+    },
+    "summary_id": "lf022_codex_audit_summary:89fe91bf6dfeb41704edc0e5a02f7ced45718df782a02552f3e89a2d0834f970"
+  },
+  "bound_artifacts": {
+    "audit_manifest": {
+      "path": "/storage/milikic/leanfaith/lf022_codex_audits/qwen3_5_397b_incremental/6472682bd2de081e9b007d82eb374556b2fb95ec29f0ea2c39ab2f42ca1582ee/gpt-5.6-sol_xhigh_v2/manifest.json",
+      "sha256": "e6d1ea0ba1c391dd63896465cb77c2ed2f2b7bb71da708baacaba6ca570497f9"
+    },
+    "audit_schema": {
+      "path": "/storage/milikic/leanfaith/lf022_codex_audits/qwen3_5_397b_incremental/6472682bd2de081e9b007d82eb374556b2fb95ec29f0ea2c39ab2f42ca1582ee/gpt-5.6-sol_xhigh_v2/schemas/judge_response.9de1b73c98a5df344ac158f77ead4b1b6e118b4c2f5585335fd5a3bcf0dea4d4.schema.json",
+      "sha256": "9de1b73c98a5df344ac158f77ead4b1b6e118b4c2f5585335fd5a3bcf0dea4d4"
+    },
+    "findings": {
+      "path": "/storage/milikic/leanfaith/lf022_qwen_snapshot_1019_codex_audit_0e8d84c/findings.jsonl",
+      "sha256": "8a20bf79ca24a9d524db497dacdf71b871d7404e00995fd0890c8b9c2186cd6f"
+    },
+    "lean_check_manifest": {
+      "path": "/storage/milikic/leanfaith/lf022_lean_checks/qwen3_5_397b_incremental/6472682bd2de081e9b007d82eb374556b2fb95ec29f0ea2c39ab2f42ca1582ee/manifest.json",
+      "sha256": "f106d1a299c89eca5b5c82df562bb6522b42ca1de79b9d2caa91dd1a042d65e9"
+    },
+    "lean_checks": {
+      "path": "/storage/milikic/leanfaith/lf022_lean_checks/qwen3_5_397b_incremental/6472682bd2de081e9b007d82eb374556b2fb95ec29f0ea2c39ab2f42ca1582ee/checks.jsonl",
+      "sha256": "b53736c22fb7cc134081e33a9a4f7e5e1724d0e3f170b6930b05658ef0a2d6c4"
+    },
+    "run_log": {
+      "path": "/storage/milikic/leanfaith/lf022_qwen_snapshot_1019_codex_audit_0e8d84c/run.log",
+      "sha256": "34c04eb2ecadae7725cc2bae907c44d0c7d1ccb91149aec81285f9ce6358000e"
+    },
+    "run_status": {
+      "path": "/storage/milikic/leanfaith/lf022_qwen_snapshot_1019_codex_audit_0e8d84c/run.status",
+      "sha256": "6246b6cae6d1a8f743a1dc6fc0db0a1c98935dd17e33469e20e3abc073bfff1d"
+    },
+    "source_summary_json": {
+      "path": "/storage/milikic/leanfaith/lf022_qwen_snapshot_1019_codex_audit_0e8d84c/summary.json",
+      "sha256": "8999a5aa8b734dcc5cc7a63886eb23be9ab31075ba6a6052c815df3248613603"
+    },
+    "source_summary_markdown": {
+      "path": "/storage/milikic/leanfaith/lf022_qwen_snapshot_1019_codex_audit_0e8d84c/summary.md",
+      "sha256": "564bf55a93b25816b01fd1a5d1d3c50f26a9c66131a9b494b1be6e01d5cd284f"
+    }
+  },
+  "completed_at_utc": "2026-08-11T15:51:06Z",
+  "first_data_preview": [
+    {
+      "audit_item_id": "lf022_codex_audit_item:61c3fb2d444bb9cb3a05d41ef7b6e4cb392ceef76d597765953f72bd7999dbbb",
+      "audit_opinion": {
+        "confidence": 0.99,
+        "relation": "equivalent",
+        "same_claim_answer": "same_claim"
+      },
+      "candidate_lean": "theorem tendsto_diag : ∀ {α : Type u_0} {f : Filter α}, Filter.map (fun i => (i, i)) f ≤ f ×ˢ f",
+      "finding_id": "lf022_codex_audit_finding:8ff61880671c5d9643c3797af54335617fb0f92d5e059faf7dd502fe248e2f59",
+      "input_artifact": {
+        "path": "/storage/milikic/leanfaith/lf022_codex_audits/qwen3_5_397b_incremental/6472682bd2de081e9b007d82eb374556b2fb95ec29f0ea2c39ab2f42ca1582ee/gpt-5.6-sol_xhigh_v2/items/61/61c3fb2d444bb9cb3a05d41ef7b6e4cb392ceef76d597765953f72bd7999dbbb/input.json",
+        "sha256": "9e58ae1266347571daef7683d11d2cb051f08d056daf68a20d14c3295385522f"
+      },
+      "reference_lean": "theorem tendsto_diag : ∀ {α : Type u_0} {f : Filter α}, Filter.Tendsto (fun i => (i, i)) f (f ×ˢ f)"
+    },
+    {
+      "audit_item_id": "lf022_codex_audit_item:1a6b0b8c08ae9f5ddc69b219f784a7252ef678f66ab12fcfe971b7968937dc08",
+      "audit_opinion": {
+        "confidence": 0.99,
+        "relation": "A_stronger",
+        "same_claim_answer": "not_same_claim"
+      },
+      "candidate_lean": "theorem nat_iff : ∀ {f : ℕ → ℕ}, Primrec f → Nat.Primrec f",
+      "finding_id": "lf022_codex_audit_finding:7d009a2f47a2be1ba1157e7e0623f51daf69fe4b63fb17170214a819a55caccb",
+      "input_artifact": {
+        "path": "/storage/milikic/leanfaith/lf022_codex_audits/qwen3_5_397b_incremental/6472682bd2de081e9b007d82eb374556b2fb95ec29f0ea2c39ab2f42ca1582ee/gpt-5.6-sol_xhigh_v2/items/1a/1a6b0b8c08ae9f5ddc69b219f784a7252ef678f66ab12fcfe971b7968937dc08/input.json",
+        "sha256": "4bde95e21ef03ca4c30307baceb905b2cdcdddce05d1a200cd33131b9b82ff7d"
+      },
+      "reference_lean": "theorem nat_iff : ∀ {f : ℕ → ℕ}, Primrec f ↔ Nat.Primrec f"
+    },
+    {
+      "audit_item_id": "lf022_codex_audit_item:b84bac4c9122118bdbcd4b859a8f30886b7607f100f32265ebd3c763e91e270e",
+      "audit_opinion": {
+        "confidence": 0.99,
+        "relation": "B_stronger",
+        "same_claim_answer": "not_same_claim"
+      },
+      "candidate_lean": "theorem eq_zero : ∀ (n : Fin 2), n = 0",
+      "finding_id": "lf022_codex_audit_finding:3196cf7356e2a5283e7101312f2187dcf1bb0035fada60c2ddca0cc5c6fcc8cc",
+      "input_artifact": {
+        "path": "/storage/milikic/leanfaith/lf022_codex_audits/qwen3_5_397b_incremental/6472682bd2de081e9b007d82eb374556b2fb95ec29f0ea2c39ab2f42ca1582ee/gpt-5.6-sol_xhigh_v2/items/b8/b84bac4c9122118bdbcd4b859a8f30886b7607f100f32265ebd3c763e91e270e/input.json",
+        "sha256": "058214a95d94f616c6e563a7dc4ea3f2454c852a22eac9bcf3e0a737bb8a6526"
+      },
+      "reference_lean": "theorem eq_zero : ∀ (n : Fin 1), n = 0"
+    }
+  ],
+  "generation_and_lean_check": {
+    "candidate_record_count": 1019,
+    "input_set_hash": "e082198fc2caa81f783664eb067de67e6c41bc4b3410eff20a7056a64168a808",
+    "lean_outcome_counts": {
+      "elaborates_with_placeholder": 718,
+      "invalid": 301
+    },
+    "method_version": "lf022_provisional_lean_check_v2",
+    "ordered_variant_ids_hash": "1f743f6e968bb970c686670a6c44d931c9579c1d53a6e5636cd2191ea9593860",
+    "proposer_family_id": "qwen3",
+    "proposer_model": "Qwen/Qwen3.5-397B-A17B",
+    "selected_execution_task_count": 1046,
+    "selection_batch_id": "lf022_public_batch:3b8fb42811dcc87e55a4f5cf97259fcab1ee5d93fc034d540d407f97a8eb58ea",
+    "selection_postgen_selector_id": "lf022_postgen_terminal_selector:6472682bd2de081e9b007d82eb374556b2fb95ec29f0ea2c39ab2f42ca1582ee",
+    "selection_postgen_selector_sha256": "2491b4175dc9441b9028b8e422908c5d9c58e6acfac73440b78470e503c274a7",
+    "unique_check_id_count": 1019,
+    "unique_variant_id_count": 1019
+  },
+  "interpretation_boundary": {
+    "audit_only": true,
+    "evaluation_eligible": false,
+    "gate_credit_claimed": false,
+    "human_labels_created": false,
+    "semantic_labels_created": false,
+    "silver_records_created": false,
+    "training_eligible": false,
+    "warning": "Lean elaboration and one-family, one-orientation Codex judgments are diagnostic evidence only. They are not resolved semantic labels, human gold, silver records, training items, evaluation items, promotion evidence, or gate credit."
+  },
+  "method_version": "lf022_qwen_snapshot_1019_codex_audit_inventory_v1",
+  "schema_version": 1,
+  "status": "completed_audit_only"
+}
