@@ -164,3 +164,25 @@ run is forbidden.
 If a legacy run cannot reproduce because an input or code bundle is missing,
 retain it only as an operational/debug artifact. It is not eligible for a
 scientific release or training dataset.
+
+## Schema-3 composition smoke launcher
+
+`leanfaith run-deterministic-v2-composition-smokes` runs the 13 P14--P18 and
+N11--N18 second-hop smoke profiles in the fixed high-yield-first order. It is
+deliberately serial: one family process, one LeanInteract worker, batch size
+64, and no `memory_hard_limit_mb`. On the current host, RLIMIT_AS caused Lean
+thread-creation crashes, while several unrestricted workers exhausted memory.
+
+The command requires a clean exact code commit, a clean pinned Lean project,
+and the hash-bound 64-row composition smoke source. A restart re-audits and
+skips complete roots with the normal provisional-pair loader; partial, legacy,
+or differently configured roots are rejected. Status and logs live under
+`<output>/orchestration/`, outside immutable family roots. A successful run
+ends with a self-hashed `orchestration/receipt.json` binding all 13 root trees.
+
+The thin environment-driven wrapper is
+`scripts/47_run_composition_smokes_schema3_w1.sh`. An already completed
+schema-3 P14 root may be registered without copying or recomputation by setting
+both `LEANFAITH_REUSE_P14_ROOT` and its explicit
+`LEANFAITH_REUSE_P14_PRODUCER_COMMIT` attestation. The root is still fully
+revalidated and hash-bound in the new receipt.

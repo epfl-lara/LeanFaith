@@ -1543,6 +1543,102 @@ def run_deterministic_shards_command(
         raise typer.Exit(code=1)
 
 
+@app.command("run-deterministic-v2-composition-smokes")
+def run_deterministic_v2_composition_smokes_command(
+    code_root: Annotated[
+        Path,
+        typer.Option(
+            "--code-root",
+            envvar="LEANFAITH_CODE_ROOT",
+            help="Clean LeanFaith checkout whose source is used by every child.",
+        ),
+    ],
+    expected_commit: Annotated[
+        str,
+        typer.Option(
+            "--expected-commit",
+            envvar="LEANFAITH_EXPECTED_COMMIT",
+            help="Exact 40-hex clean code commit.",
+        ),
+    ],
+    source_dir: Annotated[
+        Path,
+        typer.Option(
+            "--source-dir",
+            envvar="LEANFAITH_COMPOSITION_SMOKE_SOURCE",
+            help="Exact 64-row composition smoke-source directory.",
+        ),
+    ],
+    project_dir: Annotated[
+        Path,
+        typer.Option(
+            "--project-dir",
+            envvar="LEANFAITH_LEAN_PROJECT",
+            help="Clean pinned Lean project used by LeanInteract.",
+        ),
+    ],
+    output_root: Annotated[
+        Path,
+        typer.Option(
+            "--output-root",
+            envvar="LEANFAITH_COMPOSITION_SMOKE_OUTPUT",
+            help="Root for 13 family roots plus orchestration status/log/receipt.",
+        ),
+    ],
+    reuse_roots: Annotated[
+        list[str] | None,
+        typer.Option(
+            "--reuse-root",
+            help="Explicit FAMILY=PATH completed schema-3 root; repeat as needed.",
+        ),
+    ] = None,
+    reuse_root_commits: Annotated[
+        list[str] | None,
+        typer.Option(
+            "--reuse-root-producer-commit",
+            help="FAMILY=40_HEX producer attestation for each --reuse-root.",
+        ),
+    ] = None,
+) -> None:
+    """Run all 13 composition smokes serially with one unlimited-memory worker."""
+    from leanfaith.transforms.composition_smoke_launcher import (
+        CompositionSmokeLaunchError,
+        run_composition_smokes,
+    )
+
+    def assignments(values: list[str] | None, *, label: str) -> dict[str, str]:
+        parsed: dict[str, str] = {}
+        for value in values or ():
+            family, separator, assigned = value.partition("=")
+            if not separator or not family or not assigned or family in parsed:
+                raise ValueError(f"invalid or duplicate {label} assignment: {value!r}")
+            parsed[family] = assigned
+        return parsed
+
+    try:
+        root_assignments = assignments(reuse_roots, label="reuse-root")
+        commit_assignments = assignments(reuse_root_commits, label="reuse-root-producer-commit")
+        receipt = run_composition_smokes(
+            code_root=code_root,
+            expected_commit=expected_commit,
+            source_dir=source_dir,
+            project_dir=project_dir,
+            output_root=output_root,
+            reused_roots={key: Path(value) for key, value in root_assignments.items()},
+            reused_root_commits=commit_assignments,
+        )
+    except (CompositionSmokeLaunchError, OSError, ValueError) as exc:
+        typer.echo(f"composition smoke launch FAILED: {exc}", err=True)
+        raise typer.Exit(code=1) from exc
+    typer.echo(
+        "composition smoke launch complete; "
+        f"families={len(receipt.roots)} receipt_id={receipt.receipt_id} "
+        f"receipt={output_root.resolve() / 'orchestration/receipt.json'} "
+        "workers=1 memory_hard_limit_mb=none processes_parallel=1 "
+        "resolved_labels=0 promoted_items=0 training_eligible=false"
+    )
+
+
 @app.command("merge-deterministic-shards")
 def merge_deterministic_shards_command(
     output_root: Annotated[
