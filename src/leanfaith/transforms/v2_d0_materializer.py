@@ -25,6 +25,7 @@ D0ProfileId = Literal[
     "deterministic_v2_d0_n15_experimental",
     "deterministic_v2_d0_n16_experimental",
     "deterministic_v2_d0_n17_experimental",
+    "deterministic_v2_d0_n18_experimental",
 ]
 D0RuleId = Literal[
     "n11_bound_variable_substitution",
@@ -34,6 +35,7 @@ D0RuleId = Literal[
     "n15_conjunct_omission",
     "n16_domain_guard_removal",
     "n17_role_sensitive_arguments",
+    "n18_root_equality_polarity",
 ]
 
 
@@ -74,6 +76,7 @@ class V2D0MaterializationResult(StrictModel):
             "deterministic_v2_d0_n15_experimental": "n15_conjunct_omission",
             "deterministic_v2_d0_n16_experimental": "n16_domain_guard_removal",
             "deterministic_v2_d0_n17_experimental": "n17_role_sensitive_arguments",
+            "deterministic_v2_d0_n18_experimental": "n18_root_equality_polarity",
         }[self.profile_id]
         if self.rule_id != expected_rule or self.attempt.rule_id != self.rule_id:
             raise ValueError("D0 profile, rule, and attempt identities do not align")

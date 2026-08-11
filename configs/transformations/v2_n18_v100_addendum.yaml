@@ -1,0 +1,27 @@
+schema_version: 1
+addendum_id: deterministic_v2_n18_v100_family_addition
+addendum_version: 1.0.0
+status: experimental
+base_portfolio_id: leanfaith_deterministic_v2_design
+base_portfolio_config_hash: f48e2dfd4555e71dfd07518330f33d222894fa935fb81b6c9e7678a8a1a66594
+family_id: n18_root_equality_polarity
+family_version: 1.0.0
+change_kind: additive_family
+evidence_class: D0
+intended_relation: near_miss
+intended_error_types: [E10, E26]
+scope: Flip one unambiguous root equality polarity glyph whose elaborated conclusion is exactly Eq alpha lhs rhs or Ne alpha lhs rhs after surface declaration binders.
+excluded_cases:
+  - comments or quoted terms in the declaration signature
+  - identical equality operands
+  - macros or scoped term syntax
+  - multiple or nested surface-root equality-polarity operators
+  - non-root elaborated equality or disequality
+  - parser-tree disagreement
+require_exact_inverse_replay: true
+require_exact_root_equality_polarity: true
+require_exact_semantic_atom_delta: true
+require_same_context_reelaboration: true
+resolved_label_count: 0
+promoted_item_count: 0
+training_eligible: false

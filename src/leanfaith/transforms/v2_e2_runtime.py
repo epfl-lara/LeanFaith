@@ -22,8 +22,14 @@ from leanfaith.transforms.v2_e2_p17_runtime import (
     V2E2P17Runtime,
     build_v2_e2_p17_runtime,
 )
+from leanfaith.transforms.v2_e2_p18_runtime import (
+    V2E2P18Runtime,
+    build_v2_e2_p18_runtime,
+)
 
-type V2E2Runtime = V2E2P14Runtime | V2E2P15Runtime | V2E2P16Runtime | V2E2P17Runtime
+type V2E2Runtime = (
+    V2E2P14Runtime | V2E2P15Runtime | V2E2P16Runtime | V2E2P17Runtime | V2E2P18Runtime
+)
 
 
 def build_v2_e2_runtime(
@@ -46,6 +52,8 @@ def build_v2_e2_runtime(
         return build_v2_e2_p16_runtime(root, path=resolved)
     if profile_id == "deterministic_v2_e2_p17_experimental":
         return build_v2_e2_p17_runtime(root, path=resolved)
+    if profile_id == "deterministic_v2_e2_p18_experimental":
+        return build_v2_e2_p18_runtime(root, path=resolved)
     raise ValueError(f"unsupported deterministic-v2 E2 profile: {profile_id!r}")
 
 

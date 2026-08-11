@@ -47,6 +47,7 @@ class V2E2ScaleRunSpec(StrictModel):
         "deterministic_v2_e2_p15_experimental",
         "deterministic_v2_e2_p16_experimental",
         "deterministic_v2_e2_p17_experimental",
+        "deterministic_v2_e2_p18_experimental",
     ]
     profile_config_hash: str = Field(pattern=_HEX64)
     rule_id: Literal[
@@ -54,6 +55,7 @@ class V2E2ScaleRunSpec(StrictModel):
         "p15_root_iff_reversal",
         "p16_conjunction_reassociation",
         "p17_hypothesis_packing",
+        "p18_root_equality_symmetry",
     ]
     theorem_partition: str
     theorem_partition_sha256: str = Field(pattern=_HEX64)
