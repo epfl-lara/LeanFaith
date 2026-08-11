@@ -269,9 +269,13 @@ def _source_file(root: Path, relative: PurePosixPath, *, label: str) -> Path:
     for part in relative.parts:
         current /= part
         if current.is_symlink():
-            raise LF022HistoricalReplayError(f"{label} contains a symlinked component")
+            raise LF022HistoricalReplayError(
+                f"{label} contains a symlinked component: {relative.as_posix()}"
+            )
     if not current.is_file():
-        raise LF022HistoricalReplayError(f"{label} is missing or not a regular file")
+        raise LF022HistoricalReplayError(
+            f"{label} is missing or not a regular file: {relative.as_posix()}"
+        )
     return current
 
 
