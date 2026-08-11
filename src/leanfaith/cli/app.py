@@ -5330,17 +5330,22 @@ def verify_lf022_postgen_selector_command(
         typer.Option("--root", help="Execution repository root override."),
     ] = None,
 ) -> None:
-    """Replay a postgen selector and print only its verified content ID."""
+    """Replay selected historical terminals and print the selector content ID.
+
+    This verifies the frozen batch envelope plus every selected terminal's full
+    persisted execution lineage.  It deliberately does not rerun the exhaustive
+    current-policy source/admission audit for unselected batch tasks.
+    """
     from leanfaith.config.paths import RepoPaths
     from leanfaith.generation.lf022_postgen_reconcile import (
         LF022PostgenReconciliationError,
-        verify_lf022_postgen_terminal_selector,
+        verify_lf022_postgen_terminal_selector_selected_only,
     )
 
     paths = RepoPaths.discover(root_dir) if root_dir is None else RepoPaths(root=root_dir)
     anchored_selector = selector_path if selector_path.is_absolute() else paths.root / selector_path
     try:
-        verified = verify_lf022_postgen_terminal_selector(
+        verified = verify_lf022_postgen_terminal_selector_selected_only(
             repo_root=paths.root,
             selector_path=anchored_selector,
         )

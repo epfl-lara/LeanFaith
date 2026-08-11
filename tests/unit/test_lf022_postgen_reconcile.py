@@ -12,9 +12,19 @@ import leanfaith.generation.lf022_lean_check as checker
 from leanfaith.cli.app import app
 from leanfaith.config.hashing import canonical_json_bytes, hash_canonical, hash_file
 from leanfaith.generation.lf022_batch import (
+    LF022BatchRouteFreezeRequest,
     LF022BatchRunPolicy,
+    LF022PublicBatchManifest,
     freeze_lf022_public_batch,
+    make_lf022_batch_freeze_request,
     run_lf022_public_batch,
+)
+from leanfaith.generation.lf022_execution import (
+    LF022ExecutionArtifacts,
+    LF022GOpenExecutionAdmission,
+    LF022GOpenExecutionTask,
+    LF022RCPDecodingContract,
+    LF022RCPRouteBinding,
 )
 from leanfaith.generation.lf022_lean_check import (
     LF022LeanCheckError,
@@ -22,10 +32,14 @@ from leanfaith.generation.lf022_lean_check import (
 )
 from leanfaith.generation.lf022_postgen_reconcile import (
     LF022PostgenReconciliationError,
+    LF022PostgenTerminalSelector,
+    _selected_historical_batch,
     reconcile_lf022_postgen,
     verify_lf022_postgen_terminal_selector,
+    verify_lf022_postgen_terminal_selector_selected_only,
 )
 from leanfaith.generation.lf022_production import LF022ArtifactBinding
+from leanfaith.schemas.ids import make_id
 from tests.unit.test_lf022_executor import (
     FakeTransport,
     _batch_request_binding,
@@ -371,6 +385,304 @@ def test_selector_verifier_cli_prints_only_verified_selector_id(tmp_path: Path) 
     assert cli.output == result.terminal_selector.selector_id + "\n"
 
 
+def test_selected_only_selector_replays_full_selected_terminal_lineage(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _, _, result = _completed_selector(tmp_path)
+    assert result.terminal_selector_path is not None
+
+    def reject_full_loader(**_kwargs):
+        raise AssertionError("selected-only replay must not load the full batch")
+
+    monkeypatch.setattr(
+        "leanfaith.generation.lf022_postgen_reconcile.load_lf022_public_batch",
+        reject_full_loader,
+    )
+    before = {
+        path.relative_to(tmp_path).as_posix(): hash_file(path)
+        for path in tmp_path.rglob("*")
+        if path.is_file() and not path.is_symlink()
+    }
+    verified = verify_lf022_postgen_terminal_selector_selected_only(
+        repo_root=tmp_path,
+        selector_path=result.terminal_selector_path,
+    )
+    assert verified.execution_task_ids == tuple(verified.frozen_tasks_by_id)
+    after = {
+        path.relative_to(tmp_path).as_posix(): hash_file(path)
+        for path in tmp_path.rglob("*")
+        if path.is_file() and not path.is_symlink()
+    }
+    assert after == before
+
+    task_id = verified.execution_task_ids[0]
+    terminal = json.loads(verified.terminal_paths[task_id].read_text(encoding="utf-8"))
+    variants_path = tmp_path / terminal["variants_artifact"]
+    original_variants = variants_path.read_bytes()
+    variants_path.write_bytes(original_variants + b" ")
+    with pytest.raises(
+        LF022PostgenReconciliationError,
+        match="selector executor terminal replay failed",
+    ):
+        verify_lf022_postgen_terminal_selector_selected_only(
+            repo_root=tmp_path,
+            selector_path=result.terminal_selector_path,
+        )
+    variants_path.write_bytes(original_variants)
+
+    attempt_path = tmp_path / terminal["attempt_artifacts"][0]
+    attempt = json.loads(attempt_path.read_text(encoding="utf-8"))
+    provider_raw_path = tmp_path / attempt["provider_raw_artifact"]
+    provider_raw_path.write_bytes(provider_raw_path.read_bytes() + b" ")
+    with pytest.raises(
+        LF022PostgenReconciliationError,
+        match="selector executor terminal replay failed",
+    ):
+        verify_lf022_postgen_terminal_selector_selected_only(
+            repo_root=tmp_path,
+            selector_path=result.terminal_selector_path,
+        )
+
+
+def test_selected_only_batch_envelope_does_not_load_unselected_task_bodies(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    historical_admission, historical_task, frozen, _ = _frozen_qwen_batch(tmp_path)
+
+    decoding_value = historical_admission.route.decoding.model_dump(mode="json")
+    decoding_value.update(
+        contract_id="qwen3_5_proposer_qualification_v2",
+        max_tokens=16_384,
+    )
+    decoding = LF022RCPDecodingContract.model_validate(decoding_value)
+    route_value = historical_admission.route.model_dump(mode="json")
+    route_value.update(
+        execution_scope="public_provisional_g_open",
+        decoding=decoding.model_dump(mode="json"),
+    )
+    route = LF022RCPRouteBinding.model_validate(route_value)
+    artifacts_value = historical_admission.artifacts.model_dump(mode="json")
+    artifacts_value["proposer_production_eligibility"] = (
+        historical_admission.artifacts.reviewed_route_evidence.model_dump(mode="json")
+    )
+    artifacts = LF022ExecutionArtifacts.model_validate(artifacts_value)
+    admission_value = historical_admission.model_dump(mode="json")
+    admission_value.update(
+        schema_version=2,
+        artifacts=artifacts.model_dump(mode="json"),
+        route=route.model_dump(mode="json"),
+    )
+    admission_payload = {
+        key: value for key, value in admission_value.items() if key != "admission_id"
+    }
+    admission_value["admission_id"] = make_id(
+        "lf022_execution_admission",
+        admission_payload,
+    )
+    admission = LF022GOpenExecutionAdmission.model_validate(admission_value)
+
+    task_value = historical_task.model_dump(mode="json")
+    task_value["execution_admission_id"] = admission.admission_id
+    task_payload = {key: value for key, value in task_value.items() if key != "execution_task_id"}
+    task_value["execution_task_id"] = make_id("lf022_execution_task", task_payload)
+    selected_task = LF022GOpenExecutionTask.model_validate(task_value)
+
+    fake_tasks = [
+        {
+            "allocation_task_id": make_id("lf022_production_task", {"fake": index}),
+            "execution_task_id": make_id("lf022_execution_task", {"fake": index}),
+            "task": {
+                "path": f"data/absent_tasks/{index:04d}.json",
+                "sha256": f"{index + 1:064x}",
+            },
+        }
+        for index in range(256)
+    ]
+    request = make_lf022_batch_freeze_request(
+        batch_directory="data/selected_only/batch",
+        executor_output_root=frozen.manifest.executor_output_root,
+        routes=(
+            LF022BatchRouteFreezeRequest(
+                proposer_family_id="qwen3",
+                public_pool_audit_id=admission.public_pool_audit_id,
+                allocation_plan_id=admission.allocation_plan_id,
+                execution_artifacts=admission.artifacts,
+                route=admission.route,
+                retry_policy=admission.retry_policy,
+                code_tree_hash=admission.code_tree_hash,
+                allocation_task_ids=tuple(
+                    sorted(
+                        [
+                            selected_task.allocation_task.task_id,
+                            *(row["allocation_task_id"] for row in fake_tasks),
+                        ]
+                    )
+                ),
+            ),
+        ),
+    )
+    expanded_request_path = tmp_path / "data/selected_only/request.json"
+    expanded_request_path.parent.mkdir(parents=True)
+    expanded_request_path.write_bytes(canonical_json_bytes(request.model_dump(mode="json")) + b"\n")
+    expanded_request_binding = LF022ArtifactBinding(
+        path=expanded_request_path.relative_to(tmp_path).as_posix(),
+        sha256=hash_file(expanded_request_path),
+    )
+
+    admission_path = tmp_path / "data/selected_only/admission.json"
+    admission_path.write_bytes(canonical_json_bytes(admission.model_dump(mode="json")) + b"\n")
+    admission_binding = LF022ArtifactBinding(
+        path=admission_path.relative_to(tmp_path).as_posix(),
+        sha256=hash_file(admission_path),
+    )
+    task_path = tmp_path / "data/selected_only/selected_task.json"
+    task_path.write_bytes(canonical_json_bytes(selected_task.model_dump(mode="json")) + b"\n")
+    task_binding = LF022ArtifactBinding(
+        path=task_path.relative_to(tmp_path).as_posix(),
+        sha256=hash_file(task_path),
+    )
+    task_digest = selected_task.execution_task_id.split(":", 1)[1]
+    adjacent_task_path = (
+        tmp_path
+        / frozen.manifest.executor_output_root
+        / "tasks"
+        / task_digest[:2]
+        / task_digest
+        / "task.json"
+    )
+    adjacent_task_path.parent.mkdir(parents=True)
+    adjacent_task_path.write_bytes(
+        canonical_json_bytes(selected_task.model_dump(mode="json")) + b"\n"
+    )
+
+    manifest_value = frozen.manifest.model_dump(mode="json")
+    manifest_value["freeze_request"] = expanded_request_binding.model_dump(mode="json")
+    manifest_value["freeze_request_id"] = request.request_id
+    manifest_value["batch_directory"] = request.batch_directory
+    selected_binding = {
+        "allocation_task_id": selected_task.allocation_task.task_id,
+        "execution_task_id": selected_task.execution_task_id,
+        "task": task_binding.model_dump(mode="json"),
+    }
+    manifest_value["routes"][0].update(
+        model_id=admission.route.model_id,
+        execution_scope="public_provisional_g_open",
+        qualification_state="production_live_qualified",
+        admission_id=admission.admission_id,
+        admission=admission_binding.model_dump(mode="json"),
+        qualification_claim=None,
+        public_pool_audit_id=admission.public_pool_audit_id,
+        allocation_plan_id=admission.allocation_plan_id,
+    )
+    manifest_value["routes"][0]["tasks"] = sorted(
+        [selected_binding, *fake_tasks],
+        key=lambda row: row["execution_task_id"],
+    )
+    manifest_value["total_task_count"] = len(manifest_value["routes"][0]["tasks"])
+    manifest_payload = {key: value for key, value in manifest_value.items() if key != "batch_id"}
+    manifest_value["batch_id"] = make_id("lf022_public_batch", manifest_payload)
+    manifest = LF022PublicBatchManifest.model_validate(manifest_value)
+    expanded_manifest_path = tmp_path / "data/selected_only/batch_manifest.json"
+    expanded_manifest_path.write_bytes(
+        canonical_json_bytes(manifest.model_dump(mode="json")) + b"\n"
+    )
+
+    journal_binding = {
+        "path": "data/selected_only/unused_journal_event.json",
+        "sha256": "a" * 64,
+    }
+    selector_value = {
+        "schema_version": 2,
+        "selector_id": "lf022_postgen_terminal_selector:" + "0" * 64,
+        "batch_id": manifest.batch_id,
+        "batch_manifest": {
+            "path": expanded_manifest_path.relative_to(tmp_path).as_posix(),
+            "sha256": hash_file(expanded_manifest_path),
+        },
+        "journal_snapshot_hash": hash_canonical([journal_binding]),
+        "journal_snapshot": [journal_binding],
+        "selection_kind": "verified_terminal_snapshot",
+        "task_count": 1,
+        "routes": [
+            {
+                "proposer_family_id": "qwen3",
+                "model_id": admission.route.model_id,
+                "tasks": [
+                    {
+                        "execution_task_id": selected_task.execution_task_id,
+                        "frozen_task": task_binding.model_dump(mode="json"),
+                        "terminal_id": "lf022_execution_terminal:" + "b" * 64,
+                        "terminal_status": "provider_exhausted",
+                        "terminal": {
+                            "path": "data/selected_only/unused_terminal.json",
+                            "sha256": "c" * 64,
+                        },
+                        "terminal_event_id": "lf022_batch_event:" + "d" * 64,
+                        "terminal_event": journal_binding,
+                    }
+                ],
+            }
+        ],
+        "public_sources_only": True,
+        "private_source_content_forbidden": True,
+        "optional_natural_language_forbidden": True,
+        "outputs_provisional_only": True,
+        "semantic_labels_created": False,
+        "training_eligible": False,
+        "evaluation_eligible": False,
+        "gate_credit_claimed": False,
+    }
+    selector_payload = {key: value for key, value in selector_value.items() if key != "selector_id"}
+    selector_value["selector_id"] = make_id(
+        "lf022_postgen_terminal_selector",
+        selector_payload,
+    )
+    selector = LF022PostgenTerminalSelector.model_validate(selector_value)
+
+    monkeypatch.setattr(
+        "leanfaith.generation.lf022_postgen_reconcile.load_lf022_public_batch",
+        lambda **_: (_ for _ in ()).throw(
+            AssertionError("selected batch envelope must not invoke the full loader")
+        ),
+    )
+    verified = _selected_historical_batch(repo_root=tmp_path, selector=selector)
+    assert tuple(verified.frozen_tasks_by_id) == (selected_task.execution_task_id,)
+    assert len(verified.task_bindings_by_id) == 257
+    assert not any((tmp_path / row["task"]["path"]).exists() for row in fake_tasks)
+
+
+def test_selected_only_selector_rejects_selected_task_tampering(tmp_path: Path) -> None:
+    _, _, result = _completed_selector(tmp_path)
+    assert result.terminal_selector_path is not None
+    selected = result.terminal_selector.routes[0].tasks[0]
+    selected_task_path = tmp_path / selected.frozen_task.path
+    selected_task_path.write_bytes(selected_task_path.read_bytes() + b" ")
+    with pytest.raises(LF022PostgenReconciliationError, match=r"frozen task.*hash differs"):
+        verify_lf022_postgen_terminal_selector_selected_only(
+            repo_root=tmp_path,
+            selector_path=result.terminal_selector_path,
+        )
+
+
+def test_selected_only_selector_rejects_qualification_claim_tampering(tmp_path: Path) -> None:
+    _, frozen, result = _completed_selector(tmp_path)
+    assert result.terminal_selector_path is not None
+    qualification_claim = frozen.manifest.routes[0].qualification_claim
+    assert qualification_claim is not None
+    claim_path = tmp_path / qualification_claim.path
+    claim_path.write_bytes(claim_path.read_bytes() + b" ")
+    with pytest.raises(
+        LF022PostgenReconciliationError,
+        match="qualification claim hash differs",
+    ):
+        verify_lf022_postgen_terminal_selector_selected_only(
+            repo_root=tmp_path,
+            selector_path=result.terminal_selector_path,
+        )
+
+
 def test_lean_checker_rejects_selector_with_alternate_input_root(tmp_path: Path) -> None:
     _, frozen, result = _completed_selector(tmp_path)
     assert result.terminal_selector_path is not None
@@ -401,7 +713,8 @@ def test_lean_checker_rechecks_selected_terminal_hash_during_discovery(
         selector_path=result.terminal_selector_path,
     )
     monkeypatch.setattr(
-        "leanfaith.generation.lf022_postgen_reconcile.verify_lf022_postgen_terminal_selector",
+        "leanfaith.generation.lf022_postgen_reconcile."
+        "verify_lf022_postgen_terminal_selector_selected_only",
         lambda **_: verified,
     )
     task_id = verified.execution_task_ids[0]

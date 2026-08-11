@@ -207,6 +207,19 @@ dataset probe (PLAN.md §9.2).
   Lean-valid Kimi prefix-256 pairs and scheduled 804 future two-family
   swapped-order calls with no Codex dependency; see
   `reports/generation/lf022_supervision_candidates_kimi_prefix256_v3.md`.
+- **The Qwen checked snapshot is now a real, replay-stable judging
+  inventory:** a selected-only historical replay scans the complete 9,207-task
+  frozen batch envelope but opens only the 1,046 selector-bound task bodies,
+  while still reconstructing every selected attempt, provider request, wire
+  response, raw response, LLM record, parsed output, variant, and terminal.
+  The 1,019 checked variants yield **718 unique Lean-valid unresolved pairs**
+  and 2,872 future two-family swapped-order judge calls. The build replayed
+  exactly, completed in 16.37 seconds, and peaked at 159,672 KiB RSS. Combined
+  with Kimi, the source-neutral schema-v3 queues now contain **919
+  judge-ready pairs** and 3,676 future calls, but still create zero semantic
+  labels, silver records, training records, evaluation records, or gate
+  credit. See
+  `reports/generation/lf022_supervision_candidates_qwen_snapshot1019_v3.md`.
 - **LF-022 two-family batch execution is now implemented but remains
   offline-only:** a self-contained, raw-first batch binds the canonical
   production family matrix, enforces proposer/judge/held-out role separation,

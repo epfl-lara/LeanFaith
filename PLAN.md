@@ -2044,6 +2044,7 @@ config, focused tests, coverage report, and registry decision are accepted.
 | P15 root `Iff` reversal | E2 | swap only distinct root-conclusion sides; never nested or under another connective |
 | P16 conjunction reassociation | E2 | rotate only a top-level conjunctive conclusion while preserving exact atom order |
 | P17 hypothesis packing | E2 | curry/pack two nondependent propositional hypotheses without reordering; exclude data and instance binders |
+| P18 root equality symmetry | E2 | swap the two distinct operands of exactly one root equality conclusion; preserve binders, operand structure, and semantic atoms |
 | N11 bound-variable substitution | D0 | replace one explicit occurrence with a distinct in-scope binder of the same alpha-normalized type |
 | N12 implication converse | D0 | swap distinct root nondependent hypothesis/conclusion roles; exclude `Iff` and nested implication |
 | N13 witness dependency | D0 | `forall x, exists y, R` versus `exists y, forall x, R` when the witness type is independent; record structural direction only |
@@ -2051,8 +2052,9 @@ config, focused tests, coverage report, and registry decision are accepted.
 | N15 conjunct omission | D0 | remove one distinct top-level conclusion conjunct; record structural direction and retained order |
 | N16 domain guard removal | D0 | remove the exact bounded-quantifier membership guard; keep P11/N03/N15 ownership disjoint |
 | N17 role-sensitive arguments | D0 | swap explicit, independent, same-typed slots from a manually audited head/position allowlist; deny symmetric heads and N01/N07 scope |
+| N18 root equality polarity | D0 | flip exactly one root equality between `=` and `≠` for distinct operands; preserve the operands and record the exact polarity atom delta |
 
-P14–P17 do not become automatic positives from logical equivalence or human
+P14–P18 do not become automatic positives from logical equivalence or human
 plausibility. P13 stays provisional pending its local certificate and blinded
 audit. P05/P08 are lower-value surface families and must be capped and ablated
 so they cannot dominate the positive pool.
@@ -2060,8 +2062,8 @@ so they cannot dominate the positive pool.
 ### 15.13 V2 staging, audits, and shortcut controls
 
 The first implementation tranche is P11, P06, P07, P09, P10, and P12. P05/P08
-follow as controlled surface ablations. P13 and P14–P17 remain separate
-provisional studies. N11 is the first negative expansion; N12–N17 follow only
+follow as controlled surface ablations. P13 and P14–P18 remain separate
+provisional studies. N11 is the first negative expansion; N12–N18 follow only
 after family-overlap ownership and E-code mappings are frozen.
 
 Before enabling a family, freeze its source and elaborated-node matchers,
@@ -2592,7 +2594,10 @@ Unknown fields are masked. Quality weights/loss weights select on validation onl
 
 ### 21.9 Curriculum
 
-Start with promoted conservative/near-miss data; mix real outputs early; add silver with explicit weights; fine-tune on development gold. Compare deterministic-only, +LLM, +real, all weak, and weak+human. Provisional data are mining/pretraining only unless ablated.
+Start with promoted conservative/near-miss data; mix real outputs early; add
+silver with explicit weights; fine-tune only on `training_gold`. Compare
+deterministic-only, +LLM, +real, all weak, and weak+human. Provisional data are
+mining/pretraining only unless ablated.
 
 ### 21.10 Calibration/abstention
 
@@ -3516,8 +3521,8 @@ Each item closes only with code, tests, artifacts, and acceptance evidence. Item
 30. **LF-030 — M5/external/release:** graph experiment, CSLib/Physlib adapters + `heldout_project_test` construction (strong-paper track), sealed suites, statistics, artifact assembly.
 31. **LF-031 — deterministic-v2 contract:** freeze `configs/transformations/v2.yaml`, disabled candidate registry entries, E0/E1/E2/D0 certificate contracts, coverage probes, family-overlap ownership, held-out-mechanism design, and a generation-addendum schema; no new family becomes executable in this item.
 32. **LF-032 — first v2 conservative positives:** implement P11/P06/P07/P09/P10/P12 as separately switchable experimental E0 families with exact whole-type identity, family-specific inverses, atom alignment, fail-closed context checks, and clean replay evidence. They remain provisional pending Gate 4A.
-33. **LF-033 — secondary/provisional v2 positives:** implement and independently evaluate capped P05/P08 surface ablations, then separately study P13 and human-audited P14–P17 without introducing an automatic-positive shortcut or broadening an existing family version.
-34. **LF-034 — v2 negative/directional candidates:** implement N11 first, then N12–N17 after overlap ownership and E-code mappings are accepted; store atom/role/scope/dependency deltas and structural direction only as evidence until an existing §15.7 promotion route resolves an item.
+33. **LF-033 — secondary/provisional v2 positives:** implement and independently evaluate capped P05/P08 surface ablations, then separately study P13 and human-audited P14–P18 without introducing an automatic-positive shortcut or broadening an existing family version.
+34. **LF-034 — v2 negative/directional candidates:** implement N11 first, then N12–N18 after overlap ownership and E-code mappings are accepted; store atom/role/scope/dependency deltas and structural direction only as evidence until an existing §15.7 promotion route resolves an item.
 
 Acceptance for every LF item: declared paths exist; unit/integration/golden/property tests relevant to scope pass; mypy/Ruff pass on touched core; command writes manifest; failure paths tested; milestone/gate report updated; no forbidden label inference.
 

@@ -57,8 +57,16 @@ uv run leanfaith verify-lf022-postgen-selector \
 ```
 
 On success this command prints only the verified selector content ID. It
-replays the original public-only batch, the canonical journal event and path,
-the executor admission and task, and the complete persisted terminal lineage.
+hash/canonical-verifies the complete batch manifest and freeze request, every
+route admission, every manifest task-binding identity, and each selected frozen
+task. It deliberately does not parse unrelated task bodies or replay today's
+public-pool, authorization, and denylist inputs. For every selected task it
+reconstructs the exact prompt and preflight and verifies the complete persisted
+attempt, provider-request, wire-request/response, provider-raw, generic-LLM,
+parsed-output, provisional-variant, and terminal lineage under the current
+verifier. The original exhaustive verifier remains available for callers that
+need full current-policy replay; admission-bound historical-code replay remains
+a separate, stronger whole-batch audit.
 The Lean checker additionally requires `--input-root` to equal the batch's
 frozen executor output root, requires the replayed selector to equal the
 explicit ID used to choose its output directory, rechecks terminal hashes
@@ -67,12 +75,9 @@ Missing and error tasks are excluded rather than reclassified. Results remain
 mechanical, provisional, label-free, and ineligible for
 training/evaluation/gate credit.
 
-The current selector verifier reuses the executor's idempotent preparation and
-offline replay path; preparation may re-assert an already-bound immutable
-preflight artifact. Refactoring this into a strictly read-only verifier is a
-deferred cleanup. Downstream safety does not rely on verifier purity: the
-selector file/path/hash are captured after verification and checked again
-immediately before the Lean-check manifest is written.
+The selected-only verifier is read-only. The selector file/path/hash are also
+captured after verification and checked again immediately before the Lean-check
+manifest is written.
 
 ## Qwen 9,207 operational launchers
 

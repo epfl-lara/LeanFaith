@@ -859,7 +859,7 @@ def check_lf022_provisional_candidates(
     elif postgen_selector_path is not None:
         from leanfaith.generation.lf022_postgen_reconcile import (
             LF022PostgenReconciliationError,
-            verify_lf022_postgen_terminal_selector,
+            verify_lf022_postgen_terminal_selector_selected_only,
         )
 
         postgen_selector_path = _safe_existing_file(
@@ -867,7 +867,7 @@ def check_lf022_provisional_candidates(
             label="postgen terminal selector",
         )
         try:
-            verified_selector = verify_lf022_postgen_terminal_selector(
+            verified_selector = verify_lf022_postgen_terminal_selector_selected_only(
                 repo_root=repo_root,
                 selector_path=postgen_selector_path,
             )

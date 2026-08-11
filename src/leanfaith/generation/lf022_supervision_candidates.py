@@ -798,7 +798,7 @@ def _verify_lean_check_selector(
     else:
         from leanfaith.generation.lf022_postgen_reconcile import (
             LF022PostgenReconciliationError,
-            verify_lf022_postgen_terminal_selector,
+            verify_lf022_postgen_terminal_selector_selected_only,
         )
 
         assert manifest.selection_postgen_selector is not None
@@ -812,7 +812,7 @@ def _verify_lean_check_selector(
             repo_root=repo_root,
         )
         try:
-            verified = verify_lf022_postgen_terminal_selector(
+            verified = verify_lf022_postgen_terminal_selector_selected_only(
                 repo_root=repo_root,
                 selector_path=selector_path,
             )
@@ -825,10 +825,7 @@ def _verify_lean_check_selector(
             or verified.manifest.batch_id != manifest.selection_batch_id
         ):
             raise LF022SupervisionCandidateError("Lean-check postgen selector identity differs")
-        frozen_tasks_by_id = _load_historical_batch_tasks(
-            repo_root=repo_root,
-            batch=verified.manifest,
-        )
+        frozen_tasks_by_id = verified.frozen_tasks_by_id
         selected_task_ids = verified.execution_task_ids
         terminal_paths = verified.terminal_paths
     selected_count = len(selected_task_ids)

@@ -26,15 +26,22 @@ from pydantic import Field, model_validator
 from leanfaith.config.hashing import canonical_json_bytes, hash_canonical, hash_file
 from leanfaith.config.models import StrictModel
 from leanfaith.generation.lf022_batch import (
+    LF022BatchFreezeRequest,
     LF022BatchJournalEvent,
     LF022PublicBatchManifest,
     VerifiedLF022BatchTask,
     load_lf022_public_batch,
 )
+from leanfaith.generation.lf022_execution import (
+    LF022GOpenExecutionAdmission,
+    LF022GOpenExecutionTask,
+    LF022QualificationClaim,
+)
 from leanfaith.generation.lf022_executor import (
     LF022ExecutionTerminalRecord,
     LF022ExecutorError,
     prepare_lf022_g_open_execution,
+    prepare_lf022_g_open_execution_frozen_replay,
     replay_lf022_g_open_terminal,
 )
 from leanfaith.generation.lf022_production import LF022ArtifactBinding
@@ -278,8 +285,20 @@ class VerifiedLF022PostgenTerminalSelector:
     manifest: LF022PublicBatchManifest
     execution_task_ids: tuple[str, ...]
     task_content_hashes: dict[str, str]
+    frozen_tasks_by_id: dict[str, LF022GOpenExecutionTask]
     terminal_bindings: dict[str, LF022ArtifactBinding]
     terminal_paths: dict[str, Path]
+
+
+@dataclass(frozen=True, slots=True)
+class _SelectedHistoricalBatch:
+    """Historical batch envelope with only selector-selected task bodies loaded."""
+
+    manifest: LF022PublicBatchManifest
+    task_routes_by_id: dict[str, tuple[str, str]]
+    task_bindings_by_id: dict[str, LF022ArtifactBinding]
+    frozen_tasks_by_id: dict[str, LF022GOpenExecutionTask]
+    admissions_by_task_id: dict[str, LF022GOpenExecutionAdmission]
 
 
 def _repo_file(repo_root: Path, relative: str, *, label: str) -> Path:
@@ -319,6 +338,230 @@ def _canonical_record[ModelT: StrictModel](
     if raw not in allowed:
         raise LF022PostgenReconciliationError(f"{label} is not canonical JSON")
     return record
+
+
+def _bound_canonical_record[ModelT: StrictModel](
+    *,
+    repo_root: Path,
+    binding: LF022ArtifactBinding,
+    model: type[ModelT],
+    label: str,
+) -> ModelT:
+    """Load one repository binding without consulting current eligibility policy."""
+
+    path = _repo_file(repo_root, binding.path, label=label)
+    if hash_file(path) != binding.sha256:
+        raise LF022PostgenReconciliationError(f"{label} hash differs")
+    return _canonical_record(
+        path,
+        model,
+        label=label,
+        newline_allowed=True,
+    )
+
+
+def _selected_historical_batch(
+    *,
+    repo_root: Path,
+    selector: LF022PostgenTerminalSelector,
+) -> _SelectedHistoricalBatch:
+    """Replay the complete batch envelope while loading only selected task bodies.
+
+    A terminal snapshot may select a small prefix of a much larger frozen batch.
+    The manifest, freeze request, and every route admission remain fully verified,
+    and all manifest task bindings are scanned for uniqueness and request coverage.
+    Only task JSON files named by the selector are parsed.  This deliberately
+    avoids replaying current eligibility inputs or retaining thousands of
+    unrelated task/source objects merely to check a historical terminal subset.
+    """
+
+    manifest = _bound_canonical_record(
+        repo_root=repo_root,
+        binding=selector.batch_manifest,
+        model=LF022PublicBatchManifest,
+        label="selector batch manifest",
+    )
+    if manifest.batch_id != selector.batch_id:
+        raise LF022PostgenReconciliationError("selector belongs to another batch")
+    request = _bound_canonical_record(
+        repo_root=repo_root,
+        binding=manifest.freeze_request,
+        model=LF022BatchFreezeRequest,
+        label="selector frozen batch request",
+    )
+    if (
+        request.request_id != manifest.freeze_request_id
+        or request.batch_directory != manifest.batch_directory
+        or request.executor_output_root != manifest.executor_output_root
+        or len(request.routes) != len(manifest.routes)
+    ):
+        raise LF022PostgenReconciliationError(
+            "selector batch manifest differs from its frozen request"
+        )
+
+    selected_by_id = {
+        task.execution_task_id: (route.proposer_family_id, route.model_id, task)
+        for route in selector.routes
+        for task in route.tasks
+    }
+    if len(selected_by_id) != selector.task_count:
+        raise LF022PostgenReconciliationError("selector repeats one selected task")
+
+    task_routes_by_id: dict[str, tuple[str, str]] = {}
+    task_bindings_by_id: dict[str, LF022ArtifactBinding] = {}
+    frozen_tasks_by_id: dict[str, LF022GOpenExecutionTask] = {}
+    admissions_by_task_id: dict[str, LF022GOpenExecutionAdmission] = {}
+    for route, route_request in zip(manifest.routes, request.routes, strict=True):
+        if (
+            route.proposer_family_id != route_request.proposer_family_id
+            or route.model_id != route_request.route.model_id
+            or route.execution_scope != route_request.route.execution_scope
+            or route.public_pool_audit_id != route_request.public_pool_audit_id
+            or route.allocation_plan_id != route_request.allocation_plan_id
+        ):
+            raise LF022PostgenReconciliationError(
+                "selector batch route differs from its frozen request"
+            )
+        admission = _bound_canonical_record(
+            repo_root=repo_root,
+            binding=route.admission,
+            model=LF022GOpenExecutionAdmission,
+            label=f"{route.proposer_family_id} selector frozen admission",
+        )
+        if (
+            admission.admission_id != route.admission_id
+            or admission.public_pool_audit_id != route.public_pool_audit_id
+            or admission.allocation_plan_id != route.allocation_plan_id
+            or admission.artifacts != route_request.execution_artifacts
+            or admission.route != route_request.route
+            or admission.retry_policy != route_request.retry_policy
+            or admission.code_tree_hash != route_request.code_tree_hash
+            or admission.route.proposer_family_id != route.proposer_family_id
+            or admission.route.model_id != route.model_id
+            or admission.route.execution_scope != route.execution_scope
+        ):
+            raise LF022PostgenReconciliationError(
+                "selector batch route differs from its frozen admission"
+            )
+        if route.qualification_claim is not None:
+            claim = _bound_canonical_record(
+                repo_root=repo_root,
+                binding=route.qualification_claim,
+                model=LF022QualificationClaim,
+                label=f"{route.proposer_family_id} selector qualification claim",
+            )
+            only_task = route.tasks[0]
+            claim_digest = claim.claim_id.split(":", 1)[1]
+            expected_claim_path = (
+                Path(manifest.executor_output_root)
+                / "qualification_claims"
+                / (
+                    f"{route.proposer_family_id}.json"
+                    if claim.qualification_supersession is None
+                    else f"{route.proposer_family_id}/{claim_digest}.json"
+                )
+            ).as_posix()
+            if (
+                len(route.tasks) != 1
+                or route.qualification_claim.path != expected_claim_path
+                or claim.proposer_family_id != route.proposer_family_id
+                or claim.model_id != route.model_id
+                or claim.execution_scope != route.execution_scope
+                or claim.admission_id != admission.admission_id
+                or claim.execution_task_id != only_task.execution_task_id
+                or claim.allocation_task_id != only_task.allocation_task_id
+                or claim.public_pool_audit_id != route.public_pool_audit_id
+                or claim.allocation_plan_id != route.allocation_plan_id
+                or claim.qualification_supersession
+                != admission.artifacts.qualification_supersession
+            ):
+                raise LF022PostgenReconciliationError(
+                    "selector qualification claim differs from its batch route"
+                )
+
+        manifest_allocation_ids = tuple(sorted(task.allocation_task_id for task in route.tasks))
+        if manifest_allocation_ids != route_request.allocation_task_ids:
+            raise LF022PostgenReconciliationError(
+                "selector batch task bindings differ from the frozen request selection"
+            )
+        for task_binding in route.tasks:
+            task_id = task_binding.execution_task_id
+            if task_id in task_routes_by_id:
+                raise LF022PostgenReconciliationError(
+                    "selector batch repeats one execution task binding"
+                )
+            task_routes_by_id[task_id] = (route.proposer_family_id, route.model_id)
+            task_bindings_by_id[task_id] = task_binding.task
+            selected = selected_by_id.get(task_id)
+            if selected is None:
+                continue
+            selected_family, selected_model, selected_task = selected
+            if (
+                selected_family != route.proposer_family_id
+                or selected_model != route.model_id
+                or selected_task.frozen_task != task_binding.task
+            ):
+                raise LF022PostgenReconciliationError(
+                    "selector task route or frozen binding differs from its batch"
+                )
+            task = _bound_canonical_record(
+                repo_root=repo_root,
+                binding=task_binding.task,
+                model=LF022GOpenExecutionTask,
+                label=f"selector frozen task {task_id}",
+            )
+            if (
+                task.execution_task_id != task_id
+                or task.allocation_task.task_id != task_binding.allocation_task_id
+                or task.execution_admission_id != admission.admission_id
+                or task.allocation_plan_id != admission.allocation_plan_id
+                or task.allocation_task.proposer_family_id != route.proposer_family_id
+                or task.proposal_count != route_request.proposal_count
+                or task.requested_relations != route_request.requested_relations
+            ):
+                raise LF022PostgenReconciliationError(
+                    "selector frozen task differs from its request/admission binding"
+                )
+            task_digest = task_id.split(":", 1)[1]
+            adjacent_path = _repo_file(
+                repo_root,
+                (
+                    Path(manifest.executor_output_root)
+                    / "tasks"
+                    / task_digest[:2]
+                    / task_digest
+                    / "task.json"
+                ).as_posix(),
+                label=f"selector adjacent executor task {task_id}",
+            )
+            adjacent = _canonical_record(
+                adjacent_path,
+                LF022GOpenExecutionTask,
+                label=f"selector adjacent executor task {task_id}",
+                newline_allowed=True,
+            )
+            if adjacent != task:
+                raise LF022PostgenReconciliationError(
+                    "selector adjacent executor task differs from frozen task"
+                )
+            frozen_tasks_by_id[task_id] = task
+            admissions_by_task_id[task_id] = admission
+
+    if len(task_routes_by_id) != manifest.total_task_count:
+        raise LF022PostgenReconciliationError(
+            "selector batch task-binding count differs from its manifest"
+        )
+    if set(selected_by_id) != set(frozen_tasks_by_id):
+        raise LF022PostgenReconciliationError(
+            "selector selected task IDs are not an exact batch subset"
+        )
+    return _SelectedHistoricalBatch(
+        manifest=manifest,
+        task_routes_by_id=task_routes_by_id,
+        task_bindings_by_id=task_bindings_by_id,
+        frozen_tasks_by_id=frozen_tasks_by_id,
+        admissions_by_task_id=admissions_by_task_id,
+    )
 
 
 def _safe_existing_file(path: Path, *, label: str) -> Path:
@@ -759,18 +1002,13 @@ def reconcile_lf022_postgen(
     )
 
 
-def verify_lf022_postgen_terminal_selector(
+def _verify_lf022_postgen_terminal_selector(
     *,
     repo_root: Path,
     selector_path: Path,
+    selected_only: bool,
 ) -> VerifiedLF022PostgenTerminalSelector:
-    """Replay every selector binding and the full persisted executor lineage.
-
-    This is the downstream boundary used for safe incremental Lean checking.
-    The selector may live outside the execution repository, but every selected
-    task, canonical terminal journal event, and execution terminal remains
-    bound to the original frozen public batch.
-    """
+    """Shared full or selected-only terminal-selector verification."""
 
     repo_root = repo_root.resolve(strict=True)
     safe_selector_path = _safe_existing_file(
@@ -783,26 +1021,43 @@ def verify_lf022_postgen_terminal_selector(
         label="postgen terminal selector",
         newline_allowed=True,
     )
-    manifest_path = _repo_file(
-        repo_root,
-        selector.batch_manifest.path,
-        label="selector batch manifest",
-    )
-    if hash_file(manifest_path) != selector.batch_manifest.sha256:
-        raise LF022PostgenReconciliationError("selector batch manifest hash differs")
-    try:
-        manifest, tasks = load_lf022_public_batch(
-            repo_root=repo_root,
-            manifest_binding=selector.batch_manifest,
+    loaded_by_id: dict[str, VerifiedLF022BatchTask] | None
+    selected_admissions_by_id: dict[str, LF022GOpenExecutionAdmission]
+    if selected_only:
+        historical = _selected_historical_batch(repo_root=repo_root, selector=selector)
+        manifest = historical.manifest
+        task_routes_by_id = historical.task_routes_by_id
+        task_bindings_by_id = historical.task_bindings_by_id
+        frozen_tasks_by_id = historical.frozen_tasks_by_id
+        selected_admissions_by_id = historical.admissions_by_task_id
+        loaded_by_id = None
+    else:
+        manifest_path = _repo_file(
+            repo_root,
+            selector.batch_manifest.path,
+            label="selector batch manifest",
         )
-    except (OSError, ValueError) as exc:
-        raise LF022PostgenReconciliationError(f"selector batch replay failed: {exc}") from exc
-    if manifest.batch_id != selector.batch_id:
-        raise LF022PostgenReconciliationError("selector belongs to another batch")
-    frozen_by_id = {
-        row.execution_task_id: row.task for route in manifest.routes for row in route.tasks
-    }
-    loaded_by_id = {item.task.execution_task_id: item for item in tasks}
+        if hash_file(manifest_path) != selector.batch_manifest.sha256:
+            raise LF022PostgenReconciliationError("selector batch manifest hash differs")
+        try:
+            manifest, tasks = load_lf022_public_batch(
+                repo_root=repo_root,
+                manifest_binding=selector.batch_manifest,
+            )
+        except (OSError, ValueError) as exc:
+            raise LF022PostgenReconciliationError(f"selector batch replay failed: {exc}") from exc
+        if manifest.batch_id != selector.batch_id:
+            raise LF022PostgenReconciliationError("selector belongs to another batch")
+        loaded_by_id = {item.task.execution_task_id: item for item in tasks}
+        task_routes_by_id = {
+            task_id: (item.family, item.admission.route.model_id)
+            for task_id, item in loaded_by_id.items()
+        }
+        task_bindings_by_id = {
+            row.execution_task_id: row.task for route in manifest.routes for row in route.tasks
+        }
+        frozen_tasks_by_id = {task_id: item.task for task_id, item in loaded_by_id.items()}
+        selected_admissions_by_id = {}
     ordered_ids: list[str] = []
     task_hashes: dict[str, str] = {}
     terminal_bindings: dict[str, LF022ArtifactBinding] = {}
@@ -830,8 +1085,8 @@ def verify_lf022_postgen_terminal_selector(
             label="selector journal snapshot event",
             newline_allowed=False,
         )
-        loaded = loaded_by_id.get(event.execution_task_id)
-        if loaded is None:
+        event_route = task_routes_by_id.get(event.execution_task_id)
+        if event_route is None:
             raise LF022PostgenReconciliationError(
                 "selector journal snapshot contains a task outside its batch"
             )
@@ -844,7 +1099,7 @@ def verify_lf022_postgen_terminal_selector(
         if (
             event_path != expected_path
             or event.batch_id != selector.batch_id
-            or event.proposer_family_id != loaded.family
+            or event.proposer_family_id != event_route[0]
         ):
             raise LF022PostgenReconciliationError(
                 "selector journal snapshot event path or route is noncanonical"
@@ -856,13 +1111,14 @@ def verify_lf022_postgen_terminal_selector(
         snapshot_events[event.event_id] = (event, event_binding)
     for route in selector.routes:
         for selected in route.tasks:
-            loaded = loaded_by_id.get(selected.execution_task_id)
-            if loaded is None:
+            task = frozen_tasks_by_id.get(selected.execution_task_id)
+            task_route = task_routes_by_id.get(selected.execution_task_id)
+            frozen_binding = task_bindings_by_id.get(selected.execution_task_id)
+            if task is None or task_route is None or frozen_binding is None:
                 raise LF022PostgenReconciliationError("selector task is outside its batch")
             if (
-                loaded.family != route.proposer_family_id
-                or loaded.admission.route.model_id != route.model_id
-                or frozen_by_id[selected.execution_task_id] != selected.frozen_task
+                task_route != (route.proposer_family_id, route.model_id)
+                or frozen_binding != selected.frozen_task
             ):
                 raise LF022PostgenReconciliationError("selector task route or binding differs")
             frozen_path = _repo_file(
@@ -955,7 +1211,7 @@ def verify_lf022_postgen_terminal_selector(
             )
             if (
                 terminal.execution_task_id != selected.execution_task_id
-                or terminal.execution_admission_id != loaded.admission.admission_id
+                or terminal.execution_admission_id != task.execution_admission_id
                 or terminal.terminal_id != selected.terminal_id
                 or terminal.status != selected.terminal_status
             ):
@@ -963,20 +1219,29 @@ def verify_lf022_postgen_terminal_selector(
                     "selector terminal admission, task, status, or identity differs"
                 )
             try:
-                prepared = prepare_lf022_g_open_execution(
-                    repo_root=repo_root,
-                    output_root=executor_output_root,
-                    admission=loaded.admission,
-                    task=loaded.task,
-                    verified_admission=loaded.verified,
-                    verified_task_inputs=loaded.task_inputs,
-                    observed_code_tree_hash=loaded.admission.code_tree_hash,
-                )
+                if loaded_by_id is not None:
+                    loaded = loaded_by_id[selected.execution_task_id]
+                    prepared = prepare_lf022_g_open_execution(
+                        repo_root=repo_root,
+                        output_root=executor_output_root,
+                        admission=loaded.admission,
+                        task=loaded.task,
+                        verified_admission=loaded.verified,
+                        verified_task_inputs=loaded.task_inputs,
+                        observed_code_tree_hash=loaded.admission.code_tree_hash,
+                    )
+                else:
+                    prepared = prepare_lf022_g_open_execution_frozen_replay(
+                        repo_root=repo_root,
+                        output_root=executor_output_root,
+                        admission=selected_admissions_by_id[selected.execution_task_id],
+                        task=task,
+                    )
                 replayed_terminal, replayed_path = replay_lf022_g_open_terminal(
                     prepared=prepared,
                     artifact_root=repo_root,
                 )
-            except (LF022ExecutorError, OSError, ValueError) as exc:
+            except (KeyError, LF022ExecutorError, OSError, ValueError) as exc:
                 raise LF022PostgenReconciliationError(
                     f"selector executor terminal replay failed: {exc}"
                 ) from exc
@@ -985,9 +1250,7 @@ def verify_lf022_postgen_terminal_selector(
                     "selector executor replay differs from selected terminal"
                 )
             ordered_ids.append(selected.execution_task_id)
-            task_hashes[selected.execution_task_id] = hash_canonical(
-                loaded.task.model_dump(mode="json")
-            )
+            task_hashes[selected.execution_task_id] = hash_canonical(task.model_dump(mode="json"))
             terminal_bindings[selected.execution_task_id] = selected.terminal
             terminal_paths[selected.execution_task_id] = terminal_path
     if len(ordered_ids) != selector.task_count or len(set(ordered_ids)) != len(ordered_ids):
@@ -997,8 +1260,52 @@ def verify_lf022_postgen_terminal_selector(
         manifest=manifest,
         execution_task_ids=tuple(ordered_ids),
         task_content_hashes=task_hashes,
+        frozen_tasks_by_id={task_id: frozen_tasks_by_id[task_id] for task_id in ordered_ids},
         terminal_bindings=terminal_bindings,
         terminal_paths=terminal_paths,
+    )
+
+
+def verify_lf022_postgen_terminal_selector(
+    *,
+    repo_root: Path,
+    selector_path: Path,
+) -> VerifiedLF022PostgenTerminalSelector:
+    """Replay every selector binding and the full current execution lineage.
+
+    This compatibility verifier intentionally retains the original exhaustive
+    admission/task-input replay for callers that require it.
+    """
+
+    return _verify_lf022_postgen_terminal_selector(
+        repo_root=repo_root,
+        selector_path=selector_path,
+        selected_only=False,
+    )
+
+
+def verify_lf022_postgen_terminal_selector_selected_only(
+    *,
+    repo_root: Path,
+    selector_path: Path,
+) -> VerifiedLF022PostgenTerminalSelector:
+    """Verify a terminal snapshot without loading unrelated frozen task bodies.
+
+    The complete batch manifest, freeze request, route admissions, task-binding
+    cardinality, and allocation selection remain verified.  Each selected task
+    is then hash/canonical-checked against its exact batch and adjacent executor
+    binding.  Every selected terminal still replays its complete attempt,
+    provider request, wire request/response, provider-raw, generic LLM, parsed
+    output, and provisional-variant lineage.  Only unrelated task bodies and
+    current eligibility/source objects are omitted.  This is current-verifier
+    replay of frozen artifacts; the separate admitted-code historical replay
+    remains the stronger whole-batch audit mechanism.
+    """
+
+    return _verify_lf022_postgen_terminal_selector(
+        repo_root=repo_root,
+        selector_path=selector_path,
+        selected_only=True,
     )
 
 
@@ -1011,4 +1318,5 @@ __all__ = [
     "VerifiedLF022PostgenTerminalSelector",
     "reconcile_lf022_postgen",
     "verify_lf022_postgen_terminal_selector",
+    "verify_lf022_postgen_terminal_selector_selected_only",
 ]

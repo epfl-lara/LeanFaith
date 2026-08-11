@@ -470,6 +470,72 @@ def _repository_output_root(repo_root: Path, output_root: Path) -> Path:
     return current
 
 
+def _existing_repository_output_root(repo_root: Path, output_root: Path) -> Path:
+    """Resolve an existing executor root without creating replay artifacts."""
+
+    root = repo_root.resolve(strict=True)
+    candidate = output_root if output_root.is_absolute() else root / output_root
+    try:
+        relative = candidate.relative_to(root)
+    except ValueError as exc:
+        raise LF022ExecutorError("output_root must stay inside repo_root") from exc
+    if not relative.parts or any(part in {"", ".", ".."} for part in relative.parts):
+        raise LF022ExecutorError("output_root must be a normalized directory below repo_root")
+    current = root
+    for part in relative.parts:
+        current /= part
+        if current.is_symlink():
+            raise LF022ExecutorError("output_root contains a symlinked component")
+    try:
+        resolved = current.resolve(strict=True)
+    except OSError as exc:
+        raise LF022ExecutorError("output_root is missing") from exc
+    if not resolved.is_dir() or not resolved.is_relative_to(root):
+        raise LF022ExecutorError("output_root must be an existing repository directory")
+    return resolved
+
+
+def _execution_preflight(
+    *,
+    admission: LF022GOpenExecutionAdmission,
+    task: LF022GOpenExecutionTask,
+    prompt: RenderedVariantPrompt,
+) -> LF022ExecutionPreflight:
+    payload: dict[str, object] = {
+        "schema_version": 1,
+        "execution_admission_id": admission.admission_id,
+        "execution_task_id": task.execution_task_id,
+        "allocation_plan_id": admission.allocation_plan_id,
+        "public_pool_audit_id": admission.public_pool_audit_id,
+        "route_snapshot_revision": admission.route.route_snapshot_revision,
+        "model_id": admission.route.model_id,
+        "proposer_family_id": admission.route.proposer_family_id,
+        "prompt_template_hash": prompt.template_sha256,
+        "prompt_render_hash": prompt.render_sha256,
+        "retry_policy_hash": admission.retry_policy_hash,
+        "code_tree_hash": admission.code_tree_hash,
+        "distribution": "G_open",
+        "source_is_public": True,
+        "private_source_content": False,
+        "denylist_checked": True,
+        "denylist_hits": [],
+        "network_calls_performed": 0,
+        "live_execution_requires_explicit_flag": True,
+        "semantic_labels_created": False,
+        "silver_promotion_enabled": False,
+        "gold_promotion_enabled": False,
+        "training_eligible": False,
+        "evaluation_eligible": False,
+        "gate_credit_claimed": False,
+    }
+    return LF022ExecutionPreflight.model_validate(
+        {
+            **payload,
+            "preflight_id": make_id("lf022_execution_preflight", payload),
+        }
+    )
+
+
 def prepare_lf022_g_open_execution(
     *,
     repo_root: Path,
@@ -545,43 +611,148 @@ def prepare_lf022_g_open_execution(
         or prompt.template_sha256 != admission.artifacts.prompt_template.sha256
     ):
         raise LF022ExecutorError("rendered prompt template differs from admission")
-    payload: dict[str, object] = {
-        "schema_version": 1,
-        "execution_admission_id": admission.admission_id,
-        "execution_task_id": task.execution_task_id,
-        "allocation_plan_id": admission.allocation_plan_id,
-        "public_pool_audit_id": admission.public_pool_audit_id,
-        "route_snapshot_revision": admission.route.route_snapshot_revision,
-        "model_id": admission.route.model_id,
-        "proposer_family_id": admission.route.proposer_family_id,
-        "prompt_template_hash": prompt.template_sha256,
-        "prompt_render_hash": prompt.render_sha256,
-        "retry_policy_hash": admission.retry_policy_hash,
-        "code_tree_hash": admission.code_tree_hash,
-        "distribution": "G_open",
-        "source_is_public": True,
-        "private_source_content": False,
-        "denylist_checked": True,
-        "denylist_hits": [],
-        "network_calls_performed": 0,
-        "live_execution_requires_explicit_flag": True,
-        "semantic_labels_created": False,
-        "silver_promotion_enabled": False,
-        "gold_promotion_enabled": False,
-        "training_eligible": False,
-        "evaluation_eligible": False,
-        "gate_credit_claimed": False,
-    }
-    preflight = LF022ExecutionPreflight.model_validate(
-        {
-            **payload,
-            "preflight_id": make_id("lf022_execution_preflight", payload),
-        }
+    preflight = _execution_preflight(
+        admission=admission,
+        task=task,
+        prompt=prompt,
     )
     task_dir = _task_directory(canonical_output_root, task.execution_task_id)
     _immutable(task_dir / "admission.json", _canonical_record(admission))
     _immutable(task_dir / "task.json", _canonical_record(task))
     _immutable(task_dir / "preflight.json", _canonical_record(preflight))
+    return PreparedLF022Execution(
+        admission=admission,
+        task=task,
+        prompt=prompt,
+        preflight=preflight,
+        task_directory=task_dir,
+    )
+
+
+def prepare_lf022_g_open_execution_frozen_replay(
+    *,
+    repo_root: Path,
+    output_root: Path,
+    admission: LF022GOpenExecutionAdmission,
+    task: LF022GOpenExecutionTask,
+) -> PreparedLF022Execution:
+    """Reconstruct one frozen task preflight without current eligibility replay.
+
+    The caller must already have verified the historical batch request, route
+    admission, and exact selected task binding.  This helper deliberately does
+    not consult today's public-pool eligibility inputs.  It instead requires
+    the exact reviewed prompt and all adjacent executor artifacts needed to
+    replay this one selected terminal.  It performs no writes and no provider
+    I/O.
+    """
+
+    if (
+        task.execution_admission_id != admission.admission_id
+        or task.allocation_plan_id != admission.allocation_plan_id
+        or task.normalization_version != admission.normalization_version
+        or task.allocation_task.proposer_family_id != admission.route.proposer_family_id
+    ):
+        raise LF022ExecutorError("historical execution task differs from its admission")
+    if (
+        admission.route.execution_scope == "one_item_proposer_qualification_only"
+        and task.proposal_count != 1
+    ):
+        raise LF022ExecutorError(
+            "historical proposer qualification task must request exactly one proposal"
+        )
+
+    canonical_output_root = _existing_repository_output_root(repo_root, output_root)
+    reviewed_prompt_path, reviewed_prompt_sha256 = lf022_reviewed_proposer_prompt(
+        admission.prompt_template_version
+    )
+    if (
+        admission.artifacts.prompt_template.path != reviewed_prompt_path
+        or admission.artifacts.prompt_template.sha256 != reviewed_prompt_sha256
+    ):
+        raise LF022ExecutorError("historical prompt differs from the reviewed proposer prompt")
+    prompt_path = _artifact_path(
+        repo_root,
+        admission.artifacts.prompt_template.path,
+        label="historical prompt template",
+    )
+    if hash_file(prompt_path) != admission.artifacts.prompt_template.sha256:
+        raise LF022ExecutorError("historical prompt template hash drifted")
+    prompt = render_variant_proposer_prompt(
+        task.prompt_request(),
+        template_path=prompt_path,
+    )
+    if (
+        prompt.template_version != admission.prompt_template_version
+        or prompt.template_sha256 != admission.artifacts.prompt_template.sha256
+    ):
+        raise LF022ExecutorError("historical rendered prompt differs from its admission")
+
+    preflight = _execution_preflight(
+        admission=admission,
+        task=task,
+        prompt=prompt,
+    )
+    task_dir = _task_directory(canonical_output_root, task.execution_task_id)
+    task_dir_relative = task_dir.relative_to(repo_root.resolve(strict=True)).as_posix()
+    admission_path = _artifact_path(
+        repo_root,
+        f"{task_dir_relative}/admission.json",
+        label="historical adjacent admission",
+    )
+    task_path = _artifact_path(
+        repo_root,
+        f"{task_dir_relative}/task.json",
+        label="historical adjacent task",
+    )
+    preflight_path = _artifact_path(
+        repo_root,
+        f"{task_dir_relative}/preflight.json",
+        label="historical adjacent preflight",
+    )
+    persisted_admission = _load_record(
+        admission_path,
+        LF022GOpenExecutionAdmission,
+        label="historical adjacent admission",
+    )
+    persisted_task = _load_record(
+        task_path,
+        LF022GOpenExecutionTask,
+        label="historical adjacent task",
+    )
+    persisted_preflight = _load_record(
+        preflight_path,
+        LF022ExecutionPreflight,
+        label="historical adjacent preflight",
+    )
+    if persisted_admission != admission or persisted_task != task:
+        raise LF022ExecutorError("historical adjacent admission or task differs")
+    if persisted_preflight != preflight:
+        raise LF022ExecutorError("historical adjacent preflight differs from reconstruction")
+
+    if admission.route.execution_scope == "one_item_proposer_qualification_only":
+        expected_output_root = repo_root.resolve(strict=True) / LF022_CANONICAL_EXECUTOR_OUTPUT_ROOT
+        if canonical_output_root != expected_output_root:
+            raise LF022ExecutorError(
+                "historical qualification replay requires the canonical executor root"
+            )
+        claim = make_lf022_qualification_claim(admission=admission, task=task)
+        claim_path = lf022_qualification_claim_path(
+            output_root=canonical_output_root,
+            admission=admission,
+            claim=claim,
+        )
+        try:
+            claim_relative = claim_path.relative_to(repo_root.resolve(strict=True)).as_posix()
+        except ValueError as exc:
+            raise LF022ExecutorError("historical qualification claim is missing or unsafe") from exc
+        bound_claim_path = _artifact_path(
+            repo_root,
+            claim_relative,
+            label="historical qualification claim",
+        )
+        if bound_claim_path.read_bytes() != canonical_json_bytes(claim.model_dump(mode="json")):
+            raise LF022ExecutorError("historical qualification claim differs")
+
     return PreparedLF022Execution(
         admission=admission,
         task=task,
@@ -1967,5 +2138,6 @@ __all__ = [
     "RCPRuntimeCredentials",
     "execute_lf022_g_open_task",
     "prepare_lf022_g_open_execution",
+    "prepare_lf022_g_open_execution_frozen_replay",
     "replay_lf022_g_open_terminal",
 ]
