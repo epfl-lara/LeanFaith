@@ -6239,6 +6239,82 @@ def materialize_deterministic_v2_e2_scale_command(
     )
 
 
+@app.command("recover-deterministic-v2-e2-attempt")
+def recover_deterministic_v2_e2_attempt_command(
+    parent_root: Annotated[
+        Path,
+        typer.Option("--parent-root", help="Immutable E2 root containing one failed result."),
+    ],
+    output_dir: Annotated[
+        Path,
+        typer.Option("--output-dir", help="New immutable recovered root; must not exist."),
+    ],
+    target_line: Annotated[
+        int,
+        typer.Option("--target-line", min=1, help="Exact 1-based results.jsonl line."),
+    ],
+    import_header_path: Annotated[
+        Path | None,
+        typer.Option("--import-header", help="Exact import header used by the parent run."),
+    ] = None,
+    target_result_id: Annotated[
+        str | None,
+        typer.Option("--result-id", help="Exact candidate_infrastructure_error result ID."),
+    ] = None,
+    target_attempt_id: Annotated[
+        str | None,
+        typer.Option("--attempt-id", help="Exact failed transformation attempt ID."),
+    ] = None,
+    profile_path: Annotated[
+        Path | None,
+        typer.Option(
+            "--profile",
+            help="Optional exact profile; inferred from run spec by default.",
+        ),
+    ] = None,
+    root_dir: Annotated[
+        Path | None,
+        typer.Option("--root", help="Repository root override."),
+    ] = None,
+) -> None:
+    """Recover exactly one E2 infrastructure failure without mutating its parent."""
+    from leanfaith.config.paths import RepoPaths
+    from leanfaith.transforms.v2_e2_recovery import (
+        V2E2RecoveryError,
+        recover_v2_e2_attempt,
+    )
+
+    paths = RepoPaths.discover(root_dir) if root_dir is None else RepoPaths(root=root_dir)
+
+    def anchored(path: Path) -> Path:
+        return path if path.is_absolute() else paths.root / path
+
+    try:
+        artifacts = recover_v2_e2_attempt(
+            parent_root=anchored(parent_root),
+            output_dir=anchored(output_dir),
+            repo_root=paths.root,
+            import_header=(
+                ""
+                if import_header_path is None
+                else anchored(import_header_path).read_text(encoding="utf-8")
+            ),
+            target_result_line_number=target_line,
+            target_result_id=target_result_id,
+            target_attempt_id=target_attempt_id,
+            profile_path=(None if profile_path is None else anchored(profile_path)),
+        )
+    except (OSError, ValueError, V2E2RecoveryError) as exc:
+        typer.echo(f"deterministic-v2 E2 recovery rejected: {exc}", err=True)
+        raise typer.Exit(code=1) from exc
+    typer.echo(
+        "deterministic-v2 E2 recovery complete; "
+        f"output={artifacts.output_dir} replacement={artifacts.replacement_result_id} "
+        f"receipt={artifacts.recovery_receipt_path} resolved_labels=0 promoted_items=0 "
+        "training_eligible=false"
+    )
+
+
 @app.command("freeze-transform-source-subset")
 def freeze_transform_source_subset_command(
     theorem_path: Annotated[

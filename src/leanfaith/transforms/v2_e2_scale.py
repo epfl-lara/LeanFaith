@@ -5,9 +5,11 @@ from __future__ import annotations
 from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Literal
 
 from leanfaith.lean.leaninteract_backend import LeanInteractBackend
 from leanfaith.lean.protocol import LeanRequest, LeanStatus
+from leanfaith.lean.session_policy import RetryPolicy, run_batch_with_retries
 from leanfaith.representations import TheoremForRepresentation, build_representations
 from leanfaith.schemas.enums import Polarity, ValidationStatus, ViewStatus
 from leanfaith.schemas.theorem import RepresentationRecord, TheoremRecord
@@ -25,6 +27,18 @@ from leanfaith.transforms.v2_e2_runtime import V2E2Runtime
 
 class V2E2ScaleError(ValueError):
     """A pooled E2 request violated fail-closed orchestration."""
+
+
+E2_CANDIDATE_TIMEOUT_SECONDS = 600.0
+E2_INFRASTRUCTURE_MAX_ATTEMPTS = 2
+E2_INFRASTRUCTURE_RETRY_STATUS_VALUES: tuple[Literal["crash", "internal_error", "timeout"], ...] = (
+    "crash",
+    "internal_error",
+    "timeout",
+)
+E2_INFRASTRUCTURE_RETRY_STATUSES = frozenset(
+    {LeanStatus.CRASH, LeanStatus.INTERNAL_ERROR, LeanStatus.TIMEOUT}
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -62,14 +76,18 @@ def _common(
     }
 
 
-def _candidate_request(candidate: _GeneratedCandidate) -> LeanRequest:
+def _candidate_request(
+    candidate: _GeneratedCandidate,
+    *,
+    timeout_seconds: float,
+) -> LeanRequest:
     return LeanRequest(
         request_id=f"v2-e2-{candidate.draft.draft_id.removeprefix('draft:')[:24]}",
         context_id=candidate.draft.context_id,
         code=candidate.inline_source,
         declarations=True,
         allow_sorry=True,
-        timeout_seconds=300.0,
+        timeout_seconds=timeout_seconds,
         metadata={
             "artifact_kind": "v2_e2_candidate",
             "draft_id": candidate.draft.draft_id,
@@ -99,11 +117,18 @@ def materialize_v2_e2_batch(
     context_id: str,
     project_dir: Path,
     import_header: str,
+    candidate_timeout_seconds: float = E2_CANDIDATE_TIMEOUT_SECONDS,
+    infrastructure_max_attempts: int = E2_INFRASTRUCTURE_MAX_ATTEMPTS,
+    fresh_session_between_infrastructure_attempts: bool = True,
 ) -> tuple[V2E2MaterializationResult, ...]:
     """Materialize one homogeneous E2 profile while preserving order/cardinality."""
 
     if not inputs:
         return ()
+    if candidate_timeout_seconds <= 0:
+        raise V2E2ScaleError("candidate_timeout_seconds must be positive")
+    if infrastructure_max_attempts < 1:
+        raise V2E2ScaleError("infrastructure_max_attempts must be positive")
     mismatches: list[str] = []
     for item in inputs:
         if item.theorem.theorem_id != item.representation.theorem_id:
@@ -152,8 +177,32 @@ def materialize_v2_e2_batch(
             )
         )
 
-    requests = [_candidate_request(item) for item in generated]
-    lean_results = backend.run_batch(requests) if requests else []
+    requests = [
+        _candidate_request(item, timeout_seconds=candidate_timeout_seconds) for item in generated
+    ]
+    if requests:
+        retry_outcome = run_batch_with_retries(
+            backend.run_batch,
+            requests,
+            RetryPolicy(
+                max_attempts=infrastructure_max_attempts,
+                retry_statuses=E2_INFRASTRUCTURE_RETRY_STATUSES,
+            ),
+            before_retry=(
+                (lambda _attempt, _pending: backend.reset_session())
+                if fresh_session_between_infrastructure_attempts
+                else None
+            ),
+        )
+        # V2E2MaterializationResult schema 1 predates retry lineage and remains
+        # byte-compatible with the completed schema-1/2 roots. Future schema-3
+        # runs therefore bind the retry *policy* in run_spec.json while
+        # LeanInteract persists each attempt append-only under raw_lean/. The
+        # provisional combiner later binds that full root tree. Exact one-row
+        # recovery additionally enumerates every attempt in its receipt.
+        lean_results = retry_outcome.results
+    else:
+        lean_results = ()
     if len(lean_results) != len(generated):
         raise V2E2ScaleError(
             "candidate Lean batch cardinality mismatch: "

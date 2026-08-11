@@ -297,24 +297,35 @@ def test_p16_tampered_atom_order_is_quarantined() -> None:
 class _StatusBackend:
     def __init__(self, statuses: Sequence[LeanStatus]) -> None:
         self.statuses = tuple(statuses)
+        self.by_request: dict[str, LeanStatus] = {}
 
     def run(self, request: LeanRequest) -> LeanResult:
         raise AssertionError(f"unexpected sequential request: {request.request_id}")
 
     def run_batch(self, requests: Sequence[LeanRequest]) -> list[LeanResult]:
+        if not self.by_request:
+            self.by_request.update(
+                (request.request_id, status)
+                for request, status in zip(requests, self.statuses, strict=True)
+            )
         return [
             LeanResult(
                 request_id=request.request_id,
                 request_hash=f"{index + 1:064x}",
                 context_id=request.context_id,
                 context_fingerprint=request.context_id.removeprefix("ctx:"),
-                status=self.statuses[index],
+                status=self.by_request[request.request_id],
                 infrastructure_error=(
-                    "failed to create thread" if self.statuses[index] == LeanStatus.CRASH else None
+                    "failed to create thread"
+                    if self.by_request[request.request_id] == LeanStatus.CRASH
+                    else None
                 ),
             )
             for index, request in enumerate(requests)
         ]
+
+    def reset_session(self) -> None:
+        """Keep the scripted verdict while modeling process replacement."""
 
 
 def _materialization_input(key: str) -> V2E2MaterializationInput:

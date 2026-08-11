@@ -46,17 +46,26 @@ from leanfaith.transforms.v2_d0_scale_run import (
 from leanfaith.transforms.v2_e0_materializer import V2E0MaterializationResult
 from leanfaith.transforms.v2_e0_scale_run import V2E0ScaleRunManifest, V2E0ScaleRunSpec
 from leanfaith.transforms.v2_e2_materializer import V2E2MaterializationResult
+from leanfaith.transforms.v2_e2_recovery_schema import (
+    RecoveryPipelineAttempt,
+    V2E2RecoveryReceipt,
+    V2E2RecoverySpec,
+)
 from leanfaith.transforms.v2_e2_scale_run import (
     V2E2ScaleRunManifest,
     V2E2ScaleRunManifestLegacyV1,
+    V2E2ScaleRunManifestLegacyV2,
     V2E2ScaleRunSpec,
     V2E2ScaleRunSpecLegacyV1,
+    V2E2ScaleRunSpecLegacyV2,
 )
 
 _HEX64 = r"^[0-9a-f]{64}$"
 _RUN_SPEC = "run_spec.json"
 _MANIFEST = "manifest.json"
 _RESULTS = "results.jsonl"
+_RECOVERY_SPEC = "recovery_spec.json"
+_RECOVERY_RECEIPT = "recovery_receipt.json"
 _GROSS_OUTPUT = "gross_observations.jsonl"
 _UNIQUE_OUTPUT = "unique_pairs.jsonl"
 _COMBINED_MANIFEST = "manifest.json"
@@ -87,6 +96,7 @@ type RunSpec = (
     V2E0ScaleRunSpec
     | V2E2ScaleRunSpec
     | V2E2ScaleRunSpecLegacyV1
+    | V2E2ScaleRunSpecLegacyV2
     | V2D0ScaleRunSpec
     | V2D0ScaleRunSpecLegacyV2
 )
@@ -94,6 +104,7 @@ type RunManifest = (
     V2E0ScaleRunManifest
     | V2E2ScaleRunManifest
     | V2E2ScaleRunManifestLegacyV1
+    | V2E2ScaleRunManifestLegacyV2
     | V2D0ScaleRunManifest
     | V2D0ScaleRunManifestLegacyV2
 )
@@ -461,6 +472,245 @@ def _root_tree(root: Path) -> tuple[int, str]:
     return len(entries), hash_canonical(entries)
 
 
+def _root_tree_without(root: Path, excluded: frozenset[str]) -> tuple[int, str]:
+    entries: list[tuple[str, str, int]] = []
+    for path in sorted(root.rglob("*")):
+        if path.is_symlink():
+            raise ProvisionalPairCombineError(f"materialization root contains a symlink: {path}")
+        if path.is_dir():
+            continue
+        relative = path.relative_to(root).as_posix()
+        if relative in excluded:
+            continue
+        if not path.is_file():
+            raise ProvisionalPairCombineError(
+                f"materialization root contains a non-regular entry: {path}"
+            )
+        entries.append((relative, hash_file(path), path.stat().st_size))
+    if not entries:
+        raise ProvisionalPairCombineError(f"materialization root is empty: {root}")
+    return len(entries), hash_canonical(entries)
+
+
+def _validate_e2_recovery_metadata(root: Path) -> None:
+    """Verify the exact one-line parent/output reconciliation, when present."""
+
+    spec_path = root / _RECOVERY_SPEC
+    receipt_path = root / _RECOVERY_RECEIPT
+    if not spec_path.exists() and not receipt_path.exists():
+        return
+    if not spec_path.is_file() or not receipt_path.is_file():
+        raise ProvisionalPairCombineError("recovered root must contain both recovery artifacts")
+    recovery_spec = _load_canonical_model(spec_path, V2E2RecoverySpec)
+    receipt = _load_canonical_model(receipt_path, V2E2RecoveryReceipt)
+    if (
+        receipt.recovery_spec_id != recovery_spec.recovery_spec_id
+        or receipt.recovery_spec_sha256 != hash_file(spec_path)
+    ):
+        raise ProvisionalPairCombineError("recovery receipt does not bind recovery spec")
+    if receipt.output_run_spec_sha256 != hash_file(root / _RUN_SPEC):
+        raise ProvisionalPairCombineError("recovery receipt does not bind output run spec")
+    if receipt.output_results_sha256 != hash_file(root / _RESULTS):
+        raise ProvisionalPairCombineError("recovery receipt does not bind output results")
+    if receipt.output_manifest_sha256 != hash_file(root / _MANIFEST):
+        raise ProvisionalPairCombineError("recovery receipt does not bind output manifest")
+    output_manifest_payload = _parse_json_object(
+        (root / _MANIFEST).read_bytes(), path=root / _MANIFEST
+    )
+    if output_manifest_payload.get("journal_tree_hash") != receipt.output_journal_tree_hash:
+        raise ProvisionalPairCombineError("recovery receipt does not bind output journal tree")
+    if _root_tree_without(root, frozenset({_RECOVERY_RECEIPT})) != (
+        receipt.output_root_file_count_without_receipt,
+        receipt.output_root_tree_hash_without_receipt,
+    ):
+        raise ProvisionalPairCombineError("recovery receipt does not bind output root tree")
+
+    parent = Path(recovery_spec.parent_root_path).resolve(strict=True)
+    if parent == root:
+        raise ProvisionalPairCombineError("recovery parent cannot be the recovered root")
+    if _root_tree(parent) != (
+        recovery_spec.parent_root_file_count,
+        recovery_spec.parent_root_tree_hash,
+    ):
+        raise ProvisionalPairCombineError("recovery parent root changed")
+    if hash_file(parent / _RUN_SPEC) != recovery_spec.parent_run_spec_sha256:
+        raise ProvisionalPairCombineError("recovery spec does not bind parent run spec")
+    if hash_file(parent / _MANIFEST) != recovery_spec.parent_manifest_sha256:
+        raise ProvisionalPairCombineError("recovery spec does not bind parent manifest")
+    if hash_file(parent / _RESULTS) != recovery_spec.parent_results_sha256:
+        raise ProvisionalPairCombineError("recovery spec does not bind parent results")
+    parent_manifest_payload = _parse_json_object(
+        (parent / _MANIFEST).read_bytes(), path=parent / _MANIFEST
+    )
+    if parent_manifest_payload.get("journal_tree_hash") != (recovery_spec.parent_journal_tree_hash):
+        raise ProvisionalPairCombineError("recovery spec does not bind parent journal tree")
+    if (root / _RUN_SPEC).read_bytes() != (parent / _RUN_SPEC).read_bytes():
+        raise ProvisionalPairCombineError("recovery changed run_spec.json bytes")
+    output_run_spec_payload = _parse_json_object(
+        (root / _RUN_SPEC).read_bytes(), path=root / _RUN_SPEC
+    )
+    if (
+        output_run_spec_payload.get("profile_id") != recovery_spec.profile_id
+        or output_run_spec_payload.get("profile_config_hash") != recovery_spec.profile_config_hash
+    ):
+        raise ProvisionalPairCombineError("recovery spec does not bind run profile/config")
+
+    parent_lines = (parent / _RESULTS).read_bytes().splitlines(keepends=True)
+    output_lines = (root / _RESULTS).read_bytes().splitlines(keepends=True)
+    if len(parent_lines) != len(output_lines):
+        raise ProvisionalPairCombineError("recovery changed result cardinality")
+    target_index = recovery_spec.target_result_line_number - 1
+    if target_index >= len(parent_lines):
+        raise ProvisionalPairCombineError("recovery target line is outside parent results")
+    try:
+        parent_target = V2E2MaterializationResult.model_validate(
+            _parse_json_object(parent_lines[target_index], path=parent / _RESULTS)
+        )
+        output_target = V2E2MaterializationResult.model_validate(
+            _parse_json_object(output_lines[target_index], path=root / _RESULTS)
+        )
+    except ValueError as exc:
+        raise ProvisionalPairCombineError(f"invalid recovery target result: {exc}") from exc
+    if (
+        parent_target.result_id != recovery_spec.target_result_id
+        or parent_target.attempt.attempt_id != recovery_spec.target_attempt_id
+        or parent_target.draft is None
+        or parent_target.draft.draft_id != recovery_spec.target_draft_id
+        or parent_target.attempt.source_theorem_ids != (recovery_spec.target_source_theorem_id,)
+        or parent_target.attempt.source_representation_ids
+        != (recovery_spec.target_source_representation_id,)
+        or not _has_infrastructure_error(parent_target)
+    ):
+        raise ProvisionalPairCombineError("recovery target does not bind parent failure")
+    if (
+        output_target.result_id != receipt.replacement_result_id
+        or output_target.terminal_status != receipt.replacement_terminal_status
+        or output_target.attempt != parent_target.attempt
+        or output_target.draft != parent_target.draft
+        or _has_infrastructure_error(output_target)
+        or hashlib.sha256(output_lines[target_index]).hexdigest()
+        != receipt.replacement_result_sha256
+    ):
+        raise ProvisionalPairCombineError("recovery receipt does not bind replacement result")
+    if any(
+        before != after
+        for index, (before, after) in enumerate(
+            zip(parent_lines, output_lines, strict=True), start=1
+        )
+        if index != recovery_spec.target_result_line_number
+    ):
+        raise ProvisionalPairCombineError("recovery changed a non-target result line")
+    if receipt.unchanged_result_line_count != len(parent_lines) - 1:
+        raise ProvisionalPairCombineError("recovery unchanged-line count is inconsistent")
+
+    parent_journals = tuple(sorted((parent / "journal").glob("batch_*.jsonl")))
+    output_journals = tuple(sorted((root / "journal").glob("batch_*.jsonl")))
+    if len(parent_journals) != len(output_journals):
+        raise ProvisionalPairCombineError("recovery changed journal cardinality")
+    for index, (before, after) in enumerate(zip(parent_journals, output_journals, strict=True)):
+        if index == recovery_spec.target_batch_index:
+            before_lines = before.read_bytes().splitlines(keepends=True)
+            after_lines = after.read_bytes().splitlines(keepends=True)
+            if len(before_lines) != len(after_lines):
+                raise ProvisionalPairCombineError("recovery changed target batch cardinality")
+            local_target = recovery_spec.target_batch_line_number - 1
+            if any(
+                left != right
+                for line_index, (left, right) in enumerate(
+                    zip(before_lines, after_lines, strict=True)
+                )
+                if line_index != local_target
+            ):
+                raise ProvisionalPairCombineError("recovery changed a non-target batch line")
+        elif before.read_bytes() != after.read_bytes():
+            raise ProvisionalPairCombineError("recovery changed a non-target journal file")
+    if receipt.unchanged_journal_file_count != len(parent_journals) - 1:
+        raise ProvisionalPairCombineError("recovery unchanged-journal count is inconsistent")
+
+    seen_raw_paths: set[str] = set()
+    saw_representation_stage = False
+    per_request_attempts: dict[str, list[RecoveryPipelineAttempt]] = defaultdict(list)
+    for raw_attempt in receipt.pipeline_attempts:
+        if raw_attempt.raw_response_relative_path in seen_raw_paths:
+            raise ProvisionalPairCombineError("recovery reused a raw response path")
+        seen_raw_paths.add(raw_attempt.raw_response_relative_path)
+        raw_path = root / raw_attempt.raw_response_relative_path
+        try:
+            raw_path.resolve(strict=True).relative_to(root.resolve())
+        except (OSError, ValueError) as exc:
+            raise ProvisionalPairCombineError("recovery raw response escaped output root") from exc
+        if not raw_path.is_file() or hash_file(raw_path) != raw_attempt.raw_response_sha256:
+            raise ProvisionalPairCombineError("recovery raw response hash mismatch")
+        raw_payload = _parse_json_object(raw_path.read_bytes(), path=raw_path)
+        raw_request = raw_payload.get("request")
+        if not isinstance(raw_request, dict):
+            raise ProvisionalPairCombineError("recovery raw response lacks its request")
+        if (
+            raw_payload.get("request_hash") != raw_attempt.request_hash
+            or raw_request.get("request_id") != raw_attempt.request_id
+            or raw_request.get("context_id") != raw_attempt.context_id
+            or raw_request.get("timeout_seconds") != raw_attempt.timeout_seconds
+            or raw_request.get("allow_sorry") is not raw_attempt.allow_sorry
+        ):
+            raise ProvisionalPairCombineError("recovery receipt differs from its raw request")
+        transport = raw_payload.get("transport_isolation")
+        if transport is None:
+            transport_attempt = None
+        elif isinstance(transport, dict):
+            transport_attempt = transport.get("attempt")
+        else:
+            raise ProvisionalPairCombineError("recovery raw transport isolation is malformed")
+        if transport_attempt != raw_attempt.transport_isolation_attempt:
+            raise ProvisionalPairCombineError("recovery transport-attempt binding differs")
+        if raw_attempt.context_id != parent_target.attempt.context_id:
+            raise ProvisionalPairCombineError("recovery request context differs from target")
+        if raw_attempt.stage == "candidate_validation":
+            if saw_representation_stage:
+                raise ProvisionalPairCombineError(
+                    "candidate validation followed representation work"
+                )
+        else:
+            saw_representation_stage = True
+        per_request_attempts[raw_attempt.request_id].append(raw_attempt)
+
+    expected_candidate_request_id = (
+        f"v2-e2-{recovery_spec.target_draft_id.removeprefix('draft:')[:24]}"
+    )
+    if any(
+        attempt.request_id != expected_candidate_request_id
+        or attempt.timeout_seconds != recovery_spec.candidate_timeout_seconds
+        or not attempt.allow_sorry
+        for attempt in receipt.lean_attempts
+    ):
+        raise ProvisionalPairCombineError("candidate recovery request differs from recovery spec")
+    for request_id, attempts in per_request_attempts.items():
+        if tuple(item.attempt_index for item in attempts) != tuple(range(len(attempts))):
+            raise ProvisionalPairCombineError(
+                f"recovery request {request_id} has non-contiguous retry lineage"
+            )
+        if any(item.status not in {"crash", "internal_error", "timeout"} for item in attempts[:-1]):
+            raise ProvisionalPairCombineError("recovery retried a non-infrastructure result")
+    if any(
+        attempt.status not in {"crash", "internal_error", "timeout"}
+        for attempt in receipt.lean_attempts[:-1]
+    ):
+        raise ProvisionalPairCombineError("recovery retried a non-infrastructure result")
+    final_status = receipt.lean_attempts[-1].status
+    if receipt.replacement_terminal_status == "candidate_invalid":
+        if final_status != "invalid":
+            raise ProvisionalPairCombineError("candidate-invalid recovery lacks INVALID lineage")
+    elif final_status not in {"valid", "valid_with_sorry"}:
+        raise ProvisionalPairCombineError("materialized recovery lacks elaborating final lineage")
+    if receipt.replacement_terminal_status == "candidate_representation_failed" and any(
+        attempts[-1].status in {"crash", "internal_error", "timeout"}
+        for request_id, attempts in per_request_attempts.items()
+        if request_id != expected_candidate_request_id
+    ):
+        raise ProvisionalPairCombineError(
+            "recovered representation retains an infrastructure failure"
+        )
+
+
 def _load_run_models(root: Path) -> tuple[RunKind, RunSpec, RunManifest]:
     spec_path = root / _RUN_SPEC
     manifest_path = root / _MANIFEST
@@ -477,6 +727,9 @@ def _load_run_models(root: Path) -> tuple[RunKind, RunSpec, RunManifest]:
         if spec_raw.get("schema_version") == 1:
             spec = _load_canonical_model(spec_path, V2E2ScaleRunSpecLegacyV1)
             manifest = _load_canonical_model(manifest_path, V2E2ScaleRunManifestLegacyV1)
+        elif spec_raw.get("schema_version") == 2:
+            spec = _load_canonical_model(spec_path, V2E2ScaleRunSpecLegacyV2)
+            manifest = _load_canonical_model(manifest_path, V2E2ScaleRunManifestLegacyV2)
         else:
             spec = _load_canonical_model(spec_path, V2E2ScaleRunSpec)
             manifest = _load_canonical_model(manifest_path, V2E2ScaleRunManifest)
@@ -802,10 +1055,15 @@ def _observation(
     )
 
 
-def _load_root(root: Path) -> _LoadedRoot:
+def _load_root(
+    root: Path,
+    *,
+    allowed_infrastructure_result_ids: frozenset[str] = frozenset(),
+) -> _LoadedRoot:
     root = root.resolve(strict=True)
     if not root.is_dir() or root.is_symlink():
         raise ProvisionalPairCombineError(f"materialization root is not a directory: {root}")
+    _validate_e2_recovery_metadata(root)
     initial_file_count, initial_tree_hash = _root_tree(root)
     run_kind, spec, manifest = _load_run_models(root)
     source_inventory = _load_source_inventory(spec)
@@ -828,6 +1086,7 @@ def _load_root(root: Path) -> _LoadedRoot:
     family_status_counts: Counter[str] = Counter()
     actual_attempt_keys: list[tuple[str, str, str, int]] = []
     rules: set[str] = set()
+    seen_allowed_infrastructure_result_ids: set[str] = set()
     for line_number, raw, raw_line in _iter_jsonl_objects(results_path):
         try:
             result = model.model_validate(raw)
@@ -846,10 +1105,12 @@ def _load_root(root: Path) -> _LoadedRoot:
         if result.attempt.context_id != spec.context_id:
             raise ProvisionalPairCombineError("result context differs from run spec")
         if _has_infrastructure_error(result):
-            raise ProvisionalPairCombineError(
-                f"materialization root contains an infrastructure-error result at line "
-                f"{line_number}"
-            )
+            if result.result_id not in allowed_infrastructure_result_ids:
+                raise ProvisionalPairCombineError(
+                    f"materialization root contains an infrastructure-error result at line "
+                    f"{line_number}"
+                )
+            seen_allowed_infrastructure_result_ids.add(result.result_id)
         status_counts[result.terminal_status] += 1
         family_status_counts[f"{result.rule_id}:{result.terminal_status}"] += 1
         source_ids = result.attempt.source_theorem_ids
@@ -862,6 +1123,11 @@ def _load_root(root: Path) -> _LoadedRoot:
         rules.add(result.rule_id)
         results.append((line_number, result))
 
+    if seen_allowed_infrastructure_result_ids != set(allowed_infrastructure_result_ids):
+        raise ProvisionalPairCombineError(
+            "allowed infrastructure result IDs do not exactly match the validated root"
+        )
+
     if len(results) != manifest.result_count or len(results) != spec.attempt_count:
         raise ProvisionalPairCombineError("result cardinality does not match spec/manifest")
     if dict(sorted(status_counts.items())) != manifest.terminal_status_counts:
@@ -872,7 +1138,10 @@ def _load_root(root: Path) -> _LoadedRoot:
         raise ProvisionalPairCombineError("ordered result attempts differ from run spec")
 
     provisional_count = status_counts["provisional_variant"]
-    if isinstance(spec, (V2D0ScaleRunSpec, V2E2ScaleRunSpec)):
+    if isinstance(
+        spec,
+        (V2D0ScaleRunSpec, V2E2ScaleRunSpec, V2E2ScaleRunSpecLegacyV2),
+    ):
         execution_settings_provenance = "recorded"
         execution_workers = spec.workers
         execution_memory_hard_limit_mb = spec.memory_hard_limit_mb

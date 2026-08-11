@@ -89,6 +89,9 @@ class _BatchBackend:
         ]
         return results[:-1] if self.drop_last and results else results
 
+    def reset_session(self) -> None:
+        """Test double models a fresh pooled session without changing its script."""
+
 
 def _install_candidate_representations(
     monkeypatch: pytest.MonkeyPatch,

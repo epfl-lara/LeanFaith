@@ -104,6 +104,8 @@ def run_batch_with_retries(
     run_batch: Callable[[Sequence[LeanRequest]], Sequence[LeanResult]],
     requests: Sequence[LeanRequest],
     policy: RetryPolicy | None = None,
+    *,
+    before_retry: Callable[[int, tuple[int, ...]], None] | None = None,
 ) -> BatchRetryOutcome:
     """Run independent requests concurrently while retrying infrastructure failures.
 
@@ -120,6 +122,8 @@ def run_batch_with_retries(
     histories: list[list[LeanResult]] = [[] for _ in requests]
     pending = list(range(len(requests)))
     for attempt_index in range(policy.max_attempts):
+        if attempt_index > 0 and before_retry is not None:
+            before_retry(attempt_index, tuple(pending))
         attempt_requests = [
             replace(
                 requests[index],

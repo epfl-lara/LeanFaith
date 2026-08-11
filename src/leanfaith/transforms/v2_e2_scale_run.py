@@ -28,6 +28,10 @@ from leanfaith.transforms.v2_e0_scale_run import (
 from leanfaith.transforms.v2_e2_materializer import E2RuleId, V2E2MaterializationResult
 from leanfaith.transforms.v2_e2_runtime import V2E2Runtime
 from leanfaith.transforms.v2_e2_scale import (
+    E2_CANDIDATE_TIMEOUT_SECONDS,
+    E2_INFRASTRUCTURE_MAX_ATTEMPTS,
+    E2_INFRASTRUCTURE_RETRY_STATUS_VALUES,
+    E2_INFRASTRUCTURE_RETRY_STATUSES,
     V2E2MaterializationInput,
     materialize_v2_e2_batch,
 )
@@ -40,6 +44,60 @@ class V2E2ScaleRunError(RuntimeError):
 
 
 class V2E2ScaleRunSpec(StrictModel):
+    schema_version: Literal[3] = 3
+    artifact_kind: Literal["deterministic_v2_e2_scale_run_spec"] = (
+        "deterministic_v2_e2_scale_run_spec"
+    )
+    profile_id: Literal[
+        "deterministic_v2_e2_p14_experimental",
+        "deterministic_v2_e2_p15_experimental",
+        "deterministic_v2_e2_p16_experimental",
+        "deterministic_v2_e2_p17_experimental",
+        "deterministic_v2_e2_p18_experimental",
+    ]
+    profile_config_hash: str = Field(pattern=_HEX64)
+    rule_id: Literal[
+        "p14_independent_binder_permutation",
+        "p15_root_iff_reversal",
+        "p16_conjunction_reassociation",
+        "p17_hypothesis_packing",
+        "p18_root_equality_symmetry",
+    ]
+    theorem_partition: str
+    theorem_partition_sha256: str = Field(pattern=_HEX64)
+    representation_partition: str
+    representation_partition_sha256: str = Field(pattern=_HEX64)
+    project_dir: str
+    context_id: str
+    import_header_sha256: str = Field(pattern=_HEX64)
+    base_seed: int
+    batch_size: int = Field(ge=1)
+    max_sources: int | None = Field(default=None, ge=1)
+    workers: int = Field(ge=1)
+    memory_hard_limit_mb: int | None = Field(default=None, ge=1)
+    candidate_timeout_seconds: float = Field(gt=0)
+    candidate_infrastructure_max_attempts: int = Field(ge=1)
+    candidate_retry_statuses: tuple[Literal["crash", "internal_error", "timeout"], ...]
+    candidate_fresh_session_between_infrastructure_attempts: Literal[True] = True
+    source_count: int = Field(ge=1)
+    attempt_count: int = Field(ge=1)
+    ordered_theorem_ids_sha256: str = Field(pattern=_HEX64)
+    ordered_attempt_keys_sha256: str = Field(pattern=_HEX64)
+    resolved_label_count: Literal[0] = 0
+    promoted_item_count: Literal[0] = 0
+    training_eligible: Literal[False] = False
+
+    @model_validator(mode="after")
+    def _retry_policy_is_canonical(self) -> V2E2ScaleRunSpec:
+        expected = tuple(sorted(status.value for status in E2_INFRASTRUCTURE_RETRY_STATUSES))
+        if self.candidate_retry_statuses != expected:
+            raise ValueError("candidate retry statuses must use the canonical E2 policy")
+        return self
+
+
+class V2E2ScaleRunSpecLegacyV2(StrictModel):
+    """Read-only schema for completed roots written before bounded retries."""
+
     schema_version: Literal[2] = 2
     artifact_kind: Literal["deterministic_v2_e2_scale_run_spec"] = (
         "deterministic_v2_e2_scale_run_spec"
@@ -122,7 +180,7 @@ class V2E2ScaleRunSpecLegacyV1(StrictModel):
 
 
 class V2E2ScaleRunManifest(StrictModel):
-    schema_version: Literal[2] = 2
+    schema_version: Literal[3] = 3
     artifact_kind: Literal["deterministic_v2_e2_scale_manifest"] = (
         "deterministic_v2_e2_scale_manifest"
     )
@@ -139,6 +197,33 @@ class V2E2ScaleRunManifest(StrictModel):
 
     @model_validator(mode="after")
     def _reconciles(self) -> V2E2ScaleRunManifest:
+        if sum(self.terminal_status_counts.values()) != self.result_count:
+            raise ValueError("terminal status counts do not reconcile")
+        if sum(self.family_status_counts.values()) != self.result_count:
+            raise ValueError("family status counts do not reconcile")
+        return self
+
+
+class V2E2ScaleRunManifestLegacyV2(StrictModel):
+    """Read-only manifest for a complete schema-2 E2 root."""
+
+    schema_version: Literal[2] = 2
+    artifact_kind: Literal["deterministic_v2_e2_scale_manifest"] = (
+        "deterministic_v2_e2_scale_manifest"
+    )
+    run_spec_sha256: str = Field(pattern=_HEX64)
+    batch_count: int = Field(ge=1)
+    result_count: int = Field(ge=1)
+    terminal_status_counts: dict[str, int]
+    family_status_counts: dict[str, int]
+    journal_tree_hash: str = Field(pattern=_HEX64)
+    results_sha256: str = Field(pattern=_HEX64)
+    resolved_label_count: Literal[0] = 0
+    promoted_item_count: Literal[0] = 0
+    training_eligible: Literal[False] = False
+
+    @model_validator(mode="after")
+    def _reconciles(self) -> V2E2ScaleRunManifestLegacyV2:
         if sum(self.terminal_status_counts.values()) != self.result_count:
             raise ValueError("terminal status counts do not reconcile")
         if sum(self.family_status_counts.values()) != self.result_count:
@@ -318,10 +403,10 @@ def _reject_legacy_resume(output_dir: Path) -> None:
     if (
         isinstance(payload, dict)
         and payload.get("artifact_kind") == "deterministic_v2_e2_scale_run_spec"
-        and payload.get("schema_version") == 1
+        and payload.get("schema_version") in {1, 2}
     ):
         raise V2E2ScaleRunError(
-            "legacy E2 schema-1 roots are read-only and cannot be resumed in place; "
+            "legacy E2 schema-1/2 roots are read-only and cannot be resumed in place; "
             "use a new output root"
         )
 
@@ -487,6 +572,10 @@ def run_v2_e2_scale(
         max_sources=max_sources,
         workers=workers,
         memory_hard_limit_mb=memory_hard_limit_mb,
+        candidate_timeout_seconds=E2_CANDIDATE_TIMEOUT_SECONDS,
+        candidate_infrastructure_max_attempts=E2_INFRASTRUCTURE_MAX_ATTEMPTS,
+        candidate_retry_statuses=E2_INFRASTRUCTURE_RETRY_STATUS_VALUES,
+        candidate_fresh_session_between_infrastructure_attempts=True,
         source_count=source_count,
         attempt_count=source_count,
         ordered_theorem_ids_sha256=theorem_ids_hash,
@@ -517,6 +606,11 @@ def run_v2_e2_scale(
                 context_id=context_id,
                 project_dir=project_dir,
                 import_header=import_header,
+                candidate_timeout_seconds=spec.candidate_timeout_seconds,
+                infrastructure_max_attempts=spec.candidate_infrastructure_max_attempts,
+                fresh_session_between_infrastructure_attempts=(
+                    spec.candidate_fresh_session_between_infrastructure_attempts
+                ),
             )
             _write_e2_immutable(batch_path, _batch_payload(batch_results))
         result_count += len(batch_results)
@@ -569,7 +663,9 @@ __all__ = [
     "V2E2ScaleRunError",
     "V2E2ScaleRunManifest",
     "V2E2ScaleRunManifestLegacyV1",
+    "V2E2ScaleRunManifestLegacyV2",
     "V2E2ScaleRunSpec",
     "V2E2ScaleRunSpecLegacyV1",
+    "V2E2ScaleRunSpecLegacyV2",
     "run_v2_e2_scale",
 ]

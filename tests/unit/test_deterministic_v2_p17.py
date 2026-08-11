@@ -479,8 +479,9 @@ def test_p17_scale_runner_resumes_immutable_profile_bound_batches(
         context_id: str,
         project_dir: Path,
         import_header: str,
+        **retry_settings: object,
     ) -> tuple[object, ...]:
-        del backend, context_id, project_dir, import_header
+        del backend, context_id, project_dir, import_header, retry_settings
         nonlocal calls
         calls += 1
         typed_runtime = cast(Any, runtime)
@@ -575,9 +576,13 @@ def test_p17_scale_runner_resumes_immutable_profile_bound_batches(
     assert second.results_path.read_bytes() == first_results
     assert second.result_count == 2
     run_spec = json.loads(first.run_spec_path.read_text(encoding="utf-8"))
-    assert run_spec["schema_version"] == 2
+    assert run_spec["schema_version"] == 3
     assert run_spec["workers"] == 2
     assert run_spec["memory_hard_limit_mb"] == 8192
+    assert run_spec["candidate_timeout_seconds"] == 600.0
+    assert run_spec["candidate_infrastructure_max_attempts"] == 2
+    assert run_spec["candidate_retry_statuses"] == ["crash", "internal_error", "timeout"]
+    assert run_spec["candidate_fresh_session_between_infrastructure_attempts"] is True
 
     with pytest.raises(V2E2ScaleRunError, match="immutable artifact conflict"):
         run_v2_e2_scale(
@@ -605,12 +610,14 @@ def test_p17_scale_runner_resumes_immutable_profile_bound_batches(
     assert calls == 2
 
     legacy_spec = json.loads(first.run_spec_path.read_text(encoding="utf-8"))
-    legacy_spec["schema_version"] = 1
-    legacy_spec.pop("workers")
-    legacy_spec.pop("memory_hard_limit_mb")
+    legacy_spec["schema_version"] = 2
+    legacy_spec.pop("candidate_timeout_seconds")
+    legacy_spec.pop("candidate_infrastructure_max_attempts")
+    legacy_spec.pop("candidate_retry_statuses")
+    legacy_spec.pop("candidate_fresh_session_between_infrastructure_attempts")
     first.run_spec_path.write_bytes(canonical_json_bytes(legacy_spec) + b"\n")
     legacy_manifest = json.loads(first.manifest_path.read_text(encoding="utf-8"))
-    legacy_manifest["schema_version"] = 1
+    legacy_manifest["schema_version"] = 2
     legacy_manifest["run_spec_sha256"] = hash_file(first.run_spec_path)
     first.manifest_path.write_bytes(canonical_json_bytes(legacy_manifest) + b"\n")
 
@@ -620,11 +627,11 @@ def test_p17_scale_runner_resumes_immutable_profile_bound_batches(
     )
     combined_manifest = json.loads(combined.manifest_path.read_text(encoding="utf-8"))
     binding = combined_manifest["root_bindings"][0]
-    assert binding["execution_settings_provenance"] == "legacy_unknown"
-    assert binding["workers"] is None
-    assert binding["memory_hard_limit_mb"] is None
+    assert binding["execution_settings_provenance"] == "recorded"
+    assert binding["workers"] == 2
+    assert binding["memory_hard_limit_mb"] == 8192
 
-    with pytest.raises(V2E2ScaleRunError, match="legacy E2 schema-1 roots are read-only"):
+    with pytest.raises(V2E2ScaleRunError, match="legacy E2 schema-1/2 roots are read-only"):
         run_v2_e2_scale(
             backend=cast(Any, backend),
             runtime=runtime,
