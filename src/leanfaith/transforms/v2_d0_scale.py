@@ -192,9 +192,17 @@ def materialize_v2_d0_batch(
             raise V2D0ScaleError("candidate Lean batch did not preserve request order")
         if lean_result.context_id != context_id:
             raise V2D0ScaleError("candidate Lean result context does not match batch context")
-        if lean_result.status not in {LeanStatus.VALID, LeanStatus.VALID_WITH_SORRY}:
+        if lean_result.status == LeanStatus.INVALID:
             ordered[generated_item.index] = build_v2_d0_result(
                 terminal_status="candidate_invalid",
+                draft=generated_item.draft,
+                failure_codes=(f"lean_{lean_result.status.value}",),
+                **common,
+            )
+            continue
+        if lean_result.status not in {LeanStatus.VALID, LeanStatus.VALID_WITH_SORRY}:
+            ordered[generated_item.index] = build_v2_d0_result(
+                terminal_status="candidate_infrastructure_error",
                 draft=generated_item.draft,
                 failure_codes=(f"lean_{lean_result.status.value}",),
                 **common,

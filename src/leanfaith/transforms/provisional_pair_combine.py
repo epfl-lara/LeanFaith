@@ -37,11 +37,21 @@ from leanfaith.transforms.protocol import (
 )
 from leanfaith.transforms.scale_materializer import _representation_payload_hash
 from leanfaith.transforms.v2_d0_materializer import V2D0MaterializationResult
-from leanfaith.transforms.v2_d0_scale_run import V2D0ScaleRunManifest, V2D0ScaleRunSpec
+from leanfaith.transforms.v2_d0_scale_run import (
+    V2D0ScaleRunManifest,
+    V2D0ScaleRunManifestLegacyV2,
+    V2D0ScaleRunSpec,
+    V2D0ScaleRunSpecLegacyV2,
+)
 from leanfaith.transforms.v2_e0_materializer import V2E0MaterializationResult
 from leanfaith.transforms.v2_e0_scale_run import V2E0ScaleRunManifest, V2E0ScaleRunSpec
 from leanfaith.transforms.v2_e2_materializer import V2E2MaterializationResult
-from leanfaith.transforms.v2_e2_scale_run import V2E2ScaleRunManifest, V2E2ScaleRunSpec
+from leanfaith.transforms.v2_e2_scale_run import (
+    V2E2ScaleRunManifest,
+    V2E2ScaleRunManifestLegacyV1,
+    V2E2ScaleRunSpec,
+    V2E2ScaleRunSpecLegacyV1,
+)
 
 _HEX64 = r"^[0-9a-f]{64}$"
 _RUN_SPEC = "run_spec.json"
@@ -73,8 +83,20 @@ _INFRASTRUCTURE_FAILURE_TOKENS = (
 )
 
 type RunKind = Literal["e0", "e2", "d0"]
-type RunSpec = V2E0ScaleRunSpec | V2E2ScaleRunSpec | V2D0ScaleRunSpec
-type RunManifest = V2E0ScaleRunManifest | V2E2ScaleRunManifest | V2D0ScaleRunManifest
+type RunSpec = (
+    V2E0ScaleRunSpec
+    | V2E2ScaleRunSpec
+    | V2E2ScaleRunSpecLegacyV1
+    | V2D0ScaleRunSpec
+    | V2D0ScaleRunSpecLegacyV2
+)
+type RunManifest = (
+    V2E0ScaleRunManifest
+    | V2E2ScaleRunManifest
+    | V2E2ScaleRunManifestLegacyV1
+    | V2D0ScaleRunManifest
+    | V2D0ScaleRunManifestLegacyV2
+)
 type MaterializationResult = (
     V2E0MaterializationResult | V2E2MaterializationResult | V2D0MaterializationResult
 )
@@ -118,13 +140,16 @@ class FileBinding(StrictModel):
 class MaterializationRootBinding(StrictModel):
     """Complete binding for one accepted deterministic-v2 root."""
 
-    schema_version: Literal[1] = 1
+    schema_version: Literal[2] = 2
     root_binding_id: str = Field(pattern=r"^detprov_root:[0-9a-f]{64}$")
     root_path: str = Field(min_length=1)
     run_kind: RunKind
     profile_id: str = Field(min_length=1)
     rule_ids: tuple[str, ...] = Field(min_length=1)
     context_id: str = Field(min_length=1)
+    execution_settings_provenance: Literal["recorded", "legacy_unknown"]
+    workers: int | None = Field(default=None, ge=1)
+    memory_hard_limit_mb: int | None = Field(default=None, ge=1)
     run_spec: FileBinding
     manifest: FileBinding
     results: FileBinding
@@ -151,6 +176,12 @@ class MaterializationRootBinding(StrictModel):
             raise ValueError("root_binding_id does not match its bound payload")
         if self.rule_ids != tuple(sorted(set(self.rule_ids))):
             raise ValueError("rule_ids must be sorted and unique")
+        if self.execution_settings_provenance == "recorded" and self.workers is None:
+            raise ValueError("recorded execution settings require a worker count")
+        if self.execution_settings_provenance == "legacy_unknown" and (
+            self.workers is not None or self.memory_hard_limit_mb is not None
+        ):
+            raise ValueError("legacy execution settings must remain explicitly unknown")
         return self
 
 
@@ -443,12 +474,20 @@ def _load_run_models(root: Path) -> tuple[RunKind, RunSpec, RunManifest]:
         manifest: RunManifest = _load_canonical_model(manifest_path, V2E0ScaleRunManifest)
     elif kind == "deterministic_v2_e2_scale_run_spec":
         run_kind = "e2"
-        spec = _load_canonical_model(spec_path, V2E2ScaleRunSpec)
-        manifest = _load_canonical_model(manifest_path, V2E2ScaleRunManifest)
+        if spec_raw.get("schema_version") == 1:
+            spec = _load_canonical_model(spec_path, V2E2ScaleRunSpecLegacyV1)
+            manifest = _load_canonical_model(manifest_path, V2E2ScaleRunManifestLegacyV1)
+        else:
+            spec = _load_canonical_model(spec_path, V2E2ScaleRunSpec)
+            manifest = _load_canonical_model(manifest_path, V2E2ScaleRunManifest)
     elif kind == "deterministic_v2_d0_scale_run_spec":
         run_kind = "d0"
-        spec = _load_canonical_model(spec_path, V2D0ScaleRunSpec)
-        manifest = _load_canonical_model(manifest_path, V2D0ScaleRunManifest)
+        if spec_raw.get("schema_version") == 2:
+            spec = _load_canonical_model(spec_path, V2D0ScaleRunSpecLegacyV2)
+            manifest = _load_canonical_model(manifest_path, V2D0ScaleRunManifestLegacyV2)
+        else:
+            spec = _load_canonical_model(spec_path, V2D0ScaleRunSpec)
+            manifest = _load_canonical_model(manifest_path, V2D0ScaleRunManifest)
     else:
         raise ProvisionalPairCombineError(
             f"unsupported deterministic materialization run kind at {spec_path}: {kind!r}"
@@ -833,12 +872,23 @@ def _load_root(root: Path) -> _LoadedRoot:
         raise ProvisionalPairCombineError("ordered result attempts differ from run spec")
 
     provisional_count = status_counts["provisional_variant"]
+    if isinstance(spec, (V2D0ScaleRunSpec, V2E2ScaleRunSpec)):
+        execution_settings_provenance = "recorded"
+        execution_workers = spec.workers
+        execution_memory_hard_limit_mb = spec.memory_hard_limit_mb
+    else:
+        execution_settings_provenance = "legacy_unknown"
+        execution_workers = None
+        execution_memory_hard_limit_mb = None
     binding_data: dict[str, object] = {
         "root_path": str(root),
         "run_kind": run_kind,
         "profile_id": spec.profile_id,
         "rule_ids": tuple(sorted(rules)),
         "context_id": spec.context_id,
+        "execution_settings_provenance": execution_settings_provenance,
+        "workers": execution_workers,
+        "memory_hard_limit_mb": execution_memory_hard_limit_mb,
         "run_spec": _regular_file_binding(root / _RUN_SPEC, relative_to=root),
         "manifest": _regular_file_binding(root / _MANIFEST, relative_to=root),
         "results": _regular_file_binding(results_path, relative_to=root),

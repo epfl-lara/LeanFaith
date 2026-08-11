@@ -4,10 +4,14 @@ from __future__ import annotations
 
 import hashlib
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any, cast
 
 import pytest
 
+from leanfaith.config.hashing import canonical_json_bytes, hash_file
+from leanfaith.lean.leaninteract_backend import BackendExecutionBinding
+from leanfaith.lean.session_policy import ServerMode
 from leanfaith.representations import alpha_identity_fingerprint
 from leanfaith.representations.atoms import operator_tree, semantic_atoms
 from leanfaith.schemas import CANONICAL_VIEW_NAMES, RepresentationRecord, TheoremRecord
@@ -23,12 +27,13 @@ from leanfaith.transforms.positives.p17_hypothesis_packing import (
     enumerate_p17_sites,
 )
 from leanfaith.transforms.positives.v2_e0 import enumerate_p12_sites
+from leanfaith.transforms.provisional_pair_combine import combine_provisional_pair_roots
 from leanfaith.transforms.v2_e2_materializer import build_v2_e2_result
 from leanfaith.transforms.v2_e2_p15_runtime import V2E2P15Runtime
 from leanfaith.transforms.v2_e2_p16_runtime import V2E2P16Runtime
 from leanfaith.transforms.v2_e2_p17_runtime import build_v2_e2_p17_runtime
 from leanfaith.transforms.v2_e2_runtime import build_v2_e2_runtime
-from leanfaith.transforms.v2_e2_scale_run import _seed, run_v2_e2_scale
+from leanfaith.transforms.v2_e2_scale_run import V2E2ScaleRunError, _seed, run_v2_e2_scale
 from tests.unit.record_factories import representation_record, theorem_record
 
 _PACK_SOURCE = "theorem p17 (P Q R : Prop) (hP : P) (hQ : Q) : R := by sorry"
@@ -506,8 +511,38 @@ def test_p17_scale_runner_resumes_immutable_profile_bound_batches(
 
     monkeypatch.setattr(scale_run_module, "materialize_v2_e2_batch", fake_materialize)
     output = tmp_path / "scale"
+    backend = SimpleNamespace(
+        execution_binding=BackendExecutionBinding(
+            server_mode=ServerMode.POOL,
+            workers=2,
+            memory_hard_limit_mb=8192,
+        )
+    )
+    with pytest.raises(V2E2ScaleRunError, match="do not match the LeanInteract backend"):
+        run_v2_e2_scale(
+            backend=cast(
+                Any,
+                SimpleNamespace(
+                    execution_binding=BackendExecutionBinding(
+                        server_mode=ServerMode.POOL,
+                        workers=1,
+                        memory_hard_limit_mb=8192,
+                    )
+                ),
+            ),
+            runtime=runtime,
+            theorem_path=theorem_path,
+            representation_path=representation_path,
+            project_dir=tmp_path,
+            import_header="import LeanFaithFixtures",
+            output_dir=tmp_path / "misreported-scale",
+            workers=2,
+            memory_hard_limit_mb=8192,
+        )
+    assert not (tmp_path / "misreported-scale").exists()
+
     first = run_v2_e2_scale(
-        backend=cast(Any, object()),
+        backend=cast(Any, backend),
         runtime=runtime,
         theorem_path=theorem_path,
         representation_path=representation_path,
@@ -516,12 +551,14 @@ def test_p17_scale_runner_resumes_immutable_profile_bound_batches(
         output_dir=output,
         batch_size=1,
         base_seed=17,
+        workers=2,
+        memory_hard_limit_mb=8192,
     )
     first_manifest = first.manifest_path.read_bytes()
     first_results = first.results_path.read_bytes()
     assert calls == 2
     second = run_v2_e2_scale(
-        backend=cast(Any, object()),
+        backend=cast(Any, backend),
         runtime=runtime,
         theorem_path=theorem_path,
         representation_path=representation_path,
@@ -530,8 +567,74 @@ def test_p17_scale_runner_resumes_immutable_profile_bound_batches(
         output_dir=output,
         batch_size=1,
         base_seed=17,
+        workers=2,
+        memory_hard_limit_mb=8192,
     )
     assert calls == 2
     assert second.manifest_path.read_bytes() == first_manifest
     assert second.results_path.read_bytes() == first_results
     assert second.result_count == 2
+    run_spec = json.loads(first.run_spec_path.read_text(encoding="utf-8"))
+    assert run_spec["schema_version"] == 2
+    assert run_spec["workers"] == 2
+    assert run_spec["memory_hard_limit_mb"] == 8192
+
+    with pytest.raises(V2E2ScaleRunError, match="immutable artifact conflict"):
+        run_v2_e2_scale(
+            backend=cast(
+                Any,
+                SimpleNamespace(
+                    execution_binding=BackendExecutionBinding(
+                        server_mode=ServerMode.POOL,
+                        workers=2,
+                        memory_hard_limit_mb=None,
+                    )
+                ),
+            ),
+            runtime=runtime,
+            theorem_path=theorem_path,
+            representation_path=representation_path,
+            project_dir=tmp_path,
+            import_header="import LeanFaithFixtures",
+            output_dir=output,
+            batch_size=1,
+            base_seed=17,
+            workers=2,
+            memory_hard_limit_mb=None,
+        )
+    assert calls == 2
+
+    legacy_spec = json.loads(first.run_spec_path.read_text(encoding="utf-8"))
+    legacy_spec["schema_version"] = 1
+    legacy_spec.pop("workers")
+    legacy_spec.pop("memory_hard_limit_mb")
+    first.run_spec_path.write_bytes(canonical_json_bytes(legacy_spec) + b"\n")
+    legacy_manifest = json.loads(first.manifest_path.read_text(encoding="utf-8"))
+    legacy_manifest["schema_version"] = 1
+    legacy_manifest["run_spec_sha256"] = hash_file(first.run_spec_path)
+    first.manifest_path.write_bytes(canonical_json_bytes(legacy_manifest) + b"\n")
+
+    combined = combine_provisional_pair_roots(
+        materialization_roots=(output,),
+        output_dir=tmp_path / "combined-legacy-e2",
+    )
+    combined_manifest = json.loads(combined.manifest_path.read_text(encoding="utf-8"))
+    binding = combined_manifest["root_bindings"][0]
+    assert binding["execution_settings_provenance"] == "legacy_unknown"
+    assert binding["workers"] is None
+    assert binding["memory_hard_limit_mb"] is None
+
+    with pytest.raises(V2E2ScaleRunError, match="legacy E2 schema-1 roots are read-only"):
+        run_v2_e2_scale(
+            backend=cast(Any, backend),
+            runtime=runtime,
+            theorem_path=theorem_path,
+            representation_path=representation_path,
+            project_dir=tmp_path,
+            import_header="import LeanFaithFixtures",
+            output_dir=output,
+            batch_size=1,
+            base_seed=17,
+            workers=2,
+            memory_hard_limit_mb=8192,
+        )

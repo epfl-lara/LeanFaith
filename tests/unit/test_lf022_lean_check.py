@@ -18,6 +18,7 @@ from leanfaith.generation.lf022_batch import (
 )
 from leanfaith.generation.lf022_lean_check import (
     LF022LeanCheckError,
+    LF022LeanCheckManifest,
     check_lf022_provisional_candidates,
     parse_project_mappings,
 )
@@ -425,3 +426,84 @@ def test_project_mapping_and_cli_help(tmp_path: Path) -> None:
     assert result.exit_code == 0
     assert "LeanServerPool" in result.stdout
     assert "--batch-manifest" in result.stdout
+    assert "Exact selector content" in result.stdout
+
+
+def test_lean_check_manifest_v2_compatibility_and_v3_selector_roundtrip() -> None:
+    common = {
+        "method_version": "lf022_provisional_lean_check_v2",
+        "input_root": "data/lf022_execution",
+        "input_set_hash": "1" * 64,
+        "record_count": 0,
+        "ordered_variant_ids_hash": "2" * 64,
+        "checks_artifact": "data/checks/checks.jsonl",
+        "checks_sha256": "3" * 64,
+        "status_counts": {},
+        "outcome_counts": {},
+    }
+    legacy = LF022LeanCheckManifest(schema_version=2, **common)
+    legacy_payload = legacy.model_dump(mode="json")
+    assert "selection_postgen_selector_id" not in legacy_payload
+    assert "selection_postgen_selector" not in legacy_payload
+    assert "selection_postgen_selector_sha256" not in legacy_payload
+    assert LF022LeanCheckManifest.model_validate(legacy_payload) == legacy
+
+    selector = LF022LeanCheckManifest(
+        schema_version=3,
+        selection_batch_id="lf022_public_batch:" + "4" * 64,
+        selection_postgen_selector_id="lf022_postgen_terminal_selector:" + "5" * 64,
+        selection_postgen_selector="/storage/selector.json",
+        selection_postgen_selector_sha256="6" * 64,
+        selected_execution_task_count=1,
+        **common,
+    )
+    payload = selector.model_dump(mode="json")
+    assert payload["schema_version"] == 3
+    assert LF022LeanCheckManifest.model_validate(payload) == selector
+
+
+def test_lean_check_rejects_symlinked_output_components(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    input_root = tmp_path / "data" / "lf022_execution"
+    project_dir = tmp_path / "mathlib"
+    project_dir.mkdir()
+    monkeypatch.setattr(checker, "read_git_revision", lambda _path: REVISION)
+    _write_task(input_root, tmp_path, index=1, context_id=CTX_A, imports=["Mathlib"])
+
+    real_output_parent = tmp_path / "real-output-parent"
+    real_output_parent.mkdir()
+    symlinked_parent = tmp_path / "symlinked-output-parent"
+    symlinked_parent.symlink_to(real_output_parent, target_is_directory=True)
+    with pytest.raises(LF022LeanCheckError, match="traverses a symlink"):
+        check_lf022_provisional_candidates(
+            repo_root=tmp_path,
+            input_root=input_root,
+            output_root=symlinked_parent / "checks",
+            project_dirs={"mathlib": project_dir},
+            workers=1,
+            chunk_size=1,
+            timeout_seconds=1,
+            backend_factory=FakeBackend,
+            prepare_environment=lambda _settings: None,
+        )
+    assert not (real_output_parent / "checks").exists()
+
+    output_root = tmp_path / "safe-output"
+    output_root.mkdir()
+    hostile_records_target = tmp_path / "hostile-records-target"
+    hostile_records_target.mkdir()
+    (output_root / "records").symlink_to(hostile_records_target, target_is_directory=True)
+    with pytest.raises(LF022LeanCheckError, match="traverses a symlink"):
+        check_lf022_provisional_candidates(
+            repo_root=tmp_path,
+            input_root=input_root,
+            output_root=output_root,
+            project_dirs={"mathlib": project_dir},
+            workers=1,
+            chunk_size=1,
+            timeout_seconds=1,
+            backend_factory=FakeBackend,
+            prepare_environment=lambda _settings: None,
+        )

@@ -3752,6 +3752,26 @@ def check_lf022_provisional_lean_command(
             ),
         ),
     ] = None,
+    postgen_selector: Annotated[
+        Path | None,
+        typer.Option(
+            "--postgen-selector",
+            help=(
+                "Optional content-addressed terminal-only selector emitted by "
+                "reconcile-lf022-postgen for safe incremental checking."
+            ),
+        ),
+    ] = None,
+    expected_postgen_selector_id: Annotated[
+        str | None,
+        typer.Option(
+            "--expected-postgen-selector-id",
+            help=(
+                "Exact selector content ID verified before choosing the output directory; "
+                "requires --postgen-selector."
+            ),
+        ),
+    ] = None,
     root_dir: Annotated[
         Path | None,
         typer.Option("--root", help="Repository root override."),
@@ -3786,6 +3806,10 @@ def check_lf022_provisional_lean_command(
             environment_schema_version=load_environment_lock(paths).environment_schema_version,
             limit=limit,
             batch_manifest_path=(anchored(batch_manifest) if batch_manifest is not None else None),
+            postgen_selector_path=(
+                anchored(postgen_selector) if postgen_selector is not None else None
+            ),
+            expected_postgen_selector_id=expected_postgen_selector_id,
         )
     except (LF022LeanCheckError, OSError, ValueError) as exc:
         typer.echo(f"LF-022 pooled Lean check rejected: {exc}", err=True)
@@ -4569,6 +4593,98 @@ def run_lf022_public_batch_command(
     )
     if report.error_count:
         raise typer.Exit(code=2)
+
+
+@app.command("reconcile-lf022-postgen")
+def reconcile_lf022_postgen_command(
+    manifest_path: Annotated[
+        Path,
+        typer.Option("--manifest", help="Frozen public LF-022 batch manifest JSON."),
+    ],
+    output_root: Annotated[
+        Path,
+        typer.Option(
+            "--output-root",
+            help="Immutable reconciliation, retry-plan, and terminal-selector root.",
+        ),
+    ],
+    require_offline_ready: Annotated[
+        bool,
+        typer.Option(
+            "--require-offline-ready",
+            help="Exit 3 after writing evidence when any task remains nonterminal.",
+        ),
+    ] = False,
+    root_dir: Annotated[
+        Path | None,
+        typer.Option("--root", help="Execution repository root override."),
+    ] = None,
+) -> None:
+    """Partition terminal/error/missing tasks before LF-022 postprocessing."""
+    from leanfaith.config.paths import RepoPaths
+    from leanfaith.generation.lf022_postgen_reconcile import (
+        LF022PostgenReconciliationError,
+        reconcile_lf022_postgen,
+    )
+
+    paths = RepoPaths.discover(root_dir) if root_dir is None else RepoPaths(root=root_dir)
+
+    def anchored(path: Path) -> Path:
+        return path if path.is_absolute() else paths.root / path
+
+    try:
+        result = reconcile_lf022_postgen(
+            repo_root=paths.root,
+            manifest_path=anchored(manifest_path),
+            output_root=anchored(output_root),
+        )
+    except (LF022PostgenReconciliationError, OSError, ValueError) as exc:
+        typer.echo(f"LF-022 postgen reconciliation rejected: {exc}", err=True)
+        raise typer.Exit(code=2) from exc
+    report = result.reconciliation
+    typer.echo(
+        f"state={report.state} tasks={report.task_count} "
+        f"terminal={len(report.terminal_task_ids)} "
+        f"errors={len(report.error_task_ids)} missing={len(report.missing_task_ids)} "
+        f"reconciliation={result.reconciliation_path} "
+        f"retry_plan={result.retry_plan_path or 'none'} "
+        f"terminal_selector={result.terminal_selector_path or 'none'} "
+        "network_calls_this_run=0 semantic_labels_created=0 "
+        "training_eligible=false evaluation_eligible=false gate_credit_claimed=false"
+    )
+    if require_offline_ready and report.state != "offline_ready":
+        raise typer.Exit(code=3)
+
+
+@app.command("verify-lf022-postgen-selector")
+def verify_lf022_postgen_selector_command(
+    selector_path: Annotated[
+        Path,
+        typer.Option("--selector", help="Immutable LF-022 postgen terminal selector JSON."),
+    ],
+    root_dir: Annotated[
+        Path | None,
+        typer.Option("--root", help="Execution repository root override."),
+    ] = None,
+) -> None:
+    """Replay a postgen selector and print only its verified content ID."""
+    from leanfaith.config.paths import RepoPaths
+    from leanfaith.generation.lf022_postgen_reconcile import (
+        LF022PostgenReconciliationError,
+        verify_lf022_postgen_terminal_selector,
+    )
+
+    paths = RepoPaths.discover(root_dir) if root_dir is None else RepoPaths(root=root_dir)
+    anchored_selector = selector_path if selector_path.is_absolute() else paths.root / selector_path
+    try:
+        verified = verify_lf022_postgen_terminal_selector(
+            repo_root=paths.root,
+            selector_path=anchored_selector,
+        )
+    except (LF022PostgenReconciliationError, OSError, ValueError) as exc:
+        typer.echo(f"LF-022 postgen selector rejected: {exc}", err=True)
+        raise typer.Exit(code=2) from exc
+    typer.echo(verified.selector.selector_id)
 
 
 @app.command("qa-lf022-prefix256")
@@ -5682,6 +5798,8 @@ def materialize_deterministic_v2_d0_scale_command(
                 batch_size=batch_size,
                 base_seed=base_seed,
                 max_sources=max_sources,
+                workers=workers,
+                memory_hard_limit_mb=memory_hard_limit_mb,
             )
         finally:
             backend.close()
@@ -5808,6 +5926,8 @@ def materialize_deterministic_v2_e2_scale_command(
                 batch_size=batch_size,
                 base_seed=base_seed,
                 max_sources=max_sources,
+                workers=workers,
+                memory_hard_limit_mb=memory_hard_limit_mb,
             )
         finally:
             backend.close()

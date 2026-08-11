@@ -92,6 +92,15 @@ class BackendSettings:
     environment_is_prepared: bool = False
 
 
+@dataclass(frozen=True, slots=True)
+class BackendExecutionBinding:
+    """Immutable execution settings that affect persisted scale semantics."""
+
+    server_mode: ServerMode
+    workers: int | None
+    memory_hard_limit_mb: int | None
+
+
 class LeanInteractBackend:
     """Implementation of the A.5 ``LeanBackend`` protocol over LeanInteract.
 
@@ -114,6 +123,16 @@ class LeanInteractBackend:
     def auto_fallback_active(self) -> bool:
         """True when experimental AUTO mode fell back to the stable server."""
         return self._auto_fallback_active
+
+    @property
+    def execution_binding(self) -> BackendExecutionBinding:
+        """Return a safe immutable view of the effective process configuration."""
+
+        return BackendExecutionBinding(
+            server_mode=self._settings.server_mode,
+            workers=self._settings.workers,
+            memory_hard_limit_mb=self._settings.memory_hard_limit_mb,
+        )
 
     def _repl_config(self) -> LeanREPLConfig:
         # Scale pipelines prepare the immutable project and REPL once in the

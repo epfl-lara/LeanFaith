@@ -158,12 +158,26 @@ def _check_record_id(record: LF022LeanCheckRecord) -> str:
 class LF022LeanCheckManifest(StrictModel):
     """Deterministic summary of one current input snapshot."""
 
-    schema_version: Literal[2] = 2
+    schema_version: Literal[2, 3] = 2
     method_version: Literal["lf022_provisional_lean_check_v2"] = "lf022_provisional_lean_check_v2"
     input_root: str
     selection_batch_id: str | None = None
     selection_batch_manifest: str | None = None
     selection_batch_manifest_sha256: str | None = Field(default=None, pattern=HEX64_PATTERN)
+    selection_postgen_selector_id: str | None = Field(
+        default=None,
+        pattern=id_pattern("lf022_postgen_terminal_selector"),
+        exclude_if=lambda value: value is None,
+    )
+    selection_postgen_selector: str | None = Field(
+        default=None,
+        exclude_if=lambda value: value is None,
+    )
+    selection_postgen_selector_sha256: str | None = Field(
+        default=None,
+        pattern=HEX64_PATTERN,
+        exclude_if=lambda value: value is None,
+    )
     selected_execution_task_count: int | None = Field(default=None, ge=1, strict=True)
     input_set_hash: str = Field(pattern=HEX64_PATTERN)
     record_count: int = Field(ge=0, strict=True)
@@ -179,16 +193,34 @@ class LF022LeanCheckManifest(StrictModel):
 
     @model_validator(mode="after")
     def _selection_binding_is_complete(self) -> Self:
-        values = (
-            self.selection_batch_id,
+        batch_values = (
             self.selection_batch_manifest,
             self.selection_batch_manifest_sha256,
-            self.selected_execution_task_count,
         )
-        if any(value is not None for value in values) and not all(
-            value is not None for value in values
+        postgen_values = (
+            self.selection_postgen_selector_id,
+            self.selection_postgen_selector,
+            self.selection_postgen_selector_sha256,
+        )
+        if any(value is not None for value in batch_values) and not all(
+            value is not None for value in batch_values
         ):
             raise ValueError("batch selection binding must be present or absent as one unit")
+        if any(value is not None for value in postgen_values) and not all(
+            value is not None for value in postgen_values
+        ):
+            raise ValueError("postgen selector binding must be present or absent as one unit")
+        has_batch = all(value is not None for value in batch_values)
+        has_postgen = all(value is not None for value in postgen_values)
+        if has_batch and has_postgen:
+            raise ValueError("batch manifest and postgen selector are mutually exclusive")
+        if has_batch or has_postgen:
+            if self.selection_batch_id is None or self.selected_execution_task_count is None:
+                raise ValueError("selection lacks batch identity or selected task count")
+        elif self.selection_batch_id is not None or self.selected_execution_task_count is not None:
+            raise ValueError("partial selection identity is forbidden")
+        if self.schema_version == 2 and has_postgen:
+            raise ValueError("postgen selector requires Lean-check manifest schema v3")
         return self
 
 
@@ -262,6 +294,59 @@ def _artifact_label(path: Path, repo_root: Path) -> str:
         return str(resolved)
 
 
+def _safe_existing_directory(path: Path, *, label: str) -> Path:
+    candidate = path.absolute()
+    current = Path(candidate.anchor)
+    for part in candidate.parts[1:]:
+        current /= part
+        if current.is_symlink():
+            raise LF022LeanCheckError(f"{label} traverses a symlink")
+    try:
+        resolved = candidate.resolve(strict=True)
+    except OSError as exc:
+        raise LF022LeanCheckError(f"{label} is missing") from exc
+    if resolved != candidate or not resolved.is_dir():
+        raise LF022LeanCheckError(f"{label} is missing or unsafe")
+    return resolved
+
+
+def _safe_existing_file(path: Path, *, label: str) -> Path:
+    candidate = path.absolute()
+    current = Path(candidate.anchor)
+    for part in candidate.parts[1:]:
+        current /= part
+        if current.is_symlink():
+            raise LF022LeanCheckError(f"{label} traverses a symlink")
+    try:
+        resolved = candidate.resolve(strict=True)
+    except OSError as exc:
+        raise LF022LeanCheckError(f"{label} is missing") from exc
+    if resolved != candidate or not resolved.is_file():
+        raise LF022LeanCheckError(f"{label} is missing or unsafe")
+    return resolved
+
+
+def _safe_output_directory(path: Path, *, label: str) -> Path:
+    """Create or reuse an output directory without following any symlink."""
+
+    candidate = path.absolute()
+    if ".." in candidate.parts:
+        raise LF022LeanCheckError(f"{label} must be a normalized absolute path")
+    current = Path(candidate.anchor)
+    for part in candidate.parts[1:]:
+        current /= part
+        if current.is_symlink():
+            raise LF022LeanCheckError(f"{label} traverses a symlink")
+        if current.exists() and not current.is_dir():
+            raise LF022LeanCheckError(f"{label} component is not a directory")
+        current.mkdir(exist_ok=True)
+        if current.is_symlink() or not current.is_dir():
+            raise LF022LeanCheckError(f"{label} became unsafe during creation")
+    if candidate.resolve(strict=True) != candidate:
+        raise LF022LeanCheckError(f"{label} is not canonical")
+    return candidate
+
+
 def _discover_candidates(
     *,
     repo_root: Path,
@@ -270,6 +355,7 @@ def _discover_candidates(
     limit: int | None,
     selected_execution_task_ids: tuple[str, ...] | None,
     selected_task_content_hashes: Mapping[str, str] | None,
+    selected_terminal_artifacts: Mapping[str, tuple[Path, str]] | None,
 ) -> tuple[_Candidate, ...]:
     candidates: list[_Candidate] = []
     seen_variant_ids: set[str] = set()
@@ -278,11 +364,24 @@ def _discover_candidates(
     else:
         terminal_paths_list: list[Path] = []
         for execution_task_id in selected_execution_task_ids:
-            digest = execution_task_id.removeprefix("lf022_execution_task:")
-            terminal_path = input_root / "tasks" / digest[:2] / digest / "terminal.json"
-            if not terminal_path.is_file():
+            if selected_terminal_artifacts is None:
+                digest = execution_task_id.removeprefix("lf022_execution_task:")
+                terminal_path = input_root / "tasks" / digest[:2] / digest / "terminal.json"
+                expected_terminal_hash = None
+            else:
+                terminal_path, expected_terminal_hash = selected_terminal_artifacts[
+                    execution_task_id
+                ]
+            if terminal_path.is_symlink() or not terminal_path.is_file():
                 raise LF022LeanCheckError(
                     f"selected execution task lacks terminal artifact: {execution_task_id}"
+                )
+            if (
+                expected_terminal_hash is not None
+                and hash_file(terminal_path) != expected_terminal_hash
+            ):
+                raise LF022LeanCheckError(
+                    f"selected execution terminal hash differs: {execution_task_id}"
                 )
             terminal_paths_list.append(terminal_path)
         terminal_paths = tuple(terminal_paths_list)
@@ -618,14 +717,20 @@ def _load_resume_record(
 
 
 def _write_atomic(path: Path, payload: bytes) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
+    _safe_output_directory(path.parent, label="Lean-check artifact parent")
+    if path.is_symlink():
+        raise LF022LeanCheckError(f"Lean-check artifact cannot be a symlink: {path}")
     temporary = path.with_name(path.name + ".tmp")
+    if temporary.is_symlink():
+        raise LF022LeanCheckError(f"Lean-check temporary artifact cannot be a symlink: {temporary}")
     temporary.write_bytes(payload)
     temporary.replace(path)
 
 
 def _write_immutable(path: Path, payload: bytes) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
+    _safe_output_directory(path.parent, label="Lean-check artifact parent")
+    if path.is_symlink():
+        raise LF022LeanCheckError(f"Lean-check artifact cannot be a symlink: {path}")
     if path.exists():
         if path.read_bytes() != payload:
             raise LF022LeanCheckError(f"immutable artifact differs: {path}")
@@ -683,6 +788,8 @@ def check_lf022_provisional_candidates(
     environment_schema_version: int = 1,
     limit: int | None = None,
     batch_manifest_path: Path | None = None,
+    postgen_selector_path: Path | None = None,
+    expected_postgen_selector_id: str | None = None,
     backend_factory: BackendFactory = LeanInteractBackend,
     prepare_environment: PrepareEnvironment = LeanInteractBackend.prepare_environment,
 ) -> LF022LeanCheckRunResult:
@@ -699,19 +806,44 @@ def check_lf022_provisional_candidates(
         raise LF022LeanCheckError("timeout_seconds must be positive")
     if limit is not None and limit < 1:
         raise LF022LeanCheckError("limit must be positive when supplied")
-    if limit is not None and batch_manifest_path is not None:
-        raise LF022LeanCheckError("--limit cannot truncate an exact --batch-manifest selection")
+    selection_inputs = sum(
+        value is not None for value in (batch_manifest_path, postgen_selector_path)
+    )
+    if selection_inputs > 1:
+        raise LF022LeanCheckError("batch manifest and postgen selector are mutually exclusive")
+    if expected_postgen_selector_id is not None and postgen_selector_path is None:
+        raise LF022LeanCheckError(
+            "expected postgen selector ID requires a postgen selector artifact"
+        )
+    if (
+        expected_postgen_selector_id is not None
+        and re.fullmatch(
+            id_pattern("lf022_postgen_terminal_selector"), expected_postgen_selector_id
+        )
+        is None
+    ):
+        raise LF022LeanCheckError("expected postgen selector ID is malformed")
+    if limit is not None and selection_inputs:
+        raise LF022LeanCheckError("--limit cannot truncate an exact task selection")
     repo_root = repo_root.resolve()
+    supplied_input_root = input_root.absolute()
     input_root = input_root.resolve()
-    output_root = output_root.resolve()
+    supplied_output_root = output_root.absolute()
+    if supplied_output_root == input_root or supplied_output_root.is_relative_to(input_root):
+        raise LF022LeanCheckError("output_root must not be inside the immutable input root")
+    output_root = _safe_output_directory(output_root, label="Lean-check output root")
     if output_root == input_root or output_root.is_relative_to(input_root):
         raise LF022LeanCheckError("output_root must not be inside the immutable input root")
 
     selection_manifest: LF022PublicBatchManifest | None = None
     selection_manifest_label: str | None = None
     selection_manifest_sha256: str | None = None
+    selection_postgen_selector_id: str | None = None
+    selection_postgen_selector_label: str | None = None
+    selection_postgen_selector_sha256: str | None = None
     selected_execution_task_ids: tuple[str, ...] | None = None
     selected_task_content_hashes: dict[str, str] | None = None
+    selected_terminal_artifacts: dict[str, tuple[Path, str]] | None = None
     if batch_manifest_path is not None:
         batch_manifest_path = batch_manifest_path.resolve()
         (
@@ -724,6 +856,56 @@ def check_lf022_provisional_candidates(
             batch_manifest_path=batch_manifest_path,
         )
         selection_manifest_sha256 = hash_file(batch_manifest_path)
+    elif postgen_selector_path is not None:
+        from leanfaith.generation.lf022_postgen_reconcile import (
+            LF022PostgenReconciliationError,
+            verify_lf022_postgen_terminal_selector,
+        )
+
+        postgen_selector_path = _safe_existing_file(
+            postgen_selector_path,
+            label="postgen terminal selector",
+        )
+        try:
+            verified_selector = verify_lf022_postgen_terminal_selector(
+                repo_root=repo_root,
+                selector_path=postgen_selector_path,
+            )
+        except LF022PostgenReconciliationError as exc:
+            raise LF022LeanCheckError(f"postgen terminal selector rejected: {exc}") from exc
+        selector = verified_selector.selector
+        if (
+            expected_postgen_selector_id is not None
+            and selector.selector_id != expected_postgen_selector_id
+        ):
+            raise LF022LeanCheckError(
+                "verified postgen selector differs from the explicitly expected selector ID"
+            )
+        selected_execution_task_ids = verified_selector.execution_task_ids
+        selected_task_content_hashes = verified_selector.task_content_hashes
+        selected_terminal_artifacts = {
+            task_id: (
+                verified_selector.terminal_paths[task_id],
+                verified_selector.terminal_bindings[task_id].sha256,
+            )
+            for task_id in selected_execution_task_ids
+        }
+        expected_input_root = _safe_existing_directory(
+            repo_root / verified_selector.manifest.executor_output_root,
+            label="selector executor output root",
+        )
+        canonical_supplied_input_root = _safe_existing_directory(
+            supplied_input_root,
+            label="Lean-check input root",
+        )
+        if canonical_supplied_input_root != expected_input_root:
+            raise LF022LeanCheckError(
+                "postgen selector input_root differs from its frozen executor output root"
+            )
+        selection_postgen_selector_id = selector.selector_id
+        selection_postgen_selector_label = _artifact_label(postgen_selector_path, repo_root)
+        selection_postgen_selector_sha256 = hash_file(postgen_selector_path)
+        selection_manifest = verified_selector.manifest
 
     candidates = _discover_candidates(
         repo_root=repo_root,
@@ -732,6 +914,7 @@ def check_lf022_provisional_candidates(
         limit=limit,
         selected_execution_task_ids=selected_execution_task_ids,
         selected_task_content_hashes=selected_task_content_hashes,
+        selected_terminal_artifacts=selected_terminal_artifacts,
     )
     input_hashes = {
         candidate.variant_path: hash_file(candidate.variant_path) for candidate in candidates
@@ -751,6 +934,7 @@ def check_lf022_provisional_candidates(
     reused_count = 0
     for candidate in candidates:
         path = _record_path(output_root, candidate.variant.variant_id)
+        _safe_output_directory(path.parent, label="Lean-check record directory")
         if path.is_file():
             records[candidate.position] = _load_resume_record(
                 path,
@@ -789,6 +973,10 @@ def check_lf022_provisional_candidates(
             isolate_incremental_commands=True,
             confirm_invalid_on_fresh_process=True,
             environment_is_prepared=False,
+        )
+        _safe_output_directory(
+            base_settings.raw_response_dir,
+            label="Lean-check raw-response directory",
         )
         if project_dir not in prepared_projects:
             prepare_environment(base_settings)
@@ -829,6 +1017,12 @@ def check_lf022_provisional_candidates(
     for path, before in input_hashes.items():
         if hash_file(path) != before:
             raise LF022LeanCheckError(f"source variant artifact changed during checking: {path}")
+    if selected_terminal_artifacts is not None:
+        for task_id, (terminal_path, expected_hash) in selected_terminal_artifacts.items():
+            if terminal_path.is_symlink() or hash_file(terminal_path) != expected_hash:
+                raise LF022LeanCheckError(
+                    f"selected execution terminal changed during checking: {task_id}"
+                )
     ordered = tuple(record for record in records if record is not None)
     if len(ordered) != len(candidates):
         raise LF022LeanCheckError("one or more candidates lack a terminal check record")
@@ -851,15 +1045,30 @@ def check_lf022_provisional_candidates(
         }
         for candidate in candidates
     ]
+    if postgen_selector_path is not None:
+        replayed_selector_path = _safe_existing_file(
+            postgen_selector_path,
+            label="postgen terminal selector before manifest write",
+        )
+        if (
+            replayed_selector_path != postgen_selector_path
+            or selection_postgen_selector_sha256 is None
+            or hash_file(replayed_selector_path) != selection_postgen_selector_sha256
+        ):
+            raise LF022LeanCheckError("postgen terminal selector changed after verification")
     manifest = LF022LeanCheckManifest(
+        schema_version=(3 if selection_postgen_selector_id is not None else 2),
         input_root=_artifact_label(input_root, repo_root),
         selection_batch_id=(
             selection_manifest.batch_id if selection_manifest is not None else None
         ),
         selection_batch_manifest=selection_manifest_label,
         selection_batch_manifest_sha256=selection_manifest_sha256,
+        selection_postgen_selector_id=selection_postgen_selector_id,
+        selection_postgen_selector=selection_postgen_selector_label,
+        selection_postgen_selector_sha256=selection_postgen_selector_sha256,
         selected_execution_task_count=(
-            selection_manifest.total_task_count if selection_manifest is not None else None
+            len(selected_execution_task_ids) if selected_execution_task_ids is not None else None
         ),
         input_set_hash=hash_canonical(input_projection),
         record_count=len(ordered),

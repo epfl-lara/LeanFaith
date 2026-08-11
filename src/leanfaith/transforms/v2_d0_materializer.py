@@ -51,6 +51,7 @@ class V2D0MaterializationResult(StrictModel):
         "not_applicable",
         "no_output",
         "candidate_invalid",
+        "candidate_infrastructure_error",
         "candidate_representation_failed",
         "audit_quarantined",
         "provisional_variant",

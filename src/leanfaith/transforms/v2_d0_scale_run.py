@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import os
 import tempfile
 from collections import Counter
@@ -16,6 +17,7 @@ from pydantic import Field, model_validator
 from leanfaith.config.hashing import canonical_json_bytes, hash_canonical, hash_file
 from leanfaith.config.models import StrictModel
 from leanfaith.lean.leaninteract_backend import LeanInteractBackend
+from leanfaith.lean.session_policy import ServerMode
 from leanfaith.schemas.theorem import RepresentationRecord, TheoremRecord
 from leanfaith.transforms.v2_d0_materializer import (
     D0ProfileId,
@@ -49,6 +51,37 @@ class V2D0ScaleRunError(RuntimeError):
 
 
 class V2D0ScaleRunSpec(StrictModel):
+    schema_version: Literal[3] = 3
+    artifact_kind: Literal["deterministic_v2_d0_scale_run_spec"] = (
+        "deterministic_v2_d0_scale_run_spec"
+    )
+    profile_id: D0ProfileId
+    profile_config_hash: str = Field(pattern=_HEX64)
+    rule_id: D0RuleId
+    theorem_partition: str
+    theorem_partition_sha256: str = Field(pattern=_HEX64)
+    representation_partition: str
+    representation_partition_sha256: str = Field(pattern=_HEX64)
+    project_dir: str
+    context_id: str
+    import_header_sha256: str = Field(pattern=_HEX64)
+    base_seed: int
+    batch_size: int = Field(ge=1)
+    max_sources: int | None = Field(default=None, ge=1)
+    workers: int = Field(ge=1)
+    memory_hard_limit_mb: int | None = Field(default=None, ge=1)
+    source_count: int = Field(ge=1)
+    attempt_count: int = Field(ge=1)
+    ordered_theorem_ids_sha256: str = Field(pattern=_HEX64)
+    ordered_attempt_keys_sha256: str = Field(pattern=_HEX64)
+    resolved_label_count: Literal[0] = 0
+    promoted_item_count: Literal[0] = 0
+    training_eligible: Literal[False] = False
+
+
+class V2D0ScaleRunSpecLegacyV2(StrictModel):
+    """Read-only schema for completed roots written before execution binding."""
+
     schema_version: Literal[2] = 2
     artifact_kind: Literal["deterministic_v2_d0_scale_run_spec"] = (
         "deterministic_v2_d0_scale_run_spec"
@@ -76,7 +109,7 @@ class V2D0ScaleRunSpec(StrictModel):
 
 
 class V2D0ScaleRunManifest(StrictModel):
-    schema_version: Literal[2] = 2
+    schema_version: Literal[3] = 3
     artifact_kind: Literal["deterministic_v2_d0_scale_manifest"] = (
         "deterministic_v2_d0_scale_manifest"
     )
@@ -93,6 +126,33 @@ class V2D0ScaleRunManifest(StrictModel):
 
     @model_validator(mode="after")
     def _reconciles(self) -> V2D0ScaleRunManifest:
+        if sum(self.terminal_status_counts.values()) != self.result_count:
+            raise ValueError("terminal status counts do not reconcile")
+        if sum(self.family_status_counts.values()) != self.result_count:
+            raise ValueError("family status counts do not reconcile")
+        return self
+
+
+class V2D0ScaleRunManifestLegacyV2(StrictModel):
+    """Read-only manifest for a complete legacy D0 root."""
+
+    schema_version: Literal[2] = 2
+    artifact_kind: Literal["deterministic_v2_d0_scale_manifest"] = (
+        "deterministic_v2_d0_scale_manifest"
+    )
+    run_spec_sha256: str = Field(pattern=_HEX64)
+    batch_count: int = Field(ge=1)
+    result_count: int = Field(ge=1)
+    terminal_status_counts: dict[str, int]
+    family_status_counts: dict[str, int]
+    journal_tree_hash: str = Field(pattern=_HEX64)
+    results_sha256: str = Field(pattern=_HEX64)
+    resolved_label_count: Literal[0] = 0
+    promoted_item_count: Literal[0] = 0
+    training_eligible: Literal[False] = False
+
+    @model_validator(mode="after")
+    def _reconciles(self) -> V2D0ScaleRunManifestLegacyV2:
         if sum(self.terminal_status_counts.values()) != self.result_count:
             raise ValueError("terminal status counts do not reconcile")
         if sum(self.family_status_counts.values()) != self.result_count:
@@ -254,6 +314,43 @@ def _write_d0_immutable(path: Path, payload: bytes) -> str:
         raise V2D0ScaleRunError(str(exc)) from exc
 
 
+def _reject_legacy_resume(output_dir: Path) -> None:
+    run_spec_path = output_dir / "run_spec.json"
+    if not run_spec_path.is_file() or run_spec_path.is_symlink():
+        return
+    try:
+        payload = json.loads(run_spec_path.read_bytes())
+    except (json.JSONDecodeError, OSError, UnicodeDecodeError):
+        return
+    if (
+        isinstance(payload, dict)
+        and payload.get("artifact_kind") == "deterministic_v2_d0_scale_run_spec"
+        and payload.get("schema_version") == 2
+    ):
+        raise V2D0ScaleRunError(
+            "legacy D0 schema-2 roots are read-only and cannot be resumed in place; "
+            "use a new output root"
+        )
+
+
+def _verify_backend_execution_binding(
+    backend: LeanInteractBackend,
+    *,
+    workers: int,
+    memory_hard_limit_mb: int | None,
+) -> None:
+    binding = backend.execution_binding
+    if binding.server_mode != ServerMode.POOL:
+        raise V2D0ScaleRunError("D0 scale execution requires a pooled LeanInteract backend")
+    if binding.workers != workers or binding.memory_hard_limit_mb != memory_hard_limit_mb:
+        raise V2D0ScaleRunError(
+            "D0 scale execution settings do not match the LeanInteract backend: "
+            f"requested workers={workers}, memory_hard_limit_mb={memory_hard_limit_mb}; "
+            f"backend workers={binding.workers}, "
+            f"memory_hard_limit_mb={binding.memory_hard_limit_mb}"
+        )
+
+
 def _batch_payload(results: Sequence[V2D0MaterializationResult]) -> bytes:
     return b"".join(_canonical_line(item) for item in results)
 
@@ -364,6 +461,8 @@ def run_v2_d0_scale(
     batch_size: int = 128,
     base_seed: int = 0,
     max_sources: int | None = None,
+    workers: int = 1,
+    memory_hard_limit_mb: int | None = None,
 ) -> V2D0ScaleRunArtifacts:
     """Stream, run, or resume one exact D0 inventory through pooled LeanInteract."""
 
@@ -371,10 +470,20 @@ def run_v2_d0_scale(
         raise V2D0ScaleRunError("batch_size must be positive")
     if max_sources is not None and max_sources < 1:
         raise V2D0ScaleRunError("max_sources must be positive")
+    if workers < 1:
+        raise V2D0ScaleRunError("workers must be positive")
+    if memory_hard_limit_mb is not None and memory_hard_limit_mb < 1:
+        raise V2D0ScaleRunError("memory_hard_limit_mb must be positive")
+    _verify_backend_execution_binding(
+        backend,
+        workers=workers,
+        memory_hard_limit_mb=memory_hard_limit_mb,
+    )
     theorem_path = theorem_path.resolve(strict=True)
     representation_path = representation_path.resolve(strict=True)
     project_dir = project_dir.resolve(strict=True)
     output_dir = output_dir.resolve()
+    _reject_legacy_resume(output_dir)
     if output_dir in {theorem_path.parent, representation_path.parent}:
         raise V2D0ScaleRunError("output directory cannot overwrite an input directory")
     source_count, context_id, theorem_ids_hash, attempt_keys_hash = _inventory(
@@ -398,6 +507,8 @@ def run_v2_d0_scale(
         base_seed=base_seed,
         batch_size=batch_size,
         max_sources=max_sources,
+        workers=workers,
+        memory_hard_limit_mb=memory_hard_limit_mb,
         source_count=source_count,
         attempt_count=source_count,
         ordered_theorem_ids_sha256=theorem_ids_hash,
@@ -481,6 +592,8 @@ __all__ = [
     "V2D0ScaleRunArtifacts",
     "V2D0ScaleRunError",
     "V2D0ScaleRunManifest",
+    "V2D0ScaleRunManifestLegacyV2",
     "V2D0ScaleRunSpec",
+    "V2D0ScaleRunSpecLegacyV2",
     "run_v2_d0_scale",
 ]
