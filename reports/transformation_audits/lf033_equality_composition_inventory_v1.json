@@ -58,6 +58,18 @@
       "results_sha256": "33227f0c13b42f8d598558fd7dd4233001334c24e22dca53eb1d65049ff34c06"
     }
   },
+  "expanded_sft_representation_source": {
+    "eligible_count": 18668,
+    "excluded_count": 1,
+    "excluded_theorem_id_count": 1,
+    "manifest_id": "sft_transform_eligible:8ba69d7e1b493ab4505804d9783c6bfa19ca8fdd74df631bc7d8353162d49db4",
+    "manifest_sha256": "7bdb89f6dccea57949dfd95da55cf8ee21b83f5c67ba3ab52a848ae853315373",
+    "representation_partition_sha256": "de8622f85f9f43f9a8c30066e060d3b88f9a430b1a6b09f35986a17d88c1b46d",
+    "required_view_failure_count": 4,
+    "source_count": 18669,
+    "source_failure_partition_sha256": "a356afcbd6c5f31651363c7590d39e8bd1a344301902a22f7bd9901147f1ff4d",
+    "theorem_partition_sha256": "a2e4f0cfff2ed20dcc0f886c472727495f56c46f7dc9d75a1b2b69d89899005b"
+  },
   "family_counts_in_combined_inventory": {
     "n11_bound_variable_substitution": 1941,
     "n12_implication_converse": 2897,
@@ -89,6 +101,15 @@
     "semantic_labels_created": false,
     "training_eligible": false
   },
+  "positive_composition_seed_set": {
+    "admitted_e2_observation_count": 3941,
+    "exact_duplicate_excess_count": 0,
+    "manifest_sha256": "dba3314d4f5e19f08c0115fc0dc7bb265712fd5622c123a60eec4223d2ab0d30",
+    "negative_source_admitted": false,
+    "output_receipt_sha256": "f61e4c8b37c6922ceae72e297fbc4f8494d55bbf52fff1229e27497a1aae30c1",
+    "seed_count": 3941,
+    "seed_set_id": "detcomp_seed_set:f90ff4800e3c992967f3f5213053a6057fbc31591178d180127ef9cb8a74d926"
+  },
   "public_p12_clean_replay": {
     "code_commit": "0e8d84c409098aa94eb8666a5d82259eeda2cb6a",
     "infrastructure_result_count": 0,
@@ -105,5 +126,5 @@
     }
   },
   "schema_version": 1,
-  "status": "combined_inventory_complete"
+  "status": "composition_seed_set_complete"
 }

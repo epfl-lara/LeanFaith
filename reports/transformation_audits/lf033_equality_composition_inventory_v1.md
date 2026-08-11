@@ -51,6 +51,26 @@ implication converse (2,897), N11 bound-variable substitution (1,941), and N18
 equality polarity (1,671). Smaller families remain in the exact inventory and
 are enumerated in the machine-readable companion report.
 
+## Expanded private source preparation
+
+The full private Run-A representation pass persisted all 18,669 source
+records. Exactly one theorem reproducibly failed four richer views under an
+isolated LeanInteract retry. A fail-closed filtered partition therefore admits
+**18,668 transform-eligible theorem/representation pairs** with all six required
+views and records the one excluded theorem separately. The filtered partition
+is the authoritative source for the queued expanded deterministic run; the
+failed parent launcher is not treated as a successful receipt.
+
+## Positive composition seeds
+
+The composition-seed audit revalidated all 30 materialization roots and
+admitted **3,941 clean E2 observations** from P14–P18. It excluded 6,792 D0
+near-miss observations and 475 E0 observations. The admitted set has zero exact
+duplicate excess and contains no negative-derived source. These records are
+eligible only as first hops for the bounded depth-two P→P and P→N composition
+audit. They remain provisional, non-trainable, non-evaluative, and give no gate
+credit.
+
 ## Reproducibility
 
 | Artifact | SHA-256 |
@@ -63,6 +83,11 @@ are enumerated in the machine-readable companion report.
 | public P18 results | `33227f0c13b42f8d598558fd7dd4233001334c24e22dca53eb1d65049ff34c06` |
 | private N18 results | `8424dc23f97a117390f1057c9b77fe08478ca356d574e36ce32e8143200b37e5` |
 | public N18 results | `6038e8acf1d55534f15d7f68d2cc473685545bcf51662226edf414d4be9c7556` |
+| expanded private source manifest | `7bdb89f6dccea57949dfd95da55cf8ee21b83f5c67ba3ab52a848ae853315373` |
+| expanded private theorem partition | `a2e4f0cfff2ed20dcc0f886c472727495f56c46f7dc9d75a1b2b69d89899005b` |
+| expanded private representation partition | `de8622f85f9f43f9a8c30066e060d3b88f9a430b1a6b09f35986a17d88c1b46d` |
+| positive composition seed manifest | `dba3314d4f5e19f08c0115fc0dc7bb265712fd5622c123a60eec4223d2ab0d30` |
+| positive composition seed receipt | `f61e4c8b37c6922ceae72e297fbc4f8494d55bbf52fff1229e27497a1aae30c1` |
 
 The combination hash is
 `745a487927f822620d2b632ba861dce2711be493702ddff4bdb54fc309e7ae9a`.
