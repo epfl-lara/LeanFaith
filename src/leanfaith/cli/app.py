@@ -3249,6 +3249,58 @@ def prepare_deterministic_composition_seeds_command(
     )
 
 
+@app.command("audit-deterministic-composition-chains")
+def audit_deterministic_composition_chains_command(
+    seed_dir: Annotated[
+        Path,
+        typer.Option("--seed-dir", help="Completed immutable composition seed directory."),
+    ],
+    second_hop_roots: Annotated[
+        list[Path],
+        typer.Option(
+            "--second-hop-root",
+            "-r",
+            help="Completed E2 or D0 second-hop root; repeat for every root.",
+        ),
+    ],
+    output_dir: Annotated[
+        Path,
+        typer.Option("--output-dir", help="New immutable composition-chain directory."),
+    ],
+    root_dir: Annotated[
+        Path | None,
+        typer.Option("--root", help="Repository root override."),
+    ] = None,
+) -> None:
+    """Audit label-free P-to-P and P-to-N deterministic depth-two chains."""
+    from leanfaith.config.paths import RepoPaths
+    from leanfaith.transforms.composition_chain import (
+        CompositionChainError,
+        audit_deterministic_v2_composition_chains,
+    )
+
+    paths = RepoPaths.discover(root_dir) if root_dir is None else RepoPaths(root=root_dir)
+
+    def anchored(path: Path) -> Path:
+        return path if path.is_absolute() else paths.root / path
+
+    try:
+        artifacts = audit_deterministic_v2_composition_chains(
+            seed_dir=anchored(seed_dir),
+            second_hop_roots=[anchored(path) for path in second_hop_roots],
+            output_dir=anchored(output_dir),
+        )
+    except (CompositionChainError, OSError, ValueError) as exc:
+        typer.echo(f"Deterministic composition-chain audit rejected: {exc}", err=True)
+        raise typer.Exit(code=2) from exc
+    typer.echo(
+        f"chain_set_id={artifacts.chain_set_id} chains={artifacts.chain_count} "
+        f"status={'replayed' if artifacts.replayed else 'audited'} "
+        "semantic_labels_created=0 promoted_items=0 training_eligible=false "
+        "evaluation_eligible=false gate_credit=false"
+    )
+
+
 @app.command("freeze-lf022-family-matrix")
 def freeze_lf022_family_matrix_command(
     config_path: Annotated[

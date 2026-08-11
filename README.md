@@ -256,8 +256,11 @@ dataset probe (PLAN.md §9.2).
   produced **11,208 unique exact source/candidate pairs** with zero exact
   duplicate excess. A separate immutable seed boundary admits only clean,
   certificate-backed P14--P18 positive outputs for a second deterministic hop.
-  This enables controlled P-to-P and P-to-N experiments while blocking
-  N-to-anything chains; it creates no labels or training eligibility. See
+  The depth-two chain auditor then admits only P14--P18 E2 or N11--N18 D0
+  second hops, binds the exact positive certificates, and preserves complete
+  ancestry and input hashes. This enables controlled P-to-P and P-to-N
+  experiments while blocking N-to-anything and third-hop chains; it creates no
+  labels or training eligibility. See
   `reports/transformation_audits/lf033_equality_composition_inventory_v1.md`.
 - **Public LF-022 scale-out preparation is deterministic and still
   non-executable:** a pinned, progressively expandable mathlib file frame
@@ -340,6 +343,7 @@ uv run leanfaith probe-deterministic-v2-coverage --help
 uv run leanfaith materialize-deterministic-v2-d0-scale --help
 uv run leanfaith materialize-deterministic-v2-e2-scale --help
 uv run leanfaith prepare-deterministic-composition-seeds --help
+uv run leanfaith audit-deterministic-composition-chains --help
 uv run leanfaith combine-deterministic-scale-passes --help
 uv run leanfaith audit-training-readiness --report-only
 ```
