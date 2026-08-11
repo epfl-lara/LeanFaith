@@ -186,3 +186,11 @@ schema-3 P14 root may be registered without copying or recomputation by setting
 both `LEANFAITH_REUSE_P14_ROOT` and its explicit
 `LEANFAITH_REUSE_P14_PRODUCER_COMMIT` attestation. The root is still fully
 revalidated and hash-bound in the new receipt.
+
+The corresponding full-scale command is
+`leanfaith run-deterministic-v2-composition-full-scale`, with the thin wrapper
+`scripts/48_run_composition_full_schema3_w1.sh`. It accepts only the canonical
+3,941-row composition seed set, uses the same fixed serial one-worker/no-memory-
+limit policy, and writes separate full-scale spec, status, logs, locks, and
+receipt. Complete exact schema-3 roots are revalidated and skipped; partial,
+legacy, differently configured, or infrastructure-failed roots stop the run.

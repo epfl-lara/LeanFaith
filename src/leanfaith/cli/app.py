@@ -1639,6 +1639,76 @@ def run_deterministic_v2_composition_smokes_command(
     )
 
 
+@app.command("run-deterministic-v2-composition-full-scale")
+def run_deterministic_v2_composition_full_scale_command(
+    code_root: Annotated[
+        Path,
+        typer.Option(
+            "--code-root",
+            envvar="LEANFAITH_CODE_ROOT",
+            help="Clean LeanFaith checkout used by every family process.",
+        ),
+    ],
+    expected_commit: Annotated[
+        str,
+        typer.Option(
+            "--expected-commit",
+            envvar="LEANFAITH_EXPECTED_COMMIT",
+            help="Exact 40-hex clean code commit.",
+        ),
+    ],
+    seed_dir: Annotated[
+        Path,
+        typer.Option(
+            "--seed-dir",
+            envvar="LEANFAITH_COMPOSITION_FULL_SEED",
+            help="Canonical 3,941-row composition seed directory.",
+        ),
+    ],
+    project_dir: Annotated[
+        Path,
+        typer.Option(
+            "--project-dir",
+            envvar="LEANFAITH_LEAN_PROJECT",
+            help="Clean pinned Lean project used by LeanInteract.",
+        ),
+    ],
+    output_root: Annotated[
+        Path,
+        typer.Option(
+            "--output-root",
+            envvar="LEANFAITH_COMPOSITION_FULL_OUTPUT",
+            help="Root for 13 full family roots plus orchestration artifacts.",
+        ),
+    ],
+) -> None:
+    """Run all 13 full composition families serially with one Lean worker."""
+    from leanfaith.transforms.composition_full_launcher import (
+        CompositionFullLaunchError,
+        run_composition_full_scale,
+    )
+
+    try:
+        receipt = run_composition_full_scale(
+            code_root=code_root,
+            expected_commit=expected_commit,
+            seed_dir=seed_dir,
+            project_dir=project_dir,
+            output_root=output_root,
+        )
+    except (CompositionFullLaunchError, OSError, ValueError) as exc:
+        typer.echo(f"composition full-scale launch FAILED: {exc}", err=True)
+        raise typer.Exit(code=1) from exc
+    typer.echo(
+        "composition full-scale launch complete; "
+        f"families={len(receipt.roots)} receipt_id={receipt.receipt_id} "
+        f"receipt={output_root.resolve() / 'orchestration/receipt.json'} "
+        "source_count=3941 workers=1 memory_hard_limit_mb=none "
+        "processes_parallel=1 resolved_labels=0 promoted_items=0 "
+        "training_eligible=false"
+    )
+
+
 @app.command("merge-deterministic-shards")
 def merge_deterministic_shards_command(
     output_root: Annotated[
