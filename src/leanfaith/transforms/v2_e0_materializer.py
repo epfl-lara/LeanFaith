@@ -19,7 +19,11 @@ from leanfaith.config.hashing import canonical_json_bytes, hash_file
 from leanfaith.config.models import StrictModel
 from leanfaith.lean.leaninteract_backend import LeanInteractBackend
 from leanfaith.lean.protocol import LeanRequest, LeanStatus
-from leanfaith.representations import TheoremForRepresentation, build_representations
+from leanfaith.representations import (
+    TheoremForRepresentation,
+    build_representations,
+    inline_replay_environment_lookup_name,
+)
 from leanfaith.schemas.enums import Polarity, QualityTier, ValidationStatus
 from leanfaith.schemas.ids import make_id
 from leanfaith.schemas.theorem import RepresentationRecord, TheoremRecord
@@ -159,6 +163,10 @@ def _candidate_representation(
                 context_id=candidate.context_id,
                 inline_declaration=True,
                 inline_source=candidate.inline_elaboration_source,
+                environment_lookup_name=inline_replay_environment_lookup_name(
+                    candidate.declaration_full_name,
+                    candidate.inline_elaboration_source,
+                ),
             )
         ],
         imports="",

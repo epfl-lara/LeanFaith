@@ -232,6 +232,38 @@ def declaration_environment_lookup_name(full_name: str, source_file: str | None)
     return f"_private.{module_name}.{full_name.removeprefix('_private.')}"
 
 
+def inline_replay_environment_lookup_name(full_name: str, inline_source: str | None) -> str:
+    """Return the exact environment name created by module-free inline replay.
+
+    Mathlib's ``module`` mode makes an otherwise ordinary declaration private,
+    so LeanInteract reports names such as ``_private.0.Complex.foo``.  The
+    representation request intentionally removes the leading ``module``
+    command before injecting its meta helper.  Replaying the same ordinary
+    ``theorem`` then creates the public environment name ``Complex.foo``.
+
+    This is not suffix guessing: the rewrite is enabled only when the replay
+    source contains a real top-level ``module`` command that the pipeline will
+    remove.  Explicitly private declarations and private names without that
+    replay context continue to fail closed.
+    """
+
+    if inline_source is None or not full_name.startswith("_private.0."):
+        return full_name
+    block_depth = 0
+    for line in inline_source.splitlines():
+        initial_depth = block_depth
+        first_code, block_depth = scan_lean_line(line, block_depth)
+        command = line[first_code:] if first_code is not None else ""
+        if (
+            initial_depth == 0
+            and block_depth == 0
+            and first_code is not None
+            and re.match(r"module(?:\s|$)", command)
+        ):
+            return full_name.removeprefix("_private.0.")
+    return full_name
+
+
 def _expr_lookup_name(theorem: TheoremForRepresentation) -> str:
     return theorem.environment_lookup_name or theorem.full_name
 
