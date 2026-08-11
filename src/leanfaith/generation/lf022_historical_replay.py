@@ -576,6 +576,34 @@ def _json_values(path: Path) -> Iterator[object]:
         raise LF022HistoricalReplayError(f"bound JSON artifact is invalid: {path}") from exc
 
 
+def _kimi_v4_requalification_task_companion(
+    relative: PurePosixPath,
+) -> PurePosixPath | None:
+    """Return the deterministic task companion required by Kimi-v4 replay.
+
+    The frozen Kimi-v4 qualification binds each terminal directly.  Its exact
+    verifier also reconstructs the selected task and byte-compares it with the
+    sibling ``task.json``.  That task is therefore a runtime companion of the
+    bound terminal even though the older qualification schema did not carry a
+    second artifact binding for it.
+    """
+
+    parts = relative.parts
+    if (
+        len(parts) != 7
+        or parts[0] != "data"
+        or parts[1] != "lf022_kimi_v4_requalification"
+        or parts[2] != "v1"
+        or not _is_sha256(parts[3])
+        or parts[4] != "tasks"
+        or len(parts[5]) != 2
+        or not parts[5].isdigit()
+        or parts[6] != "terminal.json"
+    ):
+        return None
+    return relative.with_name("task.json")
+
+
 def _copy_binding_closure(
     *,
     source_root: Path,
@@ -618,6 +646,18 @@ def _copy_binding_closure(
             expected_sha256=digest,
             label="bound artifact",
         )
+        task_companion = _kimi_v4_requalification_task_companion(relative)
+        if task_companion is not None:
+            task_source = _source_file(
+                source_root,
+                task_companion,
+                label="derived Kimi-v4 requalification task",
+            )
+            enqueue(
+                task_companion.as_posix(),
+                hash_file(task_source),
+                follow_bindings=True,
+            )
         if not follow_bindings or relative_text in binding_scans_completed:
             continue
         binding_scans_completed.add(relative_text)

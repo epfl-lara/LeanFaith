@@ -671,6 +671,62 @@ def test_binding_closure_discovers_children_from_streamed_jsonl(tmp_path: Path) 
     assert (historical / second.relative_to(source)).read_bytes() == b"second\n"
 
 
+def test_binding_closure_copies_kimi_v4_requalification_task_companion(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "source"
+    historical = tmp_path / "historical"
+    historical.mkdir()
+    task_root = source / "data/lf022_kimi_v4_requalification/v1" / ("a" * 64) / "tasks/03"
+    terminal = task_root / "terminal.json"
+    task = task_root / "task.json"
+    task_root.mkdir(parents=True)
+    terminal.write_bytes(canonical_json_bytes({"status": "provisional_variants_created"}))
+    task.write_bytes(canonical_json_bytes({"task_id": "frozen-task"}))
+
+    _copy_binding_closure(
+        source_root=source,
+        historical_root=historical,
+        initial=(
+            LF022ArtifactBinding(
+                path=terminal.relative_to(source).as_posix(),
+                sha256=hash_file(terminal),
+            ),
+        ),
+    )
+
+    assert (historical / terminal.relative_to(source)).read_bytes() == terminal.read_bytes()
+    assert (historical / task.relative_to(source)).read_bytes() == task.read_bytes()
+
+
+def test_binding_closure_rejects_missing_kimi_v4_requalification_task_companion(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "source"
+    historical = tmp_path / "historical"
+    historical.mkdir()
+    terminal = (
+        source / "data/lf022_kimi_v4_requalification/v1" / ("b" * 64) / "tasks/07/terminal.json"
+    )
+    terminal.parent.mkdir(parents=True)
+    terminal.write_bytes(canonical_json_bytes({"status": "provider_exhausted"}))
+
+    with pytest.raises(
+        LF022HistoricalReplayError,
+        match="derived Kimi-v4 requalification task is missing or not a regular file",
+    ):
+        _copy_binding_closure(
+            source_root=source,
+            historical_root=historical,
+            initial=(
+                LF022ArtifactBinding(
+                    path=terminal.relative_to(source).as_posix(),
+                    sha256=hash_file(terminal),
+                ),
+            ),
+        )
+
+
 def test_binding_closure_rejects_conflicting_duplicate_discovered_in_jsonl(
     tmp_path: Path,
 ) -> None:
