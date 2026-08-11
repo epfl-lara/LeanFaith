@@ -84,6 +84,11 @@ def test_historical_replay_compatibility_accepts_terminal_references_and_restore
         "status": "provisional_variants_created",
         "terminal_error_code": None,
     }
+    module_binding = {
+        "module_name": "leanfaith.generation.lf022_batch",
+        "path": "src/leanfaith/generation/lf022_batch.py",
+        "sha256": "4" * 64,
+    }
     original = historical_replay_module._explicit_record_bindings
     with pytest.raises(LF022HistoricalReplayError):
         original(reference)
@@ -94,6 +99,7 @@ def test_historical_replay_compatibility_accepts_terminal_references_and_restore
         del kwargs
         compatible = historical_replay_module._explicit_record_bindings
         assert compatible(reference) is None
+        assert compatible(module_binding) == []
         return sentinel
 
     monkeypatch.setattr(

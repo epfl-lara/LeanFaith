@@ -123,6 +123,23 @@ def _run_terminal_reference_compatible_historical_replay(
     def compatible(
         value: dict[object, object],
     ) -> list[replay_module._DiscoveredBinding] | None:
+        module_name = value.get("module_name")
+        if isinstance(module_name, str) and (
+            module_name == "leanfaith" or module_name.startswith("leanfaith.")
+        ):
+            path = value.get("path")
+            digest = value.get("sha256")
+            if (
+                not isinstance(path, str)
+                or not (path == "src/leanfaith/__init__.py" or path.startswith("src/leanfaith/"))
+                or not isinstance(digest, str)
+                or re.fullmatch(HEX64_PATTERN, digest) is None
+            ):
+                raise LF022HistoricalReplayError("historical module binding is malformed")
+            # The admission-bound code bundle is the replay code authority.
+            # Module hashes embedded in later reports are provenance only and
+            # can legitimately describe a different coordinator revision.
+            return []
         terminal_id = value.get("terminal_id")
         if (
             isinstance(terminal_id, str)
