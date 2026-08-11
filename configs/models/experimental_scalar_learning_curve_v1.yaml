@@ -1,0 +1,24 @@
+schema_version: 1
+profile_id: experimental_scalar_learning_curve_v1
+expected_dataset_id: >-
+  experimental-machine-supervision:a5851226b1c8b132880548fd2c084fed2a9118721009e3d17b4a600245be1033
+expected_dataset_manifest_sha256: c35079c7c7cc6421844a0c5eb1ee30684ca6faf23d71e1f136b18238477fda1d
+feature_schema: symmetric_lean_scalar_v1
+representation_views: [headless, signature_explicit]
+operator_tokens:
+  ["∀", "∃", "→", "↔", "=", "≠", "<", "≤", ">", "≥", "∧", "∨", "¬", "∈", "∉", "⊆", "+", "-", "*", "/", "^"]
+component_budgets: [64, 128, 256, 512, 1024, 1260]
+sampling_seeds: [1729, 2718, 3141]
+sampling_seed_role: component_order_only
+diagnostic_splits: [validation, test]
+optimizer: AdamW
+optimizer_randomness: zero_initialization_full_batch_deterministic
+loss_weighting: equal_ancestry_component_v1
+learning_rate: 0.05
+weight_decay: 0.001
+update_count: 1000
+decision_threshold: 0.5
+dtype: float64
+device: cpu
+torch_threads: 1
+constant_baseline_probability: 0.5

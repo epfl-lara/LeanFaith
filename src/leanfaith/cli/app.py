@@ -7332,6 +7332,107 @@ def verify_experimental_machine_supervision_command(
     )
 
 
+@app.command("run-experimental-scalar-learning-curve")
+def run_experimental_scalar_learning_curve_command(
+    dataset_dir: Annotated[
+        Path,
+        typer.Option("--dataset-dir", help="Frozen experimental machine-supervision corpus."),
+    ],
+    output_dir: Annotated[
+        Path,
+        typer.Option("--output-dir", help="New immutable diagnostic output, or exact replay."),
+    ],
+    allow_experimental_machine_supervision: Annotated[
+        bool,
+        typer.Option(
+            "--allow-experimental-machine-supervision",
+            help="Explicitly admit provisional machine intentions for this diagnostic only.",
+        ),
+    ] = False,
+    config_path: Annotated[
+        Path | None,
+        typer.Option("--config", help="Pinned diagnostic learning-curve policy."),
+    ] = None,
+    root_dir: Annotated[
+        Path | None,
+        typer.Option("--root", help="Repository root override."),
+    ] = None,
+) -> None:
+    """Fit the opt-in scalar pseudo-target curve; never make a semantic claim."""
+    from leanfaith.config.paths import RepoPaths
+    from leanfaith.models.experimental_scalar_learning_curve import (
+        ExperimentalScalarLearningCurveError,
+        load_experimental_scalar_learning_curve_config,
+        run_experimental_scalar_learning_curve,
+    )
+
+    paths = RepoPaths.discover(root_dir) if root_dir is None else RepoPaths(root=root_dir)
+
+    def anchored(path: Path) -> Path:
+        return path if path.is_absolute() else paths.root / path
+
+    selected_config = (
+        paths.root / "configs/models/experimental_scalar_learning_curve_v1.yaml"
+        if config_path is None
+        else anchored(config_path)
+    )
+    try:
+        loaded = load_experimental_scalar_learning_curve_config(selected_config)
+        artifacts = run_experimental_scalar_learning_curve(
+            repo_root=paths.root,
+            dataset_dir=anchored(dataset_dir),
+            output_dir=anchored(output_dir),
+            config=loaded.config,
+            config_hash=loaded.config_hash,
+            allow_experimental_machine_supervision=allow_experimental_machine_supervision,
+        )
+    except (OSError, ValueError, ExperimentalScalarLearningCurveError) as exc:
+        typer.echo(f"experimental scalar learning curve rejected: {exc}", err=True)
+        raise typer.Exit(code=1) from exc
+    typer.echo(
+        "experimental scalar learning curve ready; "
+        f"experiment={artifacts.experiment_id} models={artifacts.model_count} "
+        f"predictions={artifacts.prediction_count} replayed={str(artifacts.replayed).lower()} "
+        "semantic_prediction=false model_selection_eligible=false evaluation_eligible=false"
+    )
+
+
+@app.command("verify-experimental-scalar-learning-curve")
+def verify_experimental_scalar_learning_curve_command(
+    output_dir: Annotated[
+        Path,
+        typer.Option("--output-dir", help="Frozen diagnostic learning-curve directory."),
+    ],
+    dataset_dir: Annotated[
+        Path | None,
+        typer.Option(
+            "--dataset-dir",
+            help="Dataset override; otherwise use the manifest-bound absolute path.",
+        ),
+    ] = None,
+) -> None:
+    """Verify diagnostic bytes, lineage, prefixes, predictions, and metrics."""
+    from leanfaith.models.experimental_scalar_learning_curve import (
+        ExperimentalScalarLearningCurveError,
+        verify_experimental_scalar_learning_curve,
+    )
+
+    try:
+        manifest = verify_experimental_scalar_learning_curve(
+            output_dir,
+            dataset_dir=dataset_dir,
+        )
+    except (OSError, ValueError, ExperimentalScalarLearningCurveError) as exc:
+        typer.echo(f"experimental scalar learning-curve verification failed: {exc}", err=True)
+        raise typer.Exit(code=1) from exc
+    typer.echo(
+        "experimental scalar learning curve verified; "
+        f"experiment={manifest.experiment_id} models={manifest.model_count} "
+        f"predictions={manifest.prediction_count} "
+        "semantic_prediction=false model_selection_eligible=false evaluation_eligible=false"
+    )
+
+
 def main() -> None:
     app()
 
