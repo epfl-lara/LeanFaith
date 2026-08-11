@@ -194,3 +194,22 @@ The corresponding full-scale command is
 limit policy, and writes separate full-scale spec, status, logs, locks, and
 receipt. Complete exact schema-3 roots are revalidated and skipped; partial,
 legacy, differently configured, or infrastructure-failed roots stop the run.
+
+After the full receipt exists, use
+`leanfaith export-deterministic-composition-receipt` to create the only
+supported provisional export. The command requires the full-run root, exact
+seed directory, all public/private original theorem and representation
+partitions, and new immutable chain, unique-pair, and export directories. It
+replays all thirteen roots before writing anything, then emits:
+
+- `inventory.jsonl` for alpha-novel pairs with one consistent mechanical
+  intention;
+- `cycles.jsonl` for chains that return to the source alpha identity;
+- `quarantine.jsonl` for pairs reached through both P-to-P and P-to-N paths;
+- `report.md` with all 65 supported family sequences; and
+- a self-authenticating `manifest.json`.
+
+The export remains provisional. It creates no semantic label, promotion,
+training/evaluation eligibility, or gate credit. A partial family set cannot be
+exported, and any private source content makes the combined export fail closed
+for redistribution and external transmission.

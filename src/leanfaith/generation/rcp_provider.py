@@ -19,10 +19,7 @@ from pydantic import Field, model_validator
 
 from leanfaith.config.hashing import canonical_json_bytes, sha256_hex
 from leanfaith.config.models import StrictModel
-from leanfaith.generation.lf022_execution import (
-    LF022RCPDecodingContract,
-    LF022RCPRetryPolicy,
-)
+from leanfaith.generation.lf022_execution import LF022RCPRetryPolicy
 
 
 class RCPProviderError(RuntimeError):
@@ -78,6 +75,12 @@ class RCPHTTPTransport(Protocol):
         payload: Mapping[str, object],
         timeout_seconds: int,
     ) -> RCPWireResponse: ...
+
+
+class RCPWireDecodingContract(Protocol):
+    """Minimal exact-decoding interface shared by proposer and judge routes."""
+
+    def wire_fields(self) -> dict[str, object]: ...
 
 
 def _headers(headers: object) -> dict[str, str]:
@@ -154,7 +157,7 @@ def make_chat_completion_payload(
     *,
     model_id: str,
     rendered_prompt: str,
-    decoding: LF022RCPDecodingContract,
+    decoding: RCPWireDecodingContract,
 ) -> dict[str, object]:
     """Build the exact OpenAI-compatible request body."""
 
@@ -324,6 +327,7 @@ __all__ = [
     "RCPProviderError",
     "RCPResponseError",
     "RCPTransportUnknownError",
+    "RCPWireDecodingContract",
     "RCPWireResponse",
     "UrllibOpenAICompatibleRCPTransport",
     "classify_http_response",

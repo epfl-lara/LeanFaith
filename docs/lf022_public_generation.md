@@ -5,6 +5,193 @@ Generated statements are always unresolved, unvalidated, and provisional.
 They are not semantic labels, training data, evaluation data, silver/gold
 records, or Gate credit.
 
+## One-pair weak-judge route smoke
+
+LF-022 has a separate live boundary for checking that the planned weak-judge
+routes work end to end. This is **not** the scale judging job. It selects the
+lowest content-addressed candidate from an existing public, Lean-valid Qwen
+inventory and admits exactly four serial requests:
+
+- Kimi judges `A,B` and `B,A`;
+- DeepSeek judges `A,B` and `B,A`.
+
+The Qwen proposer, both judge families, and the held-out OpenAI/Codex evaluator
+must remain distinct. The parent weak-batch spec must already bind these exact
+roles and the reviewed judge-specific decoding contracts. The selector never
+hand-edits or copies a smaller pseudo-inventory.
+
+First author the previously implicit weak-batch spec and prepare its four cells
+per pair. The authoring command accepts only the exact Qwen schema-v3 inventory,
+copies every direct input below one ignored artifact root, verifies the
+production catalog and all four family roles, and shares the judge decoding
+contracts with the later live admission. Preserve the randomization-key file:
+its bytes blind and order the prepared presentations, while only its hash is
+written to the spec.
+
+```bash
+ROOT=/localhome/milikic/LeanFaith
+cd "$ROOT"
+test -z "$(git status --porcelain)"
+
+CANDIDATE_ROOT=/storage/milikic/leanfaith/lf022_supervision_candidates/qwen3_5_snapshot1019_direct_v3
+SPEC_ROOT=artifacts/generation/lf022_qwen_weak_batch_spec_v1
+KEY_FILE="$SPEC_ROOT/randomization.key"
+BATCH_ROOT=artifacts/generation/lf022_qwen_weak_batch_v1
+
+# Create once, retain for exact preparation/replay, and never commit it.
+if ! test -f "$KEY_FILE"; then
+  install -d -m 700 "$(dirname "$KEY_FILE")"
+  umask 077
+  python -c 'import secrets,sys; open(sys.argv[1], "wb").write(secrets.token_bytes(32))' \
+    "$KEY_FILE"
+fi
+
+SPEC_JSON=$(
+  uv run leanfaith freeze-lf022-qwen-weak-batch-spec \
+    --root "$ROOT" \
+    --candidate-manifest "$CANDIDATE_ROOT/manifest.json" \
+    --candidate-records "$CANDIDATE_ROOT/candidates.jsonl" \
+    --randomization-key-file "$KEY_FILE" \
+    --weak-supervision-config configs/judges/weak_supervision.yaml \
+    --production-family-matrix \
+      configs/generation/lf022_production_family_matrix_v2.json \
+    --output-dir "$SPEC_ROOT/frozen"
+)
+SPEC=$(
+  python -c 'import json,sys; print(json.load(sys.stdin)["spec_path"])' \
+    <<<"$SPEC_JSON"
+)
+SPEC_SHA=$(
+  python -c 'import json,sys; print(json.load(sys.stdin)["spec_sha256"])' \
+    <<<"$SPEC_JSON"
+)
+PRODUCTION_CATALOG=$(
+  python -c 'import json,sys; print(json.load(sys.stdin)["production_catalog_path"])' \
+    <<<"$SPEC_JSON"
+)
+
+uv run leanfaith prepare-lf022-weak-batch \
+  --root "$ROOT" \
+  --spec "$SPEC" \
+  --spec-sha256 "$SPEC_SHA" \
+  --randomization-key-file "$KEY_FILE" \
+  --output-dir "$BATCH_ROOT"
+```
+
+The spec freeze and batch preparation perform zero network calls. For the
+current 718-pair snapshot, preparation must report 718 pairs and 2,872 cells.
+The spec binds Qwen as proposer, Kimi as `judge_A`, DeepSeek as `judge_B`, and
+OpenAI/Codex as the supervision-excluded evaluator. A wrong schema, model,
+role, decoding contract, catalog, key hash, or input hash fails closed.
+
+Next freeze a clean-tree code bundle and the exact one-pair route evidence
+without provider credentials. Continue using the ignored `artifacts/` tree so
+the operation does not dirty the admitted source tree:
+
+```bash
+RAW_RCP_CATALOG=<pinned-raw-rcp-models-response.json>
+FREEZE_ROOT=artifacts/generation/lf022_weak_judge_live_smoke_v1
+
+BUNDLE_JSON=$(
+  uv run leanfaith freeze-code-bundle \
+    --root "$ROOT" \
+    --out-dir "$FREEZE_ROOT/code_bundle"
+)
+BUNDLE=$(
+  python -c 'import json,sys; print(json.load(sys.stdin)["path"])' \
+    <<<"$BUNDLE_JSON"
+)
+
+FREEZE_JSON=$(
+  uv run leanfaith freeze-lf022-weak-live-smoke \
+    --root "$ROOT" \
+    --batch-root "$BATCH_ROOT" \
+    --production-catalog "$PRODUCTION_CATALOG" \
+    --raw-rcp-catalog "$RAW_RCP_CATALOG" \
+    --code-bundle "$BUNDLE" \
+    --output-dir "$FREEZE_ROOT/route_inputs"
+)
+CONFIG=$(
+  python -c 'import json,sys; print(json.load(sys.stdin)["config_path"])' \
+    <<<"$FREEZE_JSON"
+)
+CONFIG_SHA=$(
+  python -c 'import json,sys; print(json.load(sys.stdin)["config_sha256"])' \
+    <<<"$FREEZE_JSON"
+)
+```
+
+Freezing performs zero network calls. It binds both the normalized production
+catalog and the raw RCP `/models` response separately, validates the code
+bundle, and records `scale_judge_qualified=false`.
+
+Prepare the deterministic one-pair selector and immutable admission, still
+without credentials or network access:
+
+```bash
+PREPARE_JSON=$(
+  env -u RCP_BASE_URL -u RCP_API_KEY \
+    -u OPENAI_BASE_URL -u OPENAI_API_KEY \
+    uv run leanfaith prepare-lf022-weak-live-smoke \
+      --root "$ROOT" \
+      --batch-root "$BATCH_ROOT" \
+      --config "$CONFIG" \
+      --config-sha256 "$CONFIG_SHA"
+)
+ADMISSION=$(
+  python -c 'import json,sys; print(json.load(sys.stdin)["admission_path"])' \
+    <<<"$PREPARE_JSON"
+)
+ADMISSION_SHA=$(
+  python -c 'import json,sys; print(json.load(sys.stdin)["admission_sha256"])' \
+    <<<"$PREPARE_JSON"
+)
+```
+
+The preparation result must report one selected pair, four admitted cells,
+zero network calls, and `training_eligible=false`. Execute only by supplying
+the exact runtime-only RCP environment and the explicit live flag:
+
+```bash
+test "${RCP_BASE_URL%/}" = "https://inference.rcp.epfl.ch/v1"
+test -n "${RCP_API_KEY:-}"
+set +x
+env -u OPENAI_BASE_URL -u OPENAI_API_KEY \
+  RCP_BASE_URL="$RCP_BASE_URL" \
+  RCP_API_KEY="$RCP_API_KEY" \
+  uv run leanfaith execute-lf022-weak-live-smoke \
+    --root "$ROOT" \
+    --batch-root "$BATCH_ROOT" \
+    --admission "$ADMISSION" \
+    --admission-sha256 "$ADMISSION_SHA" \
+    --execute-public-provisional
+```
+
+The executor is serial, allows one attempt per cell and no more than four
+network calls, persists the wire response before parsing, and resumes completed
+cells instead of sending them again. An unknown transport outcome is terminal
+and is never retried automatically. Runtime credentials are held only in
+memory and are not serialized or printed.
+
+After all four cells are terminal, verify every content-addressed artifact with
+credentials removed. Offline replay refuses to make a request if any terminal
+is missing:
+
+```bash
+env -u RCP_BASE_URL -u RCP_API_KEY \
+  -u OPENAI_BASE_URL -u OPENAI_API_KEY \
+  uv run leanfaith replay-lf022-weak-live-smoke \
+    --root "$ROOT" \
+    --batch-root "$BATCH_ROOT" \
+    --admission "$ADMISSION" \
+    --admission-sha256 "$ADMISSION_SHA"
+```
+
+Even a fully successful smoke is only one-pair route-qualification evidence.
+Its parsed judgments and weak-consensus diagnostic remain ineligible for
+supervision, training, evaluation, promotion, and Gate credit. A separate
+reviewed scale admission is required before judging the 919-pair queue.
+
 ## Supported proposer routes
 
 - `moonshotai/Kimi-K2.7-Code` v3 is archived and offline-replay-only after its

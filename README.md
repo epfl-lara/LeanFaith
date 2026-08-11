@@ -220,15 +220,23 @@ dataset probe (PLAN.md §9.2).
   labels, silver records, training records, evaluation records, or gate
   credit. See
   `reports/generation/lf022_supervision_candidates_qwen_snapshot1019_v3.md`.
-- **LF-022 two-family batch execution is now implemented but remains
-  offline-only:** a self-contained, raw-first batch binds the canonical
-  production family matrix, enforces proposer/judge/held-out role separation,
+- **LF-022 two-family batch execution now has a separate fail-closed live
+  qualification boundary:** a self-contained, raw-first batch binds the
+  canonical production family matrix, enforces proposer/judge/held-out role separation,
   prepares both statement orders for each of two independent judge families,
   resumes from canonical raw responses, and finalizes only non-trainable weak
-  consensus candidates. The current schema accepts deterministic fixtures or
-  replay providers only; a separate versioned live-provider admission is still
-  required before any network call. No new semantic, silver, training,
-  evaluation, or gate-credit record follows from this implementation.
+  consensus candidates. The live boundary deterministically selects one public
+  Qwen-proposed pair, admits exactly Kimi and DeepSeek in both statement orders,
+  permits at most four serial calls after an explicit flag, and supports
+  zero-network replay. It is route-smoke qualification only: it neither
+  qualifies scale judging nor creates semantic labels, silver records, training
+  data, evaluation data, or Gate credit. The commands are implemented and
+  tested with injected transports; no live call follows from implementation or
+  preparation alone. A separate offline authoring command now freezes the exact
+  Qwen schema-v3 inventory, Kimi/DeepSeek judge contracts, held-out evaluator,
+  production matrix/catalog, weak policy, and randomization-key hash into the
+  generic prepared-batch input; the workflow no longer depends on a test-only
+  handwritten spec. See `docs/lf022_public_generation.md`.
 - **LF-024 diagnostic resolver core implemented; production resolution remains
   blocked:** the public resolver accepts semantic candidates only through an
   opaque, process-local `VerifiedCandidateSet` capability. No factory for a
@@ -318,6 +326,17 @@ dataset probe (PLAN.md §9.2).
   the reversible cycles for audit. It replayed exactly and creates no label,
   promotion, training/evaluation eligibility, or gate credit. See
   `reports/generation/deterministic_v2_p14_unique_pair_inventory_v1.md`.
+- **The complete depth-two export boundary is implemented and fail-closed:** a
+  receipt-bound exporter requires all thirteen P14--P18/N11--N18 second-hop
+  roots and reports the exact 65 supported first-hop/second-hop sequences. It
+  exposes only alpha-novel pairs with one consistent mechanical intention,
+  retains source-return cycles for audit, and quarantines any pair reached by
+  both a P-to-P and P-to-N history. Original and final Lean text, ancestry,
+  context, content hashes, alpha fingerprints, and public/private source policy
+  are all replay-bound. Every exported pair remains provisional and contributes
+  zero labels, promotions, training/evaluation eligibility, or gate credit.
+  The exporter is ready; the live inventory intentionally waits for the full
+  thirteen-family orchestration receipt rather than accepting partial roots.
 - **Public LF-022 scale-out preparation is deterministic and still
   non-executable:** a pinned, progressively expandable mathlib file frame
   feeds exact extraction and representation runs. The production pool admits
@@ -381,8 +400,13 @@ uv run leanfaith write-annotation-agreement --help
 uv run leanfaith write-adjudication-queue --help
 uv run leanfaith validate-lf022 --help
 uv run leanfaith freeze-lf022-family-matrix
+uv run leanfaith freeze-lf022-qwen-weak-batch-spec --help
 uv run leanfaith prepare-lf022-weak-batch --help
 uv run leanfaith replay-finalize-lf022-weak-batch --help
+uv run leanfaith freeze-lf022-weak-live-smoke --help
+uv run leanfaith prepare-lf022-weak-live-smoke --help
+uv run leanfaith execute-lf022-weak-live-smoke --help
+uv run leanfaith replay-lf022-weak-live-smoke --help
 uv run leanfaith materialize-lf022-public-pool --help
 uv run leanfaith lf022-rcp-smoke --help
 uv run leanfaith freeze-lf022-proposer-admission --help
@@ -404,6 +428,7 @@ uv run leanfaith materialize-deterministic-v2-e2-scale --help
 uv run leanfaith prepare-deterministic-composition-seeds --help
 uv run leanfaith audit-deterministic-composition-chains --help
 uv run leanfaith postprocess-deterministic-composition-unique-pairs --help
+uv run leanfaith export-deterministic-composition-receipt --help
 uv run leanfaith combine-deterministic-scale-passes --help
 uv run leanfaith audit-training-readiness --report-only
 ```

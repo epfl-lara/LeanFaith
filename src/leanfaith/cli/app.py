@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import datetime
 import json
+import os
 from pathlib import Path
 from typing import Annotated
 
@@ -3457,6 +3458,406 @@ def replay_finalize_lf022_weak_batch_command(
     )
 
 
+@app.command("freeze-lf022-qwen-weak-batch-spec")
+def freeze_lf022_qwen_weak_batch_spec_command(
+    candidate_manifest: Annotated[
+        Path,
+        typer.Option(
+            "--candidate-manifest",
+            help="Exact Qwen schema-v3 supervision-candidate manifest.",
+        ),
+    ],
+    candidate_records: Annotated[
+        Path,
+        typer.Option(
+            "--candidate-records",
+            help="Exact canonical Qwen schema-v3 candidate JSONL.",
+        ),
+    ],
+    randomization_key_path: Annotated[
+        Path,
+        typer.Option(
+            "--randomization-key-file",
+            help="Private file containing at least 32 bytes; only its hash is frozen.",
+        ),
+    ],
+    output_dir: Annotated[
+        Path,
+        typer.Option(
+            "--output-dir",
+            help="New repository-local immutable spec/input directory.",
+        ),
+    ],
+    weak_supervision_config: Annotated[
+        Path,
+        typer.Option(
+            "--weak-supervision-config",
+            help="Pinned offline weak-supervision policy.",
+        ),
+    ] = Path("configs/judges/weak_supervision.yaml"),
+    production_family_matrix: Annotated[
+        Path,
+        typer.Option(
+            "--production-family-matrix",
+            help="Pinned production model-family matrix.",
+        ),
+    ] = Path("configs/generation/lf022_production_family_matrix_v2.json"),
+    batch_name: Annotated[
+        str,
+        typer.Option("--batch-name", help="Stable logical batch name."),
+    ] = "qwen_snapshot1019_weak_judging_v1",
+    root_dir: Annotated[
+        Path | None,
+        typer.Option("--root", help="Repository root override."),
+    ] = None,
+) -> None:
+    """Freeze the exact Qwen/Kimi/DeepSeek weak-batch spec; make zero calls."""
+    from leanfaith.config.paths import RepoPaths
+    from leanfaith.generation.lf022_weak_batch import LF022WeakBatchError
+    from leanfaith.generation.lf022_weak_batch_spec import (
+        freeze_lf022_qwen_weak_batch_spec,
+    )
+
+    paths = RepoPaths.discover(root_dir) if root_dir is None else RepoPaths(root=root_dir)
+
+    def anchored(path: Path) -> Path:
+        return path if path.is_absolute() else paths.root / path
+
+    try:
+        frozen = freeze_lf022_qwen_weak_batch_spec(
+            repo_root=paths.root,
+            candidate_manifest_path=anchored(candidate_manifest),
+            candidate_records_path=anchored(candidate_records),
+            weak_supervision_config_path=anchored(weak_supervision_config),
+            production_family_matrix_path=anchored(production_family_matrix),
+            randomization_key=anchored(randomization_key_path).read_bytes(),
+            output_dir=anchored(output_dir),
+            batch_name=batch_name,
+        )
+    except (LF022WeakBatchError, OSError, ValueError) as exc:
+        typer.echo(f"LF-022 Qwen weak-batch spec freeze rejected: {exc}", err=True)
+        raise typer.Exit(code=2) from exc
+    typer.echo(
+        json.dumps(
+            {
+                "spec_path": str(frozen.spec_path),
+                "spec_sha256": frozen.spec_sha256,
+                "production_catalog_path": str(frozen.production_catalog_path),
+                "production_catalog_sha256": frozen.production_catalog_sha256,
+                "dispatch_pair_count": frozen.dispatch_pair_count,
+                "required_judge_call_count": frozen.required_judge_call_count,
+                "network_calls_this_run": 0,
+                "semantic_labels_created": 0,
+                "training_eligible": False,
+                "gate_credit_claimed": False,
+            },
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+    )
+
+
+@app.command("freeze-lf022-weak-live-smoke")
+def freeze_lf022_weak_live_smoke_command(
+    batch_root: Annotated[
+        Path,
+        typer.Option("--batch-root", help="Exact immutable prepared weak-batch root."),
+    ],
+    production_catalog: Annotated[
+        Path,
+        typer.Option(
+            "--production-catalog",
+            help="Pinned normalized EPFL RCP production catalog.",
+        ),
+    ],
+    raw_rcp_catalog: Annotated[
+        Path,
+        typer.Option(
+            "--raw-rcp-catalog",
+            help="Pinned raw EPFL RCP /models response.",
+        ),
+    ],
+    code_bundle: Annotated[
+        Path,
+        typer.Option("--code-bundle", help="Current clean-tree code bundle."),
+    ],
+    output_dir: Annotated[
+        Path,
+        typer.Option(
+            "--output-dir",
+            help="New repository-local immutable live-smoke input directory.",
+        ),
+    ],
+    root_dir: Annotated[
+        Path | None,
+        typer.Option("--root", help="Repository root override."),
+    ] = None,
+) -> None:
+    """Freeze exact one-pair Kimi/DeepSeek judge inputs; perform zero calls."""
+    from leanfaith.config.paths import RepoPaths
+    from leanfaith.generation.lf022_weak_live_smoke import (
+        LF022WeakLiveSmokeError,
+        freeze_lf022_weak_live_smoke_inputs,
+    )
+
+    paths = RepoPaths.discover(root_dir) if root_dir is None else RepoPaths(root=root_dir)
+
+    def anchored(path: Path) -> Path:
+        return path if path.is_absolute() else paths.root / path
+
+    try:
+        frozen = freeze_lf022_weak_live_smoke_inputs(
+            repo_root=paths.root,
+            batch_root=anchored(batch_root),
+            production_catalog_path=anchored(production_catalog),
+            raw_rcp_catalog_path=anchored(raw_rcp_catalog),
+            code_bundle_path=anchored(code_bundle),
+            output_dir=anchored(output_dir),
+        )
+    except (LF022WeakLiveSmokeError, OSError, ValueError) as exc:
+        typer.echo(f"LF-022 weak live-smoke freeze rejected: {exc}", err=True)
+        raise typer.Exit(code=2) from exc
+    typer.echo(
+        json.dumps(
+            {
+                "config_path": str(frozen.config_path),
+                "config_sha256": frozen.config_sha256,
+                "judge_a_claim_path": str(frozen.judge_a_claim_path),
+                "judge_b_claim_path": str(frozen.judge_b_claim_path),
+                "network_calls_this_run": 0,
+                "semantic_labels_created": 0,
+                "training_eligible": False,
+                "gate_credit_claimed": False,
+            },
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+    )
+
+
+@app.command("prepare-lf022-weak-live-smoke")
+def prepare_lf022_weak_live_smoke_command(
+    batch_root: Annotated[
+        Path,
+        typer.Option("--batch-root", help="Exact immutable prepared weak-batch root."),
+    ],
+    config_path: Annotated[
+        Path,
+        typer.Option("--config", help="Frozen one-pair live-smoke config."),
+    ],
+    config_sha256: Annotated[
+        str,
+        typer.Option("--config-sha256", help="Expected SHA-256 of --config."),
+    ],
+    root_dir: Annotated[
+        Path | None,
+        typer.Option("--root", help="Repository root override."),
+    ] = None,
+) -> None:
+    """Select and admit exactly one public pair; perform zero provider calls."""
+    from leanfaith.config.hashing import hash_file
+    from leanfaith.config.paths import RepoPaths
+    from leanfaith.generation.lf022_weak_live_smoke import (
+        LF022WeakLiveSmokeError,
+        prepare_lf022_weak_live_smoke,
+    )
+
+    paths = RepoPaths.discover(root_dir) if root_dir is None else RepoPaths(root=root_dir)
+
+    def anchored(path: Path) -> Path:
+        return path if path.is_absolute() else paths.root / path
+
+    resolved_batch = anchored(batch_root)
+    try:
+        selector, admission = prepare_lf022_weak_live_smoke(
+            repo_root=paths.root,
+            batch_root=resolved_batch,
+            config_path=anchored(config_path),
+            expected_config_sha256=config_sha256,
+        )
+        admission_path = resolved_batch / "live_smoke/admission.json"
+        admission_sha256 = hash_file(admission_path)
+    except (LF022WeakLiveSmokeError, OSError, ValueError) as exc:
+        typer.echo(f"LF-022 weak live-smoke preparation rejected: {exc}", err=True)
+        raise typer.Exit(code=2) from exc
+    typer.echo(
+        json.dumps(
+            {
+                "admission_id": admission.admission_id,
+                "admission_path": str(admission_path),
+                "admission_sha256": admission_sha256,
+                "eligible_candidate_count": selector.eligible_candidate_count,
+                "selected_pair_id": selector.selected_pair_id,
+                "selected_pair_count": 1,
+                "admitted_cells": 4,
+                "network_calls_this_run": 0,
+                "semantic_labels_created": 0,
+                "training_eligible": False,
+                "gate_credit_claimed": False,
+            },
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+    )
+
+
+@app.command("execute-lf022-weak-live-smoke")
+def execute_lf022_weak_live_smoke_command(
+    batch_root: Annotated[
+        Path,
+        typer.Option("--batch-root", help="Prepared one-pair live-smoke batch root."),
+    ],
+    admission_path: Annotated[
+        Path,
+        typer.Option("--admission", help="Frozen one-pair live-smoke admission."),
+    ],
+    admission_sha256: Annotated[
+        str,
+        typer.Option("--admission-sha256", help="Expected SHA-256 of --admission."),
+    ],
+    execute_public_provisional: Annotated[
+        bool,
+        typer.Option(
+            "--execute-public-provisional",
+            help="Explicitly authorize at most four admitted public judge calls.",
+        ),
+    ] = False,
+    root_dir: Annotated[
+        Path | None,
+        typer.Option("--root", help="Repository root override."),
+    ] = None,
+) -> None:
+    """Run/resume one admitted public weak-judge smoke through runtime RCP env."""
+    from leanfaith.config.paths import RepoPaths
+    from leanfaith.generation.lf022_weak_live_smoke import (
+        LF022WeakLiveSmokeError,
+        LF022WeakRuntimeCredentials,
+        execute_lf022_weak_live_smoke,
+    )
+    from leanfaith.generation.rcp_provider import (
+        RCPProviderError,
+        UrllibOpenAICompatibleRCPTransport,
+    )
+
+    if not execute_public_provisional:
+        typer.echo(
+            "LF-022 weak live-smoke execution rejected: --execute-public-provisional is required",
+            err=True,
+        )
+        raise typer.Exit(code=2)
+    base_url = os.environ.get("RCP_BASE_URL", "")
+    api_key = os.environ.get("RCP_API_KEY", "")
+    if base_url.rstrip("/") != "https://inference.rcp.epfl.ch/v1" or not api_key:
+        typer.echo(
+            "LF-022 weak live-smoke execution rejected: exact runtime "
+            "RCP_BASE_URL and nonempty RCP_API_KEY are required",
+            err=True,
+        )
+        raise typer.Exit(code=2)
+
+    paths = RepoPaths.discover(root_dir) if root_dir is None else RepoPaths(root=root_dir)
+
+    def anchored(path: Path) -> Path:
+        return path if path.is_absolute() else paths.root / path
+
+    transport = UrllibOpenAICompatibleRCPTransport()
+    try:
+        terminals, manifest = execute_lf022_weak_live_smoke(
+            repo_root=paths.root,
+            batch_root=anchored(batch_root),
+            admission_path=anchored(admission_path),
+            expected_admission_sha256=admission_sha256,
+            execute_public_provisional=True,
+            credentials=LF022WeakRuntimeCredentials(
+                base_url=base_url,
+                api_key=api_key,
+            ),
+            transports={"judge_A": transport, "judge_B": transport},
+        )
+    except (LF022WeakLiveSmokeError, RCPProviderError, OSError, ValueError) as exc:
+        typer.echo(f"LF-022 weak live-smoke execution rejected: {exc}", err=True)
+        raise typer.Exit(code=2) from exc
+    typer.echo(
+        json.dumps(
+            {
+                "execution_id": manifest.execution_id,
+                "terminal_count": len(terminals),
+                "status_counts": manifest.status_counts,
+                "transport_attempt_count": manifest.transport_attempt_count,
+                "parsed_evidence_count": manifest.parsed_evidence_count,
+                "weak_candidate_count": manifest.weak_candidate_count,
+                "semantic_labels_created": 0,
+                "silver_records_created": 0,
+                "training_eligible": False,
+                "evaluation_eligible": False,
+                "gate_credit_claimed": False,
+            },
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+    )
+
+
+@app.command("replay-lf022-weak-live-smoke")
+def replay_lf022_weak_live_smoke_command(
+    batch_root: Annotated[
+        Path,
+        typer.Option("--batch-root", help="Completed one-pair live-smoke batch root."),
+    ],
+    admission_path: Annotated[
+        Path,
+        typer.Option("--admission", help="Frozen one-pair live-smoke admission."),
+    ],
+    admission_sha256: Annotated[
+        str,
+        typer.Option("--admission-sha256", help="Expected SHA-256 of --admission."),
+    ],
+    root_dir: Annotated[
+        Path | None,
+        typer.Option("--root", help="Repository root override."),
+    ] = None,
+) -> None:
+    """Verify a complete one-pair smoke from disk with zero network access."""
+    from leanfaith.config.paths import RepoPaths
+    from leanfaith.generation.lf022_weak_live_smoke import (
+        LF022WeakLiveSmokeError,
+        replay_lf022_weak_live_smoke,
+    )
+
+    paths = RepoPaths.discover(root_dir) if root_dir is None else RepoPaths(root=root_dir)
+
+    def anchored(path: Path) -> Path:
+        return path if path.is_absolute() else paths.root / path
+
+    try:
+        terminals, manifest = replay_lf022_weak_live_smoke(
+            repo_root=paths.root,
+            batch_root=anchored(batch_root),
+            admission_path=anchored(admission_path),
+            expected_admission_sha256=admission_sha256,
+        )
+    except (LF022WeakLiveSmokeError, OSError, ValueError) as exc:
+        typer.echo(f"LF-022 weak live-smoke replay rejected: {exc}", err=True)
+        raise typer.Exit(code=2) from exc
+    typer.echo(
+        json.dumps(
+            {
+                "execution_id": manifest.execution_id,
+                "terminal_count": len(terminals),
+                "status_counts": manifest.status_counts,
+                "network_calls_this_run": 0,
+                "semantic_labels_created": 0,
+                "silver_records_created": 0,
+                "training_eligible": False,
+                "evaluation_eligible": False,
+                "gate_credit_claimed": False,
+            },
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+    )
+
+
 @app.command("prepare-deterministic-composition-seeds")
 def prepare_deterministic_composition_seeds_command(
     combination_dir: Annotated[
@@ -3607,6 +4008,91 @@ def postprocess_deterministic_composition_unique_pairs_command(
         f"unique_pair_set_id={artifacts.unique_pair_set_id} "
         f"gross_chains={artifacts.gross_chain_count} unique_pairs={artifacts.unique_pair_count} "
         f"status={'replayed' if artifacts.replayed else 'postprocessed'} "
+        "semantic_labels_created=0 promoted_items=0 training_eligible=false "
+        "evaluation_eligible=false gate_credit=false"
+    )
+
+
+@app.command("export-deterministic-composition-receipt")
+def export_deterministic_composition_receipt_command(
+    full_run_root: Annotated[
+        Path,
+        typer.Option(
+            "--full-run-root",
+            help="Completed 13-family full-run root containing orchestration/receipt.json.",
+        ),
+    ],
+    seed_dir: Annotated[
+        Path,
+        typer.Option("--seed-dir", help="Exact immutable composition seed directory."),
+    ],
+    source_theorems: Annotated[
+        list[Path],
+        typer.Option(
+            "--source-theorems",
+            help="Canonical original-source TheoremRecord JSONL; repeat for public/private inputs.",
+        ),
+    ],
+    source_representations: Annotated[
+        list[Path],
+        typer.Option(
+            "--source-representations",
+            help=(
+                "Canonical original-source RepresentationRecord JSONL; repeat for "
+                "public/private inputs."
+            ),
+        ),
+    ],
+    chain_dir: Annotated[
+        Path,
+        typer.Option("--chain-dir", help="Immutable all-root composition-chain directory."),
+    ],
+    unique_pair_dir: Annotated[
+        Path,
+        typer.Option(
+            "--unique-pair-dir", help="Immutable composition unique-pair audit directory."
+        ),
+    ],
+    output_dir: Annotated[
+        Path,
+        typer.Option("--output-dir", help="New immutable provisional export directory."),
+    ],
+    root_dir: Annotated[
+        Path | None,
+        typer.Option("--root", help="Repository root override."),
+    ] = None,
+) -> None:
+    """Export a full receipt as provisional pairs plus cycles/conflicts report."""
+    from leanfaith.config.paths import RepoPaths
+    from leanfaith.transforms.composition_receipt_export import (
+        CompositionReceiptExportError,
+        export_deterministic_v2_composition_receipt,
+    )
+
+    paths = RepoPaths.discover(root_dir) if root_dir is None else RepoPaths(root=root_dir)
+
+    def anchored(path: Path) -> Path:
+        return path if path.is_absolute() else paths.root / path
+
+    try:
+        artifacts = export_deterministic_v2_composition_receipt(
+            full_run_root=anchored(full_run_root),
+            seed_dir=anchored(seed_dir),
+            source_theorems=[anchored(path) for path in source_theorems],
+            source_representations=[anchored(path) for path in source_representations],
+            chain_dir=anchored(chain_dir),
+            unique_pair_dir=anchored(unique_pair_dir),
+            output_dir=anchored(output_dir),
+        )
+    except (CompositionReceiptExportError, OSError, ValueError) as exc:
+        typer.echo(f"Deterministic composition receipt export rejected: {exc}", err=True)
+        raise typer.Exit(code=2) from exc
+    typer.echo(
+        f"export_set_id={artifacts.export_set_id} "
+        f"provisional_inventory={artifacts.provisional_inventory_count} "
+        f"cycles={artifacts.cycle_audit_count} "
+        f"quarantine={artifacts.mixed_intention_quarantine_count} "
+        f"status={'replayed' if artifacts.replayed else 'exported'} "
         "semantic_labels_created=0 promoted_items=0 training_eligible=false "
         "evaluation_eligible=false gate_credit=false"
     )
