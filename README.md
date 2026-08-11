@@ -269,6 +269,25 @@ reconstructs provenance from the immutable source inventory, rejects duplicate
 pairs/variants, and writes content-addressed outputs. Re-running the same
 command safely resumes or verifies identical atomic outputs.
 
+For exploratory data inspection while that full second Lean replay is still
+running, the lower-trust path is deliberately separate:
+
+```bash
+uv run leanfaith generate-deterministic \
+  --merge-scale-shards-provisional \
+  --output-dir /path/to/deterministic-run/provisional-merged \
+  --shard-output-dir /path/to/deterministic-run/shard_00 \
+  --shard-output-dir /path/to/deterministic-run/shard_01
+```
+
+Repeat `--shard-output-dir` for the complete bound shard set. This command
+still audits immutable inputs, journals, receipt chains, producer manifests,
+raw Lean-response trees, partitions, record identities, and cross-record
+lineage. It does **not** run the merger's second Lean replay. Its distinct
+manifest permanently records `training_eligible=false`,
+`evaluation_eligible=false`, and `gate_credit=false`; it is usable only for
+exploratory mining and smoke modeling until the strict merge supersedes it.
+
 `probe-deterministic-v2-coverage` is a read-only design probe. It reports broad
 surface signals for the disabled P05–P17/N11–N17 portfolio without executing
 Lean, emitting variants, or creating labels. A signal count is an upper bound,

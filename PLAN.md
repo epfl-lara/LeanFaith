@@ -2780,6 +2780,11 @@ Ordering carve-outs:
 - annotation tooling/guidelines may start after Gate 3 in parallel with Phases 4–6;
 - positive/negative/silver promotion closes only after the relevant blinded pilot;
 - smoke training is allowed only under `artifact_class=smoke`;
+- a deterministic producer-shard content-audit merge may omit the merger's
+  second full Lean replay only when its distinct manifest fixes
+  `merge_replayed_with_lean=false`, `training_eligible=false`,
+  `evaluation_eligible=false`, and `gate_credit=false`; it is limited to
+  exploratory mining/smoke modeling and never substitutes for scientific merge;
 - Phase 6 may be marked `deferred (strong-paper track)` by ADR for an MVP that consumes none of it;
 - final tests remain sealed until model/prompt/calibration/threshold freeze.
 
