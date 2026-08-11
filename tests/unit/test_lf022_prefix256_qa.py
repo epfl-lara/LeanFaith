@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import datetime
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from types import SimpleNamespace
 from typing import Any, cast
 
@@ -90,17 +90,37 @@ def test_historical_replay_compatibility_accepts_terminal_references_and_restore
         "sha256": "4" * 64,
     }
     original = historical_replay_module._explicit_record_bindings
+    original_copy_exact_file = historical_replay_module._copy_exact_file
     original_source_file = historical_replay_module._source_file
     with pytest.raises(LF022HistoricalReplayError):
         original(reference)
 
     sentinel = cast(LF022HistoricalReplayResult, object())
+    source = tmp_path / "source"
+    historical = tmp_path / "historical"
+    historical.mkdir()
+    terminal_relative = PurePosixPath(
+        f"data/lf022_kimi_v4_requalification/v1/{'a' * 64}/tasks/03/terminal.json"
+    )
+    task_relative = terminal_relative.with_name("task.json")
+    terminal = source / Path(terminal_relative.as_posix())
+    task = source / Path(task_relative.as_posix())
+    _write(terminal, canonical_json_bytes({"status": "provisional_variants_created"}))
+    _write(task, canonical_json_bytes({"task_id": "frozen-task"}))
 
     def fake_replay(**kwargs: object) -> LF022HistoricalReplayResult:
         del kwargs
         compatible = historical_replay_module._explicit_record_bindings
         assert compatible(reference) is None
         assert compatible(module_binding) == []
+        historical_replay_module._copy_exact_file(
+            source_root=source,
+            historical_root=historical,
+            relative=terminal_relative,
+            expected_sha256=hash_file(terminal),
+            label="bound artifact",
+        )
+        assert (historical / Path(task_relative.as_posix())).read_bytes() == task.read_bytes()
         return sentinel
 
     monkeypatch.setattr(
@@ -117,6 +137,7 @@ def test_historical_replay_compatibility_accepts_terminal_references_and_restore
 
     assert result is sentinel
     assert historical_replay_module._explicit_record_bindings is original
+    assert historical_replay_module._copy_exact_file is original_copy_exact_file
     assert historical_replay_module._source_file is original_source_file
     with pytest.raises(LF022HistoricalReplayError):
         original(reference)

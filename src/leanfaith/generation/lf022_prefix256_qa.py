@@ -119,6 +119,7 @@ def _run_terminal_reference_compatible_historical_replay(
     from leanfaith.generation import lf022_historical_replay as replay_module
 
     original = replay_module._explicit_record_bindings
+    original_copy_exact_file = replay_module._copy_exact_file
     original_source_file = replay_module._source_file
 
     def compatible(
@@ -161,8 +162,51 @@ def _run_terminal_reference_compatible_historical_replay(
         except LF022HistoricalReplayError as exc:
             raise LF022HistoricalReplayError(f"{exc}: {relative.as_posix()}") from exc
 
+    def copy_exact_with_requalification_task(
+        *,
+        source_root: Path,
+        historical_root: Path,
+        relative: PurePosixPath,
+        expected_sha256: str,
+        label: str,
+    ) -> Path:
+        copied = original_copy_exact_file(
+            source_root=source_root,
+            historical_root=historical_root,
+            relative=relative,
+            expected_sha256=expected_sha256,
+            label=label,
+        )
+        parts = relative.parts
+        if (
+            len(parts) == 7
+            and parts[0] == "data"
+            and parts[1] == "lf022_kimi_v4_requalification"
+            and parts[2] == "v1"
+            and re.fullmatch(HEX64_PATTERN, parts[3]) is not None
+            and parts[4] == "tasks"
+            and len(parts[5]) == 2
+            and parts[5].isdigit()
+            and parts[6] == "terminal.json"
+        ):
+            task_relative = relative.with_name("task.json")
+            task_source = source_file_with_path(
+                source_root,
+                task_relative,
+                label="derived Kimi-v4 requalification task",
+            )
+            original_copy_exact_file(
+                source_root=source_root,
+                historical_root=historical_root,
+                relative=task_relative,
+                expected_sha256=hash_file(task_source),
+                label="derived Kimi-v4 requalification task",
+            )
+        return copied
+
     with _HISTORICAL_REPLAY_COMPATIBILITY_LOCK:
         replay_module._explicit_record_bindings = compatible
+        replay_module._copy_exact_file = copy_exact_with_requalification_task
         replay_module._source_file = source_file_with_path
         try:
             return run_lf022_historical_replay(
@@ -173,6 +217,7 @@ def _run_terminal_reference_compatible_historical_replay(
             )
         finally:
             replay_module._explicit_record_bindings = original
+            replay_module._copy_exact_file = original_copy_exact_file
             replay_module._source_file = original_source_file
 
 
