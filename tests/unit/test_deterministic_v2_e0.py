@@ -179,6 +179,24 @@ def test_p11_ignores_comment_text_and_rejects_unterminated_comments() -> None:
         enumerate_p11_sites("theorem t : True /- bad := by sorry")
 
 
+def test_p11_multiple_sites_use_canonical_matched_node_order() -> None:
+    source = (
+        "theorem many (s : List Nat) (P Q : Nat → Prop) : "
+        "(∀ x ∈ s, P x) → (∃ y ∈ s, Q y) := by sorry"
+    )
+    rule = P11BoundedQuantifierRule(
+        generation_config_hash="a" * 64,
+        candidate_pool="fixture",
+    )
+    theorem, representation = _source_records(source, "multiple-sites")
+
+    applicability = rule.assess(theorem, representation)
+
+    assert applicability.applicable is True
+    assert len(applicability.matched_nodes) == 2
+    assert applicability.matched_nodes == tuple(sorted(applicability.matched_nodes))
+
+
 def test_p12_is_root_only_and_requires_an_unused_prop_binder() -> None:
     arrow = enumerate_p12_sites(_P12_SOURCE)
     assert len(arrow) == 1
