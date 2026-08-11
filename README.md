@@ -162,12 +162,15 @@ dataset probe (PLAN.md §9.2).
   then passed exact offline replay and LeanInteract elaboration before the
   isolated 256-task tranche was launched and reached 256/256 terminal tasks:
   248 parsed variants, six exhausted-provider terminals, and two parse
-  failures. Batch-scoped Lean checking now binds
-  the exact content-addressed generation manifest, so historical executor
-  outputs cannot leak into a tranche's mechanical validation. These records
+  failures. Batch-scoped Lean checking now binds the exact content-addressed
+  generation manifest, so historical executor outputs cannot leak into a
+  tranche's mechanical validation. The prefix-256 operational QA replayed all
+  256 terminals without network access. LeanInteract accepted 201 of the 248
+  generated variants and rejected 47; the Codex audit covered all 201
+  mechanically valid candidates. These records
   still create no label, promotion, training example, evaluation example, or
-  gate credit. See
-  `docs/lf022_public_generation.md`.
+  gate credit. See `docs/lf022_public_generation.md` and
+  `reports/generation/lf022_current_exploratory_inventory_v1.md`.
 - **Deterministic unary scale-out materialized:** all 16 producer shards over
   the frozen 27,786-statement public universe completed. A separate
   content-audit merge at code revision `645a9a8` verified immutable inputs,
@@ -180,6 +183,17 @@ dataset probe (PLAN.md §9.2).
   audit explicitly records `training_eligible=false`,
   `evaluation_eligible=false`, and `gate_credit=false`; no semantic label or
   promotion follows from generation or typechecking alone.
+- **Deterministic-v2 public expansion materialized:** seven additional exact
+  family passes over the same 27,786-statement public corpus produced 1,971
+  provisional variants. Together with the preceding LF-032 deterministic-v2
+  tranche, that portfolio contains 2,241 provisional pairs. Its first-sight
+  report shows 15 exact source/candidate examples and binds every result hash;
+  all 194,502 follow-up terminal rows were independently reconciled. Combining
+  the v1 and v2 counts gives 29,568 gross deterministic provisional
+  observations before cross-portfolio deduplication. No count is a semantic
+  label or confirmatory training admission. See
+  `reports/transformation_audits/lf033_public_followup_examples.md` and
+  `reports/transformation_audits/lf033_public_followup_materialization_v1.json`.
 - **Public LF-022 scale-out preparation is deterministic and still
   non-executable:** a pinned, progressively expandable mathlib file frame
   feeds exact extraction and representation runs. The production pool admits

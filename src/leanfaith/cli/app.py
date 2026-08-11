@@ -5815,6 +5815,57 @@ def materialize_deterministic_v2_e2_scale_command(
     )
 
 
+@app.command("freeze-transform-source-subset")
+def freeze_transform_source_subset_command(
+    theorem_path: Annotated[
+        Path,
+        typer.Option(
+            "--theorems",
+            help="Aligned Gate-3 TheoremRecord JSONL, optionally using wrapped rows.",
+        ),
+    ],
+    representation_path: Annotated[
+        Path,
+        typer.Option(
+            "--representations",
+            help="Aligned Gate-3 RepresentationRecord JSONL.",
+        ),
+    ],
+    source: Annotated[
+        str,
+        typer.Option("--source", help="Exact TheoremRecord.source value to freeze."),
+    ],
+    output_dir: Annotated[
+        Path,
+        typer.Option(
+            "--output-dir",
+            help="New immutable output directory, or an exact prior replay.",
+        ),
+    ],
+) -> None:
+    """Freeze a canonical source-only subset from aligned Gate-3 inputs."""
+    from leanfaith.transforms.source_subset_freeze import (
+        freeze_transform_source_subset,
+    )
+
+    try:
+        artifacts = freeze_transform_source_subset(
+            theorem_path=theorem_path,
+            representation_path=representation_path,
+            source=source,
+            output_dir=output_dir,
+        )
+    except (OSError, ValueError) as exc:
+        typer.echo(f"source-subset freeze rejected: {exc}", err=True)
+        raise typer.Exit(code=1) from exc
+    typer.echo(
+        "source-subset freeze complete; "
+        f"source={artifacts.source} records={artifacts.record_count} "
+        f"context={artifacts.context_id} replayed={str(artifacts.replayed).lower()} "
+        f"manifest={artifacts.manifest_path}"
+    )
+
+
 def main() -> None:
     app()
 
