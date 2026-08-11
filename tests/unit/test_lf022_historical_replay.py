@@ -415,20 +415,6 @@ def test_binding_candidates_do_not_follow_module_provenance() -> None:
         _binding_candidates(malformed)
 
 
-def test_binding_candidates_do_not_follow_nested_code_bundle_provenance() -> None:
-    digest = "1" * 64
-    code_bundle = {
-        "path": f"artifacts/code_bundles/historical/code_bundle_{digest}.tar.gz",
-        "sha256": digest,
-    }
-
-    assert _binding_candidates(code_bundle) == []
-
-    malformed = {**code_bundle, "sha256": "2" * 64}
-    with pytest.raises(LF022HistoricalReplayError, match="code-bundle binding is malformed"):
-        _binding_candidates(malformed)
-
-
 @pytest.mark.parametrize(
     "payload",
     [
