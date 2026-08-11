@@ -1183,12 +1183,10 @@ def _build_records(
             "split_group_ids": observation.source_root_ancestry_ids,
             "split_component_id": component,
             "split": _split_for_component(component, config=config),
-            "source": _statement_view(
-                candidate.source_theorem, candidate.source_representation
-            ).model_dump(mode="json"),
+            "source": _statement_view(candidate.source_theorem, candidate.source_representation),
             "candidate": _statement_view(
                 candidate.candidate_theorem, candidate.candidate_representation
-            ).model_dump(mode="json"),
+            ),
             "candidate_code_hash": observation.candidate_code_hash,
             "candidate_code_key": observation.candidate_code_key,
             "alpha_candidate_key": observation.alpha_candidate_key,
@@ -1657,6 +1655,9 @@ def verify_experimental_machine_supervision(
     split_counts = Counter(record.split for record in records)
     if dict(sorted(split_counts.items())) != summary.counts_by_split:
         raise ExperimentalMachineSupervisionError("summary split counts differ")
+    split_target_counts = Counter(f"{record.split}:{record.pseudo_target}" for record in records)
+    if dict(sorted(split_target_counts.items())) != summary.counts_by_split_and_target:
+        raise ExperimentalMachineSupervisionError("summary split-and-target counts differ")
     if summary.component_count != len(component_counts):
         raise ExperimentalMachineSupervisionError("summary component count differs")
     if summary.maximum_observed_variants_per_component != max(component_counts.values()):

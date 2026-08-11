@@ -46,6 +46,17 @@ dataset probe (PLAN.md §9.2).
 
 ## Status
 
+- **First loader-ready experimental corpus frozen:** a clean, pushed producer
+  revision materialized 2,000 public-mathlib Lean--Lean pairs: 1,000 E2
+  intended-same-claim transformations and 1,000 D0 intended-near-miss
+  transformations. The corpus contains 1,569 ancestry-connected components,
+  has fixed train/validation/test splits, passed benchmark screening and exact
+  byte replay, and includes a readable 20-pair sample. It is deliberately
+  provisional machine supervision, not semantic gold: it requires explicit
+  opt-in and is forbidden for model selection, calibration, evaluation, or
+  scientific claims. See
+  `reports/model_selection/experimental_machine_supervision_mathlib_2k_v1.md`.
+
 - **Implemented:** LF-001 through LF-018, including the LeanInteract backend,
   source adapters, proof-free extraction, isolated multi-view
   representations, and the fail-closed transformation protocol/registry/

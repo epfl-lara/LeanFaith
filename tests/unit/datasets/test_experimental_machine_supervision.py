@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import datetime
+import warnings
+from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, cast
@@ -9,9 +11,11 @@ import pytest
 from typer.testing import CliRunner
 
 from leanfaith.cli.app import app
+from leanfaith.config.hashing import hash_canonical
 from leanfaith.datasets import experimental_machine_supervision as ems
 from leanfaith.datasets.denylist import DenylistIndex, FrozenBenchmark, FrozenRegistry
 from leanfaith.representations.views import signature_near_dup_hash
+from leanfaith.schemas.enums import IntendedRelation
 from leanfaith.schemas.manifest import CodeState
 from leanfaith.schemas.theorem import RepresentationRecord, TheoremRecord
 from leanfaith.transforms.composition_seed import CompositionSeedRecord
@@ -76,7 +80,7 @@ def _observation(
         candidate_representation_id=f"candidate-representation:{suffix}",
         candidate_code_hash=(suffix[0] * 64),
         candidate_alpha_identity_fingerprint=(suffix[-1] * 64),
-        intended_relation=relation,
+        intended_relation=IntendedRelation(relation),
         polarity_metadata="positive" if relation == "equivalent" else "negative",
         exact_pair_key=(suffix[0] * 64),
         candidate_code_key=(suffix[1] * 64),
@@ -126,6 +130,55 @@ def _candidate(
     )
 
 
+def _candidate_with_views(
+    suffix: str,
+    *,
+    family: str,
+    target: ems.PseudoTarget,
+    groups: tuple[str, ...],
+) -> ems._Candidate:
+    candidate = _candidate(
+        suffix,
+        family=family,
+        target=target,
+        groups=groups,
+    )
+    context_id = "ctx:fixture"
+    source_theorem = TheoremRecord.model_construct(
+        theorem_id=f"theorem:source-{suffix}",
+        context_id=context_id,
+        statement_content_hash="1" * 64,
+    )
+    candidate_theorem = TheoremRecord.model_construct(
+        theorem_id=f"theorem:candidate-{suffix}",
+        context_id=context_id,
+        statement_content_hash="2" * 64,
+    )
+    source_representation = RepresentationRecord.model_construct(
+        representation_id=f"representation:source-{suffix}",
+        context_id=context_id,
+        content_hash="3" * 64,
+        alpha_identity_fingerprint="4" * 64,
+        headless="theorem source : True",
+        signature_explicit="True",
+    )
+    candidate_representation = RepresentationRecord.model_construct(
+        representation_id=f"representation:candidate-{suffix}",
+        context_id=context_id,
+        content_hash="5" * 64,
+        alpha_identity_fingerprint="6" * 64,
+        headless="theorem candidate : False",
+        signature_explicit="False",
+    )
+    return replace(
+        candidate,
+        source_theorem=source_theorem,
+        source_representation=source_representation,
+        candidate_theorem=candidate_theorem,
+        candidate_representation=candidate_representation,
+    )
+
+
 def test_pinned_mathlib_2k_config_is_balanced_and_strict() -> None:
     loaded = ems.load_experimental_machine_supervision_config(
         Path("configs/data/experimental_machine_supervision_mathlib_2k_v1.yaml")
@@ -158,7 +211,7 @@ def test_manifest_rejects_dirty_or_untracked_code() -> None:
     payload = {
         "dataset_id": f"experimental-machine-supervision:{'b' * 64}",
         "profile_id": config.profile_id,
-        "config_hash": ems.hash_canonical(config.model_dump(mode="json")),
+        "config_hash": hash_canonical(config.model_dump(mode="json")),
         "config": config.model_dump(mode="json"),
         "inputs": {
             "fixture": {
@@ -236,6 +289,27 @@ def test_selection_applies_cap_to_union_find_component() -> None:
         config=_config(maximum_variants_per_component=2),
     )
     assert {item.pseudo_target for item in selected} == {"same_claim", "not_same_claim"}
+
+
+def test_record_build_serializes_nested_views_without_warnings() -> None:
+    candidate = _candidate_with_views(
+        "cd",
+        family="n11_family",
+        target="not_same_claim",
+        groups=("anc:c",),
+    )
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        records = ems._build_records(
+            (candidate,),
+            config=_config(),
+            component_ids={candidate.observation.observation_id: "split-component:" + "7" * 64},
+        )
+
+    assert len(records) == 1
+    assert records[0].source.headless == "theorem source : True"
+    assert records[0].candidate.signature_explicit == "False"
 
 
 def test_positive_locator_requires_exact_e2_seed_receipt() -> None:
