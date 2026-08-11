@@ -362,6 +362,21 @@ def test_inline_preamble_hoisting_supports_mathlib_module_and_public_imports() -
     assert body == ("/- license -/\n@[expose] section\ntheorem fixture : True := by trivial")
 
 
+def test_inline_preamble_hoists_public_meta_imports_before_helpers() -> None:
+    from leanfaith.representations.pipeline import _hoist_inline_imports
+
+    imports, body = _hoist_inline_imports(
+        "module\n"
+        "public import Mathlib.Dynamics.Flow\n"
+        "public meta import Mathlib.Tactic.ToAdditive\n"
+        "section omegaLimit\n"
+        "theorem fixture : True := by trivial"
+    )
+
+    assert imports == "import Mathlib.Dynamics.Flow\nmeta import Mathlib.Tactic.ToAdditive"
+    assert body == "section omegaLimit\ntheorem fixture : True := by trivial"
+
+
 def test_imports_with_lean_is_first_and_deduplicated() -> None:
     from leanfaith.representations.pipeline import _imports_with_lean
 

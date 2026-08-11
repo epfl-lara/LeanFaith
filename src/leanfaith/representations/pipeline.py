@@ -535,6 +535,12 @@ def _hoist_inline_imports(source: str) -> tuple[str, str]:
         is_top_level_code = initial_depth == 0 and block_depth == 0 and first_code is not None
         if is_top_level_code and re.match(r"module(?:\s|$)", command):
             continue
+        if is_top_level_code and re.match(r"public\s+meta\s+import(?:\s|$)", command):
+            imports.append(re.sub(r"^public\s+", "", command, count=1).strip())
+            continue
+        if is_top_level_code and re.match(r"meta\s+import(?:\s|$)", command):
+            imports.append(command.strip())
+            continue
         if is_top_level_code and re.match(r"public\s+import(?:\s|$)", command):
             imports.append(re.sub(r"^public\s+", "", command, count=1).strip())
             continue
