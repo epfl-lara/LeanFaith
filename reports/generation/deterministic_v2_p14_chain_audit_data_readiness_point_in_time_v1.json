@@ -2,6 +2,10 @@
   "artifact_kind": "deterministic_v2_p14_chain_audit_data_readiness_point_in_time",
   "captured_at_utc": "2026-08-11T17:14:01Z",
   "code_commit": "fecdb3411a25f8d97c506e9748566c1f7b1ddff2",
+  "correction": {
+    "corrected_at_utc": "2026-08-11T17:48:02Z",
+    "reason": "Removed an invalid exact-source-return claim because the historical source statement hash and final candidate code hash use different domains. Alpha-identity and unique-pair counts are unaffected."
+  },
   "p14_chain_audit": {
     "artifact_root": "/storage/milikic/leanfaith/deterministic_v2/composition_second_hops/chain_8c18476_v1/audit/chains_p14_recovered_fd196dd_v1",
     "chain_set_id": "detcomp_chain_set:9db5e410eb07be5a7c3437c19c4ce14ca5d0949579d576a2535c5fa17af29cdc",
@@ -65,7 +69,7 @@
       },
       "alpha_novel_count": 555,
       "comparison": "final_alpha_identity_fingerprint versus the bound seed source_alpha_identity_fingerprint",
-      "exact_raw_source_final_content_hash_return_count": 0,
+      "exact_source_byte_return_status": "not_comparable_hash_domains",
       "unique_identity_bound_raw_pair_count": 1888,
       "unique_identity_bound_raw_pair_key": "(original_source_theorem_id, final_candidate_code_hash)",
       "warning": "Only 555 chains are alpha-novel relative to their original source. The other 1,333 mechanically return to the source alpha identity and must not be described as 1,333 additional novel claims."

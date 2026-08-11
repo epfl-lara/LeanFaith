@@ -3,6 +3,11 @@
 Captured at `2026-08-11T17:14:01Z` from repository commit
 `fecdb3411a25f8d97c506e9748566c1f7b1ddff2`.
 
+Correction recorded at `2026-08-11T17:48:02Z`: the original report compared a
+signature-range source hash with a whole-candidate hash and therefore could
+not support its exact-source-return claim. That claim has been removed. The
+alpha-identity and unique-pair counts are unaffected.
+
 ## Result
 
 The recovered P14 second-hop artifact is complete and mechanically consistent:
@@ -22,10 +27,11 @@ alpha-identity fingerprint with its bound original seed gives:
 
 The 1,333 alpha cycles consist of 1,328 P14→P14, 2 P15→P14, and 3 P18→P14
 chains. The 555 alpha-novel chains consist of 294 P14→P14, 29 P15→P14,
-11 P16→P14, 1 P17→P14, and 220 P18→P14 chains. There are no exact
-source-to-final content-hash returns, and all 1,888
+11 P16→P14, 1 P17→P14, and 220 P18→P14 chains. All 1,888
 `(original_source_theorem_id, final_candidate_code_hash)` keys are unique.
-That syntactic uniqueness does not override the alpha-cycle result.
+Exact source-byte return is not reported because the historical source and
+candidate artifacts use different content-hash domains. Raw-key uniqueness
+does not override the alpha-cycle result.
 
 Every chain remains provisional and intention-only. The artifact creates zero
 semantic labels, zero resolved labels, zero promotions, zero training-eligible

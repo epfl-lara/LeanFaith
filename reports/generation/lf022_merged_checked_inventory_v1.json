@@ -1,0 +1,65 @@
+{
+  "artifact_kind": "lf022_merged_checked_inventory_point_in_time",
+  "captured_at_utc": "2026-08-11T17:32:10Z",
+  "code_commit": "6130d965be23afe73d637bae5130759b2dfbb7e8",
+  "inventory": {
+    "artifact_root": "/storage/milikic/leanfaith/lf022_merged_inventory/commit_6130d96_v1",
+    "conflicts": {
+      "audit_any_core_tuple_conflict_pair_key_count": 51,
+      "audit_directional_conflict_pair_key_count": 20,
+      "audit_relation_conflict_pair_key_count": 32,
+      "audit_same_claim_conflict_pair_key_count": 3,
+      "lean_outcome_conflict_pair_key_count": 0
+    },
+    "counts": {
+      "audited_gross_observation_count": 1412,
+      "audited_unique_pair_key_count": 1080,
+      "gross_observation_count": 1967,
+      "lean_valid_gross_observation_count": 1439,
+      "lean_valid_unaudited_pair_key_count": 26,
+      "lean_valid_unique_pair_key_count": 1106,
+      "unique_pair_key_count": 1502,
+      "unique_variant_id_count": 1529
+    },
+    "files": {
+      "manifest": {
+        "sha256": "60f3aee4292e414caa8d601216443848df74efcb2d9d47fa94fbfaecce58dc3f"
+      },
+      "observations": {
+        "sha256": "a3d481f1a48265f3573e8284fae837e10fe34530775a20f5cc1f21adcf3443ef"
+      },
+      "pairs": {
+        "sha256": "b9f48b379d04bd30e8afd058c86cca350c5c56b6503dbcb7a0f12480c7120d42"
+      }
+    },
+    "inventory_id": "lf022_merged_checked_inventory:2a0b0f94b3a448b0939d622686b9cfb5380f8ddacc8b29421bb9a4cf75ecc691",
+    "inventory_spec_id": "lf022_merged_inventory_spec:905a61334ce957f2e8e977c344349c474c503c576d3b50b3a6fb20f4535c501c",
+    "inventory_spec_sha256": "6c8c56757b4fbb78dd3ebb6fc1311dba78f1f522de875e4e9680f12536cd8434",
+    "pairwise_partition_intersections": {
+      "kimi248 | deepseek32": 0,
+      "kimi248 | qwen1019": 0,
+      "legacy668 | deepseek32": 1,
+      "legacy668 | kimi248": 26,
+      "legacy668 | qwen1019": 438,
+      "qwen1019 | deepseek32": 0
+    }
+  },
+  "policy": {
+    "audit_only": true,
+    "evaluation_eligible": false,
+    "gate_credit_claimed": false,
+    "generation_complete": false,
+    "gold_records_created": false,
+    "human_labels_created": false,
+    "readiness_claimed": false,
+    "semantic_labels_created": false,
+    "silver_records_created": false,
+    "training_eligible": false
+  },
+  "replay": {
+    "exact_second_materialization_replayed": true,
+    "status": "passed"
+  },
+  "schema_version": 1,
+  "status": "validated_audit_only_inventory"
+}

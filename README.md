@@ -153,6 +153,15 @@ dataset probe (PLAN.md §9.2).
   `reports/generation/lf022_codex_sol_xhigh_v2_summary.md`. The canonical check
   manifest remains
   `/storage/milikic/leanfaith/lf022_lean_checks/rcp_5e672b9_v1/manifest.json`.
+- **LF-022 checked data now has one authoritative deduplicated inventory:**
+  four immutable checker partitions contribute 1,967 gross observations but
+  only 1,502 canonical source/candidate pairs. Of these, 1,106 are Lean-valid,
+  1,080 have a completed Codex audit, and 26 valid pairs remain unaudited.
+  Repeated audits expose 51 pair-level core-judgment conflicts, so this is an
+  audit inventory rather than resolved supervision. The exact output replayed
+  byte-for-byte and remains ineligible for labels, training, evaluation, or
+  gate credit. See
+  `reports/generation/lf022_merged_checked_inventory_v1.md`.
 - **Kimi-v4 challenge passed and its first bounded production tranche completed:** the
   frozen 16-item hard-case requalification produced 16/16 strict variants,
   with two transient HTTP-429 attempts successfully retried and no truncation,
@@ -279,6 +288,13 @@ dataset probe (PLAN.md §9.2).
   experiments while blocking N-to-anything and third-hop chains; it creates no
   labels or training eligibility. See
   `reports/transformation_audits/lf033_equality_composition_inventory_v1.md`.
+- **Depth-two deterministic outputs are now cycle-aware:** the completed P14
+  chain receipt contains 1,888 unique raw source/final-code pairs, but 1,333
+  return to the original theorem's alpha identity. The immutable postprocessed
+  inventory therefore identifies only 555 alpha-novel pairs while retaining
+  the reversible cycles for audit. It replayed exactly and creates no label,
+  promotion, training/evaluation eligibility, or gate credit. See
+  `reports/generation/deterministic_v2_p14_unique_pair_inventory_v1.md`.
 - **Public LF-022 scale-out preparation is deterministic and still
   non-executable:** a pinned, progressively expandable mathlib file frame
   feeds exact extraction and representation runs. The production pool admits
@@ -354,6 +370,7 @@ uv run leanfaith qa-lf022-prefix256 --help
 uv run leanfaith check-lf022-provisional-lean --help
 uv run leanfaith audit-lf022-codex --help
 uv run leanfaith summarize-lf022-codex-audit --help
+uv run leanfaith build-lf022-merged-checked-inventory --help
 uv run leanfaith run-deterministic-shards --help
 uv run leanfaith merge-deterministic-shards --help
 uv run leanfaith probe-deterministic-v2-coverage --help
@@ -361,6 +378,7 @@ uv run leanfaith materialize-deterministic-v2-d0-scale --help
 uv run leanfaith materialize-deterministic-v2-e2-scale --help
 uv run leanfaith prepare-deterministic-composition-seeds --help
 uv run leanfaith audit-deterministic-composition-chains --help
+uv run leanfaith postprocess-deterministic-composition-unique-pairs --help
 uv run leanfaith combine-deterministic-scale-passes --help
 uv run leanfaith audit-training-readiness --report-only
 ```
