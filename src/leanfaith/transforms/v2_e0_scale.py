@@ -19,7 +19,11 @@ from pathlib import Path
 
 from leanfaith.lean.leaninteract_backend import LeanInteractBackend
 from leanfaith.lean.protocol import LeanRequest, LeanStatus
-from leanfaith.representations import TheoremForRepresentation, build_representations
+from leanfaith.representations import (
+    TheoremForRepresentation,
+    build_representations,
+    inline_replay_environment_lookup_name,
+)
 from leanfaith.schemas.enums import Polarity, ValidationStatus
 from leanfaith.schemas.theorem import RepresentationRecord, TheoremRecord
 from leanfaith.schemas.variant import TransformationAttempt, VariantDraft
@@ -98,6 +102,10 @@ def _candidate_representation_input(candidate: TheoremRecord) -> TheoremForRepre
         context_id=candidate.context_id,
         inline_declaration=True,
         inline_source=candidate.inline_elaboration_source,
+        environment_lookup_name=inline_replay_environment_lookup_name(
+            candidate.declaration_full_name,
+            candidate.inline_elaboration_source,
+        ),
     )
 
 

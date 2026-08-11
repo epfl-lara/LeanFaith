@@ -16,7 +16,11 @@ from leanfaith.config.paths import find_repo_root
 from leanfaith.lean.commands import PropositionPairSource, render_alias_preflight
 from leanfaith.lean.leaninteract_backend import BackendSettings, LeanInteractBackend
 from leanfaith.lean.protocol import LeanRequest, LeanStatus
-from leanfaith.representations.pipeline import TheoremForRepresentation, build_representations
+from leanfaith.representations.pipeline import (
+    TheoremForRepresentation,
+    build_representations,
+    inline_replay_environment_lookup_name,
+)
 from leanfaith.representations.views import (
     normalize_pp_universe_placeholders,
     signature_near_dup_hash,
@@ -128,6 +132,50 @@ def test_private_declaration_recovers_expr_views_by_environment_name(
     assert record.view_status["signature_explicit"].value == "ok"
     assert record.view_status["semantic_atoms"].value == "ok"
     assert record.view_status["operator_tree"].value == "ok"
+
+
+def test_module_private_inline_replay_recovers_all_expr_views(
+    backend: LeanInteractBackend,
+) -> None:
+    source = """\
+module
+import LeanFaithFixtures
+
+namespace LeanFaithInlinePrivate
+theorem hidden (n : Nat) : n = n := by sorry
+"""
+    rendered_name = "_private.0.LeanFaithInlinePrivate.hidden"
+    theorem = TheoremForRepresentation(
+        theorem_id=make_id("thm", {"name": "module-private-inline"}),
+        full_name=rendered_name,
+        environment_lookup_name=inline_replay_environment_lookup_name(rendered_name, source),
+        proof_stripped="theorem hidden (n : Nat) : n = n := by sorry",
+        context_id=_CTX,
+        inline_declaration=True,
+        inline_source=source,
+    )
+
+    (record,) = build_representations(
+        backend,
+        [theorem],
+        imports="import LeanFaithFixtures",
+        created_at=_UTC,
+    )
+
+    assert record.signature_pp is not None
+    assert record.signature_explicit is not None
+    assert record.alpha_identity_fingerprint is not None
+    assert record.semantic_atoms is not None
+    assert record.operator_tree is not None
+    assert all(
+        record.view_status[view].value == "ok"
+        for view in (
+            "signature_pp",
+            "signature_explicit",
+            "semantic_atoms",
+            "operator_tree",
+        )
+    )
 
 
 def test_complex_private_signature_matches_public_alias(

@@ -421,6 +421,34 @@ def test_private_environment_lookup_name_is_source_qualified() -> None:
     assert declaration_environment_lookup_name("_private.0.hidden", None) == ("_private.0.hidden")
 
 
+def test_module_private_name_becomes_public_in_inline_replay() -> None:
+    from leanfaith.representations.pipeline import inline_replay_environment_lookup_name
+
+    source = """\
+/- module inside this comment is not a command -/
+module
+public import Mathlib
+
+namespace Complex
+theorem hidden (p : Prop) : p -> p := by sorry
+"""
+    assert (
+        inline_replay_environment_lookup_name(
+            "_private.0.Complex.hidden",
+            source,
+        )
+        == "Complex.hidden"
+    )
+    assert (
+        inline_replay_environment_lookup_name(
+            "_private.0.Complex.hidden",
+            "private theorem hidden (p : Prop) : p -> p := by sorry",
+        )
+        == "_private.0.Complex.hidden"
+    )
+    assert inline_replay_environment_lookup_name("Complex.hidden", source) == "Complex.hidden"
+
+
 def test_private_expr_dump_uses_environment_name_but_preserves_theorem_identity() -> None:
     from leanfaith.lean.protocol import LeanRequest, LeanResult, LeanStatus
     from leanfaith.representations import (
