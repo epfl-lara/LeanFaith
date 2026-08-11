@@ -30,6 +30,7 @@ from leanfaith.generation.lf022_weak_batch import (
     LF022WeakBatchError,
     LF022WeakBatchSpec,
     LF022WeakDispatchManifest,
+    _validate_candidate_inventory_records,
     execute_or_resume_lf022_weak_batch,
     finalize_lf022_weak_batch,
     prepare_lf022_weak_batch,
@@ -132,6 +133,52 @@ def _candidate() -> LF022SupervisionCandidateRecord:
     )
 
 
+def _candidate_v3_without_codex() -> LF022SupervisionCandidateRecord:
+    pair = _pair()
+    source_item_id = "lf022_supervision_source:" + "5" * 64
+    values: dict[str, object] = {
+        "schema_version": 3,
+        "collection_id": "fixture-v3",
+        "pair_id": pair.pair_id,
+        "variant_id": "var:" + "3" * 64,
+        "lean_check_id": "lf022_lean_check:" + "4" * 64,
+        "proposer_family_id": "moonshot_kimi_k2",
+        "proposer_model": "moonshotai/Kimi-K2.7-Code",
+        "pair": pair.model_dump(mode="json"),
+        "pair_admission_sha256": pair.admission_sha256,
+        "judge_visible_payload_sha256": _judge_visible_payload_hash(pair),
+        "dispatch_status": "ready_for_two_family_judging",
+        "canonical_dispatch_pair_id": pair.pair_id,
+        "source_candidate_item_id": source_item_id,
+        "canonical_dispatch_source_item_id": source_item_id,
+        "required_judgment_cells": (
+            "judge_A:AB",
+            "judge_A:BA",
+            "judge_B:AB",
+            "judge_B:BA",
+        ),
+        "promotion_blockers": (
+            "human_pilot_not_bound",
+            "promotion_audit_missing",
+            "silver_not_promoted",
+            "swapped_order_judgments_missing",
+            "two_family_judgments_missing",
+        ),
+        "candidate_state": "unresolved_awaiting_two_family_judging",
+        "semantic_labels_created": False,
+        "silver_records_created": False,
+        "training_eligible": False,
+        "evaluation_eligible": False,
+        "gate_credit_claimed": False,
+    }
+    return LF022SupervisionCandidateRecord.model_validate(
+        {
+            **values,
+            "candidate_inventory_record_id": make_id("lf022_supervision_candidate", values),
+        }
+    )
+
+
 def _candidate_manifest(record_bytes: bytes) -> LF022SupervisionCandidateManifest:
     record_hash = sha256_hex(record_bytes)
     values: dict[str, object] = {
@@ -187,13 +234,77 @@ def _candidate_manifest(record_bytes: bytes) -> LF022SupervisionCandidateManifes
     )
 
 
-def _foundation(tmp_path: Path) -> tuple[Path, Path, str]:
+def _candidate_manifest_v3_without_codex(
+    record_bytes: bytes,
+) -> LF022SupervisionCandidateManifest:
+    record_hash = sha256_hex(record_bytes)
+    values: dict[str, object] = {
+        "schema_version": 3,
+        "method_version": "lf022_supervision_candidate_inventory_v3",
+        "collection_id": "fixture-v3",
+        "spec_sha256": "7" * 64,
+        "checks_sha256": "8" * 64,
+        "lean_check_manifest_sha256": "9" * 64,
+        "codex_audit_manifest_sha256": None,
+        "logical_input_binding_sha256": "a" * 64,
+        "codex_response_artifact_set_sha256": None,
+        "proposer_family_id": "moonshot_kimi_k2",
+        "proposer_model": "moonshotai/Kimi-K2.7-Code",
+        "judge_a_family_id": "qwen3",
+        "judge_b_family_id": "deepseek_v4",
+        "primary_eval_judge_family_id": "openai_codex",
+        "records_artifact": "candidates.jsonl",
+        "records_sha256": record_hash,
+        "public_sample_artifact": "public_sample.jsonl",
+        "public_sample_sha256": record_hash,
+        "public_sample_count": 1,
+        "summary_artifact": "summary.md",
+        "summary_sha256": "c" * 64,
+        "record_count": 1,
+        "unique_judge_visible_payload_count": 1,
+        "exact_duplicate_record_count": 0,
+        "dispatch_eligible_count": 1,
+        "required_future_judge_call_count": 4,
+        "codex_diagnostic_status": "absent",
+        "codex_diagnostic_record_count": 0,
+        "codex_same_claim_counts": {},
+        "dispatch_status_counts": {"ready_for_two_family_judging": 1},
+        "codex_is_diagnostic_only": True,
+        "two_family_judgments_completed": False,
+        "human_pilot_bound": False,
+        "semantic_labels_created": False,
+        "silver_records_created": False,
+        "training_eligible": False,
+        "evaluation_eligible": False,
+        "gate_credit_claimed": False,
+    }
+    id_payload = {
+        key: value
+        for key, value in values.items()
+        if key
+        not in {
+            "records_artifact",
+            "public_sample_artifact",
+            "summary_artifact",
+            "spec_sha256",
+        }
+    }
+    return LF022SupervisionCandidateManifest.model_validate(
+        {**values, "inventory_id": make_id("lf022_supervision_inventory", id_payload)}
+    )
+
+
+def _foundation(tmp_path: Path, *, candidate_schema_version: int = 2) -> tuple[Path, Path, str]:
     inputs = tmp_path / "inputs"
-    candidate = _candidate()
+    candidate = _candidate() if candidate_schema_version == 2 else _candidate_v3_without_codex()
     record_bytes = canonical_json_bytes(candidate.model_dump(mode="json")) + b"\n"
     records_path = inputs / "candidates.jsonl"
     records_sha = _write(records_path, record_bytes)
-    manifest = _candidate_manifest(record_bytes)
+    manifest = (
+        _candidate_manifest(record_bytes)
+        if candidate_schema_version == 2
+        else _candidate_manifest_v3_without_codex(record_bytes)
+    )
     manifest_path = inputs / "manifest.json"
     manifest_sha = _json(manifest_path, manifest.model_dump(mode="json"))
 
@@ -301,8 +412,11 @@ def _response(*, orientation: str) -> str:
     )
 
 
-def _prepare(tmp_path: Path):
-    spec_path, batch_root, spec_sha = _foundation(tmp_path)
+def _prepare(tmp_path: Path, *, candidate_schema_version: int = 2):
+    spec_path, batch_root, spec_sha = _foundation(
+        tmp_path,
+        candidate_schema_version=candidate_schema_version,
+    )
     records, manifest = prepare_lf022_weak_batch(
         repo_root=Path.cwd(),
         spec_path=spec_path,
@@ -375,6 +489,239 @@ def test_prepare_execute_finalize_stays_non_trainable(tmp_path: Path) -> None:
     assert candidates[0].silver_promoted is False
     assert candidates[0].train_eligible is False
     assert finalization.training_eligible is False
+
+
+def test_prepare_accepts_v3_candidate_without_codex_diagnostic(tmp_path: Path) -> None:
+    spec_path, batch_root, spec_sha = _foundation(tmp_path, candidate_schema_version=3)
+    records, manifest = prepare_lf022_weak_batch(
+        repo_root=Path.cwd(),
+        spec_path=spec_path,
+        expected_spec_sha256=spec_sha,
+        randomization_key=KEY,
+        output_dir=batch_root,
+    )
+
+    assert manifest.dispatch_pair_count == 1
+    assert len(records) == 4
+    assert {record.orientation for record in records} == {"AB", "BA"}
+    assert {record.judge_slot for record in records} == {"judge_A", "judge_B"}
+
+
+def test_v3_prepare_replay_execute_finalize_stays_non_trainable(tmp_path: Path) -> None:
+    _, batch_root, _, records, _ = _prepare(tmp_path, candidate_schema_version=3)
+    providers, roots = _providers(batch_root, records)
+    terminals, execution = execute_or_resume_lf022_weak_batch(
+        batch_root=batch_root,
+        providers=providers,  # type: ignore[arg-type]
+        raw_response_roots=roots,  # type: ignore[arg-type]
+        now=lambda: NOW,
+    )
+    replay_lf022_weak_batch(batch_root=batch_root)
+    evidence, candidates, finalization = finalize_lf022_weak_batch(batch_root=batch_root)
+
+    assert len(terminals) == 4
+    assert execution.parse_status_counts == {"parsed": 4}
+    assert len(evidence) == 4
+    assert len(candidates) == 1
+    assert candidates[0].semantic_label_created is False
+    assert candidates[0].silver_promoted is False
+    assert candidates[0].train_eligible is False
+    assert finalization.training_eligible is False
+
+
+def test_v3_manifest_cannot_hide_record_level_codex_diagnostic() -> None:
+    candidate = _candidate_v3_without_codex()
+    values = candidate.model_dump(
+        mode="json",
+        exclude={"candidate_inventory_record_id"},
+    )
+    values["prior_codex_diagnostic"] = PriorCodexDiagnostic(
+        audit_item_id="lf022_codex_audit_item:" + "6" * 64,
+        source_candidate_item_id=candidate.source_candidate_item_id,
+        model="gpt-5.6-sol",
+        reasoning_effort="xhigh",
+        same_claim_answer="not_same_claim",
+        relation="A_stronger",
+        confidence=0.8,
+        needs_expert_review=False,
+        parsed_response_sha256="7" * 64,
+    ).model_dump(mode="json")
+    candidate_with_diagnostic = LF022SupervisionCandidateRecord.model_validate(
+        {
+            **values,
+            "candidate_inventory_record_id": make_id(
+                "lf022_supervision_candidate",
+                values,
+            ),
+        }
+    )
+    record_bytes = canonical_json_bytes(candidate_with_diagnostic.model_dump(mode="json")) + b"\n"
+    absent_manifest = _candidate_manifest_v3_without_codex(record_bytes)
+
+    with pytest.raises(LF022WeakBatchError, match="record Codex diagnostics differ"):
+        _validate_candidate_inventory_records(
+            manifest=absent_manifest,
+            candidates=(candidate_with_diagnostic,),
+        )
+
+
+def test_candidate_manifest_summary_is_recomputed_from_records() -> None:
+    candidate = _candidate_v3_without_codex()
+    record_bytes = canonical_json_bytes(candidate.model_dump(mode="json")) + b"\n"
+    manifest = _candidate_manifest_v3_without_codex(record_bytes)
+    values = manifest.model_dump(mode="json")
+    values["unique_judge_visible_payload_count"] = 0
+    values["exact_duplicate_record_count"] = 1
+    values["inventory_id"] = make_id(
+        "lf022_supervision_inventory",
+        {
+            key: value
+            for key, value in values.items()
+            if key
+            not in {
+                "inventory_id",
+                "records_artifact",
+                "public_sample_artifact",
+                "summary_artifact",
+                "spec_sha256",
+            }
+        },
+    )
+    tampered_manifest = LF022SupervisionCandidateManifest.model_validate(values)
+
+    with pytest.raises(LF022WeakBatchError, match="unique payload count differs"):
+        _validate_candidate_inventory_records(
+            manifest=tampered_manifest,
+            candidates=(candidate,),
+        )
+
+
+def test_one_payload_cannot_schedule_two_canonical_dispatch_records() -> None:
+    first = _candidate_v3_without_codex()
+    second_values = first.model_dump(
+        mode="json",
+        exclude={"candidate_inventory_record_id"},
+    )
+    second_source_id = "lf022_supervision_source:" + "6" * 64
+    second_values.update(
+        {
+            "variant_id": "var:" + "6" * 64,
+            "lean_check_id": "lf022_lean_check:" + "6" * 64,
+            "source_candidate_item_id": second_source_id,
+            "canonical_dispatch_source_item_id": second_source_id,
+        }
+    )
+    second = LF022SupervisionCandidateRecord.model_validate(
+        {
+            **second_values,
+            "candidate_inventory_record_id": make_id(
+                "lf022_supervision_candidate",
+                second_values,
+            ),
+        }
+    )
+    record_bytes = b"".join(
+        canonical_json_bytes(item.model_dump(mode="json")) + b"\n" for item in (first, second)
+    )
+    manifest = _candidate_manifest_v3_without_codex(record_bytes)
+    values = manifest.model_dump(mode="json")
+    values.update(
+        {
+            "public_sample_count": 2,
+            "record_count": 2,
+            "unique_judge_visible_payload_count": 1,
+            "exact_duplicate_record_count": 1,
+            "dispatch_eligible_count": 2,
+            "required_future_judge_call_count": 8,
+            "dispatch_status_counts": {"ready_for_two_family_judging": 2},
+        }
+    )
+    values["inventory_id"] = make_id(
+        "lf022_supervision_inventory",
+        {
+            key: value
+            for key, value in values.items()
+            if key
+            not in {
+                "inventory_id",
+                "records_artifact",
+                "public_sample_artifact",
+                "summary_artifact",
+                "spec_sha256",
+            }
+        },
+    )
+    double_ready_manifest = LF022SupervisionCandidateManifest.model_validate(values)
+
+    with pytest.raises(LF022WeakBatchError, match="exactly one canonical dispatch"):
+        _validate_candidate_inventory_records(
+            manifest=double_ready_manifest,
+            candidates=(first, second),
+        )
+
+
+def test_prepare_rejects_candidate_records_from_another_schema(tmp_path: Path) -> None:
+    spec_path, batch_root, _ = _foundation(tmp_path, candidate_schema_version=3)
+    spec = LF022WeakBatchSpec.model_validate_json(spec_path.read_bytes())
+    records_path = Path(spec.candidate_records.path)
+    legacy_manifest = _candidate_manifest(records_path.read_bytes())
+    manifest_path = Path(spec.candidate_manifest.path)
+    manifest_sha = _json(manifest_path, legacy_manifest.model_dump(mode="json"))
+    mixed_spec = spec.model_copy(
+        update={
+            "candidate_manifest": BoundArtifact(
+                path=str(manifest_path),
+                sha256=manifest_sha,
+            )
+        }
+    )
+    spec_sha = _json(spec_path, mixed_spec.model_dump(mode="json"))
+
+    with pytest.raises(LF022WeakBatchError, match="record schema differs"):
+        prepare_lf022_weak_batch(
+            repo_root=Path.cwd(),
+            spec_path=spec_path,
+            expected_spec_sha256=spec_sha,
+            randomization_key=KEY,
+            output_dir=batch_root,
+        )
+
+
+def test_replay_rejects_candidate_records_from_another_schema(tmp_path: Path) -> None:
+    spec_path, batch_root, spec_sha = _foundation(tmp_path, candidate_schema_version=3)
+    prepare_lf022_weak_batch(
+        repo_root=Path.cwd(),
+        spec_path=spec_path,
+        expected_spec_sha256=spec_sha,
+        randomization_key=KEY,
+        output_dir=batch_root,
+    )
+    records_path = batch_root / "inputs/candidate_records.jsonl"
+    legacy_manifest = _candidate_manifest(records_path.read_bytes())
+    candidate_manifest_path = batch_root / "inputs/candidate_manifest.json"
+    candidate_manifest_sha = _json(
+        candidate_manifest_path,
+        legacy_manifest.model_dump(mode="json"),
+    )
+    dispatch_manifest_path = batch_root / "dispatch_manifest.json"
+    dispatch_manifest = LF022WeakDispatchManifest.model_validate_json(
+        dispatch_manifest_path.read_bytes()
+    )
+    manifest_values = dispatch_manifest.model_dump(mode="json")
+    manifest_values["candidate_manifest_sha256"] = candidate_manifest_sha
+    manifest_values["batch_id"] = make_id(
+        "lf022_weak_batch",
+        {
+            key: value
+            for key, value in manifest_values.items()
+            if key not in {"batch_id", "spec_sha256"}
+        },
+    )
+    mixed_dispatch_manifest = LF022WeakDispatchManifest.model_validate(manifest_values)
+    _json(dispatch_manifest_path, mixed_dispatch_manifest.model_dump(mode="json"))
+
+    with pytest.raises(LF022WeakBatchError, match="record schema differs"):
+        replay_lf022_weak_batch(batch_root=batch_root)
 
 
 def test_malformed_family_outputs_create_incomplete_candidate(tmp_path: Path) -> None:
@@ -655,3 +1002,12 @@ def test_cli_prepares_and_offline_replay_finalizes_existing_terminals(tmp_path: 
     assert replayed.exit_code == 0, replayed.output
     assert "provider_calls=0" in replayed.output
     assert "training_eligible=false" in replayed.output
+
+
+def test_supervision_candidate_builder_is_an_official_cli_command() -> None:
+    result = CliRunner().invoke(app, ["build-lf022-supervision-candidates", "--help"])
+
+    assert result.exit_code == 0, result.output
+    assert "--require-codex-diagnostic" in result.output
+    assert "Schema v3 binds Lean-valid" in result.output
+    assert "supervision vote" in result.output

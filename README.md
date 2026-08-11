@@ -197,6 +197,16 @@ dataset probe (PLAN.md §9.2).
   as a diagnostic, so this milestone still creates zero semantic labels,
   silver records, training examples, evaluation examples, or gate credit. See
   `reports/generation/lf022_supervision_candidates_kimi_prefix256_v2.md`.
+- **LF-022 candidate admission no longer depends on a Codex audit:** candidate
+  inventory schema v3 derives its unresolved dispatch set from exact public,
+  Lean-valid checks and their bound Lean-check manifest. A complete
+  replay-verified Codex audit may be attached as optional diagnostic metadata,
+  but supplies zero weak-judge votes and cannot admit, exclude, or promote a
+  pair. Historical schema-v2 inventories and reports remain replayable and are
+  not rewritten. The first real direct materialization recovered all 201
+  Lean-valid Kimi prefix-256 pairs and scheduled 804 future two-family
+  swapped-order calls with no Codex dependency; see
+  `reports/generation/lf022_supervision_candidates_kimi_prefix256_v3.md`.
 - **LF-022 two-family batch execution is now implemented but remains
   offline-only:** a self-contained, raw-first batch binds the canonical
   production family matrix, enforces proposer/judge/held-out role separation,
@@ -318,7 +328,8 @@ dataset probe (PLAN.md §9.2).
   separate admission was frozen. The guarded DeepSeek prefix completed all 32
   tasks, replayed them offline with zero network calls, and the four-worker
   LeanInteract check found 27 elaborating candidates and five invalid ones.
-  Codex remains fully held out from generation/supervision. Gate 5 human
+  Codex remains fully held out from generation and from weak-supervision vote
+  roles; optional Codex audit metadata remains diagnostic-only. Gate 5 human
   adjudication is deferred, not silently replaced by model judgments.
 
 Stable gate-facing commands are available through `leanfaith`:
@@ -370,6 +381,7 @@ uv run leanfaith qa-lf022-prefix256 --help
 uv run leanfaith check-lf022-provisional-lean --help
 uv run leanfaith audit-lf022-codex --help
 uv run leanfaith summarize-lf022-codex-audit --help
+uv run leanfaith build-lf022-supervision-candidates --help
 uv run leanfaith build-lf022-merged-checked-inventory --help
 uv run leanfaith run-deterministic-shards --help
 uv run leanfaith merge-deterministic-shards --help

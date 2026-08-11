@@ -3190,7 +3190,10 @@ May be deferred for MVP by ADR; no LLM-silver claim then.
 
 1. Implement canonical prompts/parsers.
 2. Generate equivalent, directional, E-code, semantic-erasure, and minimal edits.
-3. Validate/deduplicate normally.
+3. Validate and deduplicate from exact public Lean-valid checks. Candidate
+   admission does not require a Codex audit; a complete replay-verified Codex
+   audit may be retained only as optional diagnostic metadata and contributes
+   zero weak-supervision votes.
 4. Collect two-family blinded judgments, swapped copies, trap/calibration items.
 5. Enforce family separation/cross matrix.
 6. Retain disagreement and route to annotation.
@@ -3212,7 +3215,10 @@ reports/milestones/phase_6_llm_data.md
 
 **Gate 6G — generation/judging**
 
-All calls parse or retain failure; candidates validate/quarantine; order randomized; intentions remain provenance; primary eval judge absent from weak labels.
+All calls parse or retain failure; candidates validate/quarantine; order
+randomized; intentions remain provenance; primary eval judge absent from weak
+labels. Optional Codex diagnostics cannot admit, exclude, promote, or label a
+candidate and cannot satisfy either weak-judge slot.
 
 **Gate 6 — silver promotion**
 
@@ -3496,7 +3502,10 @@ Each item closes only with code, tests, artifacts, and acceptance evidence. Item
 19. **LF-019 — smoke vertical slice:** all-eight-family fixture→records→pair/evidence→P01-only smoke resolution→connected split→tiny model; release guard; runs only after LF-016–LF-018 exist.
 20. **LF-020 — evidence pipeline:** defeq/directional/counterexample/certificate/axiom cache. Complete with a two-run, clean-cache semantic replay bound by `reports/evidence/lf020_smoke_replay_v1.json`; no labels or promotions were created.
 21. **LF-021 — real-output collection:** mechanical collection and Gate 5G complete; 16 immutable tranches contain 1,440 terminal invocations, 299 compile-and-benchmark-clear members, 49 duplicates, and 250 unique problem-aware units. A 240-item, 31-stratum frame is frozen under the three-family reduced-scope policy. LF-021 remains open only for genuine human annotation, adjudication, prevalence reporting, and Gate 5 closure. No further collection tranche is authorized.
-22. **LF-022 — LLM variants/judges:** prompts/parsers/family separation/call records.
+22. **LF-022 — LLM variants/judges:** prompts/parsers/family separation/call
+    records; source-neutral candidate inventories derive from exact public
+    Lean-valid checks, while any bound Codex audit remains optional diagnostic
+    metadata with zero supervision votes.
 23. **LF-023 — annotation integration:** blind templates/export/import/adjudication/agreement.
 24. **LF-024 — resolver:** precedence/conflicts/review/F0-F2/quality tiers.
 25. **LF-025 — split builder:** ancestry/group union-find/denylist/propensities/manifests.

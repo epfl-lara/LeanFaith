@@ -4496,6 +4496,93 @@ def summarize_lf022_codex_audit_command(
     )
 
 
+@app.command("build-lf022-supervision-candidates")
+def build_lf022_supervision_candidates_command(
+    spec_path: Annotated[
+        Path,
+        typer.Option(
+            "--spec",
+            help=(
+                "Canonical candidate-inventory spec. Schema v3 binds Lean-valid checks "
+                "and may optionally bind a complete Codex diagnostic audit."
+            ),
+        ),
+    ],
+    spec_sha256: Annotated[
+        str,
+        typer.Option("--spec-sha256", help="Expected raw SHA-256 of --spec."),
+    ],
+    output_dir: Annotated[
+        Path,
+        typer.Option("--output-dir", help="Immutable candidate-inventory output directory."),
+    ],
+    require_codex_diagnostic: Annotated[
+        bool,
+        typer.Option(
+            "--require-codex-diagnostic",
+            help=(
+                "Fail unless the spec binds a complete replay-verified Codex diagnostic. "
+                "This assertion never turns that diagnostic into a supervision vote."
+            ),
+        ),
+    ] = False,
+    root_dir: Annotated[
+        Path | None,
+        typer.Option("--root", help="Repository root override."),
+    ] = None,
+) -> None:
+    """Inventory public Lean-valid pairs for later two-family judging."""
+    from leanfaith.config.paths import RepoPaths
+    from leanfaith.generation.lf022_supervision_candidates import (
+        LF022SupervisionCandidateError,
+        build_lf022_supervision_candidate_inventory,
+        write_lf022_supervision_candidate_inventory,
+    )
+
+    paths = RepoPaths.discover(root_dir) if root_dir is None else RepoPaths(root=root_dir)
+
+    def anchored(path: Path) -> Path:
+        return path if path.is_absolute() else paths.root / path
+
+    try:
+        records, manifest = build_lf022_supervision_candidate_inventory(
+            repo_root=paths.root,
+            spec_path=anchored(spec_path),
+            expected_spec_sha256=spec_sha256,
+        )
+        diagnostic_status = manifest.codex_diagnostic_status or "complete"
+        diagnostic_count = (
+            manifest.codex_diagnostic_record_count
+            if manifest.codex_diagnostic_record_count is not None
+            else manifest.record_count
+        )
+        if require_codex_diagnostic and diagnostic_status != "complete":
+            raise LF022SupervisionCandidateError(
+                "--require-codex-diagnostic was set but the spec binds no Codex audit"
+            )
+        records_path, sample_path, summary_path, manifest_path = (
+            write_lf022_supervision_candidate_inventory(
+                output_dir=anchored(output_dir),
+                records=records,
+                manifest=manifest,
+            )
+        )
+    except (LF022SupervisionCandidateError, OSError, ValueError) as exc:
+        typer.echo(f"LF-022 supervision candidate inventory rejected: {exc}", err=True)
+        raise typer.Exit(code=2) from exc
+    typer.echo(
+        f"inventory_id={manifest.inventory_id} records={records_path} "
+        f"public_sample={sample_path} summary={summary_path} manifest={manifest_path} "
+        f"record_count={manifest.record_count} "
+        f"dispatch_eligible_count={manifest.dispatch_eligible_count} "
+        f"required_future_judge_call_count={manifest.required_future_judge_call_count} "
+        f"codex_diagnostic_status={diagnostic_status} "
+        f"codex_diagnostic_record_count={diagnostic_count} "
+        "codex_weak_judge_votes=0 semantic_labels_created=0 silver_records_created=0 "
+        "training_eligible=false evaluation_eligible=false gate_credit_claimed=false"
+    )
+
+
 @app.command("build-lf022-merged-checked-inventory")
 def build_lf022_merged_checked_inventory_command(
     output_dir: Annotated[

@@ -11,6 +11,10 @@ It provides three operations:
 
 Neither Codex diagnostics nor two-family agreement is converted into a
 semantic, silver, gold, training, or evaluation label here.
+
+Candidate inputs may use historical schema v2 or source-neutral schema v3.
+The v3 Codex diagnostic is optional metadata and is never consulted for
+dispatch admission or aggregation.
 """
 
 from __future__ import annotations
@@ -495,6 +499,109 @@ def _validate_family_pins(
     return matrix
 
 
+def _validate_candidate_inventory_records(
+    *,
+    manifest: LF022SupervisionCandidateManifest,
+    candidates: Sequence[LF022SupervisionCandidateRecord],
+) -> None:
+    """Require one internally coherent v2 or v3 candidate inventory."""
+
+    if len(candidates) != manifest.record_count:
+        raise LF022WeakBatchError("candidate record count differs from candidate manifest")
+    if len({item.candidate_inventory_record_id for item in candidates}) != len(candidates):
+        raise LF022WeakBatchError("candidate inventory repeats one record ID")
+    for candidate in candidates:
+        if candidate.schema_version != manifest.schema_version:
+            raise LF022WeakBatchError(
+                "candidate record schema differs from candidate manifest schema"
+            )
+        if (
+            candidate.collection_id != manifest.collection_id
+            or candidate.proposer_family_id != manifest.proposer_family_id
+            or candidate.proposer_model != manifest.proposer_model
+        ):
+            raise LF022WeakBatchError(
+                "candidate record collection/proposer differs from candidate manifest"
+            )
+    status_counts = dict(sorted(Counter(item.dispatch_status for item in candidates).items()))
+    if status_counts != manifest.dispatch_status_counts:
+        raise LF022WeakBatchError("candidate-record dispatch counts differ from candidate manifest")
+    payload_groups: dict[str, list[LF022SupervisionCandidateRecord]] = defaultdict(list)
+    for candidate in candidates:
+        payload_groups[candidate.judge_visible_payload_sha256].append(candidate)
+    if len(payload_groups) != manifest.unique_judge_visible_payload_count:
+        raise LF022WeakBatchError(
+            "candidate-record unique payload count differs from candidate manifest"
+        )
+    if len(candidates) - len(payload_groups) != manifest.exact_duplicate_record_count:
+        raise LF022WeakBatchError(
+            "candidate-record duplicate count differs from candidate manifest"
+        )
+    dispatch_count = status_counts.get("ready_for_two_family_judging", 0)
+    if (
+        dispatch_count != manifest.dispatch_eligible_count
+        or 4 * dispatch_count != manifest.required_future_judge_call_count
+    ):
+        raise LF022WeakBatchError(
+            "candidate-record dispatch workload differs from candidate manifest"
+        )
+    diagnostic_count = sum(item.prior_codex_diagnostic is not None for item in candidates)
+    expected_diagnostic_count = (
+        manifest.record_count
+        if manifest.schema_version == 2
+        else manifest.codex_diagnostic_record_count
+    )
+    if diagnostic_count != expected_diagnostic_count:
+        raise LF022WeakBatchError(
+            "candidate-record Codex diagnostics differ from candidate manifest"
+        )
+    diagnostic_counts = dict(
+        sorted(
+            Counter(
+                item.prior_codex_diagnostic.same_claim_answer
+                for item in candidates
+                if item.prior_codex_diagnostic is not None
+            ).items()
+        )
+    )
+    if diagnostic_counts != manifest.codex_same_claim_counts:
+        raise LF022WeakBatchError(
+            "candidate-record Codex verdict counts differ from candidate manifest"
+        )
+    for group in payload_groups.values():
+        ready = [item for item in group if item.dispatch_status == "ready_for_two_family_judging"]
+        if len(ready) != 1:
+            raise LF022WeakBatchError(
+                "candidate payload must contain exactly one canonical dispatch record"
+            )
+        canonical = ready[0]
+        if manifest.schema_version == 2:
+            assert canonical.prior_codex_diagnostic is not None
+            assert canonical.canonical_dispatch_audit_item_id is not None
+            canonical_source_id = canonical.prior_codex_diagnostic.audit_item_id
+            if canonical.canonical_dispatch_audit_item_id != canonical_source_id:
+                raise LF022WeakBatchError("candidate v2 canonical source differs")
+        else:
+            assert canonical.source_candidate_item_id is not None
+            assert canonical.canonical_dispatch_source_item_id is not None
+            canonical_source_id = canonical.source_candidate_item_id
+            if canonical.canonical_dispatch_source_item_id != canonical_source_id:
+                raise LF022WeakBatchError("candidate v3 canonical source differs")
+        for candidate in group:
+            bound_source_id = (
+                candidate.canonical_dispatch_audit_item_id
+                if manifest.schema_version == 2
+                else candidate.canonical_dispatch_source_item_id
+            )
+            if (
+                candidate.canonical_dispatch_pair_id != canonical.pair_id
+                or bound_source_id != canonical_source_id
+            ):
+                raise LF022WeakBatchError(
+                    "candidate duplicate does not bind its payload's canonical dispatch record"
+                )
+
+
 def _endpoint(spec: LF022WeakBatchSpec, slot: JudgeSlot) -> JudgeEndpointPin:
     return spec.judge_a if slot == "judge_A" else spec.judge_b
 
@@ -559,8 +666,10 @@ def prepare_lf022_weak_batch(
             "candidate proposer is not admitted for the proposer role: "
             f"{candidate_manifest.proposer_family_id}"
         )
-    if len(candidates) != candidate_manifest.record_count:
-        raise LF022WeakBatchError("candidate record count differs from candidate manifest")
+    _validate_candidate_inventory_records(
+        manifest=candidate_manifest,
+        candidates=candidates,
+    )
     family_matrix = FamilySeparationMatrix(
         proposer_family=candidate_manifest.proposer_family_id,
         judge_a_family=spec.judge_a.family_id,
@@ -765,13 +874,14 @@ def _load_prepared_batch(
     if hash_file(candidate_path) != manifest.candidate_records_sha256:
         raise LF022WeakBatchError("self-contained candidate records hash differs")
     candidate_models = _load_canonical_jsonl(candidate_path, LF022SupervisionCandidateRecord)
-    candidates = {
-        item.candidate_inventory_record_id: item
-        for item in candidate_models
-        if isinstance(item, LF022SupervisionCandidateRecord)
-    }
-    if len(candidates) != candidate_manifest_model.record_count:
-        raise LF022WeakBatchError("self-contained candidate count differs")
+    ordered_candidates = tuple(
+        item for item in candidate_models if isinstance(item, LF022SupervisionCandidateRecord)
+    )
+    _validate_candidate_inventory_records(
+        manifest=candidate_manifest_model,
+        candidates=ordered_candidates,
+    )
+    candidates = {item.candidate_inventory_record_id: item for item in ordered_candidates}
     for dispatch in dispatches:
         candidate = candidates.get(dispatch.candidate_inventory_record_id)
         if candidate is None or candidate.pair_id != dispatch.pair_id:
