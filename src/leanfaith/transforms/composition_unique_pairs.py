@@ -15,6 +15,7 @@ from __future__ import annotations
 import hashlib
 import os
 import shutil
+import stat
 import tempfile
 from collections import Counter, defaultdict
 from collections.abc import Mapping, Sequence
@@ -56,7 +57,7 @@ class CompositionUniquePairError(ValueError):
 class DeterministicCompositionUniquePairRecord(StrictModel):
     """One exact source/final-code pair with all gross chain provenance."""
 
-    schema_version: Literal[1] = 1
+    schema_version: Literal[2] = 2
     unique_pair_id: str = Field(pattern=_UNIQUE_PAIR_ID)
     canonical_unique_key: str = Field(pattern=_HEX64)
     input_seed_set_id: str = Field(pattern=r"^detcomp_seed_set:[0-9a-f]{64}$")
@@ -78,7 +79,6 @@ class DeterministicCompositionUniquePairRecord(StrictModel):
     chain_kinds: tuple[ChainKind, ...] = Field(min_length=1)
     gross_chain_count: int = Field(ge=1)
     duplicate_excess_count: int = Field(ge=0)
-    source_content_return: bool
     source_alpha_return: bool
     alpha_novel: bool
     quality_tier: Literal["provisional"] = "provisional"
@@ -96,7 +96,7 @@ class DeterministicCompositionUniquePairRecord(StrictModel):
     def _coherent(self) -> DeterministicCompositionUniquePairRecord:
         expected_key = hash_canonical(
             {
-                "schema": "deterministic_v2_composition_unique_pair_key_v1",
+                "schema": "deterministic_v2_composition_unique_pair_key_v2",
                 "original_source_theorem_id": self.original_source_theorem_id,
                 "final_candidate_code_hash": self.final_candidate_code_hash,
             }
@@ -122,10 +122,6 @@ class DeterministicCompositionUniquePairRecord(StrictModel):
             raise ValueError("gross chain count does not match chain IDs")
         if self.duplicate_excess_count != self.gross_chain_count - 1:
             raise ValueError("pair duplicate excess does not reconcile")
-        if self.source_content_return != (
-            self.source_statement_content_hash == self.final_candidate_code_hash
-        ):
-            raise ValueError("source content return does not reconcile")
         if self.source_alpha_return != (
             self.source_alpha_identity_fingerprint == self.final_alpha_identity_fingerprint
         ):
@@ -138,12 +134,12 @@ class DeterministicCompositionUniquePairRecord(StrictModel):
 class DeterministicCompositionUniquePairManifest(StrictModel):
     """Self-authenticating audit manifest for chain-v1 unique pairs."""
 
-    schema_version: Literal[1] = 1
+    schema_version: Literal[2] = 2
     artifact_kind: Literal["deterministic_v2_composition_unique_pair_set"] = (
         "deterministic_v2_composition_unique_pair_set"
     )
-    method_version: Literal["deterministic_v2_composition_unique_pairs_v1"] = (
-        "deterministic_v2_composition_unique_pairs_v1"
+    method_version: Literal["deterministic_v2_composition_unique_pairs_v2"] = (
+        "deterministic_v2_composition_unique_pairs_v2"
     )
     unique_pair_set_id: str = Field(pattern=_UNIQUE_PAIR_SET_ID)
     input_seed_set_id: str = Field(pattern=r"^detcomp_seed_set:[0-9a-f]{64}$")
@@ -158,8 +154,6 @@ class DeterministicCompositionUniquePairManifest(StrictModel):
     unique_pair_count: int = Field(ge=0)
     duplicate_group_count: int = Field(ge=0)
     duplicate_excess_count: int = Field(ge=0)
-    gross_source_content_return_count: int = Field(ge=0)
-    unique_source_content_return_count: int = Field(ge=0)
     gross_source_alpha_return_count: int = Field(ge=0)
     unique_source_alpha_return_count: int = Field(ge=0)
     gross_alpha_novel_count: int = Field(ge=0)
@@ -214,10 +208,6 @@ class DeterministicCompositionUniquePairManifest(StrictModel):
             != self.unique_pair_count
         ):
             raise ValueError("unique alpha return/novel counts do not reconcile")
-        if self.gross_source_content_return_count > self.gross_chain_count:
-            raise ValueError("gross source-content returns exceed gross chains")
-        if self.unique_source_content_return_count > self.unique_pair_count:
-            raise ValueError("unique source-content returns exceed unique pairs")
         membership_counts = (
             self.unique_pair_chain_kind_membership_counts,
             self.unique_pair_sequence_membership_counts,
@@ -253,6 +243,105 @@ class _ChainInventory:
     file_snapshot: tuple[tuple[str, str, int], ...]
 
 
+def _absolute_path(path: Path) -> Path:
+    """Return a normalized absolute path without resolving filesystem links."""
+
+    return Path(os.path.abspath(os.fspath(path)))
+
+
+def _safe_existing_directory(path: Path, *, label: str) -> Path:
+    """Validate one existing directory without traversing any symlink component."""
+
+    candidate = _absolute_path(path)
+    current = Path(candidate.anchor)
+    for part in candidate.parts[1:]:
+        current /= part
+        try:
+            metadata = current.lstat()
+        except OSError as exc:
+            raise CompositionUniquePairError(f"{label} is unavailable: {exc}") from exc
+        if stat.S_ISLNK(metadata.st_mode):
+            raise CompositionUniquePairError(f"{label} traverses a symlink: {current}")
+        if not stat.S_ISDIR(metadata.st_mode):
+            raise CompositionUniquePairError(f"{label} component is not a directory: {current}")
+    try:
+        resolved = candidate.resolve(strict=True)
+    except OSError as exc:
+        raise CompositionUniquePairError(f"{label} is unavailable: {exc}") from exc
+    if resolved != candidate:
+        raise CompositionUniquePairError(f"{label} is not a canonical directory")
+    return candidate
+
+
+def _safe_output_directory(path: Path, *, create_parents: bool) -> Path:
+    """Validate an output namespace, optionally creating missing safe parents."""
+
+    candidate = _absolute_path(path)
+    parent = candidate.parent
+    current = Path(parent.anchor)
+    missing_component = False
+    for part in parent.parts[1:]:
+        current /= part
+        if missing_component and not create_parents:
+            continue
+        try:
+            metadata = current.lstat()
+        except FileNotFoundError:
+            missing_component = True
+            if not create_parents:
+                continue
+            try:
+                current.mkdir()
+            except FileExistsError:
+                pass
+            except OSError as exc:
+                raise CompositionUniquePairError(
+                    f"unique-pair output parent cannot be created: {current}: {exc}"
+                ) from exc
+            try:
+                metadata = current.lstat()
+            except OSError as exc:
+                raise CompositionUniquePairError(
+                    f"unique-pair output parent became unavailable: {current}: {exc}"
+                ) from exc
+        except OSError as exc:
+            raise CompositionUniquePairError(
+                f"unique-pair output parent is unavailable: {current}: {exc}"
+            ) from exc
+        if stat.S_ISLNK(metadata.st_mode):
+            raise CompositionUniquePairError(
+                f"unique-pair output parent traverses a symlink: {current}"
+            )
+        if not stat.S_ISDIR(metadata.st_mode):
+            raise CompositionUniquePairError(
+                f"unique-pair output parent component is not a directory: {current}"
+            )
+
+    if create_parents or not missing_component:
+        try:
+            parent_resolved = parent.resolve(strict=True)
+        except OSError as exc:
+            raise CompositionUniquePairError(
+                f"unique-pair output parent is unavailable: {exc}"
+            ) from exc
+        if parent_resolved != parent:
+            raise CompositionUniquePairError("unique-pair output parent is not canonical")
+
+    try:
+        metadata = candidate.lstat()
+    except FileNotFoundError:
+        return candidate
+    except OSError as exc:
+        raise CompositionUniquePairError(f"unique-pair output is unavailable: {exc}") from exc
+    if stat.S_ISLNK(metadata.st_mode):
+        raise CompositionUniquePairError("unique-pair output cannot be a symlink")
+    if not stat.S_ISDIR(metadata.st_mode):
+        raise CompositionUniquePairError("unique-pair output is not a directory")
+    if candidate.resolve(strict=True) != candidate:
+        raise CompositionUniquePairError("unique-pair output is not canonical")
+    return candidate
+
+
 def _chain_snapshot(chain_dir: Path) -> tuple[tuple[str, str, int], ...]:
     snapshot: list[tuple[str, str, int]] = []
     for name in sorted(_CHAIN_FILES):
@@ -276,14 +365,7 @@ def _load_chain_inventory(
     seed_manifest_sha256: str,
     seed_manifest: CompositionSeedManifest,
 ) -> _ChainInventory:
-    try:
-        chain_dir = chain_dir.resolve(strict=True)
-    except OSError as exc:
-        raise CompositionUniquePairError(
-            f"composition chain directory is unavailable: {exc}"
-        ) from exc
-    if not chain_dir.is_dir() or chain_dir.is_symlink():
-        raise CompositionUniquePairError("composition chain input is not a regular directory")
+    chain_dir = _safe_existing_directory(chain_dir, label="composition chain directory")
     if {path.name for path in chain_dir.iterdir()} != _CHAIN_FILES:
         raise CompositionUniquePairError("composition chain directory is not exact")
     snapshot = _chain_snapshot(chain_dir)
@@ -407,7 +489,7 @@ def _chain_sequence(chain: DeterministicCompositionChainRecord) -> str:
 def _canonical_unique_key(chain: DeterministicCompositionChainRecord) -> str:
     return hash_canonical(
         {
-            "schema": "deterministic_v2_composition_unique_pair_key_v1",
+            "schema": "deterministic_v2_composition_unique_pair_key_v2",
             "original_source_theorem_id": chain.original_source_theorem_id,
             "final_candidate_code_hash": chain.final_candidate_code_hash,
         }
@@ -480,9 +562,6 @@ def _unique_pairs(
             "chain_kinds": tuple(sorted({chain.chain_kind for chain, _ in members})),
             "gross_chain_count": len(members),
             "duplicate_excess_count": len(members) - 1,
-            "source_content_return": (
-                first_seed.source_statement_content_hash == first_chain.final_candidate_code_hash
-            ),
             "source_alpha_return": (
                 first_seed.source_alpha_identity_fingerprint
                 == first_chain.final_alpha_identity_fingerprint
@@ -519,6 +598,8 @@ def postprocess_deterministic_v2_composition_unique_pairs(
 ) -> CompositionUniquePairArtifacts:
     """Revalidate exact chain-v1 inputs and emit immutable unique pairs."""
 
+    seed_dir = _safe_existing_directory(seed_dir, label="composition seed directory")
+    chain_dir = _safe_existing_directory(chain_dir, label="composition chain directory")
     try:
         seed_inventory = _load_seed_inventory(seed_dir)
     except CompositionChainError as exc:
@@ -558,14 +639,6 @@ def postprocess_deterministic_v2_composition_unique_pairs(
         "unique_pair_count": len(unique_pairs),
         "duplicate_group_count": sum(item.gross_chain_count > 1 for item in unique_pairs),
         "duplicate_excess_count": len(chain_inventory.chains) - len(unique_pairs),
-        "gross_source_content_return_count": sum(
-            seeds_by_id[item.seed_id].source_statement_content_hash
-            == item.final_candidate_code_hash
-            for item in chain_inventory.chains
-        ),
-        "unique_source_content_return_count": sum(
-            item.source_content_return for item in unique_pairs
-        ),
         "gross_source_alpha_return_count": sum(
             seeds_by_id[item.seed_id].source_alpha_identity_fingerprint
             == item.final_alpha_identity_fingerprint
@@ -602,15 +675,15 @@ def postprocess_deterministic_v2_composition_unique_pairs(
 
     _verify_seed_snapshot(seed_inventory)
     _verify_chain_snapshot(chain_inventory)
-    output_dir = output_dir.resolve(strict=False)
+    output_dir = _safe_output_directory(output_dir, create_parents=False)
     input_roots = (seed_inventory.root, chain_inventory.root)
     if any(output_dir == root or output_dir.is_relative_to(root) for root in input_roots):
         raise CompositionUniquePairError("unique-pair output cannot be inside an input")
+    output_dir = _safe_output_directory(output_dir, create_parents=True)
     if output_dir.exists():
         _verify_existing(output_dir, payloads)
         replayed = True
     else:
-        output_dir.parent.mkdir(parents=True, exist_ok=True)
         temporary = Path(tempfile.mkdtemp(prefix=f".{output_dir.name}.", dir=output_dir.parent))
         try:
             for name, payload in payloads.items():

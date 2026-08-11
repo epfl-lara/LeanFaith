@@ -116,11 +116,12 @@ def test_p14_cycle_novel_chain_and_exact_pair_deduplication() -> None:
     )
 
     assert len(records) == 2
+    assert all(item.schema_version == 2 for item in records)
     returned = next(item for item in records if item.source_alpha_return)
     assert returned.chain_sequences == (
         "p14_independent_binder_permutation->p14_independent_binder_permutation",
     )
-    assert returned.source_content_return is True
+    assert "source_content_return" not in returned.model_dump()
     assert returned.alpha_novel is False
     assert returned.gross_chain_count == 2
     assert returned.duplicate_excess_count == 1
@@ -190,11 +191,18 @@ def test_unique_pair_postprocess_is_immutable_and_exactly_replayable(
         for line in first.unique_pairs_path.read_bytes().splitlines()
     )
     assert manifest.gross_chain_count == 1
+    assert manifest.schema_version == 2
+    assert manifest.method_version == "deterministic_v2_composition_unique_pairs_v2"
     assert manifest.unique_pair_count == 1
     assert manifest.duplicate_excess_count == 0
+    assert "gross_source_content_return_count" not in manifest.model_dump()
+    assert "unique_source_content_return_count" not in manifest.model_dump()
     assert manifest.semantic_labels_created is False
     assert manifest.training_eligible is False
     assert all(item.gate_credit is False for item in records)
+    assert all(item.schema_version == 2 for item in records)
+    assert b"source_content_return" not in first.unique_pairs_path.read_bytes()
+    assert b"source_content_return" not in first.manifest_path.read_bytes()
 
     cli = CliRunner().invoke(
         app,
@@ -232,3 +240,98 @@ def test_chain_hash_drift_is_rejected(
             chain_dir=drifted,
             output_dir=tmp_path / "rejected",
         )
+
+
+@pytest.mark.parametrize("input_name", ["seed", "chain"])
+@pytest.mark.parametrize("through_parent", [False, True])
+def test_input_directory_rejects_symlink_traversal(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    input_name: str,
+    through_parent: bool,
+) -> None:
+    seed_dir, chain_dir = _real_inputs(monkeypatch, tmp_path / "source")
+    target = seed_dir if input_name == "seed" else chain_dir
+    if through_parent:
+        linked_parent = tmp_path / f"{input_name}-parent-link"
+        linked_parent.symlink_to(target.parent, target_is_directory=True)
+        unsafe = linked_parent / target.name
+    else:
+        unsafe = tmp_path / f"{input_name}-link"
+        unsafe.symlink_to(target, target_is_directory=True)
+
+    kwargs = {
+        "seed_dir": unsafe if input_name == "seed" else seed_dir,
+        "chain_dir": unsafe if input_name == "chain" else chain_dir,
+        "output_dir": tmp_path / f"rejected-{input_name}-{through_parent}",
+    }
+    with pytest.raises(CompositionUniquePairError, match="traverses a symlink"):
+        postprocess_deterministic_v2_composition_unique_pairs(**kwargs)
+
+
+def test_output_directory_rejects_symlink_leaf(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    seed_dir, chain_dir = _real_inputs(monkeypatch, tmp_path / "source")
+    real_output = tmp_path / "real-output"
+    real_output.mkdir()
+    linked_output = tmp_path / "linked-output"
+    linked_output.symlink_to(real_output, target_is_directory=True)
+
+    with pytest.raises(CompositionUniquePairError, match="output cannot be a symlink"):
+        postprocess_deterministic_v2_composition_unique_pairs(
+            seed_dir=seed_dir,
+            chain_dir=chain_dir,
+            output_dir=linked_output,
+        )
+
+
+def test_output_directory_rejects_symlinked_parent(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    seed_dir, chain_dir = _real_inputs(monkeypatch, tmp_path / "source")
+    real_parent = tmp_path / "real-parent"
+    real_parent.mkdir()
+    linked_parent = tmp_path / "linked-parent"
+    linked_parent.symlink_to(real_parent, target_is_directory=True)
+
+    with pytest.raises(CompositionUniquePairError, match="parent traverses a symlink"):
+        postprocess_deterministic_v2_composition_unique_pairs(
+            seed_dir=seed_dir,
+            chain_dir=chain_dir,
+            output_dir=linked_parent / "unique",
+        )
+
+
+def test_output_directory_rejects_non_directory_parent_component(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    seed_dir, chain_dir = _real_inputs(monkeypatch, tmp_path / "source")
+    unsafe_parent = tmp_path / "not-a-directory"
+    unsafe_parent.write_text("unsafe", encoding="utf-8")
+
+    with pytest.raises(CompositionUniquePairError, match="component is not a directory"):
+        postprocess_deterministic_v2_composition_unique_pairs(
+            seed_dir=seed_dir,
+            chain_dir=chain_dir,
+            output_dir=unsafe_parent / "unique",
+        )
+
+
+def test_output_inside_input_is_rejected_before_parent_creation(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    seed_dir, chain_dir = _real_inputs(monkeypatch, tmp_path / "source")
+    output = seed_dir / "must-not-exist" / "unique"
+
+    with pytest.raises(CompositionUniquePairError, match="cannot be inside an input"):
+        postprocess_deterministic_v2_composition_unique_pairs(
+            seed_dir=seed_dir,
+            chain_dir=chain_dir,
+            output_dir=output,
+        )
+    assert not output.parent.exists()
