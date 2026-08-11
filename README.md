@@ -153,26 +153,33 @@ dataset probe (PLAN.md §9.2).
   `reports/generation/lf022_codex_sol_xhigh_v2_summary.md`. The canonical check
   manifest remains
   `/storage/milikic/leanfaith/lf022_lean_checks/rcp_5e672b9_v1/manifest.json`.
-- **Kimi-v4 challenge passed and the first bounded production tranche is active:** the
+- **Kimi-v4 challenge passed and its first bounded production tranche completed:** the
   frozen 16-item hard-case requalification produced 16/16 strict variants,
   with two transient HTTP-429 attempts successfully retried and no truncation,
   empty response, or parser failure. The route certifier replayed all sixteen
   terminals with zero network calls, and the resulting route-only eligibility
   was bound into a clean scientific admission. One ordinary generated theorem
   then passed exact offline replay and LeanInteract elaboration before the
-  isolated 256-task tranche was launched. Batch-scoped Lean checking now binds
+  isolated 256-task tranche was launched and reached 256/256 terminal tasks:
+  248 parsed variants, six exhausted-provider terminals, and two parse
+  failures. Batch-scoped Lean checking now binds
   the exact content-addressed generation manifest, so historical executor
   outputs cannot leak into a tranche's mechanical validation. These records
   still create no label, promotion, training example, evaluation example, or
   gate credit. See
   `docs/lf022_public_generation.md`.
-- **Deterministic scale-out running:** the first frozen unary shard produced
-  1,741 typechecked provisional pairs from 1,737 public mathlib statements.
-  Shards 1--15 are now launched through the bounded, isolated, resumable shard
-  orchestrator with four concurrent shard processes.  The full frozen source
-  universe contains 27,786 public statements.  All deterministic candidates
-  remain provisional; no semantic label or promotion follows from generation
-  or typechecking alone.
+- **Deterministic unary scale-out materialized:** all 16 producer shards over
+  the frozen 27,786-statement public universe completed. A separate
+  content-audit merge at code revision `645a9a8` verified immutable inputs,
+  journals, receipts, raw-response bindings, projections, identities, and
+  lineage and materialized 27,327 provisional pairs. Its self-hashed manifest
+  is `dda088624e25ee271a7ac8d013e8f63414188596a35c3d5c240ef8b72dfc268d`
+  (file SHA-256
+  `699e34ecd90547750520d7a680de7f39ffe981e0705c832c4071f1f0d82b95d2`).
+  The stricter second full Lean replay continues independently. The content
+  audit explicitly records `training_eligible=false`,
+  `evaluation_eligible=false`, and `gate_credit=false`; no semantic label or
+  promotion follows from generation or typechecking alone.
 - **Public LF-022 scale-out preparation is deterministic and still
   non-executable:** a pinned, progressively expandable mathlib file frame
   feeds exact extraction and representation runs. The production pool admits
@@ -192,10 +199,12 @@ dataset probe (PLAN.md §9.2).
   non-proposer supervision evidence. DeepSeek passed one strict public
   proposer execution, exact offline replay, and route certification; the
   resulting eligibility remains provisional and creates no semantic label.
-  Its scientific launch additionally requires the immutable 27,620-source
-  pool to be exact-reallocated onto matrix v2 and a separate admission to be
-  frozen. Codex remains fully held out. Gate 5 human adjudication is deferred,
-  not silently replaced by model judgments.
+  The immutable 27,620-source pool was exact-reallocated onto matrix v2 and a
+  separate admission was frozen. The guarded DeepSeek prefix completed all 32
+  tasks, replayed them offline with zero network calls, and the four-worker
+  LeanInteract check found 27 elaborating candidates and five invalid ones.
+  Codex remains fully held out from generation/supervision. Gate 5 human
+  adjudication is deferred, not silently replaced by model judgments.
 
 Stable gate-facing commands are available through `leanfaith`:
 
