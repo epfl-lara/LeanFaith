@@ -97,6 +97,45 @@ manifests, and replay-audit hashes were consistently rewritten.
 Merged deterministic variants remain `provisional`; merged pairs remain
 unresolved; the merged manifest records `training_eligible=false`.
 
+## Provisional content-audit merge while strict replay runs
+
+The scientific merge above remains authoritative. A second, explicitly
+lower-trust command exists only so completed producer shards can support
+exploratory mining and smoke modeling without waiting for the sequential exact
+replay of the complete source universe:
+
+```text
+leanfaith generate-deterministic \
+  --merge-scale-shards-provisional \
+  --output-dir <new-provisional-output-dir> \
+  --shard-output-dir <shard-0> \
+  --shard-output-dir <shard-1> ...
+```
+
+It requires the complete bound shard set and recomputes source assignment,
+input hashes, journal and receipt-chain integrity, producer partition equality,
+raw-response bindings, deterministic record identities, ancestry, candidate
+deduplication, and cross-record semantic lineage. It retains the fact that
+producer candidates were checked through LeanInteract, but it deliberately
+does not rerun all producer work through Lean during merge.
+
+The artifact kind is
+`deterministic_scale_provisional_merged_manifest`. Its fail-closed literal
+fields are:
+
+```text
+verification_mode=producer_content_audit_without_full_replay
+merge_replayed_with_lean=false
+exploratory_modeling_eligible=true
+training_eligible=false
+evaluation_eligible=false
+gate_credit=false
+```
+
+This artifact cannot close a gate, enter evaluation, be promoted, or be
+described as scientifically replayed. It must use a separate output directory;
+the strict merge continues independently and supersedes it when complete.
+
 ## Legacy journal recovery and migration
 
 There is no in-place scientific migration for legacy schema-v1 through

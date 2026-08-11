@@ -54,11 +54,13 @@ from leanfaith.transforms.scale_materializer import (
 )
 from leanfaith.transforms.scale_merge import (
     DeterministicScaleMergeArtifacts,
+    DeterministicScaleProvisionalMergedManifest,
     _reject_cross_shard_semantic_leakage,
     _replay_shard_with_lean,
     _validate_producer_artifact_bindings,
     _validate_projected_semantic_lineage,
     merge_deterministic_scale_shards,
+    merge_deterministic_scale_shards_provisional,
 )
 from tests.unit.record_factories import representation_record, theorem_record
 from tests.unit.test_deterministic_scale_materializer import _accepted_source_shard
@@ -680,6 +682,76 @@ def test_merge_requires_replay_accounting_audit(tmp_path: Path) -> None:
             shard_output_dirs=shard_dirs,
             output_dir=tmp_path / "merged",
         )
+
+
+def test_provisional_merge_succeeds_without_replay_and_is_permanently_ineligible(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from leanfaith.transforms import scale_merge
+
+    shard_dirs, _, sources = _fixture_shard_set(tmp_path)
+    for shard_dir in shard_dirs:
+        (shard_dir / "full_lean_replay_audit.json").unlink()
+
+    def replay_must_not_run(**_: object) -> None:
+        raise AssertionError("provisional merge invoked exact Lean replay")
+
+    monkeypatch.setattr(scale_merge, "_replay_shard_with_lean", replay_must_not_run)
+    artifacts = merge_deterministic_scale_shards_provisional(
+        paths=RepoPaths(root=_ROOT),
+        shard_output_dirs=tuple(reversed(shard_dirs)),
+        output_dir=tmp_path / "provisional",
+    )
+
+    manifest = DeterministicScaleProvisionalMergedManifest.model_validate_json(
+        artifacts.manifest_path.read_text(encoding="utf-8")
+    )
+    assert manifest.verification_mode == "producer_content_audit_without_full_replay"
+    assert manifest.merge_replayed_with_lean is False
+    assert manifest.producer_outputs_lean_checked is True
+    assert manifest.exploratory_modeling_eligible is True
+    assert manifest.training_eligible is False
+    assert manifest.evaluation_eligible is False
+    assert manifest.gate_credit is False
+    assert manifest.resolved_semantic_labels == 0
+    assert manifest.promoted_items == 0
+    assert len(manifest.shard_bindings) == 2
+    assert sum(1 for _ in artifacts.partition_paths["failures"].open()) == len(sources)
+
+
+def test_provisional_merge_rejects_tampered_producer_partition(tmp_path: Path) -> None:
+    shard_dirs, _, _ = _fixture_shard_set(tmp_path)
+    partition = shard_dirs[0] / "partitions/failures.jsonl"
+    partition.write_bytes(partition.read_bytes() + b" ")
+
+    with pytest.raises(DeterministicScaleError, match="producer partition changed"):
+        merge_deterministic_scale_shards_provisional(
+            paths=RepoPaths(root=_ROOT),
+            shard_output_dirs=shard_dirs,
+            output_dir=tmp_path / "provisional",
+        )
+
+
+def test_provisional_merge_records_distinct_producer_and_merger_code(tmp_path: Path) -> None:
+    producer_code = collect_code_state(_ROOT).model_copy(update={"git_revision": "f" * 40})
+    shard_dirs, _, _ = _fixture_shard_set(
+        tmp_path,
+        code_by_shard=(producer_code, producer_code),
+    )
+
+    artifacts = merge_deterministic_scale_shards_provisional(
+        paths=RepoPaths(root=_ROOT),
+        shard_output_dirs=shard_dirs,
+        output_dir=tmp_path / "provisional",
+    )
+    manifest = DeterministicScaleProvisionalMergedManifest.model_validate_json(
+        artifacts.manifest_path.read_text(encoding="utf-8")
+    )
+
+    assert manifest.producer_code == producer_code
+    assert manifest.merger_code == collect_code_state(_ROOT)
+    assert manifest.producer_code != manifest.merger_code
 
 
 def test_merge_rejects_tampered_replay_audit(tmp_path: Path) -> None:
@@ -1391,3 +1463,51 @@ def test_scale_merge_cli_accepts_repeated_shard_directories(
         tmp_path / "shard0",
         tmp_path / "shard1",
     ]
+
+
+def test_provisional_scale_merge_cli_is_explicitly_ineligible(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from leanfaith.transforms import scale_merge
+
+    seen: dict[str, object] = {}
+
+    def fake_merge(**kwargs: object) -> DeterministicScaleMergeArtifacts:
+        seen.update(kwargs)
+        output = tmp_path / "provisional"
+        return DeterministicScaleMergeArtifacts(
+            output_dir=output,
+            manifest_path=output / f"provisional_merged_manifest.{'a' * 64}.json",
+            manifest_sha256="b" * 64,
+            merged_manifest_hash="a" * 64,
+            partition_paths={},
+        )
+
+    monkeypatch.setattr(
+        scale_merge,
+        "merge_deterministic_scale_shards_provisional",
+        fake_merge,
+    )
+    result = CliRunner().invoke(
+        app,
+        [
+            "generate-deterministic",
+            "--merge-scale-shards-provisional",
+            "--root",
+            str(tmp_path),
+            "--output-dir",
+            str(tmp_path / "provisional"),
+            "--shard-output-dir",
+            str(tmp_path / "shard0"),
+            "--shard-output-dir",
+            str(tmp_path / "shard1"),
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert seen["shard_output_dirs"] == [tmp_path / "shard0", tmp_path / "shard1"]
+    assert "merge_replayed_with_lean=false" in result.output
+    assert "training_eligible=false" in result.output
+    assert "evaluation_eligible=false" in result.output
+    assert "gate_credit=false" in result.output

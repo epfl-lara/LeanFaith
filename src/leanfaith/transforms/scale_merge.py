@@ -20,7 +20,7 @@ from leanfaith.config.paths import RepoPaths
 from leanfaith.representations import NORMALIZATION_VERSION
 from leanfaith.schemas.enums import QualityTier, ValidationStatus, ViewStatus
 from leanfaith.schemas.ids import REPRESENTATION_PREFIX, make_id
-from leanfaith.schemas.manifest import collect_code_state
+from leanfaith.schemas.manifest import CodeState, collect_code_state
 from leanfaith.schemas.pair import PairRecord, check_pair_groups
 from leanfaith.schemas.theorem import RepresentationRecord, TheoremRecord
 from leanfaith.schemas.variant import (
@@ -94,6 +94,23 @@ class DeterministicScaleMergedShardBinding(StrictModel):
     lean_replay_audit_sha256: str = Field(pattern=_HEX64_PATTERN)
 
 
+class DeterministicScaleProvisionalShardBinding(StrictModel):
+    """Content binding for one producer shard without a second Lean replay."""
+
+    shard_index: int = Field(ge=0)
+    output_dir: str
+    run_spec_hash: str = Field(pattern=_HEX64_PATTERN)
+    run_spec_sha256: str = Field(pattern=_HEX64_PATTERN)
+    manifest_sha256: str = Field(pattern=_HEX64_PATTERN)
+    selected_source_count: int = Field(ge=1)
+    selected_source_ids_sha256: str = Field(pattern=_HEX64_PATTERN)
+    journal_tree_hash: str = Field(pattern=_HEX64_PATTERN)
+    journal_receipt_tree_hash: str = Field(pattern=_HEX64_PATTERN)
+    journal_chain_tip: str = Field(pattern=_HEX64_PATTERN)
+    raw_response_file_count: int = Field(ge=0)
+    raw_response_tree_hash: str = Field(pattern=_HEX64_PATTERN)
+
+
 class DeterministicScaleMergedManifest(StrictModel):
     """Content-addressed audit manifest for one complete shard set."""
 
@@ -139,6 +156,66 @@ class DeterministicScaleMergedManifest(StrictModel):
         return self
 
 
+class DeterministicScaleProvisionalMergedManifest(StrictModel):
+    """Fail-closed content audit that deliberately omits full Lean replay.
+
+    This artifact exists only to unblock exploratory mining and smoke modeling
+    while the stricter scientific merge is replayed.  Its eligibility fields
+    are literals so a downstream reader cannot reinterpret it as promoted,
+    training-ready, evaluable, or gate-closing data.
+    """
+
+    schema_version: Literal[1] = 1
+    artifact_kind: Literal["deterministic_scale_provisional_merged_manifest"] = (
+        "deterministic_scale_provisional_merged_manifest"
+    )
+    merged_manifest_hash: str = Field(pattern=_HEX64_PATTERN)
+    verification_mode: Literal["producer_content_audit_without_full_replay"] = (
+        "producer_content_audit_without_full_replay"
+    )
+    shard_set_spec_hash: str = Field(pattern=_HEX64_PATTERN)
+    shard_count: int = Field(ge=1)
+    shard_bindings: tuple[DeterministicScaleProvisionalShardBinding, ...]
+    producer_code: CodeState
+    merger_code: CodeState
+    source_universe_count: int = Field(ge=1)
+    source_universe_sha256: str = Field(pattern=_HEX64_PATTERN)
+    source_assignment_sha256: str = Field(pattern=_HEX64_PATTERN)
+    eligible_source_count: int = Field(ge=0)
+    ineligible_source_count: int = Field(ge=0)
+    rule_status_counts: dict[str, int]
+    family_accepted_counts: dict[str, int]
+    record_counts: dict[str, int]
+    partition_sha256: dict[str, str]
+    aggregate_journal_tree_hash: str = Field(pattern=_HEX64_PATTERN)
+    aggregate_receipt_tree_hash: str = Field(pattern=_HEX64_PATTERN)
+    aggregate_raw_response_tree_hash: str = Field(pattern=_HEX64_PATTERN)
+    resolved_semantic_labels: Literal[0] = 0
+    promoted_items: Literal[0] = 0
+    output_quality_tier: Literal["provisional"] = "provisional"
+    producer_outputs_lean_checked: Literal[True] = True
+    merge_replayed_with_lean: Literal[False] = False
+    exploratory_modeling_eligible: Literal[True] = True
+    training_eligible: Literal[False] = False
+    evaluation_eligible: Literal[False] = False
+    gate_credit: Literal[False] = False
+    created_at: datetime.datetime
+
+    @model_validator(mode="after")
+    def _self_authenticating(self) -> DeterministicScaleProvisionalMergedManifest:
+        payload = self.model_dump(mode="json")
+        payload.pop("merged_manifest_hash")
+        if self.merged_manifest_hash != hash_canonical(payload):
+            raise ValueError("provisional merged manifest hash does not match canonical payload")
+        if len(self.shard_bindings) != self.shard_count:
+            raise ValueError("provisional merged shard binding count differs from shard_count")
+        if tuple(binding.shard_index for binding in self.shard_bindings) != tuple(
+            range(self.shard_count)
+        ):
+            raise ValueError("provisional merged shard bindings are not complete and ordered")
+        return self
+
+
 @dataclass(frozen=True, slots=True)
 class DeterministicScaleMergeArtifacts:
     output_dir: Path
@@ -146,6 +223,19 @@ class DeterministicScaleMergeArtifacts:
     manifest_sha256: str
     merged_manifest_hash: str
     partition_paths: Mapping[str, Path]
+
+
+@dataclass(frozen=True, slots=True)
+class _ValidatedShardOutput:
+    shards: tuple[ScaleSourceShard, ...]
+    run_spec_sha256: str
+    manifest_sha256: str
+    selected_source_ids_sha256: str
+    journal_tree_hash: str
+    journal_receipt_tree_hash: str
+    journal_chain_tip: str
+    raw_response_file_count: int
+    raw_response_tree_hash: str
 
 
 def _load_canonical_model[ModelT: StrictModel](
@@ -939,13 +1029,13 @@ def _validate_projected_semantic_lineage(
         )
 
 
-def _validate_shard_output(
+def _validate_shard_output_core(
     *,
     output_dir: Path,
     spec: DeterministicScaleRunSpec,
     manifest: DeterministicScaleManifest,
     config: DeterministicScaleConfig,
-) -> tuple[tuple[ScaleSourceShard, ...], DeterministicScaleMergedShardBinding]:
+) -> _ValidatedShardOutput:
     run_spec_path = output_dir / "run_spec.json"
     manifest_path = output_dir / "manifest.json"
     if (
@@ -1035,21 +1125,6 @@ def _validate_shard_output(
     journal_count, journal_tree_hash = _tree_hash(journal_dir, "*.json")
     receipt_count, receipt_tree_hash = _tree_hash(receipt_dir, "*.json")
     raw_count, raw_tree_hash = _tree_hash(output_dir / "raw_lean_responses", "*")
-    replay_audit_path = output_dir / "full_lean_replay_audit.json"
-    if not replay_audit_path.is_file():
-        raise DeterministicScaleError(
-            "producer shard lacks its replay accounting audit; scientific merge "
-            "must invoke exact Lean replay before validating the shard"
-        )
-    replay_audit = _load_lean_replay_audit(
-        path=replay_audit_path,
-        run_spec=spec,
-        run_spec_path=run_spec_path,
-        replayed_source_ids=spec.selected_source_theorem_ids,
-        journal_tree_hash=journal_tree_hash,
-        partition_sha256=partition_hashes,
-        created_at=config.record_timestamp_utc,
-    )
     expected_manifest = DeterministicScaleManifest(
         run_spec_hash=spec.run_spec_hash,
         run_spec_sha256=hash_file(run_spec_path),
@@ -1077,19 +1152,62 @@ def _validate_shard_output(
     if manifest != expected_manifest:
         raise DeterministicScaleError("shard manifest does not reconcile from immutable outputs")
 
+    return _ValidatedShardOutput(
+        shards=tuple(shards),
+        run_spec_sha256=hash_file(run_spec_path),
+        manifest_sha256=hash_file(manifest_path),
+        selected_source_ids_sha256=hash_canonical(spec.selected_source_theorem_ids),
+        journal_tree_hash=journal_tree_hash,
+        journal_receipt_tree_hash=receipt_tree_hash,
+        journal_chain_tip=previous_receipt_hash,
+        raw_response_file_count=raw_count,
+        raw_response_tree_hash=raw_tree_hash,
+    )
+
+
+def _validate_shard_output(
+    *,
+    output_dir: Path,
+    spec: DeterministicScaleRunSpec,
+    manifest: DeterministicScaleManifest,
+    config: DeterministicScaleConfig,
+) -> tuple[tuple[ScaleSourceShard, ...], DeterministicScaleMergedShardBinding]:
+    """Validate immutable producer content plus the separate exact-replay audit."""
+
+    validated = _validate_shard_output_core(
+        output_dir=output_dir,
+        spec=spec,
+        manifest=manifest,
+        config=config,
+    )
+    replay_audit_path = output_dir / "full_lean_replay_audit.json"
+    if not replay_audit_path.is_file():
+        raise DeterministicScaleError(
+            "producer shard lacks its replay accounting audit; scientific merge "
+            "must invoke exact Lean replay before validating the shard"
+        )
+    replay_audit = _load_lean_replay_audit(
+        path=replay_audit_path,
+        run_spec=spec,
+        run_spec_path=output_dir / "run_spec.json",
+        replayed_source_ids=spec.selected_source_theorem_ids,
+        journal_tree_hash=validated.journal_tree_hash,
+        partition_sha256=manifest.partition_sha256,
+        created_at=config.record_timestamp_utc,
+    )
     return (
-        tuple(shards),
+        validated.shards,
         DeterministicScaleMergedShardBinding(
             shard_index=spec.shard_index,
             output_dir=str(output_dir),
             run_spec_hash=spec.run_spec_hash,
-            run_spec_sha256=hash_file(run_spec_path),
-            manifest_sha256=hash_file(manifest_path),
+            run_spec_sha256=validated.run_spec_sha256,
+            manifest_sha256=validated.manifest_sha256,
             selected_source_count=len(spec.selected_source_theorem_ids),
-            selected_source_ids_sha256=hash_canonical(spec.selected_source_theorem_ids),
-            journal_tree_hash=journal_tree_hash,
-            journal_receipt_tree_hash=receipt_tree_hash,
-            journal_chain_tip=previous_receipt_hash,
+            selected_source_ids_sha256=validated.selected_source_ids_sha256,
+            journal_tree_hash=validated.journal_tree_hash,
+            journal_receipt_tree_hash=validated.journal_receipt_tree_hash,
+            journal_chain_tip=validated.journal_chain_tip,
             lean_replay_audit_hash=replay_audit.audit_hash,
             lean_replay_audit_sha256=hash_file(replay_audit_path),
         ),
@@ -1143,11 +1261,12 @@ def _reject_cross_shard_semantic_leakage(
         )
 
 
-def merge_deterministic_scale_shards(
+def _merge_deterministic_scale_shards(
     *,
     paths: RepoPaths,
     shard_output_dirs: Sequence[Path],
     output_dir: Path,
+    verification_mode: Literal["exact_lean_replay", "producer_content_audit"],
 ) -> DeterministicScaleMergeArtifacts:
     """Audit a complete shard set and write deterministic merged projections."""
 
@@ -1197,7 +1316,8 @@ def merge_deterministic_scale_shards(
             "sharded N10 output is scientifically invalid: run unary families in "
             "source shards and N10 in a dedicated shard_count=1 global pass"
         )
-    if collect_code_state(paths.root) != first_spec.code:
+    merger_code = collect_code_state(paths.root)
+    if verification_mode == "exact_lean_replay" and merger_code != first_spec.code:
         raise DeterministicScaleError(
             "merge implementation/code state differs from the producer run spec; "
             "archive this shard set and use an explicit migration/replay"
@@ -1233,29 +1353,62 @@ def merge_deterministic_scale_shards(
         raise DeterministicScaleError("source shard assignment does not recompute")
 
     all_shards: list[ScaleSourceShard] = []
-    bindings: list[DeterministicScaleMergedShardBinding] = []
+    strict_bindings: list[DeterministicScaleMergedShardBinding] = []
+    provisional_bindings: list[DeterministicScaleProvisionalShardBinding] = []
     observed_sources: set[str] = set()
     for shard_dir, spec, manifest in loaded:
-        _replay_shard_with_lean(
-            paths=paths,
-            output_dir=shard_dir,
-            spec=spec,
-            manifest=manifest,
-        )
+        if verification_mode == "exact_lean_replay":
+            _replay_shard_with_lean(
+                paths=paths,
+                output_dir=shard_dir,
+                spec=spec,
+                manifest=manifest,
+            )
+        else:
+            _validate_producer_artifact_bindings(
+                output_dir=shard_dir,
+                spec=spec,
+                manifest=manifest,
+            )
         overlap = observed_sources & set(spec.selected_source_theorem_ids)
         if overlap:
             raise DeterministicScaleError(
                 f"source assignment overlaps across shards: {sorted(overlap)[:3]}"
             )
         observed_sources.update(spec.selected_source_theorem_ids)
-        shards, binding = _validate_shard_output(
-            output_dir=shard_dir,
-            spec=spec,
-            manifest=manifest,
-            config=loaded_config.config,
-        )
+        if verification_mode == "exact_lean_replay":
+            shards, binding = _validate_shard_output(
+                output_dir=shard_dir,
+                spec=spec,
+                manifest=manifest,
+                config=loaded_config.config,
+            )
+            strict_bindings.append(binding)
+        else:
+            validated = _validate_shard_output_core(
+                output_dir=shard_dir,
+                spec=spec,
+                manifest=manifest,
+                config=loaded_config.config,
+            )
+            shards = validated.shards
+            provisional_bindings.append(
+                DeterministicScaleProvisionalShardBinding(
+                    shard_index=spec.shard_index,
+                    output_dir=str(shard_dir),
+                    run_spec_hash=spec.run_spec_hash,
+                    run_spec_sha256=validated.run_spec_sha256,
+                    manifest_sha256=validated.manifest_sha256,
+                    selected_source_count=len(spec.selected_source_theorem_ids),
+                    selected_source_ids_sha256=validated.selected_source_ids_sha256,
+                    journal_tree_hash=validated.journal_tree_hash,
+                    journal_receipt_tree_hash=validated.journal_receipt_tree_hash,
+                    journal_chain_tip=validated.journal_chain_tip,
+                    raw_response_file_count=validated.raw_response_file_count,
+                    raw_response_tree_hash=validated.raw_response_tree_hash,
+                )
+            )
         all_shards.extend(shards)
-        bindings.append(binding)
     if observed_sources != set(first_spec.source_universe_theorem_ids):
         missing = set(first_spec.source_universe_theorem_ids) - observed_sources
         raise DeterministicScaleError(
@@ -1316,12 +1469,19 @@ def merge_deterministic_scale_shards(
     ):
         raise DeterministicScaleError("merged output violates the global family cap")
 
+    strict_merge = verification_mode == "exact_lean_replay"
+    bindings: tuple[
+        DeterministicScaleMergedShardBinding | DeterministicScaleProvisionalShardBinding,
+        ...,
+    ] = tuple(strict_bindings if strict_merge else provisional_bindings)
+    manifest_prefix = "merged_manifest." if strict_merge else "provisional_merged_manifest."
+
     with _run_lock(output):
         unexpected = tuple(
             path
             for path in output.iterdir()
             if path.name != "run.lock"
-            and not path.name.startswith("merged_manifest.")
+            and not path.name.startswith(manifest_prefix)
             and path.name != "partitions"
         )
         if unexpected:
@@ -1344,12 +1504,10 @@ def merge_deterministic_scale_shards(
                 "source_shard_assignments": first_spec.source_shard_assignments,
             }
         )
-        data: dict[str, object] = {
-            "schema_version": 3,
-            "artifact_kind": "deterministic_scale_merged_manifest",
+        common_data: dict[str, object] = {
             "shard_set_spec_hash": first_spec.shard_set_spec_hash,
             "shard_count": first_spec.shard_count,
-            "shard_bindings": tuple(bindings),
+            "shard_bindings": bindings,
             "source_universe_count": len(first_spec.source_universe_theorem_ids),
             "source_universe_sha256": hash_canonical(first_spec.source_universe_theorem_ids),
             "source_assignment_sha256": source_assignment_hash,
@@ -1382,10 +1540,31 @@ def merge_deterministic_scale_shards(
             "resolved_semantic_labels": 0,
             "promoted_items": 0,
             "output_quality_tier": "provisional",
-            "merge_replayed_with_lean": True,
-            "training_eligible": False,
             "created_at": config.record_timestamp_utc,
         }
+        if strict_merge:
+            data: dict[str, object] = {
+                "schema_version": 3,
+                "artifact_kind": "deterministic_scale_merged_manifest",
+                **common_data,
+                "merge_replayed_with_lean": True,
+                "training_eligible": False,
+            }
+        else:
+            data = {
+                "schema_version": 1,
+                "artifact_kind": "deterministic_scale_provisional_merged_manifest",
+                "verification_mode": "producer_content_audit_without_full_replay",
+                **common_data,
+                "producer_code": first_spec.code,
+                "merger_code": merger_code,
+                "producer_outputs_lean_checked": True,
+                "merge_replayed_with_lean": False,
+                "exploratory_modeling_eligible": True,
+                "training_eligible": False,
+                "evaluation_eligible": False,
+                "gate_credit": False,
+            }
         hash_payload = {
             **data,
             "shard_bindings": tuple(binding.model_dump(mode="json") for binding in bindings),
@@ -1394,11 +1573,19 @@ def merge_deterministic_scale_shards(
                 mode="json",
             ),
         }
+        if not strict_merge:
+            hash_payload["producer_code"] = first_spec.code.model_dump(mode="json")
+            hash_payload["merger_code"] = merger_code.model_dump(mode="json")
         merged_manifest_hash = hash_canonical(hash_payload)
-        merged_manifest = DeterministicScaleMergedManifest.model_validate(
-            {"merged_manifest_hash": merged_manifest_hash, **data}
-        )
-        manifest_path = output / f"merged_manifest.{merged_manifest_hash}.json"
+        if strict_merge:
+            merged_manifest: StrictModel = DeterministicScaleMergedManifest.model_validate(
+                {"merged_manifest_hash": merged_manifest_hash, **data}
+            )
+        else:
+            merged_manifest = DeterministicScaleProvisionalMergedManifest.model_validate(
+                {"merged_manifest_hash": merged_manifest_hash, **data}
+            )
+        manifest_path = output / f"{manifest_prefix}{merged_manifest_hash}.json"
         manifest_sha256 = _write_new_atomic(
             manifest_path,
             _canonical_model_bytes(merged_manifest),
@@ -1412,9 +1599,51 @@ def merge_deterministic_scale_shards(
     )
 
 
+def merge_deterministic_scale_shards(
+    *,
+    paths: RepoPaths,
+    shard_output_dirs: Sequence[Path],
+    output_dir: Path,
+) -> DeterministicScaleMergeArtifacts:
+    """Perform the scientific merge with an exact second Lean replay per shard."""
+
+    return _merge_deterministic_scale_shards(
+        paths=paths,
+        shard_output_dirs=shard_output_dirs,
+        output_dir=output_dir,
+        verification_mode="exact_lean_replay",
+    )
+
+
+def merge_deterministic_scale_shards_provisional(
+    *,
+    paths: RepoPaths,
+    shard_output_dirs: Sequence[Path],
+    output_dir: Path,
+) -> DeterministicScaleMergeArtifacts:
+    """Merge producer-checked shards for exploratory use without exact replay.
+
+    This validates all immutable inputs, journals, receipt chains, raw-response
+    bindings, partitions, deterministic identities, and cross-record lineage.
+    It deliberately does not perform the scientific merge's second Lean replay.
+    The resulting manifest is permanently ineligible for training, evaluation,
+    promotion, or gate credit.
+    """
+
+    return _merge_deterministic_scale_shards(
+        paths=paths,
+        shard_output_dirs=shard_output_dirs,
+        output_dir=output_dir,
+        verification_mode="producer_content_audit",
+    )
+
+
 __all__ = [
     "DeterministicScaleMergeArtifacts",
     "DeterministicScaleMergedManifest",
     "DeterministicScaleMergedShardBinding",
+    "DeterministicScaleProvisionalMergedManifest",
+    "DeterministicScaleProvisionalShardBinding",
     "merge_deterministic_scale_shards",
+    "merge_deterministic_scale_shards_provisional",
 ]

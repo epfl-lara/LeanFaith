@@ -908,6 +908,16 @@ def generate_deterministic_command(
             ),
         ),
     ] = False,
+    merge_scale_shards_provisional: Annotated[
+        bool,
+        typer.Option(
+            "--merge-scale-shards-provisional",
+            help=(
+                "Content-audit a complete producer shard set without the scientific "
+                "second Lean replay; output is exploratory-only and gate-ineligible."
+            ),
+        ),
+    ] = False,
     freeze_scale_inventory: Annotated[
         bool,
         typer.Option(
@@ -1062,6 +1072,7 @@ def generate_deterministic_command(
                 run_smoke_vertical_slice,
                 materialize_scale,
                 merge_scale_shards,
+                merge_scale_shards_provisional,
                 freeze_scale_inventory,
             )
         )
@@ -1071,6 +1082,7 @@ def generate_deterministic_command(
             "--validate-only, --validate-positives, --validate-negatives, and "
             "--run-negative-pre-scale/--run-smoke-vertical-slice/"
             "--materialize-scale/--merge-scale-shards/"
+            "--merge-scale-shards-provisional/"
             "--freeze-scale-inventory are mutually exclusive",
             err=True,
         )
@@ -1084,13 +1096,16 @@ def generate_deterministic_command(
             err=True,
         )
         raise typer.Exit(code=2)
-    if merge_scale_shards:
+    if merge_scale_shards or merge_scale_shards_provisional:
+        merge_flag = (
+            "--merge-scale-shards" if merge_scale_shards else "--merge-scale-shards-provisional"
+        )
         if report_path is not None:
-            typer.echo("--report is not accepted with --merge-scale-shards", err=True)
+            typer.echo(f"--report is not accepted with {merge_flag}", err=True)
             raise typer.Exit(code=2)
         if output_dir is None or not shard_output_dirs:
             typer.echo(
-                "--merge-scale-shards requires --output-dir and repeated --shard-output-dir",
+                f"{merge_flag} requires --output-dir and repeated --shard-output-dir",
                 err=True,
             )
             raise typer.Exit(code=2)
@@ -1112,22 +1127,37 @@ def generate_deterministic_command(
         ]
         if forbidden:
             typer.echo(
-                "--merge-scale-shards does not accept " + ", ".join(forbidden),
+                f"{merge_flag} does not accept " + ", ".join(forbidden),
                 err=True,
             )
             raise typer.Exit(code=2)
         from leanfaith.transforms.scale_materializer import DeterministicScaleError
-        from leanfaith.transforms.scale_merge import merge_deterministic_scale_shards
+        from leanfaith.transforms.scale_merge import (
+            merge_deterministic_scale_shards,
+            merge_deterministic_scale_shards_provisional,
+        )
 
         try:
-            merged_artifacts = merge_deterministic_scale_shards(
+            merge_function = (
+                merge_deterministic_scale_shards
+                if merge_scale_shards
+                else merge_deterministic_scale_shards_provisional
+            )
+            merged_artifacts = merge_function(
                 paths=paths,
                 shard_output_dirs=shard_output_dirs,
                 output_dir=output_dir,
             )
         except DeterministicScaleError as exc:
-            typer.echo(f"deterministic scale shard merge FAILED: {exc}", err=True)
+            typer.echo(f"deterministic scale shard merge FAILED ({merge_flag}): {exc}", err=True)
             raise typer.Exit(code=1) from exc
+        if merge_scale_shards:
+            eligibility = "merge_replayed_with_lean=true training_eligible=false"
+        else:
+            eligibility = (
+                "merge_replayed_with_lean=false exploratory_modeling_eligible=true "
+                "training_eligible=false evaluation_eligible=false gate_credit=false"
+            )
         typer.echo(
             "deterministic scale shard merge OK; "
             f"output={merged_artifacts.output_dir} "
@@ -1135,7 +1165,7 @@ def generate_deterministic_command(
             f"manifest_sha256={merged_artifacts.manifest_sha256} "
             f"merged_manifest_hash={merged_artifacts.merged_manifest_hash} "
             "resolved_semantic_labels=0 promoted_items=0 output_tier=provisional "
-            "merge_replayed_with_lean=true training_eligible=false"
+            f"{eligibility}"
         )
         return
     if run_smoke_vertical_slice:
