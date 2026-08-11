@@ -17,6 +17,7 @@ from leanfaith.config.hashing import (
     hash_file,
     sha256_hex,
 )
+from leanfaith.generation import lf022_historical_replay as historical_replay_module
 from leanfaith.generation import lf022_prefix256_qa as qa_module
 from leanfaith.generation.lf022_batch import (
     LF022BatchRouteManifest,
@@ -36,6 +37,7 @@ from leanfaith.generation.lf022_executor import (
 )
 from leanfaith.generation.lf022_historical_replay import (
     LF022HistoricalModuleBinding,
+    LF022HistoricalReplayError,
     LF022HistoricalReplayResult,
     LF022HistoricalTerminalBinding,
 )
@@ -66,6 +68,48 @@ def _write(path: Path, payload: bytes) -> str:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_bytes(payload)
     return hash_file(path)
+
+
+def test_historical_replay_compatibility_accepts_terminal_references_and_restores(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    reference = {
+        "execution_task_id": f"lf022_execution_task:{'1' * 64}",
+        "terminal_id": f"lf022_execution_terminal:{'2' * 64}",
+        "terminal_artifact": {
+            "path": "data/executor/terminal.json",
+            "sha256": "3" * 64,
+        },
+    }
+    original = historical_replay_module._explicit_record_bindings
+    with pytest.raises(LF022HistoricalReplayError):
+        original(reference)
+
+    sentinel = cast(LF022HistoricalReplayResult, object())
+
+    def fake_replay(**kwargs: object) -> LF022HistoricalReplayResult:
+        del kwargs
+        compatible = historical_replay_module._explicit_record_bindings
+        assert compatible(reference) is None
+        return sentinel
+
+    monkeypatch.setattr(
+        qa_module,
+        "run_lf022_historical_replay",
+        fake_replay,
+    )
+    result = qa_module._run_terminal_reference_compatible_historical_replay(
+        repo_root=tmp_path,
+        manifest_binding=LF022ArtifactBinding(path="manifest.json", sha256="4" * 64),
+        loaded_tasks=(),
+        executor_output_root="data/lf022_execution",
+    )
+
+    assert result is sentinel
+    assert historical_replay_module._explicit_record_bindings is original
+    with pytest.raises(LF022HistoricalReplayError):
+        original(reference)
 
 
 def _terminal(
