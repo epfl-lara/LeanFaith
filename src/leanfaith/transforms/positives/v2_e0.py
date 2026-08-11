@@ -441,7 +441,13 @@ class _E0PresentationRule:
         return Applicability(
             applicable=True,
             reason_codes=(),
-            matched_nodes=tuple(f"span:{site.start}:{site.end}:{site.operation}" for site in sites),
+            # ``Applicability`` makes ordering part of its canonical identity.
+            # Source-order is not lexicographic once offsets have different
+            # digit counts (for example, ``span:98`` sorts after ``span:123``),
+            # so normalize the public node identifiers explicitly.
+            matched_nodes=tuple(
+                sorted(f"span:{site.start}:{site.end}:{site.operation}" for site in sites)
+            ),
             required_capabilities=(
                 "alpha_canonical_identity",
                 "exact_inverse_replay",
