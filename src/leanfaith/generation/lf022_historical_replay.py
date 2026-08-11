@@ -382,6 +382,22 @@ def _record_binding_list(
 def _explicit_record_bindings(
     value: dict[object, object],
 ) -> list[_DiscoveredBinding] | None:
+    artifact_path = value.get("path")
+    if isinstance(artifact_path, str) and artifact_path.startswith("artifacts/code_bundles/"):
+        digest = value.get("sha256")
+        relative = PurePosixPath(artifact_path)
+        if (
+            not _is_sha256(digest)
+            or len(relative.parts) != 4
+            or relative.parts[:2] != ("artifacts", "code_bundles")
+            or relative.name != f"code_bundle_{digest}.tar.gz"
+        ):
+            raise LF022HistoricalReplayError("nested code-bundle binding is malformed")
+        # A replay's own admission bundle is supplied as an initial closure
+        # root and verified separately. Bundles nested inside lineage reports
+        # describe prior coordinators and are provenance, not runtime inputs.
+        return []
+
     module_name = value.get("module_name")
     if isinstance(module_name, str) and (
         module_name == "leanfaith" or module_name.startswith("leanfaith.")
