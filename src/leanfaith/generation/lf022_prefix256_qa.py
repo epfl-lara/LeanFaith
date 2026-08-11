@@ -119,6 +119,7 @@ def _run_terminal_reference_compatible_historical_replay(
     from leanfaith.generation import lf022_historical_replay as replay_module
 
     original = replay_module._explicit_record_bindings
+    original_source_file = replay_module._source_file
 
     def compatible(
         value: dict[object, object],
@@ -149,8 +150,20 @@ def _run_terminal_reference_compatible_historical_replay(
             return None
         return original(value)
 
+    def source_file_with_path(
+        root: Path,
+        relative: PurePosixPath,
+        *,
+        label: str,
+    ) -> Path:
+        try:
+            return original_source_file(root, relative, label=label)
+        except LF022HistoricalReplayError as exc:
+            raise LF022HistoricalReplayError(f"{exc}: {relative.as_posix()}") from exc
+
     with _HISTORICAL_REPLAY_COMPATIBILITY_LOCK:
         replay_module._explicit_record_bindings = compatible
+        replay_module._source_file = source_file_with_path
         try:
             return run_lf022_historical_replay(
                 repo_root=repo_root,
@@ -160,6 +173,7 @@ def _run_terminal_reference_compatible_historical_replay(
             )
         finally:
             replay_module._explicit_record_bindings = original
+            replay_module._source_file = original_source_file
 
 
 class LF022Prefix256QAError(RuntimeError):

@@ -90,6 +90,7 @@ def test_historical_replay_compatibility_accepts_terminal_references_and_restore
         "sha256": "4" * 64,
     }
     original = historical_replay_module._explicit_record_bindings
+    original_source_file = historical_replay_module._source_file
     with pytest.raises(LF022HistoricalReplayError):
         original(reference)
 
@@ -116,6 +117,7 @@ def test_historical_replay_compatibility_accepts_terminal_references_and_restore
 
     assert result is sentinel
     assert historical_replay_module._explicit_record_bindings is original
+    assert historical_replay_module._source_file is original_source_file
     with pytest.raises(LF022HistoricalReplayError):
         original(reference)
 
