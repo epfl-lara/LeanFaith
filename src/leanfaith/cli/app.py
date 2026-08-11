@@ -1797,6 +1797,102 @@ def collect_evidence_command(
         raise typer.Exit(code=1)
 
 
+@app.command("resolve-labels")
+def resolve_labels_command(
+    target_path: Annotated[
+        Path,
+        typer.Option(
+            "--targets",
+            help="Explicit closed PairRecord or NLPLeanRecord JSONL partition.",
+        ),
+    ],
+    evidence_path: Annotated[
+        Path,
+        typer.Option(
+            "--evidence",
+            help="Explicit EvidenceRecord JSONL partition for the target graph.",
+        ),
+    ],
+    admission_path: Annotated[
+        Path,
+        typer.Option(
+            "--admissions",
+            help="Explicit EvidenceAdmissionRecord JSONL partition.",
+        ),
+    ],
+    candidate_path: Annotated[
+        Path,
+        typer.Option(
+            "--candidates",
+            help="Explicit policy-bound ResolutionCandidate JSONL partition.",
+        ),
+    ],
+    prior_label_path: Annotated[
+        Path | None,
+        typer.Option(
+            "--prior-labels",
+            help=(
+                "Optional exact prior ResolvedLabel JSONL for idempotent replay only; "
+                "label-changing supersession is not yet enabled."
+            ),
+        ),
+    ] = None,
+    output_dir: Annotated[
+        Path | None,
+        typer.Option(
+            "--output-dir",
+            help="Optional diagnostic output directory; must be empty when supplied.",
+        ),
+    ] = None,
+    root_dir: Annotated[
+        Path | None,
+        typer.Option("--root", help="Repository root override."),
+    ] = None,
+) -> None:
+    """Resolve an explicit LF-024 graph into diagnostic-only label artifacts."""
+    from leanfaith.cli.resolve_labels import (
+        LabelResolutionBatchInputError,
+        resolve_label_batch,
+    )
+    from leanfaith.config.paths import RepoPaths, RepoRootNotFoundError
+    from leanfaith.schemas.enums import ArtifactClass
+
+    try:
+        paths = RepoPaths.discover() if root_dir is None else RepoPaths(root=root_dir)
+        artifacts = resolve_label_batch(
+            paths=paths,
+            target_path=target_path,
+            evidence_path=evidence_path,
+            admission_path=admission_path,
+            candidate_path=candidate_path,
+            prior_label_path=prior_label_path,
+            output_dir=output_dir,
+            artifact_class=ArtifactClass.DIAGNOSTIC,
+        )
+    except (
+        LabelResolutionBatchInputError,
+        RepoRootNotFoundError,
+        OSError,
+        ValueError,
+    ) as exc:
+        typer.echo(f"LF-024 diagnostic label resolution rejected: {exc}", err=True)
+        raise typer.Exit(code=1) from exc
+
+    typer.echo(
+        "LF-024 diagnostic label resolution complete; "
+        f"target_kind={artifacts.target_kind.value} "
+        f"targets={artifacts.target_count} "
+        f"resolved={artifacts.resolved_count} "
+        f"unresolved={artifacts.unresolved_count} "
+        f"derivations={artifacts.derivation_count} "
+        f"conflicts={artifacts.conflict_count} "
+        f"overrides={artifacts.override_count} "
+        f"output={artifacts.output_dir} "
+        f"manifest={artifacts.run_manifest_path} "
+        f"manifest_sha256={artifacts.run_manifest_sha256}"
+    )
+
+
 @app.command("collect-real-outputs")
 def collect_real_outputs_command(
     validate_foundation: Annotated[
