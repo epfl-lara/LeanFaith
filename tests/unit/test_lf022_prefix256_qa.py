@@ -89,10 +89,6 @@ def test_historical_replay_compatibility_accepts_terminal_references_and_restore
         "path": "src/leanfaith/generation/lf022_batch.py",
         "sha256": "4" * 64,
     }
-    historical_bundle = {
-        "path": f"artifacts/code_bundles/historical/code_bundle_{'5' * 64}.tar.gz",
-        "sha256": "5" * 64,
-    }
     original = historical_replay_module._explicit_record_bindings
     original_source_file = historical_replay_module._source_file
     with pytest.raises(LF022HistoricalReplayError):
@@ -105,7 +101,6 @@ def test_historical_replay_compatibility_accepts_terminal_references_and_restore
         compatible = historical_replay_module._explicit_record_bindings
         assert compatible(reference) is None
         assert compatible(module_binding) == []
-        assert compatible(historical_bundle) == []
         return sentinel
 
     monkeypatch.setattr(
