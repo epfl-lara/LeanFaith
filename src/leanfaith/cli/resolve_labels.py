@@ -1,12 +1,14 @@
 """Narrow LF-024 batch label-resolution operation.
 
-The operation consumes explicit target, linked-evidence, admission, and
-candidate partitions and delegates every semantic decision to
+The operation consumes explicit target, linked-evidence, admission, and an
+explicitly empty raw-candidate partition, then delegates every decision to
 :func:`leanfaith.labeling.resolution.resolve_target`.
-It does not construct, infer, repair, or promote ``ResolutionCandidate``
-records.  Missing, orphaned, mixed-kind, and cross-target inputs fail before
-any output partition is written.  This foundation is diagnostic-only until
-typed adapters independently verify authority and admission artifact content.
+Non-empty raw candidate partitions are rejected until typed replay can mint an
+opaque ``VerifiedCandidateSet`` capability.  This operation does not construct,
+infer, repair, or promote ``ResolutionCandidate`` records.  Missing, orphaned,
+mixed-kind, and cross-target inputs fail before any output partition is written.
+This foundation is diagnostic-only until typed adapters independently verify
+authority and admission artifact content.
 
 CLI registration intentionally lives elsewhere; this module exposes a tested
 operation that a later Typer command can call without duplicating policy or
@@ -38,6 +40,7 @@ from leanfaith.labeling.quality import (
     load_active_label_resolution_policy,
 )
 from leanfaith.labeling.resolution import (
+    EMPTY_VERIFIED_CANDIDATE_SET,
     ResolutionInputError,
     ResolutionTarget,
     resolve_target,
@@ -514,9 +517,9 @@ def _resolve_label_batch_locked(
 ) -> LabelResolutionBatchArtifacts:
     """Resolve an explicit PairRecord or NLPLeanRecord JSONL batch.
 
-    All inputs are explicit.  In particular, an empty candidate partition
-    produces unresolved REVIEW labels; this operation never turns evidence or
-    generation intent into a semantic candidate.
+    All inputs are explicit.  The candidate partition must be empty and
+    produces unresolved REVIEW labels; this operation never turns raw records,
+    evidence, or generation intent into a semantic candidate.
     """
 
     now = resolved_at or datetime.datetime.now(tz=datetime.UTC)
@@ -558,6 +561,11 @@ def _resolve_label_batch_locked(
         ResolutionCandidate,
         record_kind="ResolutionCandidate",
     )
+    if candidates:
+        raise LabelResolutionBatchInputError(
+            "nonempty raw candidate partitions are disabled until typed authority replay "
+            "mints a VerifiedCandidateSet capability"
+        )
     prior_labels = (
         ()
         if prior_label_path is None
@@ -567,7 +575,7 @@ def _resolve_label_batch_locked(
         target_by_id,
         evidence_by_target,
         admissions_by_target,
-        candidates_by_target,
+        _candidates_by_target,
         prior_by_target,
     ) = _group_closed_inputs(
         target_kind=target_kind,
@@ -587,7 +595,7 @@ def _resolve_label_batch_locked(
                 target=target,
                 evidence_records=evidence_by_target.get(target_id, ()),
                 admissions=admissions_by_target.get(target_id, ()),
-                candidates=candidates_by_target.get(target_id, ()),
+                verified_candidates=EMPTY_VERIFIED_CANDIDATE_SET,
                 policy=policy,
                 resolved_at=now,
                 prior_label=prior_by_target.get(target_id),
@@ -597,7 +605,7 @@ def _resolve_label_batch_locked(
                 original_target=target,
                 evidence_records=evidence_by_target.get(target_id, ()),
                 admissions=admissions_by_target.get(target_id, ()),
-                candidates=candidates_by_target.get(target_id, ()),
+                verified_candidates=EMPTY_VERIFIED_CANDIDATE_SET,
                 policy=policy,
                 prior_label=prior_by_target.get(target_id),
             )
@@ -747,6 +755,8 @@ def _resolve_label_batch_locked(
                 "target_kind": target_kind.value,
                 "linked_evidence_graph_closed": True,
                 "candidate_partition_explicit": True,
+                "raw_candidate_partition_required_empty": True,
+                "verified_candidate_capability": False,
                 "candidate_set_closed": False,
                 "candidate_inference": False,
                 "candidate_promotion": False,
@@ -771,9 +781,10 @@ def _resolve_label_batch_locked(
             },
             created_at=now,
             notes=(
-                "Diagnostic-only LF-024 explicit-partition resolution foundation. The linked "
-                "evidence graph was closed; the candidate partition was explicit but not "
-                "claimed exhaustive. The operation never inferred or promoted a candidate, "
+                "Diagnostic-only LF-024 empty-candidate resolution foundation. The linked "
+                "evidence graph was closed; nonempty raw candidate partitions were rejected. "
+                "No typed authority replay capability was supplied. The operation never "
+                "inferred or promoted a candidate, "
                 "made every label train/evaluation-ineligible, and performed no production "
                 "admission. Typed authority/admission adapters remain required before "
                 "production resolution."

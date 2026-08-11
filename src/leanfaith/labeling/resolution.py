@@ -7,8 +7,9 @@ The resolver combines two deliberately separate inputs:
 
 No generation intention, typecheck result, failed proof search, missing
 counterexample, raw annotator vote, or raw LLM vote is accepted as a semantic
-candidate here.  Upstream adapters must first create a policy-bound
-``ResolutionCandidate``.  When that authority is absent or conflicting, the
+candidate here.  The public boundary accepts candidates only through an opaque
+``VerifiedCandidateSet`` capability.  No production factory for a non-empty
+capability exists yet.  When verified authority is absent or conflicting, the
 resolver writes the exact unresolved/REVIEW contract instead of guessing.
 """
 
@@ -16,7 +17,7 @@ from __future__ import annotations
 
 import datetime
 from collections.abc import Sequence
-from typing import Any, Literal, Self
+from typing import Any, Literal, Self, final
 
 from pydantic import Field, field_validator, model_validator
 
@@ -66,6 +67,85 @@ ResolutionTarget = PairRecord | NLPLeanRecord
 
 class ResolutionInputError(ValueError):
     """The resolver input graph is incomplete, stale, or cross-target."""
+
+
+_VERIFIED_CANDIDATE_SET_SEAL = object()
+
+
+@final
+class VerifiedCandidateSet:
+    """Opaque, process-local proof that candidate replay passed.
+
+    This object is deliberately neither a Pydantic model nor serializable.  Its
+    constructor is disabled and this module currently mints only the singleton
+    empty capability.  A future typed authority-replay adapter must establish
+    the complete source inventory and mint a target/policy-bound non-empty
+    capability inside this trust boundary.  In particular,
+    ``StructuralCandidateSetVerification`` is not such an authority proof.
+    """
+
+    __slots__ = ("__candidates", "__seal")
+
+    def __new__(cls) -> Self:
+        raise TypeError("VerifiedCandidateSet is an opaque capability with no public constructor")
+
+    def __repr__(self) -> str:
+        return "VerifiedCandidateSet(<opaque>)"
+
+    def __setattr__(self, name: str, value: object) -> None:
+        del name, value
+        raise TypeError("VerifiedCandidateSet is immutable")
+
+    def __delattr__(self, name: str) -> None:
+        del name
+        raise TypeError("VerifiedCandidateSet is immutable")
+
+    def __copy__(self) -> Self:
+        raise TypeError("VerifiedCandidateSet cannot be copied")
+
+    def __deepcopy__(self, memo: object) -> Self:
+        del memo
+        raise TypeError("VerifiedCandidateSet cannot be copied")
+
+    def __reduce__(self) -> str | tuple[Any, ...]:
+        raise TypeError("VerifiedCandidateSet cannot be serialized")
+
+
+def _make_empty_verified_candidate_set() -> VerifiedCandidateSet:
+    """Mint the sole currently enabled capability: the empty candidate set."""
+
+    capability = object.__new__(VerifiedCandidateSet)
+    object.__setattr__(capability, "_VerifiedCandidateSet__candidates", ())
+    object.__setattr__(
+        capability,
+        "_VerifiedCandidateSet__seal",
+        _VERIFIED_CANDIDATE_SET_SEAL,
+    )
+    return capability
+
+
+EMPTY_VERIFIED_CANDIDATE_SET = _make_empty_verified_candidate_set()
+
+
+def _candidates_from_verified_set(
+    verified_candidates: VerifiedCandidateSet,
+) -> tuple[ResolutionCandidate, ...]:
+    """Open a capability only after checking its exact runtime seal."""
+
+    if type(verified_candidates) is not VerifiedCandidateSet:
+        raise ResolutionInputError("resolver requires an exact VerifiedCandidateSet capability")
+    try:
+        seal = verified_candidates._VerifiedCandidateSet__seal  # type: ignore[attr-defined]
+        candidates = verified_candidates._VerifiedCandidateSet__candidates  # type: ignore[attr-defined]
+    except AttributeError as exc:
+        raise ResolutionInputError("VerifiedCandidateSet capability is unsealed") from exc
+    if seal is not _VERIFIED_CANDIDATE_SET_SEAL:
+        raise ResolutionInputError("VerifiedCandidateSet capability has an invalid seal")
+    if not isinstance(candidates, tuple) or not all(
+        isinstance(item, ResolutionCandidate) for item in candidates
+    ):
+        raise ResolutionInputError("VerifiedCandidateSet capability contains invalid records")
+    return candidates
 
 
 class ResolutionAuditRecord(StrictModel):
@@ -497,7 +577,7 @@ def _build_audit(
     return ResolutionAuditRecord.model_validate({"audit_id": audit_id, **payload})
 
 
-def resolve_target(
+def _resolve_target_diagnostic(
     *,
     target: ResolutionTarget,
     evidence_records: Sequence[EvidenceRecord],
@@ -507,7 +587,12 @@ def resolve_target(
     resolved_at: datetime.datetime,
     prior_label: ResolvedLabel | None = None,
 ) -> ResolutionArtifacts:
-    """Resolve one closed target graph deterministically and fail closed.
+    """Exercise resolver semantics with explicit raw candidates.
+
+    This private core exists for focused resolver tests and future typed
+    authority-replay integration.  It is not a production authority boundary;
+    public callers must use :func:`resolve_target` with an opaque
+    ``VerifiedCandidateSet`` capability.
 
     Input ordering has no effect.  Malformed lineage raises
     ``ResolutionInputError``; genuine strong semantic/evidence conflicts
@@ -766,7 +851,36 @@ def resolve_target(
     )
 
 
-def verify_resolution_artifacts(
+def resolve_target(
+    *,
+    target: ResolutionTarget,
+    evidence_records: Sequence[EvidenceRecord],
+    admissions: Sequence[EvidenceAdmissionRecord],
+    verified_candidates: VerifiedCandidateSet,
+    policy: ActiveLabelResolutionPolicy,
+    resolved_at: datetime.datetime,
+    prior_label: ResolvedLabel | None = None,
+) -> ResolutionArtifacts:
+    """Resolve one target using only an opaque verified-candidate capability.
+
+    The only capability currently available to public callers is
+    ``EMPTY_VERIFIED_CANDIDATE_SET``.  Consequently this boundary can emit only
+    unresolved semantic labels until typed authority replay is implemented.
+    """
+
+    candidates = _candidates_from_verified_set(verified_candidates)
+    return _resolve_target_diagnostic(
+        target=target,
+        evidence_records=evidence_records,
+        admissions=admissions,
+        candidates=candidates,
+        policy=policy,
+        resolved_at=resolved_at,
+        prior_label=prior_label,
+    )
+
+
+def _verify_resolution_artifacts_diagnostic(
     *,
     artifacts: ResolutionArtifacts,
     original_target: ResolutionTarget,
@@ -776,9 +890,9 @@ def verify_resolution_artifacts(
     policy: ActiveLabelResolutionPolicy,
     prior_label: ResolvedLabel | None = None,
 ) -> None:
-    """Reject persisted artifacts that differ from exact resolver replay."""
+    """Replay private diagnostic semantics from explicit candidate records."""
 
-    replay = resolve_target(
+    replay = _resolve_target_diagnostic(
         target=original_target,
         evidence_records=evidence_records,
         admissions=admissions,
@@ -791,11 +905,38 @@ def verify_resolution_artifacts(
         raise ResolutionInputError("resolution artifacts differ from deterministic replay")
 
 
+def verify_resolution_artifacts(
+    *,
+    artifacts: ResolutionArtifacts,
+    original_target: ResolutionTarget,
+    evidence_records: Sequence[EvidenceRecord],
+    admissions: Sequence[EvidenceAdmissionRecord],
+    verified_candidates: VerifiedCandidateSet,
+    policy: ActiveLabelResolutionPolicy,
+    prior_label: ResolvedLabel | None = None,
+) -> None:
+    """Reject artifacts that differ from replay of the same sealed capability."""
+
+    replay = resolve_target(
+        target=original_target,
+        evidence_records=evidence_records,
+        admissions=admissions,
+        verified_candidates=verified_candidates,
+        policy=policy,
+        resolved_at=artifacts.audit.resolved_at,
+        prior_label=prior_label,
+    )
+    if artifacts != replay:
+        raise ResolutionInputError("resolution artifacts differ from deterministic replay")
+
+
 __all__ = [
+    "EMPTY_VERIFIED_CANDIDATE_SET",
     "RESOLUTION_AUDIT_PREFIX",
     "ResolutionArtifacts",
     "ResolutionAuditRecord",
     "ResolutionInputError",
+    "VerifiedCandidateSet",
     "resolve_target",
     "verify_resolution_artifacts",
 ]

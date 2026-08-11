@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import copy
 import datetime
+import pickle
 from collections.abc import Sequence
 from pathlib import Path
 
@@ -28,10 +30,18 @@ from leanfaith.labeling.quality import (
     make_resolution_candidate,
 )
 from leanfaith.labeling.resolution import (
+    EMPTY_VERIFIED_CANDIDATE_SET,
     ResolutionArtifacts,
     ResolutionInputError,
-    resolve_target,
-    verify_resolution_artifacts,
+    VerifiedCandidateSet,
+    _resolve_target_diagnostic,
+    _verify_resolution_artifacts_diagnostic,
+)
+from leanfaith.labeling.resolution import (
+    resolve_target as resolve_verified_target,
+)
+from leanfaith.labeling.resolution import (
+    verify_resolution_artifacts as verify_verified_resolution_artifacts,
 )
 from leanfaith.schemas.enums import (
     ArtifactClass,
@@ -56,6 +66,9 @@ from leanfaith.schemas.evidence import (
 from leanfaith.schemas.ids import make_id
 from leanfaith.schemas.nl_lean import NLPLeanRecord
 from leanfaith.schemas.pair import PairRecord
+
+resolve_target = _resolve_target_diagnostic
+verify_resolution_artifacts = _verify_resolution_artifacts_diagnostic
 
 NOW = datetime.datetime(2026, 8, 11, 13, 0, tzinfo=datetime.UTC)
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -1030,3 +1043,68 @@ def test_nl_target_uses_same_resolver_and_validated_reverse_link(
     assert result.label.eval_eligibility is False
     assert result.target.resolved_label_id == result.label.label_id
     NLPLeanRecord.model_validate(result.target.model_dump(mode="python"))
+
+
+def test_public_resolver_accepts_only_the_opaque_empty_capability(
+    policy: ActiveLabelResolutionPolicy,
+) -> None:
+    result = resolve_verified_target(
+        target=_pair(),
+        evidence_records=(),
+        admissions=(),
+        verified_candidates=EMPTY_VERIFIED_CANDIDATE_SET,
+        policy=policy,
+        resolved_at=NOW,
+    )
+
+    assert result.label.resolution_outcome is ResolutionOutcome.UNRESOLVED
+    assert result.label.same_claim is None
+    assert result.label.requires_adjudication is True
+    assert result.label.decision is Decision.REVIEW
+    verify_verified_resolution_artifacts(
+        artifacts=result,
+        original_target=_pair(),
+        evidence_records=(),
+        admissions=(),
+        verified_candidates=EMPTY_VERIFIED_CANDIDATE_SET,
+        policy=policy,
+    )
+
+
+def test_verified_candidate_capability_has_no_public_constructor_and_is_immutable(
+    policy: ActiveLabelResolutionPolicy,
+) -> None:
+    with pytest.raises(TypeError, match="opaque capability"):
+        VerifiedCandidateSet()
+
+    with pytest.raises(TypeError, match="immutable"):
+        EMPTY_VERIFIED_CANDIDATE_SET._VerifiedCandidateSet__candidates = ()  # type: ignore[attr-defined]
+    with pytest.raises(TypeError, match="cannot be copied"):
+        copy.copy(EMPTY_VERIFIED_CANDIDATE_SET)
+    with pytest.raises(TypeError, match="cannot be serialized"):
+        pickle.dumps(EMPTY_VERIFIED_CANDIDATE_SET)
+
+    forged = object.__new__(VerifiedCandidateSet)
+    with pytest.raises(ResolutionInputError, match="unsealed"):
+        resolve_verified_target(
+            target=_pair(),
+            evidence_records=(),
+            admissions=(),
+            verified_candidates=forged,
+            policy=policy,
+            resolved_at=NOW,
+        )
+
+
+def test_public_resolver_has_no_raw_candidate_keyword(
+    policy: ActiveLabelResolutionPolicy,
+) -> None:
+    with pytest.raises(TypeError, match="unexpected keyword argument 'candidates'"):
+        resolve_verified_target(  # type: ignore[call-arg]
+            target=_pair(),
+            evidence_records=(),
+            admissions=(),
+            candidates=(),
+            policy=policy,
+            resolved_at=NOW,
+        )

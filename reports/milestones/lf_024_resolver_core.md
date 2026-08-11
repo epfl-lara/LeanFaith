@@ -10,13 +10,16 @@ only
 
 ## Milestone boundary
 
-This milestone establishes the fail-closed core that can replay explicit
-label-resolution partitions. The linked-evidence graph is closed, while the
-candidate partition is explicit but not claimed exhaustive. It does not
-establish the production adapters that decide whether an admission, authority
-artifact, or candidate set is genuine. Therefore it authorizes no production
-semantic label, training label, evaluation label, promotion, or evidence
-admission.
+This milestone establishes the fail-closed core that can replay diagnostic
+label-resolution semantics. The public resolver accepts candidates only through
+an opaque process-local `VerifiedCandidateSet` capability. No nonempty
+production capability can currently be minted, so the batch operation requires
+an explicitly empty raw-candidate partition and emits unresolved `REVIEW`.
+Raw-candidate behavior remains testable only through a clearly private
+diagnostic core. This milestone does not establish the production adapters that
+decide whether an admission, authority artifact, or candidate set is genuine.
+Therefore it authorizes no production semantic label, training label,
+evaluation label, promotion, or evidence admission.
 
 | Production output created by this milestone | Count |
 |---|---:|
@@ -42,15 +45,17 @@ The implementation is split into the following modules:
   is not yet independently verified by typed loaders.
 - `src/leanfaith/labeling/conflicts.py` defines append-only,
   content-addressed conflict and precedence-override records.
-- `src/leanfaith/labeling/resolution.py` applies deterministic source
-  precedence, routes unresolved and strong-conflict cases to REVIEW, preserves
-  the F0/F1/F2 firewall, closes the target-linked evidence set, checks active
-  policy bindings, produces reverse-linked labels, and supports exact replay of
-  the complete diagnostic result.
+- `src/leanfaith/labeling/resolution.py` keeps raw-candidate precedence and
+  conflict behavior in `_resolve_target_diagnostic` for focused tests. Its
+  public `resolve_target` and replay verifier can obtain candidates only by
+  opening an immutable, non-copyable, non-serializable
+  `VerifiedCandidateSet`. The sole currently minted capability is the empty
+  set; there is no public constructor or nonempty production factory.
 - `src/leanfaith/cli/resolve_labels.py` provides a staged, rollback-guarded
-  diagnostic batch operation over explicit target, evidence, admission,
-  candidate, and optional prior-label partitions. It rejects mixed or orphaned
-  inputs, hashes every input and output partition, rechecks inputs and policy
+  diagnostic batch operation over explicit target, evidence, empty-candidate,
+  and optional prior-label partitions. It rejects a nonempty raw-candidate
+  partition before resolution or output publication, hashes every input and
+  output partition, rechecks inputs and policy
   bytes immediately before publication, records canonical invocation paths,
   writes a run manifest stating that no candidate was inferred or promoted.
   Every diagnostic label is projected to
@@ -73,7 +78,9 @@ The core currently verifies these invariants:
    conflict plus unresolved REVIEW output rather than destructive overwrite.
 5. Deterministic input ordering, content-addressed records, target reverse
    links, and replay verification are exercised by focused tests.
-6. Diagnostic resolution never invents or promotes a semantic candidate.
+6. Public diagnostic resolution cannot consume a raw semantic candidate;
+   nonempty candidate files fail closed and the structural candidate-set receipt
+   cannot mint or coerce the opaque capability.
 7. Diagnostic outputs are never eligible for model training or evaluation,
    including human- and benchmark-derived semantic fixtures.
 8. The exported resolver core itself cannot enable training or evaluation
@@ -93,7 +100,9 @@ evidence-admission adapters independently verify bound artifact content
 
 The run manifest for an allowed diagnostic execution records
 `linked_evidence_graph_closed=true`, `candidate_partition_explicit=true`,
-`candidate_set_closed=false`, `production_admission=false`,
+`raw_candidate_partition_required_empty=true`,
+`verified_candidate_capability=false`, `candidate_set_closed=false`,
+`production_admission=false`,
 `candidate_inference=false`, and `candidate_promotion=false`.
 
 ## Focused verification
@@ -154,9 +163,11 @@ production guard may be removed:
    certificate/separator, and consensus-promotion artifacts before constructing
    an authority-bound candidate. A caller-supplied artifact ID and hash are not
    sufficient authority.
-4. **Exact candidate-set manifest.** Bind every admissible candidate for one
-   target in a content-addressed closed manifest so a caller cannot change the
-   outcome by omitting a conflicting or higher-ranked candidate.
+4. **Typed candidate-set replay and capability minting.** Replay every
+   source-specific authority inventory, bind every admissible candidate for one
+   target, and only then mint a target/policy-bound nonempty
+   `VerifiedCandidateSet`. The existing structural manifest verifier is
+   diagnostic and is intentionally unable to mint or coerce this capability.
 5. **Safe re-resolution and conflict closure.** Bind the prior label, prior
    audit, and prior closed candidate set; preserve the incumbent authority;
    prevent authority downgrade; record the superseded label; and require a

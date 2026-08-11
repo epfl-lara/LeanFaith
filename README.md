@@ -198,18 +198,21 @@ dataset probe (PLAN.md §9.2).
   required before any network call. No new semantic, silver, training,
   evaluation, or gate-credit record follows from this implementation.
 - **LF-024 diagnostic resolver core implemented; production resolution remains
-  blocked:** the resolver consumes explicit target, evidence, admission, and
-  candidate partitions. It closes the linked-evidence graph but does not claim
-  that the supplied candidate set is exhaustive. It applies deterministic
-  precedence and routes missing or conflicting semantic authority to
-  unresolved `REVIEW` without inferring a label. Every diagnostic label is
-  forcibly ineligible for training and evaluation. The external run manifest
-  is the commit marker; a strict output descriptor permits recognized orphaned
-  output to be quarantined after the hard-crash publication gap. The production
-  artifact-class guard remains enabled until the typed authority, admission,
-  candidate-set, re-resolution, and F0 certificate adapters are complete. This
-  milestone creates **0 production semantic labels, 0 production evidence
-  admissions, and 0 promotions**; see
+  blocked:** the public resolver accepts semantic candidates only through an
+  opaque, process-local `VerifiedCandidateSet` capability. No factory for a
+  nonempty production capability exists yet. The diagnostic CLI therefore
+  rejects every nonempty raw candidate partition; an explicitly empty
+  partition still produces the exact unresolved `REVIEW` contract. The private
+  diagnostic core retains deterministic precedence/conflict tests without
+  becoming an authority boundary, and structural candidate-set verification
+  cannot mint or coerce the capability. Every diagnostic label is forcibly
+  ineligible for training and evaluation. The external run manifest is the
+  commit marker; a strict output descriptor permits recognized orphaned output
+  to be quarantined after the hard-crash publication gap. The production
+  artifact-class guard remains enabled until typed authority replay, admission,
+  re-resolution, and F0 certificate adapters are complete. This milestone
+  creates **0 production semantic labels, 0 production evidence admissions,
+  and 0 promotions**; see
   [`reports/milestones/lf_024_resolver_core.md`](reports/milestones/lf_024_resolver_core.md).
 - **Deterministic unary scale-out materialized:** all 16 producer shards over
   the frozen 27,786-statement public universe completed. A separate

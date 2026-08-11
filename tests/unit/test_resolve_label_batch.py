@@ -20,7 +20,7 @@ from leanfaith.cli.resolve_labels import (
     LabelResolutionBatchInputError,
     resolve_label_batch,
 )
-from leanfaith.config.hashing import canonical_json_bytes, hash_canonical, hash_file
+from leanfaith.config.hashing import canonical_json_bytes, hash_file
 from leanfaith.config.paths import RepoPaths
 from leanfaith.labeling.aggregation import (
     EvidenceAdmissionRecord,
@@ -37,10 +37,7 @@ from leanfaith.labeling.quality import (
     make_authority_artifact_binding,
     make_resolution_candidate,
 )
-from leanfaith.labeling.resolution import (
-    ResolutionArtifacts,
-    ResolutionAuditRecord,
-)
+from leanfaith.labeling.resolution import ResolutionArtifacts
 from leanfaith.labeling.resolution import (
     resolve_target as resolve_single_target,
 )
@@ -248,7 +245,7 @@ def _input_paths(tmp_path: Path) -> tuple[Path, Path, Path, Path]:
     )
 
 
-def test_resolve_label_batch_writes_closed_graph_outputs_and_manifest(
+def test_resolve_label_batch_rejects_nonempty_raw_candidate_partition(
     repo: RepoPaths,
 ) -> None:
     policy = load_active_label_resolution_policy(repo.root)
@@ -261,52 +258,29 @@ def test_resolve_label_batch_writes_closed_graph_outputs_and_manifest(
     _write_jsonl(admission_path, (admission,))
     _write_jsonl(candidate_path, (candidate,))
 
-    result = resolve_label_batch(
-        paths=repo,
-        target_path=target_path,
-        evidence_path=evidence_path,
-        admission_path=admission_path,
-        candidate_path=candidate_path,
-        resolved_at=NOW,
-        run_nonce="a1b2c3d4",
-        code_state=_code_state(),
-    )
+    with pytest.raises(
+        LabelResolutionBatchInputError,
+        match="nonempty raw candidate partitions are disabled",
+    ):
+        resolve_label_batch(
+            paths=repo,
+            target_path=target_path,
+            evidence_path=evidence_path,
+            admission_path=admission_path,
+            candidate_path=candidate_path,
+            resolved_at=NOW,
+            run_nonce="a1b2c3d4",
+            code_state=_code_state(),
+        )
 
-    labels = _read_jsonl(result.labels_path, ResolvedLabel)
-    linked = _read_jsonl(result.linked_targets_path, PairRecord)
-    audits = _read_jsonl(result.audits_path, ResolutionAuditRecord)
-    manifest = read_manifest(result.run_manifest_path, RunManifest)
-    assert result.target_kind is SemanticLabelTargetKind.LEAN_PAIR
-    assert result.target_count == result.resolved_count == result.derivation_count == 1
-    assert result.unresolved_count == result.conflict_count == result.override_count == 0
-    assert labels[0].same_claim is True
-    assert labels[0].relation is RelationLabel.EQUIVALENT
-    assert labels[0].train_eligibility is False
-    assert labels[0].eval_eligibility is False
-    assert labels[0].label_id == make_id(
-        "lbl",
-        {
-            "schema": "resolved_label_lf024_v1",
-            **labels[0].model_dump(mode="json", exclude={"label_id"}),
-        },
-    )
-    assert linked[0].resolved_label_id == labels[0].label_id
-    assert audits[0].output_label_id == labels[0].label_id
-    assert audits[0].linked_target_sha256 == hash_canonical(linked[0].model_dump(mode="json"))
-    assert result.conflicts_path.read_bytes() == b""
-    assert result.overrides_path.read_bytes() == b""
-    assert manifest.artifact_class is ArtifactClass.DIAGNOSTIC
-    assert manifest.execution["linked_evidence_graph_closed"] is True
-    assert manifest.execution["candidate_partition_explicit"] is True
-    assert manifest.execution["candidate_set_closed"] is False
-    assert "closed_input_graph" not in manifest.execution
-    assert manifest.execution["candidate_inference"] is False
-    assert manifest.execution["candidate_promotion"] is False
-    assert manifest.execution["production_admission"] is False
-    assert manifest.status_counts["input_resolution_candidates"] == 1
-    assert manifest.status_counts["candidates_invented"] == 0
-    assert manifest.status_counts["candidates_promoted"] == 0
-    assert result.run_manifest_sha256 == hash_file(result.run_manifest_path)
+    assert not (repo.root / "runs" / "run_20260811T153000Z_a1b2c3d4" / "manifest.json").exists()
+    assert not (
+        repo.root
+        / "data"
+        / "labeled"
+        / "lf024_resolution_diagnostic_v1"
+        / "run_20260811T153000Z_a1b2c3d4"
+    ).exists()
 
 
 def test_empty_candidate_partition_produces_unresolved_review(
@@ -340,15 +314,22 @@ def test_empty_candidate_partition_produces_unresolved_review(
     assert label.decision is Decision.REVIEW
     assert label.train_eligibility is False
     assert label.eval_eligibility is False
+    manifest = read_manifest(result.run_manifest_path, RunManifest)
+    assert manifest.execution["linked_evidence_graph_closed"] is True
+    assert manifest.execution["candidate_partition_explicit"] is True
+    assert manifest.execution["raw_candidate_partition_required_empty"] is True
+    assert manifest.execution["verified_candidate_capability"] is False
+    assert manifest.execution["candidate_set_closed"] is False
+    assert manifest.status_counts["input_resolution_candidates"] == 0
+    assert result.run_manifest_sha256 == hash_file(result.run_manifest_path)
 
 
 def test_resolve_label_batch_supports_nl_lean_targets(repo: RepoPaths) -> None:
-    policy = load_active_label_resolution_policy(repo.root)
     target_path, evidence_path, admission_path, candidate_path = _input_paths(repo.root)
     _write_jsonl(target_path, (_nl_target(),))
     _write_jsonl(evidence_path, ())
     _write_jsonl(admission_path, ())
-    _write_jsonl(candidate_path, (_benchmark_nl_candidate(policy),))
+    _write_jsonl(candidate_path, ())
 
     result = resolve_label_batch(
         paths=repo,
@@ -365,7 +346,9 @@ def test_resolve_label_batch_supports_nl_lean_targets(repo: RepoPaths) -> None:
     (linked,) = _read_jsonl(result.linked_targets_path, NLPLeanRecord)
     assert result.target_kind is SemanticLabelTargetKind.NL_LEAN
     assert result.linked_targets_path.name == "nl_lean.jsonl"
-    assert label.quality_tier is QualityTier.BENCHMARK
+    assert label.quality_tier is QualityTier.UNKNOWN
+    assert label.resolution_outcome is ResolutionOutcome.UNRESOLVED
+    assert label.decision is Decision.REVIEW
     assert label.train_eligibility is False
     assert label.eval_eligibility is False
     assert linked.resolved_label_id == label.label_id
@@ -375,12 +358,11 @@ def test_terminal_diagnostic_prior_label_replays_idempotently(repo: RepoPaths) -
     policy = load_active_label_resolution_policy(repo.root)
     evidence = _evidence()
     admission = _admission(policy, evidence)
-    candidate = _human_candidate(policy, (evidence.evidence_id,), suffix="prior-replay")
     target_path, evidence_path, admission_path, candidate_path = _input_paths(repo.root)
     _write_jsonl(target_path, (_pair((evidence.evidence_id,)),))
     _write_jsonl(evidence_path, (evidence,))
     _write_jsonl(admission_path, (admission,))
-    _write_jsonl(candidate_path, (candidate,))
+    _write_jsonl(candidate_path, ())
     first = resolve_label_batch(
         paths=repo,
         target_path=target_path,
@@ -458,7 +440,9 @@ def test_missing_linked_evidence_fails_closed(repo: RepoPaths) -> None:
         )
 
 
-def test_evidence_without_admission_fails_closed(repo: RepoPaths) -> None:
+def test_raw_candidate_citing_unadmitted_evidence_fails_before_resolution(
+    repo: RepoPaths,
+) -> None:
     policy = load_active_label_resolution_policy(repo.root)
     evidence = _evidence()
     candidate = _human_candidate(policy, (evidence.evidence_id,))
@@ -468,7 +452,10 @@ def test_evidence_without_admission_fails_closed(repo: RepoPaths) -> None:
     _write_jsonl(admission_path, ())
     _write_jsonl(candidate_path, (candidate,))
 
-    with pytest.raises(LabelResolutionBatchInputError, match=r"admission|admitted"):
+    with pytest.raises(
+        LabelResolutionBatchInputError,
+        match="nonempty raw candidate partitions are disabled",
+    ):
         resolve_label_batch(
             paths=repo,
             target_path=target_path,
@@ -480,7 +467,7 @@ def test_evidence_without_admission_fails_closed(repo: RepoPaths) -> None:
         )
 
 
-def test_orphan_candidate_fails_closed(repo: RepoPaths) -> None:
+def test_orphan_raw_candidate_fails_before_resolution(repo: RepoPaths) -> None:
     policy = load_active_label_resolution_policy(repo.root)
     other_evidence_id = make_id("ev", {"fixture": "batch-orphan-evidence"})
     candidate = _human_candidate(
@@ -495,7 +482,10 @@ def test_orphan_candidate_fails_closed(repo: RepoPaths) -> None:
     _write_jsonl(admission_path, ())
     _write_jsonl(candidate_path, (candidate,))
 
-    with pytest.raises(LabelResolutionBatchInputError, match="targets absent item"):
+    with pytest.raises(
+        LabelResolutionBatchInputError,
+        match="nonempty raw candidate partitions are disabled",
+    ):
         resolve_label_batch(
             paths=repo,
             target_path=target_path,
@@ -604,17 +594,6 @@ def test_batch_jsonl_permutations_preserve_semantic_partition_bytes(
     )
     first_admission = _admission(policy, first_evidence)
     second_admission = _admission(policy, second_evidence)
-    first_candidate = _human_candidate(
-        policy,
-        (first_evidence.evidence_id,),
-        suffix="batch-order-first",
-    )
-    second_candidate = _human_candidate(
-        policy,
-        (second_evidence.evidence_id,),
-        target_id=OTHER_PAIR_ID,
-        suffix="batch-order-second",
-    )
 
     def run_ordered(
         *,
@@ -630,7 +609,7 @@ def test_batch_jsonl_permutations_preserve_semantic_partition_bytes(
             (first_target, second_target),
             (first_evidence, second_evidence),
             (first_admission, second_admission),
-            (first_candidate, second_candidate),
+            (),
         )
         if reversed_order:
             ordered = tuple(tuple(reversed(records)) for records in ordered)
