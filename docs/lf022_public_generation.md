@@ -15,10 +15,11 @@ records, or Gate credit.
   exact replay-verified v2 proposer eligibility.
 - `zai-org/GLM-5.2` may enter scientific production only through its exact
   replay-verified v2 proposer eligibility.
-- `deepseek-ai/DeepSeek-V4-Pro` has exact prior HTTP transport evidence but no
-  proposer qualification yet. Its versioned diagnostic route must pass one
-  strict public `G_open` execution and exact replay before any production
-  eligibility can be created.
+- `deepseek-ai/DeepSeek-V4-Pro` passed its one-item, strict public `G_open`
+  proposer qualification. The successful terminal replays with zero network
+  calls and binds the canonical v2 family matrix. Scientific execution still
+  requires an exact family-only reallocation of the immutable public pool and
+  a separately frozen production admission.
 
 The matching `*_production_route_v1.yaml` files are non-executable policy
 templates. Only a content-addressed execution admission that binds a verified
@@ -237,8 +238,9 @@ Certification performs zero network calls. It exact-replays the persisted
 provider request, raw response, parser result, LLM call/attempt lineage, and
 variant bytes. It requires exactly one provisional variant and writes exactly
 one immutable record at
-`data/lf022_execution/production_eligibility/qwen3.json` or
-`data/lf022_execution/production_eligibility/glm5.json`.
+`data/lf022_execution/production_eligibility/qwen3.json`,
+`data/lf022_execution/production_eligibility/glm5.json`, or
+`data/lf022_execution/production_eligibility/deepseek_v4.json`.
 
 Construct a later production admission with the same deployment, catalog,
 prompt, decoding contract, and family matrix; change only the execution scope
@@ -272,20 +274,46 @@ fresh admission with
 content-addressed under the family directory, while the legacy claim remains
 unchanged. Provider retries remain bounded and append-only.
 
-## Scientific replay-qualified Qwen and GLM tranches
+## Scientific replay-qualified proposer tranches
 
 After the one-item v2 route is certified, freeze a separate scientific
 admission over the existing public pool. This does not reuse the diagnostic
 allocation: it selects only that family's already-frozen scientific `G_open`
 allocations and binds the canonical eligibility record, v2 decoding contract,
-family matrix, catalog, prompt, and current code bundle.
+family matrix, catalog, prompt, and current code bundle. DeepSeek eligibility
+binds family-matrix v2, while the immutable parent public pool binds v1. Derive
+a matrix-only scientific pool without reopening extraction or changing any
+source, theorem, representation, context, authorization, or denylist artifact:
 
 ```bash
 ROOT=/localhome/milikic/LeanFaith
 cd "$ROOT"
 test -z "$(git status --porcelain)"
 
-# Run one family at a time: qwen3 (9,207 G_open tasks) or glm5 (9,206).
+PARENT_AUDIT="artifacts/generation/lf022_public_v3_max_c799f54c/audit.json"
+MATRIX="configs/generation/lf022_production_family_matrix_v2.json"
+REALLOCATED_POOL="artifacts/generation/lf022_public_v3_max_matrix_v2"
+
+uv run leanfaith reallocate-lf022-public-pool \
+  --root "$ROOT" \
+  --parent-pool-audit "$PARENT_AUDIT" \
+  --family-matrix "$MATRIX" \
+  --out-dir "$REALLOCATED_POOL"
+```
+
+The command exact-replays the immutable parent and rewrites only the admission
+and family-role allocation. It is offline, provisional, and creates no label,
+training/evaluation eligibility, promotion, or Gate credit. A schema-v2
+scientific audit is executable only when the admission freezer can exact-replay
+this derivation against the current clean code tree.
+
+```bash
+ROOT=/localhome/milikic/LeanFaith
+cd "$ROOT"
+test -z "$(git status --porcelain)"
+
+# Run one family at a time. Use the audit whose exact matrix matches the
+# family's eligibility. Matrix v2 rotates Kimi, Qwen, and DeepSeek.
 FAMILY=qwen3
 POOL_AUDIT="artifacts/generation/lf022_public_v3_max_c799f54c/audit.json"
 ELIGIBILITY="data/lf022_execution/production_eligibility/${FAMILY}.json"
@@ -335,7 +363,7 @@ env -u RCP_BASE_URL -u RCP_API_KEY -u OPENAI_BASE_URL -u OPENAI_API_KEY \
 Live RCP response headers observed during qualification reported
 `max_parallel_requests=1`. This is an operational observation, not a field
 bound by the frozen provider catalog. Until a new reviewed runtime-policy
-version records contrary evidence, every live Qwen/GLM qualification and
+version records contrary evidence, every live Qwen/GLM/DeepSeek qualification and
 production run must retain `--max-concurrency 1`.
 The command performs no network request unless the operator repeats the frozen
 manifest with runtime-only credentials and `--execute-public-provisional`.

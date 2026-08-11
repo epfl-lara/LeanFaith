@@ -224,17 +224,18 @@ def _plan(
     family_matrix: LF022ProductionFamilyMatrix,
     profile: Literal[
         "diagnostic_scaffold",
+        "pilot_scaffold",
         "scientific_production_scaffold",
     ] = "diagnostic_scaffold",
 ) -> LF022ProductionPlanManifest:
     payload: dict[str, object] = {
         "schema_version": 2,
         "profile": profile,
-        "scientific_status": (
-            "diagnostic_only"
-            if profile == "diagnostic_scaffold"
-            else "scientific_allocation_scaffold"
-        ),
+        "scientific_status": {
+            "diagnostic_scaffold": "diagnostic_only",
+            "pilot_scaffold": "pilot_only",
+            "scientific_production_scaffold": "scientific_allocation_scaffold",
+        }[profile],
         "artifact_class": "allocation_scaffold",
         "status": "non_executable_allocation_complete",
         "admission_id": f"lf022_production_admission:{'2' * 64}",
@@ -280,6 +281,7 @@ def _audit(
     theorem_id: str,
     profile: Literal[
         "diagnostic_scaffold",
+        "pilot_scaffold",
         "scientific_production_scaffold",
     ] = "diagnostic_scaffold",
 ) -> tuple[LF022PublicPoolAudit, LF022ArtifactBinding]:
@@ -405,6 +407,7 @@ def _fixture(
     qualification_contract_path_override: str | None = None,
     profile: Literal[
         "diagnostic_scaffold",
+        "pilot_scaffold",
         "scientific_production_scaffold",
     ] = "diagnostic_scaffold",
 ) -> tuple[

@@ -493,30 +493,47 @@ def _freeze_lf022_execution_admission(
     if code_tree_hash is None:
         raise LF022AdmissionFreezeError("current repository code-tree hash is unavailable")
     if audit.schema_version == 2:
-        if expected_profile != "diagnostic_scaffold":
-            raise LF022AdmissionFreezeError(
-                "derived public-pool audits are restricted to diagnostic admission"
+        if expected_profile == "diagnostic_scaffold":
+            if proposer_family_id == "moonshot_kimi_k2":
+                raise LF022AdmissionFreezeError(
+                    "derived diagnostic subpools do not support the archived Kimi route"
+                )
+            from leanfaith.generation.lf022_diagnostic_subpool import (
+                LF022DiagnosticSubpoolError,
+                verify_lf022_diagnostic_subpool,
             )
-        if proposer_family_id == "moonshot_kimi_k2":
-            raise LF022AdmissionFreezeError(
-                "derived diagnostic subpools do not support the archived Kimi route"
-            )
-        from leanfaith.generation.lf022_diagnostic_subpool import (
-            LF022DiagnosticSubpoolError,
-            verify_lf022_diagnostic_subpool,
-        )
 
-        try:
-            verify_lf022_diagnostic_subpool(
-                repo_root=root,
-                audit=audit,
-                expected_proposer_family_id=proposer_family_id,
-                expected_code_tree_hash=code_tree_hash,
+            try:
+                verify_lf022_diagnostic_subpool(
+                    repo_root=root,
+                    audit=audit,
+                    expected_proposer_family_id=proposer_family_id,
+                    expected_code_tree_hash=code_tree_hash,
+                )
+            except LF022DiagnosticSubpoolError as exc:
+                raise LF022AdmissionFreezeError(
+                    f"derived diagnostic subpool exact replay rejected: {exc}"
+                ) from exc
+        elif expected_profile == "scientific_production_scaffold":
+            from leanfaith.generation.lf022_pool_reallocation import (
+                LF022PoolReallocationError,
+                verify_lf022_pool_reallocation,
             )
-        except LF022DiagnosticSubpoolError as exc:
+
+            try:
+                verify_lf022_pool_reallocation(
+                    repo_root=root,
+                    audit=audit,
+                    expected_code_tree_hash=code_tree_hash,
+                )
+            except LF022PoolReallocationError as exc:
+                raise LF022AdmissionFreezeError(
+                    f"derived scientific pool exact replay rejected: {exc}"
+                ) from exc
+        else:
             raise LF022AdmissionFreezeError(
-                f"derived diagnostic subpool exact replay rejected: {exc}"
-            ) from exc
+                "derived public-pool audits are not executable under this profile"
+            )
     code_bundle_binding = _repo_file_binding(
         root,
         code_bundle_path,
