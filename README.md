@@ -312,6 +312,12 @@ provisional, unresolved, unpromoted, and unavailable to training until the
 later label/promotion policy authorizes it. Select P16 with
 `--profile configs/transformations/v2_e2_p16_experimental.yaml`.
 
+The completed LF-032 public scale run tested six E0 families over 27,786
+mathlib statements and retained 270 unique clean provisional pairs after exact
+fail-closed replay. The counts, hashes, residual quarantines, and credit
+boundary are recorded in
+[`reports/transformation_audits/lf032_public_scale_audit.md`](reports/transformation_audits/lf032_public_scale_audit.md).
+
 The default Codex/LLM pair-judge prompt is the reviewed v2 contract. It keeps
 F1 claim faithfulness (`same_claim_answer`, `relation`) separate from F2
 truth-level implication (`A_implies_B`, `B_implies_A`) and rejects incoherent
