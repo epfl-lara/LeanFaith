@@ -317,6 +317,12 @@ mathlib statements and retained 270 unique clean provisional pairs after exact
 fail-closed replay. The counts, hashes, residual quarantines, and credit
 boundary are recorded in
 [`reports/transformation_audits/lf032_public_scale_audit.md`](reports/transformation_audits/lf032_public_scale_audit.md).
+An exact read-only portfolio scan of the frozen 5,000-mathlib plus
+5,000-`sft_classic` corpus is recorded in
+[`reports/transformation_audits/lf033_lf034_private_opportunity_audit.md`](reports/transformation_audits/lf033_lf034_private_opportunity_audit.md);
+it shows that the private half supplies most P14–P17 and N11–N17
+opportunities and binds the queued private materialization to immutable input
+hashes.
 
 The default Codex/LLM pair-judge prompt is the reviewed v2 contract. It keeps
 F1 claim faithfulness (`same_claim_answer`, `relation`) separate from F2
