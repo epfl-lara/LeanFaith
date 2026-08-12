@@ -360,10 +360,15 @@ dataset probe (PLAN.md §9.2).
   is `dda088624e25ee271a7ac8d013e8f63414188596a35c3d5c240ef8b72dfc268d`
   (file SHA-256
   `699e34ecd90547750520d7a680de7f39ffe981e0705c832c4071f1f0d82b95d2`).
-  The stricter second full Lean replay continues independently. The content
-  audit explicitly records `training_eligible=false`,
+  The stricter merge is currently **blocked**, not running: its last
+  exact-producer attempt failed because scratch Lean replay differed from the
+  producer scientific manifest. The producer roots remain preserved for an
+  explicit migration/replay, and the strict-admitted count is therefore zero.
+  The content audit explicitly records `training_eligible=false`,
   `evaluation_eligible=false`, and `gate_credit=false`; no semantic label or
-  promotion follows from generation or typechecking alone.
+  promotion follows from generation or typechecking alone. The current
+  cross-layer count ledger is
+  `reports/model_selection/current_data_ledger_2026_08_12.md`.
 - **Deterministic-v2 public expansion is cleanly materialized:** duplicate
   byte-identical N15/N16 rerun roots were removed without losing any of the
   2,004 pre-N11 exact pair keys. The isolated N11 replay completed all 27,786
