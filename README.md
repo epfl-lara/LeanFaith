@@ -46,6 +46,19 @@ dataset probe (PLAN.md §9.2).
 
 ## Status
 
+- **Corrected mixed-proxy learning curve completed and exactly replayed
+  (2026-08-12):** nine deterministic scalar models used exact 2,000-, 5,000-,
+  and 9,313-record ancestry-atomic training prefixes from the 11,501-pair mixed
+  corpus. Full-corpus pseudo-AUPRC reached 0.574008 on test and 0.552862 on
+  validation, versus constant baselines 0.339623 and 0.324651; balanced accuracy
+  was 0.804837 and 0.802865. The gain mostly saturates by 5,000 records, which
+  supports moving to richer token encoders and harder composed pairs rather
+  than repeatedly scaling this toy lexical model. The standalone verifier
+  passed and a second full run replayed the immutable artifact exactly. These
+  are machine-proxy diagnostics, not semantic-faithfulness results or model
+  selection evidence. See
+  `reports/model_selection/experimental_mixed_scalar_learning_curve_v2.md`.
+
 - **First verified learning curve completed:** the opt-in scalar diagnostic
   fitted 18 deterministic models and froze 6,876 predictions over the 2,000-pair
   experimental corpus. At the full 1,260-component training budget it reached
