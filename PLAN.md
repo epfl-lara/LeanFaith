@@ -28,6 +28,7 @@
 15. Keeps localization, generated repair, graph work, staffing, schedules, compensation, budgets, and hardware prescriptions outside the flagship path.
 16. Records the fresh `repr_v3` Gate-3 revalidation on the unchanged frozen 5,000-mathlib plus 5,000-`sft_classic` denominator without rewriting the historical `repr_v2` decision.
 17. Adds a post-Gate-4G deterministic-v2 research track with reserved narrow family scopes, evidence classes, family/mechanism holdouts, and unchanged v1/gate/promotion semantics.
+18. Adds a separate fail-closed Sol/Fable AB/BA model-adjudicated training-silver route. It can unlock weak-supervision training ablations without being human gold and without authorizing selection, calibration, threshold fitting, sealed evaluation, or the existing Gate 6.
 
 ---
 ## 0. How this document must be used
@@ -2212,6 +2213,30 @@ Judges see only registered Lean/NL views and allowed evidence condition—not pr
 
 Require schema parse, family independence, no proposer–judge shortcut in primary data, canonical agreement, no conflict with accepted evidence, and audited stratum precision. Store `silver_consensus`; disagreement/low confidence/semantic-erasure suspicion/malformed output routes to review.
 
+There are two explicitly different uses of `silver_consensus`:
+
+1. **Model-adjudicated training silver.** The registered
+   `sol_fable_abba_model_adjudicated_training_silver_v1` profile requires the
+   exact GPT-5.6 Sol/`xhigh` and Claude Fable 5/`max` cells in both AB and BA
+   orders. All four source judgments must parse, request no review, and agree
+   after direction remapping on verdict, relation, and the stored model-opinion
+   implication fields. Exact config, prompt, parser, dispatch, execution,
+   evidence, call, and finalization hashes must replay. The proposer and held-out
+   evaluation families must be distinct, inputs must be public and denylist
+   clear, and no stronger evidence in the bound batch may conflict. The output
+   is trainable only: evaluation, selection, calibration, threshold fitting,
+   and human-gold eligibility are mechanically false. It is not a
+   `ResolvedLabel`, does not populate trusted F2 fields, and cannot close Gate 6.
+2. **Audited promoted silver.** The existing §17.9 human audit and Gate 6 remain
+   the requirement for any broader scientific silver claim.
+
+Model-adjudicated training silver is stored under a distinct promotion profile,
+label basis, resolution method, and immutable artifact. Raw agreement remains a
+non-trainable `WeakConsensusCandidateRecord`; only the registered verifier can
+emit the training-only promotion record. Disagreement, ambiguity, uncertainty,
+any source review request, malformed output, missing cell, stale binding, or
+conflicting bound evidence fails closed.
+
 For SCI-conditioned generation, store the requested and validated values
 without overwriting either:
 
@@ -3224,6 +3249,18 @@ All calls parse or retain failure; candidates validate/quarantine; order
 randomized; intentions remain provenance; primary eval judge absent from weak
 labels. Optional Codex diagnostics cannot admit, exclude, promote, or label a
 candidate and cannot satisfy either weak-judge slot.
+
+**Gate 6M — model-adjudicated weak-training checkpoint**
+
+This separate machine-only checkpoint may authorize fixed weak-supervision
+training ablations before human auditing. It requires a frozen pre-dispatch
+denominator, all four registered Sol/Fable cells for every scheduled pair,
+exact replay, swap agreement reported over the full parsed denominator before
+promotion filtering, explicit completion/abstention/disagreement counts, and a
+content-addressed promotion or rejection row for every pair. Only exact
+four-cell consensus with no review request is train-eligible. Passing Gate 6M
+does not pass Gate 6 and does not authorize model selection, calibration,
+threshold fitting, evaluation, prevalence claims, or human-gold claims.
 
 **Gate 6 — silver promotion**
 

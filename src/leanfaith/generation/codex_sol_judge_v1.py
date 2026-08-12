@@ -20,6 +20,7 @@ import datetime
 import fcntl
 import json
 import os
+import re
 import resource
 import shutil
 import signal
@@ -49,6 +50,7 @@ from leanfaith.generation.lf022_weak_batch import (
     _endpoint,
     _load_prepared_batch,
     _verify_dispatch_request,
+    persist_lf022_weak_execution_started_marker,
 )
 from leanfaith.generation.providers import (
     DecodingValue,
@@ -102,6 +104,12 @@ _EXPECTED_CHILD_ENV_ALLOWLIST = (
     "SSL_CERT_DIR",
     "SSL_CERT_FILE",
 )
+_MAX_CODEX_AUTH_BYTES = 1024 * 1024
+_CODEX_AUTH_SECRET_KEY = re.compile(
+    r"(?:TOKEN|SECRET|PASSWORD|PASSWD|API[_-]?KEY|ACCESS[_-]?KEY|"
+    r"PRIVATE[_-]?KEY|CREDENTIAL|AUTH)",
+    flags=re.IGNORECASE,
+)
 
 
 class CodexSolJudgeError(RuntimeError):
@@ -121,7 +129,7 @@ class CodexSolJudgeConfig(StrictModel):
 
     schema_version: Literal[1] = 1
     config_id: Literal["lf022_codex_sol_judge_v1"]
-    status: Literal["offline_implemented_adversarial_review_required_before_live_smoke"]
+    status: Literal["live_smoke_passed_scale_not_yet_qualified"]
     provider: Literal["openai_codex_exec"]
     model_family: Literal["openai_codex_sol"]
     model: Literal["gpt-5.6-sol"]
@@ -268,6 +276,8 @@ class CodexSolCliExecutor(Protocol):
 
 
 def _set_child_file_limit(max_bytes: int) -> None:
+    os.umask(0o077)
+    resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
     resource.setrlimit(resource.RLIMIT_FSIZE, (max_bytes, max_bytes))
 
 
@@ -651,6 +661,135 @@ def _child_environment(config: CodexSolJudgeConfig) -> dict[str, str]:
     return child
 
 
+def _read_codex_auth(child_env: Mapping[str, str]) -> bytes:
+    if "CODEX_HOME" in child_env:
+        configured_home = child_env["CODEX_HOME"]
+        if not configured_home:
+            raise CodexSolJudgeError("inherited CODEX_HOME is empty")
+        source_home = Path(configured_home)
+    else:
+        fallback_home = child_env.get("HOME")
+        if not fallback_home:
+            raise CodexSolJudgeError("Codex authentication requires CODEX_HOME or HOME")
+        source_home = Path(fallback_home) / ".codex"
+    auth_path = _safe_absolute(
+        source_home / "auth.json",
+        label="Codex authentication",
+        allow_missing=False,
+    )
+    flags = os.O_RDONLY
+    if hasattr(os, "O_CLOEXEC"):
+        flags |= os.O_CLOEXEC
+    if hasattr(os, "O_NOFOLLOW"):
+        flags |= os.O_NOFOLLOW
+    try:
+        descriptor = os.open(auth_path, flags)
+    except OSError as exc:
+        raise CodexSolJudgeError("Codex authentication is not safely readable") from exc
+    with os.fdopen(descriptor, "rb") as handle:
+        metadata = os.fstat(handle.fileno())
+        if not stat.S_ISREG(metadata.st_mode):
+            raise CodexSolJudgeError("Codex authentication is not a regular file")
+        if metadata.st_uid != os.geteuid():
+            raise CodexSolJudgeError("Codex authentication is not owned by the current user")
+        if stat.S_IMODE(metadata.st_mode) & 0o077:
+            raise CodexSolJudgeError("Codex authentication permissions are too broad")
+        payload = handle.read(_MAX_CODEX_AUTH_BYTES + 1)
+    if not payload:
+        raise CodexSolJudgeError("Codex authentication is empty")
+    if len(payload) > _MAX_CODEX_AUTH_BYTES:
+        raise CodexSolJudgeError("Codex authentication exceeds its transient-copy bound")
+    return payload
+
+
+def _codex_auth_secret_values(payload: bytes) -> tuple[str, ...]:
+    try:
+        parsed = json.loads(payload.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise CodexSolJudgeError("Codex authentication is not valid JSON") from exc
+    if not isinstance(parsed, dict):
+        raise CodexSolJudgeError("Codex authentication must be a JSON object")
+    secrets: set[str] = set()
+
+    def collect(value: object, *, secret_context: bool) -> None:
+        if isinstance(value, dict):
+            for key, child in value.items():
+                if not isinstance(key, str):
+                    raise CodexSolJudgeError("Codex authentication has a non-string key")
+                collect(
+                    child,
+                    secret_context=secret_context or _CODEX_AUTH_SECRET_KEY.search(key) is not None,
+                )
+        elif isinstance(value, list):
+            for child in value:
+                collect(child, secret_context=secret_context)
+        elif isinstance(value, str) and secret_context and len(value.encode("utf-8")) >= 8:
+            secrets.add(value)
+
+    collect(parsed, secret_context=False)
+    if not secrets:
+        raise CodexSolJudgeError("Codex authentication has no redactable credential values")
+    return tuple(sorted(secrets, key=lambda item: (-len(item.encode("utf-8")), item)))
+
+
+def _codex_redaction_environment(*auth_payloads: bytes) -> dict[str, str]:
+    environment = dict(os.environ)
+    secrets = {secret for payload in auth_payloads for secret in _codex_auth_secret_values(payload)}
+    for index, secret in enumerate(
+        sorted(secrets, key=lambda item: (-len(item.encode("utf-8")), item))
+    ):
+        environment[f"LEANFAITH_CODEX_AUTH_SECRET_{index}"] = secret
+    return environment
+
+
+@contextmanager
+def _isolated_codex_environment(
+    config: CodexSolJudgeConfig,
+) -> Iterator[dict[str, str]]:
+    """Yield one run-scoped Codex environment containing only transient auth."""
+
+    child_env = _child_environment(config)
+    auth_payload = _read_codex_auth(child_env)
+    _codex_auth_secret_values(auth_payload)
+    with tempfile.TemporaryDirectory(prefix="leanfaith-sol-codex-home-") as temporary:
+        isolated_root = _safe_absolute(
+            Path(temporary),
+            label="isolated Codex root",
+            allow_missing=False,
+        )
+        os.chmod(isolated_root, 0o700)
+        isolated_home = isolated_root / "codex-home"
+        isolated_user_home = isolated_root / "home"
+        isolated_home.mkdir(mode=0o700)
+        isolated_user_home.mkdir(mode=0o700)
+        os.chmod(isolated_home, 0o700)
+        os.chmod(isolated_user_home, 0o700)
+        auth_path = isolated_home / "auth.json"
+        flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
+        if hasattr(os, "O_CLOEXEC"):
+            flags |= os.O_CLOEXEC
+        if hasattr(os, "O_NOFOLLOW"):
+            flags |= os.O_NOFOLLOW
+        descriptor = os.open(auth_path, flags, 0o600)
+        with os.fdopen(descriptor, "wb") as handle:
+            os.fchmod(handle.fileno(), 0o600)
+            handle.write(auth_payload)
+            handle.flush()
+            os.fsync(handle.fileno())
+        if (
+            stat.S_IMODE(isolated_root.stat().st_mode) != 0o700
+            or stat.S_IMODE(isolated_home.stat().st_mode) != 0o700
+            or stat.S_IMODE(isolated_user_home.stat().st_mode) != 0o700
+            or stat.S_IMODE(auth_path.stat().st_mode) != 0o600
+            or auth_path.read_bytes() != auth_payload
+        ):
+            raise CodexSolJudgeError("isolated Codex authentication copy differs")
+        isolated_env = dict(child_env)
+        isolated_env["CODEX_HOME"] = str(isolated_home)
+        isolated_env["HOME"] = str(isolated_user_home)
+        yield isolated_env
+
+
 def _wire_prompt(request: ProviderRequest) -> bytes:
     return (_SYSTEM_PROMPT + "\n\n" + request.rendered_prompt).encode("utf-8")
 
@@ -681,6 +820,8 @@ def _argv(
         config.model,
         "-c",
         f'model_reasoning_effort="{config.reasoning_effort}"',
+        "-c",
+        'cli_auth_credentials_store="file"',
         "-c",
         "web_search=disabled",
         "-c",
@@ -1254,8 +1395,15 @@ def _run_external_attempt(
     output_root: Path,
     raw_response_root: Path,
     executor: CodexSolCliExecutor,
+    child_env: Mapping[str, str],
 ) -> CodexSolAttemptTerminal:
+    # Keep the non-provider version check outside the temporary CODEX_HOME.
+    # The pinned standalone emits a benign PATH-alias warning for homes under
+    # the system temporary directory, which would otherwise defeat the exact
+    # version-output check.  The provider-bearing `codex exec` below is still
+    # fully isolated.
     binary = _check_binary(config)
+    auth_before = _read_codex_auth(child_env)
     with tempfile.TemporaryDirectory(prefix="leanfaith-sol-empty-") as temporary:
         transient_final_path = Path(temporary) / "final_message.json"
         _, _, _, _, argv = _prepare_attempt_artifacts(
@@ -1275,15 +1423,16 @@ def _run_external_attempt(
             max_stdout_bytes=config.max_stdout_bytes,
             max_stderr_bytes=config.max_stderr_bytes,
             max_final_message_bytes=config.max_final_message_bytes,
-            child_env=_child_environment(config),
+            child_env=child_env,
         )
+    auth_after = _read_codex_auth(child_env)
     redacted = redact_captured_streams(
         {
             "stdout.jsonl": capture.stdout,
             "stderr.txt": capture.stderr,
             "final_message.json": capture.final_message or b"",
         },
-        environment=os.environ,
+        environment=_codex_redaction_environment(auth_before, auth_after),
     )
     # Only redacted process output lands durably before the receipt or parser.
     stdout_hash = _write_immutable(
@@ -1552,6 +1701,11 @@ def _run_codex_sol_cells(
     elif execute_external or authorization_path is not None or authorization_nonce is not None:
         raise CodexSolAuthorizationError("offline replay rejects all live-execution arguments")
 
+    if execution_mode == "external":
+        persist_lf022_weak_execution_started_marker(
+            batch_root=batch_root,
+            dispatch_manifest=batch_manifest,
+        )
     runner = executor or SubprocessCodexSolCliExecutor()
     final_terminals: list[CodexSolAttemptTerminal] = []
     invoked_cells: set[str] = set()
@@ -1583,16 +1737,22 @@ def _run_codex_sol_cells(
                         raw_response_root=raw_response_root,
                     )
                 elif execution_mode == "external":
-                    terminal = _run_external_attempt(
-                        config=config,
-                        dispatch=dispatch,
-                        base_request=base_request,
-                        request=request,
-                        directory=directory,
-                        output_root=output_root,
-                        raw_response_root=raw_response_root,
-                        executor=runner,
-                    )
+                    # Codex creates mutable logs under CODEX_HOME.  Give every
+                    # process attempt a fresh private home so those logs cannot
+                    # accumulate across a shard and hit the bounded file-size
+                    # limit that protects durable captures.
+                    with _isolated_codex_environment(config) as isolated_child_env:
+                        terminal = _run_external_attempt(
+                            config=config,
+                            dispatch=dispatch,
+                            base_request=base_request,
+                            request=request,
+                            directory=directory,
+                            output_root=output_root,
+                            raw_response_root=raw_response_root,
+                            executor=runner,
+                            child_env=isolated_child_env,
+                        )
                     invoked_cells.add(dispatch.dispatch_cell_id)
                     process_attempt_count += 1
                 else:

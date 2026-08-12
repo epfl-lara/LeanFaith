@@ -27,6 +27,7 @@ from leanfaith.generation.lf022_weak_batch import (
     LF022WeakBatchSpec,
     LF022WeakDispatchManifest,
     LF022WeakDispatchRecord,
+    LF022WeakExecutionStartedMarker,
 )
 from leanfaith.generation.providers import (
     ProviderIdentity,
@@ -116,8 +117,14 @@ def _capture(*, response: dict[str, object] | None = None, exit_code: int = 0) -
 
 
 class _Executor:
-    def __init__(self, captures: list[ClaudeCliCapture]) -> None:
+    def __init__(
+        self,
+        captures: list[ClaudeCliCapture],
+        *,
+        required_execution_marker: Path | None = None,
+    ) -> None:
         self.captures = captures
+        self.required_execution_marker = required_execution_marker
         self.calls: list[tuple[tuple[str, ...], bytes, Path, dict[str, str]]] = []
 
     def execute(
@@ -131,6 +138,11 @@ class _Executor:
         termination_grace_seconds: int,
     ) -> ClaudeCliCapture:
         del timeout_seconds, termination_grace_seconds
+        if self.required_execution_marker is not None:
+            marker = LF022WeakExecutionStartedMarker.model_validate_json(
+                self.required_execution_marker.read_bytes()
+            )
+            assert marker.provider_attempt_may_have_started
         self.calls.append((tuple(argv), prompt, cwd, dict(env)))
         if not self.captures:
             raise AssertionError("unexpected external call")
@@ -340,7 +352,10 @@ def test_one_pair_executes_both_orders_and_replays_without_calls(
 ) -> None:
     batch_root, raw_root, requests = _fixture(monkeypatch, tmp_path)
     output = tmp_path / "fable"
-    executor = _Executor([_capture(), _capture(response=_response(equivalent=True))])
+    executor = _Executor(
+        [_capture(), _capture(response=_response(equivalent=True))],
+        required_execution_marker=batch_root / "execution_started.json",
+    )
     result = run_claude_fable_weak_cells(
         batch_root=batch_root,
         raw_response_root=raw_root,

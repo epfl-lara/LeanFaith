@@ -1,6 +1,6 @@
 schema_version: 1
 config_id: lf022_codex_sol_judge_v1
-status: offline_implemented_adversarial_review_required_before_live_smoke
+status: live_smoke_passed_scale_not_yet_qualified
 
 provider: openai_codex_exec
 model_family: openai_codex_sol

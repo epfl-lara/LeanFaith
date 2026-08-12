@@ -343,6 +343,53 @@ dataset probe (PLAN.md §9.2).
   production matrix/catalog, weak policy, and randomization-key hash into the
   generic prepared-batch input; the workflow no longer depends on a test-only
   handwritten spec. See `docs/lf022_public_generation.md`.
+- **The first real GPT-5.6 Sol + Claude Fable 5 dual-judge pair completed
+  end to end (2026-08-12):** one public Qwen-proposed pair was evaluated by
+  Sol at `xhigh` and Fable at `max`, in both AB and BA order. All four cells
+  parsed, both judges were internally order-consistent, and both agreed that
+  replacing equality by a one-sided inequality changes the claim and makes
+  the equality statement stronger. Offline replay reused all four raw
+  responses and finalized one `candidate_consensus` record with four evidence
+  records. This is verified model adjudication and a candidate-silver route
+  result, not a human label, promoted or training-eligible silver, training
+  data, evaluation data, or gate credit. The initial Sol execution failure
+  and Fable metadata-redaction false positive remain preserved as immutable
+  audit history; hardened isolated Codex execution and corrected capture
+  redaction passed the retry. See
+  `reports/generation/lf022_sol_fable_live_smoke_qwen_n1_v3.md`.
+  A post-smoke audit replaced the incomplete two-corpus exclusion with a
+  registry of all five known Sol/xhigh corpora: **1,510 unique pair IDs across
+  1,339 source-theorem lineages**. The registry includes a preserved redundant
+  Qwen subset and contains the smoke pair, so this is a valid route/consensus
+  smoke but **not** a Sol-unseen scientific example. Future scientific
+  selection excludes both historical pair IDs and source-theorem lineages,
+  and also scans completed Sol/Fable batches so a previously finalized dual
+  judgment cannot re-enter the pool. The resumable Qwen and Kimi proposer
+  expansion jobs are in progress; live counts are not claimed until a new
+  immutable snapshot is Lean-checked. A genuinely fresh Sol+Fable consensus
+  remains non-training candidate silver until the registered promotion policy
+  admits it, and it never becomes human gold merely through model agreement.
+- **The corrected fresh Sol/Fable path is now producing new evidence
+  (2026-08-12):** LeanInteract checked the immutable Qwen aef924 snapshot and
+  admitted 1,189/1,668 public candidates, with 479 semantic Lean failures and
+  zero infrastructure failures. A new selector excludes all historically
+  judged pair IDs, theorem lineages, and judge-visible payloads. Its first
+  genuinely fresh pair completed four first-attempt judgments: Sol/xhigh and
+  Fable/max independently agreed in both presentation orders on
+  `not_same_claim`, canonical `A_stronger`, with no review request. See
+  `reports/generation/lf022_sol_fable_fresh_qwen_aef924_n1_v4.md`. The
+  fail-closed promotion verifier replayed that batch twice and emitted one
+  immutable training-only model-silver record with zero rejections. A disjoint
+  16-pair, 64-cell batch then completed with every cell parsed on its first
+  attempt: 10 pairs reached raw four-cell consensus, five were swapped-order
+  inconsistent, and one had cross-family disagreement. The stricter promotion
+  policy admitted eight training-silver records and retained eight explicit
+  rejections (including two low-confidence consensuses).
+  Exact four-cell model agreement can enter only the separate training-silver
+  promotion artifact; it remains barred from selection, calibration,
+  evaluation, human-gold claims, and the human-audit Gate 6. The nine current
+  records pass the record-level promotion policy, but Gate 6M has not yet been
+  formally closed; they do not yet authorize a scientific weak-training run.
 - **LF-024 diagnostic resolver core implemented; production resolution remains
   blocked:** the public resolver accepts semantic candidates only through an
   opaque, process-local `VerifiedCandidateSet` capability. No factory for a
@@ -625,12 +672,13 @@ truth-level implication (`A_implies_B`, `B_implies_A`) and rejects incoherent
 outputs rather than silently normalizing them. The immutable v1 prompt remains
 available only for replaying its versioned artifacts.
 
-Qwen3.5 and GLM-5.2 public production routes remain blocked until one exact
-live proposer qualification per family succeeds and the persisted result is
-certified offline. See [`docs/lf022_public_generation.md`](docs/lf022_public_generation.md).
-Certification authorizes only a provider route; every generated theorem stays
+The Qwen3.5 public route is qualified and is running the pinned `aef924`
+expansion. The GLM-5.2 route remains blocked until one exact live proposer
+qualification succeeds and the persisted result is certified offline. See
+[`docs/lf022_public_generation.md`](docs/lf022_public_generation.md).
+Route qualification only authorizes generation; every generated theorem stays
 unresolved, unvalidated, provisional, and ineligible for labels, training,
-evaluation, or Gate credit.
+evaluation, or Gate credit until its downstream checks pass.
 
 Scientific-scale deterministic materialization uses separate sharded-unary and
 global-N10 passes. Merge itself performs the mandatory exact Lean-backed

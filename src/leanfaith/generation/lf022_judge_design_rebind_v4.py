@@ -3,8 +3,8 @@
 The two existing schema-v3 candidate inventories bind an older judge-family
 allocation.  Rewriting those bytes in place would destroy the evidence chain.
 This module instead verifies and copies the exact v3 inputs, wraps each source
-record in a content-addressed v4 routing record, and freezes a two-partition
-919-pair inventory with:
+record in a content-addressed v4 routing record, and freezes either the original
+two-partition 919-pair inventory or the later one-partition Qwen inventory with:
 
 * ``gpt-5.6-sol`` / xhigh as ``judge_A``;
 * ``claude-fable-5`` / max as ``judge_B``; and
@@ -42,6 +42,14 @@ JUDGE_REBIND_METHOD_VERSION: Literal["lf022_judge_design_rebind_v4"] = (
     "lf022_judge_design_rebind_v4"
 )
 _REQUIRED_CELLS = ("judge_A:AB", "judge_A:BA", "judge_B:AB", "judge_B:BA")
+_ORIGINAL_CONFIG_ID = "lf022_sol_fable_public_rebind_v4"
+_ORIGINAL_COLLECTION_ID = "lf022_kimi_qwen_public_sol_fable_v4"
+_QWEN_AEF924_CONFIG_ID = "lf022_qwen_aef924_sol_fable_rebind_v4"
+_QWEN_AEF924_COLLECTION_ID = "lf022_qwen_aef924_public_sol_fable_v4"
+_QWEN_AEF924_INVENTORY_ID = (
+    "lf022_supervision_inventory:bc76061aa039a163ae1799f6b903e5fb324979881e78301373e54719a0bf29b1"
+)
+_QWEN_AEF924_RECORD_COUNT = 1189
 
 
 class LF022JudgeDesignRebindError(RuntimeError):
@@ -85,9 +93,15 @@ class RebindHeldoutEndpoint(StrictModel):
 class LF022JudgeDesignRebindSpecV4(StrictModel):
     schema_version: Literal[4] = 4
     method_version: Literal["lf022_judge_design_rebind_v4"] = JUDGE_REBIND_METHOD_VERSION
-    config_id: Literal["lf022_sol_fable_public_rebind_v4"]
-    collection_id: Literal["lf022_kimi_qwen_public_sol_fable_v4"]
-    source_partitions: tuple[RebindSourcePartitionSpec, ...] = Field(min_length=2, max_length=2)
+    config_id: Literal[
+        "lf022_sol_fable_public_rebind_v4",
+        "lf022_qwen_aef924_sol_fable_rebind_v4",
+    ]
+    collection_id: Literal[
+        "lf022_kimi_qwen_public_sol_fable_v4",
+        "lf022_qwen_aef924_public_sol_fable_v4",
+    ]
+    source_partitions: tuple[RebindSourcePartitionSpec, ...] = Field(min_length=1, max_length=2)
     judge_a: RebindJudgeEndpoint
     judge_b: RebindJudgeEndpoint
     primary_eval: RebindHeldoutEndpoint
@@ -129,10 +143,27 @@ class LF022JudgeDesignRebindSpecV4(StrictModel):
             partition_ids
         ):
             raise ValueError("source partitions must be sorted and unique")
-        if set(proposer_ids) != {"moonshot_kimi_k2", "qwen3"}:
-            raise ValueError("v4 source partitions must be exactly Kimi and Qwen")
+        config_collection = (self.config_id, self.collection_id)
+        original = (_ORIGINAL_CONFIG_ID, _ORIGINAL_COLLECTION_ID)
+        qwen_aef924 = (_QWEN_AEF924_CONFIG_ID, _QWEN_AEF924_COLLECTION_ID)
+        if config_collection == original:
+            if set(proposer_ids) != {"moonshot_kimi_k2", "qwen3"}:
+                raise ValueError("original v4 source partitions must be exactly Kimi and Qwen")
+        elif config_collection == qwen_aef924:
+            if len(self.source_partitions) != 1:
+                raise ValueError("Qwen aef924 v4 route must contain exactly one partition")
+            partition = self.source_partitions[0]
+            if (
+                partition.partition_id != "qwen_aef924"
+                or partition.proposer_family_id != "qwen3"
+                or partition.expected_inventory_id != _QWEN_AEF924_INVENTORY_ID
+                or partition.expected_record_count != _QWEN_AEF924_RECORD_COUNT
+            ):
+                raise ValueError("Qwen aef924 v4 route differs from its exact source identity")
+        else:
+            raise ValueError("config_id and collection_id are not a registered v4 pair")
         if set(self.expected_proposer_counts) != set(proposer_ids):
-            raise ValueError("expected proposer counts must cover the two source families")
+            raise ValueError("expected proposer counts must cover all source families")
         partition_counts = {
             item.proposer_family_id: item.expected_record_count for item in self.source_partitions
         }
@@ -171,7 +202,10 @@ class LF022JudgeDesignRecordV4(StrictModel):
     schema_version: Literal[4] = 4
     method_version: Literal["lf022_judge_design_rebind_v4"] = JUDGE_REBIND_METHOD_VERSION
     record_id: str = Field(pattern=id_pattern("lf022_judge_design"))
-    collection_id: Literal["lf022_kimi_qwen_public_sol_fable_v4"]
+    collection_id: Literal[
+        "lf022_kimi_qwen_public_sol_fable_v4",
+        "lf022_qwen_aef924_public_sol_fable_v4",
+    ]
     source_partition_id: str
     source_inventory_id: str = Field(pattern=id_pattern("lf022_supervision_inventory"))
     source_manifest_sha256: str = Field(pattern=HEX64_PATTERN)
@@ -254,9 +288,12 @@ class LF022JudgeDesignManifestV4(StrictModel):
     schema_version: Literal[4] = 4
     method_version: Literal["lf022_judge_design_rebind_v4"] = JUDGE_REBIND_METHOD_VERSION
     inventory_id: str = Field(pattern=id_pattern("lf022_judge_design_inventory"))
-    collection_id: Literal["lf022_kimi_qwen_public_sol_fable_v4"]
+    collection_id: Literal[
+        "lf022_kimi_qwen_public_sol_fable_v4",
+        "lf022_qwen_aef924_public_sol_fable_v4",
+    ]
     spec_sha256: str = Field(pattern=HEX64_PATTERN)
-    source_partitions: tuple[ReboundSourceBindingV4, ...] = Field(min_length=2, max_length=2)
+    source_partitions: tuple[ReboundSourceBindingV4, ...] = Field(min_length=1, max_length=2)
     records_artifact: Literal["records.jsonl"] = "records.jsonl"
     records_sha256: str = Field(pattern=HEX64_PATTERN)
     record_count: int = Field(ge=1, strict=True)
@@ -285,11 +322,23 @@ class LF022JudgeDesignManifestV4(StrictModel):
 
     @model_validator(mode="after")
     def _counts_and_id(self) -> Self:
+        expected_proposers = (
+            {"moonshot_kimi_k2", "qwen3"}
+            if self.collection_id == _ORIGINAL_COLLECTION_ID
+            else {"qwen3"}
+        )
         if (
-            set(self.proposer_counts) != {"moonshot_kimi_k2", "qwen3"}
+            set(self.proposer_counts) != expected_proposers
             or sum(self.proposer_counts.values()) != self.record_count
         ):
             raise ValueError("v4 proposer counts differ from source corpus")
+        if self.collection_id == _QWEN_AEF924_COLLECTION_ID and (
+            self.record_count != _QWEN_AEF924_RECORD_COUNT
+            or len(self.source_partitions) != 1
+            or self.source_partitions[0].partition_id != "qwen_aef924"
+            or self.source_partitions[0].source_inventory_id != _QWEN_AEF924_INVENTORY_ID
+        ):
+            raise ValueError("Qwen aef924 v4 manifest differs from its exact source identity")
         if (
             sum(item.source_record_count for item in self.source_partitions) != self.record_count
             or self.unique_pair_count != self.record_count
@@ -485,13 +534,19 @@ def _record(
 
 
 def _summary(manifest: LF022JudgeDesignManifestV4) -> bytes:
+    if manifest.collection_id == _ORIGINAL_COLLECTION_ID:
+        proposer_lines = (
+            f"- Kimi proposer pairs: {manifest.proposer_counts['moonshot_kimi_k2']}\n"
+            f"- Qwen proposer pairs: {manifest.proposer_counts['qwen3']}\n"
+        )
+    else:
+        proposer_lines = f"- Qwen proposer pairs: {manifest.proposer_counts['qwen3']}\n"
     return (
         "# LF-022 Sol/Fable judge-design inventory v4\n\n"
         "This is an offline, content-preserving routing freeze. It creates no semantic, "
         "human, silver, training, evaluation, or gate-credit label.\n\n"
         f"- Public unresolved pairs: {manifest.record_count}\n"
-        f"- Kimi proposer pairs: {manifest.proposer_counts['moonshot_kimi_k2']}\n"
-        f"- Qwen proposer pairs: {manifest.proposer_counts['qwen3']}\n"
+        f"{proposer_lines}"
         f"- DeepSeek-origin pairs: {manifest.forbidden_proposer_count}\n"
         f"- Required future calls: {manifest.required_future_judge_call_count}\n"
         f"- judge_A: `{manifest.judge_a_model}` / `{manifest.judge_a_effort}`\n"
@@ -508,7 +563,7 @@ def freeze_lf022_judge_design_v4(
     config_path: Path,
     output_dir: Path,
 ) -> JudgeDesignFreezeResult:
-    """Verify, wrap, and immutably freeze the exact 919-pair public inventory."""
+    """Verify, wrap, and immutably freeze one registered public inventory."""
 
     loaded: LoadedConfig[LF022JudgeDesignRebindSpecV4] = load_config(
         config_path, LF022JudgeDesignRebindSpecV4

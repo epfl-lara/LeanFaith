@@ -29,7 +29,14 @@ _GENERIC_PATTERNS: tuple[tuple[str, re.Pattern[bytes]], ...] = (
     ),
     (
         "provider_token",
-        re.compile(rb"(?i)\b(?:sk|key|token|secret|api)[-_][A-Za-z0-9._~+/=-]{8,}"),
+        # Do not mistake JSON metadata keys such as ``api_key_source`` for a
+        # credential.  The first negative lookahead prevents the engine from
+        # backtracking to a shorter prefix; the second excludes an object key
+        # followed by a colon while retaining quoted token *values*.
+        re.compile(
+            rb"(?i)\b(?:sk|key|token|secret|api)[-_][A-Za-z0-9._~+/=-]{8,}"
+            rb"(?![A-Za-z0-9._~+/=-])(?!(?:\"|')[ \t]*:)"
+        ),
     ),
     (
         "proxy_url_credentials",

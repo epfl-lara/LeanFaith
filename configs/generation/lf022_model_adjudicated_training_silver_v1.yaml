@@ -1,0 +1,49 @@
+schema_version: 1
+policy_id: lf022_model_adjudicated_training_silver_v1
+status: training_only_model_adjudicated_silver_enabled
+
+promotion_profile: sol_fable_abba_model_adjudicated_training_silver_v1
+label_basis: model_adjudicated_training_silver
+resolution_method: sol_fable_abba_model_consensus_v1
+minimum_self_reported_confidence: 0.90
+
+sol_config_path: configs/generation/lf022_codex_sol_judge_v1.yaml
+sol_config_sha256: 0eac0587f6233d3ce2841123cb6db34f59c67ee34c84e0afdf2c319de0c20a20
+fable_config_path: configs/generation/lf022_claude_fable_judge_v1.yaml
+fable_config_sha256: fbff18086b3638c6843f54d35e018b4b3ff5ce5b22d9536225e35a48ba03e70d
+
+prompt_template_path: prompts/judges/lean_pair_blinded_v2.txt
+prompt_template_sha256: 199002c55f9b8ec132c02fad024731856da08c189432169c8624221ec1b37907
+parser_implementation_path: src/leanfaith/generation/weak_supervision.py
+parser_implementation_sha256: b1b26aa336680e3b4f4fde0035fc536a259693e628c46b48f7d0b5aa2c532714
+historical_registry_path: configs/generation/lf022_historical_sol_xhigh_registry_v1.json
+historical_registry_sha256: cb36f06cbe0821196f95e1a432d79209dada5c3a43753a85a3edca937a4ae0b8
+prompt_template_id: lean_pair_blinded
+prompt_template_version: v2
+call_schema_version: 2
+source_evidence_method_version: lf022_weak_batch_v1
+
+required_cells:
+  - judge_A:AB
+  - judge_A:BA
+  - judge_B:AB
+  - judge_B:BA
+required_source_status: candidate_consensus
+strong_evidence_scope: bound_batch_evidence_only
+non_llm_bound_evidence_allowed: false
+source_review_requests_allowed: false
+# Directional implication fields are checked only for model-vote agreement.
+# They never become proof certificates or trusted F2 evidence.
+public_sources_only: true
+denylist_hits_allowed: false
+proposer_judge_family_overlap_allowed: false
+heldout_judge_family_overlap_allowed: false
+
+quality_tier: silver_consensus
+train_eligibility: true
+eval_eligibility: false
+selection_eligibility: false
+calibration_eligibility: false
+human_gold_eligible: false
+resolved_label_created: false
+gate_6_human_audit_claimed: false

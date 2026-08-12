@@ -45,6 +45,7 @@ from leanfaith.generation.lf022_weak_batch import (
     _endpoint,
     _load_prepared_batch,
     _verify_dispatch_request,
+    persist_lf022_weak_execution_started_marker,
 )
 from leanfaith.generation.providers import (
     ProviderIdentity,
@@ -1213,6 +1214,11 @@ def _run_claude_fable_weak_cells_locked(
     )
     if not cells:
         raise ClaudeFableJudgeError("prepared batch contains no Fable cells")
+    if execute_external:
+        persist_lf022_weak_execution_started_marker(
+            batch_root=batch_root,
+            dispatch_manifest=batch_manifest,
+        )
     runner = executor or SubprocessClaudeCliExecutor()
     terminals: list[ClaudeFableAttemptTerminal] = []
     invoked_cells: set[str] = set()

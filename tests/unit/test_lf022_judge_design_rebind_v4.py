@@ -16,6 +16,7 @@ from leanfaith.generation.lf022_judge_design_rebind_v4 import (
 )
 
 CONFIG = Path("configs/generation/lf022_sol_fable_public_rebind_v4.yaml")
+QWEN_AEF924_CONFIG = Path("configs/generation/lf022_qwen_aef924_sol_fable_rebind_v4.yaml")
 
 
 def _source_paths() -> tuple[Path, ...]:
@@ -117,3 +118,68 @@ def test_v4_freeze_rejects_symlinked_output(tmp_path: Path) -> None:
     link.symlink_to(target, target_is_directory=True)
     with pytest.raises(LF022JudgeDesignRebindError, match="symlink"):
         freeze_lf022_judge_design_v4(config_path=CONFIG, output_dir=link)
+
+
+def test_qwen_aef924_config_is_exact_one_partition_route() -> None:
+    spec = load_config(QWEN_AEF924_CONFIG, LF022JudgeDesignRebindSpecV4).config
+    assert spec.config_id == "lf022_qwen_aef924_sol_fable_rebind_v4"
+    assert spec.collection_id == "lf022_qwen_aef924_public_sol_fable_v4"
+    assert spec.expected_record_count == 1189
+    assert spec.expected_proposer_counts == {"qwen3": 1189}
+    assert len(spec.source_partitions) == 1
+    source = spec.source_partitions[0]
+    assert source.partition_id == "qwen_aef924"
+    assert source.proposer_family_id == "qwen3"
+    assert source.expected_inventory_id == (
+        "lf022_supervision_inventory:"
+        "bc76061aa039a163ae1799f6b903e5fb324979881e78301373e54719a0bf29b1"
+    )
+    assert spec.judge_a.family_id == "openai_codex_sol"
+    assert spec.judge_b.family_id == "anthropic_fable"
+    assert spec.primary_eval.family_id == "deepseek_v4"
+    assert not spec.semantic_labels_created
+    assert not spec.training_eligible
+
+
+def test_qwen_aef924_config_rejects_crossed_collection_identity() -> None:
+    values = load_config(QWEN_AEF924_CONFIG, LF022JudgeDesignRebindSpecV4).config.model_dump(
+        mode="json"
+    )
+    values["collection_id"] = "lf022_kimi_qwen_public_sol_fable_v4"
+    with pytest.raises(ValueError, match="not a registered v4 pair"):
+        LF022JudgeDesignRebindSpecV4.model_validate(values)
+
+
+def test_exact_qwen_aef924_freeze_replays_without_labels(tmp_path: Path) -> None:
+    spec = load_config(QWEN_AEF924_CONFIG, LF022JudgeDesignRebindSpecV4).config
+    missing = [
+        Path(binding.path)
+        for partition in spec.source_partitions
+        for binding in (partition.manifest, partition.records)
+        if not Path(binding.path).is_file()
+    ]
+    if missing:
+        pytest.skip(f"fixed Qwen aef924 source artifacts unavailable: {missing}")
+
+    output = tmp_path / "qwen-aef924-v4"
+    frozen = freeze_lf022_judge_design_v4(
+        config_path=QWEN_AEF924_CONFIG,
+        output_dir=output,
+    )
+    replayed = verify_lf022_judge_design_v4(output)
+
+    assert replayed.manifest == frozen.manifest
+    assert replayed.records == frozen.records
+    assert len(frozen.records) == 1189
+    assert frozen.manifest.proposer_counts == {"qwen3": 1189}
+    assert frozen.manifest.required_future_judge_call_count == 4756
+    assert len({item.pair_id for item in frozen.records}) == 1189
+    assert len({item.judge_visible_payload_sha256 for item in frozen.records}) == 1189
+    assert {item.source_partition_id for item in frozen.records} == {"qwen_aef924"}
+    assert all(item.proposer_family_id == "qwen3" for item in frozen.records)
+    assert all(not item.semantic_labels_created for item in frozen.records)
+    assert all(not item.human_labels_created for item in frozen.records)
+    assert all(not item.silver_records_created for item in frozen.records)
+    assert all(not item.training_eligible for item in frozen.records)
+    assert all(not item.evaluation_eligible for item in frozen.records)
+    assert all(not item.gate_credit_claimed for item in frozen.records)

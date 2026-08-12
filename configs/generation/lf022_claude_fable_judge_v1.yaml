@@ -1,5 +1,8 @@
 schema_version: 1
 config_id: lf022_claude_fable_judge_v1
+# The literal status is retained for schema compatibility. A live max-effort
+# route smoke has passed; scale judging and training promotion remain
+# unqualified.
 status: offline_implemented_live_smoke_not_yet_qualified
 
 provider: anthropic_claude_code

@@ -93,6 +93,12 @@ from leanfaith.schemas.manifest import (
     run_manifest_path,
     write_manifest,
 )
+from leanfaith.schemas.model_silver import (
+    ModelAdjudicatedSilverCellV1,
+    ModelAdjudicatedSilverPromotionManifestV1,
+    ModelAdjudicatedSilverPromotionRecordV1,
+    ModelAdjudicatedSilverRejectionV1,
+)
 from leanfaith.schemas.nl_lean import (
     NLPLeanRecord,
     ProblemPoolRecord,
@@ -188,6 +194,10 @@ __all__ = [
     "LLMRole",
     "ManifestError",
     "MigrationMap",
+    "ModelAdjudicatedSilverCellV1",
+    "ModelAdjudicatedSilverPromotionManifestV1",
+    "ModelAdjudicatedSilverPromotionRecordV1",
+    "ModelAdjudicatedSilverRejectionV1",
     "NLPLeanRecord",
     "NLTrust",
     "OutputManifest",

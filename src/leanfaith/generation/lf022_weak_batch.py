@@ -313,6 +313,32 @@ class LF022WeakExecutionManifest(StrictModel):
         return self
 
 
+class LF022WeakExecutionStartedMarker(StrictModel):
+    """Durable fail-closed marker written before any live provider process."""
+
+    schema_version: Literal[1] = 1
+    method_version: Literal["lf022_weak_execution_started_v1"] = "lf022_weak_execution_started_v1"
+    marker_id: str = Field(pattern=id_pattern("lf022_weak_execution_started"))
+    batch_id: str = Field(pattern=id_pattern("lf022_weak_batch"))
+    dispatch_manifest_sha256: str = Field(pattern=HEX64_PATTERN)
+    provider_attempt_may_have_started: Literal[True] = True
+    semantic_labels_created: Literal[False] = False
+    silver_records_created: Literal[False] = False
+    training_eligible: Literal[False] = False
+    evaluation_eligible: Literal[False] = False
+    gate_credit_claimed: Literal[False] = False
+
+    @model_validator(mode="after")
+    def _content_addressed(self) -> Self:
+        expected_id = make_id(
+            "lf022_weak_execution_started",
+            self.model_dump(mode="json", exclude={"marker_id"}),
+        )
+        if self.marker_id != expected_id:
+            raise ValueError("execution-start marker ID differs from content")
+        return self
+
+
 class LF022WeakFinalizationManifest(StrictModel):
     """Offline replay result containing evidence and provisional aggregates only."""
 
@@ -405,6 +431,49 @@ def _load_canonical_model(path: Path, model_type: type[StrictModel]) -> StrictMo
     if raw not in {_canonical_model_bytes(model), _canonical_model_bytes(model).rstrip(b"\n")}:
         raise LF022WeakBatchError(f"artifact is not canonical JSON: {path}")
     return model
+
+
+def persist_lf022_weak_execution_started_marker(
+    *,
+    batch_root: Path,
+    dispatch_manifest: LF022WeakDispatchManifest,
+) -> Path:
+    """Persist the deterministic batch marker before the first live provider call.
+
+    The marker is intentionally conservative: a crash after this write but
+    before the provider process starts still leaves the batch requiring review.
+    That false positive is preferable to silently re-selecting a pair whose
+    external execution may already have begun.
+    """
+
+    dispatch_path = batch_root / "dispatch_manifest.json"
+    if dispatch_path.is_symlink() or not dispatch_path.is_file():
+        raise LF022WeakBatchError("execution-start marker dispatch manifest is missing or unsafe")
+    values: dict[str, object] = {
+        "schema_version": 1,
+        "method_version": "lf022_weak_execution_started_v1",
+        "batch_id": dispatch_manifest.batch_id,
+        "dispatch_manifest_sha256": hash_file(dispatch_path),
+        "provider_attempt_may_have_started": True,
+        "semantic_labels_created": False,
+        "silver_records_created": False,
+        "training_eligible": False,
+        "evaluation_eligible": False,
+        "gate_credit_claimed": False,
+    }
+    marker = LF022WeakExecutionStartedMarker.model_validate(
+        {
+            **values,
+            "marker_id": make_id("lf022_weak_execution_started", values),
+        }
+    )
+    marker_path = batch_root / "execution_started.json"
+    _persist_immutable(
+        marker_path,
+        _canonical_model_bytes(marker),
+        label="weak execution-start marker",
+    )
+    return marker_path
 
 
 def _load_canonical_jsonl(path: Path, model_type: type[StrictModel]) -> tuple[StrictModel, ...]:
@@ -1385,11 +1454,13 @@ __all__ = [
     "LF022WeakDispatchManifest",
     "LF022WeakDispatchRecord",
     "LF022WeakExecutionManifest",
+    "LF022WeakExecutionStartedMarker",
     "LF022WeakFinalizationManifest",
     "LF022WeakTerminalRecord",
     "copy_batch_spec_for_execution",
     "execute_or_resume_lf022_weak_batch",
     "finalize_lf022_weak_batch",
+    "persist_lf022_weak_execution_started_marker",
     "prepare_lf022_weak_batch",
     "replay_lf022_weak_batch",
 ]

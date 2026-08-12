@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import datetime
 import json
+import os
+import stat
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 
@@ -26,6 +28,7 @@ from leanfaith.generation.lf022_weak_batch import (
     LF022WeakBatchSpec,
     LF022WeakDispatchManifest,
     LF022WeakDispatchRecord,
+    LF022WeakExecutionStartedMarker,
 )
 from leanfaith.generation.providers import (
     DecodingValue,
@@ -45,6 +48,10 @@ CONFIG = Path("configs/generation/lf022_codex_sol_judge_v1.yaml")
 NOW = datetime.datetime(2026, 8, 12, 12, 0, tzinfo=datetime.UTC)
 AUTH_NONCE = b"authorization-nonce-for-sol-test-00"
 RUN_NONCE = b"run-nonce-for-sol-test-shard-00000"
+TEST_AUTH_SECRET = b"eyJhbGciOiJSUzI1NiJ9.eyJzdWIiOiJzb2wtaXNvbGF0aW9uIn0.signature9876543210"
+TEST_AUTH_BYTES = (
+    canonical_json_bytes({"tokens": {"access_token": TEST_AUTH_SECRET.decode("ascii")}}) + b"\n"
+)
 
 
 def _response(*, equivalent: bool = False) -> bytes:
@@ -106,9 +113,16 @@ def _capture(
 
 
 class _Executor:
-    def __init__(self, captures: list[CodexSolProcessCapture]) -> None:
+    def __init__(
+        self,
+        captures: list[CodexSolProcessCapture],
+        *,
+        raise_after_inspection: bool = False,
+    ) -> None:
         self.captures = captures
+        self.raise_after_inspection = raise_after_inspection
         self.calls: list[tuple[tuple[str, ...], bytes, Path, dict[str, str]]] = []
+        self.isolated_homes: list[Path] = []
 
     def execute(
         self,
@@ -133,10 +147,39 @@ class _Executor:
             max_final_message_bytes,
         )
         assert list(cwd.iterdir()) == []
+        source_home = Path(os.environ["CODEX_HOME"])
+        isolated_home = Path(child_env["CODEX_HOME"])
+        isolated_user_home = Path(child_env["HOME"])
+        assert isolated_home != source_home
+        assert isolated_user_home != Path(os.environ["HOME"])
+        assert isolated_user_home.parent == isolated_home.parent
+        assert stat.S_IMODE(isolated_home.stat().st_mode) == 0o700
+        assert stat.S_IMODE(isolated_user_home.stat().st_mode) == 0o700
+        assert list(isolated_user_home.iterdir()) == []
+        assert [item.name for item in isolated_home.iterdir()] == ["auth.json"]
+        isolated_auth = isolated_home / "auth.json"
+        assert stat.S_IMODE(isolated_auth.stat().st_mode) == 0o600
+        assert isolated_auth.read_bytes() == TEST_AUTH_BYTES
+        assert not (isolated_home / "logs_2.sqlite").exists()
+        self.isolated_homes.append(isolated_home)
         self.calls.append((tuple(argv), prompt, cwd, dict(child_env)))
+        if self.raise_after_inspection:
+            raise RuntimeError("synthetic executor failure")
         if not self.captures:
             raise AssertionError("unexpected external call")
         return self.captures.pop(0)
+
+
+def _fake_source_codex_home(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Path:
+    source_home = tmp_path / "source-codex-home"
+    source_home.mkdir(mode=0o700)
+    auth_path = source_home / "auth.json"
+    auth_path.write_bytes(TEST_AUTH_BYTES)
+    auth_path.chmod(0o600)
+    with (source_home / "logs_2.sqlite").open("wb") as handle:
+        handle.truncate(32 * 1024 * 1024)
+    monkeypatch.setenv("CODEX_HOME", str(source_home))
+    return source_home
 
 
 def _task(*, orientation: str, slot: str = "judge_A") -> JudgePresentation:
@@ -198,6 +241,7 @@ def _fixture(
     *,
     endpoint_decoding: dict[str, DecodingValue] | None = None,
 ) -> tuple[Path, Path, list[ProviderRequest], Path]:
+    _fake_source_codex_home(monkeypatch, tmp_path)
     loaded = load_codex_sol_judge_config(CONFIG)
     config = loaded.config
     sol_endpoint = JudgeEndpointPin(
@@ -374,6 +418,14 @@ def test_one_pair_executes_both_orders_raw_first_then_replays_without_calls(
     assert first.manifest.completed_cell_count == 2
     assert first.manifest.execution_mode == "external"
     assert len(executor.calls) == 2
+    marker = LF022WeakExecutionStartedMarker.model_validate_json(
+        (batch_root / "execution_started.json").read_bytes()
+    )
+    assert marker.batch_id == first.manifest.batch_id
+    assert marker.provider_attempt_may_have_started
+    assert len(executor.isolated_homes) == 2
+    assert len(set(executor.isolated_homes)) == 2
+    assert all(not path.exists() for path in executor.isolated_homes)
     for argv, prompt, _, child_env in executor.calls:
         assert argv[0] == "/bin/true"
         assert argv[1:5] == ("exec", "--ephemeral", "--ignore-user-config", "--ignore-rules")
@@ -381,10 +433,16 @@ def test_one_pair_executes_both_orders_raw_first_then_replays_without_calls(
         assert argv[argv.index("--sandbox") + 1] == "read-only"
         assert argv[argv.index("--model") + 1] == "gpt-5.6-sol"
         assert 'model_reasoning_effort="xhigh"' in argv
+        assert 'cli_auth_credentials_store="file"' in argv
         assert "web_search=disabled" in argv
         assert "shell_environment_policy.inherit=none" in argv
         assert prompt.startswith(sol._SYSTEM_PROMPT.encode("utf-8") + b"\n\n")
         assert "RCP_API_KEY" not in child_env
+        assert child_env["CODEX_HOME"] != os.environ["CODEX_HOME"]
+
+    for path in (*output_root.rglob("*"), *(batch_root / "raw").rglob("*")):
+        if path.is_file():
+            assert TEST_AUTH_SECRET not in path.read_bytes(), path
 
     for index, request in enumerate(requests):
         raw_path = provider_raw_response_path(batch_root / "raw/judge_A", request)
@@ -407,6 +465,112 @@ def test_one_pair_executes_both_orders_raw_first_then_replays_without_calls(
     assert replay.manifest.reused_cell_count == 2
     assert replay.manifest.run_id != first.manifest.run_id
     assert len(executor.calls) == 2
+
+
+def test_isolated_codex_home_cleans_up_when_executor_raises(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    batch_root, output_root, _, authorization = _fixture(monkeypatch, tmp_path)
+    executor = _Executor([], raise_after_inspection=True)
+    with pytest.raises(RuntimeError, match="synthetic executor failure"):
+        _execute(
+            batch_root=batch_root,
+            output_root=output_root,
+            authorization=authorization,
+            executor=executor,
+        )
+    assert len(executor.isolated_homes) == 1
+    assert not executor.isolated_homes[0].exists()
+    for path in (*output_root.rglob("*"), *(batch_root / "raw").rglob("*")):
+        if path.is_file():
+            assert TEST_AUTH_SECRET not in path.read_bytes(), path
+
+
+def test_oauth_secret_from_auth_json_is_redacted_before_persistence(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    batch_root, output_root, requests, authorization = _fixture(monkeypatch, tmp_path)
+    leaked = _capture().model_copy(update={"stderr": b"oauth=" + TEST_AUTH_SECRET + b"\n"})
+    executor = _Executor([leaked, _capture(), _capture(response=_response(equivalent=True))])
+    result = _execute(
+        batch_root=batch_root,
+        output_root=output_root,
+        authorization=authorization,
+        executor=executor,
+    )
+    assert result.manifest.completed_cell_count == 2
+    leaked_terminal = sol._load_terminal(
+        sol._attempt_dir(output_root, requests[0].request_hash, 0) / "terminal.json"
+    )
+    assert leaked_terminal.status == "secret_redacted"
+    assert leaked_terminal.redaction_count >= 1
+    for path in (*output_root.rglob("*"), *(batch_root / "raw").rglob("*")):
+        if path.is_file():
+            assert TEST_AUTH_SECRET not in path.read_bytes(), path
+
+
+def test_subprocess_executor_uses_isolated_home_below_file_limit(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    source_home = _fake_source_codex_home(monkeypatch, tmp_path)
+    inherited_log = source_home / "logs_2.sqlite"
+    assert inherited_log.stat().st_size > 4097
+    helper = tmp_path / "fake-codex"
+    helper.write_text(
+        """#!/usr/bin/env python3
+import hashlib
+import os
+import pathlib
+import stat
+import sys
+
+home = pathlib.Path(os.environ["CODEX_HOME"])
+user_home = pathlib.Path(os.environ["HOME"])
+auth = home / "auth.json"
+assert stat.S_IMODE(home.stat().st_mode) == 0o700
+assert stat.S_IMODE(user_home.stat().st_mode) == 0o700
+assert user_home.parent == home.parent
+assert list(user_home.iterdir()) == []
+assert stat.S_IMODE(auth.stat().st_mode) == 0o600
+assert sorted(item.name for item in home.iterdir()) == ["auth.json"]
+assert hashlib.sha256(auth.read_bytes()).hexdigest() == sys.argv[2]
+with (home / "logs_2.sqlite").open("ab") as handle:
+    handle.write(b"bounded-log-write")
+pathlib.Path(sys.argv[1]).write_bytes(b'{"ok":true}')
+sys.stdout.buffer.write(b'{"type":"turn.completed"}\\n')
+sys.stderr.write(f"isolated-home={home}\\n")
+""",
+        encoding="utf-8",
+    )
+    helper.chmod(0o700)
+    final_path = tmp_path / "subprocess-final.json"
+    config = load_codex_sol_judge_config(CONFIG).config
+    isolated_home: Path | None = None
+    with sol._isolated_codex_environment(config) as child_env:
+        isolated_home = Path(child_env["CODEX_HOME"])
+        capture = sol.SubprocessCodexSolCliExecutor().execute(
+            argv=(str(helper), str(final_path), sha256_hex(TEST_AUTH_BYTES)),
+            prompt=b"offline helper input",
+            cwd=tmp_path,
+            final_message_path=final_path,
+            timeout_seconds=10,
+            termination_grace_seconds=1,
+            max_stdout_bytes=4096,
+            max_stderr_bytes=4096,
+            max_final_message_bytes=4096,
+            child_env=child_env,
+        )
+        assert (isolated_home / "logs_2.sqlite").read_bytes() == b"bounded-log-write"
+    assert isolated_home is not None and not isolated_home.exists()
+    assert capture.status == "completed"
+    assert capture.exit_code == 0
+    assert capture.final_message == b'{"ok":true}'
+    assert TEST_AUTH_SECRET not in capture.stdout
+    assert TEST_AUTH_SECRET not in capture.stderr
+    assert TEST_AUTH_SECRET not in (capture.final_message or b"")
 
 
 def test_attempt_specific_retry_and_generic_attempt_zero_bridge(
