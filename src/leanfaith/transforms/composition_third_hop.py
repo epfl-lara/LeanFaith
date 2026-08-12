@@ -35,10 +35,16 @@ from leanfaith.schemas.theorem import RepresentationRecord, TheoremRecord
 from leanfaith.transforms.composition_chain import (
     E2_RULE_CERTIFICATES,
     CompositionSecondHopRootBinding,
+    DeterministicCompositionChainManifest,
+    DeterministicCompositionChainRecord,
 )
 from leanfaith.transforms.composition_polarity_frontier import (
     DeterministicCompositionPolarityFrontierManifest,
     DeterministicCompositionPolarityFrontierRecord,
+)
+from leanfaith.transforms.composition_seed import (
+    CompositionSeedManifest,
+    CompositionSeedRecord,
 )
 from leanfaith.transforms.composition_unique_pairs import (
     CompositionUniquePairError,
@@ -48,10 +54,13 @@ from leanfaith.transforms.composition_unique_pairs import (
     _child_directory_metadata,
     _cleanup_private_directory,
     _HeldDirectory,
+    _load_chain_inventory,
+    _load_seed_inventory,
     _open_child_directory,
     _open_held_directory,
     _rename_noreplace_at,
     _snapshot_exact_directory,
+    _verify_chain_seed_binding,
     _verify_child_identity,
     _verify_directory_path_identity,
     _write_new_file_at,
@@ -87,6 +96,8 @@ _FRONTIER_FILES = frozenset(
     {"frontier.jsonl", "theorems.jsonl", "representations.jsonl", "manifest.json"}
 )
 _UNIQUE_PAIR_FILES = frozenset({"unique_pairs.jsonl", "manifest.json"})
+_SEED_FILES = frozenset({"seeds.jsonl", "theorems.jsonl", "representations.jsonl", "manifest.json"})
+_CHAIN_FILES = frozenset({"chains.jsonl", "manifest.json"})
 _OUTPUT_FILES = frozenset(
     {
         "chains.jsonl",
@@ -142,19 +153,27 @@ def _require(condition: bool, message: str) -> None:
 class DeterministicCompositionThirdHopChainRecord(StrictModel):
     """One certificate-backed depth-three mechanical lineage."""
 
-    schema_version: Literal[1] = 1
+    schema_version: Literal[2] = 2
     chain_id: str = Field(pattern=_CHAIN_ID)
     input_frontier_set_id: str = Field(pattern=r"^detcomp_frontier_set:[0-9a-f]{64}$")
     input_frontier_id: str = Field(pattern=r"^detcomp_frontier:[0-9a-f]{64}$")
+    input_seed_set_id: str = Field(pattern=r"^detcomp_seed_set:[0-9a-f]{64}$")
+    input_chain_set_id: str = Field(pattern=r"^detcomp_chain_set:[0-9a-f]{64}$")
+    seed_id: str = Field(pattern=r"^detcomp_seed:[0-9a-f]{64}$")
     context_id: str = Field(min_length=1)
     root_ancestry_ids: tuple[str, ...] = Field(min_length=1)
     original_source_theorem_id: str = Field(min_length=1)
     original_source_representation_id: str = Field(min_length=1)
     original_source_statement_content_hash: str = Field(pattern=_HEX64)
     original_source_alpha_identity_fingerprint: str = Field(pattern=_HEX64)
+    depth_one_theorem_id: str = Field(min_length=1)
+    depth_one_representation_id: str = Field(min_length=1)
+    depth_one_alpha_identity_fingerprint: str = Field(pattern=_HEX64)
     depth_two_theorem_id: str = Field(min_length=1)
     depth_two_representation_id: str = Field(min_length=1)
     depth_two_alpha_identity_fingerprint: str = Field(pattern=_HEX64)
+    third_hop_source_theorem_id: str = Field(min_length=1)
+    third_hop_source_representation_id: str = Field(min_length=1)
     parent_chain_ids: tuple[str, ...] = Field(min_length=1)
     parent_chain_sequences: tuple[str, ...] = Field(min_length=1)
     parent_chain_kind: Literal["P_to_P", "P_to_N"]
@@ -177,7 +196,9 @@ class DeterministicCompositionThirdHopChainRecord(StrictModel):
     final_candidate_representation_id: str = Field(min_length=1)
     final_candidate_code_hash: str = Field(pattern=_HEX64)
     final_alpha_identity_fingerprint: str = Field(pattern=_HEX64)
+    prior_alpha_identity_fingerprints: tuple[str, str, str]
     original_source_alpha_return: bool
+    depth_one_alpha_return: bool
     third_hop_source_alpha_return: bool
     lineage_cycle: bool
     chain_depth: Literal[3] = 3
@@ -200,15 +221,17 @@ class DeterministicCompositionThirdHopChainRecord(StrictModel):
         )
         if self.chain_id != expected:
             raise ValueError("depth-three chain_id does not match immutable payload")
-        for name in (
-            "root_ancestry_ids",
-            "parent_chain_ids",
-            "parent_chain_sequences",
-            "depth_three_sequences",
-        ):
+        for name in ("root_ancestry_ids",):
             values = getattr(self, name)
             if values != tuple(sorted(set(values))):
                 raise ValueError(f"{name} must be sorted and unique")
+        if not (
+            len(self.parent_chain_ids)
+            == len(self.parent_chain_sequences)
+            == len(self.depth_three_sequences)
+            == 1
+        ):
+            raise ValueError("depth-three record must bind one exact parent chain")
         expected_kind = "P_to_P" if self.preserved_intention == "equivalent_candidate" else "P_to_N"
         if self.parent_chain_kind != expected_kind:
             raise ValueError("parent chain kind and preserved intention differ")
@@ -229,13 +252,30 @@ class DeterministicCompositionThirdHopChainRecord(StrictModel):
             self.original_source_alpha_identity_fingerprint == self.final_alpha_identity_fingerprint
         ):
             raise ValueError("original-source alpha return does not reconcile")
+        if self.depth_one_alpha_return != (
+            self.depth_one_alpha_identity_fingerprint == self.final_alpha_identity_fingerprint
+        ):
+            raise ValueError("depth-one alpha return does not reconcile")
+        if self.third_hop_source_alpha_return != (
+            self.depth_two_alpha_identity_fingerprint == self.final_alpha_identity_fingerprint
+        ):
+            raise ValueError("depth-two alpha return does not reconcile")
+        expected_history = (
+            self.original_source_alpha_identity_fingerprint,
+            self.depth_one_alpha_identity_fingerprint,
+            self.depth_two_alpha_identity_fingerprint,
+        )
+        if self.prior_alpha_identity_fingerprints != expected_history:
+            raise ValueError("prior alpha history differs from the exact lineage")
+        if self.lineage_cycle != (self.final_alpha_identity_fingerprint in expected_history):
+            raise ValueError("lineage cycle does not reconcile with prior alpha history")
         return self
 
 
 class DeterministicCompositionThirdHopPairRecord(StrictModel):
     """One deduplicated original-source/final-alpha provisional pair."""
 
-    schema_version: Literal[1] = 1
+    schema_version: Literal[2] = 2
     pair_id: str = Field(pattern=_PAIR_ID)
     canonical_unique_key: str = Field(pattern=_HEX64)
     input_frontier_set_id: str = Field(pattern=r"^detcomp_frontier_set:[0-9a-f]{64}$")
@@ -278,7 +318,7 @@ class DeterministicCompositionThirdHopPairRecord(StrictModel):
     def _coherent(self) -> DeterministicCompositionThirdHopPairRecord:
         expected_key = hash_canonical(
             {
-                "schema": "deterministic_v2_depth3_unique_pair_v1",
+                "schema": "deterministic_v2_depth3_unique_pair_v2",
                 "original_source_theorem_id": self.original_source_theorem_id,
                 "final_alpha_identity_fingerprint": self.final_alpha_identity_fingerprint,
             }
@@ -324,7 +364,7 @@ class DeterministicCompositionThirdHopPairRecord(StrictModel):
 class DeterministicCompositionThirdHopQuarantineRecord(StrictModel):
     """A mechanical depth-three lineage intentionally excluded from dedup output."""
 
-    schema_version: Literal[1] = 1
+    schema_version: Literal[2] = 2
     quarantine_id: str = Field(pattern=_QUARANTINE_ID)
     canonical_unique_key: str = Field(pattern=_HEX64)
     chain_ids: tuple[str, ...] = Field(min_length=1)
@@ -358,9 +398,12 @@ class DeterministicCompositionThirdHopQuarantineRecord(StrictModel):
 class DeterministicCompositionThirdHopManifest(StrictModel):
     """Self-authenticating receipt for exactly five completed E2 roots."""
 
-    schema_version: Literal[1] = 1
+    schema_version: Literal[2] = 2
     artifact_kind: Literal["deterministic_v2_composition_third_hop_set"] = (
         "deterministic_v2_composition_third_hop_set"
+    )
+    method_version: Literal["deterministic_v2_composition_third_hop_v2"] = (
+        "deterministic_v2_composition_third_hop_v2"
     )
     third_hop_set_id: str = Field(pattern=_SET_ID)
     input_frontier_set_id: str = Field(pattern=r"^detcomp_frontier_set:[0-9a-f]{64}$")
@@ -373,11 +416,24 @@ class DeterministicCompositionThirdHopManifest(StrictModel):
     input_unique_pair_manifest_sha256: str = Field(pattern=_HEX64)
     input_unique_pair_records_sha256: str = Field(pattern=_HEX64)
     input_unique_pair_count: int = Field(ge=1)
+    input_seed_set_id: str = Field(pattern=r"^detcomp_seed_set:[0-9a-f]{64}$")
+    input_seed_manifest_sha256: str = Field(pattern=_HEX64)
+    input_seed_records_sha256: str = Field(pattern=_HEX64)
+    input_seed_theorems_sha256: str = Field(pattern=_HEX64)
+    input_seed_representations_sha256: str = Field(pattern=_HEX64)
+    input_seed_count: int = Field(ge=1)
+    input_chain_set_id: str = Field(pattern=r"^detcomp_chain_set:[0-9a-f]{64}$")
+    input_chain_manifest_sha256: str = Field(pattern=_HEX64)
+    input_chain_records_sha256: str = Field(pattern=_HEX64)
+    input_chain_count: int = Field(ge=1)
     third_hop_roots: tuple[CompositionSecondHopRootBinding, ...] = Field(min_length=5, max_length=5)
     third_hop_result_count: int = Field(ge=5)
+    third_hop_provisional_result_count: int = Field(ge=0)
     terminal_status_counts: dict[str, int]
     third_hop_rule_counts: dict[str, int]
+    gross_chain_rule_counts: dict[str, int]
     gross_chain_count: int = Field(ge=0)
+    expanded_parent_lineage_excess_count: int = Field(ge=0)
     admitted_chain_count: int = Field(ge=0)
     quarantined_chain_count: int = Field(ge=0)
     unique_pair_count: int = Field(ge=0)
@@ -396,14 +452,17 @@ class DeterministicCompositionThirdHopManifest(StrictModel):
     theorem_output_sha256: str = Field(pattern=_HEX64)
     representation_output_sha256: str = Field(pattern=_HEX64)
     chain_depth: Literal[3] = 3
-    third_hop_policy: Literal["complete_e2_p14_p18_positive_only_v1"] = (
-        "complete_e2_p14_p18_positive_only_v1"
+    third_hop_policy: Literal["complete_e2_p14_p18_positive_only_v2"] = (
+        "complete_e2_p14_p18_positive_only_v2"
     )
-    deduplication_policy: Literal["original_source_and_final_alpha_v1"] = (
-        "original_source_and_final_alpha_v1"
+    lineage_cycle_policy: Literal["full_prior_alpha_history_per_exact_parent_chain_v2"] = (
+        "full_prior_alpha_history_per_exact_parent_chain_v2"
     )
-    original_source_identity_policy: Literal["exact_unique_pair_alpha_and_content_v1"] = (
-        "exact_unique_pair_alpha_and_content_v1"
+    deduplication_policy: Literal["original_source_and_final_alpha_after_cycle_quarantine_v2"] = (
+        "original_source_and_final_alpha_after_cycle_quarantine_v2"
+    )
+    original_source_identity_policy: Literal["exact_unique_pair_alpha_and_content_v2"] = (
+        "exact_unique_pair_alpha_and_content_v2"
     )
     original_source_payloads_included: Literal[False] = False
     semantic_labels_created: Literal[False] = False
@@ -438,8 +497,16 @@ class DeterministicCompositionThirdHopManifest(StrictModel):
             count != self.input_frontier_count for count in self.third_hop_rule_counts.values()
         ):
             raise ValueError("each P14-P18 root must cover the exact frontier once")
-        if self.gross_chain_count != self.terminal_status_counts.get("provisional_variant", 0):
-            raise ValueError("gross chains do not match provisional terminal results")
+        if self.third_hop_provisional_result_count != self.terminal_status_counts.get(
+            "provisional_variant", 0
+        ):
+            raise ValueError("third-hop provisional results do not reconcile")
+        if self.gross_chain_count != sum(self.gross_chain_rule_counts.values()):
+            raise ValueError("expanded chain rule counts do not reconcile")
+        if self.expanded_parent_lineage_excess_count != (
+            self.gross_chain_count - self.third_hop_provisional_result_count
+        ):
+            raise ValueError("expanded parent-lineage excess does not reconcile")
         if self.gross_chain_count != self.admitted_chain_count + self.quarantined_chain_count:
             raise ValueError("chain admission/quarantine counts do not reconcile")
         if self.duplicate_excess_count != self.admitted_chain_count - self.unique_pair_count:
@@ -492,6 +559,18 @@ class _UniquePairInventory:
     manifest_sha256: str
     records: tuple[DeterministicCompositionUniquePairRecord, ...]
     by_id: Mapping[str, DeterministicCompositionUniquePairRecord]
+
+
+@dataclass(frozen=True, slots=True)
+class _LineageInventory:
+    seed_manifest: CompositionSeedManifest
+    seed_manifest_sha256: str
+    seeds: tuple[CompositionSeedRecord, ...]
+    seed_by_id: Mapping[str, CompositionSeedRecord]
+    chain_manifest: DeterministicCompositionChainManifest
+    chain_manifest_sha256: str
+    chains: tuple[DeterministicCompositionChainRecord, ...]
+    chain_by_id: Mapping[str, DeterministicCompositionChainRecord]
 
 
 def _parse_record_bytes[ModelT: StrictModel](
@@ -709,6 +788,110 @@ def _load_unique_pairs(
         raise CompositionThirdHopError(str(exc)) from exc
 
 
+def _load_lineage_inventory(
+    seed_root: _HeldDirectory,
+    chain_root: _HeldDirectory,
+    *,
+    frontier: _FrontierInventory,
+    unique_pairs: _UniquePairInventory,
+) -> _LineageInventory:
+    """Load and cross-check the exact depth-one and depth-two lineage receipts."""
+
+    try:
+        with (
+            _snapshot_exact_directory(seed_root, expected_names=_SEED_FILES) as seed_snapshot,
+            _snapshot_exact_directory(chain_root, expected_names=_CHAIN_FILES) as chain_snapshot,
+        ):
+            seeds = _load_seed_inventory(seed_snapshot)
+            chains = _load_chain_inventory(
+                chain_snapshot,
+                seed_manifest_sha256=seeds.manifest_sha256,
+                seed_manifest=seeds.manifest,
+            )
+            expected = unique_pairs.manifest
+            _require(
+                seeds.manifest.seed_set_id == expected.input_seed_set_id
+                and seeds.manifest_sha256 == expected.input_seed_manifest_sha256
+                and seeds.manifest.seed_output_sha256 == expected.input_seed_records_sha256
+                and seeds.manifest.theorem_output_sha256 == expected.input_seed_theorems_sha256
+                and seeds.manifest.representation_output_sha256
+                == expected.input_seed_representations_sha256,
+                "seed inventory differs from exact unique-pair binding",
+            )
+            _require(
+                chains.manifest.chain_set_id
+                == expected.input_chain_set_id
+                == frontier.manifest.input_chain_set_id
+                and chains.manifest_sha256
+                == expected.input_chain_manifest_sha256
+                == frontier.manifest.input_chain_manifest_sha256
+                and chains.manifest.chain_output_sha256
+                == expected.input_chain_records_sha256
+                == frontier.manifest.input_chain_records_sha256,
+                "chain receipt differs from exact frontier/unique-pair binding",
+            )
+            seed_by_id = {item.seed_id: item for item in seeds.seeds}
+            chain_by_id = {item.chain_id: item for item in chains.chains}
+            _require(len(seed_by_id) == len(seeds.seeds), "seed IDs are duplicated")
+            _require(len(chain_by_id) == len(chains.chains), "depth-two chain IDs are duplicated")
+            for chain in chains.chains:
+                _require(
+                    chain.seed_set_id == seeds.manifest.seed_set_id,
+                    "depth-two chain seed-set binding differs",
+                )
+                seed = seed_by_id.get(chain.seed_id)
+                _require(seed is not None, "depth-two chain references a foreign seed")
+                assert seed is not None
+                _verify_chain_seed_binding(chain, seed)
+            for frontier_record in frontier.records:
+                unique_pair = unique_pairs.by_id[frontier_record.input_unique_pair_id]
+                _require(
+                    frontier_record.parent_chain_ids == unique_pair.chain_ids
+                    and frontier_record.parent_chain_sequences == unique_pair.chain_sequences,
+                    "frontier parent paths differ from exact unique pair",
+                )
+                for parent_chain_id in frontier_record.parent_chain_ids:
+                    matched_chain = chain_by_id.get(parent_chain_id)
+                    _require(
+                        matched_chain is not None,
+                        "frontier references a missing depth-two chain",
+                    )
+                    assert matched_chain is not None
+                    sequence = (
+                        f"{matched_chain.first_hop_rule_id}->{matched_chain.second_hop_rule_id}"
+                    )
+                    _require(
+                        matched_chain.chain_kind == frontier_record.parent_chain_kind
+                        and matched_chain.original_source_theorem_id
+                        == frontier_record.original_source_theorem_id
+                        and matched_chain.original_source_representation_id
+                        == frontier_record.original_source_representation_id
+                        and matched_chain.context_id == frontier_record.context_id
+                        and matched_chain.root_ancestry_ids == frontier_record.root_ancestry_ids
+                        and matched_chain.final_theorem_id in frontier_record.depth_two_theorem_ids
+                        and matched_chain.final_representation_id
+                        in frontier_record.depth_two_representation_ids
+                        and matched_chain.final_candidate_code_hash
+                        == frontier_record.final_candidate_code_hash
+                        and matched_chain.final_alpha_identity_fingerprint
+                        == frontier_record.final_alpha_identity_fingerprint
+                        and sequence in frontier_record.parent_chain_sequences,
+                        "frontier path differs from exact depth-two chain",
+                    )
+            return _LineageInventory(
+                seed_manifest=seeds.manifest,
+                seed_manifest_sha256=seeds.manifest_sha256,
+                seeds=seeds.seeds,
+                seed_by_id=seed_by_id,
+                chain_manifest=chains.manifest,
+                chain_manifest_sha256=chains.manifest_sha256,
+                chains=chains.chains,
+                chain_by_id=chain_by_id,
+            )
+    except CompositionUniquePairError as exc:
+        raise CompositionThirdHopError(str(exc)) from exc
+
+
 def _third_hop_binding(binding: MaterializationRootBinding) -> CompositionSecondHopRootBinding:
     _require(
         binding.execution_settings_provenance == "recorded",
@@ -743,6 +926,8 @@ def _build_chain(
     frontier_set_id: str,
     frontier: DeterministicCompositionPolarityFrontierRecord,
     unique_pair: DeterministicCompositionUniquePairRecord,
+    seed: CompositionSeedRecord,
+    parent_chain: DeterministicCompositionChainRecord,
     source_theorem: TheoremRecord,
     source_representation: RepresentationRecord,
     root_binding: MaterializationRootBinding,
@@ -757,6 +942,32 @@ def _build_chain(
         and unique_pair.original_source_representation_id
         == frontier.original_source_representation_id,
         "third-hop original source differs from exact unique pair",
+    )
+    parent_sequence = f"{parent_chain.first_hop_rule_id}->{parent_chain.second_hop_rule_id}"
+    _require(
+        parent_chain.chain_id in frontier.parent_chain_ids
+        and parent_sequence in frontier.parent_chain_sequences
+        and parent_chain.seed_id == seed.seed_id
+        and parent_chain.chain_kind == frontier.parent_chain_kind,
+        "third-hop exact parent path differs from frontier",
+    )
+    _require(
+        seed.source_theorem_id == unique_pair.original_source_theorem_id
+        and seed.source_representation_id == unique_pair.original_source_representation_id
+        and seed.source_alpha_identity_fingerprint == unique_pair.source_alpha_identity_fingerprint
+        and parent_chain.original_source_theorem_id == unique_pair.original_source_theorem_id
+        and parent_chain.original_source_representation_id
+        == unique_pair.original_source_representation_id,
+        "third-hop prior lineage differs from exact source",
+    )
+    _require(
+        parent_chain.final_theorem_id in frontier.depth_two_theorem_ids
+        and parent_chain.final_representation_id in frontier.depth_two_representation_ids
+        and parent_chain.final_candidate_code_hash == frontier.final_candidate_code_hash
+        and parent_chain.final_alpha_identity_fingerprint
+        == source_representation.alpha_identity_fingerprint
+        == frontier.final_alpha_identity_fingerprint,
+        "third-hop depth-two path differs from materialized source",
     )
     _require(result.evidence_class == "E2", "third-hop result does not declare E2 evidence")
     _require(result.rule_id in _RULES, "third-hop rule is outside P14-P18")
@@ -883,14 +1094,20 @@ def _build_chain(
     final_alpha = representation.alpha_identity_fingerprint
     assert final_alpha is not None
     original_source_alpha_return = final_alpha == unique_pair.source_alpha_identity_fingerprint
+    depth_one_alpha_return = final_alpha == seed.intermediate_alpha_identity_fingerprint
     source_alpha_return = final_alpha == source_representation.alpha_identity_fingerprint
-    lineage_cycle = candidate.theorem_id in {
-        frontier.original_source_theorem_id,
-        *frontier.depth_two_theorem_ids,
-    }
+    prior_alpha_history = (
+        unique_pair.source_alpha_identity_fingerprint,
+        seed.intermediate_alpha_identity_fingerprint,
+        parent_chain.final_alpha_identity_fingerprint,
+    )
+    lineage_cycle = final_alpha in prior_alpha_history
     data: dict[str, object] = {
         "input_frontier_set_id": frontier_set_id,
         "input_frontier_id": frontier.frontier_id,
+        "input_seed_set_id": parent_chain.seed_set_id,
+        "input_chain_set_id": unique_pair.input_chain_set_id,
+        "seed_id": seed.seed_id,
         "context_id": frontier.context_id,
         "root_ancestry_ids": frontier.root_ancestry_ids,
         "original_source_theorem_id": frontier.original_source_theorem_id,
@@ -899,11 +1116,16 @@ def _build_chain(
         "original_source_alpha_identity_fingerprint": (
             unique_pair.source_alpha_identity_fingerprint
         ),
-        "depth_two_theorem_id": source_theorem.theorem_id,
-        "depth_two_representation_id": source_representation.representation_id,
-        "depth_two_alpha_identity_fingerprint": frontier.final_alpha_identity_fingerprint,
-        "parent_chain_ids": frontier.parent_chain_ids,
-        "parent_chain_sequences": frontier.parent_chain_sequences,
+        "depth_one_theorem_id": seed.intermediate_theorem_id,
+        "depth_one_representation_id": seed.intermediate_representation_id,
+        "depth_one_alpha_identity_fingerprint": seed.intermediate_alpha_identity_fingerprint,
+        "depth_two_theorem_id": parent_chain.final_theorem_id,
+        "depth_two_representation_id": parent_chain.final_representation_id,
+        "depth_two_alpha_identity_fingerprint": parent_chain.final_alpha_identity_fingerprint,
+        "third_hop_source_theorem_id": source_theorem.theorem_id,
+        "third_hop_source_representation_id": source_representation.representation_id,
+        "parent_chain_ids": (parent_chain.chain_id,),
+        "parent_chain_sequences": (parent_sequence,),
         "parent_chain_kind": frontier.parent_chain_kind,
         "preserved_intention": frontier.preserved_intention,
         "semantic_negative_hop_count": frontier.semantic_negative_hop_count,
@@ -919,14 +1141,14 @@ def _build_chain(
         "third_hop_variant_id": result.variant.variant_id,
         "third_hop_certificate_kind": certificate_kind,
         "third_hop_certificate_sha256": certificate,
-        "depth_three_sequences": tuple(
-            sorted(f"{sequence}->{result.rule_id}" for sequence in frontier.parent_chain_sequences)
-        ),
+        "depth_three_sequences": (f"{parent_sequence}->{result.rule_id}",),
         "final_candidate_theorem_id": candidate.theorem_id,
         "final_candidate_representation_id": representation.representation_id,
         "final_candidate_code_hash": result.draft.candidate_code_hash,
         "final_alpha_identity_fingerprint": final_alpha,
+        "prior_alpha_identity_fingerprints": prior_alpha_history,
         "original_source_alpha_return": original_source_alpha_return,
+        "depth_one_alpha_return": depth_one_alpha_return,
         "third_hop_source_alpha_return": source_alpha_return,
         "lineage_cycle": lineage_cycle,
     }
@@ -950,6 +1172,7 @@ def _audit_root(
     held_root: _HeldDirectory,
     inventory: _FrontierInventory,
     unique_pairs: _UniquePairInventory,
+    lineage: _LineageInventory,
 ) -> tuple[
     CompositionSecondHopRootBinding,
     tuple[
@@ -1014,6 +1237,7 @@ def _audit_root(
     chains: list[
         tuple[DeterministicCompositionThirdHopChainRecord, TheoremRecord, RepresentationRecord]
     ] = []
+    expected_expanded_chain_count = 0
     for line_number, raw, raw_line in _iter_jsonl_objects(held_root.path / "results.jsonl"):
         try:
             result = V2E2MaterializationResult.model_validate(raw)
@@ -1050,27 +1274,37 @@ def _audit_root(
             "provisional third-hop result lacks exact observation",
         )
         assert matched_observation is not None
-        chains.append(
-            _build_chain(
-                frontier_set_id=inventory.manifest.frontier_set_id,
-                frontier=frontier,
-                unique_pair=unique_pair,
-                source_theorem=theorem,
-                source_representation=representation,
-                root_binding=binding,
-                line_number=line_number,
-                observation=matched_observation,
-                result=result,
+        expected_expanded_chain_count += len(frontier.parent_chain_ids)
+        for parent_chain_id in frontier.parent_chain_ids:
+            parent_chain = lineage.chain_by_id[parent_chain_id]
+            seed = lineage.seed_by_id[parent_chain.seed_id]
+            chains.append(
+                _build_chain(
+                    frontier_set_id=inventory.manifest.frontier_set_id,
+                    frontier=frontier,
+                    unique_pair=unique_pair,
+                    seed=seed,
+                    parent_chain=parent_chain,
+                    source_theorem=theorem,
+                    source_representation=representation,
+                    root_binding=binding,
+                    line_number=line_number,
+                    observation=matched_observation,
+                    result=result,
+                )
             )
-        )
     _require(
         saw_sources == set(inventory.by_theorem_id),
         "third-hop root does not cover exact frontier once",
     )
     _require(sum(statuses.values()) == binding.result_count, "third-hop result count differs")
     _require(
-        len(chains) == binding.provisional_count == len(observations),
-        "third-hop provisional count differs",
+        binding.provisional_count == len(observations),
+        "third-hop provisional result count differs",
+    )
+    _require(
+        len(chains) == expected_expanded_chain_count,
+        "third-hop expanded parent-path count differs",
     )
     try:
         final = _load_root(held_root.path)
@@ -1091,7 +1325,7 @@ def _quarantine(
     first = chains[0]
     unique_key = hash_canonical(
         {
-            "schema": "deterministic_v2_depth3_unique_pair_v1",
+            "schema": "deterministic_v2_depth3_unique_pair_v2",
             "original_source_theorem_id": first.original_source_theorem_id,
             "final_alpha_identity_fingerprint": first.final_alpha_identity_fingerprint,
         }
@@ -1201,7 +1435,7 @@ def _deduplicate(
         )
         unique_key = hash_canonical(
             {
-                "schema": "deterministic_v2_depth3_unique_pair_v1",
+                "schema": "deterministic_v2_depth3_unique_pair_v2",
                 "original_source_theorem_id": first.original_source_theorem_id,
                 "final_alpha_identity_fingerprint": first.final_alpha_identity_fingerprint,
             }
@@ -1369,6 +1603,8 @@ def audit_deterministic_v2_composition_third_hop(
     *,
     frontier_dir: Path,
     unique_pair_dir: Path,
+    seed_dir: Path,
+    chain_dir: Path,
     third_hop_roots: Sequence[Path],
     output_dir: Path,
 ) -> CompositionThirdHopArtifacts:
@@ -1376,11 +1612,13 @@ def audit_deterministic_v2_composition_third_hop(
 
     frontier_path = _absolute_path(frontier_dir)
     unique_pair_path = _absolute_path(unique_pair_dir)
+    seed_path = _absolute_path(seed_dir)
+    chain_path = _absolute_path(chain_dir)
     root_paths = tuple(_absolute_path(path) for path in third_hop_roots)
     output_path = _absolute_path(output_dir)
     if len(root_paths) != 5:
         raise CompositionThirdHopError("exactly five completed P14-P18 roots are required")
-    protected = (frontier_path, unique_pair_path, *root_paths)
+    protected = (frontier_path, unique_pair_path, seed_path, chain_path, *root_paths)
     if any(output_path == path or output_path.is_relative_to(path) for path in protected):
         raise CompositionThirdHopError("depth-three output overlaps an immutable input")
 
@@ -1395,6 +1633,12 @@ def audit_deterministic_v2_composition_third_hop(
                     label="third-hop exact unique-pair directory",
                 )
             )
+            seed_root = stack.enter_context(
+                _open_held_directory(seed_path, label="third-hop exact seed directory")
+            )
+            chain_root = stack.enter_context(
+                _open_held_directory(chain_path, label="third-hop exact chain directory")
+            )
             held_roots = tuple(
                 stack.enter_context(
                     _open_held_directory(path, label=f"third-hop materialization root {index}")
@@ -1404,11 +1648,19 @@ def audit_deterministic_v2_composition_third_hop(
             identities = (
                 (frontier_root.identity.device, frontier_root.identity.inode),
                 (unique_pair_root.identity.device, unique_pair_root.identity.inode),
+                (seed_root.identity.device, seed_root.identity.inode),
+                (chain_root.identity.device, chain_root.identity.inode),
                 *((root.identity.device, root.identity.inode) for root in held_roots),
             )
-            _require(len(set(identities)) == 7, "third-hop inputs alias one another")
+            _require(len(set(identities)) == 9, "third-hop inputs alias one another")
             inventory = _load_frontier(frontier_root)
             unique_pairs = _load_unique_pairs(unique_pair_root, frontier=inventory)
+            lineage = _load_lineage_inventory(
+                seed_root,
+                chain_root,
+                frontier=inventory,
+                unique_pairs=unique_pairs,
+            )
             _require(
                 len({record.context_id for record in inventory.records}) == 1,
                 "third-hop frontier has mixed contexts",
@@ -1442,6 +1694,7 @@ def audit_deterministic_v2_composition_third_hop(
                     held_root=held_root,
                     inventory=inventory,
                     unique_pairs=unique_pairs,
+                    lineage=lineage,
                 )
                 bindings.append(binding)
                 audited_roots.append((binding, root_chains, root_statuses))
@@ -1488,11 +1741,10 @@ def audit_deterministic_v2_composition_third_hop(
                     for reason in {reason for item in quarantines for reason in item.reason_codes}
                 }
             )
-            rule_counts: Counter[str] = Counter(item.third_hop_rule_id for item in chains)
-            # Include non-provisional terminal results in per-rule accounting.
-            for binding in bindings:
-                rule = binding.rule_ids[0]
-                rule_counts[rule] += binding.result_count - binding.provisional_count
+            gross_chain_rule_counts: Counter[str] = Counter(
+                item.third_hop_rule_id for item in chains
+            )
+            result_rule_counts = {binding.rule_ids[0]: binding.result_count for binding in bindings}
             manifest_data: dict[str, object] = {
                 "input_frontier_set_id": inventory.manifest.frontier_set_id,
                 "input_frontier_manifest_sha256": inventory.manifest_sha256,
@@ -1506,11 +1758,29 @@ def audit_deterministic_v2_composition_third_hop(
                 "input_unique_pair_manifest_sha256": unique_pairs.manifest_sha256,
                 "input_unique_pair_records_sha256": unique_pairs.manifest.unique_output_sha256,
                 "input_unique_pair_count": unique_pairs.manifest.unique_pair_count,
+                "input_seed_set_id": lineage.seed_manifest.seed_set_id,
+                "input_seed_manifest_sha256": lineage.seed_manifest_sha256,
+                "input_seed_records_sha256": lineage.seed_manifest.seed_output_sha256,
+                "input_seed_theorems_sha256": lineage.seed_manifest.theorem_output_sha256,
+                "input_seed_representations_sha256": (
+                    lineage.seed_manifest.representation_output_sha256
+                ),
+                "input_seed_count": lineage.seed_manifest.seed_count,
+                "input_chain_set_id": lineage.chain_manifest.chain_set_id,
+                "input_chain_manifest_sha256": lineage.chain_manifest_sha256,
+                "input_chain_records_sha256": lineage.chain_manifest.chain_output_sha256,
+                "input_chain_count": lineage.chain_manifest.chain_count,
                 "third_hop_roots": tuple(bindings),
                 "third_hop_result_count": sum(item.result_count for item in bindings),
+                "third_hop_provisional_result_count": sum(
+                    item.provisional_count for item in bindings
+                ),
                 "terminal_status_counts": dict(sorted(terminal_counts.items())),
-                "third_hop_rule_counts": dict(sorted(rule_counts.items())),
+                "third_hop_rule_counts": dict(sorted(result_rule_counts.items())),
+                "gross_chain_rule_counts": dict(sorted(gross_chain_rule_counts.items())),
                 "gross_chain_count": len(chains),
+                "expanded_parent_lineage_excess_count": len(chains)
+                - sum(item.provisional_count for item in bindings),
                 "admitted_chain_count": len(chains) - len(quarantined_chain_ids),
                 "quarantined_chain_count": len(quarantined_chain_ids),
                 "unique_pair_count": len(pairs),
@@ -1567,11 +1837,27 @@ def audit_deterministic_v2_composition_third_hop(
                     and final_unique_pairs.records == unique_pairs.records,
                     "third-hop unique pairs changed before publication",
                 )
+                final_lineage = _load_lineage_inventory(
+                    seed_root,
+                    chain_root,
+                    frontier=final_inventory,
+                    unique_pairs=final_unique_pairs,
+                )
+                _require(
+                    final_lineage.seed_manifest_sha256 == lineage.seed_manifest_sha256
+                    and final_lineage.seed_manifest == lineage.seed_manifest
+                    and final_lineage.seeds == lineage.seeds
+                    and final_lineage.chain_manifest_sha256 == lineage.chain_manifest_sha256
+                    and final_lineage.chain_manifest == lineage.chain_manifest
+                    and final_lineage.chains == lineage.chains,
+                    "third-hop lineage inputs changed before publication",
+                )
                 for held_root, expected in zip(held_roots, audited_roots, strict=True):
                     observed = _audit_root(
                         held_root=held_root,
                         inventory=inventory,
                         unique_pairs=unique_pairs,
+                        lineage=lineage,
                     )
                     _require(
                         observed == expected,
@@ -1581,7 +1867,7 @@ def audit_deterministic_v2_composition_third_hop(
                 raise CompositionThirdHopError(
                     f"third-hop inputs changed before publication: {exc}"
                 ) from exc
-            for item in (frontier_root, unique_pair_root, *held_roots):
+            for item in (frontier_root, unique_pair_root, seed_root, chain_root, *held_roots):
                 _verify_directory_path_identity(item)
             replayed = _publish_or_verify(
                 output_dir=output_path,

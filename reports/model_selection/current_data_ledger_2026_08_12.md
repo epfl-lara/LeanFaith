@@ -13,6 +13,7 @@ records are disjoint.
 | private statements with eligible representations | 18,668 | prepared private universe; broad transform coverage is not yet complete |
 | first-hop deterministic proxy pairs admitted to the mixed corpus | 10,336 | 3,840 positive-intention E2 and 6,496 negative-intention D0 machine targets |
 | depth-two deterministic composition signals admitted | 5,534 | noncyclic machine targets after provenance/dedup checks |
+| depth-three deterministic pairs audited | 4,031 | corrected v2: 613 equivalent-intention and 3,418 near-miss-intention provisional pairs; intention-only, not training labels |
 | public unary content-audited pairs | 27,327 | lower-trust provisional pairs only; strict merge is blocked |
 | latest Kimi/Qwen generated candidates, gross | 1,818 | 248 Kimi plus 1,570 Qwen; cross-run dedup not established |
 | latest Kimi/Qwen Lean-valid candidates, gross | 1,326 | 201 Kimi plus 1,125 Qwen |
@@ -90,3 +91,20 @@ the bound `checks.jsonl` SHA-256 is
 This is a generation/typechecking milestone only: it creates no semantic
 label, silver record, training eligibility, evaluation eligibility, or gate
 credit.
+
+## Deterministic depth-three expansion
+
+The corrected five-family P14--P18 v2 audit completed over the exact
+5,538-record depth-two frontier. It expanded 4,368 provisional results into
+4,581 exact parent-path lineages, quarantined 464 returns to the depth-one
+intermediate alpha, and admitted 4,117 noncyclic lineages. Source/final-alpha
+deduplication produced 4,031 unique pairs, comprising 613
+equivalent-candidate and 3,418 near-miss-candidate intentions. A second full
+audit invocation replayed the same set ID and bytes. See
+`reports/transformation_audits/deterministic_third_hop_five_family_v1.md`.
+
+The earlier v1 count of 4,281 is superseded: its theorem-ID cycle check missed
+the 464 intermediate-alpha returns. The 4,031 corrected records remain
+intention-only provisional mechanical pairs, not semantic labels. They are not
+included in the existing 17,181-pair proxy corpus and must not be added to that
+corpus count until the explicit merge/split adapter is built and replayed.

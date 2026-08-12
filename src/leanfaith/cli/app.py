@@ -4083,6 +4083,20 @@ def audit_deterministic_composition_third_hop_command(
             help="Exact immutable unique-pair artifact cryptographically bound by the frontier.",
         ),
     ],
+    seed_dir: Annotated[
+        Path,
+        typer.Option(
+            "--seed-dir",
+            help="Exact immutable depth-one seed inventory bound by the unique pairs.",
+        ),
+    ],
+    chain_dir: Annotated[
+        Path,
+        typer.Option(
+            "--chain-dir",
+            help="Exact immutable depth-two chain receipt bound by the frontier.",
+        ),
+    ],
     third_hop_roots: Annotated[
         list[Path],
         typer.Option(
@@ -4116,6 +4130,8 @@ def audit_deterministic_composition_third_hop_command(
         artifacts = audit_deterministic_v2_composition_third_hop(
             frontier_dir=anchored(frontier_dir),
             unique_pair_dir=anchored(unique_pair_dir),
+            seed_dir=anchored(seed_dir),
+            chain_dir=anchored(chain_dir),
             third_hop_roots=[anchored(path) for path in third_hop_roots],
             output_dir=anchored(output_dir),
         )

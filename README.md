@@ -387,6 +387,19 @@ dataset probe (PLAN.md §9.2).
   and 2,006 gross count are preserved only as historical/superseded audit
   context. No count is a semantic label or confirmatory training admission.
   See `reports/transformation_audits/lf033_public_all_clean_inventory_v1.md`.
+- **Five-family deterministic depth-three expansion is audited and exactly
+  replayed with a v2 cycle correction (2026-08-12):** P14--P18 yielded 4,368
+  provisional results over the frozen 5,538-record frontier, expanding to
+  4,581 exact parent-path lineages. Full prior-alpha-history checking
+  quarantined 464 returns to the depth-one intermediate alpha, leaving 4,117
+  admitted lineages and 4,031 unique provisional pairs: 613 preserve
+  equivalent-candidate intention and 3,418 preserve near-miss-candidate
+  intention. The earlier v1 count of 4,281 is superseded because its
+  theorem-ID cycle check missed those intermediate-alpha returns. A second
+  full v2 invocation reproduced the same set ID and bytes. These records are
+  intention-only, are not semantic labels, and have not yet been merged into
+  the 17,181-pair proxy corpus. See
+  `reports/transformation_audits/deterministic_third_hop_five_family_v1.md`.
 - **Private deterministic-v2 first full portfolio complete:** all configured
   deterministic-v2 families ran over the exact frozen 5,000-statement
   `sft_classic` Gate-3 subset. The fail-closed combination contains 5,497 exact
