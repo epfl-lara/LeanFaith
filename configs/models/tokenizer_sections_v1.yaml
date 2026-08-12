@@ -9,7 +9,7 @@ expected_per_source:
   sft_classic: 5000
 context_id: ctx:0cd06826b8767b3bc951c0eb00c802424af95785b558f9f8a61f18694a86c4ce
 import_header: import Mathlib
-context_record_path: data/extracted/contexts/0cd06826b8767b3bc951c0eb00c802424af95785b558f9f8a61f18694a86c4ce.json
+context_record_path: configs/models/tokenizer_context_mathlib_v1.json
 context_record_sha256: d08d78779f9a3ea7c9c1779c982cc8359a309c94de2ea0b4c2c5a3df85ff51fc
 project_registry_key: mathlib
 project_registry_path: configs/projects/mathlib.yaml
