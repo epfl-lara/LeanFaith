@@ -46,6 +46,17 @@ dataset probe (PLAN.md §9.2).
 
 ## Status
 
+- **First verified learning curve completed:** the opt-in scalar diagnostic
+  fitted 18 deterministic models and froze 6,876 predictions over the 2,000-pair
+  experimental corpus. At the full 1,260-component training budget it reached
+  pseudo-AUPRC 0.8154 on validation and 0.8064 on test, versus constant-score
+  AUPRC about 0.497. The artifact passed standalone verification and exact byte
+  replay. This demonstrates end-to-end learnability of transformation
+  intentions—and the risk of synthetic shortcuts—not semantic faithfulness;
+  it is excluded from model selection, calibration, evaluation, and scientific
+  claims. See
+  `reports/model_selection/experimental_scalar_learning_curve_v1.md`.
+
 - **First loader-ready experimental corpus frozen:** a clean, pushed producer
   revision materialized 2,000 public-mathlib Lean--Lean pairs: 1,000 E2
   intended-same-claim transformations and 1,000 D0 intended-near-miss
