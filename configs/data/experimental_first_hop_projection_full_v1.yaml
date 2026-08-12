@@ -1,0 +1,35 @@
+schema_version: 1
+profile_id: experimental_first_hop_projection_full_v1
+expected_gross_observation_count: 11208
+expected_unique_pair_count: 11208
+expected_counts_by_source:
+  mathlib: 3738
+  sft_classic: 7470
+admitted_source_categories:
+  - mathlib
+  - sft_classic
+e2_positive_families:
+  - p14_independent_binder_permutation
+  - p15_root_iff_reversal
+  - p16_conjunction_reassociation
+  - p17_hypothesis_packing
+  - p18_root_equality_symmetry
+d0_negative_families:
+  - n11_bound_variable_substitution
+  - n12_implication_converse
+  - n13_witness_dependency
+  - n14_negation_scope
+  - n15_conjunct_omission
+  - n16_domain_guard_removal
+  - n17_role_sensitive_arguments
+  - n18_root_equality_polarity
+audit_manifest_sha256: 66245742a30e9fcbf6fdd1c74a3379d130d7269242af76ec56b4d5fa16ed9cae
+audit_gross_observations_sha256: ef4b075011b90fdceab499b2b9bf6c7721697c7eda1baebc420fc71928346bc8
+audit_unique_pairs_sha256: 974c61308072154714a57afbcb511233d65ad5d93c12cc1aca1fd7eff9a5675e
+positive_seed_manifest_sha256: dba3314d4f5e19f08c0115fc0dc7bb265712fd5622c123a60eec4223d2ab0d30
+positive_seed_records_sha256: 5f424037dc4a12495a417f569f7b32d3cb8fccfddb5ef35aafa4bb8482cd6543
+positive_seed_theorems_sha256: 32cfc0210fe1f2a8ed99b88a98e35df6a73476055fdce845fbd1b216ee4a71ec
+positive_seed_representations_sha256: e6d98601cf6dc4459482448ce93b903a5214eb3fff1ce22a4d6474786ca983b9
+benchmark_manifest_sha256: 4ffbd31dd0e10efb9dfe7e57fb815690f3e1d750e4640aeff959ca4cbdc911df
+benchmark_active_registry_sha256: 613441d568b51a231efe653a2622d01e1aa5d7b31eb29d6b6f9ff17bbe30feed
+benchmark_authorization_sha256: 38350f9ccfb9b68490d267f87c44258992331bff4c55f09b48565105b801a344

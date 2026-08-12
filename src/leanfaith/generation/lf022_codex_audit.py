@@ -214,6 +214,27 @@ class LF022CodexAuditManifest(StrictModel):
     gate_credit_claimed: Literal[False] = False
 
 
+class LF022CodexAuditParentBinding(StrictModel):
+    """Verified lineage for item trees copied from one earlier audit root."""
+
+    schema_version: Literal[1] = 1
+    audit_root: str = Field(min_length=1)
+    manifest_sha256: str = Field(pattern=HEX64_PATTERN)
+    checks_sha256: str = Field(pattern=HEX64_PATTERN)
+    response_artifact_set_sha256: str = Field(pattern=HEX64_PATTERN)
+    reused_item_count: int = Field(gt=0, strict=True)
+    ordered_reused_audit_item_ids_sha256: str = Field(pattern=HEX64_PATTERN)
+    copied_item_tree_set_sha256: str = Field(pattern=HEX64_PATTERN)
+
+
+def _parent_binding_id_payloads(
+    bindings: Sequence[LF022CodexAuditParentBinding],
+) -> list[dict[str, object]]:
+    """Remove machine-local locators while retaining all content bindings."""
+
+    return [item.model_dump(mode="json", exclude={"audit_root"}) for item in bindings]
+
+
 class LF022CodexAuditSummaryBucket(StrictModel):
     """Aggregate verdict diagnostics for one proposer or the whole audit."""
 
@@ -263,6 +284,7 @@ class LF022CodexAuditSummary(StrictModel):
     checks_artifact: str
     checks_sha256: str = Field(pattern=HEX64_PATTERN)
     response_artifact_set_sha256: str = Field(pattern=HEX64_PATTERN)
+    parent_audit_bindings: tuple[LF022CodexAuditParentBinding, ...] = ()
     findings_artifact: str
     findings_sha256: str = Field(pattern=HEX64_PATTERN)
     model: str
@@ -305,15 +327,22 @@ class LF022CodexAuditSummary(StrictModel):
             self.completed_judgment_count
         ):
             raise ValueError("proposer-family totals do not reconcile")
-        values = self.model_dump(
-            mode="json",
-            exclude={
-                "summary_id",
-                "audit_manifest",
-                "checks_artifact",
-                "findings_artifact",
-            },
-        )
+        excluded = {
+            "summary_id",
+            "audit_manifest",
+            "checks_artifact",
+            "findings_artifact",
+        }
+        # Preserve validation of summaries created before composite lineage was
+        # supported.  New composite summaries include the nonempty binding in
+        # their content-addressed identity.
+        if not self.parent_audit_bindings:
+            excluded.add("parent_audit_bindings")
+        values = self.model_dump(mode="json", exclude=excluded)
+        if self.parent_audit_bindings:
+            values["parent_audit_bindings"] = _parent_binding_id_payloads(
+                self.parent_audit_bindings
+            )
         expected = make_id("lf022_codex_audit_summary", values)
         if self.summary_id != expected:
             raise ValueError("summary_id does not match summary content")
@@ -394,6 +423,7 @@ class LF022VerifiedCodexAudit:
     items: tuple[LF022CodexAuditInput, ...]
     judgments: tuple[LF022VerifiedCodexAuditJudgment, ...]
     response_artifact_set_sha256: str
+    parent_audit_bindings: tuple[LF022CodexAuditParentBinding, ...] = ()
 
 
 # Compatibility alias for existing internal tests and callers; new code uses the public name.
@@ -545,6 +575,49 @@ def _judge_response_output_schema() -> dict[str, object]:
 def _resolve_artifact(path_text: str, *, repo_root: Path) -> Path:
     path = Path(path_text)
     return path.resolve() if path.is_absolute() else (repo_root / path).resolve()
+
+
+def _regular_tree_inventory(root: Path) -> tuple[dict[str, object], ...]:
+    """Describe one item tree without following links or accepting special files."""
+
+    if root.is_symlink() or not root.is_dir():
+        raise LF022CodexAuditError(f"audit item tree is not a real directory: {root}")
+    entries: list[dict[str, object]] = []
+    for current_text, directory_names, file_names in os.walk(root, followlinks=False):
+        current = Path(current_text)
+        for name in sorted(directory_names):
+            path = current / name
+            if path.is_symlink() or not path.is_dir():
+                raise LF022CodexAuditError(f"audit item tree contains a linked directory: {path}")
+            entries.append(
+                {
+                    "kind": "directory",
+                    "path": path.relative_to(root).as_posix(),
+                }
+            )
+        for name in sorted(file_names):
+            path = current / name
+            if path.is_symlink() or not path.is_file():
+                raise LF022CodexAuditError(f"audit item tree contains a non-file: {path}")
+            entries.append(
+                {
+                    "kind": "file",
+                    "path": path.relative_to(root).as_posix(),
+                    "byte_count": path.stat().st_size,
+                    "sha256": hash_file(path),
+                }
+            )
+    return tuple(sorted(entries, key=lambda item: (cast(str, item["path"]), item["kind"])))
+
+
+def _assert_byte_identical_item_tree(*, copied: Path, parent: Path) -> str:
+    copied_inventory = _regular_tree_inventory(copied)
+    parent_inventory = _regular_tree_inventory(parent)
+    if copied_inventory != parent_inventory:
+        raise LF022CodexAuditError(
+            f"copied audit item tree differs from its declared parent: {copied}"
+        )
+    return hash_canonical(copied_inventory)
 
 
 def _load_variant_for_check(
@@ -1094,6 +1167,7 @@ def _render_summary_markdown(summary: LF022CodexAuditSummary) -> bytes:
         f"- Verified response set SHA-256: `{summary.response_artifact_set_sha256}`",
         f"- Compact findings SHA-256: `{summary.findings_sha256}`",
         f"- Judge: `{summary.model}` with reasoning `{summary.reasoning_effort}`",
+        f"- Explicit parent-audit bindings: {len(summary.parent_audit_bindings)}",
         "",
         "## Mechanical filtering",
         "",
@@ -1148,8 +1222,16 @@ def verify_completed_lf022_codex_audit(
     checks_path: Path,
     audit_root: Path,
     require_complete_clean: bool = True,
+    parent_audit_roots: Sequence[Path] = (),
 ) -> LF022VerifiedCodexAudit:
-    """Replay and verify every completed Codex audit artifact without writing output."""
+    """Replay and verify every completed Codex audit artifact without writing output.
+
+    A copied completed item is accepted only when its original absolute request
+    paths point into an explicitly declared parent audit and its complete item
+    tree is byte-identical to that already independently verified parent item.
+    Merely having stale paths, matching response hashes, or a completed marker
+    is insufficient.
+    """
 
     repo_root = repo_root.resolve()
     checks_path = checks_path.resolve()
@@ -1165,6 +1247,46 @@ def verify_completed_lf022_codex_audit(
         raise LF022CodexAuditError("audit manifest references a different checks artifact")
     if hash_file(checks_path) != manifest.checks_sha256:
         raise LF022CodexAuditError("checks artifact hash differs from audit manifest")
+
+    parent_roots = tuple(sorted({path.resolve() for path in parent_audit_roots}))
+    if len(parent_roots) != len(parent_audit_roots):
+        raise LF022CodexAuditError("parent audit roots must be unique")
+    parent_audits: dict[Path, LF022VerifiedCodexAudit] = {}
+    parent_items: dict[Path, dict[str, LF022CodexAuditInput]] = {}
+    for parent_root in parent_roots:
+        if (
+            parent_root == audit_root
+            or parent_root.is_relative_to(audit_root)
+            or audit_root.is_relative_to(parent_root)
+        ):
+            raise LF022CodexAuditError("parent and child audit roots must be disjoint")
+        parent_manifest_path = parent_root / "manifest.json"
+        if parent_manifest_path.is_symlink() or not parent_manifest_path.is_file():
+            raise LF022CodexAuditError(
+                f"declared parent audit manifest is missing: {parent_manifest_path}"
+            )
+        try:
+            parent_manifest = LF022CodexAuditManifest.model_validate_json(
+                parent_manifest_path.read_bytes()
+            )
+        except ValueError as exc:
+            raise LF022CodexAuditError(
+                f"invalid declared parent audit manifest: {parent_manifest_path}: {exc}"
+            ) from exc
+        parent_checks = _resolve_artifact(parent_manifest.checks_artifact, repo_root=repo_root)
+        parent_verified = verify_completed_lf022_codex_audit(
+            repo_root=repo_root,
+            checks_path=parent_checks,
+            audit_root=parent_root,
+            require_complete_clean=True,
+        )
+        if (
+            parent_verified.manifest.model != manifest.model
+            or parent_verified.manifest.reasoning_effort != manifest.reasoning_effort
+        ):
+            raise LF022CodexAuditError("parent and child audit judge configurations differ")
+        parent_audits[parent_root] = parent_verified
+        parent_items[parent_root] = {item.audit_item_id: item for item in parent_verified.items}
 
     checks = _load_check_inventory(checks_path)
     outcome_counts: dict[str, int] = {
@@ -1213,6 +1335,10 @@ def verify_completed_lf022_codex_audit(
 
     verified: list[LF022VerifiedCodexAuditJudgment] = []
     response_bindings: list[dict[str, object]] = []
+    reused_ids_by_parent: dict[Path, list[str]] = {root: [] for root in parent_roots}
+    copied_tree_bindings_by_parent: dict[Path, list[dict[str, str]]] = {
+        root: [] for root in parent_roots
+    }
     for completed_path in sorted(expected_completed_paths):
         item = expected_completed_paths[completed_path]
         check = checks_by_id.get(item.lean_check_id)
@@ -1246,9 +1372,49 @@ def verify_completed_lf022_codex_audit(
         ):
             raise LF022CodexAuditError(f"prompt replay mismatch: {item_dir}")
         schema_path = _request_path_argument(request.argv, "--output-schema")
-        final_path = _request_path_argument(request.argv, "-o")
-        if final_path != (attempt_dir / "final_message.json").resolve():
-            raise LF022CodexAuditError(f"request final-message path mismatch: {attempt_dir}")
+        requested_final_path = _request_path_argument(request.argv, "-o")
+        expected_current_final = (attempt_dir / "final_message.json").resolve()
+        expected_current_schema = (
+            audit_root / "schemas" / f"judge_response.{request.output_schema_sha256}.schema.json"
+        ).resolve()
+        if requested_final_path == expected_current_final:
+            if schema_path != expected_current_schema:
+                raise LF022CodexAuditError(f"request response-schema path mismatch: {attempt_dir}")
+        else:
+            matching_parents: list[Path] = []
+            for parent_root in parent_roots:
+                if item.audit_item_id not in parent_items[parent_root]:
+                    continue
+                parent_item_dir = _item_dir(parent_root, item.audit_item_id)
+                parent_attempt_dir = parent_item_dir / "attempts" / f"{terminal.attempt_index:04d}"
+                expected_parent_final = (parent_attempt_dir / "final_message.json").resolve()
+                expected_parent_schema = (
+                    parent_root
+                    / "schemas"
+                    / f"judge_response.{request.output_schema_sha256}.schema.json"
+                ).resolve()
+                if (
+                    requested_final_path == expected_parent_final
+                    and schema_path == expected_parent_schema
+                ):
+                    matching_parents.append(parent_root)
+            if len(matching_parents) != 1:
+                raise LF022CodexAuditError(
+                    f"request paths do not bind exactly one declared parent audit: {attempt_dir}"
+                )
+            parent_root = matching_parents[0]
+            parent_item_dir = _item_dir(parent_root, item.audit_item_id)
+            copied_tree_sha256 = _assert_byte_identical_item_tree(
+                copied=item_dir,
+                parent=parent_item_dir,
+            )
+            reused_ids_by_parent[parent_root].append(item.audit_item_id)
+            copied_tree_bindings_by_parent[parent_root].append(
+                {
+                    "audit_item_id": item.audit_item_id,
+                    "copied_item_tree_sha256": copied_tree_sha256,
+                }
+            )
         if hash_file(schema_path) != request.output_schema_sha256:
             raise LF022CodexAuditError(f"response schema hash mismatch: {attempt_dir}")
         stdout_path = attempt_dir / "stdout.jsonl"
@@ -1292,6 +1458,28 @@ def verify_completed_lf022_codex_audit(
                 "parsed_response_sha256": verified_item.parsed_response_sha256,
             }
         )
+    parent_bindings: list[LF022CodexAuditParentBinding] = []
+    for parent_root in parent_roots:
+        reused_ids = reused_ids_by_parent[parent_root]
+        if not reused_ids:
+            raise LF022CodexAuditError(f"declared parent audit was not used: {parent_root}")
+        parent_verified = parent_audits[parent_root]
+        parent_bindings.append(
+            LF022CodexAuditParentBinding(
+                audit_root=str(parent_root),
+                manifest_sha256=hash_file(parent_verified.manifest_path),
+                checks_sha256=parent_verified.manifest.checks_sha256,
+                response_artifact_set_sha256=(parent_verified.response_artifact_set_sha256),
+                reused_item_count=len(reused_ids),
+                ordered_reused_audit_item_ids_sha256=hash_canonical(reused_ids),
+                copied_item_tree_set_sha256=hash_canonical(
+                    copied_tree_bindings_by_parent[parent_root]
+                ),
+            )
+        )
+    parent_bound_count = sum(item.reused_item_count for item in parent_bindings)
+    if parent_bound_count > manifest.reused_count:
+        raise LF022CodexAuditError("parent-bound copied item count exceeds manifest reused count")
     return LF022VerifiedCodexAudit(
         manifest=manifest,
         manifest_path=manifest_path,
@@ -1300,6 +1488,7 @@ def verify_completed_lf022_codex_audit(
         items=items,
         judgments=tuple(verified),
         response_artifact_set_sha256=hash_canonical(response_bindings),
+        parent_audit_bindings=tuple(parent_bindings),
     )
 
 
@@ -1311,6 +1500,7 @@ def summarize_completed_lf022_codex_audit(
     output_json_path: Path,
     output_markdown_path: Path,
     output_findings_path: Path,
+    parent_audit_roots: Sequence[Path] = (),
 ) -> LF022CodexAuditSummaryResult:
     """Verify every completed audit artifact and write a diagnostic-only summary."""
 
@@ -1330,6 +1520,7 @@ def summarize_completed_lf022_codex_audit(
         repo_root=repo_root,
         checks_path=checks_path,
         audit_root=audit_root,
+        parent_audit_roots=parent_audit_roots,
     )
     manifest = verified_audit.manifest
     manifest_path = verified_audit.manifest_path
@@ -1378,17 +1569,23 @@ def summarize_completed_lf022_codex_audit(
         "evaluation_eligible": False,
         "gate_credit_claimed": False,
     }
+    if verified_audit.parent_audit_bindings:
+        values["parent_audit_bindings"] = [
+            item.model_dump(mode="json") for item in verified_audit.parent_audit_bindings
+        ]
+    identity_values = {
+        key: value
+        for key, value in values.items()
+        if key not in {"audit_manifest", "checks_artifact", "findings_artifact"}
+    }
+    if verified_audit.parent_audit_bindings:
+        identity_values["parent_audit_bindings"] = _parent_binding_id_payloads(
+            verified_audit.parent_audit_bindings
+        )
     summary = LF022CodexAuditSummary.model_validate(
         {
             **values,
-            "summary_id": make_id(
-                "lf022_codex_audit_summary",
-                {
-                    key: value
-                    for key, value in values.items()
-                    if key not in {"audit_manifest", "checks_artifact", "findings_artifact"}
-                },
-            ),
+            "summary_id": make_id("lf022_codex_audit_summary", identity_values),
         }
     )
     _write_atomic(output_findings_path, findings_bytes)
@@ -1409,6 +1606,7 @@ __all__ = [
     "LF022CodexAuditFinding",
     "LF022CodexAuditInput",
     "LF022CodexAuditManifest",
+    "LF022CodexAuditParentBinding",
     "LF022CodexAuditPrivacyError",
     "LF022CodexAuditRunResult",
     "LF022CodexAuditSummary",

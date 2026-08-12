@@ -4938,6 +4938,16 @@ def summarize_lf022_codex_audit_command(
             help="Destination for compact audit-only per-pair findings.",
         ),
     ] = Path("reports/generation/lf022_codex_audit_findings.jsonl"),
+    parent_audit_root: Annotated[
+        list[Path] | None,
+        typer.Option(
+            "--parent-audit-root",
+            help=(
+                "Explicit immutable parent audit for copied completed items; "
+                "repeat for composite audits."
+            ),
+        ),
+    ] = None,
     root_dir: Annotated[
         Path | None,
         typer.Option("--root", help="Repository root override."),
@@ -4963,6 +4973,7 @@ def summarize_lf022_codex_audit_command(
             output_json_path=anchored(output_json),
             output_markdown_path=anchored(output_markdown),
             output_findings_path=anchored(output_findings),
+            parent_audit_roots=tuple(anchored(path) for path in (parent_audit_root or [])),
         )
     except (LF022CodexAuditError, OSError, ValueError) as exc:
         typer.echo(f"LF-022 Codex audit summary rejected: {exc}", err=True)
@@ -7294,6 +7305,312 @@ def freeze_experimental_machine_supervision_command(
         f"dataset={artifacts.dataset_id} records={artifacts.record_count} "
         f"replayed={str(artifacts.replayed).lower()} manifest={artifacts.manifest_path} "
         "scientific_training_eligible=false evaluation_eligible=false"
+    )
+
+
+@app.command("freeze-experimental-first-hop-projection")
+def freeze_experimental_first_hop_projection_command(
+    audit_dir: Annotated[
+        Path,
+        typer.Option(
+            "--audit-dir",
+            help="Frozen deterministic provisional-pair audit directory.",
+        ),
+    ],
+    positive_seed_dir: Annotated[
+        Path,
+        typer.Option(
+            "--positive-seed-dir",
+            help="Frozen certificate-backed E2 composition-seed directory.",
+        ),
+    ],
+    output_dir: Annotated[
+        Path,
+        typer.Option(
+            "--output-dir",
+            help=(
+                "Absolute external directory for a new immutable projection, "
+                "or an exact prior replay."
+            ),
+        ),
+    ],
+    config_path: Annotated[
+        Path | None,
+        typer.Option("--config", help="Pinned full first-hop projection policy."),
+    ] = None,
+    root_dir: Annotated[
+        Path | None,
+        typer.Option("--root", help="Repository root override."),
+    ] = None,
+) -> None:
+    """Replay and freeze the complete deterministic first-hop inventory."""
+    from leanfaith.config.loading import load_config
+    from leanfaith.config.paths import RepoPaths
+    from leanfaith.datasets.experimental_first_hop_projection import (
+        ExperimentalFirstHopProjectionConfig,
+        ExperimentalFirstHopProjectionError,
+        freeze_experimental_first_hop_projection,
+    )
+
+    paths = RepoPaths.discover(root_dir) if root_dir is None else RepoPaths(root=root_dir)
+
+    def anchored(path: Path) -> Path:
+        return path if path.is_absolute() else paths.root / path
+
+    selected_config = (
+        paths.root / "configs/data/experimental_first_hop_projection_full_v1.yaml"
+        if config_path is None
+        else anchored(config_path)
+    )
+    try:
+        if not output_dir.is_absolute():
+            raise ValueError("--output-dir must be an absolute path outside the repository")
+        loaded = load_config(selected_config, ExperimentalFirstHopProjectionConfig)
+        artifacts = freeze_experimental_first_hop_projection(
+            repo_root=paths.root,
+            audit_dir=anchored(audit_dir),
+            positive_seed_dir=anchored(positive_seed_dir),
+            output_dir=output_dir,
+            config=loaded.config,
+            config_hash=loaded.config_hash,
+        )
+    except (OSError, ValueError, ExperimentalFirstHopProjectionError) as exc:
+        typer.echo(f"experimental first-hop projection rejected: {exc}", err=True)
+        raise typer.Exit(code=1) from exc
+    typer.echo(
+        "experimental first-hop projection ready; "
+        f"projection={artifacts.projection_id} inventory={artifacts.inventory_count} "
+        f"selectable={artifacts.selectable_count} "
+        f"replayed={str(artifacts.replayed).lower()} manifest={artifacts.manifest_path} "
+        "semantic_labels_created=false scientific_training_eligible=false"
+    )
+
+
+@app.command("verify-experimental-first-hop-projection")
+def verify_experimental_first_hop_projection_command(
+    output_dir: Annotated[
+        Path,
+        typer.Option("--output-dir", help="Frozen first-hop projection directory."),
+    ],
+    skip_external_inputs: Annotated[
+        bool,
+        typer.Option(
+            "--skip-external-inputs",
+            help="Verify projection bytes without re-reading external lineage inputs.",
+        ),
+    ] = False,
+) -> None:
+    """Verify a full first-hop projection without Lean or model calls."""
+    from leanfaith.datasets.experimental_first_hop_projection import (
+        ExperimentalFirstHopProjectionError,
+        verify_experimental_first_hop_projection,
+    )
+
+    try:
+        manifest = verify_experimental_first_hop_projection(
+            output_dir,
+            verify_external_inputs=not skip_external_inputs,
+        )
+    except (OSError, ValueError, ExperimentalFirstHopProjectionError) as exc:
+        typer.echo(f"experimental first-hop verification failed: {exc}", err=True)
+        raise typer.Exit(code=1) from exc
+    typer.echo(
+        "experimental first-hop projection verified; "
+        f"projection={manifest.projection_id} inventory={manifest.inventory_count} "
+        f"selectable={manifest.selectable_count} "
+        "semantic_labels_created=false scientific_training_eligible=false"
+    )
+
+
+@app.command("freeze-experimental-mixed-supervision")
+def freeze_experimental_mixed_supervision_command(
+    output_dir: Annotated[
+        Path,
+        typer.Option(
+            "--output-dir",
+            help="Absolute external directory for the new immutable mixed corpus.",
+        ),
+    ],
+    first_hop_projection_dir: Annotated[
+        Path,
+        typer.Option(
+            "--first-hop-projection-dir",
+            help="Verified deterministic first-hop projection directory.",
+        ),
+    ],
+    audit_spec_path: Annotated[
+        Path,
+        typer.Option(
+            "--audit-spec",
+            help=(
+                "JSON file containing a list of LF-022 audit objects with name, "
+                "repo_root, checks_path, audit_root, and optional parent_audit_roots."
+            ),
+        ),
+    ],
+    source_theorem_path: Annotated[
+        list[Path],
+        typer.Option(
+            "--source-theorems",
+            help="Canonical theorem JSONL partition; repeat as needed.",
+        ),
+    ],
+    source_representation_path: Annotated[
+        list[Path],
+        typer.Option(
+            "--source-representations",
+            help="Canonical representation JSONL partition; repeat as needed.",
+        ),
+    ],
+    config_path: Annotated[
+        Path | None,
+        typer.Option("--config", help="Pinned mixed-supervision policy."),
+    ] = None,
+    benchmark_manifest_path: Annotated[
+        Path | None,
+        typer.Option("--benchmark-manifest", help="Benchmark-registry manifest override."),
+    ] = None,
+    benchmark_manifest_sha256: Annotated[
+        str | None,
+        typer.Option(
+            "--benchmark-manifest-sha256",
+            help="Expected registry-manifest hash when authorization is not used.",
+        ),
+    ] = None,
+    benchmark_authorization_path: Annotated[
+        Path | None,
+        typer.Option(
+            "--benchmark-authorization",
+            help="LF-016 authorization override for the active benchmark registry.",
+        ),
+    ] = None,
+    root_dir: Annotated[
+        Path | None,
+        typer.Option("--root", help="Repository root override."),
+    ] = None,
+) -> None:
+    """Verify every source and freeze the first-hop plus LF-022 proxy corpus."""
+    from pydantic import BaseModel, ConfigDict, Field
+
+    from leanfaith.config.paths import RepoPaths
+    from leanfaith.datasets.experimental_mixed_supervision import (
+        ExperimentalMixedSupervisionError,
+    )
+    from leanfaith.datasets.experimental_mixed_supervision_orchestration import (
+        ExperimentalLF022AuditSource,
+        freeze_experimental_mixed_supervision_from_artifacts,
+    )
+
+    class AuditSpec(BaseModel):
+        model_config = ConfigDict(extra="forbid", frozen=True)
+
+        name: str = Field(min_length=1)
+        repo_root: Path
+        checks_path: Path
+        audit_root: Path
+        parent_audit_roots: tuple[Path, ...] = ()
+
+    paths = RepoPaths.discover(root_dir) if root_dir is None else RepoPaths(root=root_dir)
+
+    def anchored(path: Path, *, base: Path | None = None) -> Path:
+        if path.is_absolute():
+            return path
+        return (base or paths.root) / path
+
+    selected_config = (
+        paths.root / "configs/data/experimental_mixed_supervision_firsthop_lf022_v1.yaml"
+        if config_path is None
+        else anchored(config_path)
+    )
+    try:
+        if not output_dir.is_absolute():
+            raise ValueError("--output-dir must be an absolute path outside the repository")
+        raw_specs = json.loads(anchored(audit_spec_path).read_text(encoding="utf-8"))
+        if not isinstance(raw_specs, list) or not raw_specs:
+            raise ValueError("audit spec must be a nonempty JSON list")
+        parsed_specs = tuple(AuditSpec.model_validate(value) for value in raw_specs)
+        audits = tuple(
+            ExperimentalLF022AuditSource(
+                name=spec.name,
+                repo_root=anchored(spec.repo_root),
+                checks_path=anchored(spec.checks_path, base=anchored(spec.repo_root)),
+                audit_root=anchored(spec.audit_root, base=anchored(spec.repo_root)),
+                parent_audit_roots=tuple(
+                    anchored(value, base=anchored(spec.repo_root))
+                    for value in spec.parent_audit_roots
+                ),
+            )
+            for spec in parsed_specs
+        )
+        result = freeze_experimental_mixed_supervision_from_artifacts(
+            repo_root=paths.root,
+            output_dir=output_dir,
+            config_path=selected_config,
+            first_hop_projection_dir=anchored(first_hop_projection_dir),
+            lf022_audits=audits,
+            source_theorem_paths=tuple(anchored(path) for path in source_theorem_path),
+            source_representation_paths=tuple(
+                anchored(path) for path in source_representation_path
+            ),
+            benchmark_manifest_path=(
+                None if benchmark_manifest_path is None else anchored(benchmark_manifest_path)
+            ),
+            benchmark_expected_manifest_sha256=benchmark_manifest_sha256,
+            benchmark_authorization_path=(
+                None
+                if benchmark_authorization_path is None
+                else anchored(benchmark_authorization_path)
+            ),
+        )
+    except (OSError, ValueError, ExperimentalMixedSupervisionError) as exc:
+        typer.echo(f"experimental mixed-supervision freeze rejected: {exc}", err=True)
+        raise typer.Exit(code=1) from exc
+    artifacts = result.artifacts
+    typer.echo(
+        "experimental mixed-supervision corpus ready; "
+        f"dataset={artifacts.dataset_id} records={artifacts.record_count} "
+        f"excluded={artifacts.exclusion_count} "
+        f"first_hop_candidates={result.first_hop_candidate_count} "
+        f"lf022_candidates={result.lf022_candidate_count} "
+        f"lf022_judgments={result.lf022_judgment_count} "
+        f"replayed={str(artifacts.replayed).lower()} manifest={artifacts.manifest_path} "
+        "proxy_only=true scientific_training_eligible=false evaluation_eligible=false"
+    )
+
+
+@app.command("verify-experimental-mixed-supervision")
+def verify_experimental_mixed_supervision_command(
+    output_dir: Annotated[
+        Path,
+        typer.Option("--output-dir", help="Frozen mixed-supervision corpus directory."),
+    ],
+    skip_external_inputs: Annotated[
+        bool,
+        typer.Option(
+            "--skip-external-inputs",
+            help="Verify corpus bytes without re-reading external lineage inputs.",
+        ),
+    ] = False,
+) -> None:
+    """Verify mixed-corpus hashes, ancestry splits, and source bindings."""
+    from leanfaith.datasets.experimental_mixed_supervision import (
+        ExperimentalMixedSupervisionError,
+        verify_experimental_mixed_supervision,
+    )
+
+    try:
+        manifest = verify_experimental_mixed_supervision(
+            output_dir,
+            verify_external_inputs=not skip_external_inputs,
+        )
+    except (OSError, ValueError, ExperimentalMixedSupervisionError) as exc:
+        typer.echo(f"experimental mixed-supervision verification failed: {exc}", err=True)
+        raise typer.Exit(code=1) from exc
+    typer.echo(
+        "experimental mixed-supervision corpus verified; "
+        f"dataset={manifest.dataset_id} records={manifest.record_count} "
+        f"excluded={manifest.exclusion_count} components={manifest.component_count} "
+        "proxy_only=true scientific_training_eligible=false evaluation_eligible=false"
     )
 
 

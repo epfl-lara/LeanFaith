@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import shutil
 from collections.abc import Sequence
 from pathlib import Path
 from types import SimpleNamespace
@@ -423,4 +424,82 @@ def test_completed_verifier_rejects_noncanonical_completed_path(
             repo_root=tmp_path,
             checks_path=checks_path,
             audit_root=audit_root,
+        )
+
+
+def test_composite_verifier_requires_and_binds_byte_identical_parent_items(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    item = _input()
+    parent_checks = tmp_path / "parent-checks" / "checks.jsonl"
+    child_checks = tmp_path / "child-checks" / "checks.jsonl"
+    parent_checks.parent.mkdir()
+    child_checks.parent.mkdir()
+    parent_checks.write_text("{}\n", encoding="utf-8")
+    child_checks.write_text("{}\n", encoding="utf-8")
+    parent_root = tmp_path / "parent-audit"
+    child_root = tmp_path / "child-audit"
+    monkeypatch.setattr(audit, "load_lean_valid_audit_inputs", lambda **_kwargs: (item,))
+    executor = FakeExecutor(
+        [ProcessCapture("completed", 0, b'{"type":"turn.completed"}\n', b"", _response())]
+    )
+    audit.audit_lean_valid_lf022_pairs(
+        repo_root=tmp_path,
+        checks_path=parent_checks,
+        output_root=parent_root,
+        executor=executor,
+    )
+    parent_item = audit._item_dir(parent_root, item.audit_item_id)
+    copied_item = audit._item_dir(child_root, item.audit_item_id)
+    copied_item.parent.mkdir(parents=True)
+    shutil.copytree(parent_item, copied_item)
+    child_run = audit.audit_lean_valid_lf022_pairs(
+        repo_root=tmp_path,
+        checks_path=child_checks,
+        output_root=child_root,
+        executor=FakeExecutor([]),
+    )
+    assert child_run.manifest.reused_count == 1
+    check = SimpleNamespace(check_id=item.lean_check_id, outcome="elaborates")
+    monkeypatch.setattr(audit, "_load_check_inventory", lambda _path: (check,))
+    monkeypatch.setattr(audit, "_proposer_family_for_check", lambda *_args, **_kwargs: "qwen3")
+
+    with pytest.raises(audit.LF022CodexAuditError, match="declared parent audit"):
+        audit.verify_completed_lf022_codex_audit(
+            repo_root=tmp_path,
+            checks_path=child_checks,
+            audit_root=child_root,
+        )
+
+    verified = audit.verify_completed_lf022_codex_audit(
+        repo_root=tmp_path,
+        checks_path=child_checks,
+        audit_root=child_root,
+        parent_audit_roots=(parent_root,),
+    )
+    assert len(verified.judgments) == 1
+    assert len(verified.parent_audit_bindings) == 1
+    binding = verified.parent_audit_bindings[0]
+    assert binding.audit_root == str(parent_root.resolve())
+    assert binding.reused_item_count == 1
+    assert binding.manifest_sha256 == audit.hash_file(parent_root / "manifest.json")
+
+    summary = audit.summarize_completed_lf022_codex_audit(
+        repo_root=tmp_path,
+        checks_path=child_checks,
+        audit_root=child_root,
+        output_json_path=tmp_path / "summary" / "summary.json",
+        output_markdown_path=tmp_path / "summary" / "summary.md",
+        output_findings_path=tmp_path / "summary" / "findings.jsonl",
+        parent_audit_roots=(parent_root,),
+    ).summary
+    assert summary.parent_audit_bindings == verified.parent_audit_bindings
+
+    (copied_item / "unbound-extra.txt").write_text("not in parent\n", encoding="utf-8")
+    with pytest.raises(audit.LF022CodexAuditError, match="copied audit item tree differs"):
+        audit.verify_completed_lf022_codex_audit(
+            repo_root=tmp_path,
+            checks_path=child_checks,
+            audit_root=child_root,
+            parent_audit_roots=(parent_root,),
         )
