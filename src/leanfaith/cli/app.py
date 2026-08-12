@@ -4070,6 +4070,69 @@ def prepare_deterministic_composition_polarity_frontier_command(
     )
 
 
+@app.command("audit-deterministic-composition-third-hop")
+def audit_deterministic_composition_third_hop_command(
+    frontier_dir: Annotated[
+        Path,
+        typer.Option("--frontier-dir", help="Exact immutable positive-only frontier directory."),
+    ],
+    unique_pair_dir: Annotated[
+        Path,
+        typer.Option(
+            "--unique-pair-dir",
+            help="Exact immutable unique-pair artifact cryptographically bound by the frontier.",
+        ),
+    ],
+    third_hop_roots: Annotated[
+        list[Path],
+        typer.Option(
+            "--third-hop-root",
+            "-r",
+            help="Completed frontier-bound E2 root; repeat exactly once for P14 through P18.",
+        ),
+    ],
+    output_dir: Annotated[
+        Path,
+        typer.Option("--output-dir", help="New immutable depth-three audit directory."),
+    ],
+    root_dir: Annotated[
+        Path | None,
+        typer.Option("--root", help="Repository root override."),
+    ] = None,
+) -> None:
+    """Bind and deduplicate the five positive-only third-hop results."""
+    from leanfaith.config.paths import RepoPaths
+    from leanfaith.transforms.composition_third_hop import (
+        CompositionThirdHopError,
+        audit_deterministic_v2_composition_third_hop,
+    )
+
+    paths = RepoPaths.discover(root_dir) if root_dir is None else RepoPaths(root=root_dir)
+
+    def anchored(path: Path) -> Path:
+        return path if path.is_absolute() else paths.root / path
+
+    try:
+        artifacts = audit_deterministic_v2_composition_third_hop(
+            frontier_dir=anchored(frontier_dir),
+            unique_pair_dir=anchored(unique_pair_dir),
+            third_hop_roots=[anchored(path) for path in third_hop_roots],
+            output_dir=anchored(output_dir),
+        )
+    except (CompositionThirdHopError, OSError, ValueError) as exc:
+        typer.echo(f"Deterministic composition third-hop audit rejected: {exc}", err=True)
+        raise typer.Exit(code=2) from exc
+    typer.echo(
+        f"third_hop_set_id={artifacts.third_hop_set_id} "
+        f"gross_chains={artifacts.gross_chain_count} "
+        f"unique_pairs={artifacts.unique_pair_count} "
+        f"quarantined_chains={artifacts.quarantine_count} "
+        f"status={'replayed' if artifacts.replayed else 'audited'} "
+        "semantic_labels_created=0 promoted_items=0 training_eligible=false "
+        "evaluation_eligible=false gate_credit=false"
+    )
+
+
 @app.command("export-deterministic-composition-receipt")
 def export_deterministic_composition_receipt_command(
     full_run_root: Annotated[
