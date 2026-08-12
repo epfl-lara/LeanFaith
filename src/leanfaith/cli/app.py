@@ -8417,6 +8417,169 @@ def verify_m0_training_command(
     )
 
 
+@app.command("train-m1-proxy")
+def train_m1_proxy_command(
+    prepared_input_dir: Annotated[
+        Path, typer.Option("--prepared-input-dir", help="Verified frozen M0 proxy inputs.")
+    ],
+    tokenizer_audit_dir: Annotated[
+        Path, typer.Option("--tokenizer-audit-dir", help="Exact completed tokenizer audit.")
+    ],
+    checkpoint_dir: Annotated[
+        Path, typer.Option("--checkpoint-dir", help="Exact pinned local model snapshot.")
+    ],
+    output_dir: Annotated[Path, typer.Option("--output-dir", help="Immutable M1 output.")],
+    config_path: Annotated[
+        Path | None, typer.Option("--config", help="Frozen M1 proxy protocol config.")
+    ] = None,
+    device: Annotated[
+        str, typer.Option("--device", help="Torch device, for example cuda.")
+    ] = "cpu",
+    root_dir: Annotated[
+        Path | None, typer.Option("--root", help="Repository root override.")
+    ] = None,
+    allow_experimental_mixed_supervision: Annotated[
+        bool,
+        typer.Option(
+            "--allow-experimental-mixed-supervision",
+            help="Acknowledge proxy-only non-scientific training.",
+        ),
+    ] = False,
+) -> None:
+    """Execute one packed cross-encoder epoch over exact M0 proxy inputs."""
+    from leanfaith.config.paths import RepoPaths
+    from leanfaith.models.m0_dual_encoder import (
+        ExperimentalM0ProxyError,
+        bind_local_modernbert_checkpoint,
+        verify_experimental_m0_proxy_inputs,
+    )
+    from leanfaith.models.m1_cross_encoder import (
+        ExperimentalM1ProxyError,
+        load_experimental_m1_proxy_config,
+        train_m1_proxy_one_epoch,
+    )
+    from leanfaith.models.tokenizer_audit import verify_tokenizer_audit
+
+    paths = RepoPaths.discover(root_dir) if root_dir is None else RepoPaths(root=root_dir)
+    selected_config = config_path or Path(
+        "configs/models/experimental_m1_cross_encoder_proxy_v1.yaml"
+    )
+    if not selected_config.is_absolute():
+        selected_config = paths.root / selected_config
+    try:
+        for path in (prepared_input_dir, tokenizer_audit_dir, checkpoint_dir, output_dir):
+            if not path.is_absolute():
+                raise ValueError("all M1 artifact paths must be absolute")
+        prepared = verify_experimental_m0_proxy_inputs(prepared_input_dir)
+        audit = verify_tokenizer_audit(tokenizer_audit_dir, replay=False)
+        snapshot = audit.snapshots[prepared.tokenizer_decision.candidate_key]
+        checkpoint = bind_local_modernbert_checkpoint(
+            checkpoint_dir,
+            protocol=prepared.protocol,
+            audited_tokenizer_snapshot=snapshot,
+        )
+        protocol = load_experimental_m1_proxy_config(selected_config).config
+        artifacts = train_m1_proxy_one_epoch(
+            repository_root=paths.root,
+            prepared_input_dir=prepared_input_dir,
+            output_dir=output_dir,
+            checkpoint=checkpoint,
+            audited_tokenizer_snapshot=snapshot,
+            protocol=protocol,
+            allow_experimental_mixed_supervision=allow_experimental_mixed_supervision,
+            device=device,
+        )
+    except (
+        KeyError,
+        OSError,
+        ValueError,
+        ExperimentalM0ProxyError,
+        ExperimentalM1ProxyError,
+    ) as exc:
+        typer.echo(f"M1 proxy training rejected: {exc}", err=True)
+        raise typer.Exit(code=1) from exc
+    typer.echo(
+        f"M1 proxy training ready; artifact={artifacts.artifact_id} "
+        f"steps={artifacts.optimizer_steps} exposed={artifacts.examples_exposed} "
+        f"replayed={str(artifacts.replayed).lower()} semantic_prediction=false"
+    )
+
+
+@app.command("verify-m1-training")
+def verify_m1_training_command(
+    output_dir: Annotated[Path, typer.Option("--output-dir", help="Frozen M1 output.")],
+    prepared_input_dir: Annotated[
+        Path, typer.Option("--prepared-input-dir", help="Exact frozen M0 proxy inputs.")
+    ],
+    tokenizer_audit_dir: Annotated[
+        Path, typer.Option("--tokenizer-audit-dir", help="Exact completed tokenizer audit.")
+    ],
+    checkpoint_dir: Annotated[
+        Path, typer.Option("--checkpoint-dir", help="Exact pinned local model snapshot.")
+    ],
+    config_path: Annotated[
+        Path | None, typer.Option("--config", help="Frozen M1 proxy protocol config.")
+    ] = None,
+    root_dir: Annotated[
+        Path | None, typer.Option("--root", help="Repository root override.")
+    ] = None,
+) -> None:
+    """Verify M1 bytes against exact code, inputs, tokenizer, and checkpoint."""
+    from leanfaith.config.paths import RepoPaths
+    from leanfaith.models.m0_dual_encoder import (
+        ExperimentalM0ProxyError,
+        bind_local_modernbert_checkpoint,
+        verify_experimental_m0_proxy_inputs,
+    )
+    from leanfaith.models.m1_cross_encoder import (
+        ExperimentalM1ProxyError,
+        load_experimental_m1_proxy_config,
+        verify_m1_proxy_training,
+    )
+    from leanfaith.models.tokenizer_audit import verify_tokenizer_audit
+
+    paths = RepoPaths.discover(root_dir) if root_dir is None else RepoPaths(root=root_dir)
+    selected_config = config_path or Path(
+        "configs/models/experimental_m1_cross_encoder_proxy_v1.yaml"
+    )
+    if not selected_config.is_absolute():
+        selected_config = paths.root / selected_config
+    try:
+        for path in (output_dir, prepared_input_dir, tokenizer_audit_dir, checkpoint_dir):
+            if not path.is_absolute():
+                raise ValueError("all M1 artifact paths must be absolute")
+        prepared = verify_experimental_m0_proxy_inputs(prepared_input_dir)
+        audit = verify_tokenizer_audit(tokenizer_audit_dir, replay=False)
+        snapshot = audit.snapshots[prepared.tokenizer_decision.candidate_key]
+        checkpoint = bind_local_modernbert_checkpoint(
+            checkpoint_dir,
+            protocol=prepared.protocol,
+            audited_tokenizer_snapshot=snapshot,
+        )
+        protocol = load_experimental_m1_proxy_config(selected_config).config
+        manifest = verify_m1_proxy_training(
+            output_dir,
+            repository_root=paths.root,
+            prepared_input_dir=prepared_input_dir,
+            checkpoint=checkpoint,
+            audited_tokenizer_snapshot=snapshot,
+            protocol=protocol,
+        )
+    except (
+        KeyError,
+        OSError,
+        ValueError,
+        ExperimentalM0ProxyError,
+        ExperimentalM1ProxyError,
+    ) as exc:
+        typer.echo(f"M1 training verification failed: {exc}", err=True)
+        raise typer.Exit(code=1) from exc
+    typer.echo(
+        f"M1 proxy training verified; artifact={manifest.artifact_id} "
+        f"steps={manifest.optimizer_steps} semantic_prediction=false"
+    )
+
+
 def main() -> None:
     app()
 

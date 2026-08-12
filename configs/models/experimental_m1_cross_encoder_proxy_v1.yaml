@@ -1,0 +1,63 @@
+schema_version: 1
+profile_id: experimental_m1_cross_encoder_proxy_v1
+protocol_status: frozen_proxy_diagnostic
+required_opt_in_flag: --allow-experimental-mixed-supervision
+target_basis: mixed_machine_proxy
+semantic_prediction: false
+scientific_training_eligible: false
+model_selection_eligible: false
+calibration_eligible: false
+evaluation_eligible: false
+gate_credit: false
+release_claim_eligible: false
+tokenizer_audit_profile_id: gate3_repr_v3_backbone_tokenizer_audit_v1
+backbone_registry_path: configs/models/backbone_registry.yaml
+backbone_registry_sha256: 185dfc070acaf68440a7f4158298c0845147e556a3948e5fece3f1a895f890c4
+backbone:
+  candidate_key: modernbert_base
+  model_id: answerdotai/ModernBERT-base
+  revision: 8949b909ec900327062f0ebf497f51aef5e6f0c8
+  local_files_only: true
+  trust_remote_code: false
+  scientific_winner_claimed: false
+  hf_snapshot_api_url: https://huggingface.co/api/models/answerdotai/ModernBERT-base/tree/8949b909ec900327062f0ebf497f51aef5e6f0c8?recursive=true&expand=true
+  weight_filename: model.safetensors
+  weight_sha256: 340ac08b74eef0d7bdec2d7981a6a3d4249bf0e6aab60634b72ad02c2b8023a9
+  weight_byte_count: 598635032
+  receipt_basis: pinned_huggingface_lfs_sha256_v1
+architecture:
+  architecture: packed_cross_encoder_mean_pool_v1
+  input_profile: tagged_headless_pair_v1
+  reference_tag: "[REFERENCE]"
+  candidate_tag: "[CANDIDATE]"
+  packing_order: reference_then_candidate
+  pooling: attention_masked_mean
+  head: single_linear_logit
+  encoder_instances: 1
+  encoder_calls_per_pair: 1
+  same_claim_only: true
+  ambiguity_head_enabled: false
+  relation_head_enabled: false
+  auxiliary_heads_enabled: false
+training:
+  purpose: proxy_diagnostics
+  training_split: train
+  diagnostic_splits: [validation, test]
+  training_record_policy: deterministic_max4_per_ancestry_without_replacement_v1
+  split_policy: frozen_ancestry_component_atomic
+  max_unique_variants_per_ancestry: 4
+  duplicate_policy: record_id_unique_no_oversampling
+  target_balance_policy: exact_equal_count_per_complete_batch_v1
+  loss_weighting: ancestry_total_one_v1
+  loss_normalization: fixed_epoch_ancestry_mean_v1
+  positive_fraction_per_batch: 0.5
+  optimizer: AdamW
+  learning_rate: 0.00001
+  weight_decay: 0.01
+  batch_size: 32
+  microbatch_size: 4
+  gradient_accumulation_steps: 8
+  epochs: 1
+  seed: 1729
+  hyperparameter_tuning: false
+  checkpoint_selection: false
