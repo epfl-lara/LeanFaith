@@ -21,6 +21,7 @@ import mmap
 import os
 import shutil
 import signal
+import stat
 import subprocess
 import tempfile
 from collections import Counter
@@ -497,10 +498,149 @@ def _safe_relative(value: str, *, field: str) -> str:
     return value
 
 
+def _lexical_absolute(path: Path) -> Path:
+    """Make ``path`` absolute without following filesystem links."""
+
+    return Path(os.path.abspath(os.fspath(path)))
+
+
+def _reject_symlink_components(
+    path: Path,
+    *,
+    label: str,
+    allow_missing: bool,
+) -> Path:
+    """Reject direct and ancestor symlinks without resolving them first."""
+
+    absolute = _lexical_absolute(path)
+    current = Path(absolute.anchor)
+    for index, part in enumerate(absolute.parts[1:], start=1):
+        current /= part
+        try:
+            metadata = os.lstat(current)
+        except FileNotFoundError:
+            if allow_missing:
+                break
+            raise LF022CodexProposerError(f"{label} is missing: {current}") from None
+        except OSError as exc:
+            raise LF022CodexProposerError(
+                f"cannot inspect {label} path component {current}: {exc}"
+            ) from exc
+        if stat.S_ISLNK(metadata.st_mode):
+            raise LF022CodexProposerError(f"{label} contains a symlink component: {current}")
+        if index < len(absolute.parts) - 1 and not stat.S_ISDIR(metadata.st_mode):
+            raise LF022CodexProposerError(f"{label} parent component is not a directory: {current}")
+    return absolute
+
+
+def _reject_unsafe_tree_entries(root: Path, *, label: str) -> None:
+    """Reject symlinks and special files anywhere below an existing root."""
+
+    if not root.exists():
+        return
+    if not root.is_dir():
+        raise LF022CodexProposerError(f"{label} is not a directory: {root}")
+    for directory, child_directories, filenames in os.walk(root, followlinks=False):
+        directory_path = Path(directory)
+        for name in (*child_directories, *filenames):
+            candidate = directory_path / name
+            try:
+                metadata = os.lstat(candidate)
+            except OSError as exc:
+                raise LF022CodexProposerError(
+                    f"cannot inspect {label} entry {candidate}: {exc}"
+                ) from exc
+            if stat.S_ISLNK(metadata.st_mode):
+                raise LF022CodexProposerError(f"{label} contains a symlink entry: {candidate}")
+            if not (stat.S_ISDIR(metadata.st_mode) or stat.S_ISREG(metadata.st_mode)):
+                raise LF022CodexProposerError(
+                    f"{label} contains a special filesystem entry: {candidate}"
+                )
+
+
+def validate_lf022_codex_proposer_output_root(
+    output_root: Path,
+    *,
+    expected_item_directory: Path | None = None,
+) -> Path:
+    """Fail closed on redirected or foreign v1 proposer output trees.
+
+    Ordinary files below the one expected item remain allowed because a killed
+    process can leave useful attempt evidence there.  The retry path archives
+    those bytes before invoking Codex again.  Symlinks and special files are
+    never attempt evidence: accepting them would let an item escape its
+    content-bound run root.
+    """
+
+    root = _reject_symlink_components(
+        output_root,
+        label="Codex proposer output root",
+        allow_missing=True,
+    )
+    if not root.exists():
+        return root
+    _reject_symlink_components(
+        root,
+        label="Codex proposer output root",
+        allow_missing=False,
+    )
+    _reject_unsafe_tree_entries(root, label="Codex proposer output root")
+    unexpected_root_entries = {entry.name for entry in root.iterdir()} - {
+        "items",
+        "manifest.json",
+    }
+    if unexpected_root_entries:
+        raise LF022CodexProposerError(
+            "Codex proposer output root contains unexpected entries: "
+            f"{sorted(unexpected_root_entries)}"
+        )
+    items_root = root / "items"
+    if items_root.exists() and not items_root.is_dir():
+        raise LF022CodexProposerError("Codex proposer items path is not a directory")
+    if expected_item_directory is None or not items_root.exists():
+        return root
+
+    expected = _reject_symlink_components(
+        expected_item_directory,
+        label="Codex proposer item directory",
+        allow_missing=True,
+    )
+    try:
+        relative = expected.relative_to(root)
+    except ValueError as exc:
+        raise LF022CodexProposerError(
+            "expected Codex proposer item escapes its output root"
+        ) from exc
+    if len(relative.parts) != 3 or relative.parts[0] != "items":
+        raise LF022CodexProposerError("expected Codex proposer item path is malformed")
+    expected_prefix, expected_digest = relative.parts[1:]
+    observed_prefixes = {entry.name for entry in items_root.iterdir()}
+    if observed_prefixes - {expected_prefix}:
+        raise LF022CodexProposerError("Codex proposer output root contains foreign item prefixes")
+    prefix_root = items_root / expected_prefix
+    if prefix_root.exists():
+        if not prefix_root.is_dir():
+            raise LF022CodexProposerError("Codex proposer item prefix is not a directory")
+        observed_items = {entry.name for entry in prefix_root.iterdir()}
+        if observed_items - {expected_digest}:
+            raise LF022CodexProposerError(
+                "Codex proposer output root contains foreign item directories"
+            )
+    return root
+
+
 def _repo_path(repo_root: Path, value: str, *, field: str) -> Path:
     _safe_relative(value, field=field)
-    root = repo_root.resolve()
-    path = (root / value).resolve()
+    root = _reject_symlink_components(
+        repo_root,
+        label="repository root",
+        allow_missing=False,
+    )
+    path = _reject_symlink_components(
+        root / value,
+        label=field,
+        allow_missing=False,
+    )
     try:
         path.relative_to(root)
     except ValueError as exc:
@@ -1493,9 +1633,18 @@ def _execute_one(
     prepared: PreparedLF022CodexProposerItem,
     loaded: LoadedLF022CodexProposerConfig,
     executor: CodexProposerExecutor,
+    verify_cli_pin: bool,
 ) -> LF022CodexProposerTerminal:
     item_dir = prepared.item_directory
+    validate_lf022_codex_proposer_output_root(
+        item_dir.parents[2],
+        expected_item_directory=item_dir,
+    )
     item_dir.mkdir(parents=True, exist_ok=True)
+    validate_lf022_codex_proposer_output_root(
+        item_dir.parents[2],
+        expected_item_directory=item_dir,
+    )
     lock_path = item_dir / ".lock"
     with lock_path.open("a+b") as lock:
         try:
@@ -1511,6 +1660,8 @@ def _execute_one(
                 prepared=prepared,
                 loaded=loaded,
             )
+
+        _archive_interrupted_attempt(item_dir)
 
         _write_immutable(item_dir / "input.json", _canonical_line(prepared.item))
         _write_immutable(
@@ -1532,6 +1683,11 @@ def _execute_one(
             output_schema_path=schema_path,
             final_message_path=final_path,
         )
+        if verify_cli_pin:
+            # Keep the time-of-check immediately adjacent to each new external
+            # invocation.  Replay-only calls return above and therefore do not
+            # require a locally installed Codex binary.
+            verify_codex_proposer_cli_pin(loaded.config)
         capture = executor.execute(
             argv=argv,
             prompt=prepared.rendered_prompt.encode("utf-8"),
@@ -1661,6 +1817,71 @@ def _execute_one(
         )
         _write_immutable(terminal_path, _canonical_line(terminal))
         return terminal
+
+
+_INTERRUPTED_ATTEMPT_STABLE_ENTRIES = frozenset(
+    {
+        ".lock",
+        "input.json",
+        "source_authorization.json",
+        "prompt.txt",
+        "output_schema.json",
+        "provider_request.json",
+        "interrupted_attempts",
+    }
+)
+
+
+def _archive_interrupted_attempt(item_dir: Path) -> Path | None:
+    """Preserve nonterminal attempt bytes before starting a clean retry.
+
+    A SIGKILL can leave the scratch workspace or response artifacts behind
+    without a terminal.  Those bytes are evidence and must not be discarded,
+    but leaving them in place makes the immutable writers wedge forever.  Move
+    every attempt-specific entry into a monotonically named archive while
+    retaining the deterministic request inputs in place.
+    """
+
+    recoverable = tuple(
+        entry
+        for entry in sorted(item_dir.iterdir(), key=lambda candidate: candidate.name)
+        if entry.name not in _INTERRUPTED_ATTEMPT_STABLE_ENTRIES
+    )
+    if not recoverable:
+        return None
+    archive_root = item_dir / "interrupted_attempts"
+    if archive_root.is_symlink() or (archive_root.exists() and not archive_root.is_dir()):
+        raise LF022CodexProposerError("interrupted-attempt archive is unsafe")
+    archive_root.mkdir(mode=0o700, exist_ok=True)
+    for index in range(1, 1_000_000):
+        archive = archive_root / f"attempt-{index:06d}"
+        try:
+            archive.mkdir(mode=0o700)
+        except FileExistsError:
+            if archive.is_symlink() or not archive.is_dir():
+                raise LF022CodexProposerError(
+                    f"interrupted-attempt archive is unsafe: {archive}"
+                ) from None
+            continue
+        break
+    else:  # pragma: no cover - operational exhaustion guard
+        raise LF022CodexProposerError("interrupted-attempt archive namespace exhausted")
+    moved: list[str] = []
+    for entry in recoverable:
+        destination = archive / entry.name
+        if destination.exists() or destination.is_symlink():
+            raise LF022CodexProposerError(
+                f"interrupted-attempt archive destination exists: {destination}"
+            )
+        entry.rename(destination)
+        moved.append(entry.name)
+    recovery = {
+        "schema_version": 1,
+        "reason": "terminal_missing",
+        "recovered_entries": moved,
+    }
+    _write_immutable(archive / "recovery.json", canonical_json_bytes(recovery) + b"\n")
+    return archive
 
 
 def _bound_path(
@@ -1812,16 +2033,26 @@ def run_lf022_codex_proposer(
     flag alone.
     """
 
-    repo_root = repo_root.resolve()
-    config_path = config_path.resolve()
-    batch_manifest_path = batch_manifest_path.resolve()
-    output_root = output_root.resolve()
+    repo_root = _reject_symlink_components(
+        repo_root,
+        label="repository root",
+        allow_missing=False,
+    )
+    config_path = _reject_symlink_components(
+        config_path,
+        label="Codex proposer config",
+        allow_missing=False,
+    )
+    batch_manifest_path = _reject_symlink_components(
+        batch_manifest_path,
+        label="Codex proposer batch manifest",
+        allow_missing=False,
+    )
+    output_root = validate_lf022_codex_proposer_output_root(output_root)
     try:
         output_root.relative_to(repo_root)
     except ValueError as exc:
         raise LF022CodexProposerError("output root must stay inside repository root") from exc
-    if output_root.is_symlink():
-        raise LF022CodexProposerError("output root cannot be a symlink")
     if len(execution_task_ids) != 1 or len(set(execution_task_ids)) != 1:
         raise LF022CodexProposerError("v1 requires exactly one unique execution task ID")
     loaded = load_lf022_codex_proposer_config(config_path, repo_root=repo_root)
@@ -1835,12 +2066,15 @@ def run_lf022_codex_proposer(
         )
         for task_id in execution_task_ids
     )
+    for item in prepared:
+        validate_lf022_codex_proposer_output_root(
+            output_root,
+            expected_item_directory=item.item_directory,
+        )
     if not execute_public_provisional:
         if executor is not None:
             raise LF022CodexProposerError("offline preparation rejects a process executor")
         return LF022CodexProposerRunResult(prepared, (), None, None, 0, 0)
-    if verify_cli_pin:
-        verify_codex_proposer_cli_pin(loaded.config)
     runner = executor or SubprocessCodexProposerExecutor()
     output_root.mkdir(parents=True, exist_ok=True)
     terminals: list[LF022CodexProposerTerminal] = []
@@ -1854,6 +2088,7 @@ def run_lf022_codex_proposer(
                 prepared=item,
                 loaded=loaded,
                 executor=runner,
+                verify_cli_pin=verify_cli_pin,
             )
         )
         if existed:
@@ -1905,5 +2140,6 @@ __all__ = [
     "SubprocessCodexProposerExecutor",
     "load_lf022_codex_proposer_config",
     "run_lf022_codex_proposer",
+    "validate_lf022_codex_proposer_output_root",
     "verify_codex_proposer_cli_pin",
 ]

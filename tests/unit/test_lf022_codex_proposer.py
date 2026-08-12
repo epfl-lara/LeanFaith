@@ -12,6 +12,7 @@ from typer.testing import CliRunner
 
 from leanfaith.cli.app import app
 from leanfaith.config.hashing import canonical_json_bytes, hash_file
+from leanfaith.generation import lf022_codex_proposer as proposer_module
 from leanfaith.generation.lf022_batch import (
     LF022BatchRouteFreezeRequest,
     LF022BatchRouteManifest,
@@ -289,6 +290,140 @@ def test_codex_proposer_creates_only_unvalidated_provisional_variant_and_replays
     assert second.invoked_count == 0
     assert second.reused_count == 1
     assert second.terminals == first.terminals
+
+
+def test_codex_proposer_preserves_and_recovers_an_interrupted_nonterminal_attempt(
+    tmp_path: Path,
+) -> None:
+    manifest_path, task_id = _batch_fixture(tmp_path)
+    config_path = _config_fixture(tmp_path)
+    output_root = tmp_path / "data/codex_proposer_output"
+    prepared = run_lf022_codex_proposer(
+        repo_root=tmp_path,
+        config_path=config_path,
+        batch_manifest_path=manifest_path,
+        execution_task_ids=(task_id,),
+        output_root=output_root,
+        execute_public_provisional=False,
+        verify_cli_pin=False,
+    ).prepared[0]
+    stale_workspace = prepared.item_directory / "workspace"
+    stale_workspace.mkdir(parents=True)
+    (stale_workspace / "partial.txt").write_text("preserve me", encoding="utf-8")
+
+    result = run_lf022_codex_proposer(
+        repo_root=tmp_path,
+        config_path=config_path,
+        batch_manifest_path=manifest_path,
+        execution_task_ids=(task_id,),
+        output_root=output_root,
+        execute_public_provisional=True,
+        executor=_SuccessfulExecutor(),
+        verify_cli_pin=False,
+    )
+
+    assert result.terminals[0].status == "provisional_variants_created"
+    archive = prepared.item_directory / "interrupted_attempts/attempt-000001"
+    assert (archive / "workspace/partial.txt").read_text(encoding="utf-8") == "preserve me"
+    recovery = json.loads((archive / "recovery.json").read_text(encoding="utf-8"))
+    assert recovery == {
+        "reason": "terminal_missing",
+        "recovered_entries": ["workspace"],
+        "schema_version": 1,
+    }
+
+
+def test_codex_proposer_rejects_nested_items_symlink_before_external_call(
+    tmp_path: Path,
+) -> None:
+    manifest_path, task_id = _batch_fixture(tmp_path)
+    config_path = _config_fixture(tmp_path)
+    output_root = tmp_path / "data/codex_proposer_output"
+    output_root.mkdir(parents=True)
+    escaped = tmp_path / "data/escaped-items"
+    escaped.mkdir(parents=True)
+    (output_root / "items").symlink_to(escaped, target_is_directory=True)
+    executor = _SuccessfulExecutor()
+
+    with pytest.raises(LF022CodexProposerError, match="symlink entry"):
+        run_lf022_codex_proposer(
+            repo_root=tmp_path,
+            config_path=config_path,
+            batch_manifest_path=manifest_path,
+            execution_task_ids=(task_id,),
+            output_root=output_root,
+            execute_public_provisional=True,
+            executor=executor,
+            verify_cli_pin=False,
+        )
+
+    assert executor.calls == 0
+    assert tuple(escaped.iterdir()) == ()
+
+
+def test_codex_proposer_rejects_output_ancestor_symlink_before_external_call(
+    tmp_path: Path,
+) -> None:
+    manifest_path, task_id = _batch_fixture(tmp_path)
+    config_path = _config_fixture(tmp_path)
+    real_parent = tmp_path / "real-output-parent"
+    real_parent.mkdir()
+    linked_parent = tmp_path / "linked-output-parent"
+    linked_parent.symlink_to(real_parent, target_is_directory=True)
+    executor = _SuccessfulExecutor()
+
+    with pytest.raises(LF022CodexProposerError, match="symlink component"):
+        run_lf022_codex_proposer(
+            repo_root=tmp_path,
+            config_path=config_path,
+            batch_manifest_path=manifest_path,
+            execution_task_ids=(task_id,),
+            output_root=linked_parent / "run",
+            execute_public_provisional=True,
+            executor=executor,
+            verify_cli_pin=False,
+        )
+
+    assert executor.calls == 0
+    assert tuple(real_parent.iterdir()) == ()
+
+
+def test_codex_cli_pin_is_checked_for_each_new_call_but_not_replay(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    manifest_path, task_id = _batch_fixture(tmp_path)
+    config_path = _config_fixture(tmp_path)
+    checks: list[str] = []
+    monkeypatch.setattr(
+        proposer_module,
+        "verify_codex_proposer_cli_pin",
+        lambda config: checks.append(config.model),
+    )
+    executor = _SuccessfulExecutor()
+    kwargs = {
+        "repo_root": tmp_path,
+        "config_path": config_path,
+        "batch_manifest_path": manifest_path,
+        "execution_task_ids": (task_id,),
+        "execute_public_provisional": True,
+        "executor": executor,
+        "verify_cli_pin": True,
+    }
+    run_lf022_codex_proposer(
+        **kwargs,
+        output_root=tmp_path / "data/first",
+    )
+    run_lf022_codex_proposer(
+        **kwargs,
+        output_root=tmp_path / "data/second",
+    )
+    run_lf022_codex_proposer(
+        **kwargs,
+        output_root=tmp_path / "data/first",
+    )
+
+    assert checks == ["gpt-5.6-terra", "gpt-5.6-terra"]
 
 
 def test_codex_proposer_rejects_replay_artifact_drift(tmp_path: Path) -> None:

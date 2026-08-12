@@ -5055,6 +5055,105 @@ def propose_lf022_codex_command(
     )
 
 
+@app.command("propose-lf022-codex-scale")
+def propose_lf022_codex_scale_command(
+    batch_manifest: Annotated[
+        Path,
+        typer.Option(
+            "--batch-manifest",
+            help="Existing frozen public LF-022 batch manifest.",
+        ),
+    ],
+    task_ids: Annotated[
+        list[str] | None,
+        typer.Option(
+            "--task-id",
+            help=(
+                "Exact frozen execution-task ID; repeat to select an explicit ordered "
+                "subset. If omitted, the bounded manifest prefix is selected."
+            ),
+        ),
+    ] = None,
+    limit: Annotated[
+        int | None,
+        typer.Option(
+            "--limit",
+            min=1,
+            max=64,
+            help="Optional lower runtime limit; cannot exceed the pinned v2 task limit.",
+        ),
+    ] = None,
+    config: Annotated[
+        Path,
+        typer.Option("--config", help="Pinned bounded Codex proposer scale configuration."),
+    ] = Path("configs/generation/lf022_codex_proposer_scale_v2.yaml"),
+    output_root: Annotated[
+        Path,
+        typer.Option(
+            "--output-root",
+            help="Repository-local sequential/resumable v2 artifact root.",
+        ),
+    ] = Path("data/lf022_codex_proposer/scale_v2"),
+    execute_public_provisional: Annotated[
+        bool,
+        typer.Option(
+            "--execute-public-provisional",
+            help=(
+                "Explicitly authorize the bounded public-only sequential calls. "
+                "Without this flag, preparation is network-free."
+            ),
+        ),
+    ] = False,
+    root_dir: Annotated[
+        Path | None,
+        typer.Option("--root", help="Repository root override."),
+    ] = None,
+) -> None:
+    """Run a bounded sequential tranche through the exact reviewed v1 proposer."""
+    from leanfaith.config.paths import RepoPaths
+    from leanfaith.generation.lf022_codex_proposer import LF022CodexProposerError
+    from leanfaith.generation.lf022_codex_proposer_scale import (
+        run_lf022_codex_proposer_scale,
+    )
+
+    paths = RepoPaths.discover(root_dir) if root_dir is None else RepoPaths(root=root_dir)
+
+    def anchored(path: Path) -> Path:
+        return path if path.is_absolute() else paths.root / path
+
+    try:
+        result = run_lf022_codex_proposer_scale(
+            repo_root=paths.root,
+            config_path=anchored(config),
+            batch_manifest_path=anchored(batch_manifest),
+            output_root=anchored(output_root),
+            execution_task_ids=tuple(task_ids or ()),
+            task_limit=limit,
+            execute_public_provisional=execute_public_provisional,
+        )
+    except (LF022CodexProposerError, OSError, ValueError) as exc:
+        typer.echo(f"LF-022 Codex proposer scale rejected: {exc}", err=True)
+        raise typer.Exit(code=2) from exc
+    if not execute_public_provisional:
+        typer.echo(
+            f"prepared={len(result.selected_execution_task_ids)} external_calls=0 "
+            "maximum_concurrency=1 execute_requires_explicit_flag=true "
+            "semantic_labels_created=0 supervision_eligible=false training_eligible=false"
+        )
+        return
+    assert result.manifest is not None
+    assert result.manifest_path is not None
+    typer.echo(
+        f"completed={result.manifest.completed_count} invoked={result.invoked_count} "
+        f"reused={result.reused_count} statuses="
+        f"{json.dumps(result.manifest.status_counts, sort_keys=True)} "
+        f"manifest={result.manifest_path} sequential=true maximum_concurrency=1 "
+        "outputs_provisional_only=true separate_family_validation_required=true "
+        "semantic_labels_created=0 supervision_eligible=false training_eligible=false "
+        "evaluation_eligible=false gate_credit_claimed=false"
+    )
+
+
 @app.command("summarize-lf022-codex-audit")
 def summarize_lf022_codex_audit_command(
     checks_path: Annotated[
