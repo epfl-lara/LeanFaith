@@ -158,7 +158,7 @@ def _check_record_id(record: LF022LeanCheckRecord) -> str:
 class LF022LeanCheckManifest(StrictModel):
     """Deterministic summary of one current input snapshot."""
 
-    schema_version: Literal[2, 3] = 2
+    schema_version: Literal[2, 3, 4] = 2
     method_version: Literal["lf022_provisional_lean_check_v2"] = "lf022_provisional_lean_check_v2"
     input_root: str
     selection_batch_id: str | None = None
@@ -174,6 +174,29 @@ class LF022LeanCheckManifest(StrictModel):
         exclude_if=lambda value: value is None,
     )
     selection_postgen_selector_sha256: str | None = Field(
+        default=None,
+        pattern=HEX64_PATTERN,
+        exclude_if=lambda value: value is None,
+    )
+    selection_codex_scale_tranche_id: str | None = Field(
+        default=None,
+        pattern=id_pattern("lf022_codex_proposer_tranche"),
+        exclude_if=lambda value: value is None,
+    )
+    selection_codex_scale_manifest: str | None = Field(
+        default=None,
+        exclude_if=lambda value: value is None,
+    )
+    selection_codex_scale_manifest_sha256: str | None = Field(
+        default=None,
+        pattern=HEX64_PATTERN,
+        exclude_if=lambda value: value is None,
+    )
+    selection_codex_scale_tranche: str | None = Field(
+        default=None,
+        exclude_if=lambda value: value is None,
+    )
+    selection_codex_scale_tranche_sha256: str | None = Field(
         default=None,
         pattern=HEX64_PATTERN,
         exclude_if=lambda value: value is None,
@@ -202,6 +225,13 @@ class LF022LeanCheckManifest(StrictModel):
             self.selection_postgen_selector,
             self.selection_postgen_selector_sha256,
         )
+        codex_scale_values = (
+            self.selection_codex_scale_tranche_id,
+            self.selection_codex_scale_manifest,
+            self.selection_codex_scale_manifest_sha256,
+            self.selection_codex_scale_tranche,
+            self.selection_codex_scale_tranche_sha256,
+        )
         if any(value is not None for value in batch_values) and not all(
             value is not None for value in batch_values
         ):
@@ -210,17 +240,24 @@ class LF022LeanCheckManifest(StrictModel):
             value is not None for value in postgen_values
         ):
             raise ValueError("postgen selector binding must be present or absent as one unit")
+        if any(value is not None for value in codex_scale_values) and not all(
+            value is not None for value in codex_scale_values
+        ):
+            raise ValueError("Codex scale binding must be present or absent as one unit")
         has_batch = all(value is not None for value in batch_values)
         has_postgen = all(value is not None for value in postgen_values)
-        if has_batch and has_postgen:
-            raise ValueError("batch manifest and postgen selector are mutually exclusive")
-        if has_batch or has_postgen:
+        has_codex_scale = all(value is not None for value in codex_scale_values)
+        if sum((has_batch, has_postgen, has_codex_scale)) > 1:
+            raise ValueError("Lean-check selectors are mutually exclusive")
+        if has_batch or has_postgen or has_codex_scale:
             if self.selection_batch_id is None or self.selected_execution_task_count is None:
                 raise ValueError("selection lacks batch identity or selected task count")
         elif self.selection_batch_id is not None or self.selected_execution_task_count is not None:
             raise ValueError("partial selection identity is forbidden")
         if self.schema_version == 2 and has_postgen:
             raise ValueError("postgen selector requires Lean-check manifest schema v3")
+        if self.schema_version != 4 and has_codex_scale:
+            raise ValueError("Codex scale selector requires Lean-check manifest schema v4")
         return self
 
 
@@ -356,13 +393,16 @@ def _discover_candidates(
     selected_execution_task_ids: tuple[str, ...] | None,
     selected_task_content_hashes: Mapping[str, str] | None,
     selected_terminal_artifacts: Mapping[str, tuple[Path, str]] | None,
+    selected_task_artifacts: Mapping[str, tuple[Path, str]] | None,
 ) -> tuple[_Candidate, ...]:
     candidates: list[_Candidate] = []
     seen_variant_ids: set[str] = set()
     if selected_execution_task_ids is None:
-        terminal_paths = tuple(sorted(input_root.glob("tasks/*/*/terminal.json")))
+        terminal_entries: tuple[tuple[str | None, Path], ...] = tuple(
+            (None, path) for path in sorted(input_root.glob("tasks/*/*/terminal.json"))
+        )
     else:
-        terminal_paths_list: list[Path] = []
+        terminal_entries_list: list[tuple[str | None, Path]] = []
         for execution_task_id in selected_execution_task_ids:
             if selected_terminal_artifacts is None:
                 digest = execution_task_id.removeprefix("lf022_execution_task:")
@@ -383,12 +423,25 @@ def _discover_candidates(
                 raise LF022LeanCheckError(
                     f"selected execution terminal hash differs: {execution_task_id}"
                 )
-            terminal_paths_list.append(terminal_path)
-        terminal_paths = tuple(terminal_paths_list)
-    for terminal_path in terminal_paths:
+            terminal_entries_list.append((execution_task_id, terminal_path))
+        terminal_entries = tuple(terminal_entries_list)
+    for selected_execution_task_id, terminal_path in terminal_entries:
         terminal = _load_json_mapping(terminal_path, label="terminal")
         path_execution_task_id = "lf022_execution_task:" + terminal_path.parent.name
-        task_path = terminal_path.with_name("task.json")
+        if selected_task_artifacts is None:
+            task_path = terminal_path.with_name("task.json")
+        else:
+            assert selected_execution_task_id is not None
+            task_path, expected_task_sha256 = selected_task_artifacts[selected_execution_task_id]
+            if task_path.is_symlink() or not task_path.is_file():
+                raise LF022LeanCheckError(
+                    f"selected execution task lacks source artifact: {selected_execution_task_id}"
+                )
+            if hash_file(task_path) != expected_task_sha256:
+                raise LF022LeanCheckError(
+                    f"selected execution source-task hash differs: {selected_execution_task_id}"
+                )
+            path_execution_task_id = selected_execution_task_id
         task = _load_json_mapping(task_path, label="task")
         task_execution_task_id = _required_text(task, "execution_task_id", label=str(task_path))
         if task_execution_task_id != path_execution_task_id:
@@ -790,6 +843,7 @@ def check_lf022_provisional_candidates(
     batch_manifest_path: Path | None = None,
     postgen_selector_path: Path | None = None,
     expected_postgen_selector_id: str | None = None,
+    codex_scale_manifest_path: Path | None = None,
     backend_factory: BackendFactory = LeanInteractBackend,
     prepare_environment: PrepareEnvironment = LeanInteractBackend.prepare_environment,
 ) -> LF022LeanCheckRunResult:
@@ -807,10 +861,15 @@ def check_lf022_provisional_candidates(
     if limit is not None and limit < 1:
         raise LF022LeanCheckError("limit must be positive when supplied")
     selection_inputs = sum(
-        value is not None for value in (batch_manifest_path, postgen_selector_path)
+        value is not None
+        for value in (
+            batch_manifest_path,
+            postgen_selector_path,
+            codex_scale_manifest_path,
+        )
     )
     if selection_inputs > 1:
-        raise LF022LeanCheckError("batch manifest and postgen selector are mutually exclusive")
+        raise LF022LeanCheckError("Lean-check selectors are mutually exclusive")
     if expected_postgen_selector_id is not None and postgen_selector_path is None:
         raise LF022LeanCheckError(
             "expected postgen selector ID requires a postgen selector artifact"
@@ -841,9 +900,16 @@ def check_lf022_provisional_candidates(
     selection_postgen_selector_id: str | None = None
     selection_postgen_selector_label: str | None = None
     selection_postgen_selector_sha256: str | None = None
+    selection_codex_scale_tranche_id: str | None = None
+    selection_codex_scale_manifest_label: str | None = None
+    selection_codex_scale_manifest_sha256: str | None = None
+    selection_codex_scale_tranche_label: str | None = None
+    selection_codex_scale_tranche_sha256: str | None = None
     selected_execution_task_ids: tuple[str, ...] | None = None
     selected_task_content_hashes: dict[str, str] | None = None
     selected_terminal_artifacts: dict[str, tuple[Path, str]] | None = None
+    selected_task_artifacts: dict[str, tuple[Path, str]] | None = None
+    selected_lineage_artifacts: tuple[tuple[Path, str], ...] = ()
     if batch_manifest_path is not None:
         batch_manifest_path = batch_manifest_path.resolve()
         (
@@ -906,6 +972,56 @@ def check_lf022_provisional_candidates(
         selection_postgen_selector_label = _artifact_label(postgen_selector_path, repo_root)
         selection_postgen_selector_sha256 = hash_file(postgen_selector_path)
         selection_manifest = verified_selector.manifest
+    elif codex_scale_manifest_path is not None:
+        from leanfaith.generation.lf022_codex_scale_lean_check import (
+            LF022CodexScaleLeanCheckError,
+            verify_lf022_codex_scale_for_lean_check,
+        )
+
+        try:
+            verified_scale = verify_lf022_codex_scale_for_lean_check(
+                repo_root=repo_root,
+                manifest_path=codex_scale_manifest_path,
+            )
+        except LF022CodexScaleLeanCheckError as exc:
+            raise LF022LeanCheckError(f"Codex scale selector rejected: {exc}") from exc
+        expected_input_root = verified_scale.scale_root
+        canonical_supplied_input_root = _safe_existing_directory(
+            supplied_input_root,
+            label="Lean-check input root",
+        )
+        if canonical_supplied_input_root != expected_input_root:
+            raise LF022LeanCheckError(
+                "Codex scale selector input_root differs from its completed scale root"
+            )
+        selection_manifest = verified_scale.source_batch
+        selected_execution_task_ids = verified_scale.execution_task_ids
+        selected_task_content_hashes = {
+            task.execution_task_id: hash_canonical(
+                _load_json_mapping(task.source_task_path, label="selected Codex source task")
+            )
+            for task in verified_scale.tasks
+        }
+        selected_task_artifacts = {
+            task.execution_task_id: (task.source_task_path, task.source_task_sha256)
+            for task in verified_scale.tasks
+        }
+        selected_terminal_artifacts = {
+            task.execution_task_id: (task.terminal_path, task.terminal_sha256)
+            for task in verified_scale.tasks
+        }
+        selection_codex_scale_tranche_id = verified_scale.tranche.tranche_id
+        selection_codex_scale_manifest_label = _artifact_label(
+            verified_scale.manifest_path,
+            repo_root,
+        )
+        selection_codex_scale_manifest_sha256 = verified_scale.manifest_sha256
+        selection_codex_scale_tranche_label = _artifact_label(
+            verified_scale.tranche_path,
+            repo_root,
+        )
+        selection_codex_scale_tranche_sha256 = verified_scale.tranche_sha256
+        selected_lineage_artifacts = verified_scale.artifact_hashes
 
     candidates = _discover_candidates(
         repo_root=repo_root,
@@ -915,6 +1031,7 @@ def check_lf022_provisional_candidates(
         selected_execution_task_ids=selected_execution_task_ids,
         selected_task_content_hashes=selected_task_content_hashes,
         selected_terminal_artifacts=selected_terminal_artifacts,
+        selected_task_artifacts=selected_task_artifacts,
     )
     input_hashes = {
         candidate.variant_path: hash_file(candidate.variant_path) for candidate in candidates
@@ -1023,6 +1140,32 @@ def check_lf022_provisional_candidates(
                 raise LF022LeanCheckError(
                     f"selected execution terminal changed during checking: {task_id}"
                 )
+    for artifact_path, expected_hash in selected_lineage_artifacts:
+        if artifact_path.is_symlink() or not artifact_path.is_file():
+            raise LF022LeanCheckError(
+                f"Codex scale lineage artifact disappeared during checking: {artifact_path}"
+            )
+        if hash_file(artifact_path) != expected_hash:
+            raise LF022LeanCheckError(
+                f"Codex scale lineage artifact changed during checking: {artifact_path}"
+            )
+    if codex_scale_manifest_path is not None:
+        from leanfaith.generation.lf022_codex_scale_lean_check import (
+            LF022CodexScaleLeanCheckError,
+            verify_lf022_codex_scale_for_lean_check,
+        )
+
+        try:
+            replayed_scale = verify_lf022_codex_scale_for_lean_check(
+                repo_root=repo_root,
+                manifest_path=codex_scale_manifest_path,
+            )
+        except LF022CodexScaleLeanCheckError as exc:
+            raise LF022LeanCheckError(
+                f"Codex scale selector changed during checking: {exc}"
+            ) from exc
+        if replayed_scale.artifact_hashes != selected_lineage_artifacts:
+            raise LF022LeanCheckError("Codex scale lineage set changed during checking")
     ordered = tuple(record for record in records if record is not None)
     if len(ordered) != len(candidates):
         raise LF022LeanCheckError("one or more candidates lack a terminal check record")
@@ -1057,7 +1200,11 @@ def check_lf022_provisional_candidates(
         ):
             raise LF022LeanCheckError("postgen terminal selector changed after verification")
     manifest = LF022LeanCheckManifest(
-        schema_version=(3 if selection_postgen_selector_id is not None else 2),
+        schema_version=(
+            4
+            if selection_codex_scale_tranche_id is not None
+            else (3 if selection_postgen_selector_id is not None else 2)
+        ),
         input_root=_artifact_label(input_root, repo_root),
         selection_batch_id=(
             selection_manifest.batch_id if selection_manifest is not None else None
@@ -1067,6 +1214,11 @@ def check_lf022_provisional_candidates(
         selection_postgen_selector_id=selection_postgen_selector_id,
         selection_postgen_selector=selection_postgen_selector_label,
         selection_postgen_selector_sha256=selection_postgen_selector_sha256,
+        selection_codex_scale_tranche_id=selection_codex_scale_tranche_id,
+        selection_codex_scale_manifest=selection_codex_scale_manifest_label,
+        selection_codex_scale_manifest_sha256=selection_codex_scale_manifest_sha256,
+        selection_codex_scale_tranche=selection_codex_scale_tranche_label,
+        selection_codex_scale_tranche_sha256=selection_codex_scale_tranche_sha256,
         selected_execution_task_count=(
             len(selected_execution_task_ids) if selected_execution_task_ids is not None else None
         ),

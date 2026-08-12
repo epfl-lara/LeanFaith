@@ -4827,6 +4827,16 @@ def check_lf022_provisional_lean_command(
             ),
         ),
     ] = None,
+    codex_scale_manifest: Annotated[
+        Path | None,
+        typer.Option(
+            "--codex-scale-manifest",
+            help=(
+                "Optional completed Codex proposer scale-v2 manifest; replay its exact "
+                "tranche and v1 terminal lineages before pooled Lean checking."
+            ),
+        ),
+    ] = None,
     root_dir: Annotated[
         Path | None,
         typer.Option("--root", help="Repository root override."),
@@ -4865,6 +4875,9 @@ def check_lf022_provisional_lean_command(
                 anchored(postgen_selector) if postgen_selector is not None else None
             ),
             expected_postgen_selector_id=expected_postgen_selector_id,
+            codex_scale_manifest_path=(
+                anchored(codex_scale_manifest) if codex_scale_manifest is not None else None
+            ),
         )
     except (LF022LeanCheckError, OSError, ValueError) as exc:
         typer.echo(f"LF-022 pooled Lean check rejected: {exc}", err=True)
