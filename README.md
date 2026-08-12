@@ -187,6 +187,18 @@ dataset probe (PLAN.md §9.2).
   and proxy diagnostics; it is not human gold, semantic silver, confirmatory
   model-selection data, or evaluation data. See
   `reports/model_selection/experimental_mixed_supervision_firsthop_lf022_f1corrected_v2.md`.
+- **Depth-two composition has enlarged the clean proxy corpus to 17,031 pairs
+  (2026-08-12):** the complete receipt-bound deterministic composition export
+  was admitted alongside the first-hop and completed Kimi/Qwen Codex signals.
+  The authoritative clean-revision artifact contains 13,633 train, 1,604
+  validation, and 1,794 test pairs; 4,538 same-claim and 12,493 not-same-claim
+  proxy targets; and 6,469 ancestry-connected components. Its 17,044 signals
+  comprise 10,336 deterministic first hops, 5,534 deterministic depth-two
+  compositions, and 1,174 Codex judgments. A second complete run replayed the
+  dataset ID and every output byte exactly. This is sufficient for the first
+  token-encoder proxy run, but remains machine proxy supervision rather than
+  human gold or confirmatory evaluation data. See
+  `reports/model_selection/experimental_mixed_supervision_composition_v1.md`.
 - **Active data-production checkpoint (2026-08-10):** the preserved public
   LF-022 execution contains 668 parsed provisional variants.  The production
   four-worker LeanInteract checker has now processed every one: 493 elaborate
