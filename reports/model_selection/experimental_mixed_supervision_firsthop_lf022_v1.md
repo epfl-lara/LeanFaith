@@ -11,6 +11,12 @@ LF-022 Codex audits. It is explicitly **proxy supervision** for smoke training,
 learning curves, and diagnostics. It creates no semantic, silver, or human-gold
 labels and is not eligible for confirmatory model selection or evaluation.
 
+> **Historical correction (2026-08-12):** this artifact remains immutable, but
+> its admission policy incorrectly treated F2 directional-implication opinions
+> as constraints on the F1 same-claim relation. The corrected successor retains
+> the same inputs while recovering the affected pairs. See
+> `experimental_mixed_supervision_firsthop_lf022_f1corrected_v2.md`.
+
 ## Frozen inventory
 
 | Measure | Count |
@@ -29,10 +35,8 @@ labels and is not eligible for confirmatory model selection or evaluation.
 The retained Codex signals contain 420 Qwen-proposed pairs and 90
 Kimi-proposed pairs. Their proxy targets are 25 same-claim and 485
 not-same-claim. Of the 1,176 completed Lean-valid audit judgments presented to
-the adapter, 664 were excluded because the verdict/relation and directional
-implication fields were internally inconsistent, and two were excluded because
-the judge requested expert review. The filter was not weakened to inflate the
-dataset.
+the historical adapter, 664 were excluded by the now-corrected cross-level
+F1/F2 check, and two were excluded because the judge requested expert review.
 
 The source mix is 7,000 internal-only `sft_classic` records and 3,837 public
 mathlib records. Private-source flags and release restrictions remain attached
