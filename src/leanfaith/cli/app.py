@@ -7946,6 +7946,171 @@ def verify_experimental_mixed_scalar_learning_curve_command(
     )
 
 
+@app.command("run-tokenizer-sections")
+def run_tokenizer_sections_command(
+    output_dir: Annotated[
+        Path,
+        typer.Option("--output-dir", help="Private immutable semantic-section output, or resume."),
+    ],
+    config_path: Annotated[
+        Path | None,
+        typer.Option("--config", help="Pinned tokenizer-section derivation configuration."),
+    ] = None,
+    root_dir: Annotated[
+        Path | None,
+        typer.Option("--root", help="Repository root override."),
+    ] = None,
+) -> None:
+    """Run or resume the frozen Lean-meta semantic-section derivation."""
+    from leanfaith.config.paths import RepoPaths
+    from leanfaith.models.tokenizer_sections import (
+        TokenizerSectionDerivationError,
+        load_tokenizer_section_config,
+        run_tokenizer_section_derivation,
+    )
+
+    paths = RepoPaths.discover(root_dir) if root_dir is None else RepoPaths(root=root_dir)
+
+    def anchored(path: Path) -> Path:
+        return path if path.is_absolute() else paths.root / path
+
+    selected_config = (
+        paths.root / "configs/models/tokenizer_sections_v1.yaml"
+        if config_path is None
+        else anchored(config_path)
+    )
+    try:
+        if not output_dir.is_absolute():
+            raise ValueError("--output-dir must be an absolute private path")
+        loaded = load_tokenizer_section_config(selected_config)
+        manifest = run_tokenizer_section_derivation(
+            repo_root=paths.root,
+            output_dir=output_dir,
+            config=loaded.config,
+        )
+    except (OSError, ValueError, TokenizerSectionDerivationError) as exc:
+        typer.echo(f"tokenizer-section derivation rejected: {exc}", err=True)
+        raise typer.Exit(code=1) from exc
+    typer.echo(
+        "tokenizer sections ready; "
+        f"derivation={manifest.derivation_id} records={manifest.record_count} "
+        f"preflight={len(manifest.preflight_theorem_ids)} private=true release_eligible=false"
+    )
+
+
+@app.command("verify-tokenizer-sections")
+def verify_tokenizer_sections_command(
+    output_dir: Annotated[
+        Path,
+        typer.Option("--output-dir", help="Frozen semantic-section output directory."),
+    ],
+    root_dir: Annotated[
+        Path | None,
+        typer.Option("--root", help="Repository root override."),
+    ] = None,
+) -> None:
+    """Verify section bytes, environment pins, ordering, and derivation identity."""
+    from leanfaith.config.paths import RepoPaths
+    from leanfaith.models.tokenizer_sections import (
+        TokenizerSectionDerivationError,
+        verify_tokenizer_section_derivation,
+    )
+
+    paths = RepoPaths.discover(root_dir) if root_dir is None else RepoPaths(root=root_dir)
+    try:
+        if not output_dir.is_absolute():
+            raise ValueError("--output-dir must be an absolute private path")
+        manifest = verify_tokenizer_section_derivation(output_dir, repo_root=paths.root)
+    except (OSError, ValueError, TokenizerSectionDerivationError) as exc:
+        typer.echo(f"tokenizer-section verification failed: {exc}", err=True)
+        raise typer.Exit(code=1) from exc
+    typer.echo(
+        "tokenizer sections verified; "
+        f"derivation={manifest.derivation_id} records={manifest.record_count} "
+        "private=true release_eligible=false"
+    )
+
+
+@app.command("run-tokenizer-audit")
+def run_tokenizer_audit_command(
+    output_dir: Annotated[
+        Path,
+        typer.Option("--output-dir", help="New immutable tokenizer-audit output, or replay."),
+    ],
+    config_path: Annotated[
+        Path | None,
+        typer.Option("--config", help="Pinned tokenizer-audit configuration."),
+    ] = None,
+    root_dir: Annotated[
+        Path | None,
+        typer.Option("--root", help="Repository root override."),
+    ] = None,
+) -> None:
+    """Audit the four pinned tokenizers; make no scientific winner selection."""
+    from leanfaith.config.paths import RepoPaths
+    from leanfaith.models.tokenizer_audit import (
+        TokenizerAuditError,
+        load_tokenizer_audit_config,
+        run_tokenizer_audit,
+    )
+
+    paths = RepoPaths.discover(root_dir) if root_dir is None else RepoPaths(root=root_dir)
+
+    def anchored(path: Path) -> Path:
+        return path if path.is_absolute() else paths.root / path
+
+    selected_config = (
+        paths.root / "configs/models/tokenizer_audit_v1.yaml"
+        if config_path is None
+        else anchored(config_path)
+    )
+    try:
+        if not output_dir.is_absolute():
+            raise ValueError("--output-dir must be an absolute path outside the repository")
+        loaded = load_tokenizer_audit_config(selected_config)
+        artifacts = run_tokenizer_audit(
+            repo_root=paths.root,
+            output_dir=output_dir,
+            config=loaded.config,
+            config_hash=loaded.config_hash,
+        )
+    except (OSError, ValueError, TokenizerAuditError) as exc:
+        typer.echo(f"tokenizer audit rejected: {exc}", err=True)
+        raise typer.Exit(code=1) from exc
+    typer.echo(
+        "tokenizer audit ready; "
+        f"audit={artifacts.audit_id} selected_length={artifacts.selected_length} "
+        f"eligible={','.join(artifacts.eligible_candidates)} "
+        f"replayed={str(artifacts.replayed).lower()} scientific_winner_selected=false"
+    )
+
+
+@app.command("verify-tokenizer-audit")
+def verify_tokenizer_audit_command(
+    output_dir: Annotated[
+        Path,
+        typer.Option("--output-dir", help="Frozen tokenizer-audit output directory."),
+    ],
+    replay: Annotated[
+        bool,
+        typer.Option("--replay/--no-replay", help="Recompute every frozen output byte."),
+    ] = True,
+) -> None:
+    """Verify tokenizer-audit hashes and, by default, exact computation replay."""
+    from leanfaith.models.tokenizer_audit import TokenizerAuditError, verify_tokenizer_audit
+
+    try:
+        manifest = verify_tokenizer_audit(output_dir, replay=replay)
+    except (OSError, ValueError, TokenizerAuditError) as exc:
+        typer.echo(f"tokenizer audit verification failed: {exc}", err=True)
+        raise typer.Exit(code=1) from exc
+    typer.echo(
+        "tokenizer audit verified; "
+        f"audit={manifest.audit_id} selected_length={manifest.selected_length} "
+        "scientific_winner_selected=false"
+    )
+
+
 def main() -> None:
     app()
 

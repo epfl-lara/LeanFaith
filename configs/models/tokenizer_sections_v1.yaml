@@ -1,0 +1,34 @@
+schema_version: 2
+profile_id: gate3_tokenizer_sections_v1
+method_version: lean_meta_tokenizer_sections_v1
+theorem_partition: /storage/milikic/leanfaith/gate3/frozen/gate3_inputs.theorems.jsonl
+theorem_partition_sha256: 8eb75ffa0b9233c5a91492fa181f604e3c098a6f3970799bcb0406f8b517f09e
+expected_records: 10000
+expected_per_source:
+  mathlib: 5000
+  sft_classic: 5000
+context_id: ctx:0cd06826b8767b3bc951c0eb00c802424af95785b558f9f8a61f18694a86c4ce
+import_header: import Mathlib
+context_record_path: data/extracted/contexts/0cd06826b8767b3bc951c0eb00c802424af95785b558f9f8a61f18694a86c4ce.json
+context_record_sha256: d08d78779f9a3ea7c9c1779c982cc8359a309c94de2ea0b4c2c5a3df85ff51fc
+project_registry_key: mathlib
+project_registry_path: configs/projects/mathlib.yaml
+project_registry_sha256: dfaccff566a513c17aad970c7204b1e86bc65a15ea2e234e749301b9be5cb940
+environment_lock_path: configs/environment.lock.yaml
+environment_lock_sha256: e447ac3a773b0d29ec75b51bcfa5318158399e9fe7459a650f9d0bfef9986298
+expected_project_revision: d568c8c09630de097a046763c17b9ea99f95f950
+expected_lean_toolchain: v4.31.0-rc1
+lean_toolchain_sha256: 33cbab0d3ba76bdf58d9f3638748f12cb9e3befb1336b223ddbd3567589a09e8
+lake_manifest_sha256: a57d555a62046897b995eb353f8667a96d87352a30874023937af39ea3b6b36b
+project_dir: /storage/milikic/leanfaith/mathlib4
+raw_response_dir: /storage/milikic/leanfaith/tokenizer_sections_v1/raw_lean_responses
+workers: 4
+chunk_size: 64
+memory_hard_limit_mb: 16384
+timeout_seconds: 600.0
+lean_num_threads: 1
+preflight_records_per_source: 2
+contains_private_source: true
+redistribution: false
+external_transmission: false
+release_eligible: false
