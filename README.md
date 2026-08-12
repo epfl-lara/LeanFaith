@@ -160,6 +160,18 @@ dataset probe (PLAN.md §9.2).
   deployment, and family-separation artifacts for later production scaling;
   it authorizes no network call or label. See
   `reports/milestones/phase_6_llm_data.md`.
+- **First combined proxy corpus is frozen and replay-verified (2026-08-12):**
+  the complete selectable deterministic first-hop projection and the strict
+  subset of completed Kimi/Qwen Codex audits now form one immutable,
+  ancestry-split dataset with 10,837 records (8,789 train, 1,017 validation,
+  1,031 test). It contains 3,857 same-claim and 6,980 not-same-claim proxy
+  targets. The adapter retained 510 internally coherent LLM judgments and
+  rejected 664 inconsistent judgments plus two expert-review cases rather
+  than weakening admission. Independent external-input verification and an
+  exact second freeze passed. This artifact is allowed only for smoke training,
+  learning curves, and proxy diagnostics; it is not human gold, semantic
+  silver, confirmatory model-selection data, or evaluation data. See
+  `reports/model_selection/experimental_mixed_supervision_firsthop_lf022_v1.md`.
 - **Active data-production checkpoint (2026-08-10):** the preserved public
   LF-022 execution contains 668 parsed provisional variants.  The production
   four-worker LeanInteract checker has now processed every one: 493 elaborate
