@@ -40,7 +40,7 @@ from leanfaith.lean.project_registry import (
     check_project_revision,
     check_project_toolchain,
 )
-from leanfaith.lean.protocol import LeanRequest, LeanStatus, compute_request_hash
+from leanfaith.lean.protocol import LeanRequest, LeanResult, LeanStatus, compute_request_hash
 from leanfaith.lean.session_policy import ServerMode
 from leanfaith.representations.pipeline import (
     _hoist_inline_imports,
@@ -58,6 +58,9 @@ _MESSAGE_PREFIX = "LFTOKSECTIONSJSON "
 
 class TokenizerSectionDerivationError(RuntimeError):
     """The exact semantic-section derivation failed closed."""
+
+
+PendingSectionRequest = tuple[TheoremRecord, Path, LeanRequest, str, str]
 
 
 class SectionDerivationConfig(StrictModel):
@@ -539,6 +542,50 @@ def _write_item(
     _write_private_file(path, payload)
 
 
+def _persist_batch_results(
+    pending: Sequence[PendingSectionRequest],
+    results: Sequence[LeanResult],
+    *,
+    derivation_binding_sha256: str,
+) -> None:
+    """Persist every successful sibling before reporting batch failures.
+
+    A transport failure is local to one theorem.  Earlier code raised on the
+    first failed result, so valid results later in the same already-completed
+    batch were discarded and had to be recomputed on resume.
+    """
+
+    failures: list[str] = []
+    for (theorem, item, _request, lookup, request_hash), result in zip(
+        pending, results, strict=True
+    ):
+        try:
+            if result.request_hash != request_hash:
+                raise TokenizerSectionDerivationError(
+                    f"Lean request identity differs for {theorem.theorem_id}"
+                )
+            if result.status not in (LeanStatus.VALID, LeanStatus.VALID_WITH_SORRY):
+                detail = f": {result.infrastructure_error}" if result.infrastructure_error else ""
+                raise TokenizerSectionDerivationError(
+                    f"Lean section derivation failed for {theorem.theorem_id}: "
+                    f"{result.status}{detail}"
+                )
+            _write_item(
+                item,
+                _parse_result(theorem, lookup, result.messages),
+                derivation_binding_sha256=derivation_binding_sha256,
+                request_hash=request_hash,
+            )
+        except TokenizerSectionDerivationError as exc:
+            failures.append(str(exc))
+
+    if failures:
+        summary = " | ".join(failures)
+        raise TokenizerSectionDerivationError(
+            f"{len(failures)} Lean section derivation request(s) failed: {summary}"
+        )
+
+
 def _load_item(
     path: Path,
     *,
@@ -647,9 +694,7 @@ def run_tokenizer_section_derivation(
         LeanInteractBackend.prepare_environment(replace(settings, environment_is_prepared=False))
     backend = LeanInteractBackend(settings)
 
-    def pending_for(
-        theorem: TheoremRecord,
-    ) -> tuple[TheoremRecord, Path, LeanRequest, str, str]:
+    def pending_for(theorem: TheoremRecord) -> PendingSectionRequest:
         item = work / f"{theorem.theorem_id.removeprefix('thm:')}.json"
         code, lookup = _command(
             theorem,
@@ -666,29 +711,17 @@ def run_tokenizer_section_derivation(
         return theorem, item, request, lookup, _request_hash(request, context_id=config.context_id)
 
     def execute(
-        pending: Sequence[tuple[TheoremRecord, Path, LeanRequest, str, str]],
+        pending: Sequence[PendingSectionRequest],
     ) -> None:
         if not pending:
             return
         results = backend.run_batch([row[2] for row in pending])
         _normalize_private_tree(raw_response_dir)
-        for (theorem, item, _request, lookup, request_hash), result in zip(
-            pending, results, strict=True
-        ):
-            if result.request_hash != request_hash:
-                raise TokenizerSectionDerivationError(
-                    f"Lean request identity differs for {theorem.theorem_id}"
-                )
-            if result.status not in (LeanStatus.VALID, LeanStatus.VALID_WITH_SORRY):
-                raise TokenizerSectionDerivationError(
-                    f"Lean section derivation failed for {theorem.theorem_id}: {result.status}"
-                )
-            _write_item(
-                item,
-                _parse_result(theorem, lookup, result.messages),
-                derivation_binding_sha256=derivation_binding_sha256,
-                request_hash=request_hash,
-            )
+        _persist_batch_results(
+            pending,
+            results,
+            derivation_binding_sha256=derivation_binding_sha256,
+        )
 
     preflight = _preflight_theorems(theorems, config)
     try:
@@ -699,7 +732,7 @@ def run_tokenizer_section_derivation(
         execute([pending_for(theorem) for theorem in preflight])
         for start in range(0, len(theorems), config.chunk_size):
             chunk = theorems[start : start + config.chunk_size]
-            pending: list[tuple[TheoremRecord, Path, LeanRequest, str, str]] = []
+            pending: list[PendingSectionRequest] = []
             for theorem in chunk:
                 row = pending_for(theorem)
                 item = row[1]

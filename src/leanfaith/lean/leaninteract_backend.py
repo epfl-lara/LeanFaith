@@ -832,7 +832,6 @@ class LeanInteractBackend:
 
         retry_elapsed = int((time.monotonic() - retry_started) * 1000)
         recovered = {}
-        repeated_corruption = False
         for i, retry_request, item in zip(affected, retry_requests, retry_items, strict=True):
             result = self._normalize_pool_item(
                 retry_request,
@@ -841,14 +840,33 @@ class LeanInteractBackend:
                 first_elapsed_ms + retry_elapsed,
                 recover_corrupted_environment=False,
             )
-            repeated_corruption |= (
-                result.infrastructure_error == "core_environment_corruption_after_pool_recovery"
-            )
+            if result.infrastructure_error == "core_environment_corruption_after_pool_recovery":
+                # A replacement pool still returned an impossible imported
+                # environment for this one request.  All replacement-pool
+                # futures have already joined, so it is now safe to discard
+                # that pool and use the existing bounded stable-process
+                # recovery as a rare correctness oracle.  Pass the original
+                # request (without the pool-recovery marker): the stable run
+                # adds the single core-recovery marker itself, and a third
+                # corrupt response therefore terminates as an explicit CRASH.
+                if isinstance(item, (LeanError, BaseException)):
+                    raise AssertionError("core-corruption response lacks a raw payload")
+                if result.raw_response_path is None:
+                    raise AssertionError("core-corruption response was not persisted")
+                raw = item.model_dump(mode="json")
+                stable_result = self._recover_corrupted_environment(
+                    requests[i],
+                    request_hash=hashes[i],
+                    raw=raw,
+                    raw_path=result.raw_response_path,
+                    elapsed_ms=first_elapsed_ms + retry_elapsed,
+                    originated_from_pool=True,
+                )
+                assert stable_result is not None
+                result = stable_result
             # Metadata does not participate in request identity; nevertheless
             # expose the caller's original request ID explicitly.
             recovered[i] = replace(result, request_id=requests[i].request_id)
-        if repeated_corruption:
-            self.reset_session()
         return recovered
 
     def _run_batch_pooled(self, requests: Sequence[LeanRequest]) -> list[LeanResult]:

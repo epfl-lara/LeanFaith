@@ -441,6 +441,79 @@ def test_section_resume_items_and_work_identity_bind_helper_partition_and_enviro
         )
 
 
+def test_section_batch_persists_valid_siblings_before_reporting_failure(
+    tmp_path: Path,
+) -> None:
+    from leanfaith.lean.protocol import LeanRequest, LeanResult, LeanStatus
+    from leanfaith.models.tokenizer_sections import (
+        TokenizerSectionDerivationError,
+        _persist_batch_results,
+    )
+
+    failed_theorem = _toy_theorem(0, "mathlib")
+    valid_theorem = _toy_theorem(1, "mathlib")
+    context_id = failed_theorem.context_id
+    failed_request = LeanRequest(
+        request_id="failed-section",
+        context_id=context_id,
+        code="import Mathlib\n#check t0",
+    )
+    valid_request = LeanRequest(
+        request_id="valid-section",
+        context_id=context_id,
+        code="import Mathlib\n#check t1",
+    )
+    failed_hash = "a" * 64
+    valid_hash = "b" * 64
+    failed_path = tmp_path / "failed.json"
+    valid_path = tmp_path / "valid.json"
+    pending = (
+        (failed_theorem, failed_path, failed_request, "t0", failed_hash),
+        (valid_theorem, valid_path, valid_request, "t1", valid_hash),
+    )
+    valid_payload = {
+        "name": "t1",
+        "method_version": "lean_meta_tokenizer_sections_v1",
+        "sections": {"units": [], "conclusion": "True"},
+    }
+    results = (
+        LeanResult(
+            request_id=failed_request.request_id,
+            request_hash=failed_hash,
+            context_id=context_id,
+            context_fingerprint="c" * 64,
+            status=LeanStatus.CRASH,
+            infrastructure_error="core_environment_corruption_after_recovery",
+        ),
+        LeanResult(
+            request_id=valid_request.request_id,
+            request_hash=valid_hash,
+            context_id=context_id,
+            context_fingerprint="c" * 64,
+            status=LeanStatus.VALID,
+            messages=(
+                {
+                    "severity": "information",
+                    "data": "LFTOKSECTIONSJSON " + json.dumps(valid_payload),
+                },
+            ),
+        ),
+    )
+
+    with pytest.raises(TokenizerSectionDerivationError, match="1 Lean section"):
+        _persist_batch_results(
+            pending,
+            results,
+            derivation_binding_sha256="d" * 64,
+        )
+
+    assert not failed_path.exists()
+    assert valid_path.exists()
+    item = json.loads(valid_path.read_text(encoding="utf-8"))
+    assert item["record"]["theorem_id"] == valid_theorem.theorem_id
+    assert item["request_hash"] == valid_hash
+
+
 def test_section_preflight_is_exactly_two_records_per_source() -> None:
     from leanfaith.models.tokenizer_sections import (
         SectionDerivationConfig,
