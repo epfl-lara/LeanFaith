@@ -670,6 +670,8 @@ class LeanInteractBackend:
         request_hash: str,
         item: object,
         elapsed_ms: int,
+        *,
+        recover_corrupted_environment: bool = True,
     ) -> LeanResult:
         if isinstance(item, LeanError):
             raw_path = self._persist_raw(
@@ -697,16 +699,35 @@ class LeanInteractBackend:
             )
         raw = item.model_dump(mode="json")  # type: ignore[attr-defined]
         raw_path = self._persist_raw(request, request_hash, raw, None)
-        recovered = self._recover_corrupted_environment(
-            request,
-            request_hash=request_hash,
-            raw=raw,
-            raw_path=raw_path,
-            elapsed_ms=elapsed_ms,
-            originated_from_pool=True,
-        )
-        if recovered is not None:
-            return recovered
+        if recover_corrupted_environment:
+            recovered = self._recover_corrupted_environment(
+                request,
+                request_hash=request_hash,
+                raw=raw,
+                raw_path=raw_path,
+                elapsed_ms=elapsed_ms,
+                originated_from_pool=True,
+            )
+            if recovered is not None:
+                return recovered
+        elif self._core_environment_is_corrupted(request, raw):
+            # Coordinated pool recovery already retried this request once.
+            # Never recurse into another per-item reset from inside batch
+            # normalization: retain the second raw observation and expose an
+            # infrastructure terminal result instead of a semantic INVALID.
+            normalized = normalize_response(
+                request,
+                self._raw_for_normalization(request, raw),
+                request_hash=request_hash,
+                context_fingerprint=self._settings.context_fingerprint,
+                elapsed_ms=elapsed_ms,
+                raw_response_path=raw_path,
+            )
+            return replace(
+                normalized,
+                status=LeanStatus.CRASH,
+                infrastructure_error="core_environment_corruption_after_pool_recovery",
+            )
         normalized = normalize_response(
             request,
             self._raw_for_normalization(request, raw),
@@ -720,6 +741,115 @@ class LeanInteractBackend:
             normalized,
             originated_from_pool=True,
         )
+
+    def _pool_item_has_core_corruption(self, request: LeanRequest, item: object) -> bool:
+        """Inspect a returned pool value without mutating shared pool state."""
+
+        if isinstance(item, (LeanError, BaseException)):
+            return False
+        raw = item.model_dump(mode="json")  # type: ignore[attr-defined]
+        return self._core_environment_is_corrupted(request, raw)
+
+    def _coordinated_pool_recovery(
+        self,
+        *,
+        requests: Sequence[LeanRequest],
+        hashes: Sequence[str],
+        indices: Sequence[int],
+        raw_results: Sequence[object],
+        first_elapsed_ms: int,
+        timeout_seconds: float,
+    ) -> dict[int, LeanResult]:
+        """Persist corrupt observations, reset once, and retry their subset.
+
+        ``LeanServerPool.run_batch`` joins its worker futures before returning,
+        so the coordinator can safely close the poisoned pool once.  Previous
+        code normalized each corrupt item independently; every item reset the
+        same shared pool and launched a stable fallback, producing reset churn
+        and effectively serial scale execution.
+        """
+
+        affected = [
+            i
+            for i, item in zip(indices, raw_results, strict=True)
+            if self._pool_item_has_core_corruption(requests[i], item)
+        ]
+        if not affected:
+            return {}
+
+        # Persist every first-pass corrupt response before discarding the
+        # poisoned pool. Recovery is deliberately disabled here so no item can
+        # reset shared state during normalization.
+        by_index = dict(zip(indices, raw_results, strict=True))
+        for i in affected:
+            provisional = self._normalize_pool_item(
+                requests[i],
+                hashes[i],
+                by_index[i],
+                first_elapsed_ms,
+                recover_corrupted_environment=False,
+            )
+            assert provisional.status == LeanStatus.CRASH
+
+        self.reset_session()
+        retry_requests = [
+            replace(
+                requests[i],
+                metadata={
+                    **dict(requests[i].metadata),
+                    "attempt": f"{self._normalized_attempt(requests[i])}-pool-recovery",
+                    "core_environment_recovery": "1",
+                },
+            )
+            for i in affected
+        ]
+        retry_started = time.monotonic()
+        try:
+            retry_pool = self._ensure_pool()
+            retry_items = retry_pool.run_batch(
+                [self._build_repl_request(request) for request in retry_requests],
+                timeout_per_cmd=timeout_seconds,
+            )
+        except Exception as exc:
+            retry_elapsed = int((time.monotonic() - retry_started) * 1000)
+            recovered: dict[int, LeanResult] = {}
+            for i, retry_request in zip(affected, retry_requests, strict=True):
+                raw_path = self._persist_raw(
+                    retry_request,
+                    hashes[i],
+                    None,
+                    f"pool recovery: {type(exc).__name__}: {exc}",
+                )
+                recovered[i] = normalize_exception(
+                    requests[i],
+                    exc,
+                    request_hash=hashes[i],
+                    context_fingerprint=self._settings.context_fingerprint,
+                    elapsed_ms=first_elapsed_ms + retry_elapsed,
+                    raw_response_path=raw_path,
+                )
+            return recovered
+
+        retry_elapsed = int((time.monotonic() - retry_started) * 1000)
+        recovered = {}
+        repeated_corruption = False
+        for i, retry_request, item in zip(affected, retry_requests, retry_items, strict=True):
+            result = self._normalize_pool_item(
+                retry_request,
+                hashes[i],
+                item,
+                first_elapsed_ms + retry_elapsed,
+                recover_corrupted_environment=False,
+            )
+            repeated_corruption |= (
+                result.infrastructure_error == "core_environment_corruption_after_pool_recovery"
+            )
+            # Metadata does not participate in request identity; nevertheless
+            # expose the caller's original request ID explicitly.
+            recovered[i] = replace(result, request_id=requests[i].request_id)
+        if repeated_corruption:
+            self.reset_session()
+        return recovered
 
     def _run_batch_pooled(self, requests: Sequence[LeanRequest]) -> list[LeanResult]:
         hashes: list[str] = []
@@ -777,8 +907,21 @@ class LeanInteractBackend:
             # Per-item wall time is unavailable from the pool; each item
             # records its group's elapsed time (documented limitation).
             group_elapsed = int((time.monotonic() - group_started) * 1000)
+            coordinated = self._coordinated_pool_recovery(
+                requests=requests,
+                hashes=hashes,
+                indices=indices,
+                raw_results=raw_results,
+                first_elapsed_ms=group_elapsed,
+                timeout_seconds=timeout_seconds,
+            )
             for i, item in zip(indices, raw_results, strict=True):
-                results[i] = self._normalize_pool_item(requests[i], hashes[i], item, group_elapsed)
+                if i in coordinated:
+                    results[i] = coordinated[i]
+                else:
+                    results[i] = self._normalize_pool_item(
+                        requests[i], hashes[i], item, group_elapsed
+                    )
         final = [result for result in results if result is not None]
         assert len(final) == len(requests)  # every index filled exactly once
         return final

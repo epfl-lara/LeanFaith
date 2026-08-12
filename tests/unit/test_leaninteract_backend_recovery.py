@@ -404,7 +404,6 @@ def test_pool_recovery_reacquires_pool_for_later_timeout_group(
     )
     first_pool = _BatchPool([corrupt])
     second_pool = _BatchPool([_Response(_raw([]))])
-    recovered_server = _Server(_Response(_raw([])))
     backend = LeanInteractBackend(
         BackendSettings(
             project_dir=tmp_path,
@@ -421,13 +420,7 @@ def test_pool_recovery_reacquires_pool_for_later_timeout_group(
             backend._pool = second_pool  # type: ignore[assignment]
         return backend._pool  # type: ignore[return-value]
 
-    def ensure_server() -> _Server:
-        if backend._server is None:
-            backend._server = recovered_server  # type: ignore[assignment]
-        return backend._server  # type: ignore[return-value]
-
     monkeypatch.setattr(backend, "_ensure_pool", ensure_pool)
-    monkeypatch.setattr(backend, "_ensure_server", ensure_server)
     requests = (
         LeanRequest(
             request_id="pool-corrupt-first-group",
@@ -447,9 +440,74 @@ def test_pool_recovery_reacquires_pool_for_later_timeout_group(
         assert [result.status for result in results] == [LeanStatus.VALID, LeanStatus.VALID]
         assert first_pool.timeout_calls == [1.0]
         assert first_pool.closed
-        assert second_pool.timeout_calls == [2.0]
-        assert recovered_server.calls == 1
-        assert recovered_server.killed
+        assert second_pool.timeout_calls == [1.0, 2.0]
+    finally:
+        backend.close()
+
+
+def test_pool_coordinates_multiple_corrupt_items_with_one_subset_retry(
+    monkeypatch: Any, tmp_path: Path
+) -> None:
+    corrupt = _Response(
+        _raw(
+            [
+                {"severity": "error", "data": "unknown namespace `Real`"},
+                {"severity": "error", "data": "Unknown constant `OfNat`"},
+            ]
+        )
+    )
+    first_pool = _BatchPool([corrupt, corrupt, _Response(_raw([]))])
+    replacement_pool = _BatchPool([_Response(_raw([])), _Response(_raw([]))])
+    backend = LeanInteractBackend(
+        BackendSettings(
+            project_dir=tmp_path,
+            context_fingerprint="0" * 64,
+            environment_schema_version=1,
+            raw_response_dir=tmp_path / "raw",
+            server_mode=ServerMode.POOL,
+            workers=3,
+        )
+    )
+    backend._pool = first_pool  # type: ignore[assignment]
+    pool_creations = 0
+
+    def ensure_pool() -> _BatchPool:
+        nonlocal pool_creations
+        if backend._pool is None:
+            pool_creations += 1
+            backend._pool = replacement_pool  # type: ignore[assignment]
+        return backend._pool  # type: ignore[return-value]
+
+    monkeypatch.setattr(backend, "_ensure_pool", ensure_pool)
+    monkeypatch.setattr(
+        backend,
+        "_ensure_server",
+        lambda: pytest.fail("coordinated pool recovery must not launch per-item stable servers"),
+    )
+    requests = tuple(
+        LeanRequest(
+            request_id=f"coordinated-{index}",
+            context_id="ctx:" + "0" * 64,
+            code=f"import Mathlib\ntheorem t{index} : True := trivial",
+            timeout_seconds=3.0,
+        )
+        for index in range(3)
+    )
+
+    try:
+        results = backend.run_batch(requests)
+        assert [result.request_id for result in results] == [
+            request.request_id for request in requests
+        ]
+        assert [result.request_hash for result in results] == [
+            backend._request_hash(request) for request in requests
+        ]
+        assert [result.status for result in results] == [LeanStatus.VALID] * 3
+        assert first_pool.timeout_calls == [3.0]
+        assert first_pool.closed
+        assert replacement_pool.timeout_calls == [3.0]
+        assert pool_creations == 1
+        assert len(list((tmp_path / "raw").glob("*.json"))) == 5
     finally:
         backend.close()
 

@@ -18,6 +18,7 @@ import subprocess
 import tempfile
 from collections import Counter
 from collections.abc import Mapping, Sequence
+from dataclasses import replace
 from pathlib import Path
 from typing import Any, Literal
 
@@ -60,7 +61,7 @@ class TokenizerSectionDerivationError(RuntimeError):
 
 
 class SectionDerivationConfig(StrictModel):
-    schema_version: Literal[3]
+    schema_version: Literal[4]
     profile_id: str = Field(min_length=1)
     method_version: Literal["lean_meta_tokenizer_sections_v1"]
     theorem_partition: str
@@ -91,6 +92,7 @@ class SectionDerivationConfig(StrictModel):
     enable_parallel_elaboration: Literal[False]
     isolate_incremental_commands: Literal[True]
     confirm_invalid_on_fresh_process: Literal[True]
+    prepare_environment_once: Literal[True]
     preflight_records_per_source: int = Field(ge=0)
     contains_private_source: Literal[True]
     redistribution: Literal[False]
@@ -182,7 +184,7 @@ class SemanticSectionItem(StrictModel):
 
 
 class SectionDerivationManifest(StrictModel):
-    schema_version: Literal[3]
+    schema_version: Literal[4]
     method_version: Literal["lean_meta_tokenizer_sections_v1"]
     derivation_id: str = Field(pattern=r"^tokenizer_sections:[0-9a-f]{64}$")
     derivation_binding_sha256: str = Field(pattern=_HEX64)
@@ -594,6 +596,7 @@ def _backend_settings(config: SectionDerivationConfig) -> BackendSettings:
         enable_parallel_elaboration=config.enable_parallel_elaboration,
         isolate_incremental_commands=config.isolate_incremental_commands,
         confirm_invalid_on_fresh_process=config.confirm_invalid_on_fresh_process,
+        environment_is_prepared=True,
     )
 
 
@@ -637,6 +640,11 @@ def run_tokenizer_section_derivation(
     settings = _backend_settings(config)
     if settings.raw_response_dir != raw_response_dir:
         raise TokenizerSectionDerivationError("section raw-response path differs")
+    if config.prepare_environment_once:
+        # Build/validate the immutable project and LeanInteract REPL exactly
+        # once. Pool workers must be build-disabled; otherwise all four race
+        # through full Mathlib and REPL setup before processing any theorem.
+        LeanInteractBackend.prepare_environment(replace(settings, environment_is_prepared=False))
     backend = LeanInteractBackend(settings)
 
     def pending_for(
@@ -736,7 +744,7 @@ def run_tokenizer_section_derivation(
         "sections_sha256": partition_hash,
     }
     manifest = SectionDerivationManifest(
-        schema_version=3,
+        schema_version=4,
         method_version=METHOD_VERSION,
         derivation_id="tokenizer_sections:" + hash_canonical(identity),
         derivation_binding_sha256=derivation_binding_sha256,
