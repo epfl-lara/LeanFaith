@@ -242,6 +242,71 @@ def test_m2_module_is_exactly_swap_invariant_and_uses_shared_directional_layers(
     assert torch.equal(direct["logits"], cached["logits"])
 
 
+def test_m2_diagnostic_protocol_preserves_split_isolation_and_epoch_order() -> None:
+    examples = _examples()
+    protocol = _m2_protocol()
+    schedule = m0.build_m0_epoch_schedule(
+        tuple(item for item in examples if item.proxy_training_eligible),
+        batch_size=protocol.training.batch_size,
+        seed=protocol.training.seed,
+        max_unique_variants_per_ancestry=protocol.training.max_unique_variants_per_ancestry,
+    )
+    grouped = m2._m2_diagnostic_examples_by_split(examples=examples, schedule=schedule)
+    expected_train = tuple(
+        item.record_id
+        for item in sorted(
+            (row for row in schedule.records if row.selection_status == "selected"),
+            key=lambda row: row.epoch_position,
+        )
+    )
+
+    assert tuple(grouped) == m2._SPLITS
+    assert tuple(item.record_id for item in grouped["train"]) == expected_train
+    assert {item.split for item in grouped["test"]} == {"test"}
+    assert {item.split for item in grouped["validation"]} == {"validation"}
+    assert tuple(item.record_id for item in grouped["train"]) != tuple(
+        item.record_id
+        for item in examples
+        if item.split == "train" and item.proxy_training_eligible
+    )
+
+
+def test_m2_prediction_replay_uses_small_numerical_tolerance_but_rejects_drift() -> None:
+    expected = m2.M2ProxyPrediction(
+        record_id=f"experimental_mixed_pair:{'1' * 64}",
+        split="test",
+        pseudo_target="same_claim",
+        same_claim_logit=0.25,
+        same_claim_probability=m2._sigmoid(0.25),
+        private_source_content=False,
+    )
+    numerical_replay = expected.model_copy(
+        update={
+            "same_claim_logit": expected.same_claim_logit + 5e-7,
+            "same_claim_probability": expected.same_claim_probability + 1e-7,
+        }
+    )
+    m2._require_prediction_replay(
+        (expected,),
+        (numerical_replay,),
+        absolute_tolerance=1e-6,
+        relative_tolerance=1e-5,
+    )
+    semantic_drift = expected.model_copy(
+        update={
+            "same_claim_logit": expected.same_claim_logit + 1e-3,
+            "same_claim_probability": m2._sigmoid(expected.same_claim_logit + 1e-3),
+        }
+    )
+    with pytest.raises(m2.ExperimentalM2ProxyError, match="do not replay"):
+        m2._require_prediction_replay(
+            (expected,),
+            (semantic_drift,),
+            absolute_tolerance=1e-6,
+            relative_tolerance=1e-5,
+        )
+
+
 def test_tiny_m2_training_replays_and_exact_verifier_rechecks_swap(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

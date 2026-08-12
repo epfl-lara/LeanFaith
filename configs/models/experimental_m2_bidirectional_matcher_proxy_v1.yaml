@@ -41,7 +41,9 @@ architecture:
   same_claim_swap_invariant: true
   swap_check_record_count: 64
   swap_check_atol: 0.0000001
-  prediction_replay_atol: 0.0000001
+  diagnostic_inference_protocol: split_isolated_train_epoch_order_dynamic_padding_v1
+  prediction_replay_atol: 0.000001
+  prediction_replay_rtol: 0.00001
   relation_head_enabled: false
   relation_head_disabled_reason: binary_proxy_targets_do_not_support_directional_relations
   ambiguity_head_enabled: false

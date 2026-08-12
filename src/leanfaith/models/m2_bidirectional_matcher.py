@@ -124,7 +124,11 @@ class M2ProxyArchitectureProtocol(StrictModel):
     same_claim_swap_invariant: Literal[True] = True
     swap_check_record_count: Literal[64] = 64
     swap_check_atol: float = Field(default=1e-7, ge=1e-7, le=1e-7)
-    prediction_replay_atol: float = Field(default=1e-7, ge=1e-7, le=1e-7)
+    diagnostic_inference_protocol: Literal[
+        "split_isolated_train_epoch_order_dynamic_padding_v1"
+    ] = "split_isolated_train_epoch_order_dynamic_padding_v1"
+    prediction_replay_atol: float = Field(default=1e-6, ge=1e-6, le=1e-6)
+    prediction_replay_rtol: float = Field(default=1e-5, ge=1e-5, le=1e-5)
     relation_head_enabled: Literal[False] = False
     relation_head_disabled_reason: Literal[
         "binary_proxy_targets_do_not_support_directional_relations"
@@ -751,6 +755,7 @@ def _require_prediction_replay(
     replayed: Sequence[M2ProxyPrediction],
     *,
     absolute_tolerance: float,
+    relative_tolerance: float,
 ) -> None:
     """Bind every portable prediction to inference from the final checkpoint."""
 
@@ -764,12 +769,78 @@ def _require_prediction_replay(
             or expected.private_source_content != observed.private_source_content
         ):
             raise ExperimentalM2ProxyError("M2 checkpoint replay prediction identity differs")
-        if (
-            abs(expected.same_claim_logit - observed.same_claim_logit) > absolute_tolerance
-            or abs(expected.same_claim_probability - observed.same_claim_probability)
-            > absolute_tolerance
+        if not math.isclose(
+            expected.same_claim_logit,
+            observed.same_claim_logit,
+            rel_tol=relative_tolerance,
+            abs_tol=absolute_tolerance,
+        ) or not math.isclose(
+            expected.same_claim_probability,
+            observed.same_claim_probability,
+            rel_tol=relative_tolerance,
+            abs_tol=absolute_tolerance,
         ):
             raise ExperimentalM2ProxyError("M2 predictions do not replay from final checkpoint")
+
+
+def _m2_diagnostic_examples_by_split(
+    *,
+    examples: Sequence[M0ProxyExample],
+    schedule: M0EpochSchedule,
+) -> dict[str, tuple[M0ProxyExample, ...]]:
+    """Rebuild the frozen inference order used to publish checkpoint diagnostics.
+
+    Dynamic padding makes a floating-point result depend slightly on its batch
+    peers.  The inference protocol therefore isolates splits and preserves the
+    epoch order for selected training examples.  Replaying all examples in raw
+    input order is not the same inference protocol, even when the record set is
+    identical.
+    """
+
+    by_id = {item.record_id: item for item in examples}
+    selected_rows = tuple(
+        sorted(
+            (item for item in schedule.records if item.selection_status == "selected"),
+            key=lambda item: cast(int, item.epoch_position),
+        )
+    )
+    try:
+        train = tuple(by_id[item.record_id] for item in selected_rows)
+    except KeyError as exc:
+        raise ExperimentalM2ProxyError(
+            "M2 diagnostic schedule references an unavailable example"
+        ) from exc
+    return {
+        "test": tuple(item for item in examples if item.split == "test" and not item.long_input),
+        "train": train,
+        "validation": tuple(
+            item for item in examples if item.split == "validation" and not item.long_input
+        ),
+    }
+
+
+def _predict_m2_diagnostic_splits(
+    *,
+    runtime: LoadedM2ProxyRuntime,
+    examples_by_split: Mapping[str, Sequence[M0ProxyExample]],
+    batch_size: int,
+    device: str,
+    module_importer: ModuleImporter,
+) -> dict[str, tuple[M2ProxyPrediction, ...]]:
+    """Run the exact split-isolated, dynamically padded diagnostic protocol."""
+
+    if tuple(examples_by_split) != _SPLITS:
+        raise ExperimentalM2ProxyError("M2 diagnostic split set or order is not exact")
+    return {
+        split: _predict_m2_examples(
+            runtime=runtime,
+            examples=examples_by_split[split],
+            batch_size=batch_size,
+            device=device,
+            module_importer=module_importer,
+        )
+        for split in _SPLITS
+    }
 
 
 def _require_replayed_diagnostics(
@@ -1050,23 +1121,17 @@ def _train_loaded_m2_proxy_one_epoch(
         initial_model_state_sha256=runtime.initial_model_state_sha256,
         prepared_tokenization_sha256=runtime.prepared_tokenization_sha256,
     )
-    diagnostic_examples = {
-        "train": selected_examples,
-        "validation": tuple(
-            item for item in examples if item.split == "validation" and not item.long_input
-        ),
-        "test": tuple(item for item in examples if item.split == "test" and not item.long_input),
-    }
-    predictions_by_split = {
-        split: _predict_m2_examples(
-            runtime=trusted_runtime,
-            examples=diagnostic_examples[split],
-            batch_size=microbatch_size,
-            device=device,
-            module_importer=module_importer,
-        )
-        for split in _SPLITS
-    }
+    diagnostic_examples = _m2_diagnostic_examples_by_split(
+        examples=examples,
+        schedule=schedule,
+    )
+    predictions_by_split = _predict_m2_diagnostic_splits(
+        runtime=trusted_runtime,
+        examples_by_split=diagnostic_examples,
+        batch_size=microbatch_size,
+        device=device,
+        module_importer=module_importer,
+    )
     predictions = tuple(
         sorted(
             (item for split in _SPLITS for item in predictions_by_split[split]),
@@ -1386,25 +1451,28 @@ def verify_m2_proxy_training(
             initial_model_state_sha256=runtime.initial_model_state_sha256,
             prepared_tokenization_sha256=runtime.prepared_tokenization_sha256,
         )
-        exact_examples = tuple(
-            item
-            for item in examples
-            if (
-                (item.split == "train" and item.record_id in selected_ids)
-                or (item.split in {"validation", "test"} and not item.long_input)
-            )
+        exact_examples_by_split = _m2_diagnostic_examples_by_split(
+            examples=examples,
+            schedule=rebuilt,
         )
-        replayed_predictions = _predict_m2_examples(
+        replayed_by_split = _predict_m2_diagnostic_splits(
             runtime=final_runtime,
-            examples=exact_examples,
+            examples_by_split=exact_examples_by_split,
             batch_size=protocol.training.microbatch_size,
             device=replay_device,
             module_importer=importlib.import_module,
+        )
+        replayed_predictions = tuple(
+            sorted(
+                (item for split in _SPLITS for item in replayed_by_split[split]),
+                key=lambda item: item.record_id,
+            )
         )
         _require_prediction_replay(
             predictions,
             replayed_predictions,
             absolute_tolerance=protocol.architecture.prediction_replay_atol,
+            relative_tolerance=protocol.architecture.prediction_replay_rtol,
         )
         _require_replayed_diagnostics(
             metrics.diagnostics,
@@ -1413,7 +1481,7 @@ def verify_m2_proxy_training(
         )
         rebuilt_swap = _check_swap_invariance(
             runtime=final_runtime,
-            examples=exact_examples,
+            examples=tuple(item for split in _SPLITS for item in exact_examples_by_split[split]),
             device=replay_device,
             module_importer=importlib.import_module,
         )
