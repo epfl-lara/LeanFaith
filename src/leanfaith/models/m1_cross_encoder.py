@@ -206,6 +206,31 @@ class M1ProxyTrainingManifest(ExperimentalM0ProxyBoundary):
     def _manifest_is_coherent(self) -> M1ProxyTrainingManifest:
         if self.protocol_hash != hash_canonical(self.protocol.model_dump(mode="json")):
             raise ValueError("M1 protocol hash differs from embedded protocol")
+        training = self.protocol.training
+        if (
+            self.optimizer != training.optimizer
+            or self.learning_rate != training.learning_rate
+            or self.weight_decay != training.weight_decay
+            or self.seed != training.seed
+            or self.epoch_count != training.epochs
+            or self.effective_batch_size != training.batch_size
+            or self.microbatch_size != training.microbatch_size
+            or self.gradient_accumulation_steps != training.gradient_accumulation_steps
+        ):
+            raise ValueError("M1 training fields differ from embedded protocol")
+        receipt = self.pretrained_checkpoint
+        backbone = self.protocol.backbone
+        expected_weight = receipt.required_files.get(backbone.weight_filename)
+        if (
+            receipt.model_id != backbone.model_id
+            or receipt.revision != backbone.revision
+            or receipt.hf_snapshot_api_url != backbone.hf_snapshot_api_url
+            or receipt.tokenizer_snapshot_content_hash != self.tokenizer_snapshot_content_hash
+            or expected_weight is None
+            or expected_weight.sha256 != backbone.weight_sha256
+            or expected_weight.byte_count != backbone.weight_byte_count
+        ):
+            raise ValueError("M1 checkpoint/tokenizer fields differ from embedded protocol")
         if self.code.git_dirty or self.code.code_tree_hash is None or self.code.untracked_files:
             raise ValueError("M1 proxy training requires clean fully tracked code")
         if set(self.output_sha256) != _NON_MANIFEST_OUTPUTS:
@@ -887,6 +912,26 @@ def verify_m1_proxy_training(
             predictions.append(item)
     if len({item.record_id for item in predictions}) != len(predictions):
         raise ExperimentalM1ProxyError("M1 predictions repeat a record")
+    if predictions != sorted(predictions, key=lambda item: item.record_id):
+        raise ExperimentalM1ProxyError("M1 predictions are not record-ID sorted")
+    selected_schedule_rows = tuple(
+        sorted(
+            (item for item in schedule.records if item.selection_status == "selected"),
+            key=lambda item: item.record_id,
+        )
+    )
+    observed_train = tuple(
+        sorted(
+            (item.record_id, item.split, item.pseudo_target)
+            for item in predictions
+            if item.split == "train"
+        )
+    )
+    expected_train = tuple(
+        (item.record_id, "train", item.pseudo_target) for item in selected_schedule_rows
+    )
+    if observed_train != expected_train:
+        raise ExperimentalM1ProxyError("M1 train predictions differ from the selected schedule")
     metrics = M0ProxyTrainingMetrics.model_validate(_strict_json(root / "metrics.json"))
     grouped = {
         split: tuple(item for item in predictions if item.split == split) for split in _SPLITS
@@ -944,6 +989,7 @@ def verify_m1_proxy_training(
             or hash_file(prepared / "manifest.json") != manifest.prepared_input_manifest_sha256
             or prepared_manifest.dataset_id != manifest.dataset_id
             or protocol != manifest.protocol
+            or prepared_manifest.tokenizer_decision.audit_id != manifest.tokenizer_audit_id
         ):
             raise ExperimentalM1ProxyError("prepared M1 dependencies differ from manifest")
         _verify_audited_tokenizer_snapshot(audited_tokenizer_snapshot)
@@ -956,7 +1002,18 @@ def verify_m1_proxy_training(
         ):
             raise ExperimentalM1ProxyError("M1 tokenizer/checkpoint differs from manifest")
         verify_local_modernbert_checkpoint(checkpoint)
-        tokenizer = _load_audited_tokenizer(audited_tokenizer_snapshot)
+        expected_runtime = load_m1_proxy_runtime(
+            prepared_input_dir=prepared,
+            checkpoint=checkpoint,
+            audited_tokenizer_snapshot=audited_tokenizer_snapshot,
+            protocol=protocol,
+            allow_experimental_mixed_supervision=True,
+        )
+        if expected_runtime.initial_model_state_sha256 != manifest.initial_model_state_sha256:
+            raise ExperimentalM1ProxyError(
+                "M1 initial model state differs from exact checkpoint architecture"
+            )
+        tokenizer = expected_runtime.tokenizer
         examples = _load_prepared_examples(prepared)
         packed, lengths = _packed_tokenization(
             tokenizer,
@@ -978,6 +1035,43 @@ def verify_m1_proxy_training(
         )
         if rebuilt != schedule:
             raise ExperimentalM1ProxyError("M1 schedule does not replay from exact inputs")
+        selected_ids = {
+            item.record_id for item in rebuilt.records if item.selection_status == "selected"
+        }
+        expected_prediction_bindings = tuple(
+            sorted(
+                (
+                    item.record_id,
+                    item.split,
+                    item.pseudo_target,
+                    item.private_source_content,
+                )
+                for item in examples
+                if (
+                    (item.split == "train" and item.record_id in selected_ids)
+                    or (
+                        item.split in {"validation", "test"}
+                        and lengths[item.record_id]
+                        <= prepared_manifest.tokenizer_decision.selected_length
+                    )
+                )
+            )
+        )
+        observed_prediction_bindings = tuple(
+            sorted(
+                (
+                    item.record_id,
+                    item.split,
+                    item.pseudo_target,
+                    item.private_source_content,
+                )
+                for item in predictions
+            )
+        )
+        if observed_prediction_bindings != expected_prediction_bindings:
+            raise ExperimentalM1ProxyError(
+                "M1 predictions differ from exact prepared examples and schedule"
+            )
     return manifest
 
 

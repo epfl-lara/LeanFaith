@@ -335,6 +335,51 @@ def test_tiny_m1_training_is_executable_replayable_and_private_safe(
         assert (first_dir / name).read_bytes() == (second_dir / name).read_bytes()
         assert b"PRIVATE_SENTINEL" not in (first_dir / name).read_bytes()
 
+    m1.verify_m1_proxy_training(
+        second_dir,
+        prepared_input_dir=prepared,
+        checkpoint=checkpoint,
+        audited_tokenizer_snapshot=snapshot,
+        protocol=protocol,
+    )
+    manifest_data = json.loads((second_dir / "manifest.json").read_text())
+    mismatched_protocol_fields = {**manifest_data, "learning_rate": 2e-5}
+    mismatched_protocol_fields["artifact_id"] = "experimental-m1-proxy-training:" + hash_canonical(
+        {key: value for key, value in mismatched_protocol_fields.items() if key != "artifact_id"}
+    )
+    with pytest.raises(ValueError, match="training fields differ"):
+        m1.M1ProxyTrainingManifest.model_validate(mismatched_protocol_fields)
+
+    prediction_values = [
+        json.loads(line) for line in (second_dir / "predictions.jsonl").read_text().splitlines()
+    ]
+    validation_prediction = next(
+        item for item in prediction_values if item["split"] == "validation"
+    )
+    validation_prediction["record_id"] = f"experimental_mixed_pair:{'f' * 64}"
+    prediction_values.sort(key=lambda item: item["record_id"])
+    prediction_payload = b"".join(canonical_json_bytes(item) + b"\n" for item in prediction_values)
+    (second_dir / "predictions.jsonl").write_bytes(prediction_payload)
+    manifest_data["output_sha256"]["predictions.jsonl"] = hashlib.sha256(
+        prediction_payload
+    ).hexdigest()
+    manifest_data["artifact_id"] = "experimental-m1-proxy-training:" + hash_canonical(
+        {key: value for key, value in manifest_data.items() if key != "artifact_id"}
+    )
+    (second_dir / "manifest.json").write_bytes(canonical_json_bytes(manifest_data) + b"\n")
+    # The portable verifier can still validate a self-contained, content-addressed
+    # artifact. Exact verification must additionally bind every prediction identity
+    # and target back to the prepared examples and selected schedule.
+    m1.verify_m1_proxy_training(second_dir)
+    with pytest.raises(m1.ExperimentalM1ProxyError, match="exact prepared examples"):
+        m1.verify_m1_proxy_training(
+            second_dir,
+            prepared_input_dir=prepared,
+            checkpoint=checkpoint,
+            audited_tokenizer_snapshot=snapshot,
+            protocol=protocol,
+        )
+
     metrics = json.loads((first_dir / "metrics.json").read_text())
     assert metrics["diagnostics"]["validation"]["record_count"] == 2
     changed = {**metrics, "loss_normalization_weight": 999.0}
