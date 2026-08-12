@@ -1293,20 +1293,28 @@ def _lean_check_type_pp(check: LF022LeanCheckRecord) -> str | None:
     return next(iter(values)) if len(values) == 1 else None
 
 
-def _codex_response_is_internally_coherent(judgment: LF022VerifiedCodexAuditJudgment) -> bool:
+def _codex_response_has_coherent_f1(judgment: LF022VerifiedCodexAuditJudgment) -> bool:
+    """Validate only the within-F1 verdict/relation contract.
+
+    The directional implication fields describe F2 truth-level implication.
+    Closed propositions can imply one another because one is independently
+    true, vacuous, or inconsistent, so those fields must never veto an F1
+    claim-faithfulness judgment.
+    """
+
     response = judgment.response
     relation = response.relation.value if response.relation is not None else None
     if response.same_claim_answer == "same_claim":
-        return response.a_implies_b != "no" and response.b_implies_a != "no"
-    if response.same_claim_answer != "not_same_claim":
-        return True
-    if relation == "A_stronger":
-        return response.a_implies_b != "no" and response.b_implies_a != "yes"
-    if relation == "B_stronger":
-        return response.b_implies_a != "no" and response.a_implies_b != "yes"
-    if relation in {"incomparable", "unrelated"}:
-        return response.a_implies_b != "yes" and response.b_implies_a != "yes"
-    return False
+        return relation == "equivalent"
+    if response.same_claim_answer == "not_same_claim":
+        return relation in {"A_stronger", "B_stronger", "incomparable", "unrelated"}
+    if response.same_claim_answer == "ambiguous":
+        return relation == "ambiguous" and response.needs_expert_review
+    return (
+        response.same_claim_answer == "uncertain"
+        and relation is None
+        and response.needs_expert_review
+    )
 
 
 def adapt_verified_lf022_codex_judgment(
@@ -1388,7 +1396,7 @@ def adapt_verified_lf022_codex_judgment(
                 ),
             )
         )
-    if not _codex_response_is_internally_coherent(judgment):
+    if not _codex_response_has_coherent_f1(judgment):
         return ExperimentalMixedAdapterResult(
             exclusions=(
                 _make_exclusion(

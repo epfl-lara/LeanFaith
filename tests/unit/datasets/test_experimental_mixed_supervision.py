@@ -113,6 +113,7 @@ def _lf022_fixture(
     answer: str = "not_same_claim",
     needs_review: bool = False,
     candidate_rhs: int | None = 0,
+    candidate_statement_override: str | None = None,
 ) -> tuple[
     LF022VerifiedCodexAuditJudgment,
     LF022CodexAuditInput,
@@ -124,7 +125,7 @@ def _lf022_fixture(
         theorem_digit=f"{index:x}"[-1],
         ancestry_digit=f"{index + 1:x}"[-1],
     )
-    candidate_statement = (
+    candidate_statement = candidate_statement_override or (
         "theorem candidate (n : Nat) : n = n"
         if candidate_rhs is None
         else f"theorem candidate (n : Nat) : n = {candidate_rhs}"
@@ -411,35 +412,118 @@ def test_lf022_adapter_rechecks_candidate_against_current_registry(tmp_path: Pat
 
 
 @pytest.mark.parametrize(
-    ("answer", "relation", "a_implies_b", "b_implies_a"),
+    "relation",
     [
-        ("same_claim", RelationLabel.EQUIVALENT, "no", "unknown"),
-        ("not_same_claim", RelationLabel.A_STRONGER, "no", "unknown"),
-        ("not_same_claim", RelationLabel.A_STRONGER, "yes", "yes"),
-        ("not_same_claim", RelationLabel.B_STRONGER, "unknown", "no"),
-        ("not_same_claim", RelationLabel.B_STRONGER, "yes", "yes"),
-        ("not_same_claim", RelationLabel.INCOMPARABLE, "yes", "unknown"),
-        ("not_same_claim", RelationLabel.UNRELATED, "unknown", "yes"),
+        RelationLabel.A_STRONGER,
+        RelationLabel.B_STRONGER,
+        RelationLabel.INCOMPARABLE,
+        RelationLabel.UNRELATED,
     ],
 )
-def test_lf022_adapter_quarantines_implication_contradictions(
+def test_lf022_adapter_retains_content_different_mutually_provable_claims(
     tmp_path: Path,
-    answer: str,
     relation: RelationLabel,
-    a_implies_b: str,
-    b_implies_a: str,
 ) -> None:
-    judgment, item, check, theorem, representation = _lf022_fixture(answer=answer)
+    judgment, item, check, theorem, representation = _lf022_fixture(
+        answer="not_same_claim",
+        candidate_statement_override="theorem candidate (n : Nat) : n ≤ n",
+    )
     judgment = replace(
         judgment,
         response=judgment.response.model_copy(
             update={
                 "relation": relation,
-                "a_implies_b": a_implies_b,
-                "b_implies_a": b_implies_a,
+                "a_implies_b": "yes",
+                "b_implies_a": "yes",
             }
         ),
     )
+    result = mixed.adapt_verified_lf022_codex_judgment(
+        judgment,
+        item=item,
+        check=check,
+        source_theorem=theorem,
+        source_representation=representation,
+        benchmark_registry=_benchmark_registry(tmp_path),
+        judge_model="gpt-5.6-sol",
+        judge_reasoning_effort="xhigh",
+        response_artifact_set_sha256="a" * 64,
+    )
+
+    assert not result.exclusions
+    assert len(result.candidates) == 1
+    assert result.candidates[0].pseudo_target == "not_same_claim"
+    assert result.candidates[0].signal.judge_relation == relation.value
+
+
+def test_lf022_adapter_does_not_use_f2_opinion_to_veto_same_claim(tmp_path: Path) -> None:
+    judgment, item, check, theorem, representation = _lf022_fixture(
+        answer="same_claim",
+        candidate_rhs=None,
+    )
+    judgment = replace(
+        judgment,
+        response=judgment.response.model_copy(update={"a_implies_b": "no", "b_implies_a": "no"}),
+    )
+
+    result = mixed.adapt_verified_lf022_codex_judgment(
+        judgment,
+        item=item,
+        check=check,
+        source_theorem=theorem,
+        source_representation=representation,
+        benchmark_registry=_benchmark_registry(tmp_path),
+        judge_model="gpt-5.6-sol",
+        judge_reasoning_effort="xhigh",
+        response_artifact_set_sha256="a" * 64,
+    )
+
+    assert not result.exclusions
+    assert len(result.candidates) == 1
+    assert result.candidates[0].pseudo_target == "same_claim"
+
+
+@pytest.mark.parametrize(
+    ("answer", "invalid_relation"),
+    [
+        ("same_claim", RelationLabel.A_STRONGER),
+        ("not_same_claim", RelationLabel.EQUIVALENT),
+    ],
+)
+def test_judge_response_schema_rejects_incoherent_f1_fields(
+    answer: str,
+    invalid_relation: RelationLabel,
+) -> None:
+    with pytest.raises(ValueError):
+        JudgeResponse(
+            same_claim_answer=answer,  # type: ignore[arg-type]
+            relation=invalid_relation,
+            A_implies_B="yes",
+            B_implies_A="yes",
+            confidence=0.9,
+            rationale="The F1 verdict and relation intentionally disagree.",
+            needs_expert_review=False,
+        )
+
+
+@pytest.mark.parametrize(
+    ("answer", "invalid_relation"),
+    [
+        ("same_claim", RelationLabel.A_STRONGER),
+        ("not_same_claim", RelationLabel.EQUIVALENT),
+    ],
+)
+def test_lf022_adapter_quarantines_schema_bypassing_incoherent_f1_fields(
+    tmp_path: Path,
+    answer: str,
+    invalid_relation: RelationLabel,
+) -> None:
+    judgment, item, check, theorem, representation = _lf022_fixture(answer=answer)
+    judgment = replace(
+        judgment,
+        response=judgment.response.model_copy(update={"relation": invalid_relation}),
+    )
+
     result = mixed.adapt_verified_lf022_codex_judgment(
         judgment,
         item=item,
