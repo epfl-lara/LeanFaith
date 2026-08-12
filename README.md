@@ -208,6 +208,14 @@ dataset probe (PLAN.md §9.2).
   accuracies 0.695354 and 0.686989. These are machine-proxy diagnostics, not
   semantic-faithfulness estimates or model-selection results. See
   `reports/model_selection/experimental_m0_proxy_v1.md`.
+- **The first packed-cross-encoder M1 checkpoint is trained and independently
+  verified (2026-08-12):** M1 completed the same 185-step, 5,920-example
+  balanced proxy schedule as M0, but jointly encodes each reference/candidate
+  pair. Its validation pseudo-AUPRC is 0.907573 and test pseudo-AUPRC is
+  0.887478, versus 0.630011 and 0.603207 for M0. Exact verification binds all
+  9,304 predictions to the source records and schedule. This strong gain is on
+  machine-proxy targets only; it is not yet a human-faithfulness result. See
+  `reports/model_selection/experimental_m1_proxy_v1.md`.
 - **The mixed proxy corpus now contains 17,181 pairs (2026-08-12):** a new
   disjoint 150-item Qwen tranche completed Lean checking and exact GPT-5.6 Sol
   audit verification, adding 147 not-same-claim and three same-claim proxy
