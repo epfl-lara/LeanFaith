@@ -225,6 +225,17 @@ dataset probe (PLAN.md §9.2).
   components. It exact-replays from a clean checkout, but remains machine
   proxy supervision rather than semantic gold. See
   `reports/model_selection/experimental_mixed_supervision_qwen1125_v1.md`.
+- **The first bidirectional-matcher M2 checkpoint is independently replayed
+  (2026-08-12):** the repaired clean run completed 186 optimizer steps over
+  5,952 balanced proxy examples from 3,904 ancestry components. Validation
+  pseudo-AUPRC is 0.715701 and test pseudo-AUPRC is 0.683699. A fresh-process
+  verifier reconstructed the exact split-isolated batching and dynamic
+  padding, replayed predictions and metrics, checked the final checkpoint, and
+  passed the 64-pair swap-invariance audit with exactly zero probability
+  difference. The older `3f5b23e` artifact is quarantined because it failed
+  independent replay. These remain machine-proxy diagnostics, not semantic
+  faithfulness results. See
+  `reports/model_selection/experimental_m2_proxy_v1.md`.
 - **Active data-production checkpoint (2026-08-10):** the preserved public
   LF-022 execution contains 668 parsed provisional variants.  The production
   four-worker LeanInteract checker has now processed every one: 493 elaborate
