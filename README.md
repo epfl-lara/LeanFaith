@@ -199,6 +199,15 @@ dataset probe (PLAN.md §9.2).
   token-encoder proxy run, but remains machine proxy supervision rather than
   human gold or confirmatory evaluation data. See
   `reports/model_selection/experimental_mixed_supervision_composition_v1.md`.
+- **The first neural M0 proxy checkpoint is trained and verified
+  (2026-08-12):** a shared ModernBERT-base dual encoder completed one frozen
+  epoch over 5,920 balanced proxy examples from 3,868 ancestry components. The
+  exact verifier passed for all inputs, tokenizer bindings, schedule,
+  predictions, metrics, and the 596 MB safetensors checkpoint. Validation
+  pseudo-AUPRC is 0.630011 and test pseudo-AUPRC is 0.603207, with balanced
+  accuracies 0.695354 and 0.686989. These are machine-proxy diagnostics, not
+  semantic-faithfulness estimates or model-selection results. See
+  `reports/model_selection/experimental_m0_proxy_v1.md`.
 - **Active data-production checkpoint (2026-08-10):** the preserved public
   LF-022 execution contains 668 parsed provisional variants.  The production
   four-worker LeanInteract checker has now processed every one: 493 elaborate
