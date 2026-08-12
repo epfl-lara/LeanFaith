@@ -4913,6 +4913,91 @@ def audit_lf022_codex_command(
     )
 
 
+@app.command("propose-lf022-codex")
+def propose_lf022_codex_command(
+    batch_manifest: Annotated[
+        Path,
+        typer.Option(
+            "--batch-manifest",
+            help="Existing frozen public LF-022 batch manifest used only as a source subset.",
+        ),
+    ],
+    task_id: Annotated[
+        str,
+        typer.Option(
+            "--task-id",
+            help="Exact frozen LF-022 execution-task ID to present to Codex.",
+        ),
+    ],
+    config: Annotated[
+        Path,
+        typer.Option("--config", help="Pinned Codex proposer smoke configuration."),
+    ] = Path("configs/generation/lf022_codex_proposer_smoke_v1.yaml"),
+    output_root: Annotated[
+        Path,
+        typer.Option(
+            "--output-root",
+            help="Repository-local immutable/resumable Codex proposer artifact root.",
+        ),
+    ] = Path("data/lf022_codex_proposer/smoke_v1"),
+    execute_public_provisional: Annotated[
+        bool,
+        typer.Option(
+            "--execute-public-provisional",
+            help=(
+                "Explicitly authorize one public external Codex call. Without this flag, "
+                "the command performs only network-free preparation."
+            ),
+        ),
+    ] = False,
+    root_dir: Annotated[
+        Path | None,
+        typer.Option("--root", help="Repository root override."),
+    ] = None,
+) -> None:
+    """Propose one unvalidated public LF-022 variant with Codex exec."""
+    from leanfaith.config.paths import RepoPaths
+    from leanfaith.generation.lf022_codex_proposer import (
+        LF022CodexProposerError,
+        run_lf022_codex_proposer,
+    )
+
+    paths = RepoPaths.discover(root_dir) if root_dir is None else RepoPaths(root=root_dir)
+
+    def anchored(path: Path) -> Path:
+        return path if path.is_absolute() else paths.root / path
+
+    try:
+        result = run_lf022_codex_proposer(
+            repo_root=paths.root,
+            config_path=anchored(config),
+            batch_manifest_path=anchored(batch_manifest),
+            execution_task_ids=(task_id,),
+            output_root=anchored(output_root),
+            execute_public_provisional=execute_public_provisional,
+        )
+    except (LF022CodexProposerError, OSError, ValueError) as exc:
+        typer.echo(f"LF-022 Codex proposer rejected: {exc}", err=True)
+        raise typer.Exit(code=2) from exc
+    if not execute_public_provisional:
+        typer.echo(
+            f"prepared={len(result.prepared)} item_id={result.prepared[0].item.item_id} "
+            "external_calls=0 execute_requires_explicit_flag=true "
+            "semantic_labels_created=0 supervision_eligible=false training_eligible=false"
+        )
+        return
+    assert result.manifest is not None
+    assert result.manifest_path is not None
+    typer.echo(
+        f"completed={result.manifest.completed_count} invoked={result.invoked_count} "
+        f"reused={result.reused_count} statuses="
+        f"{json.dumps(result.manifest.status_counts, sort_keys=True)} "
+        f"manifest={result.manifest_path} outputs_provisional_only=true "
+        "semantic_labels_created=0 supervision_eligible=false training_eligible=false "
+        "evaluation_eligible=false gate_credit_claimed=false"
+    )
+
+
 @app.command("summarize-lf022-codex-audit")
 def summarize_lf022_codex_audit_command(
     checks_path: Annotated[
