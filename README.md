@@ -208,6 +208,15 @@ dataset probe (PLAN.md §9.2).
   accuracies 0.695354 and 0.686989. These are machine-proxy diagnostics, not
   semantic-faithfulness estimates or model-selection results. See
   `reports/model_selection/experimental_m0_proxy_v1.md`.
+- **The mixed proxy corpus now contains 17,181 pairs (2026-08-12):** a new
+  disjoint 150-item Qwen tranche completed Lean checking and exact GPT-5.6 Sol
+  audit verification, adding 147 not-same-claim and three same-claim proxy
+  verdicts with no execution or parsing failures. The complete successor
+  corpus contains 10,336 deterministic first-hop, 5,534 deterministic
+  composition, and 1,324 single-judge proxy signals over 6,599 ancestry
+  components. It exact-replays from a clean checkout, but remains machine
+  proxy supervision rather than semantic gold. See
+  `reports/model_selection/experimental_mixed_supervision_qwen1125_v1.md`.
 - **Active data-production checkpoint (2026-08-10):** the preserved public
   LF-022 execution contains 668 parsed provisional variants.  The production
   four-worker LeanInteract checker has now processed every one: 493 elaborate
