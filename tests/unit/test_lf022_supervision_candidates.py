@@ -123,6 +123,9 @@ def _judgment(audit_digit: str) -> LF022VerifiedCodexAuditJudgment:
         pair_id="pair:" + "a" * 64,
         variant_id="var:" + "c" * 64,
         source_record_ids=("thm:" + "b" * 64, "var:" + "c" * 64),
+        source_theorem_id="thm:" + "b" * 64,
+        source_representation_id="repr:" + "a" * 64,
+        source_revision="fixture-revision",
         proposer_family_id="moonshot_kimi_k2",
         response=JudgeResponse(
             same_claim_answer="same_claim",

@@ -275,26 +275,32 @@ def test_summary_bucket_reconciles_verdicts_and_multilabel_errors() -> None:
     )
     judgments = [
         audit._VerifiedAuditJudgment(
-            "item-a",
-            "check-a",
-            "pair-a",
-            "variant-a",
-            ("source-a", "variant-a"),
-            "kimi",
-            first,
-            "1" * 64,
-            "2" * 64,
+            audit_item_id="item-a",
+            lean_check_id="check-a",
+            pair_id="pair-a",
+            variant_id="variant-a",
+            source_record_ids=("source-a", "variant-a"),
+            source_theorem_id="source-a",
+            source_representation_id="representation-a",
+            source_revision="revision-a",
+            proposer_family_id="kimi",
+            response=first,
+            final_message_sha256="1" * 64,
+            parsed_response_sha256="2" * 64,
         ),
         audit._VerifiedAuditJudgment(
-            "item-b",
-            "check-b",
-            "pair-b",
-            "variant-b",
-            ("source-b", "variant-b"),
-            "qwen",
-            second,
-            "3" * 64,
-            "4" * 64,
+            audit_item_id="item-b",
+            lean_check_id="check-b",
+            pair_id="pair-b",
+            variant_id="variant-b",
+            source_record_ids=("source-b", "variant-b"),
+            source_theorem_id="source-b",
+            source_representation_id="representation-b",
+            source_revision="revision-b",
+            proposer_family_id="qwen",
+            response=second,
+            final_message_sha256="3" * 64,
+            parsed_response_sha256="4" * 64,
         ),
     ]
 
@@ -331,6 +337,11 @@ def test_completed_summary_replays_hashes_and_rejects_tampering(
     )
     monkeypatch.setattr(audit, "_load_check_inventory", lambda _path: (check,))
     monkeypatch.setattr(audit, "_proposer_family_for_check", lambda *_args, **_kwargs: "qwen3")
+    monkeypatch.setattr(
+        audit,
+        "_verified_source_identity",
+        lambda *_args, **_kwargs: ("source-a", "representation-a", "revision-a"),
+    )
     json_path = tmp_path / "reports" / "summary.json"
     markdown_path = tmp_path / "reports" / "summary.md"
     findings_path = tmp_path / "reports" / "findings.jsonl"
@@ -414,6 +425,11 @@ def test_completed_verifier_rejects_noncanonical_completed_path(
     check = SimpleNamespace(check_id=item.lean_check_id, outcome="elaborates")
     monkeypatch.setattr(audit, "_load_check_inventory", lambda _path: (check,))
     monkeypatch.setattr(audit, "_proposer_family_for_check", lambda *_args, **_kwargs: "qwen3")
+    monkeypatch.setattr(
+        audit,
+        "_verified_source_identity",
+        lambda *_args, **_kwargs: ("source-a", "representation-a", "revision-a"),
+    )
     canonical = audit._item_dir(audit_root, item.audit_item_id) / "completed.json"
     wrong = audit_root / "items" / "ff" / "wrong-item" / "completed.json"
     wrong.parent.mkdir(parents=True)
@@ -463,6 +479,11 @@ def test_composite_verifier_requires_and_binds_byte_identical_parent_items(
     check = SimpleNamespace(check_id=item.lean_check_id, outcome="elaborates")
     monkeypatch.setattr(audit, "_load_check_inventory", lambda _path: (check,))
     monkeypatch.setattr(audit, "_proposer_family_for_check", lambda *_args, **_kwargs: "qwen3")
+    monkeypatch.setattr(
+        audit,
+        "_verified_source_identity",
+        lambda *_args, **_kwargs: ("source-a", "representation-a", "revision-a"),
+    )
 
     with pytest.raises(audit.LF022CodexAuditError, match="declared parent audit"):
         audit.verify_completed_lf022_codex_audit(

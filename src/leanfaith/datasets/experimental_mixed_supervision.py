@@ -37,6 +37,10 @@ from leanfaith.generation.lf022_codex_audit import (
     LF022VerifiedCodexAudit,
     LF022VerifiedCodexAuditJudgment,
 )
+from leanfaith.generation.lf022_execution import (
+    LF022ExecutionError,
+    make_lf022_named_signature,
+)
 from leanfaith.generation.lf022_lean_check import LF022LeanCheckRecord
 from leanfaith.representations.views import normalize_headless, signature_near_dup_hash
 from leanfaith.schemas.manifest import CodeState, collect_code_state
@@ -1338,24 +1342,29 @@ def adapt_verified_lf022_codex_judgment(
         raise ExperimentalMixedSupervisionError("LF-022 proxy requires declaration verification")
     if (
         source_theorem.theorem_id not in judgment.source_record_ids
+        or source_theorem.theorem_id != judgment.source_theorem_id
         or source_representation.theorem_id != source_theorem.theorem_id
+        or source_representation.representation_id != judgment.source_representation_id
         or source_theorem.context_id != check.context_id
         or source_representation.context_id != check.context_id
         or source_theorem.source != check.source_id
+        or source_theorem.source_revision != judgment.source_revision
+        or check.source_revision != judgment.source_revision
         or sha256_hex(item.pair.canonical_lean_b.encode("utf-8")) != check.candidate_code_hash
     ):
         raise ExperimentalMixedSupervisionError("LF-022 source theorem/view/check binding differs")
-    canonical_source_headless = normalize_headless(item.pair.canonical_lean_a)
-    theorem_source_headless = normalize_headless(source_theorem.proof_stripped_declaration)
-    if (
-        canonical_source_headless is None
-        or theorem_source_headless is None
-        or source_representation.headless is None
-        or canonical_source_headless != theorem_source_headless
-        or canonical_source_headless != source_representation.headless
-    ):
+    try:
+        expected_named_source = make_lf022_named_signature(
+            theorem=source_theorem,
+            representation=source_representation,
+        )
+    except LF022ExecutionError as exc:
         raise ExperimentalMixedSupervisionError(
-            "LF-022 public source differs from canonical source representation"
+            "LF-022 source cannot be reconstructed from the bound theorem/representation"
+        ) from exc
+    if item.pair.canonical_lean_a != expected_named_source:
+        raise ExperimentalMixedSupervisionError(
+            "LF-022 public source differs from the reconstructed named signature"
         )
     response = judgment.response
     if response.needs_expert_review:

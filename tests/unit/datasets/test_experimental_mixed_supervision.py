@@ -26,7 +26,7 @@ from leanfaith.generation.weak_supervision import (
     PublicLeanJudgePair,
 )
 from leanfaith.lean.protocol import LeanStatus
-from leanfaith.schemas.enums import RelationLabel
+from leanfaith.schemas.enums import RelationLabel, ViewStatus
 from leanfaith.schemas.manifest import CodeState
 from leanfaith.schemas.theorem import RepresentationRecord, TheoremRecord
 
@@ -89,14 +89,19 @@ def _source_records(
         source="mathlib",
         source_revision="fixture-revision",
         context_id="ctx:" + "3" * 64,
+        declaration_kind="theorem",
+        declaration_name="source",
         proof_stripped_declaration=statement,
         statement_content_hash=sha256_hex(statement.encode()),
     )
     representation = RepresentationRecord.model_construct(
         representation_id="repr:" + theorem_digit * 64,
         theorem_id=theorem.theorem_id,
+        normalization_version="repr_v3",
         context_id=theorem.context_id,
         headless="(n : Nat) : n = n",
+        signature_pp="∀ (n : Nat), n = n",
+        view_status={"signature_pp": ViewStatus.OK},
         alpha_identity_fingerprint="4" * 64,
     )
     return theorem, representation
@@ -127,7 +132,7 @@ def _lf022_fixture(
     variant_id = "var:" + f"{index + 20:064x}"
     pair = PublicLeanJudgePair(
         pair_id="pair:" + f"{index + 30:064x}",
-        canonical_lean_a=theorem.proof_stripped_declaration,
+        canonical_lean_a="theorem source : ∀ (n : Nat), n = n",
         canonical_lean_b=candidate_statement,
         source_record_ids=tuple(sorted((theorem.theorem_id, variant_id))),
         source_is_public=True,
@@ -169,6 +174,7 @@ def _lf022_fixture(
         candidate_code_hash=sha256_hex(candidate_statement.encode()),
         context_id=theorem.context_id,
         source_id="mathlib",
+        source_revision=theorem.source_revision,
         outcome="elaborates",
         declaration_verified=True,
         attempts=(attempt,),
@@ -194,6 +200,9 @@ def _lf022_fixture(
         pair_id=pair.pair_id,
         variant_id=variant_id,
         source_record_ids=pair.source_record_ids,
+        source_theorem_id=theorem.theorem_id,
+        source_representation_id=representation.representation_id,
+        source_revision=theorem.source_revision,
         proposer_family_id="moonshot_kimi_k2",
         response=response,
         final_message_sha256="8" * 64,
@@ -340,11 +349,11 @@ def test_lf022_adapter_requires_exact_source_ancestry_and_representation(
     tmp_path: Path,
 ) -> None:
     judgment, item, check, theorem, representation = _lf022_fixture()
-    wrong = representation.model_copy(update={"headless": "False"})
+    wrong = representation.model_copy(update={"signature_pp": "False"})
 
     with pytest.raises(
         mixed.ExperimentalMixedSupervisionError,
-        match="canonical source representation",
+        match="reconstructed named signature",
     ):
         mixed.adapt_verified_lf022_codex_judgment(
             judgment,
@@ -352,6 +361,40 @@ def test_lf022_adapter_requires_exact_source_ancestry_and_representation(
             check=check,
             source_theorem=theorem,
             source_representation=wrong,
+            benchmark_registry=_benchmark_registry(tmp_path),
+            judge_model="gpt-5.6-sol",
+            judge_reasoning_effort="xhigh",
+            response_artifact_set_sha256="a" * 64,
+        )
+
+    different_identity = representation.model_copy(update={"representation_id": "repr:" + "9" * 64})
+    with pytest.raises(
+        mixed.ExperimentalMixedSupervisionError,
+        match="source theorem/view/check binding differs",
+    ):
+        mixed.adapt_verified_lf022_codex_judgment(
+            judgment,
+            item=item,
+            check=check,
+            source_theorem=theorem,
+            source_representation=different_identity,
+            benchmark_registry=_benchmark_registry(tmp_path),
+            judge_model="gpt-5.6-sol",
+            judge_reasoning_effort="xhigh",
+            response_artifact_set_sha256="a" * 64,
+        )
+
+    wrong_revision = theorem.model_copy(update={"source_revision": "wrong-revision"})
+    with pytest.raises(
+        mixed.ExperimentalMixedSupervisionError,
+        match="source theorem/view/check binding differs",
+    ):
+        mixed.adapt_verified_lf022_codex_judgment(
+            judgment,
+            item=item,
+            check=check,
+            source_theorem=wrong_revision,
+            source_representation=representation,
             benchmark_registry=_benchmark_registry(tmp_path),
             judge_model="gpt-5.6-sol",
             judge_reasoning_effort="xhigh",
@@ -465,8 +508,7 @@ def test_pair_dedupe_merges_agreement_and_quarantines_conflict(tmp_path: Path) -
         update={
             "pair": item.pair.model_copy(
                 update={
-                    "canonical_lean_a": first.source.origin_record_ids
-                    and "theorem source (n : Nat) : n = n := by sorry",
+                    "canonical_lean_a": "theorem source : ∀ (n : Nat), n = n",
                 }
             )
         }
@@ -475,6 +517,9 @@ def test_pair_dedupe_merges_agreement_and_quarantines_conflict(tmp_path: Path) -
     judgment = replace(
         judgment,
         source_record_ids=tuple(sorted((theorem.theorem_id, judgment.variant_id))),
+        source_theorem_id=theorem.theorem_id,
+        source_representation_id=representation.representation_id,
+        source_revision=theorem.source_revision,
     )
     item = item.model_copy(
         update={

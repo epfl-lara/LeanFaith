@@ -406,6 +406,9 @@ class LF022VerifiedCodexAuditJudgment:
     pair_id: str
     variant_id: str
     source_record_ids: tuple[str, ...]
+    source_theorem_id: str
+    source_representation_id: str
+    source_revision: str
     proposer_family_id: str
     response: JudgeResponse
     final_message_sha256: str
@@ -648,14 +651,11 @@ def _load_variant_for_check(
     return variant, artifact, line
 
 
-def _make_audit_input(
+def _load_task_for_check(
     check: LF022LeanCheckRecord,
     *,
-    repo_root: Path,
-) -> LF022CodexAuditInput:
-    if check.outcome not in _VALID_OUTCOMES or not check.declaration_verified:
-        raise LF022CodexAuditError(f"Lean check {check.check_id} is not Lean-valid")
-    variant, artifact, line = _load_variant_for_check(check, repo_root=repo_root)
+    artifact: Path,
+) -> tuple[LF022GOpenExecutionTask, Path]:
     task_path = artifact.with_name("task.json")
     if task_path.is_symlink() or not task_path.is_file():
         raise LF022CodexAuditError(f"LF-022 task is missing beside variant: {task_path}")
@@ -672,6 +672,42 @@ def _make_audit_input(
         or source.context_id != check.context_id
     ):
         raise LF022CodexAuditError("task, variant, and Lean-check source bindings differ")
+    return task, task_path
+
+
+def _verified_source_identity(
+    check: LF022LeanCheckRecord,
+    item: LF022CodexAuditInput,
+    *,
+    repo_root: Path,
+) -> tuple[str, str, str]:
+    _, source_variant_artifact, _ = _load_variant_for_check(check, repo_root=repo_root)
+    source_task, source_task_path = _load_task_for_check(
+        check,
+        artifact=source_variant_artifact,
+    )
+    if hash_file(source_task_path) != item.source_task_sha256:
+        raise LF022CodexAuditError(f"audit item source-task hash mismatch: {source_task_path}")
+    source_representation_id = source_task.source.source_representation_id
+    if source_representation_id is None:
+        raise LF022CodexAuditError("audit item source task lacks a representation ID")
+    return (
+        source_task.source.source_theorem_id,
+        source_representation_id,
+        source_task.source.source_revision,
+    )
+
+
+def _make_audit_input(
+    check: LF022LeanCheckRecord,
+    *,
+    repo_root: Path,
+) -> LF022CodexAuditInput:
+    if check.outcome not in _VALID_OUTCOMES or not check.declaration_verified:
+        raise LF022CodexAuditError(f"Lean check {check.check_id} is not Lean-valid")
+    variant, artifact, line = _load_variant_for_check(check, repo_root=repo_root)
+    task, task_path = _load_task_for_check(check, artifact=artifact)
+    source = task.source
     serialized = canonical_json_bytes(
         {
             "source": source.model_dump(mode="json"),
@@ -1344,6 +1380,9 @@ def verify_completed_lf022_codex_audit(
         check = checks_by_id.get(item.lean_check_id)
         if check is None:
             raise LF022CodexAuditError(f"audit item lacks Lean check {item.lean_check_id}")
+        source_theorem_id, source_representation_id, source_revision = _verified_source_identity(
+            check, item, repo_root=repo_root
+        )
         item_dir = _item_dir(audit_root, item.audit_item_id)
         input_path = item_dir / "input.json"
         if input_path.read_bytes() != _canonical_line(item):
@@ -1444,6 +1483,9 @@ def verify_completed_lf022_codex_audit(
             pair_id=item.pair.pair_id,
             variant_id=item.variant_id,
             source_record_ids=item.pair.source_record_ids,
+            source_theorem_id=source_theorem_id,
+            source_representation_id=source_representation_id,
+            source_revision=source_revision,
             proposer_family_id=proposer_family_id,
             response=response,
             final_message_sha256=terminal.final_message_sha256,
