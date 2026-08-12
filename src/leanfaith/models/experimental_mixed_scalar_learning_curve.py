@@ -71,7 +71,7 @@ _SUMMARY_LIMITATIONS = (
     "targets are mixed machine-generated proxies, not semantic or human labels",
     "validation and test partitions are diagnostics only and never enter training",
     "sampling seeds alter component order only, not optimizer initialization",
-    "the full 8789-record prefix is identical for every sampling seed",
+    "the full-train prefix is identical for every sampling seed",
     "features are symmetric lexical summaries of headless Lean text only",
     "results are ineligible for model selection, calibration, evaluation, or release claims",
 )

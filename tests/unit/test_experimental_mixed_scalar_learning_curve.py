@@ -100,6 +100,9 @@ def test_pinned_config_binds_exact_frozen_mixed_corpus_and_record_budgets() -> N
     assert loaded.config.representation_views == ("headless",)
     assert loaded.config.loss_weighting == "equal_ancestry_component_v1"
     assert len(curve.feature_names(loaded.config)) == 25
+    assert "the full-train prefix is identical for every sampling seed" in (
+        curve._SUMMARY_LIMITATIONS
+    )
 
     with pytest.raises(ValueError, match="headless"):
         curve.ExperimentalMixedScalarLearningCurveConfig.model_validate(
