@@ -42,7 +42,10 @@ from leanfaith.config.hashing import (
 from leanfaith.config.loading import LoadedConfig, load_config
 from leanfaith.config.models import StrictModel
 from leanfaith.config.paths import RepoPaths
-from leanfaith.datasets import ActiveBenchmarkRegistry, load_active_benchmark_registry
+from leanfaith.datasets.denylist import (
+    ActiveBenchmarkRegistry,
+    load_active_benchmark_registry,
+)
 from leanfaith.lean.extraction import EXTRACTION_SCHEMA_VERSION
 from leanfaith.lean.leaninteract_backend import (
     COMMAND_ISOLATION_VERSION,
