@@ -7750,6 +7750,112 @@ def verify_experimental_scalar_learning_curve_command(
     )
 
 
+@app.command("run-experimental-mixed-scalar-learning-curve")
+def run_experimental_mixed_scalar_learning_curve_command(
+    dataset_dir: Annotated[
+        Path,
+        typer.Option("--dataset-dir", help="Frozen experimental mixed-proxy corpus."),
+    ],
+    output_dir: Annotated[
+        Path,
+        typer.Option("--output-dir", help="New immutable diagnostic output, or exact replay."),
+    ],
+    allow_experimental_mixed_supervision: Annotated[
+        bool,
+        typer.Option(
+            "--allow-experimental-mixed-supervision",
+            help="Explicitly admit mixed machine proxies for this diagnostic only.",
+        ),
+    ] = False,
+    config_path: Annotated[
+        Path | None,
+        typer.Option("--config", help="Pinned mixed scalar learning-curve policy."),
+    ] = None,
+    root_dir: Annotated[
+        Path | None,
+        typer.Option("--root", help="Repository root override."),
+    ] = None,
+) -> None:
+    """Fit the opt-in mixed-proxy scalar curve; never make a semantic claim."""
+    from leanfaith.config.paths import RepoPaths
+    from leanfaith.models.experimental_mixed_scalar_learning_curve import (
+        ExperimentalMixedScalarLearningCurveError,
+        load_experimental_mixed_scalar_learning_curve_config,
+        run_experimental_mixed_scalar_learning_curve,
+    )
+
+    paths = RepoPaths.discover(root_dir) if root_dir is None else RepoPaths(root=root_dir)
+
+    def anchored(path: Path) -> Path:
+        return path if path.is_absolute() else paths.root / path
+
+    selected_config = (
+        paths.root / "configs/models/experimental_mixed_scalar_learning_curve_v2.yaml"
+        if config_path is None
+        else anchored(config_path)
+    )
+    try:
+        if not output_dir.is_absolute():
+            raise ValueError("--output-dir must be an absolute path outside the repository")
+        loaded = load_experimental_mixed_scalar_learning_curve_config(selected_config)
+        artifacts = run_experimental_mixed_scalar_learning_curve(
+            repo_root=paths.root,
+            dataset_dir=anchored(dataset_dir),
+            output_dir=output_dir,
+            config=loaded.config,
+            config_hash=loaded.config_hash,
+            allow_experimental_mixed_supervision=allow_experimental_mixed_supervision,
+        )
+    except (OSError, ValueError, ExperimentalMixedScalarLearningCurveError) as exc:
+        typer.echo(f"experimental mixed scalar learning curve rejected: {exc}", err=True)
+        raise typer.Exit(code=1) from exc
+    typer.echo(
+        "experimental mixed scalar learning curve ready; "
+        f"experiment={artifacts.experiment_id} prefixes={artifacts.prefix_count} "
+        f"models={artifacts.model_count} predictions={artifacts.prediction_count} "
+        f"replayed={str(artifacts.replayed).lower()} proxy_only=true "
+        "semantic_prediction=false scientific_training_eligible=false "
+        "model_selection_eligible=false evaluation_eligible=false"
+    )
+
+
+@app.command("verify-experimental-mixed-scalar-learning-curve")
+def verify_experimental_mixed_scalar_learning_curve_command(
+    output_dir: Annotated[
+        Path,
+        typer.Option("--output-dir", help="Frozen mixed scalar learning-curve directory."),
+    ],
+    dataset_dir: Annotated[
+        Path | None,
+        typer.Option(
+            "--dataset-dir",
+            help="Dataset override; otherwise use the manifest-bound absolute path.",
+        ),
+    ] = None,
+) -> None:
+    """Refit and verify mixed scalar bytes, prefixes, predictions, and metrics."""
+    from leanfaith.models.experimental_mixed_scalar_learning_curve import (
+        ExperimentalMixedScalarLearningCurveError,
+        verify_experimental_mixed_scalar_learning_curve,
+    )
+
+    try:
+        manifest = verify_experimental_mixed_scalar_learning_curve(
+            output_dir,
+            dataset_dir=dataset_dir,
+        )
+    except (OSError, ValueError, ExperimentalMixedScalarLearningCurveError) as exc:
+        typer.echo(f"experimental mixed scalar verification failed: {exc}", err=True)
+        raise typer.Exit(code=1) from exc
+    typer.echo(
+        "experimental mixed scalar learning curve verified; "
+        f"experiment={manifest.experiment_id} prefixes={manifest.prefix_count} "
+        f"models={manifest.model_count} predictions={manifest.prediction_count} "
+        "proxy_only=true semantic_prediction=false scientific_training_eligible=false "
+        "model_selection_eligible=false evaluation_eligible=false"
+    )
+
+
 def main() -> None:
     app()
 
