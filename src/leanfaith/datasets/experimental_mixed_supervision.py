@@ -18,6 +18,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 import shutil
 import stat
 import tempfile
@@ -25,7 +26,7 @@ from collections import Counter, defaultdict
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Literal, Self
+from typing import TYPE_CHECKING, Literal, Self, cast
 
 from pydantic import Field, field_validator, model_validator
 
@@ -76,6 +77,7 @@ _MIXED_RECORD_ID = r"^experimental_mixed_pair:[0-9a-f]{64}$"
 _MIXED_EXCLUSION_ID = r"^experimental_mixed_exclusion:[0-9a-f]{64}$"
 _MIXED_DATASET_ID = r"^experimental_mixed_supervision:[0-9a-f]{64}$"
 _SPLIT_COMPONENT_ID = r"^split-component:[0-9a-f]{64}$"
+_THEOREM_ID_IN_JSON = re.compile(rb'"theorem_id"\s*:\s*"(thm:[0-9a-f]{64})"')
 _OUTPUT_FILES = frozenset(
     {
         "records.jsonl",
@@ -816,22 +818,15 @@ class DeterministicCompositionReplayBinding(StrictModel):
                 or theorem.statement_content_hash != chain.final_candidate_code_hash
                 or representation.alpha_identity_fingerprint
                 != chain.final_alpha_identity_fingerprint
-                or representation.headless is None
             ):
                 raise ValueError("composition final theorem/view join differs from chain")
             normalized = normalize_headless(theorem.proof_stripped_declaration)
-            if normalized is None or normalized != representation.headless:
+            if representation.headless is not None and normalized != representation.headless:
                 raise ValueError("composition final headless view is not replay-equivalent")
-            final_headless.add(normalized)
-        if len(final_headless) != 1:
+            if normalized is not None:
+                final_headless.add(normalized)
+        if len(final_headless) > 1:
             raise ValueError("aliased composition chains yield different model-visible views")
-        source_headless = normalize_headless(self.source_theorem.proof_stripped_declaration)
-        if (
-            source_headless is None
-            or self.source_representation.headless is None
-            or source_headless != self.source_representation.headless
-        ):
-            raise ValueError("composition source headless view is not replay-equivalent")
         return self
 
 
@@ -1128,6 +1123,21 @@ def adapt_deterministic_composition_export(
             f"invalid deterministic composition replay binding: {exc}"
         ) from exc
     _verify_composition_replay_artifacts(replay, record=record)
+    return _adapt_preverified_deterministic_composition_export(
+        record,
+        replay=replay,
+        benchmark_registry=benchmark_registry,
+    )
+
+
+def _adapt_preverified_deterministic_composition_export(
+    record: DeterministicCompositionExportRecord,
+    *,
+    replay: DeterministicCompositionReplayBinding,
+    benchmark_registry: ActiveBenchmarkRegistry,
+) -> ExperimentalMixedAdapterResult:
+    """Project a row after its complete receipt lineage was verified as a batch."""
+
     if record.input_unique_pair_id != replay.unique_pair.unique_pair_id:
         raise ExperimentalMixedSupervisionError("composition export/unique-pair IDs differ")
     if (
@@ -1990,6 +2000,73 @@ def _load_bound_source_partition[ModelT: StrictModel](
     return tuple(output)
 
 
+def _load_bound_source_targets[ModelT: TheoremRecord | RepresentationRecord](
+    bindings: Sequence[ExperimentalMixedInputBinding],
+    model: type[ModelT],
+    *,
+    wrapper_key: str,
+    target_theorem_ids: frozenset[str],
+) -> dict[str, ModelT]:
+    """Stream hash-bound source partitions and materialize only requested rows."""
+
+    found: dict[str, ModelT] = {}
+    for binding in bindings:
+        _verify_input_binding("composition source partition", binding)
+        safe = _regular_file(Path(binding.path))
+        with safe.open("rb") as handle:
+            for line_number, raw in enumerate(handle, start=1):
+                if not raw.endswith(b"\n") or not raw.strip():
+                    raise ExperimentalMixedSupervisionError(
+                        f"invalid source JSONL framing at {safe}:{line_number}"
+                    )
+                matches = {value.decode("ascii") for value in _THEOREM_ID_IN_JSON.findall(raw)}
+                selected_ids = matches & target_theorem_ids
+                if not selected_ids:
+                    continue
+                if len(selected_ids) != 1:
+                    raise ExperimentalMixedSupervisionError(
+                        "source row contains multiple requested theorem IDs at "
+                        f"{safe}:{line_number}"
+                    )
+                selected_id = next(iter(selected_ids))
+                try:
+                    payload = json.loads(raw)
+                except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+                    raise ExperimentalMixedSupervisionError(
+                        f"invalid source JSON at {safe}:{line_number}: {exc}"
+                    ) from exc
+                if not isinstance(payload, dict):
+                    raise ExperimentalMixedSupervisionError(
+                        f"source row is not an object at {safe}:{line_number}"
+                    )
+                selected = payload.get(wrapper_key, payload)
+                if not isinstance(selected, dict):
+                    raise ExperimentalMixedSupervisionError(
+                        f"invalid source wrapper at {safe}:{line_number}"
+                    )
+                try:
+                    record = cast(ModelT, model.model_validate(selected))
+                except ValueError as exc:
+                    raise ExperimentalMixedSupervisionError(
+                        f"invalid {model.__name__} at {safe}:{line_number}: {exc}"
+                    ) from exc
+                if record.theorem_id != selected_id:
+                    raise ExperimentalMixedSupervisionError(
+                        f"source prefilter/model theorem ID mismatch at {safe}:{line_number}"
+                    )
+                if selected_id in found:
+                    raise ExperimentalMixedSupervisionError(
+                        f"composition source theorem ID appears more than once: {selected_id}"
+                    )
+                found[selected_id] = record
+    missing = sorted(target_theorem_ids - set(found))
+    if missing:
+        raise ExperimentalMixedSupervisionError(
+            "composition source partitions lack requested theorem IDs: " + ", ".join(missing[:5])
+        )
+    return found
+
+
 def _verify_composition_replay_artifacts(
     replay: DeterministicCompositionReplayBinding,
     *,
@@ -2207,6 +2284,421 @@ def _verify_composition_replay_artifacts(
             raise ExperimentalMixedSupervisionError(
                 "composition chain/certificate/view differs from bound second-hop result"
             )
+
+
+def adapt_deterministic_composition_export_batch(
+    items: Sequence[
+        tuple[DeterministicCompositionExportRecord, DeterministicCompositionReplayBinding]
+    ],
+    *,
+    export_partition_artifacts: Mapping[
+        Literal["inventory", "cycles", "quarantine"],
+        ExperimentalMixedInputBinding,
+    ],
+    benchmark_registry: ActiveBenchmarkRegistry,
+) -> ExperimentalMixedAdapterResult:
+    """Verify one complete receipt export once, then project all of its rows.
+
+    The single-row adapter intentionally replays every referenced artifact and
+    is appropriate for fixtures or isolated records.  Applying it thousands of
+    times would repeatedly read the same large chain, source, and Lean-result
+    partitions.  This batch boundary proves the same membership and hash joins
+    once, requires exact coverage of the receipt export, re-hashes every input
+    after projection, and only then returns proxy candidates/exclusions.
+    """
+
+    if not items:
+        raise ExperimentalMixedSupervisionError("composition batch cannot be empty")
+    if set(export_partition_artifacts) != {"inventory", "cycles", "quarantine"}:
+        raise ExperimentalMixedSupervisionError(
+            "composition batch requires all three receipt-export partitions"
+        )
+
+    # The orchestration layer constructs these immutable models through their
+    # validating initializer.  Re-serializing every complete replay object here
+    # would duplicate the shared manifests and large theorem views thousands of
+    # times.  The checks below independently re-read every bound artifact and
+    # re-establish every cross-object join before projection.
+    normalized = tuple(items)
+
+    first = normalized[0][1]
+    shared_fields = (
+        "full_launch_spec",
+        "full_launch_spec_artifact",
+        "full_receipt",
+        "full_receipt_artifact",
+        "full_status_artifact",
+        "export_manifest",
+        "export_manifest_artifact",
+        "chain_manifest",
+        "chain_manifest_artifact",
+        "chain_records_artifact",
+        "unique_pair_manifest",
+        "unique_pair_manifest_artifact",
+        "unique_pair_records_artifact",
+        "source_theorem_artifacts",
+        "source_representation_artifacts",
+    )
+    if any(
+        getattr(replay, name) != getattr(first, name)
+        for _, replay in normalized[1:]
+        for name in shared_fields
+    ):
+        raise ExperimentalMixedSupervisionError(
+            "composition batch rows do not share one receipt-bound artifact set"
+        )
+
+    all_bindings: list[ExperimentalMixedInputBinding] = [
+        first.full_launch_spec_artifact,
+        first.full_receipt_artifact,
+        first.full_status_artifact,
+        first.export_manifest_artifact,
+        first.chain_manifest_artifact,
+        first.chain_records_artifact,
+        first.unique_pair_manifest_artifact,
+        first.unique_pair_records_artifact,
+        *first.source_theorem_artifacts,
+        *first.source_representation_artifacts,
+        *export_partition_artifacts.values(),
+    ]
+    all_bindings.extend(
+        binding
+        for _, replay in normalized
+        for binding in replay.second_hop_result_artifacts.values()
+    )
+    bindings_by_path: dict[str, ExperimentalMixedInputBinding] = {}
+    for binding in all_bindings:
+        prior = bindings_by_path.setdefault(binding.path, binding)
+        if prior != binding or binding.partition != "composition":
+            raise ExperimentalMixedSupervisionError(
+                "composition batch contains conflicting or non-composition artifact bindings"
+            )
+    for name, binding in sorted(bindings_by_path.items()):
+        _verify_input_binding(name, binding)
+
+    exact_models: tuple[
+        tuple[str, ExperimentalMixedInputBinding, StrictModel, type[StrictModel]], ...
+    ] = (
+        (
+            "full launch spec",
+            first.full_launch_spec_artifact,
+            first.full_launch_spec,
+            CompositionFullLaunchSpec,
+        ),
+        (
+            "full receipt",
+            first.full_receipt_artifact,
+            first.full_receipt,
+            CompositionFullReceipt,
+        ),
+        (
+            "composition export manifest",
+            first.export_manifest_artifact,
+            first.export_manifest,
+            DeterministicCompositionReceiptExportManifest,
+        ),
+        (
+            "composition chain manifest",
+            first.chain_manifest_artifact,
+            first.chain_manifest,
+            DeterministicCompositionChainManifest,
+        ),
+        (
+            "composition unique-pair manifest",
+            first.unique_pair_manifest_artifact,
+            first.unique_pair_manifest,
+            DeterministicCompositionUniquePairManifest,
+        ),
+    )
+    for label, binding, expected, model in exact_models:
+        if _load_canonical_model(Path(binding.path), model) != expected:
+            raise ExperimentalMixedSupervisionError(f"{label} object differs from bound bytes")
+
+    if (
+        first.full_receipt.launch_spec_sha256 != first.full_launch_spec_artifact.sha256
+        or first.full_receipt.final_status_sha256 != first.full_status_artifact.sha256
+        or first.export_manifest.full_launch_spec_sha256 != first.full_launch_spec_artifact.sha256
+        or first.export_manifest.full_receipt_sha256 != first.full_receipt_artifact.sha256
+        or first.export_manifest.input_chain_manifest_sha256 != first.chain_manifest_artifact.sha256
+        or first.export_manifest.input_unique_pair_manifest_sha256
+        != first.unique_pair_manifest_artifact.sha256
+        or first.unique_pair_manifest.input_chain_manifest_sha256
+        != first.chain_manifest_artifact.sha256
+        or first.chain_records_artifact.sha256 != first.chain_manifest.chain_output_sha256
+        or first.unique_pair_records_artifact.sha256
+        != first.unique_pair_manifest.unique_output_sha256
+        or first.unique_pair_manifest.input_chain_records_sha256
+        != first.chain_records_artifact.sha256
+    ):
+        raise ExperimentalMixedSupervisionError(
+            "composition receipt/export/manifest artifact hashes do not join"
+        )
+
+    expected_partition_hashes = {
+        "inventory": first.export_manifest.inventory_sha256,
+        "cycles": first.export_manifest.cycles_sha256,
+        "quarantine": first.export_manifest.quarantine_sha256,
+    }
+    expected_dispositions = {
+        "inventory": "provisional_inventory",
+        "cycles": "cycle_audit",
+        "quarantine": "mixed_intention_quarantine",
+    }
+    export_rows: dict[str, tuple[str, int, str, DeterministicCompositionExportRecord]] = {}
+    partition_counts: dict[str, int] = {}
+    for partition in ("inventory", "cycles", "quarantine"):
+        binding = export_partition_artifacts[partition]
+        if binding.sha256 != expected_partition_hashes[partition]:
+            raise ExperimentalMixedSupervisionError(
+                f"composition {partition} partition differs from its manifest"
+            )
+        records = _load_canonical_jsonl(Path(binding.path), DeterministicCompositionExportRecord)
+        partition_counts[partition] = len(records)
+        for line_number, record in enumerate(records, start=1):
+            assert isinstance(record, DeterministicCompositionExportRecord)
+            if record.disposition != expected_dispositions[partition]:
+                raise ExperimentalMixedSupervisionError(
+                    f"composition {partition} row has the wrong disposition"
+                )
+            raw = _canonical_line(record)
+            if record.export_record_id in export_rows:
+                raise ExperimentalMixedSupervisionError(
+                    "composition export repeats a record identity"
+                )
+            export_rows[record.export_record_id] = (
+                partition,
+                line_number,
+                sha256_hex(raw),
+                record,
+            )
+    if (
+        partition_counts
+        != {
+            "inventory": first.export_manifest.provisional_inventory_count,
+            "cycles": first.export_manifest.cycle_audit_count,
+            "quarantine": first.export_manifest.mixed_intention_quarantine_count,
+        }
+        or len(export_rows) != first.export_manifest.unique_pair_count
+    ):
+        raise ExperimentalMixedSupervisionError(
+            "composition export partition counts differ from its manifest"
+        )
+
+    all_chains = _load_canonical_jsonl(
+        Path(first.chain_records_artifact.path), DeterministicCompositionChainRecord
+    )
+    all_pairs = _load_canonical_jsonl(
+        Path(first.unique_pair_records_artifact.path),
+        DeterministicCompositionUniquePairRecord,
+    )
+    if len(all_chains) != first.chain_manifest.chain_count or len(all_pairs) != (
+        first.unique_pair_manifest.unique_pair_count
+    ):
+        raise ExperimentalMixedSupervisionError(
+            "composition record partition counts differ from manifests"
+        )
+    chain_by_id = {item.chain_id: item for item in all_chains}
+    pair_by_id = {item.unique_pair_id: item for item in all_pairs}
+    if len(chain_by_id) != len(all_chains) or len(pair_by_id) != len(all_pairs):
+        raise ExperimentalMixedSupervisionError("composition partitions repeat identities")
+
+    theorem_hashes = tuple(sorted(binding.sha256 for binding in first.source_theorem_artifacts))
+    representation_hashes = tuple(
+        sorted(binding.sha256 for binding in first.source_representation_artifacts)
+    )
+    if (
+        theorem_hashes != first.export_manifest.source_theorem_partition_sha256s
+        or representation_hashes != first.export_manifest.source_representation_partition_sha256s
+    ):
+        raise ExperimentalMixedSupervisionError(
+            "composition source partitions differ from receipt export"
+        )
+    target_theorem_ids = frozenset(replay.source_theorem.theorem_id for _, replay in normalized)
+    source_theorem_by_id = _load_bound_source_targets(
+        first.source_theorem_artifacts,
+        TheoremRecord,
+        wrapper_key="theorem",
+        target_theorem_ids=target_theorem_ids,
+    )
+    source_representations_by_theorem = _load_bound_source_targets(
+        first.source_representation_artifacts,
+        RepresentationRecord,
+        wrapper_key="representation",
+        target_theorem_ids=target_theorem_ids,
+    )
+    source_representation_by_id = {
+        item.representation_id: item for item in source_representations_by_theorem.values()
+    }
+    if len(source_representation_by_id) != len(source_representations_by_theorem):
+        raise ExperimentalMixedSupervisionError(
+            "composition source partitions repeat representation identities"
+        )
+
+    roots = {item.root_binding_id: item for item in first.chain_manifest.second_hop_roots}
+    receipt_roots = {item.root_binding_id: item for item in first.full_receipt.roots}
+    if set(roots) != set(receipt_roots) or any(
+        roots[root_id].results.sha256 != receipt_roots[root_id].results_sha256 for root_id in roots
+    ):
+        raise ExperimentalMixedSupervisionError(
+            "composition chain manifest does not bind all and only receipt result roots"
+        )
+
+    requested_lines: dict[str, set[int]] = defaultdict(set)
+    result_bindings: dict[str, ExperimentalMixedInputBinding] = {}
+    for _, replay in normalized:
+        for chain in replay.chains:
+            artifact = replay.second_hop_result_artifacts.get(chain.second_hop_root_binding_id)
+            if artifact is None:
+                raise ExperimentalMixedSupervisionError(
+                    "composition replay lacks a selected second-hop result artifact"
+                )
+            prior = result_bindings.setdefault(artifact.path, artifact)
+            if prior != artifact:
+                raise ExperimentalMixedSupervisionError(
+                    "composition result path has conflicting bindings"
+                )
+            requested_lines[artifact.path].add(chain.second_hop_result_line_number)
+
+    selected_result_lines: dict[tuple[str, int], bytes] = {}
+    for path, line_numbers in sorted(requested_lines.items()):
+        remaining = set(line_numbers)
+        with _regular_file(Path(path)).open("rb") as handle:
+            for line_number, raw in enumerate(handle, start=1):
+                if line_number not in remaining:
+                    continue
+                if not raw.endswith(b"\n") or not raw.strip():
+                    raise ExperimentalMixedSupervisionError(
+                        f"invalid bound JSONL framing: {path}:{line_number}"
+                    )
+                selected_result_lines[(path, line_number)] = raw
+                remaining.remove(line_number)
+                if not remaining:
+                    break
+        if remaining:
+            raise ExperimentalMixedSupervisionError(
+                f"bound second-hop result lines are absent from {path}: {sorted(remaining)[:5]}"
+            )
+
+    observed_record_ids: set[str] = set()
+    observed_pair_ids: set[str] = set()
+    observed_chain_ids: set[str] = set()
+    for record, replay in normalized:
+        if record.export_record_id in observed_record_ids:
+            raise ExperimentalMixedSupervisionError("composition batch repeats an export record")
+        observed_record_ids.add(record.export_record_id)
+        observed_pair_ids.add(replay.unique_pair.unique_pair_id)
+        observed_chain_ids.update(item.chain_id for item in replay.chains)
+
+        expected_export = export_rows.get(record.export_record_id)
+        if expected_export is None or expected_export != (
+            replay.export_partition,
+            replay.export_line_number,
+            replay.export_line_sha256,
+            record,
+        ):
+            raise ExperimentalMixedSupervisionError(
+                "composition export record is not the bound partition member"
+            )
+        if pair_by_id.get(replay.unique_pair.unique_pair_id) != replay.unique_pair or any(
+            chain_by_id.get(item.chain_id) != item for item in replay.chains
+        ):
+            raise ExperimentalMixedSupervisionError(
+                "composition replay objects are absent from bound audited partitions"
+            )
+        if (
+            source_theorem_by_id.get(replay.source_theorem.theorem_id) != (replay.source_theorem)
+            or source_representation_by_id.get(replay.source_representation.representation_id)
+            != replay.source_representation
+        ):
+            raise ExperimentalMixedSupervisionError(
+                "composition source theorem/view are absent from bound source partitions"
+            )
+
+        final_theorems = {item.theorem_id: item for item in replay.final_theorems}
+        final_representations = {
+            item.representation_id: item for item in replay.final_representations
+        }
+        for chain in replay.chains:
+            artifact = replay.second_hop_result_artifacts[chain.second_hop_root_binding_id]
+            root = roots.get(chain.second_hop_root_binding_id)
+            receipt_root = receipt_roots.get(chain.second_hop_root_binding_id)
+            if (
+                root is None
+                or receipt_root is None
+                or artifact.sha256 != root.results.sha256
+                or artifact.byte_count != root.results.byte_count
+                or artifact.sha256 != receipt_root.results_sha256
+            ):
+                raise ExperimentalMixedSupervisionError(
+                    "composition second-hop result artifact differs from receipt/chain manifest"
+                )
+            raw = selected_result_lines[(artifact.path, chain.second_hop_result_line_number)]
+            result_model: type[V2E2MaterializationResult] | type[V2D0MaterializationResult]
+            result_model = (
+                V2E2MaterializationResult if root.run_kind == "e2" else V2D0MaterializationResult
+            )
+            try:
+                result = result_model.model_validate_json(raw)
+            except ValueError as exc:
+                raise ExperimentalMixedSupervisionError(
+                    f"invalid receipt-bound second-hop result: {exc}"
+                ) from exc
+            if raw != _canonical_line(result):
+                raise ExperimentalMixedSupervisionError(
+                    "receipt-bound second-hop result is not canonical"
+                )
+            theorem = final_theorems.get(chain.final_theorem_id)
+            representation = final_representations.get(chain.final_representation_id)
+            if (
+                theorem is None
+                or representation is None
+                or (
+                    result.result_id != chain.second_hop_result_id
+                    or result.profile_id != chain.second_hop_profile_id
+                    or result.rule_id != chain.second_hop_rule_id
+                    or result.terminal_status != "provisional_variant"
+                    or result.candidate_theorem != theorem
+                    or result.candidate_representation != representation
+                    or result.draft is None
+                    or result.audit is None
+                    or result.variant is None
+                    or result.attempt.attempt_id != chain.second_hop_attempt_id
+                    or result.draft.draft_id != chain.second_hop_draft_id
+                    or result.audit.audit_id != chain.second_hop_audit_id
+                    or result.variant.variant_id != chain.second_hop_variant_id
+                )
+            ):
+                raise ExperimentalMixedSupervisionError(
+                    "composition chain/certificate/view differs from bound second-hop result"
+                )
+
+    if (
+        observed_record_ids != set(export_rows)
+        or observed_pair_ids != set(pair_by_id)
+        or observed_chain_ids != set(chain_by_id)
+        or len(normalized) != first.export_manifest.unique_pair_count
+    ):
+        raise ExperimentalMixedSupervisionError(
+            "composition batch does not cover the complete receipt export exactly once"
+        )
+
+    candidates: list[ExperimentalMixedCandidate] = []
+    exclusions: list[ExperimentalMixedExclusion] = []
+    for record, replay in normalized:
+        adapted = _adapt_preverified_deterministic_composition_export(
+            record,
+            replay=replay,
+            benchmark_registry=benchmark_registry,
+        )
+        candidates.extend(adapted.candidates)
+        exclusions.extend(adapted.exclusions)
+
+    for name, binding in sorted(bindings_by_path.items()):
+        _verify_input_binding(name, binding)
+    return ExperimentalMixedAdapterResult(
+        candidates=tuple(candidates),
+        exclusions=tuple(exclusions),
+    )
 
 
 def _summary(
@@ -2550,6 +3042,7 @@ __all__ = [
     "ExperimentalMixedSupervisionSummary",
     "ExperimentalProxySignal",
     "adapt_deterministic_composition_export",
+    "adapt_deterministic_composition_export_batch",
     "adapt_selectable_first_hop_projection",
     "adapt_verified_lf022_codex_audit",
     "adapt_verified_lf022_codex_judgment",

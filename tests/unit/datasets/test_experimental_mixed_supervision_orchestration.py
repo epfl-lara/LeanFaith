@@ -389,6 +389,101 @@ def test_orchestration_combines_sources_and_marks_composition_omitted(
     assert result.input_binding_count == len(captured["inputs"])
 
 
+def test_composition_source_requires_three_distinct_roots(tmp_path: Path) -> None:
+    with pytest.raises(ExperimentalMixedSupervisionError, match="must be distinct"):
+        orchestration.ExperimentalCompositionSource(
+            full_run_root=tmp_path,
+            seed_dir=tmp_path,
+            postprocess_root=tmp_path / "postprocess",
+            source_theorem_paths=(tmp_path / "source-theorems.jsonl",),
+            source_representation_paths=(tmp_path / "source-representations.jsonl",),
+        )
+
+
+def test_composition_source_binding_rejects_seed_inventory_and_accepts_original_partitions(
+    tmp_path: Path,
+) -> None:
+    paths = {
+        name: tmp_path / f"{name}.jsonl"
+        for name in (
+            "seed_theorems",
+            "seed_representations",
+            "private_theorems",
+            "public_theorems",
+            "private_representations",
+            "public_representations",
+        )
+    }
+    for name, path in paths.items():
+        path.write_text(f'{{"artifact":"{name}"}}\n', encoding="utf-8")
+    export_manifest = SimpleNamespace(
+        source_theorem_partition_sha256s=tuple(
+            sorted(
+                (
+                    hash_file(paths["private_theorems"]),
+                    hash_file(paths["public_theorems"]),
+                )
+            )
+        ),
+        source_representation_partition_sha256s=tuple(
+            sorted(
+                (
+                    hash_file(paths["private_representations"]),
+                    hash_file(paths["public_representations"]),
+                )
+            )
+        ),
+    )
+
+    seed_only = orchestration.ExperimentalCompositionSource(
+        full_run_root=tmp_path / "full",
+        seed_dir=tmp_path / "seed",
+        postprocess_root=tmp_path / "postprocess",
+        source_theorem_paths=(paths["seed_theorems"],),
+        source_representation_paths=(paths["seed_representations"],),
+    )
+    with pytest.raises(ExperimentalMixedSupervisionError, match="differ from receipt export"):
+        orchestration._bind_composition_source_partitions(
+            seed_only,
+            export_manifest=cast(Any, export_manifest),
+            bindings=orchestration._InputBindings(),
+        )
+
+    original = orchestration.ExperimentalCompositionSource(
+        full_run_root=tmp_path / "full",
+        seed_dir=tmp_path / "seed",
+        postprocess_root=tmp_path / "postprocess",
+        source_theorem_paths=(paths["private_theorems"], paths["public_theorems"]),
+        source_representation_paths=(
+            paths["private_representations"],
+            paths["public_representations"],
+        ),
+    )
+    theorem_bindings, representation_bindings = orchestration._bind_composition_source_partitions(
+        original,
+        export_manifest=cast(Any, export_manifest),
+        bindings=orchestration._InputBindings(),
+    )
+
+    assert tuple(item.sha256 for item in theorem_bindings) == (
+        export_manifest.source_theorem_partition_sha256s
+    )
+    assert tuple(item.sha256 for item in representation_bindings) == (
+        export_manifest.source_representation_partition_sha256s
+    )
+
+
+def test_included_composition_config_is_pinned_and_valid() -> None:
+    loaded = orchestration.load_config(
+        Path("configs/data/experimental_mixed_supervision_firsthop_lf022_composition_v1.yaml"),
+        orchestration.ExperimentalMixedSupervisionConfig,
+    )
+
+    assert loaded.config.first_hop_partition == "included"
+    assert loaded.config.lf022_codex_partition == "included"
+    assert loaded.config.composition_partition == "included"
+
+
 def test_orchestration_rejects_first_hop_screened_by_different_registry(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -485,6 +580,21 @@ def test_freeze_clis_reject_relative_output_before_reading_inputs() -> None:
     )
     assert mixed.exit_code == 1
     assert "must be an absolute path outside the repository" in mixed.output
+
+
+def test_mixed_freeze_cli_exposes_receipt_bound_composition_roots() -> None:
+    result = CliRunner().invoke(
+        app,
+        ["freeze-experimental-mixed-supervision", "--help"],
+        env={"COLUMNS": "200"},
+    )
+
+    assert result.exit_code == 0
+    assert "--composition-full-run-root" in result.output
+    assert "--composition-seed-dir" in result.output
+    assert "--composition-postprocess-root" in result.output
+    assert "--composition-source-theorems" in result.output
+    assert "--composition-source-representations" in result.output
 
 
 def test_replay_entrypoint_requires_existing_output(

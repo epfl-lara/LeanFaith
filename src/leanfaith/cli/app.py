@@ -7462,6 +7462,49 @@ def freeze_experimental_mixed_supervision_command(
             help="Canonical representation JSONL partition; repeat as needed.",
         ),
     ],
+    composition_full_run_root: Annotated[
+        Path | None,
+        typer.Option(
+            "--composition-full-run-root",
+            help=(
+                "Completed thirteen-family composition run; requires the other composition roots."
+            ),
+        ),
+    ] = None,
+    composition_seed_dir: Annotated[
+        Path | None,
+        typer.Option(
+            "--composition-seed-dir",
+            help="Immutable composition seed directory bound by the full run.",
+        ),
+    ] = None,
+    composition_postprocess_root: Annotated[
+        Path | None,
+        typer.Option(
+            "--composition-postprocess-root",
+            help="Completed chains/unique_pairs/export composition postprocess root.",
+        ),
+    ] = None,
+    composition_source_theorem_paths: Annotated[
+        list[Path] | None,
+        typer.Option(
+            "--composition-source-theorems",
+            help=(
+                "Original source theorem partition bound by the composition export; "
+                "repeat for every partition."
+            ),
+        ),
+    ] = None,
+    composition_source_representation_paths: Annotated[
+        list[Path] | None,
+        typer.Option(
+            "--composition-source-representations",
+            help=(
+                "Original source representation partition bound by the composition export; "
+                "repeat for every partition."
+            ),
+        ),
+    ] = None,
     config_path: Annotated[
         Path | None,
         typer.Option("--config", help="Pinned mixed-supervision policy."),
@@ -7490,6 +7533,8 @@ def freeze_experimental_mixed_supervision_command(
     ] = None,
 ) -> None:
     """Verify every source and freeze the first-hop plus LF-022 proxy corpus."""
+    from typing import cast
+
     from pydantic import BaseModel, ConfigDict, Field
 
     from leanfaith.config.paths import RepoPaths
@@ -7497,6 +7542,7 @@ def freeze_experimental_mixed_supervision_command(
         ExperimentalMixedSupervisionError,
     )
     from leanfaith.datasets.experimental_mixed_supervision_orchestration import (
+        ExperimentalCompositionSource,
         ExperimentalLF022AuditSource,
         freeze_experimental_mixed_supervision_from_artifacts,
     )
@@ -7542,6 +7588,35 @@ def freeze_experimental_mixed_supervision_command(
             )
             for spec in parsed_specs
         )
+        composition_values = (
+            composition_full_run_root,
+            composition_seed_dir,
+            composition_postprocess_root,
+            composition_source_theorem_paths,
+            composition_source_representation_paths,
+        )
+        if any(value is not None for value in composition_values) and not all(
+            value is not None for value in composition_values
+        ):
+            raise ValueError(
+                "composition roots and original source partitions must be provided together"
+            )
+        composition_source = (
+            None
+            if composition_full_run_root is None
+            else ExperimentalCompositionSource(
+                full_run_root=anchored(composition_full_run_root),
+                seed_dir=anchored(cast(Path, composition_seed_dir)),
+                postprocess_root=anchored(cast(Path, composition_postprocess_root)),
+                source_theorem_paths=tuple(
+                    anchored(path) for path in cast(list[Path], composition_source_theorem_paths)
+                ),
+                source_representation_paths=tuple(
+                    anchored(path)
+                    for path in cast(list[Path], composition_source_representation_paths)
+                ),
+            )
+        )
         result = freeze_experimental_mixed_supervision_from_artifacts(
             repo_root=paths.root,
             output_dir=output_dir,
@@ -7552,6 +7627,7 @@ def freeze_experimental_mixed_supervision_command(
             source_representation_paths=tuple(
                 anchored(path) for path in source_representation_path
             ),
+            composition_source=composition_source,
             benchmark_manifest_path=(
                 None if benchmark_manifest_path is None else anchored(benchmark_manifest_path)
             ),
@@ -7573,6 +7649,9 @@ def freeze_experimental_mixed_supervision_command(
         f"first_hop_candidates={result.first_hop_candidate_count} "
         f"lf022_candidates={result.lf022_candidate_count} "
         f"lf022_judgments={result.lf022_judgment_count} "
+        f"composition_export={result.composition_export_count} "
+        f"composition_candidates={result.composition_candidate_count} "
+        f"composition_exclusions={result.composition_exclusion_count} "
         f"replayed={str(artifacts.replayed).lower()} manifest={artifacts.manifest_path} "
         "proxy_only=true scientific_training_eligible=false evaluation_eligible=false"
     )
@@ -7832,6 +7911,16 @@ def verify_experimental_mixed_scalar_learning_curve_command(
             help="Dataset override; otherwise use the manifest-bound absolute path.",
         ),
     ] = None,
+    repository_root: Annotated[
+        Path | None,
+        typer.Option(
+            "--repository-root",
+            help=(
+                "Clean code-equivalent repository override; otherwise use the "
+                "manifest-bound producer path."
+            ),
+        ),
+    ] = None,
 ) -> None:
     """Refit and verify mixed scalar bytes, prefixes, predictions, and metrics."""
     from leanfaith.models.experimental_mixed_scalar_learning_curve import (
@@ -7843,6 +7932,7 @@ def verify_experimental_mixed_scalar_learning_curve_command(
         manifest = verify_experimental_mixed_scalar_learning_curve(
             output_dir,
             dataset_dir=dataset_dir,
+            repository_root=repository_root,
         )
     except (OSError, ValueError, ExperimentalMixedScalarLearningCurveError) as exc:
         typer.echo(f"experimental mixed scalar verification failed: {exc}", err=True)

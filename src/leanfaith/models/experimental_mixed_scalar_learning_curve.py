@@ -1458,6 +1458,25 @@ def _validated_repository_root(path: Path) -> Path:
     return root
 
 
+def _resolve_verification_repository_root(
+    *,
+    stored_repository_root: str,
+    expected_code: CodeState,
+    repository_root: Path | None,
+) -> Path:
+    """Resolve the producer checkout or an exact clean code-equivalent override."""
+
+    selected = Path(stored_repository_root) if repository_root is None else repository_root
+    root = _validated_repository_root(selected)
+    current_code = collect_code_state(root)
+    if current_code != expected_code:
+        raise ExperimentalMixedScalarLearningCurveError(
+            "verification repository code state differs from the frozen producer"
+        )
+    _verify_clean_code(current_code)
+    return root
+
+
 def _verify_payloads(output: Path, payloads: Mapping[str, bytes]) -> bool:
     safe = _real_directory(output)
     if {path.name for path in safe.iterdir()} != _OUTPUT_FILES:
@@ -1654,8 +1673,9 @@ def verify_experimental_mixed_scalar_learning_curve(
     output_dir: Path,
     *,
     dataset_dir: Path | None = None,
+    repository_root: Path | None = None,
 ) -> ExperimentalMixedScalarManifest:
-    """Refit deterministically and verify every byte and input binding."""
+    """Refit and verify every byte, optionally from an exact code-equivalent checkout."""
 
     root = _real_directory(output_dir)
     if {path.name for path in root.iterdir()} != _OUTPUT_FILES:
@@ -1691,15 +1711,15 @@ def verify_experimental_mixed_scalar_learning_curve(
         Path(manifest.dataset_manifest.path).parent if dataset_dir is None else dataset_dir
     )
     resolved_dataset = _real_directory(resolved_dataset)
-    repository_root = _validated_repository_root(Path(manifest.repository_root))
-    if _paths_overlap(root, resolved_dataset) or _paths_overlap(root, repository_root):
+    verification_repository_root = _resolve_verification_repository_root(
+        stored_repository_root=manifest.repository_root,
+        expected_code=manifest.code,
+        repository_root=repository_root,
+    )
+    if _paths_overlap(root, resolved_dataset) or _paths_overlap(root, verification_repository_root):
         raise ExperimentalMixedScalarLearningCurveError(
             "published output overlaps its repository or dataset input"
         )
-    current_code = collect_code_state(repository_root)
-    if current_code != manifest.code:
-        raise ExperimentalMixedScalarLearningCurveError("bound repository code state differs")
-    _verify_clean_code(current_code)
     torch = _require_torch()
     if _runtime(torch, config=manifest.config) != manifest.runtime:
         raise ExperimentalMixedScalarLearningCurveError("bound deterministic runtime differs")

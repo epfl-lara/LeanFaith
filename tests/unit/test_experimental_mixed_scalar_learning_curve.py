@@ -248,6 +248,78 @@ def test_clean_code_boundary_fails_closed() -> None:
         curve._verify_clean_code(untracked)
 
 
+def test_verifier_repository_override_requires_exact_clean_producer_code(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    stored = tmp_path / "deleted-producer-worktree"
+    override = tmp_path / "equivalent-checkout"
+    expected = CodeState(
+        git_revision="1" * 40,
+        git_dirty=False,
+        base_git_commit="1" * 40,
+        code_tree_hash="2" * 64,
+        tracked_diff_hash="3" * 64,
+        untracked_files=(),
+    )
+    validated: list[Path] = []
+
+    def validate(path: Path) -> Path:
+        validated.append(path)
+        return path
+
+    monkeypatch.setattr(curve, "_validated_repository_root", validate)
+    monkeypatch.setattr(curve, "collect_code_state", lambda _: expected)
+
+    assert (
+        curve._resolve_verification_repository_root(
+            stored_repository_root=str(stored),
+            expected_code=expected,
+            repository_root=override,
+        )
+        == override
+    )
+    assert validated == [override]
+
+    changed = expected.model_copy(update={"git_revision": "4" * 40})
+    monkeypatch.setattr(curve, "collect_code_state", lambda _: changed)
+    with pytest.raises(
+        curve.ExperimentalMixedScalarLearningCurveError,
+        match="differs from the frozen producer",
+    ):
+        curve._resolve_verification_repository_root(
+            stored_repository_root=str(stored),
+            expected_code=expected,
+            repository_root=override,
+        )
+
+
+def test_verifier_repository_resolution_preserves_manifest_default(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    stored = tmp_path / "producer-worktree"
+    expected = CodeState(
+        git_revision="1" * 40,
+        git_dirty=False,
+        base_git_commit="1" * 40,
+        code_tree_hash="2" * 64,
+        tracked_diff_hash="3" * 64,
+        untracked_files=(),
+    )
+    monkeypatch.setattr(curve, "_validated_repository_root", lambda path: path)
+    monkeypatch.setattr(curve, "collect_code_state", lambda _: expected)
+
+    assert (
+        curve._resolve_verification_repository_root(
+            stored_repository_root=str(stored),
+            expected_code=expected,
+            repository_root=None,
+        )
+        == stored
+    )
+
+
 def test_immutable_writer_replays_exact_bytes_and_rejects_tampering(tmp_path: Path) -> None:
     payloads = {name: f"{name}\n".encode() for name in curve._OUTPUT_FILES}
     output = tmp_path / "artifact"
@@ -279,6 +351,7 @@ def test_cli_requires_explicit_opt_in_and_exposes_verifier(tmp_path: Path) -> No
     assert rejected.exit_code == 1
     assert "requires --allow-experimental-mixed-supervision" in rejected.output
     assert verify_help.exit_code == 0, verify_help.output
+    assert "--repository-root" in verify_help.output
 
 
 def test_model_schema_rejects_tampered_canonical_id() -> None:

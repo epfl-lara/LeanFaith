@@ -842,3 +842,21 @@ def test_composition_replay_binding_requires_receipt_bound_artifacts() -> None:
     assert required.issubset(mixed.DeterministicCompositionReplayBinding.model_fields)
     with pytest.raises(ValueError):
         mixed.DeterministicCompositionReplayBinding.model_validate({})
+
+
+def test_composition_batch_requires_complete_nonempty_receipt_export(tmp_path: Path) -> None:
+    registry = _benchmark_registry(tmp_path)
+
+    with pytest.raises(mixed.ExperimentalMixedSupervisionError, match="cannot be empty"):
+        mixed.adapt_deterministic_composition_export_batch(
+            (),
+            export_partition_artifacts={},
+            benchmark_registry=registry,
+        )
+
+    with pytest.raises(mixed.ExperimentalMixedSupervisionError, match="all three"):
+        mixed.adapt_deterministic_composition_export_batch(
+            cast(Any, ((object(), object()),)),
+            export_partition_artifacts=cast(Any, {"inventory": object()}),
+            benchmark_registry=registry,
+        )

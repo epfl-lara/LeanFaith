@@ -8,23 +8,26 @@ boundary that constructs those objects from frozen artifacts:
 * one or more complete, clean LF-022 Codex audits;
 * canonical theorem and representation partitions for the LF-022 sources;
 * the current representation-aware benchmark denylist; and
-* the exact mixed-corpus policy file.
+* the exact mixed-corpus policy file; and
+* optionally, one complete receipt-bound deterministic composition export.
 
 No semantic labels are created here.  The resulting corpus remains
-experimental, provisional proxy supervision.  Composition is deliberately
-recorded as ``omitted_pending_receipt`` until a receipt-bound export exists.
+experimental, provisional proxy supervision.  Composition is admitted only
+from the full receipt/export boundary; partial roots never enter this module.
 """
 
 from __future__ import annotations
 
 import json
 import re
+from collections import defaultdict
 from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal, cast
 
-from leanfaith.config import hash_file, load_config
+from leanfaith.config import canonical_json_bytes, hash_file, load_config, sha256_hex
+from leanfaith.config.models import StrictModel
 from leanfaith.datasets.denylist import (
     LF016_AUTHORIZATION_PATH,
     REPRESENTATION_SIGNATURE_MANIFEST_PATH,
@@ -37,6 +40,8 @@ from leanfaith.datasets.experimental_first_hop_projection import (
     verify_experimental_first_hop_projection,
 )
 from leanfaith.datasets.experimental_mixed_supervision import (
+    DeterministicCompositionReplayBinding,
+    ExperimentalMixedAdapterResult,
     ExperimentalMixedCandidate,
     ExperimentalMixedExclusion,
     ExperimentalMixedInputBinding,
@@ -44,6 +49,7 @@ from leanfaith.datasets.experimental_mixed_supervision import (
     ExperimentalMixedSupervisionConfig,
     ExperimentalMixedSupervisionError,
     ExperimentalMixedSupervisionManifest,
+    adapt_deterministic_composition_export_batch,
     adapt_selectable_first_hop_projection,
     adapt_verified_lf022_codex_audit,
     bind_experimental_mixed_input,
@@ -55,6 +61,25 @@ from leanfaith.generation.lf022_codex_audit import (
     verify_completed_lf022_codex_audit,
 )
 from leanfaith.schemas.theorem import RepresentationRecord, TheoremRecord
+from leanfaith.transforms.composition_chain import (
+    DeterministicCompositionChainManifest,
+    DeterministicCompositionChainRecord,
+)
+from leanfaith.transforms.composition_full_launcher import (
+    CompositionFullLaunchSpec,
+    CompositionFullReceipt,
+)
+from leanfaith.transforms.composition_receipt_export import (
+    DeterministicCompositionExportRecord,
+    DeterministicCompositionReceiptExportManifest,
+)
+from leanfaith.transforms.composition_seed import CompositionSeedManifest
+from leanfaith.transforms.composition_unique_pairs import (
+    DeterministicCompositionUniquePairManifest,
+    DeterministicCompositionUniquePairRecord,
+)
+from leanfaith.transforms.v2_d0_materializer import V2D0MaterializationResult
+from leanfaith.transforms.v2_e2_materializer import V2E2MaterializationResult
 
 _ARTIFACT_NAME = re.compile(r"^[a-z0-9][a-z0-9_.-]*$")
 _THEOREM_ID_IN_JSON = re.compile(rb'"theorem_id"\s*:\s*"(thm:[0-9a-f]{64})"')
@@ -81,6 +106,47 @@ class ExperimentalLF022AuditSource:
 
 
 @dataclass(frozen=True, slots=True)
+class ExperimentalCompositionSource:
+    """Immutable roots and original source partitions for one composition export.
+
+    The seed directory contains the first-hop *intermediate* declarations used
+    to launch the second hop.  It is lineage evidence, not the inventory of
+    original source theorem/view records referenced by the receipt export.
+    Those original partitions are therefore explicit, independently bound
+    inputs.
+    """
+
+    full_run_root: Path
+    seed_dir: Path
+    postprocess_root: Path
+    source_theorem_paths: tuple[Path, ...]
+    source_representation_paths: tuple[Path, ...]
+
+    def __post_init__(self) -> None:
+        resolved = (
+            self.full_run_root.resolve(),
+            self.seed_dir.resolve(),
+            self.postprocess_root.resolve(),
+        )
+        if len(set(resolved)) != 3:
+            raise ExperimentalMixedSupervisionError(
+                "composition full-run, seed, and postprocess roots must be distinct"
+            )
+        if not self.source_theorem_paths or not self.source_representation_paths:
+            raise ExperimentalMixedSupervisionError(
+                "composition original source theorem and representation partitions are required"
+            )
+        source_paths = tuple(
+            path.resolve()
+            for path in (*self.source_theorem_paths, *self.source_representation_paths)
+        )
+        if len(source_paths) != len(set(source_paths)):
+            raise ExperimentalMixedSupervisionError(
+                "composition original source partition paths must be unique"
+            )
+
+
+@dataclass(frozen=True, slots=True)
 class ExperimentalMixedOrchestrationResult:
     """A frozen corpus plus transparent source-level construction counts."""
 
@@ -92,6 +158,9 @@ class ExperimentalMixedOrchestrationResult:
     lf022_candidate_count: int
     adapter_exclusion_count: int
     input_binding_count: int
+    composition_export_count: int = 0
+    composition_candidate_count: int = 0
+    composition_exclusion_count: int = 0
 
 
 class _InputBindings:
@@ -106,12 +175,14 @@ class _InputBindings:
         path: Path,
         *,
         partition: Literal["first_hop", "lf022_codex", "composition", "policy"],
-    ) -> None:
+    ) -> ExperimentalMixedInputBinding:
         if not name or name in self._values:
             raise ExperimentalMixedSupervisionError(
                 f"duplicate or empty mixed input binding name: {name!r}"
             )
-        self._values[name] = bind_experimental_mixed_input(path, partition=partition)
+        binding = bind_experimental_mixed_input(path, partition=partition)
+        self._values[name] = binding
+        return binding
 
     def finish(self) -> dict[str, ExperimentalMixedInputBinding]:
         return dict(sorted(self._values.items()))
@@ -172,6 +243,504 @@ def _add_benchmark_bindings(
         paths["benchmark/authorization"] = authorization_path
     for name, path in sorted(paths.items()):
         bindings.add(name, path, partition="policy")
+
+
+def _load_canonical_model[ModelT: StrictModel](path: Path, model: type[ModelT]) -> ModelT:
+    if path.is_symlink() or not path.is_file():
+        raise ExperimentalMixedSupervisionError(f"composition artifact is absent: {path}")
+    raw = path.read_bytes()
+    try:
+        item = model.model_validate_json(raw)
+    except ValueError as exc:
+        raise ExperimentalMixedSupervisionError(
+            f"invalid composition {model.__name__}: {path}: {exc}"
+        ) from exc
+    if raw != canonical_json_bytes(item.model_dump(mode="json")) + b"\n":
+        raise ExperimentalMixedSupervisionError(
+            f"non-canonical composition {model.__name__}: {path}"
+        )
+    return item
+
+
+def _load_canonical_rows[ModelT: StrictModel](
+    path: Path,
+    model: type[ModelT],
+) -> tuple[tuple[bytes, ModelT], ...]:
+    if path.is_symlink() or not path.is_file():
+        raise ExperimentalMixedSupervisionError(f"composition partition is absent: {path}")
+    output: list[tuple[bytes, ModelT]] = []
+    with path.open("rb") as handle:
+        for line_number, raw in enumerate(handle, start=1):
+            if not raw.endswith(b"\n") or not raw.strip():
+                raise ExperimentalMixedSupervisionError(
+                    f"invalid composition JSONL framing: {path}:{line_number}"
+                )
+            try:
+                item = model.model_validate_json(raw)
+            except ValueError as exc:
+                raise ExperimentalMixedSupervisionError(
+                    f"invalid composition {model.__name__}: {path}:{line_number}: {exc}"
+                ) from exc
+            if raw != canonical_json_bytes(item.model_dump(mode="json")) + b"\n":
+                raise ExperimentalMixedSupervisionError(
+                    f"non-canonical composition {model.__name__}: {path}:{line_number}"
+                )
+            output.append((raw, item))
+    return tuple(output)
+
+
+def _require_hash(path: Path, expected: str, *, label: str) -> None:
+    if hash_file(path) != expected:
+        raise ExperimentalMixedSupervisionError(f"composition {label} hash differs: {path}")
+
+
+def _bind_composition_source_partitions(
+    source: ExperimentalCompositionSource,
+    *,
+    export_manifest: DeterministicCompositionReceiptExportManifest,
+    bindings: _InputBindings,
+) -> tuple[
+    tuple[ExperimentalMixedInputBinding, ...],
+    tuple[ExperimentalMixedInputBinding, ...],
+]:
+    """Bind the original source inventory and match its receipt-export hashes.
+
+    This deliberately does not infer the source inventory from ``seed_dir``:
+    seed theorem/view records are P01/P02/P12/P18 intermediates, whereas every
+    exported pair points back to its pre-transformation theorem and view.
+    """
+
+    theorem_bindings = tuple(
+        bindings.add(
+            f"composition/source/theorems/{index:02d}",
+            path,
+            partition="composition",
+        )
+        for index, path in enumerate(sorted(source.source_theorem_paths))
+    )
+    representation_bindings = tuple(
+        bindings.add(
+            f"composition/source/representations/{index:02d}",
+            path,
+            partition="composition",
+        )
+        for index, path in enumerate(sorted(source.source_representation_paths))
+    )
+    if tuple(sorted(item.sha256 for item in theorem_bindings)) != (
+        export_manifest.source_theorem_partition_sha256s
+    ):
+        raise ExperimentalMixedSupervisionError(
+            "composition original source theorem partitions differ from receipt export"
+        )
+    if tuple(sorted(item.sha256 for item in representation_bindings)) != (
+        export_manifest.source_representation_partition_sha256s
+    ):
+        raise ExperimentalMixedSupervisionError(
+            "composition original source representation partitions differ from receipt export"
+        )
+    return (
+        tuple(sorted(theorem_bindings, key=lambda item: (item.sha256, item.path))),
+        tuple(sorted(representation_bindings, key=lambda item: (item.sha256, item.path))),
+    )
+
+
+def _adapt_composition_source(
+    source: ExperimentalCompositionSource,
+    *,
+    benchmark_registry: ActiveBenchmarkRegistry,
+    bindings: _InputBindings,
+) -> tuple[ExperimentalMixedAdapterResult, int]:
+    """Build complete per-row joins, then invoke the one-pass receipt verifier."""
+
+    full_root = source.full_run_root.resolve()
+    seed_root = source.seed_dir.resolve()
+    postprocess_root = source.postprocess_root.resolve()
+    if any(
+        path.is_symlink() or not path.is_dir() for path in (full_root, seed_root, postprocess_root)
+    ):
+        raise ExperimentalMixedSupervisionError(
+            "composition source roots must be existing real directories"
+        )
+
+    orchestration_root = full_root / "orchestration"
+    launch_path = orchestration_root / "launch_spec.json"
+    receipt_path = orchestration_root / "receipt.json"
+    status_path = orchestration_root / "status.json"
+    chain_root = postprocess_root / "chains"
+    unique_root = postprocess_root / "unique_pairs"
+    export_root = postprocess_root / "export"
+    chain_manifest_path = chain_root / "manifest.json"
+    chain_records_path = chain_root / "chains.jsonl"
+    unique_manifest_path = unique_root / "manifest.json"
+    unique_records_path = unique_root / "unique_pairs.jsonl"
+    export_manifest_path = export_root / "manifest.json"
+
+    launch = _load_canonical_model(launch_path, CompositionFullLaunchSpec)
+    receipt = _load_canonical_model(receipt_path, CompositionFullReceipt)
+    seed_manifest = _load_canonical_model(seed_root / "manifest.json", CompositionSeedManifest)
+    chain_manifest = _load_canonical_model(
+        chain_manifest_path, DeterministicCompositionChainManifest
+    )
+    unique_manifest = _load_canonical_model(
+        unique_manifest_path, DeterministicCompositionUniquePairManifest
+    )
+    export_manifest = _load_canonical_model(
+        export_manifest_path, DeterministicCompositionReceiptExportManifest
+    )
+
+    if (
+        Path(launch.seed_dir).resolve() != seed_root
+        or Path(launch.output_root).resolve() != full_root
+    ):
+        raise ExperimentalMixedSupervisionError(
+            "composition launch paths differ from the requested source roots"
+        )
+    seed_paths = {
+        "records": seed_root / seed_manifest.seed_output,
+        "theorems": seed_root / seed_manifest.theorem_output,
+        "representations": seed_root / seed_manifest.representation_output,
+    }
+    if (
+        receipt.launch_id != launch.launch_id
+        or receipt.launch_spec_sha256 != hash_file(launch_path)
+        or receipt.final_status_sha256 != hash_file(status_path)
+        or launch.seed_set_id != seed_manifest.seed_set_id
+        or launch.seed_manifest_sha256 != hash_file(seed_root / "manifest.json")
+        or launch.seed_partition_sha256 != seed_manifest.seed_output_sha256
+        or launch.theorem_partition_sha256 != seed_manifest.theorem_output_sha256
+        or launch.representation_partition_sha256 != seed_manifest.representation_output_sha256
+        or export_manifest.full_launch_id != launch.launch_id
+        or export_manifest.full_receipt_id != receipt.receipt_id
+        or export_manifest.full_launch_spec_sha256 != hash_file(launch_path)
+        or export_manifest.full_receipt_sha256 != hash_file(receipt_path)
+        or export_manifest.input_seed_set_id != seed_manifest.seed_set_id
+        or export_manifest.input_seed_manifest_sha256 != hash_file(seed_root / "manifest.json")
+        or export_manifest.input_chain_set_id != chain_manifest.chain_set_id
+        or export_manifest.input_chain_manifest_sha256 != hash_file(chain_manifest_path)
+        or export_manifest.input_unique_pair_set_id != unique_manifest.unique_pair_set_id
+        or export_manifest.input_unique_pair_manifest_sha256 != hash_file(unique_manifest_path)
+        or unique_manifest.input_chain_set_id != chain_manifest.chain_set_id
+        or unique_manifest.input_chain_manifest_sha256 != hash_file(chain_manifest_path)
+    ):
+        raise ExperimentalMixedSupervisionError(
+            "composition launch/receipt/seed/export manifests do not form one exact lineage"
+        )
+    _require_hash(seed_paths["records"], seed_manifest.seed_output_sha256, label="seed")
+    _require_hash(seed_paths["theorems"], seed_manifest.theorem_output_sha256, label="seed theorem")
+    _require_hash(
+        seed_paths["representations"],
+        seed_manifest.representation_output_sha256,
+        label="seed representation",
+    )
+    _require_hash(chain_records_path, chain_manifest.chain_output_sha256, label="chain records")
+    _require_hash(
+        unique_records_path, unique_manifest.unique_output_sha256, label="unique-pair records"
+    )
+
+    launch_binding = bindings.add(
+        "composition/full_run/launch_spec", launch_path, partition="composition"
+    )
+    receipt_binding = bindings.add(
+        "composition/full_run/receipt", receipt_path, partition="composition"
+    )
+    status_binding = bindings.add(
+        "composition/full_run/status", status_path, partition="composition"
+    )
+    seed_manifest_binding = bindings.add(
+        "composition/seed/manifest", seed_root / "manifest.json", partition="composition"
+    )
+    bindings.add("composition/seed/records", seed_paths["records"], partition="composition")
+    bindings.add("composition/seed/theorems", seed_paths["theorems"], partition="composition")
+    bindings.add(
+        "composition/seed/representations",
+        seed_paths["representations"],
+        partition="composition",
+    )
+    theorem_bindings, representation_bindings = _bind_composition_source_partitions(
+        source,
+        export_manifest=export_manifest,
+        bindings=bindings,
+    )
+    chain_manifest_binding = bindings.add(
+        "composition/chains/manifest", chain_manifest_path, partition="composition"
+    )
+    chain_records_binding = bindings.add(
+        "composition/chains/records", chain_records_path, partition="composition"
+    )
+    unique_manifest_binding = bindings.add(
+        "composition/unique_pairs/manifest",
+        unique_manifest_path,
+        partition="composition",
+    )
+    unique_records_binding = bindings.add(
+        "composition/unique_pairs/records", unique_records_path, partition="composition"
+    )
+    export_manifest_binding = bindings.add(
+        "composition/export/manifest", export_manifest_path, partition="composition"
+    )
+    bindings.add("composition/export/report", export_root / "report.md", partition="composition")
+
+    export_partition_paths = {
+        "inventory": export_root / "inventory.jsonl",
+        "cycles": export_root / "cycles.jsonl",
+        "quarantine": export_root / "quarantine.jsonl",
+    }
+    export_partition_bindings = {
+        partition: bindings.add(f"composition/export/{partition}", path, partition="composition")
+        for partition, path in export_partition_paths.items()
+    }
+    for partition, expected in (
+        ("inventory", export_manifest.inventory_sha256),
+        ("cycles", export_manifest.cycles_sha256),
+        ("quarantine", export_manifest.quarantine_sha256),
+    ):
+        _require_hash(export_partition_paths[partition], expected, label=f"export {partition}")
+    _require_hash(export_root / "report.md", export_manifest.report_sha256, label="export report")
+
+    receipt_root_by_id = {item.root_binding_id: item for item in receipt.roots}
+    chain_root_by_id = {item.root_binding_id: item for item in chain_manifest.second_hop_roots}
+    if (
+        len(receipt.roots) != 13
+        or set(receipt_root_by_id) != set(chain_root_by_id)
+        or len(receipt_root_by_id) != 13
+    ):
+        raise ExperimentalMixedSupervisionError(
+            "composition receipt must bind exactly the thirteen chain roots"
+        )
+    result_binding_by_root: dict[str, ExperimentalMixedInputBinding] = {}
+    for root_id, receipt_root in sorted(receipt_root_by_id.items()):
+        root_path = Path(receipt_root.root_path).resolve()
+        chain_bound = chain_root_by_id[root_id]
+        run_spec_path = root_path / "run_spec.json"
+        manifest_path = root_path / "manifest.json"
+        results_path = root_path / "results.jsonl"
+        log_path = orchestration_root / "logs" / f"{receipt_root.family}.log"
+        if (
+            hash_file(run_spec_path) != receipt_root.run_spec_sha256
+            or hash_file(manifest_path) != receipt_root.manifest_sha256
+            or hash_file(results_path) != receipt_root.results_sha256
+            or hash_file(log_path) != receipt_root.log_sha256
+            or chain_bound.results.sha256 != receipt_root.results_sha256
+            or chain_bound.results.byte_count != results_path.stat().st_size
+            or chain_bound.run_kind != receipt_root.run_kind
+        ):
+            raise ExperimentalMixedSupervisionError(
+                f"composition receipt root differs for {receipt_root.family}"
+            )
+        prefix = f"composition/full_run/roots/{receipt_root.family}"
+        bindings.add(f"{prefix}/run_spec", run_spec_path, partition="composition")
+        bindings.add(f"{prefix}/manifest", manifest_path, partition="composition")
+        result_binding_by_root[root_id] = bindings.add(
+            f"{prefix}/results", results_path, partition="composition"
+        )
+        bindings.add(f"{prefix}/log", log_path, partition="composition")
+
+    chain_rows = _load_canonical_rows(chain_records_path, DeterministicCompositionChainRecord)
+    unique_rows = _load_canonical_rows(
+        unique_records_path, DeterministicCompositionUniquePairRecord
+    )
+    chains = tuple(item for _, item in chain_rows)
+    unique_pairs = tuple(item for _, item in unique_rows)
+    if len(chains) != chain_manifest.chain_count or len(unique_pairs) != (
+        unique_manifest.unique_pair_count
+    ):
+        raise ExperimentalMixedSupervisionError(
+            "composition chain/unique-pair counts differ from their manifests"
+        )
+    chain_by_id = {item.chain_id: item for item in chains}
+    pair_by_id = {item.unique_pair_id: item for item in unique_pairs}
+    if len(chain_by_id) != len(chains) or len(pair_by_id) != len(unique_pairs):
+        raise ExperimentalMixedSupervisionError(
+            "composition chain/unique-pair partitions repeat identities"
+        )
+
+    source_theorem_ids = frozenset(item.original_source_theorem_id for item in unique_pairs)
+    theorem_by_id = _load_target_records(
+        tuple(Path(item.path) for item in theorem_bindings),
+        target_theorem_ids=source_theorem_ids,
+        model=TheoremRecord,
+        wrapper_key="theorem",
+    )
+    source_representations_by_theorem = _load_target_records(
+        tuple(Path(item.path) for item in representation_bindings),
+        target_theorem_ids=source_theorem_ids,
+        model=RepresentationRecord,
+        wrapper_key="representation",
+    )
+    representation_by_id = {
+        item.representation_id: item for item in source_representations_by_theorem.values()
+    }
+    if len(representation_by_id) != len(source_representations_by_theorem):
+        raise ExperimentalMixedSupervisionError(
+            "composition original source partitions repeat representation identities"
+        )
+
+    requested_lines: dict[str, set[int]] = defaultdict(set)
+    for chain in chains:
+        requested_lines[chain.second_hop_root_binding_id].add(chain.second_hop_result_line_number)
+    results_by_chain: dict[str, V2E2MaterializationResult | V2D0MaterializationResult] = {}
+    chains_by_root_line = {
+        (item.second_hop_root_binding_id, item.second_hop_result_line_number): item
+        for item in chains
+    }
+    if len(chains_by_root_line) != len(chains):
+        raise ExperimentalMixedSupervisionError(
+            "composition chains repeat a second-hop result locator"
+        )
+    for root_id, line_numbers in sorted(requested_lines.items()):
+        receipt_root = receipt_root_by_id[root_id]
+        result_model = (
+            V2E2MaterializationResult
+            if receipt_root.run_kind == "e2"
+            else V2D0MaterializationResult
+        )
+        remaining = set(line_numbers)
+        result_path = Path(result_binding_by_root[root_id].path)
+        with result_path.open("rb") as handle:
+            for line_number, raw in enumerate(handle, start=1):
+                if line_number not in remaining:
+                    continue
+                if not raw.endswith(b"\n") or not raw.strip():
+                    raise ExperimentalMixedSupervisionError(
+                        f"invalid second-hop JSONL framing: {result_path}:{line_number}"
+                    )
+                try:
+                    result = result_model.model_validate_json(raw)
+                except ValueError as exc:
+                    raise ExperimentalMixedSupervisionError(
+                        f"invalid second-hop result: {result_path}:{line_number}: {exc}"
+                    ) from exc
+                if raw != canonical_json_bytes(result.model_dump(mode="json")) + b"\n":
+                    raise ExperimentalMixedSupervisionError(
+                        f"non-canonical second-hop result: {result_path}:{line_number}"
+                    )
+                chain = chains_by_root_line[(root_id, line_number)]
+                results_by_chain[chain.chain_id] = result
+                remaining.remove(line_number)
+                if not remaining:
+                    break
+        if remaining:
+            raise ExperimentalMixedSupervisionError(
+                f"composition result lines are absent from {result_path}: {sorted(remaining)[:5]}"
+            )
+
+    export_rows: list[
+        tuple[
+            Literal["inventory", "cycles", "quarantine"],
+            int,
+            bytes,
+            DeterministicCompositionExportRecord,
+        ]
+    ] = []
+    for partition in ("inventory", "cycles", "quarantine"):
+        typed_partition = cast(Literal["inventory", "cycles", "quarantine"], partition)
+        for line_number, (raw, record) in enumerate(
+            _load_canonical_rows(
+                export_partition_paths[typed_partition],
+                DeterministicCompositionExportRecord,
+            ),
+            start=1,
+        ):
+            export_rows.append((typed_partition, line_number, raw, record))
+    if len(export_rows) != export_manifest.unique_pair_count:
+        raise ExperimentalMixedSupervisionError(
+            "composition export row count differs from its manifest"
+        )
+
+    replay_items: list[
+        tuple[DeterministicCompositionExportRecord, DeterministicCompositionReplayBinding]
+    ] = []
+    for partition, line_number, raw, record in export_rows:
+        pair = pair_by_id.get(record.input_unique_pair_id)
+        if pair is None:
+            raise ExperimentalMixedSupervisionError(
+                "composition export references a missing unique pair"
+            )
+        selected_chains = tuple(
+            sorted((chain_by_id[item] for item in pair.chain_ids), key=lambda item: item.chain_id)
+        )
+        selected_results = tuple(results_by_chain[item.chain_id] for item in selected_chains)
+        final_theorem_by_id = {
+            item.candidate_theorem.theorem_id: item.candidate_theorem
+            for item in selected_results
+            if item.candidate_theorem is not None
+        }
+        final_theorems = tuple(
+            sorted(
+                final_theorem_by_id.values(),
+                key=lambda item: item.theorem_id,
+            )
+        )
+        final_representation_by_id = {
+            item.candidate_representation.representation_id: item.candidate_representation
+            for item in selected_results
+            if item.candidate_representation is not None
+        }
+        final_representations = tuple(
+            sorted(
+                final_representation_by_id.values(),
+                key=lambda item: item.representation_id,
+            )
+        )
+        source_theorem = theorem_by_id.get(pair.original_source_theorem_id)
+        source_representation = representation_by_id.get(pair.original_source_representation_id)
+        if source_theorem is None or source_representation is None:
+            raise ExperimentalMixedSupervisionError(
+                "composition seed inventory lacks an exported source theorem/view"
+            )
+        replay_items.append(
+            (
+                record,
+                DeterministicCompositionReplayBinding(
+                    full_launch_spec=launch,
+                    full_launch_spec_artifact=launch_binding,
+                    full_receipt=receipt,
+                    full_receipt_artifact=receipt_binding,
+                    full_status_artifact=status_binding,
+                    export_manifest=export_manifest,
+                    export_manifest_artifact=export_manifest_binding,
+                    export_partition=partition,
+                    export_partition_artifact=export_partition_bindings[partition],
+                    export_line_number=line_number,
+                    export_line_sha256=sha256_hex(raw),
+                    chain_manifest=chain_manifest,
+                    chain_manifest_artifact=chain_manifest_binding,
+                    chain_records_artifact=chain_records_binding,
+                    unique_pair_manifest=unique_manifest,
+                    unique_pair_manifest_artifact=unique_manifest_binding,
+                    unique_pair_records_artifact=unique_records_binding,
+                    unique_pair=pair,
+                    chains=selected_chains,
+                    source_theorem_artifacts=theorem_bindings,
+                    source_representation_artifacts=representation_bindings,
+                    second_hop_result_artifacts={
+                        root_id: result_binding_by_root[root_id]
+                        for root_id in sorted(
+                            {item.second_hop_root_binding_id for item in selected_chains}
+                        )
+                    },
+                    source_theorem=source_theorem,
+                    source_representation=source_representation,
+                    final_theorems=final_theorems,
+                    final_representations=final_representations,
+                ),
+            )
+        )
+
+    adapted = adapt_deterministic_composition_export_batch(
+        tuple(replay_items),
+        export_partition_artifacts=cast(
+            dict[Literal["inventory", "cycles", "quarantine"], ExperimentalMixedInputBinding],
+            export_partition_bindings,
+        ),
+        benchmark_registry=benchmark_registry,
+    )
+    # Bind the seed manifest object even though it is already represented by
+    # its path binding; retaining the local name makes the lineage check above
+    # explicit and prevents an accidental removal as dead code.
+    if seed_manifest_binding.sha256 != launch.seed_manifest_sha256:
+        raise ExperimentalMixedSupervisionError("composition seed binding changed")
+    return adapted, len(export_rows)
 
 
 def _load_target_records[ModelT: TheoremRecord | RepresentationRecord](
@@ -376,6 +945,7 @@ def _assemble_and_freeze(
     lf022_audits: Sequence[ExperimentalLF022AuditSource],
     source_theorem_paths: Sequence[Path],
     source_representation_paths: Sequence[Path],
+    composition_source: ExperimentalCompositionSource | None,
     benchmark_manifest_path: Path | None,
     benchmark_expected_manifest_sha256: str | None,
     benchmark_authorization_path: Path | None,
@@ -392,14 +962,13 @@ def _assemble_and_freeze(
 
     loaded = load_config(config_path, ExperimentalMixedSupervisionConfig)
     config = loaded.config
-    if (
-        config.first_hop_partition != "included"
-        or config.lf022_codex_partition != "included"
-        or config.composition_partition != "omitted_pending_receipt"
-    ):
+    if config.first_hop_partition != "included" or config.lf022_codex_partition != "included":
         raise ExperimentalMixedSupervisionError(
-            "this orchestration requires included first-hop/LF-022 partitions and "
-            "composition=omitted_pending_receipt"
+            "this orchestration requires included first-hop and LF-022 partitions"
+        )
+    if (config.composition_partition == "included") != (composition_source is not None):
+        raise ExperimentalMixedSupervisionError(
+            "composition source presence must exactly match composition_partition=included"
         )
     if not lf022_audits:
         raise ExperimentalMixedSupervisionError("at least one complete LF-022 audit is required")
@@ -513,6 +1082,19 @@ def _assemble_and_freeze(
             path,
             partition="lf022_codex",
         )
+    composition_export_count = 0
+    composition_candidate_count = 0
+    composition_exclusion_count = 0
+    if composition_source is not None:
+        adapted_composition, composition_export_count = _adapt_composition_source(
+            composition_source,
+            benchmark_registry=registry,
+            bindings=bindings,
+        )
+        candidates.extend(adapted_composition.candidates)
+        exclusions.extend(adapted_composition.exclusions)
+        composition_candidate_count = len(adapted_composition.candidates)
+        composition_exclusion_count = len(adapted_composition.exclusions)
     frozen_bindings = bindings.finish()
     artifacts = freeze_experimental_mixed_supervision(
         repo_root=repo_root,
@@ -531,6 +1113,9 @@ def _assemble_and_freeze(
         lf022_candidate_count=lf022_candidate_count,
         adapter_exclusion_count=len(exclusions),
         input_binding_count=len(frozen_bindings),
+        composition_export_count=composition_export_count,
+        composition_candidate_count=composition_candidate_count,
+        composition_exclusion_count=composition_exclusion_count,
     )
 
 
@@ -543,6 +1128,7 @@ def freeze_experimental_mixed_supervision_from_artifacts(
     lf022_audits: Sequence[ExperimentalLF022AuditSource],
     source_theorem_paths: Sequence[Path],
     source_representation_paths: Sequence[Path],
+    composition_source: ExperimentalCompositionSource | None = None,
     benchmark_manifest_path: Path | None = None,
     benchmark_expected_manifest_sha256: str | None = None,
     benchmark_authorization_path: Path | None = None,
@@ -557,6 +1143,7 @@ def freeze_experimental_mixed_supervision_from_artifacts(
         lf022_audits=lf022_audits,
         source_theorem_paths=source_theorem_paths,
         source_representation_paths=source_representation_paths,
+        composition_source=composition_source,
         benchmark_manifest_path=benchmark_manifest_path,
         benchmark_expected_manifest_sha256=benchmark_expected_manifest_sha256,
         benchmark_authorization_path=benchmark_authorization_path,
@@ -572,6 +1159,7 @@ def replay_verify_experimental_mixed_supervision_from_artifacts(
     lf022_audits: Sequence[ExperimentalLF022AuditSource],
     source_theorem_paths: Sequence[Path],
     source_representation_paths: Sequence[Path],
+    composition_source: ExperimentalCompositionSource | None = None,
     benchmark_manifest_path: Path | None = None,
     benchmark_expected_manifest_sha256: str | None = None,
     benchmark_authorization_path: Path | None = None,
@@ -586,6 +1174,7 @@ def replay_verify_experimental_mixed_supervision_from_artifacts(
         lf022_audits=lf022_audits,
         source_theorem_paths=source_theorem_paths,
         source_representation_paths=source_representation_paths,
+        composition_source=composition_source,
         benchmark_manifest_path=benchmark_manifest_path,
         benchmark_expected_manifest_sha256=benchmark_expected_manifest_sha256,
         benchmark_authorization_path=benchmark_authorization_path,
@@ -610,6 +1199,7 @@ def verify_frozen_experimental_mixed_supervision(
 
 
 __all__ = [
+    "ExperimentalCompositionSource",
     "ExperimentalLF022AuditSource",
     "ExperimentalMixedOrchestrationResult",
     "freeze_experimental_mixed_supervision_from_artifacts",
