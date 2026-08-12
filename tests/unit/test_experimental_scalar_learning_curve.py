@@ -293,6 +293,12 @@ def test_tie_safe_average_precision_matches_prevalence() -> None:
     assert curve._average_precision((1, 0, 1, 0), (0.5, 0.5, 0.5, 0.5)) == 0.5
 
 
+def test_descriptive_mean_clamps_identical_float_roundoff() -> None:
+    value = 0.1
+    assert sum((value, value, value)) / 3 > value
+    assert curve._mean_within_observed_range((value, value, value)) == value
+
+
 def test_immutable_writer_replays_and_rejects_tamper(tmp_path: Path) -> None:
     payloads = {name: f"{name}\n".encode() for name in curve._OUTPUT_FILES}
     output = tmp_path / "curve"

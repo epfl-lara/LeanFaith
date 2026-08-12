@@ -1068,6 +1068,16 @@ def _prefix_support(
     )
 
 
+def _mean_within_observed_range(values: Sequence[float]) -> float:
+    """Return a stable mean clamped only against floating-point roundoff."""
+
+    if not values:
+        raise ExperimentalScalarLearningCurveError("descriptive mean requires values")
+    lower = min(values)
+    upper = max(values)
+    return min(upper, max(lower, math.fsum(values) / len(values)))
+
+
 def _descriptive_aggregates(
     metrics: Sequence[ExperimentalScalarMetrics],
     models: Sequence[ExperimentalScalarModel],
@@ -1101,11 +1111,11 @@ def _descriptive_aggregates(
                             for metric in group
                         }
                     ),
-                    pseudo_auprc_mean=sum(auprc) / len(auprc),
+                    pseudo_auprc_mean=_mean_within_observed_range(auprc),
                     pseudo_auprc_min=min(auprc),
                     pseudo_auprc_max=max(auprc),
-                    pseudo_balanced_accuracy_mean=sum(balanced) / len(balanced),
-                    pseudo_brier_mean=sum(brier) / len(brier),
+                    pseudo_balanced_accuracy_mean=math.fsum(balanced) / len(balanced),
+                    pseudo_brier_mean=math.fsum(brier) / len(brier),
                 )
             )
     return tuple(output)
