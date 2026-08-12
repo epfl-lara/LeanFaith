@@ -16,10 +16,11 @@ inputs:
     mathlib: 5000
     sft_classic: 5000
   expected_normalization_version: repr_v3
-  # Fail closed until configs/models/tokenizer_sections_v1.yaml has produced
-  # and frozen its exact 10,000-record Lean-meta section artifact. The freeze
-  # step replaces this status and adds four exact manifest/partition pins.
-  semantic_sections_status: pending_derivation
+  semantic_sections_status: frozen
+  semantic_sections_manifest: /storage/milikic/leanfaith/tokenizer_sections_v1/frozen_b4680f5_v1/manifest.json
+  semantic_sections_manifest_sha256: 25dfc07f68e4b05bd515c661208e1afb47d5c6dd9ef10f6f0343c84b231b7594
+  semantic_sections_partition: /storage/milikic/leanfaith/tokenizer_sections_v1/frozen_b4680f5_v1/sections.jsonl
+  semantic_sections_partition_sha256: 7ebdc105e9156f5aed0bde7b739b5ba578348d91cbe43608590cfe7292d2cddc
   semantic_sections_method_version: lean_meta_tokenizer_sections_v1
 candidates:
   modernbert_base:

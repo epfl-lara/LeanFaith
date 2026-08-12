@@ -334,7 +334,19 @@ def test_committed_config_binds_exact_four_candidate_registry() -> None:
     assert loaded.config.inputs.expected_per_source == {"mathlib": 5_000, "sft_classic": 5_000}
     assert loaded.config.budgets == (512, 1024)
     assert loaded.config.complete_semantics_fraction_at_512 == 0.99
-    assert loaded.config.inputs.semantic_sections_status == "pending_derivation"
+    assert loaded.config.inputs.semantic_sections_status == "frozen"
+    assert loaded.config.inputs.semantic_sections_manifest == (
+        "/storage/milikic/leanfaith/tokenizer_sections_v1/frozen_b4680f5_v1/manifest.json"
+    )
+    assert loaded.config.inputs.semantic_sections_manifest_sha256 == (
+        "25dfc07f68e4b05bd515c661208e1afb47d5c6dd9ef10f6f0343c84b231b7594"
+    )
+    assert loaded.config.inputs.semantic_sections_partition == (
+        "/storage/milikic/leanfaith/tokenizer_sections_v1/frozen_b4680f5_v1/sections.jsonl"
+    )
+    assert loaded.config.inputs.semantic_sections_partition_sha256 == (
+        "7ebdc105e9156f5aed0bde7b739b5ba578348d91cbe43608590cfe7292d2cddc"
+    )
     assert loaded.config.schema_version == 2
 
 
