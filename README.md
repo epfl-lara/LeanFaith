@@ -251,6 +251,14 @@ dataset probe (PLAN.md §9.2).
   `reports/generation/lf022_codex_sol_xhigh_v2_summary.md`. The canonical check
   manifest remains
   `/storage/milikic/leanfaith/lf022_lean_checks/rcp_5e672b9_v1/manifest.json`.
+- **The bounded GPT-5.6 Terra proposer tranche is now Lean-checked and exactly
+  replayed (2026-08-12):** all 64 tasks produced provisional variants; 53
+  candidates elaborate with a proof placeholder and 11 are invalid in the
+  pinned Lean environment. A second invocation executed zero Lean requests and
+  reused all 64 persisted results with identical counts. This is candidate
+  generation and typechecking only, not a semantic label or training
+  admission. See
+  `reports/generation/lf022_codex_terra_prefix64_leancheck_v1.md`.
 - **LF-022 checked data now has one authoritative deduplicated inventory:**
   four immutable checker partitions contribute 1,967 gross observations but
   only 1,502 canonical source/candidate pairs. Of these, 1,106 are Lean-valid,

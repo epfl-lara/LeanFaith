@@ -17,7 +17,7 @@ records are disjoint.
 | latest Kimi/Qwen generated candidates, gross | 1,818 | 248 Kimi plus 1,570 Qwen; cross-run dedup not established |
 | latest Kimi/Qwen Lean-valid candidates, gross | 1,326 | 201 Kimi plus 1,125 Qwen |
 | single-Sol proxy judgments in current corpus | 1,324 | one-family proxy supervision, not silver or gold |
-| new Terra proposer variants | 64 | generated successfully; LeanInteract validation is a separate artifact |
+| new Terra proposer variants | 64 | 53 Lean-valid with a placeholder and 11 invalid; exact replay reused all 64 checks |
 | exact pairs frozen for Sol+Fable judging | 919 | 201 Kimi plus 718 Qwen, public and unresolved |
 | completed Sol+Fable dual-family adjudications | 0 | first one-pair smoke is the next label milestone |
 | mixed proxy corpus | 17,181 | unique machine-supervised pairs for engineering diagnostics |
@@ -69,3 +69,24 @@ at `max`, with DeepSeek held out. The execution order is:
 These outputs are high-quality model-adjudicated silver, not human gold.
 Scientific calibration and final evaluation still require a genuinely
 human-labeled sealed panel.
+
+## Terra proposer check
+
+The bounded GPT-5.6 Terra proposer tranche produced 64/64 provisional variants.
+Its separate LeanInteract artifact checked all 64 candidates: 53 elaborate
+with a proof placeholder and 11 are invalid. A second invocation made zero
+Lean executions and reused all 64 persisted results with the same outcome
+counts. The check manifest is:
+
+```text
+/storage/milikic/leanfaith/lf022_codex_scale_lean_checks/
+  terra_9141ca0_prefix64_v1/manifest.json
+```
+
+The manifest SHA-256 is
+`2c7652c63bec26b118cd92070f12143ebd5ae64c2adcfa455f84aca1bec9a54b`;
+the bound `checks.jsonl` SHA-256 is
+`1487a7eb775f0c711422dc7cc38f57abb2be7a86c125a0a872b18144b64ef0a9`.
+This is a generation/typechecking milestone only: it creates no semantic
+label, silver record, training eligibility, evaluation eligibility, or gate
+credit.
