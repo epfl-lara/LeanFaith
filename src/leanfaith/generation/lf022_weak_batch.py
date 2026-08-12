@@ -116,10 +116,11 @@ class LF022WeakBatchSpec(StrictModel):
     judge_a: JudgeEndpointPin
     judge_b: JudgeEndpointPin
     primary_eval_family_id: str = Field(min_length=1)
-    execution_authorization: Literal["offline_fixture_or_replay_only"] = (
-        "offline_fixture_or_replay_only"
-    )
-    live_provider_calls_authorized: Literal[False] = False
+    execution_authorization: Literal[
+        "offline_fixture_or_replay_only",
+        "live_provider_calls_explicitly_authorized",
+    ] = "offline_fixture_or_replay_only"
+    live_provider_calls_authorized: bool = Field(default=False, strict=True)
     semantic_labels_created: Literal[False] = False
     silver_records_created: Literal[False] = False
     training_eligible: Literal[False] = False
@@ -128,6 +129,10 @@ class LF022WeakBatchSpec(StrictModel):
 
     @model_validator(mode="after")
     def _families(self) -> Self:
+        if self.live_provider_calls_authorized != (
+            self.execution_authorization == "live_provider_calls_explicitly_authorized"
+        ):
+            raise ValueError("execution authorization and live-call flag must agree")
         if self.judge_a.provider_slot != "judge_A" or self.judge_b.provider_slot != "judge_B":
             raise ValueError("judge endpoint pins must occupy their named slots")
         validate_family_separation(
@@ -219,7 +224,7 @@ class LF022WeakDispatchManifest(StrictModel):
     dispatch_pair_count: int = Field(ge=0, strict=True)
     dispatch_cell_count: int = Field(ge=0, strict=True)
     required_cell_count: int = Field(ge=0, strict=True)
-    live_provider_calls_authorized: Literal[False] = False
+    live_provider_calls_authorized: bool = Field(default=False, strict=True)
     semantic_labels_created: Literal[False] = False
     silver_records_created: Literal[False] = False
     training_eligible: Literal[False] = False
@@ -504,14 +509,20 @@ def _validate_candidate_inventory_records(
     manifest: LF022SupervisionCandidateManifest,
     candidates: Sequence[LF022SupervisionCandidateRecord],
 ) -> None:
-    """Require one internally coherent v2 or v3 candidate inventory."""
+    """Require one internally coherent candidate inventory.
+
+    Manifest v4 is an authoring wrapper over byte-preserved source-neutral v3
+    records.  Its schema rename removes a false circular spec-hash claim; it
+    intentionally does not rewrite the selected record bytes.
+    """
 
     if len(candidates) != manifest.record_count:
         raise LF022WeakBatchError("candidate record count differs from candidate manifest")
     if len({item.candidate_inventory_record_id for item in candidates}) != len(candidates):
         raise LF022WeakBatchError("candidate inventory repeats one record ID")
+    expected_record_schema = 3 if manifest.schema_version == 4 else manifest.schema_version
     for candidate in candidates:
-        if candidate.schema_version != manifest.schema_version:
+        if candidate.schema_version != expected_record_schema:
             raise LF022WeakBatchError(
                 "candidate record schema differs from candidate manifest schema"
             )
@@ -785,7 +796,7 @@ def prepare_lf022_weak_batch(
         "dispatch_pair_count": len(pair_ids),
         "dispatch_cell_count": len(records),
         "required_cell_count": len(records),
-        "live_provider_calls_authorized": False,
+        "live_provider_calls_authorized": spec.live_provider_calls_authorized,
         "semantic_labels_created": False,
         "silver_records_created": False,
         "training_eligible": False,

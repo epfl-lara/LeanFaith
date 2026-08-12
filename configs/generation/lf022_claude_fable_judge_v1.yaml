@@ -1,0 +1,37 @@
+schema_version: 1
+config_id: lf022_claude_fable_judge_v1
+status: offline_implemented_live_smoke_not_yet_qualified
+
+provider: anthropic_claude_code
+model_family: anthropic_fable
+model: claude-fable-5
+registry_model_id: anthropic/claude-fable-5
+effort: max
+provider_catalog_sha256: f913bc9dc00dc187c2f5429e7deddfe604372422dcff7193e881dc7ada8e3ce4
+claude_binary_path: /localhome/milikic/.local/share/claude/versions/2.1.228
+
+# Local CLI evidence captured offline on 2026-08-12. The server-side model
+# revision is not exposed, so this is an honest executable pin rather than a
+# false immutable checkpoint claim.
+claude_cli_version: "2.1.228 (Claude Code)"
+claude_binary_sha256: d535985e6941a3eb00179ccd7f52ceb0c6623a0305a518ebc4e6514f84a94c99
+server_model_revision_status: unavailable_floating_provider_alias
+system_prompt_sha256: 4c1f6de9fb14818e7432a0b9bdac2ca9ef784cccfd2f73ebc8774a4d0d6588bf
+output_schema_sha256: f043ad37e1dc98d8df5655f42aeb9140371bd69671f13fd3e9af07111014e1be
+judge_template_sha256: 199002c55f9b8ec132c02fad024731856da08c189432169c8624221ec1b37907
+
+max_pairs_per_invocation: 64
+maximum_concurrency: 1
+max_attempts_per_cell: 2
+timeout_seconds: 1800
+termination_grace_seconds: 10
+
+public_sources_only: true
+private_source_content_forbidden: true
+both_orientations_required: true
+semantic_labels_created: false
+human_labels_created: false
+silver_records_created: false
+training_eligible: false
+evaluation_eligible: false
+gate_credit_claimed: false

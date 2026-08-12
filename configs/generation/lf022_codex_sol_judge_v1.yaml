@@ -1,0 +1,53 @@
+schema_version: 1
+config_id: lf022_codex_sol_judge_v1
+status: offline_implemented_adversarial_review_required_before_live_smoke
+
+provider: openai_codex_exec
+model_family: openai_codex_sol
+model: gpt-5.6-sol
+registry_model_id: openai/gpt-5.6-sol
+reasoning_effort: xhigh
+provider_catalog_sha256: 225c02955198c5ab9da6f8c0c0b56430c7e9c02c5fe3c28aef02f0bd7ffcdd88
+
+# The provider exposes a floating deployment alias, not an immutable server
+# checkpoint.  These pins therefore bind the reviewed local executable and
+# adapter-level wire contract without pretending to identify hidden weights.
+codex_cli_version: codex-cli 0.144.1
+codex_binary_sha256: a96f944d1a596dbfb7fdd84f482be5c50e34b04bb371126840d873e4ebf26902
+server_model_revision_status: unavailable_floating_provider_alias
+system_prompt_sha256: 4c1f6de9fb14818e7432a0b9bdac2ca9ef784cccfd2f73ebc8774a4d0d6588bf
+judge_template_sha256: 199002c55f9b8ec132c02fad024731856da08c189432169c8624221ec1b37907
+output_schema_sha256: 9de1b73c98a5df344ac158f77ead4b1b6e118b4c2f5585335fd5a3bcf0dea4d4
+
+max_pairs_per_invocation: 64
+maximum_concurrency: 1
+max_attempts_per_cell: 2
+timeout_seconds: 1800
+termination_grace_seconds: 10
+max_stdout_bytes: 16777216
+max_stderr_bytes: 16777216
+max_final_message_bytes: 2097152
+
+shell_tool_disabled: true
+sandbox: read-only
+web_search: disabled
+child_environment_allowlist:
+  - ALL_PROXY
+  - CODEX_HOME
+  - HOME
+  - HTTPS_PROXY
+  - HTTP_PROXY
+  - NO_PROXY
+  - PATH
+  - SSL_CERT_DIR
+  - SSL_CERT_FILE
+
+public_sources_only: true
+private_source_content_forbidden: true
+both_orientations_required: true
+semantic_labels_created: false
+human_labels_created: false
+silver_records_created: false
+training_eligible: false
+evaluation_eligible: false
+gate_credit_claimed: false

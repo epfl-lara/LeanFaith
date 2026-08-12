@@ -294,14 +294,24 @@ class LF022SupervisionCandidateRecord(StrictModel):
 class LF022SupervisionCandidateManifest(StrictModel):
     """Exact inventory summary and immutable output binding."""
 
-    schema_version: Literal[2, 3] = 3
+    schema_version: Literal[2, 3, 4] = 3
     method_version: Literal[
         "lf022_supervision_candidate_inventory_v2",
         "lf022_supervision_candidate_inventory_v3",
+        "lf022_supervision_candidate_inventory_v4",
     ] = LF022_SUPERVISION_CANDIDATE_VERSION
     inventory_id: str = Field(pattern=id_pattern("lf022_supervision_inventory"))
     collection_id: str
-    spec_sha256: str = Field(pattern=HEX64_PATTERN)
+    spec_sha256: str | None = Field(
+        default=None,
+        pattern=HEX64_PATTERN,
+        exclude_if=lambda value: value is None,
+    )
+    selection_spec_seed_sha256: str | None = Field(
+        default=None,
+        pattern=HEX64_PATTERN,
+        exclude_if=lambda value: value is None,
+    )
     checks_sha256: str = Field(pattern=HEX64_PATTERN)
     lean_check_manifest_sha256: str | None = Field(
         default=None,
@@ -357,6 +367,11 @@ class LF022SupervisionCandidateManifest(StrictModel):
         expected_method = f"lf022_supervision_candidate_inventory_v{self.schema_version}"
         if self.method_version != expected_method:
             raise ValueError("candidate manifest schema and method versions differ")
+        if self.schema_version in {2, 3}:
+            if self.spec_sha256 is None or self.selection_spec_seed_sha256 is not None:
+                raise ValueError("candidate manifest v2/v3 requires only spec_sha256")
+        elif self.spec_sha256 is not None or self.selection_spec_seed_sha256 is None:
+            raise ValueError("candidate manifest v4 requires only selection_spec_seed_sha256")
         if self.schema_version == 2:
             if self.lean_check_manifest_sha256 is not None:
                 raise ValueError("candidate manifest v2 cannot carry a v3 Lean-check binding")
@@ -420,6 +435,7 @@ class LF022SupervisionCandidateManifest(StrictModel):
                     "public_sample_artifact",
                     "summary_artifact",
                     "spec_sha256",
+                    "selection_spec_seed_sha256",
                 },
             ),
         )
