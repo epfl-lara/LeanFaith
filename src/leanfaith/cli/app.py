@@ -4013,6 +4013,63 @@ def postprocess_deterministic_composition_unique_pairs_command(
     )
 
 
+@app.command("prepare-deterministic-composition-polarity-frontier")
+def prepare_deterministic_composition_polarity_frontier_command(
+    chain_dir: Annotated[
+        Path,
+        typer.Option("--chain-dir", help="Exact immutable depth-two chain directory."),
+    ],
+    unique_pair_dir: Annotated[
+        Path,
+        typer.Option("--unique-pair-dir", help="Exact immutable depth-two unique-pair directory."),
+    ],
+    second_hop_roots: Annotated[
+        list[Path],
+        typer.Option(
+            "--second-hop-root",
+            "-r",
+            help="Receipt-bound E2/D0 root; repeat for every depth-two root.",
+        ),
+    ],
+    output_dir: Annotated[
+        Path,
+        typer.Option("--output-dir", help="New immutable positive-only frontier directory."),
+    ],
+    root_dir: Annotated[
+        Path | None,
+        typer.Option("--root", help="Repository root override."),
+    ] = None,
+) -> None:
+    """Freeze alpha-novel depth-two finals for a positive-only third hop."""
+    from leanfaith.config.paths import RepoPaths
+    from leanfaith.transforms.composition_polarity_frontier import (
+        CompositionPolarityFrontierError,
+        prepare_deterministic_v2_polarity_frontier,
+    )
+
+    paths = RepoPaths.discover(root_dir) if root_dir is None else RepoPaths(root=root_dir)
+
+    def anchored(path: Path) -> Path:
+        return path if path.is_absolute() else paths.root / path
+
+    try:
+        artifacts = prepare_deterministic_v2_polarity_frontier(
+            chain_dir=anchored(chain_dir),
+            unique_pair_dir=anchored(unique_pair_dir),
+            second_hop_roots=[anchored(path) for path in second_hop_roots],
+            output_dir=anchored(output_dir),
+        )
+    except (CompositionPolarityFrontierError, OSError, ValueError) as exc:
+        typer.echo(f"Deterministic composition frontier rejected: {exc}", err=True)
+        raise typer.Exit(code=2) from exc
+    typer.echo(
+        f"frontier_set_id={artifacts.frontier_set_id} frontier={artifacts.frontier_count} "
+        f"status={'replayed' if artifacts.replayed else 'prepared'} "
+        "next_hop=E2_positive_only semantic_labels_created=0 promoted_items=0 "
+        "training_eligible=false evaluation_eligible=false gate_credit=false"
+    )
+
+
 @app.command("export-deterministic-composition-receipt")
 def export_deterministic_composition_receipt_command(
     full_run_root: Annotated[
