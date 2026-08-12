@@ -60,7 +60,7 @@ class TokenizerSectionDerivationError(RuntimeError):
 
 
 class SectionDerivationConfig(StrictModel):
-    schema_version: Literal[2]
+    schema_version: Literal[3]
     profile_id: str = Field(min_length=1)
     method_version: Literal["lean_meta_tokenizer_sections_v1"]
     theorem_partition: str
@@ -87,6 +87,10 @@ class SectionDerivationConfig(StrictModel):
     memory_hard_limit_mb: int | None = Field(default=None, ge=1)
     timeout_seconds: float = Field(gt=0)
     lean_num_threads: Literal[1]
+    enable_incremental_optimization: Literal[True]
+    enable_parallel_elaboration: Literal[False]
+    isolate_incremental_commands: Literal[True]
+    confirm_invalid_on_fresh_process: Literal[True]
     preflight_records_per_source: int = Field(ge=0)
     contains_private_source: Literal[True]
     redistribution: Literal[False]
@@ -178,7 +182,7 @@ class SemanticSectionItem(StrictModel):
 
 
 class SectionDerivationManifest(StrictModel):
-    schema_version: Literal[2]
+    schema_version: Literal[3]
     method_version: Literal["lean_meta_tokenizer_sections_v1"]
     derivation_id: str = Field(pattern=r"^tokenizer_sections:[0-9a-f]{64}$")
     derivation_binding_sha256: str = Field(pattern=_HEX64)
@@ -575,6 +579,24 @@ def _preflight_theorems(
     return tuple(selected)
 
 
+def _backend_settings(config: SectionDerivationConfig) -> BackendSettings:
+    """Translate every frozen execution choice without relying on defaults."""
+
+    return BackendSettings(
+        project_dir=Path(config.project_dir),
+        context_fingerprint=config.context_id.removeprefix("ctx:"),
+        environment_schema_version=1,
+        raw_response_dir=Path(config.raw_response_dir),
+        server_mode=ServerMode.STABLE if config.workers == 1 else ServerMode.POOL,
+        workers=None if config.workers == 1 else config.workers,
+        memory_hard_limit_mb=config.memory_hard_limit_mb,
+        enable_incremental_optimization=config.enable_incremental_optimization,
+        enable_parallel_elaboration=config.enable_parallel_elaboration,
+        isolate_incremental_commands=config.isolate_incremental_commands,
+        confirm_invalid_on_fresh_process=config.confirm_invalid_on_fresh_process,
+    )
+
+
 def run_tokenizer_section_derivation(
     *,
     repo_root: Path,
@@ -612,18 +634,10 @@ def run_tokenizer_section_derivation(
     # could already have followed a planted symlink.
     _normalize_private_tree(work)
     _normalize_private_tree(raw_response_dir)
-    backend = LeanInteractBackend(
-        BackendSettings(
-            project_dir=Path(config.project_dir),
-            context_fingerprint=config.context_id.removeprefix("ctx:"),
-            environment_schema_version=1,
-            raw_response_dir=raw_response_dir,
-            server_mode=ServerMode.STABLE if config.workers == 1 else ServerMode.POOL,
-            workers=None if config.workers == 1 else config.workers,
-            memory_hard_limit_mb=config.memory_hard_limit_mb,
-            enable_parallel_elaboration=False,
-        )
-    )
+    settings = _backend_settings(config)
+    if settings.raw_response_dir != raw_response_dir:
+        raise TokenizerSectionDerivationError("section raw-response path differs")
+    backend = LeanInteractBackend(settings)
 
     def pending_for(
         theorem: TheoremRecord,
@@ -722,7 +736,7 @@ def run_tokenizer_section_derivation(
         "sections_sha256": partition_hash,
     }
     manifest = SectionDerivationManifest(
-        schema_version=2,
+        schema_version=3,
         method_version=METHOD_VERSION,
         derivation_id="tokenizer_sections:" + hash_canonical(identity),
         derivation_binding_sha256=derivation_binding_sha256,

@@ -195,7 +195,7 @@ def _toy_config(tmp_path: Path, *, explicit: str = "∀ (x : Nat), x = x") -> To
         ],
     )
     section_config = {
-        "schema_version": 2,
+        "schema_version": 3,
         "profile_id": "test_sections",
         "method_version": "lean_meta_tokenizer_sections_v1",
         "theorem_partition": str(theorem_partition),
@@ -222,6 +222,10 @@ def _toy_config(tmp_path: Path, *, explicit: str = "∀ (x : Nat), x = x") -> To
         "memory_hard_limit_mb": 16_384,
         "timeout_seconds": 30.0,
         "lean_num_threads": 1,
+        "enable_incremental_optimization": True,
+        "enable_parallel_elaboration": False,
+        "isolate_incremental_commands": True,
+        "confirm_invalid_on_fresh_process": True,
         "preflight_records_per_source": 0,
         "contains_private_source": True,
         "redistribution": False,
@@ -231,7 +235,7 @@ def _toy_config(tmp_path: Path, *, explicit: str = "∀ (x : Nat), x = x") -> To
     section_manifest_hash = _write_json(
         semantic_sections_manifest,
         {
-            "schema_version": 2,
+            "schema_version": 3,
             "method_version": "lean_meta_tokenizer_sections_v1",
             "derivation_id": "tokenizer_sections:" + "7" * 64,
             "derivation_binding_sha256": "8" * 64,
@@ -342,11 +346,15 @@ def test_committed_section_config_binds_exact_environment_and_pool_preflight() -
     loaded = load_tokenizer_section_config(Path("configs/models/tokenizer_sections_v1.yaml"))
 
     assert loaded.config.profile_id == FROZEN_PROFILE_ID
-    assert loaded.config.schema_version == 2
+    assert loaded.config.schema_version == 3
     assert loaded.config.expected_records == 10_000
     assert loaded.config.expected_per_source == {"mathlib": 5_000, "sft_classic": 5_000}
     assert loaded.config.workers == 4
     assert loaded.config.memory_hard_limit_mb == 16_384
+    assert loaded.config.enable_incremental_optimization is True
+    assert loaded.config.enable_parallel_elaboration is False
+    assert loaded.config.isolate_incremental_commands is True
+    assert loaded.config.confirm_invalid_on_fresh_process is True
     assert loaded.config.preflight_records_per_source == 2
     assert hash_file(Path(loaded.config.context_record_path)) == loaded.config.context_record_sha256
     assert (
@@ -464,6 +472,23 @@ def test_section_preflight_is_exactly_two_records_per_source() -> None:
         "sft_classic",
         "sft_classic",
     ]
+
+
+def test_section_backend_freezes_incremental_command_isolation() -> None:
+    from leanfaith.models.tokenizer_sections import (
+        _backend_settings,
+        load_tokenizer_section_config,
+    )
+
+    config = load_tokenizer_section_config(Path("configs/models/tokenizer_sections_v1.yaml")).config
+    settings = _backend_settings(config)
+
+    assert settings.enable_incremental_optimization is True
+    assert settings.enable_parallel_elaboration is False
+    assert settings.isolate_incremental_commands is True
+    assert settings.confirm_invalid_on_fresh_process is True
+    assert settings.workers == 4
+    assert settings.memory_hard_limit_mb == 16_384
 
 
 def test_retention_never_credits_partial_explicit_signature() -> None:
