@@ -46,6 +46,17 @@ dataset probe (PLAN.md §9.2).
 
 ## Status
 
+- **Qwen/Kimi scale generation is preserved and documented (2026-08-27):**
+  the two frozen 9,207-task LF-022 batches produced **17,873 provisional
+  variants**: 8,835 from Qwen3.5-397B and 9,038 from Kimi-K2. Qwen reached an
+  exact 9,207-terminal reconciliation; Kimi has nine nonterminal tasks left.
+  The first full Qwen Lean check is audit-only because a missing Lean compiled
+  file caused all 8,835 checks to crash. A fresh one-candidate diagnostic now
+  reaches Lean normally, so the next milestone is a clean full Qwen rerun plus
+  Kimi reconciliation/checking. Exact worktree, journal, reconciliation,
+  check, log, hash, and deterministic-corpus locations are recorded in
+  [`reports/model_selection/generated_data_handoff_2026_08_27.md`](reports/model_selection/generated_data_handoff_2026_08_27.md).
+
 - **Corrected mixed-proxy learning curve completed and exactly replayed
   (2026-08-12):** nine deterministic scalar models used exact 2,000-, 5,000-,
   and 9,313-record ancestry-atomic training prefixes from the 11,501-pair mixed
