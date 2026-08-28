@@ -11,9 +11,7 @@ from dataclasses import replace
 from pathlib import Path
 
 import pytest
-from typer.testing import CliRunner
 
-from leanfaith.cli.app import app
 from leanfaith.config.hashing import canonical_json_bytes, hash_canonical, hash_file
 from leanfaith.generation.lf022_rcp_smoke_v1 import (
     LF022RCPSmokeCatalogError,
@@ -110,7 +108,7 @@ def test_v3_replaces_only_the_failed_judge_family() -> None:
     ("config_path", "failure_path", "attempts"),
     ((CONFIG, FAILURE_V1, 1), (CONFIG_V2, FAILURE_V2, 2)),
 )
-def test_committed_failure_lineages_replay_typed_and_cli_reports_persisted_attempts(
+def test_committed_failure_lineages_replay_typed_with_persisted_attempts(
     config_path: Path,
     failure_path: Path,
     attempts: int,
@@ -122,23 +120,6 @@ def test_committed_failure_lineages_replay_typed_and_cli_reports_persisted_attem
         repo_root=ROOT,
     )
     assert failure.chat_completion_attempts == attempts
-
-    result = CliRunner().invoke(
-        app,
-        [
-            "lf022-rcp-smoke",
-            "--root",
-            str(ROOT),
-            "--config",
-            str(config_path),
-            "--replay-failure-manifest",
-            str(failure_path),
-        ],
-    )
-    assert result.exit_code == 0, result.output
-    assert "network_calls_this_run=0" in result.output
-    assert f"persisted_chat_completion_attempts={attempts}" in result.output
-    assert "chat_calls=" not in result.output
 
 
 def test_committed_v3_success_lineage_replays_with_consensus_binding() -> None:

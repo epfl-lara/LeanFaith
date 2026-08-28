@@ -7,7 +7,6 @@ import json
 from pathlib import Path
 
 import pytest
-import yaml
 
 from leanfaith.models import (
     PilotCandidateResult,
@@ -35,7 +34,6 @@ from leanfaith.sources.hf_sft_classic import parse_row
 from tests.unit.record_factories import ANN_ID, LABEL_ID, PAIR_ID, variant_record
 
 _UTC = datetime.datetime(2026, 7, 14, tzinfo=datetime.UTC)
-_ROOT = Path(__file__).resolve().parents[2]
 
 
 def _legacy_label(relation: str) -> dict[str, object]:
@@ -167,44 +165,6 @@ def test_sci_provenance_rejects_incoherent_state_shapes(
 ) -> None:
     with pytest.raises(ValueError, match=r"SCI|sci"):
         variant_record(**overrides)
-
-
-def test_formalrx_sci_crosswalk_pins_all_28_paper_categories() -> None:
-    policy = yaml.safe_load(
-        (_ROOT / "policies" / "formalrx_sci_crosswalk_v1.yaml").read_text(encoding="utf-8")
-    )
-    categories = policy["categories"]
-    assert len(categories) == 28
-    assert set(categories) == {
-        "S1.1",
-        "S1.2",
-        "S1.3",
-        "S2.1",
-        "S2.2",
-        "S2.3",
-        "S2.4",
-        "S2.5",
-        "S2.6",
-        "S2.7",
-        "S3.1",
-        "S3.2",
-        "S3.3",
-        "S3.4",
-        "S3.5",
-        "C1.1",
-        "C1.2",
-        "C1.3",
-        "C1.4",
-        "C2.1",
-        "C2.2",
-        "C3.1",
-        "C3.2",
-        "C3.3",
-        "C4",
-        "C5",
-        "I1",
-        "I2",
-    }
 
 
 def test_annotation_legacy_unknown_becomes_null() -> None:

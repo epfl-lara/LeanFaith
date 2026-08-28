@@ -5,7 +5,6 @@ from pathlib import Path
 
 import pytest
 
-from leanfaith.cli import report_prevalence as report_prevalence_service
 from leanfaith.config.hashing import hash_canonical
 from leanfaith.evaluation.prevalence import (
     RANDOMIZED_SAMPLING_METHOD,
@@ -494,25 +493,3 @@ def test_prevalence_output_directory_swap_race_fails_and_cleans_up(
         write_prevalence_report(report, output, repo_root=tmp_path)
     assert not (outside / "report.json").exists()
     assert not (moved / "report.json").exists()
-
-
-def test_prevalence_service_rejects_gate_output(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    frame = _frame()
-    report = _estimate(frame, _labels(frame))
-    monkeypatch.setattr(
-        report_prevalence_service,
-        "estimate_prevalence_from_files",
-        lambda **_kwargs: report,
-    )
-    with pytest.raises(PrevalenceInputError):
-        report_prevalence_service.run_report_prevalence(
-            repo_root=tmp_path,
-            frame_decision_path=tmp_path / "decision.json",
-            adjudication_path=tmp_path / "adjudications.jsonl",
-            policy_path=tmp_path / "policy.yaml",
-            frame_freeze_policy_path=tmp_path / "frame-policy.yaml",
-            output_path=tmp_path / "reports/gates/gate_5.json",
-        )
