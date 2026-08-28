@@ -431,8 +431,13 @@ against the A1 golden blocklists (exact + normalized + source-identity — MLM e
 final-test theorem text is still test exposure), recording excluded counts; **(c)** freeze a
 held-out Lean MLM validation slice; **(d)** full run. **Tokenizer frozen** (fixed 50,368 vocab;
 `[REFERENCE]`/`[CANDIDATE]`/`[HEADLESS]` stay ordinary multi-piece strings — no vocab resize).
-**Signature setup**: mix full source-file chunks with statement/signature chunks rendered in the
-exact packed-pair view the classifier consumes. Smoke on the 4090; **production run on a cluster
+**Signature setup** (owner direction, 2026-08-28): the CPT mixture is not just source-file
+chunks — it adds complete **statement↔proof records** from the public
+`formalmathatepfl/sft_classic_numina` dataset (~33K compiled-valid `theorem … := by …` rows, same
+golden contamination screen; Numina overlaps AMC/AIME/miniF2F so exclusions are real) plus those
+theorems' headless signatures rendered with the exact `[HEADLESS]` marker the classifier
+consumes — the encoder learns how a signature is matched by its proof, and the packed-view
+tokens are in-distribution. Builder: `leanfaith.train2.cpt_mix`. Smoke on the 4090; **production run on a cluster
 A100/H100** (~1–3 epochs, 1024 ctx, bf16 — no GPU contention with generation). Compute is not
 scarce, so once the base pipeline works, an S0+S1 pass on **ModernBERT-large** is a cheap headline
 upgrade option (same tokenizer, same M1 wrapper) — base remains the iteration vehicle.
