@@ -13,6 +13,7 @@ import pytest
 
 from leanfaith.config.hashing import canonical_json_bytes, hash_file, sha256_hex
 from leanfaith.generation import codex_sol_judge_v1 as sol
+from leanfaith.generation.capture_redaction import _PROXY_NAME, _SECRET_NAME
 from leanfaith.generation.codex_sol_judge_v1 import (
     CodexSolAuthorizationError,
     CodexSolLiveAuthorization,
@@ -52,6 +53,22 @@ TEST_AUTH_SECRET = b"eyJhbGciOiJSUzI1NiJ9.eyJzdWIiOiJzb2wtaXNvbGF0aW9uIn0.signat
 TEST_AUTH_BYTES = (
     canonical_json_bytes({"tokens": {"access_token": TEST_AUTH_SECRET.decode("ascii")}}) + b"\n"
 )
+
+
+def _scrub_ambient_secret_environment(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Drop host env vars the capture redactor treats as exact secrets.
+
+    Harness environments (CI runners, IDE agent sessions) export flag-style
+    variables such as ``*_AUTH_REFRESH=1`` whose secret-matching *names* carry
+    trivial values; the fail-closed redactor would then rewrite every matching
+    byte of the offline fixture captures and flip attempt terminals to
+    ``secret_redacted``.  Tests that exercise redaction set their own secrets
+    after this scrub, so the redaction contract itself stays fully covered.
+    """
+
+    for name in list(os.environ):
+        if _SECRET_NAME.search(name) or _PROXY_NAME.search(name):
+            monkeypatch.delenv(name, raising=False)
 
 
 def _response(*, equivalent: bool = False) -> bytes:
@@ -241,6 +258,7 @@ def _fixture(
     *,
     endpoint_decoding: dict[str, DecodingValue] | None = None,
 ) -> tuple[Path, Path, list[ProviderRequest], Path]:
+    _scrub_ambient_secret_environment(monkeypatch)
     _fake_source_codex_home(monkeypatch, tmp_path)
     loaded = load_codex_sol_judge_config(CONFIG)
     config = loaded.config

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import datetime
 import json
+import os
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 
@@ -11,6 +12,7 @@ import pytest
 
 from leanfaith.config.hashing import canonical_json_bytes, hash_file, sha256_hex
 from leanfaith.generation import claude_fable_judge_v1 as fable
+from leanfaith.generation.capture_redaction import _PROXY_NAME, _SECRET_NAME
 from leanfaith.generation.claude_fable_judge_v1 import (
     ClaudeCliCapture,
     ClaudeCliExecutor,
@@ -42,6 +44,22 @@ CONFIG = Path("configs/generation/lf022_claude_fable_judge_v1.yaml")
 NOW = datetime.datetime(2026, 8, 12, tzinfo=datetime.UTC)
 AUTH_NONCE = b"authorization-nonce-for-fable-test"
 RUN_NONCE = b"run-nonce-for-fable-test-shard-00"
+
+
+def _scrub_ambient_secret_environment(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Drop host env vars the capture redactor treats as exact secrets.
+
+    Harness environments (CI runners, IDE agent sessions) export flag-style
+    variables such as ``*_AUTH_REFRESH=1`` whose secret-matching *names* carry
+    trivial values; the fail-closed redactor would then rewrite every matching
+    byte of the offline fixture captures and flip attempt terminals to
+    ``secret_redacted``.  Tests that exercise redaction set their own secrets
+    after this scrub, so the redaction contract itself stays fully covered.
+    """
+
+    for name in list(os.environ):
+        if _SECRET_NAME.search(name) or _PROXY_NAME.search(name):
+            monkeypatch.delenv(name, raising=False)
 
 
 def run_claude_fable_weak_cells(
@@ -172,6 +190,7 @@ def _fixture(
     *,
     live_authorized: bool = True,
 ) -> tuple[Path, Path, list[ProviderRequest]]:
+    _scrub_ambient_secret_environment(monkeypatch)
     config = load_claude_fable_judge_config(CONFIG).config
     revision = config.endpoint_revision
     fable_endpoint = JudgeEndpointPin(
