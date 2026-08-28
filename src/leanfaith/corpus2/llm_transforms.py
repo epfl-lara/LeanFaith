@@ -164,6 +164,8 @@ class SourceStatement:
     group_key: str = ""
     source_file: str = ""
     source_range_start: int | None = None
+    declaration_name: str = ""
+    declaration_private: bool = False
 
 
 @dataclass
@@ -497,6 +499,7 @@ class SourcePoolStats:
     headless_ok_rows: int
     length_eligible_rows: int
     transform_eligible_rows: int
+    malformed_headless_rows: int
     blocked_source_rows: int
     duplicate_source_rows: int
     eligible_unique_rows: int
@@ -508,6 +511,8 @@ class _TheoremSourceInfo:
     group_key: str
     source_file: str
     source_range_start: int
+    declaration_name: str
+    declaration_private: bool
     transform_source_eligible: bool
 
 
@@ -549,6 +554,8 @@ def load_scale_source_statements(
             metadata = theorem.get("metadata")
             source_range = theorem.get("source_range")
             source_file = theorem.get("source_file")
+            declaration_name = theorem.get("declaration_name")
+            declaration_full_name = theorem.get("declaration_full_name")
             if not isinstance(theorem_id, str) or not theorem_id:
                 raise ValueError(f"theorem row {theorem_rows} has invalid theorem_id")
             if theorem_id in theorem_info:
@@ -578,11 +585,17 @@ def load_scale_source_statements(
                 raise ValueError(f"source theorem lacks a valid source range: {theorem_id}")
             if not isinstance(source_file, str) or not source_file:
                 raise ValueError(f"source theorem lacks a source file: {theorem_id}")
+            if not isinstance(declaration_name, str) or not declaration_name:
+                raise ValueError(f"source theorem lacks a declaration name: {theorem_id}")
+            if not isinstance(declaration_full_name, str) or not declaration_full_name:
+                raise ValueError(f"source theorem lacks a full declaration name: {theorem_id}")
             theorem_info[theorem_id] = _TheoremSourceInfo(
                 theorem_id=theorem_id,
                 group_key=roots[0],
                 source_file=source_file,
                 source_range_start=source_range[0],
+                declaration_name=declaration_name,
+                declaration_private=declaration_full_name.startswith("_private."),
                 transform_source_eligible=metadata.get("transform_source_eligible") is True,
             )
 
@@ -591,6 +604,7 @@ def load_scale_source_statements(
     headless_ok_rows = 0
     length_eligible_rows = 0
     transform_eligible_rows = 0
+    malformed_headless_rows = 0
     blocked_source_rows = 0
     candidates_by_near_dup: dict[str, SourceStatement] = {}
     duplicate_source_rows = 0
@@ -624,6 +638,9 @@ def load_scale_source_statements(
             if not info.transform_source_eligible:
                 continue
             transform_eligible_rows += 1
+            if _headless_is_malformed_extraction(headless):
+                malformed_headless_rows += 1
+                continue
             near_dup = signature_near_dup_hash(headless)
             if near_dup in blocklist.near_dup_hashes or blocklist.problem_is_blocked(
                 info.group_key
@@ -644,6 +661,8 @@ def load_scale_source_statements(
                 group_key=info.group_key,
                 source_file=info.source_file,
                 source_range_start=info.source_range_start,
+                declaration_name=info.declaration_name,
+                declaration_private=info.declaration_private,
             )
             existing = candidates_by_near_dup.get(near_dup)
             if existing is None:
@@ -673,11 +692,19 @@ def load_scale_source_statements(
         headless_ok_rows=headless_ok_rows,
         length_eligible_rows=length_eligible_rows,
         transform_eligible_rows=transform_eligible_rows,
+        malformed_headless_rows=malformed_headless_rows,
         blocked_source_rows=blocked_source_rows,
         duplicate_source_rows=duplicate_source_rows,
         eligible_unique_rows=len(pool),
     )
     return pool, stats
+
+
+def _headless_is_malformed_extraction(headless: str) -> bool:
+    """Reject pretty-printer implementation artifacts, not valid Lean surface statements."""
+    syntax_ast = headless.lstrip().startswith("(Command.declSig")
+    generated_equation = "eta_helper" in headless and "delta%" in headless
+    return syntax_ast or generated_equation
 
 
 def load_source_statements(reprs_path: Path) -> list[SourceStatement]:
@@ -1118,6 +1145,8 @@ class ScaleJob:
             "group_key": self.statement.group_key,
             "source_file": self.statement.source_file,
             "source_range_start": self.statement.source_range_start,
+            "declaration_name": self.statement.declaration_name,
+            "declaration_private": self.statement.declaration_private,
             "source_statement": self.statement.headless,
             "direction": self.direction,
             "assigned_family": self.family.family_id,
@@ -1555,11 +1584,17 @@ class _LeanBatchCapture:
 def _lean_theorem_name(job: ScaleJob) -> str:
     digest = hashlib.sha256(job.job_id.encode("utf-8")).hexdigest()[:16]
     alpha_digest = digest.translate(str.maketrans("0123456789", "ghijklmnop"))
-    return f"LeanFaithDThree_{alpha_digest}"
+    generated_name = f"LeanFaithDThree_{alpha_digest}"
+    original_name = job.statement.declaration_name
+    if "." not in original_name:
+        return generated_name
+    namespace = original_name.rsplit(".", 1)[0]
+    return f"{namespace}.{generated_name}"
 
 
 def _lean_declaration_header(job: ScaleJob, statement: str) -> str:
-    return f"theorem {_lean_theorem_name(job)} {statement} := by"
+    command = "private theorem" if job.statement.declaration_private else "theorem"
+    return f"{command} {_lean_theorem_name(job)} {statement} := by"
 
 
 def _lean_source_bytes(

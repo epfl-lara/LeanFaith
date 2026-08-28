@@ -100,6 +100,8 @@ def _theorem_row(
             "source_revision": revision,
             "source_file": f"Mathlib/Fixture/{theorem_id}.lean",
             "source_range": [2, 3],
+            "declaration_name": theorem_id,
+            "declaration_full_name": theorem_id,
             "metadata": {"transform_source_eligible": eligible},
         }
     }
@@ -299,12 +301,17 @@ def test_tiny_source_projection_preserves_ancestry_and_applies_blocklist(
         "ineligible": "(P Q R : Prop) (hPQ : P → Q) (hQR : Q → R) : P → R ∧ True ∧ True",
         "group-blocked": ("(x y : ℤ) (hxy : x < y) : x ≤ y ∧ x + 1 ≤ y + 1 ∧ True ∧ True"),
         "hash-blocked": ("(s t : Set ℕ) (hst : s = t) : s ∪ t = t ∪ s ∧ s ∩ t = t ∩ s ∧ True"),
+        "malformed": (
+            "(Command.declSig [(Term.explicitBinder `x)] "
+            "(Term.typeSpec `x)) -- extracted syntax AST artifact"
+        ),
     }
     theorems = [
         _theorem_row("kept", "mathlib::root::kept"),
         _theorem_row("ineligible", "mathlib::root::ineligible", eligible=False),
         _theorem_row("group-blocked", "Mathlib::ROOT::Blocked"),
         _theorem_row("hash-blocked", "mathlib::root::hash-blocked"),
+        _theorem_row("malformed", "mathlib::root::malformed"),
     ]
     representations = [
         _representation_row(theorem_id, headless) for theorem_id, headless in statements.items()
@@ -330,12 +337,13 @@ def test_tiny_source_projection_preserves_ancestry_and_applies_blocklist(
     assert pool[0].group_key == "mathlib::root::kept"
     assert pool[0].source_file == "Mathlib/Fixture/kept.lean"
     assert stats == transforms.SourcePoolStats(
-        theorem_rows=4,
-        representation_rows=4,
-        joined_rows=4,
-        headless_ok_rows=4,
-        length_eligible_rows=4,
-        transform_eligible_rows=3,
+        theorem_rows=5,
+        representation_rows=5,
+        joined_rows=5,
+        headless_ok_rows=5,
+        length_eligible_rows=5,
+        transform_eligible_rows=4,
+        malformed_headless_rows=1,
         blocked_source_rows=2,
         duplicate_source_rows=0,
         eligible_unique_rows=1,
@@ -771,6 +779,23 @@ def test_contextual_lean_source_replaces_original_declaration_with_unique_name(
     assert "theorem original" not in generated
     assert f"theorem {transforms._lean_theorem_name(job)} {rewritten} := by" in generated
     assert generated.endswith("\n  sorry\n")
+
+
+def test_lean_header_preserves_qualified_namespace_and_private_visibility() -> None:
+    qualified = _source(0)
+    qualified = transforms.SourceStatement(
+        **{
+            **qualified.__dict__,
+            "declaration_name": "Kernel.original",
+            "declaration_private": True,
+        }
+    )
+    job = _job(0, qualified)
+
+    header = transforms._lean_declaration_header(job, "(P : Prop) : P → P")
+
+    assert header.startswith("private theorem Kernel.LeanFaithDThree_")
+    assert header.endswith(" (P : Prop) : P → P := by")
 
 
 def test_corrupted_lean_batch_source_is_rejected_on_resume(
