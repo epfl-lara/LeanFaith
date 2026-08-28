@@ -22,10 +22,6 @@ from leanfaith.cli.positive_transformations import (
     PositiveRuleValidationError,
     validate_positive_rule_implementations,
 )
-from leanfaith.cli.smoke_vertical import (
-    LF019SmokeError,
-    run_lf019_smoke_replay,
-)
 from leanfaith.cli.transformations import (
     TransformationFrameworkValidationError,
     validate_transformation_framework,
@@ -55,12 +51,6 @@ def main() -> int:
         action="store_true",
         help="Run and persist the Lean-backed LF-018 five-family pre-scale slice.",
     )
-    parser.add_argument(
-        "--run-smoke-vertical-slice",
-        action="store_true",
-        help="Run and replay the integrated LF-019 smoke-only vertical slice.",
-    )
-    parser.add_argument("--code-bundle", type=Path)
     parser.add_argument("--root", type=Path)
     parser.add_argument("--report", type=Path)
     parser.add_argument("--output-dir", type=Path)
@@ -73,14 +63,13 @@ def main() -> int:
                 args.validate_positives,
                 args.validate_negatives,
                 args.run_negative_pre_scale,
-                args.run_smoke_vertical_slice,
             )
         )
         > 1
     ):
         parser.error(
             "--validate-only, --validate-positives, --validate-negatives, and "
-            "--run-negative-pre-scale/--run-smoke-vertical-slice are mutually exclusive"
+            "--run-negative-pre-scale are mutually exclusive"
         )
     if not any(
         (
@@ -88,38 +77,13 @@ def main() -> int:
             args.validate_positives,
             args.validate_negatives,
             args.run_negative_pre_scale,
-            args.run_smoke_vertical_slice,
         )
     ):
         parser.error(
             "pass --validate-only, --validate-positives, --validate-negatives, "
-            "--run-negative-pre-scale, or --run-smoke-vertical-slice"
+            "or --run-negative-pre-scale"
         )
     paths = RepoPaths.discover(args.root) if args.root is not None else RepoPaths.discover()
-    if args.code_bundle is not None and not args.run_smoke_vertical_slice:
-        parser.error("--code-bundle is supported only with --run-smoke-vertical-slice")
-    if args.run_smoke_vertical_slice:
-        if args.report is not None or args.output_dir is not None:
-            parser.error("--report and --output-dir are not accepted for the paired LF-019 replay")
-        try:
-            replay = run_lf019_smoke_replay(
-                paths=paths,
-                code_bundle_path=args.code_bundle,
-            )
-        except LF019SmokeError as exc:
-            print(
-                f"FAILED: {exc}; report={exc.artifacts.report_path}; "
-                f"output_manifest={exc.artifacts.output_manifest_path}; "
-                f"run_manifest={exc.artifacts.run_manifest_path}"
-            )
-            return 1
-        print(f"run_a_report={replay.run_a.report_path}")
-        print(f"run_b_report={replay.run_b.report_path}")
-        print(f"semantic_fingerprint={replay.run_b.semantic_fingerprint}")
-        print(f"gate_4g_closed={str(replay.run_b.gate_4g_closed).lower()}")
-        print("gate_4a_closed=false")
-        print("gate_4b_closed=false")
-        return 0
     if args.run_negative_pre_scale:
         try:
             pre_scale_result = run_negative_pre_scale_audit(

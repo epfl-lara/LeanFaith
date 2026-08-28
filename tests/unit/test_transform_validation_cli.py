@@ -211,7 +211,7 @@ def test_cli_requires_one_explicit_deterministic_action() -> None:
 
     assert result.exit_code == 2
     assert "choose one deterministic action" in result.output
-    assert "--run-smoke-vertical-slice" in result.output
+    assert "--materialize-scale" in result.output
 
 
 def test_cli_rejects_both_validation_modes() -> None:

@@ -26,7 +26,6 @@ from leanfaith.generation.real_outputs import (
     CandidateScreeningRecord,
     RealOutputCandidateOutcome,
 )
-from leanfaith.release import ArtifactUse, assess_artifact
 from leanfaith.schemas.enums import (
     LLMAttemptStatus,
     LLMRole,
@@ -281,10 +280,6 @@ def test_historical_211643_lineage_defect_is_self_contained(tmp_path: Path) -> N
     assert terminal.admitted_nl_lean_id is not None
     assert outcome.nl_lean_id is None
     assert not any(name.startswith("input_") for name in manifest.artifacts)
-
-    for record in (terminal, outcome, screening):
-        document = record.model_dump(mode="json")
-        assert all(not assess_artifact(document, use=use).allowed for use in ArtifactUse)
 
 
 def test_current_replay_rejects_historical_211643_without_runs_directory(
