@@ -21,6 +21,52 @@
 >   negative families demoted to silver until separator/witness-upgraded, and compute expanded to
 >   the RunAI cluster (A100/H100/H200).
 
+## Execution status ledger (2026-08-28, end of day 1 — read this before starting work)
+
+Full numbers: `reports/eval/refocus_day1_summary.md`. Everything below is on `main`.
+
+**DONE:**
+- Branch unification + docs reset + prunes P1/P2 (~130K LOC removed; suite green except one
+  order-sensitive test). P4 still deferred (lf022 inventory modules; local_hf now deletable —
+  live collect2 pilot passed).
+- **Step 0 frozen**: golden partition `data/benchmarks/golden_partition_v1.json` (910 expert
+  final_test SEALED / 821 dev / 819 golden_train / 2,561 PNV quarantine) + contamination
+  blocklist. Canonical pairs: `/storage/milikic/leanfaith/golden/canonical/golden_pairs_v1.jsonl`.
+- **Eval harness** `leanfaith-eval` (ingest/partition/evaluate; abstain-not-truncate; CIs;
+  final-test seal). First dev numbers exist for 4 checkpoints (see report).
+- **S0**: two adapted encoders at `/storage/milikic/leanfaith/cpt/` — `modernbert_lean_v1_run1`
+  (declarations/chunks) and `modernbert_lean_v2_mixed` (+32,860 numina statement↔proof +
+  32,580 `[HEADLESS]` signature views). Ablation: chunks-CPT gives best-ever ranking on golden
+  dev (AUPRC 0.849 / ROC 0.711); harder training on the old corpus HURTS thresholded transfer —
+  data quality is the lever.
+- **S1 trainer** `train2/trainer.py` (swap-orientation, class balance, family holdouts,
+  S2 fine-tune path; frozen record schema) + corpus-v0 adapter `corpus2/from_mixed_v0.py`.
+- **collect2/** autoformalizer package (live-piloted 30/30, defects fixed).
+  **corpus2/llm_transforms.py** D-3 harness (codex self-labels trustable; lemex conditional).
+- **Meta engine slice 1**: `LeanFaith/Meta/TransformEngine.lean` (P24+P23 over typed Expr,
+  `lfTransform "decl.name"` JSON driver; compile: `cd /storage/milikic/leanfaith/mathlib4 &&
+  lake env lean <abs-path>`).
+- **D-0 COMPLETE**: Qwen 6,391 Lean-valid / 2,444 invalid; Kimi 6,982 / 2,056; 0 infra errors.
+  **13,373 unique Lean-valid model-generated pairs** await judging. Roots + frozen counts:
+  `/storage/milikic/leanfaith/lf022_recovery_trackD0_20260828/` and `lf022_lean_checks/
+  {qwen3_5_397b_full9207_v4, kimi_v4_641d13d_full9207_v2}/`.
+
+**NEXT QUEUE (in order):** (1) gold-calibrated track numbers (dev-fit temperature + threshold)
+for the four evaluated checkpoints; (2) D-3 codex scale run (≥200 statements, family assigned
+per record, full 27,786-statement source pool, then codex-audited stratum); (3) single-pass
+judge the 13,373 recovered Qwen/Kimi pairs (escalation protocol per Track D-2); (4) corpus v1 =
+depth-3 merge + judged Qwen/Kimi + D-3 records + replayed ACE, diversity caps, trainer schema;
+(5) S1 retrain on corpus v1 from the chunks-CPT encoder (+ mixed-CPT arm), golden-dev eval;
+(6) Meta-engine slice 2 (nested sites, P20/P21/P32, content-hash certificates, independent
+audit path); (7) P4 prune.
+
+**OPERATIONAL GOTCHAS (hard-won):** background `codex exec`/`lemex exec` MUST get `</dev/null`
+or they hang forever reading stdin; never plain `uv sync` (prunes torch — use
+`uv sync --group dev --group local-inference`); Lean checks need
+`--memory-hard-limit-mb 24576` (10GB RLIMIT_AS breaks Lean thread creation); agents switching
+the shared tree's branch — no git commits while a prune agent runs; `final_test` evaluation
+requires `--unseal-final-test` and is forbidden until the frozen comparison set exists.
+
 ## Context (why this refocus)
 
 The goal is **LeanFaith-v1: a lightweight Lean↔Lean semantic-consistency classifier** — binary
