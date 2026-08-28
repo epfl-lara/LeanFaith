@@ -17,6 +17,7 @@ dependencies = [
 
 [project.scripts]
 leanfaith = "leanfaith.cli.app:main"
+leanfaith-eval = "leanfaith.eval.cli:main"
 
 [dependency-groups]
 dev = [
