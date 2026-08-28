@@ -59,12 +59,19 @@ Full numbers: `reports/eval/refocus_day1_summary.md`. Everything below is on `ma
   200/200 parsed, 154 changed, 192/200 Lean-valid, 0 infrastructure errors, and **146 strict
   trainer-schema records** (65 positive / 81 negative) across all 14 assigned families. Frozen
   run: `/storage/milikic/leanfaith/lf023_llm_transforms/codex_scale_v1_f88931b/`.
+- **D-2 RECOVERED-PAIR JUDGE COMPLETE**: all 13,373 public Qwen/Kimi Lean-valid pairs were
+  processed by the blinded `gpt-5.6-sol` medium-effort judge. The 100-pair pilot escalated 0/100;
+  the full run escalated 10/13,373 (0.075%), resolved 13,367 (307 same / 13,060 different), and
+  retained 6 conflicts/invalid semantic responses as auditable null labels. There were 0 process,
+  timeout, interruption, or incomplete-journal failures. The final trainer projection contains
+  13,367 rows and the cross-model audit sample contains 150. Frozen run:
+  `/storage/milikic/leanfaith/corpus2/recovered_singlepass_codex_v1_e8567ba/`.
 
-**NEXT QUEUE (in order):** (1) single-pass judge the 13,373 recovered Qwen/Kimi pairs
-(escalation protocol per Track D-2); (2) corpus v1 = depth-3 merge + judged Qwen/Kimi + D-3
-records + replayed ACE, diversity caps, trainer schema; (3) S1 retrain on corpus v1 from the
-chunks-CPT encoder (+ mixed-CPT arm), golden-dev eval; (4) Meta-engine slice 2 (nested sites,
-P20/P21/P32, content-hash certificates, independent audit path); (5) P4 prune.
+**NEXT QUEUE (in order):** (1) corpus v1 = depth-3 merge + judged Qwen/Kimi + D-3
+records + replayed corpus-v0, diversity caps, trainer schema; (2) S1 retrain on corpus v1 from the
+chunks-CPT encoder (+ mixed-CPT arm), golden-dev eval, with Track T-B backbone-pilot Stage A riding
+the same corpus concurrently on the cluster; (3) Meta-engine slice 2 (nested sites, P20/P21,
+content-hash certificates, independent audit path); (4) P4 prune.
 
 **OPERATIONAL GOTCHAS (hard-won):** background `codex exec`/`lemex exec` MUST get `</dev/null`
 or they hang forever reading stdin; never plain `uv sync` (prunes torch — use

@@ -99,6 +99,44 @@ and hashed input/output artifacts. `final_test` remained sealed and no private s
 The next queue item needs no D-3 regeneration: it can judge the 13,373 recovered Qwen/Kimi pairs;
 corpus v1 later consumes this run's `trainer_records.jsonl` directly.
 
+## Recovered Qwen/Kimi single-pass judge
+
+The production recovered-pair judge is complete at
+`/storage/milikic/leanfaith/corpus2/recovered_singlepass_codex_v1_e8567ba/`. It used the blinded
+`lean_pair_blinded_v2` prompt, Codex `gpt-5.6-sol` at medium reasoning effort, closed provider
+stdin, one AB orientation by default, and a BA call only after a parse failure, ambiguous or
+uncertain verdict, or confidence below 0.75. All source pairs were public and blocklist-clear;
+`final_test` remained sealed and no private source was transmitted.
+
+The deterministic 100-pair pilot resolved 100/100 (2 same / 98 different) and escalated 0/100.
+The resumed 500-pair batches then processed the complete frozen 13,373-row plan. Final results:
+**13,367 resolved / 6 fail-closed unresolved**, **307 same / 13,060 different**, and **10
+escalations (0.0748%)**. Qwen contributed 6,391 judgments (196 same / 6,193 different / 2
+unresolved); Kimi contributed 6,982 (111 / 6,867 / 4). The provider ledger contains 13,383
+requests: 13,378 completed semantic calls and 5 parse failures, with **0 process failures,
+timeouts, interruptions, incomplete journals, requestless attempts, or retries**. Four escalated
+records resolved from the reversed orientation; six disagreements or invalid semantic payloads
+remain null rather than being guessed.
+
+Every judgment and all 28 batch summaries replayed from immutable raw provider artifacts. The
+resolved trainer projection has 13,367 rows (6,389 Qwen / 6,978 Kimi), and a deterministic,
+stratified 150-pair audit sample is frozen for later cross-model checking.
+
+| artifact | SHA-256 |
+|---|---|
+| pair plan | `1746aa6b95476712f858db196138f5f18a938126b90e7de18881fb5c72056fe4` |
+| judgments | `2a6ef8c170a20e38047b3fbe6d1b842fb51abb0d0049552aa3f4bfac57b06025` |
+| trainer records | `5de1f904904da6fa204a446e65c58d137a59a6a21d5afa15eb1ad24dbf3bf2f1` |
+| attempt ledger | `f04391257e0bb7a060f247745537a95232f58388cb153a4546ab7fdd8f9fdb22` |
+| response artifact set | `66098547ff86144b5fca1aeca0fee43e8fc1d727c8ac9885733e44aecea3d638` |
+| audit sample (150) | `43fa3514b68a89b67e632381bf188d9307af5870f0817f83e21ebb35d4fc7b69` |
+| audit sample key | `e3cd5ab4f368090548059f61cdb3c2d43a47ee74c0d99bda8307a66a6dcc7eeb` |
+| final manifest | `19a9d814823245f300c9c386514c9f4281322b0939d51a23ab13228df9cc0d1b` |
+| run manifest | `de71cac87293f733dc7c0f8501427dc07b5c4c479221dcc9fef1bfa14c09d257` |
+
+Corpus v1 can consume `outputs/trainer_records.jsonl` directly; the six unresolved judgments are
+retained only in the judgment/ledger artifacts and are excluded from training.
+
 ## Assets produced today (all on `main` unless noted)
 
 - Golden partition frozen: 910 expert `final_test` (sealed) / 821 dev / 819 golden_train
@@ -127,12 +165,15 @@ corpus v1 later consumes this run's `trainer_records.jsonl` directly.
 - D-3 Codex scale COMPLETE: 200 provider calls, 192 Lean-valid outputs, and 146 strict
   trainer-schema records at
   `/storage/milikic/leanfaith/lf023_llm_transforms/codex_scale_v1_f88931b/`.
+- Recovered-pair judge COMPLETE: 13,373/13,373 processed, 13,367 resolved trainer records,
+  10 escalations, 6 fail-closed null labels, and a 150-pair audit sample at
+  `/storage/milikic/leanfaith/corpus2/recovered_singlepass_codex_v1_e8567ba/`.
 - Prunes P1+P2 merged: ~130K LOC removed; suite at baseline (one order-sensitive test).
 
 ## Next
 
-1. Judge the 13,373 recovered Qwen/Kimi pairs (100-pair pilot, then resumable 500 batches).
-2. Corpus v1: merge depth-3 pairs + judged Qwen/Kimi (post D-0) + D-3 codex
-   transforms at scale (family assigned per record) + ACE replay; diversity caps.
-3. S1 at scale on cluster GPUs; statement↔proof encoder retest on corpus-S2.
-4. Meta-engine second slice: nested sites, more families (P20/P21/P32), certificates.
+1. Corpus v1: merge corpus-v0 + depth-3 pairs + judged Qwen/Kimi + D-3 Codex transforms;
+   screen, unordered-near-dedup, ancestry-safe split, 10% family cap, and lexical canary.
+2. S1 two-arm retrain from chunks-CPT and mixed-CPT on corpus v1, followed by dev-only strict
+   and calibrated evaluation once the literal final-test seal has a safe dev-only input path.
+3. Meta-engine second slice: nested sites, P20/P21, type hashes, batch driver, and yield probe.
