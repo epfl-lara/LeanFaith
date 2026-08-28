@@ -66,6 +66,39 @@ Artifacts are under `/storage/milikic/leanfaith/golden/eval_runs/`:
    the models' large intercept/prevalence mismatch. Keep strict and calibrated tracks side
    by side and treat these same-dev fitted numbers as selection diagnostics.
 
+## D-3 Codex scale run
+
+The production D-3 run is complete at
+`/storage/milikic/leanfaith/lf023_llm_transforms/codex_scale_v1_f88931b/`. It used the full
+27,786-row public mathlib representation store, explicit per-record family assignment, Codex
+`gpt-5.6-sol` at high reasoning effort, and closed provider stdin. All 200 jobs started exactly
+one provider process; all 200 exited zero, parsed, matched the assigned family and intended label,
+and required no retry. The model changed 154 statements.
+
+Before spending the 200 calls, the exact frozen source plan was elaborated in reconstructed
+source-file context: **200/200 valid** across 164 mathlib files. The final generated-candidate
+check found **192 valid / 8 invalid / 0 infrastructure errors**. The strict admission filter
+(parsed, assigned family/label matched, changed, Lean-valid, blocklist-clear) emitted **146 unique
+trainer records: 65 positive / 81 negative**, with 146 unique ancestry group keys. All 14 assigned
+families are represented; lower-yield preserve families were P27 (1), P31 (3), and P36 (5), while
+unchanged/inapplicable outputs were excluded rather than relabeled.
+
+| artifact | SHA-256 |
+|---|---|
+| source-context preflight checks | `70ae6c479f78067f91ee19d5ef3cd1d9c0a42e825e917cf42c10f7271016eaf0` |
+| source-context preflight manifest | `2b8496e77636ed7587a07de7006bbbbf9221e40bb2c64581a6641301e3797e4d` |
+| production job plan | `26770ee4ec163ea1d9bf6a8e2e3f0bfe84ad04615015c4751669967abb477e39` |
+| production generation records | `8503d6307374fb58643c0bbdd382338761332321aa587e0d99590c8862305a74` |
+| production Lean checks | `a8a34cd67f8a55b2df3e73ab1796eea51e8edd099a14e5746f0b7b886aa14f23` |
+| production trainer records | `95ba0a0ab5d18f560dfa6beeb1b012bbf74c8fdb6d95a3cb99e8179d4e54a532` |
+| production run manifest | `4e1dd75ff2c3f6eaec88b73fbd81a7589dcc12398feccf97435c824a3f512075` |
+
+The run is bound to repo revision `f88931b3dadf90dae6c8370cf8f581350e8333ff`, clean mathlib
+revision `d568c8c09630de097a046763c17b9ea99f95f950`, the frozen golden-train few-shot partition,
+and hashed input/output artifacts. `final_test` remained sealed and no private source was sent.
+The next queue item needs no D-3 regeneration: it can judge the 13,373 recovered Qwen/Kimi pairs;
+corpus v1 later consumes this run's `trainer_records.jsonl` directly.
+
 ## Assets produced today (all on `main` unless noted)
 
 - Golden partition frozen: 910 expert `final_test` (sealed) / 821 dev / 819 golden_train
@@ -91,14 +124,15 @@ Artifacts are under `/storage/milikic/leanfaith/golden/eval_runs/`:
   0 pair-key overlap. Frozen counts + roots under
   /storage/milikic/leanfaith/lf022_recovery_trackD0_20260828/ and lf022_lean_checks/.
   Formal step-5 merge needs a new reviewed inventory spec (informational dedup: no-op).
+- D-3 Codex scale COMPLETE: 200 provider calls, 192 Lean-valid outputs, and 146 strict
+  trainer-schema records at
+  `/storage/milikic/leanfaith/lf023_llm_transforms/codex_scale_v1_f88931b/`.
 - Prunes P1+P2 merged: ~130K LOC removed; suite at baseline (one order-sensitive test).
 
 ## Next
 
-1. D-3 codex scale run: 200 statements from the full representation store, with
-   transformation family assigned per record and every rewritten statement Lean-checked.
-2. Judge the 13,373 recovered Qwen/Kimi pairs (100-pair pilot, then resumable 500 batches).
-3. Corpus v1: merge depth-3 pairs + judged Qwen/Kimi (post D-0) + D-3 codex
+1. Judge the 13,373 recovered Qwen/Kimi pairs (100-pair pilot, then resumable 500 batches).
+2. Corpus v1: merge depth-3 pairs + judged Qwen/Kimi (post D-0) + D-3 codex
    transforms at scale (family assigned per record) + ACE replay; diversity caps.
-4. S1 at scale on cluster GPUs; statement↔proof encoder retest on corpus-S2.
-5. Meta-engine second slice: nested sites, more families (P20/P21/P32), certificates.
+3. S1 at scale on cluster GPUs; statement↔proof encoder retest on corpus-S2.
+4. Meta-engine second slice: nested sites, more families (P20/P21/P32), certificates.

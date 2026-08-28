@@ -54,14 +54,17 @@ Full numbers: `reports/eval/refocus_day1_summary.md`. Everything below is on `ma
   **13,373 unique Lean-valid model-generated pairs** await judging. Roots + frozen counts:
   `/storage/milikic/leanfaith/lf022_recovery_trackD0_20260828/` and `lf022_lean_checks/
   {qwen3_5_397b_full9207_v4, kimi_v4_641d13d_full9207_v2}/`.
+- **D-3 COMPLETE**: 200/200 `gpt-5.6-sol` high-effort Codex calls over the full 27,786-row
+  public mathlib representation store; explicit per-record family assignment, closed stdin,
+  200/200 parsed, 154 changed, 192/200 Lean-valid, 0 infrastructure errors, and **146 strict
+  trainer-schema records** (65 positive / 81 negative) across all 14 assigned families. Frozen
+  run: `/storage/milikic/leanfaith/lf023_llm_transforms/codex_scale_v1_f88931b/`.
 
-**NEXT QUEUE (in order):** (1) D-3 codex scale run (≥200 statements, family assigned per
-record, full 27,786-statement source pool, then codex-audited stratum); (2) single-pass judge
-the 13,373 recovered Qwen/Kimi pairs (escalation protocol per Track D-2); (3) corpus v1 =
-depth-3 merge + judged Qwen/Kimi + D-3 records + replayed ACE, diversity caps, trainer schema;
-(4) S1 retrain on corpus v1 from the chunks-CPT encoder (+ mixed-CPT arm), golden-dev eval;
-(5) Meta-engine slice 2 (nested sites, P20/P21/P32, content-hash certificates, independent
-audit path); (6) P4 prune.
+**NEXT QUEUE (in order):** (1) single-pass judge the 13,373 recovered Qwen/Kimi pairs
+(escalation protocol per Track D-2); (2) corpus v1 = depth-3 merge + judged Qwen/Kimi + D-3
+records + replayed ACE, diversity caps, trainer schema; (3) S1 retrain on corpus v1 from the
+chunks-CPT encoder (+ mixed-CPT arm), golden-dev eval; (4) Meta-engine slice 2 (nested sites,
+P20/P21/P32, content-hash certificates, independent audit path); (5) P4 prune.
 
 **OPERATIONAL GOTCHAS (hard-won):** background `codex exec`/`lemex exec` MUST get `</dev/null`
 or they hang forever reading stdin; never plain `uv sync` (prunes torch — use
