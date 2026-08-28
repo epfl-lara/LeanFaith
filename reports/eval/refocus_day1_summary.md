@@ -137,6 +137,45 @@ stratified 150-pair audit sample is frozen for later cross-model checking.
 Corpus v1 can consume `outputs/trainer_records.jsonl` directly; the six unresolved judgments are
 retained only in the judgment/ledger artifacts and are excluded from training.
 
+## Corpus v1
+
+The production corpus-v1 merge is complete at
+`/storage/milikic/leanfaith/corpus2/v1_ed41471/`, bound to implementation commit
+`ed41471f00bebb4be2c55cfd782075cfce95a0dd`. It strictly rehashed and joined 34,688 inputs:
+17,144 corpus-v0 rows, 4,031 depth-3 rows, 13,367 resolved recovered-pair judgments, and 146 D-3
+records. Both packed orientations were screened at 1,024 tokens and both statement sides were
+screened against the golden blocklist; `final_test` remained sealed.
+
+Screening removed 19 overlength pairs and one near-identical pair. Unordered near-signature
+deduplication produced 32,505 pair identities and quarantined eight label-conflict groups. A rich
+pre-cap union graph over ancestry and shared statement identities exposed 13 components crossing
+frozen v0 splits; all 83 pairs in those components were quarantined rather than moving an anchor
+or relying on a later cap side effect. The rebuilt graph has no cross-split ancestry or statement
+identity and contains 17,306 components (9,578 active).
+
+The deterministic fixed-point family cap then removed 9,000 pairs in ten rounds and retained
+**23,414 rows: 5,050 same / 18,364 different**. The three largest stored family memberships are
+2,341 each, exactly `floor(23,414 / 10)`, so every family is at or below 10%. Splits are ancestry
+safe: **train 18,760 / validation 2,166 / test 2,488**. Exclusive source composition is 14,604
+v0-only, 3,220 depth-only, 764 depth+v0, 4,206 recovered-only, 474 recovered+v0, and 146 D-3.
+
+The deterministic swap-averaged bag-of-token logistic canary reaches **0.700 validation / 0.680
+test balanced accuracy**, below the 0.80 shortcut target. The corpus contains 13,829
+private-derived rows, so its manifest correctly sets private content true and redistribution,
+external transmission, and release eligibility false.
+
+| artifact | SHA-256 |
+|---|---|
+| corpus manifest | `22386b7127c80fab6ce70df722ecc155ee3a3520971515ebefee6cb438a20a01` |
+| train records | `51ad67e42d5d350be0219ff26142e24ac1b7f8dfbfc652a1355430e46f5d6c4b` |
+| validation records | `a5939fee4df3363fec1c3285623ca18509c549fbf65e73f2ec9a741af5505470` |
+| test records | `7424eb1afa8f6bbb28bbfebdc3bb16b082c2dbfe327b11e93fdf990ce220d917` |
+| provenance | `cac85660e8803e151864b7f723fe6a06c4b578539f76db0ef1594607773ff979` |
+| components | `118def6a5324bec761c77e8f5785dc8dd3e8f3b6a0774eef3c4f98f8e6f39de3` |
+| exclusions | `3966b82960c0ee19bbe859df9b9c6f433cf57ad78368b3dab66bf1d6f9130e18` |
+| lexical canary | `f56724e50215f7d89db46726601b681277763e41c029f90568072f7ba3558cd9` |
+| run config | `526c97c0510a9ad98b9a65bdc81bf0c40968e9df37ccefd749f0a8b439dc639d` |
+
 ## Assets produced today (all on `main` unless noted)
 
 - Golden partition frozen: 910 expert `final_test` (sealed) / 821 dev / 819 golden_train
@@ -168,12 +207,13 @@ retained only in the judgment/ledger artifacts and are excluded from training.
 - Recovered-pair judge COMPLETE: 13,373/13,373 processed, 13,367 resolved trainer records,
   10 escalations, 6 fail-closed null labels, and a 150-pair audit sample at
   `/storage/milikic/leanfaith/corpus2/recovered_singlepass_codex_v1_e8567ba/`.
+- Corpus v1 COMPLETE: 23,414 ancestry/shared-statement-safe rows with every stored family at or
+  below 10% and lexical-canary balanced accuracy 0.700/0.680 at
+  `/storage/milikic/leanfaith/corpus2/v1_ed41471/`.
 - Prunes P1+P2 merged: ~130K LOC removed; suite at baseline (one order-sensitive test).
 
 ## Next
 
-1. Corpus v1: merge corpus-v0 + depth-3 pairs + judged Qwen/Kimi + D-3 Codex transforms;
-   screen, unordered-near-dedup, ancestry-safe split, 10% family cap, and lexical canary.
-2. S1 two-arm retrain from chunks-CPT and mixed-CPT on corpus v1, followed by dev-only strict
+1. S1 two-arm retrain from chunks-CPT and mixed-CPT on corpus v1, followed by dev-only strict
    and calibrated evaluation once the literal final-test seal has a safe dev-only input path.
-3. Meta-engine second slice: nested sites, P20/P21, type hashes, batch driver, and yield probe.
+2. Meta-engine second slice: nested sites, P20/P21, type hashes, batch driver, and yield probe.

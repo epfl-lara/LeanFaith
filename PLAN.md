@@ -66,12 +66,18 @@ Full numbers: `reports/eval/refocus_day1_summary.md`. Everything below is on `ma
   timeout, interruption, or incomplete-journal failures. The final trainer projection contains
   13,367 rows and the cross-model audit sample contains 150. Frozen run:
   `/storage/milikic/leanfaith/corpus2/recovered_singlepass_codex_v1_e8567ba/`.
+- **CORPUS V1 COMPLETE**: strict merge of corpus-v0 + 4,031 depth-3 pairs + 13,367 resolved
+  recovered pairs + 146 D-3 records. The rich ancestry/shared-statement graph quarantined 13
+  components crossing frozen v0 splits (83 pairs), then the deterministic fixed-point family cap
+  retained **23,414 rows** (5,050 same / 18,364 different; train 18,760 / validation 2,166 /
+  test 2,488). The lexical canary is below target (validation 0.700 / test 0.680 balanced
+  accuracy). The corpus contains private-derived rows and is non-redistributable/non-releasable.
+  Frozen root: `/storage/milikic/leanfaith/corpus2/v1_ed41471/`.
 
-**NEXT QUEUE (in order):** (1) corpus v1 = depth-3 merge + judged Qwen/Kimi + D-3
-records + replayed corpus-v0, diversity caps, trainer schema; (2) S1 retrain on corpus v1 from the
-chunks-CPT encoder (+ mixed-CPT arm), golden-dev eval, with Track T-B backbone-pilot Stage A riding
-the same corpus concurrently on the cluster; (3) Meta-engine slice 2 (nested sites, P20/P21,
-content-hash certificates, independent audit path); (4) P4 prune.
+**NEXT QUEUE (in order):** (1) S1 retrain on corpus v1 from the chunks-CPT encoder (+ mixed-CPT
+arm), golden-dev eval, with Track T-B backbone-pilot Stage A riding the same corpus concurrently
+on the cluster; (2) Meta-engine slice 2 (nested sites, P20/P21, content-hash certificates,
+independent audit path); (3) P4 prune.
 
 **OPERATIONAL GOTCHAS (hard-won):** background `codex exec`/`lemex exec` MUST get `</dev/null`
 or they hang forever reading stdin; never plain `uv sync` (prunes torch — use
