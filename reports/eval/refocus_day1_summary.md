@@ -34,12 +34,22 @@ monotone temperature transform.
 | S1v0 chunks-CPT encoder | gold-calibrated | **0.684** | [0.610, 0.752] | 0.645 | 0.692 | 0.849 | 0.711 | 0.190 | 0.694 | 1000† | 0.498034 |
 | S1v0 statement↔proof-CPT encoder | strict | 0.538 | [0.513, 0.562] | 0.368 | 0.163 | 0.788 | 0.583 | 0.628 | 4.027 | — | 0.500000 |
 | S1v0 statement↔proof-CPT encoder | gold-calibrated | **0.614** | [0.562, 0.665] | 0.500 | 0.462 | 0.788 | 0.583 | 0.190 | 0.694 | 1000† | 0.498653 |
+| S1v1 chunks-CPT encoder | strict | not run‡ | — | — | — | — | — | — | — | — | — |
+| S1v1 chunks-CPT encoder | gold-calibrated | not run‡ | — | — | — | — | — | — | — | — | — |
+| S1v1 statement↔proof-CPT encoder | strict | not run‡ | — | — | — | — | — | — | — | — | — |
+| S1v1 statement↔proof-CPT encoder | gold-calibrated | not run‡ | — | — | — | — | — | — | — | — | — |
 
 † All four NLL fits reached the configured positive-temperature upper bound (`T=1000`, inverse
 temperature `0.001`). Under the required temperature-only model, the NLL optimum is toward zero
 logit scale: probabilities move close to 0.5 while the fitted threshold preserves ranking. This
 exposes a large intercept/prevalence mismatch that a single temperature cannot remove; the
 remaining ECE ≈0.19 should not be described as well calibrated.
+
+‡ The corpus-v1 checkpoints were trained, but their golden-dev rows are deliberately blank. The
+only available pair-text artifact mixes `dev` with sealed `final_test`, and the current evaluator
+opens that mixed file before partition filtering. No trusted hash-bound dev-only text export was
+available, so the mixed artifact was not opened and neither strict nor calibrated scoring was
+attempted.
 
 Artifacts are under `/storage/milikic/leanfaith/golden/eval_runs/`:
 
@@ -176,6 +186,43 @@ external transmission, and release eligibility false.
 | lexical canary | `f56724e50215f7d89db46726601b681277763e41c029f90568072f7ba3558cd9` |
 | run config | `526c97c0510a9ad98b9a65bdc81bf0c40968e9df37ccefd749f0a8b439dc639d` |
 
+## S1 corpus-v1 two-arm retrain
+
+The production Queue-5 run is complete at
+`/storage/milikic/leanfaith/s1_v1_7e6ef0d/`, bound to implementation commit
+`7e6ef0de7913688b695ab20ddf0ad5a5e79a8c36`. It reverified the frozen corpus-v1,
+tokenizer, and both encoder inputs before loading a model, acquired the shared RTX 4090 lock,
+recorded an idle `nvidia-smi` preflight (1 MiB used, 0% utilization, no compute processes), and
+ran the chunks-CPT arm followed by the statement↔proof-CPT arm. Both completed on attempt 1 in
+about 12 minutes total, with 1,174 optimizer steps and 117 warmup steps each.
+
+These are corpus-v1 **local validation** results, not golden-dev results:
+
+| arm | best epoch | validation bal-acc | validation AUPRC | validation acc | validation loss | swap disagreement | wall time |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| chunks-CPT | 2 | **0.9832** | **0.9913** | 0.9898 | 0.04085 | 0.00377 | 359.6 s |
+| statement↔proof-CPT | 2 | 0.9811 | 0.9885 | **0.9903** | 0.04257 | 0.00471 | 364.4 s |
+
+Golden-dev strict and calibrated evaluation is **blocked by the literal seal, not by a model or
+trainer failure**. Scoring requires pair text, but the only available canonical text artifact
+mixes `dev` and sealed `final_test`, and the evaluator loads the whole artifact before filtering.
+The run manifest records reason code
+`literal_seal_missing_trusted_dev_only_text_artifact`, `evaluation_attempted=false`, and
+`mixed_canonical_file_opened=false`. Consequently there is no valid basis yet to claim either
+checkpoint beats the prior golden-dev thresholds of 0.593 balanced accuracy or 0.849 AUPRC. A
+trusted, hash-bound 821-pair dev-only export is the required input to fill the four blank table
+rows above.
+
+| artifact | SHA-256 |
+|---|---|
+| queue manifest | `93c126cad7bcec1923b42c935b5e138afded1dde40544f9a5247112dc8aeb650` |
+| GPU preflight | `4a75e7696f6679488b9e616236f8f225545e688bcd64135805563f54c9e23a63` |
+| chunks-CPT trainer manifest | `ed94dba87f59d8dbdfefd466ac0a1ab546515dae0f02a64f454a48b525966a52` |
+| chunks-CPT best checkpoint | `41a3afae202e23a5327e11e99e138e4065160677f8fe8a2c81dc9f6cfcafaf4b` |
+| statement↔proof-CPT trainer manifest | `66544e5f6796261573d06c6ada59c21a030acee96235cd3c50e7a493c6103e14` |
+| statement↔proof-CPT best checkpoint | `d034937ccd981fe487b18c48060c33517050632648835cb41bad8e4ab1754880` |
+| tmux log | `41ebf7f6f29a590144ba4d1e80fed2db804b5a8a0121a04d4a4103a8d62313d2` |
+
 ## Assets produced today (all on `main` unless noted)
 
 - Golden partition frozen: 910 expert `final_test` (sealed) / 821 dev / 819 golden_train
@@ -210,10 +257,14 @@ external transmission, and release eligibility false.
 - Corpus v1 COMPLETE: 23,414 ancestry/shared-statement-safe rows with every stored family at or
   below 10% and lexical-canary balanced accuracy 0.700/0.680 at
   `/storage/milikic/leanfaith/corpus2/v1_ed41471/`.
+- S1 corpus-v1 retrain COMPLETE: chunks-CPT and statement↔proof-CPT arms finished on attempt 1;
+  local validation balanced accuracy/AUPRC are 0.983/0.991 and 0.981/0.989. Golden-dev scoring is
+  explicitly blocked pending a trusted dev-only text export; the mixed canonical artifact was not
+  opened. Frozen root: `/storage/milikic/leanfaith/s1_v1_7e6ef0d/`.
 - Prunes P1+P2 merged: ~130K LOC removed; suite at baseline (one order-sensitive test).
 
 ## Next
 
-1. S1 two-arm retrain from chunks-CPT and mixed-CPT on corpus v1, followed by dev-only strict
-   and calibrated evaluation once the literal final-test seal has a safe dev-only input path.
-2. Meta-engine second slice: nested sites, P20/P21, type hashes, batch driver, and yield probe.
+1. Meta-engine second slice: nested sites, P20/P21, type hashes, batch driver, and yield probe.
+2. Fill the four S1v1 golden-dev rows only after a trusted, hash-bound dev-only text export exists;
+   do not open the mixed canonical artifact to obtain it.

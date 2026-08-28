@@ -73,11 +73,18 @@ Full numbers: `reports/eval/refocus_day1_summary.md`. Everything below is on `ma
   test 2,488). The lexical canary is below target (validation 0.700 / test 0.680 balanced
   accuracy). The corpus contains private-derived rows and is non-redistributable/non-releasable.
   Frozen root: `/storage/milikic/leanfaith/corpus2/v1_ed41471/`.
+- **S1 CORPUS-V1 RETRAIN COMPLETE / GOLDEN-DEV BLOCKED BY LITERAL SEAL**: the chunks-CPT and
+  statement↔proof-CPT arms completed sequentially on attempt 1 (local validation balanced
+  accuracy/AUPRC 0.983/0.991 and 0.981/0.989). Golden-dev strict/calibrated scoring was not
+  attempted because the only pair-text artifact mixes `dev` with sealed `final_test` and is
+  loaded before filtering; the manifest records that it was not opened. Frozen root:
+  `/storage/milikic/leanfaith/s1_v1_7e6ef0d/`.
 
-**NEXT QUEUE (in order):** (1) S1 retrain on corpus v1 from the chunks-CPT encoder (+ mixed-CPT
-arm), golden-dev eval, with Track T-B backbone-pilot Stage A riding the same corpus concurrently
-on the cluster; (2) Meta-engine slice 2 (nested sites, P20/P21, content-hash certificates,
-independent audit path); (3) P4 prune.
+**NEXT QUEUE (in order):** (1) Meta-engine slice 2 (nested sites, P20/P21, content-hash
+certificates, independent audit path); (2) P4 prune. Track T-B backbone-pilot Stage A remains a
+separate concurrent cluster track and does not block this queue. Fill the S1v1 golden-dev rows
+only after a trusted, hash-bound dev-only pair-text export exists; never open the mixed canonical
+artifact to obtain it.
 
 **OPERATIONAL GOTCHAS (hard-won):** background `codex exec`/`lemex exec` MUST get `</dev/null`
 or they hang forever reading stdin; never plain `uv sync` (prunes torch — use
