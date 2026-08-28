@@ -1,0 +1,25 @@
+schema_version: 1
+addendum_id: deterministic_v2_p18_v100_family_addition
+addendum_version: 1.0.0
+status: experimental
+base_portfolio_id: leanfaith_deterministic_v2_design
+base_portfolio_config_hash: f48e2dfd4555e71dfd07518330f33d222894fa935fb81b6c9e7678a8a1a66594
+family_id: p18_root_equality_symmetry
+family_version: 1.0.0
+change_kind: additive_family
+evidence_class: E2
+scope: Swap two distinct complete spans of one surface-root equality whose elaborated conclusion is exactly Eq alpha lhs rhs after surface declaration binders.
+excluded_cases:
+  - comments or quoted terms in the declaration signature
+  - identical equality sides
+  - macros or scoped term syntax
+  - multiple or nested surface-root equality operators
+  - non-root elaborated equality
+  - parser-tree disagreement
+require_exact_inverse_replay: true
+require_exact_root_equality_symmetry: true
+require_same_context_reelaboration: true
+require_admission_free_local_certificate_smoke: true
+resolved_label_count: 0
+promoted_item_count: 0
+training_eligible: false

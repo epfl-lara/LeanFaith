@@ -1,0 +1,373 @@
+{
+  "artifact_kind": "deterministic_v2_schema3_13_family_smoke_receipt_point_in_time",
+  "captured_at_utc": "2026-08-11T16:50:16Z",
+  "excluded_diagnostic_roots": {
+    "bounded_memory_workers_1": "/storage/milikic/leanfaith/deterministic_v2/composition_second_hops/chain_fd196dd_schema3_v1/smoke_parity/p14_w1",
+    "bounded_memory_workers_4": "/storage/milikic/leanfaith/deterministic_v2/composition_second_hops/chain_fd196dd_schema3_v1/smoke_parity/p14_w4",
+    "binding_report": {
+      "json": {
+        "path": "reports/generation/deterministic_v2_p14_recovery_resource_parity_point_in_time_v1.json",
+        "sha256": "e09ec6ba9209d51eca4cd70e7a13efc8aab3b148cea9017482bfb415dfcfa035"
+      },
+      "markdown": {
+        "path": "reports/generation/deterministic_v2_p14_recovery_resource_parity_point_in_time_v1.md",
+        "sha256": "61f506af154ce55be7e842f7374acda1e7cfbace80c88b83207e8cbcbeb105e6"
+      }
+    },
+    "note": "The bounded-memory roots contain infrastructure failures and the unlimited worker-4 root is incomplete. They are excluded from this accepted smoke inventory and are bound separately by the prior resource/parity report.",
+    "unlimited_workers_4_incomplete": "/storage/milikic/leanfaith/deterministic_v2/composition_second_hops/chain_fd196dd_schema3_v1/smoke_parity_nomem/p14_w4"
+  },
+  "families": [
+    {
+      "family": "p14",
+      "log_sha256": "a917004a195b8761958843c75200c8a005ccd36253cab6061713c6c23fb8e696",
+      "manifest_sha256": "8a09a97e91596ffbb1cddc473a6335c10e8e913eede2b81f93487e1bf480b609",
+      "producer_commit_attestation": "fd196dd3ef9cfce490151632b7121c69e62567b4",
+      "profile_id": "deterministic_v2_e2_p14_experimental",
+      "provisional_count": 32,
+      "result_count": 64,
+      "results_sha256": "ce31dacbcaabf481a711cd75f80430d32bec32a09e1fc49bb49247cdc78cfbff",
+      "reused": true,
+      "root_binding_id": "detprov_root:acdabe0e2c7e220d8002f34d5bcadbc1d1226751c9d2dbd98120b093d598141d",
+      "root_path": "/storage/milikic/leanfaith/deterministic_v2/composition_second_hops/chain_fd196dd_schema3_v1/smoke_parity_nomem/p14_w1",
+      "root_tree_hash": "46d72515181906ae3fdd4f120e6416a8dab207b059c1382c460d85ee538486c0",
+      "run_kind": "e2",
+      "run_spec_sha256": "365b0e71eadcfed01d1e69113485f31f9618461e8ac5aca6c0e5e5d443d668bb",
+      "schema_version": 3,
+      "state": "reused",
+      "terminal_status_counts": {
+        "audit_quarantined": 11,
+        "not_applicable": 21,
+        "provisional_variant": 32
+      }
+    },
+    {
+      "family": "p18",
+      "log_sha256": "b7a1f37ba02794e4dae54fffccc24aa496bd9c9003ee3393c3df3fcf207932c1",
+      "manifest_sha256": "396d9c832af90da82beb804b2064b246f5952301524b3c5bd6847ff3b00a1b3a",
+      "producer_commit_attestation": "fd196dd3ef9cfce490151632b7121c69e62567b4",
+      "profile_id": "deterministic_v2_e2_p18_experimental",
+      "provisional_count": 31,
+      "result_count": 64,
+      "results_sha256": "ff1bf1d81afd26aac77a1279ce759779b348a9759c86d6e84b71a9dab0e9e4f6",
+      "reused": true,
+      "root_binding_id": "detprov_root:31c8e187e066389585548077ef5719872a46bf2e99afab7c7c01218ebb9740c4",
+      "root_path": "/storage/milikic/leanfaith/deterministic_v2/composition_second_hops/chain_fd196dd_schema3_v1/smoke_w1/p18",
+      "root_tree_hash": "f9e6cc53752180d446c9517d4534925f6b3cb7bdf736f50a3af4414368029c7a",
+      "run_kind": "e2",
+      "run_spec_sha256": "56f9772f29e16bc66cc9d7b83fcd3f868e78576b787c5d6a5618b676cbfd1258",
+      "schema_version": 3,
+      "state": "reused",
+      "terminal_status_counts": {
+        "not_applicable": 33,
+        "provisional_variant": 31
+      }
+    },
+    {
+      "family": "n18",
+      "log_sha256": "50d5224b66c696fa8a89068c03a3db58317b608401fc1406870cf4f6d02782ab",
+      "manifest_sha256": "44b3ecb93a46a353050863be8088a04cdd4fc2578098f2071ff126bfb264d888",
+      "producer_commit_attestation": "fd196dd3ef9cfce490151632b7121c69e62567b4",
+      "profile_id": "deterministic_v2_d0_n18_experimental",
+      "provisional_count": 31,
+      "result_count": 64,
+      "results_sha256": "67f29ad53a3ec07e1ee3304fbeda61cebc2894bf8854f2bbba1ad89bccc0fa2f",
+      "reused": true,
+      "root_binding_id": "detprov_root:d4c45a9e1da45c7b861704932e5555a9aa96689641acbadc31e8016fa1a06c50",
+      "root_path": "/storage/milikic/leanfaith/deterministic_v2/composition_second_hops/chain_fd196dd_schema3_v1/smoke_w1/n18",
+      "root_tree_hash": "286a48b51c0bc5586486cbb357935053144d49e88e9169afdc1cffc27cf1284b",
+      "run_kind": "d0",
+      "run_spec_sha256": "04e912818782abb65a044a9f76c0cac01051dd8c70ae14c35f3d1a864b15d2e9",
+      "schema_version": 3,
+      "state": "reused",
+      "terminal_status_counts": {
+        "not_applicable": 33,
+        "provisional_variant": 31
+      }
+    },
+    {
+      "family": "n11",
+      "log_sha256": "21612dd2ffe550fa345c615f204fd2bdf154f91f2817fd13c93aec1c4358dc68",
+      "manifest_sha256": "91d076576d013ee8179253516730c84e5a5f8c0837d940501d8f3be39fc26ce5",
+      "producer_commit_attestation": "fd196dd3ef9cfce490151632b7121c69e62567b4",
+      "profile_id": "deterministic_v2_d0_n11_experimental",
+      "provisional_count": 24,
+      "result_count": 64,
+      "results_sha256": "daf1844b29f4ee669ee559c5a7021a5849dbf4f6aedb55e29f5a6ca32aa250e1",
+      "reused": true,
+      "root_binding_id": "detprov_root:1020058c37de01328c4a9c1358a7a01624c52344141e5238145b65c2c71414d4",
+      "root_path": "/storage/milikic/leanfaith/deterministic_v2/composition_second_hops/chain_fd196dd_schema3_v1/smoke_w1/n11",
+      "root_tree_hash": "1004f8c12acb4250fdddfc9d6d76de5f5ad12f8cdb4a38a02f11e6768b128215",
+      "run_kind": "d0",
+      "run_spec_sha256": "0994cd05871f839e0510b982f5573eef31d3f47f974ee2c4f1de0b6cf30101e4",
+      "schema_version": 3,
+      "state": "reused",
+      "terminal_status_counts": {
+        "audit_quarantined": 6,
+        "candidate_invalid": 1,
+        "not_applicable": 33,
+        "provisional_variant": 24
+      }
+    },
+    {
+      "family": "n12",
+      "log_sha256": "782f4baf1e801041786d792e004642b98b47406764bad89c5fcc9c9a1188d2a5",
+      "manifest_sha256": "50fa89429b3da3d1c2d94da978568075925c5c4c1f3607fb3aeeec737727767b",
+      "producer_commit_attestation": "fd196dd3ef9cfce490151632b7121c69e62567b4",
+      "profile_id": "deterministic_v2_d0_n12_experimental",
+      "provisional_count": 23,
+      "result_count": 64,
+      "results_sha256": "6c3ae048b05d72ea8dae761d0f4823ab8bbccc8335c62b88fc37c2728bf7d0c6",
+      "reused": true,
+      "root_binding_id": "detprov_root:f99a6286ae5fa728580bdf24b32c485cf3c1c877b79840bd04a166c2867d1314",
+      "root_path": "/storage/milikic/leanfaith/deterministic_v2/composition_second_hops/chain_fd196dd_schema3_v1/smoke_w1/n12",
+      "root_tree_hash": "6c3cae404ef48750b74d28555503328fff9e9b86e527442aa384d034cd5478c4",
+      "run_kind": "d0",
+      "run_spec_sha256": "9d95d465574478217bbf2479ce63c7b3b34a151bb1c03f1edbe18b4e0e46cfa2",
+      "schema_version": 3,
+      "state": "reused",
+      "terminal_status_counts": {
+        "not_applicable": 41,
+        "provisional_variant": 23
+      }
+    },
+    {
+      "family": "p15",
+      "log_sha256": "ce654c7c6b80ff8916040293d132ec44ebd4fc754e7b8692553748b3d5fdd1a0",
+      "manifest_sha256": "0c6fca06a895cd101ae0ee191bef98aa758bf96cb1c80ca26d82ee06e74a73c5",
+      "producer_commit_attestation": "fd196dd3ef9cfce490151632b7121c69e62567b4",
+      "profile_id": "deterministic_v2_e2_p15_experimental",
+      "provisional_count": 4,
+      "result_count": 64,
+      "results_sha256": "a3388470119f5ef2e4ae956b61d6ecd99c0cb840b2d08ff9014bc44a327839c8",
+      "reused": true,
+      "root_binding_id": "detprov_root:78b8f64babc9dcd0e220c332a58988938d861349d1cf6360936d1be377dcea1e",
+      "root_path": "/storage/milikic/leanfaith/deterministic_v2/composition_second_hops/chain_fd196dd_schema3_v1/smoke_w1/p15",
+      "root_tree_hash": "f41d5ec05954652e9b7df2832f14f24160c862964c68b755eb14acf133299fce",
+      "run_kind": "e2",
+      "run_spec_sha256": "d04c0c01e7c2120f4c657917a376d7c58dae623a8c3edec63ee45d4f96bcf818",
+      "schema_version": 3,
+      "state": "reused",
+      "terminal_status_counts": {
+        "not_applicable": 60,
+        "provisional_variant": 4
+      }
+    },
+    {
+      "family": "p16",
+      "log_sha256": "d304c21fed680257f2e6c3a646501557b66a52b7bb286bd9e35c6c657059ca72",
+      "manifest_sha256": "8130ecee61e82c7e233cc11496593387ef9c9373548b0dabe5b19d82676459bc",
+      "producer_commit_attestation": "fd196dd3ef9cfce490151632b7121c69e62567b4",
+      "profile_id": "deterministic_v2_e2_p16_experimental",
+      "provisional_count": 0,
+      "result_count": 64,
+      "results_sha256": "a4e32c972fdc9f3078bdf83502942986e27da063a45f74a8631941f470f6aa4d",
+      "reused": true,
+      "root_binding_id": "detprov_root:2527e9ccb933ab3606be4949f31828fdb9998315ab4dc270591c2aa93696264a",
+      "root_path": "/storage/milikic/leanfaith/deterministic_v2/composition_second_hops/chain_fd196dd_schema3_v1/smoke_w1/p16",
+      "root_tree_hash": "78f713fdc04136592a42de011d22e5caaec156adbdf674918b6f76e0f147353e",
+      "run_kind": "e2",
+      "run_spec_sha256": "61fd62ff3c0583aea8c36f261e599481979194dc74a8c08d2460459e638822a3",
+      "schema_version": 3,
+      "state": "reused",
+      "terminal_status_counts": {
+        "not_applicable": 64
+      }
+    },
+    {
+      "family": "p17",
+      "log_sha256": "e82b60564fae35ecc5cae8df1bac665ce26d183381e06f21ba44e823f9cfee99",
+      "manifest_sha256": "5f3b30de99a358fecb0969ff7a707dd347a78fd51dd7ace0beb48bbf38bbeb65",
+      "producer_commit_attestation": "fd196dd3ef9cfce490151632b7121c69e62567b4",
+      "profile_id": "deterministic_v2_e2_p17_experimental",
+      "provisional_count": 0,
+      "result_count": 64,
+      "results_sha256": "30fc4208b41ea7f4dd1944d2d7b3a5d2078c6bc3caeab4abb14a67bc8db4e261",
+      "reused": true,
+      "root_binding_id": "detprov_root:fc60ff608dbb2b4fac9447bca4c1077b4aad38470f334698bfb269ad93465e93",
+      "root_path": "/storage/milikic/leanfaith/deterministic_v2/composition_second_hops/chain_fd196dd_schema3_v1/smoke_w1/p17",
+      "root_tree_hash": "7533d9f770b6278682b77e3c1de4a374114a42b9f9c3e173c811e6b1ac2efcbe",
+      "run_kind": "e2",
+      "run_spec_sha256": "3d614eb4be55755f9b821e138e4170c6db5a5c04a56200d3e414f534261149c2",
+      "schema_version": 3,
+      "state": "reused",
+      "terminal_status_counts": {
+        "not_applicable": 64
+      }
+    },
+    {
+      "family": "n13",
+      "log_sha256": "8c4eec7fc7d95d247462f37850e28ac8cf0426ee375006013a89e875100fc9e1",
+      "manifest_sha256": "9021d3d19ff0d32979a95a326696b86d7ee809268a22a31a2767bde3cfe2c87a",
+      "producer_commit_attestation": "fd196dd3ef9cfce490151632b7121c69e62567b4",
+      "profile_id": "deterministic_v2_d0_n13_experimental",
+      "provisional_count": 0,
+      "result_count": 64,
+      "results_sha256": "eccae93647f8010c0d6a9d09231ed7f15161af5823b2906a5eff0b9aa30146f7",
+      "reused": true,
+      "root_binding_id": "detprov_root:25efd4855a3ad7a772edc9b333fe3b47667e4f97aec7e6ead132a20088b7835b",
+      "root_path": "/storage/milikic/leanfaith/deterministic_v2/composition_second_hops/chain_fd196dd_schema3_v1/smoke_w1/n13",
+      "root_tree_hash": "a15386fa222c8053ea60194b77e071ae74aa44fd7c02d8f29280b9f9dd052f79",
+      "run_kind": "d0",
+      "run_spec_sha256": "c178b9a740df8b7c56926797e591b200f65ccb9f0e01816d766c7b79e2c3ac86",
+      "schema_version": 3,
+      "state": "reused",
+      "terminal_status_counts": {
+        "not_applicable": 64
+      }
+    },
+    {
+      "family": "n14",
+      "log_sha256": "ce77c50805981ca045854ab3834269a462f9e45b022d1b1c1a5aae144c2305ff",
+      "manifest_sha256": "5b4b27b652d075ed791292e2de0fbcbd21f68530eb2615e4d1ffc8d8118176f2",
+      "producer_commit_attestation": "fd196dd3ef9cfce490151632b7121c69e62567b4",
+      "profile_id": "deterministic_v2_d0_n14_experimental",
+      "provisional_count": 0,
+      "result_count": 64,
+      "results_sha256": "0405693f28c28f47cf9e1aa6c739c51d13b84e08b0c2a4f22c83b7c25a7c9a21",
+      "reused": true,
+      "root_binding_id": "detprov_root:f4c5cd3febad60f938af92b4e0f59d553248b74041bd537f43c0cbb3d699929e",
+      "root_path": "/storage/milikic/leanfaith/deterministic_v2/composition_second_hops/chain_fd196dd_schema3_v1/smoke_w1/n14",
+      "root_tree_hash": "76d039b4689ed698fd9426e700d4a75e086128d65215767f1fb4094034a39d7c",
+      "run_kind": "d0",
+      "run_spec_sha256": "eb447da8b3bc2426e3aff3c35083b8e6d4bf60d6359189584e4d4bd4c352a39d",
+      "schema_version": 3,
+      "state": "reused",
+      "terminal_status_counts": {
+        "not_applicable": 64
+      }
+    },
+    {
+      "family": "n15",
+      "log_sha256": "0bdb9204f2ed10bf059ec621f06e3f7c9d40787b2f291467c86d2da3a95c5b58",
+      "manifest_sha256": "11403847782731a0fe45d76ab142ae8ab04c80529cb0f1be60424945a15b630b",
+      "producer_commit_attestation": "fd196dd3ef9cfce490151632b7121c69e62567b4",
+      "profile_id": "deterministic_v2_d0_n15_experimental",
+      "provisional_count": 0,
+      "result_count": 64,
+      "results_sha256": "a802650a07cb2ebfd950952aa944d6f271b71c5ca6158c9f961d6fd35201d8c2",
+      "reused": true,
+      "root_binding_id": "detprov_root:a397239a40a641ef1f8a802e77925a31589310af0deec7ab74cc0effa77cf034",
+      "root_path": "/storage/milikic/leanfaith/deterministic_v2/composition_second_hops/chain_fd196dd_schema3_v1/smoke_w1/n15",
+      "root_tree_hash": "30b326b4388e428d29a08f2283543ce745154084610879173de8e1e319854f4d",
+      "run_kind": "d0",
+      "run_spec_sha256": "0d1866c63b6d40f0ff544039fae046ea85726ebf01d2dc830784c1fd6e67294a",
+      "schema_version": 3,
+      "state": "reused",
+      "terminal_status_counts": {
+        "not_applicable": 64
+      }
+    },
+    {
+      "family": "n16",
+      "log_sha256": "f643b0ccd488e55cd31ac82d3d723b621a35cb6e9dd74bb91787c56874da0d23",
+      "manifest_sha256": "65f5d70dea9fc51b6b8fef5c1ac80b9d47ec39749ed3c1bd6e556b732649ef20",
+      "producer_commit_attestation": "fd196dd3ef9cfce490151632b7121c69e62567b4",
+      "profile_id": "deterministic_v2_d0_n16_experimental",
+      "provisional_count": 0,
+      "result_count": 64,
+      "results_sha256": "3eb9f842c596dfbda34d82141e36e0060325f2d9161c7111617b9271d0c6b712",
+      "reused": true,
+      "root_binding_id": "detprov_root:969ccb7f5a5da01311d8a8b2d9771d7c126a31ec00ba1f372d7c5d4af543fe23",
+      "root_path": "/storage/milikic/leanfaith/deterministic_v2/composition_second_hops/chain_fd196dd_schema3_v1/smoke_w1/n16",
+      "root_tree_hash": "d2c9e801990ba9ea733eacec5f019dcbc4fe0419376baf9538fba28cb7665fa1",
+      "run_kind": "d0",
+      "run_spec_sha256": "674e741a07e347b694fadee538089ed4c7e02bf4d35b243ebf6c8a7fbd0a0c6b",
+      "schema_version": 3,
+      "state": "reused",
+      "terminal_status_counts": {
+        "not_applicable": 64
+      }
+    },
+    {
+      "family": "n17",
+      "log_sha256": "a88c513aa527fbe62e7d4bed3eaf1b04f59f5fe9471f8bb452ca857fd62d1d8a",
+      "manifest_sha256": "4bdaec67ffcbf23b288bb5096d1eef0a57108f403b4190e0d7576f6557dc9215",
+      "producer_commit_attestation": "fd196dd3ef9cfce490151632b7121c69e62567b4",
+      "profile_id": "deterministic_v2_d0_n17_experimental",
+      "provisional_count": 0,
+      "result_count": 64,
+      "results_sha256": "7daed918f1ffc5eae6e3eee6c6a9459e4916439733ee17bf98f38fc70fcc386f",
+      "reused": true,
+      "root_binding_id": "detprov_root:c176813d9af28eae01a761412c71bc392b9f67fb71e5629c921ce0ee69b58c63",
+      "root_path": "/storage/milikic/leanfaith/deterministic_v2/composition_second_hops/chain_fd196dd_schema3_v1/smoke_w1/n17",
+      "root_tree_hash": "bdc279bcd28a1a9f7766e45197dd09b36a5eb4b6241cfebaa2b41336468e77dd",
+      "run_kind": "d0",
+      "run_spec_sha256": "c445de9c40314e201f5a4047d9c430c741796795b2400b809e7f5520411da2e8",
+      "schema_version": 3,
+      "state": "reused",
+      "terminal_status_counts": {
+        "not_applicable": 64
+      }
+    }
+  ],
+  "launcher": {
+    "code_tree_hash": "74a0b8fdbb1a26c053abca0d6b05cfe4c0f75dbada1050a99e68c3487d70f2b4",
+    "expected_commit": "f21fe4523ddf6ca872c96a6273aa43d6fd5b7f7f",
+    "memory_hard_limit_mb": null,
+    "workers": 1
+  },
+  "orchestration": {
+    "completed_at_utc": "2026-08-11T16:46:46.489796Z",
+    "launch_id": "detcomp_smoke_launch:1dd440e4299507a92e7c48792bddf06cb996f2f2e520462d4992a0f603381e10",
+    "launch_spec": {
+      "path": "/storage/milikic/leanfaith/deterministic_v2/composition_second_hops/chain_fd196dd_schema3_v1/smoke_w1/orchestration/launch_spec.json",
+      "sha256": "8d26046aab658e29c4b16ddeb0334eed1387832375c31bef0cf2b3bac77a51aa"
+    },
+    "receipt": {
+      "path": "/storage/milikic/leanfaith/deterministic_v2/composition_second_hops/chain_fd196dd_schema3_v1/smoke_w1/orchestration/receipt.json",
+      "receipt_id": "detcomp_smoke_receipt:35106ee991d53fc22a63a388ac433887c5134fe9ba527ebaa36f745d52da7699",
+      "sha256": "ec475deddc7a4205b5065e480b9b90954f976639a01826b94fe4930a39af7f4d"
+    },
+    "status": {
+      "path": "/storage/milikic/leanfaith/deterministic_v2/composition_second_hops/chain_fd196dd_schema3_v1/smoke_w1/orchestration/status.json",
+      "sha256": "d4973637a48b81656bbe42c172818851a74b5a3838d3d2530bc3ef9244a9eedf"
+    }
+  },
+  "producer_commit_attestation": "fd196dd3ef9cfce490151632b7121c69e62567b4",
+  "schema_version": 1,
+  "scope": "Point-in-time, audit-only binding of the completed 13-family schema-3 composition smoke receipt. It creates no semantic labels, promotions, training eligibility, evaluation eligibility, or gate credit.",
+  "source": {
+    "project_revision": "d568c8c09630de097a046763c17b9ea99f95f950",
+    "project_tree": "c0c130fcbbadd6aa9a081e39d4980f4bdc7cd9dc",
+    "representation_partition_sha256": "91a6678a087bcc9f5601ad198ea4d540711dec068e35c01ac8a73db2742fdabd",
+    "source_count": 64,
+    "source_manifest_sha256": "538f20b894da7ed68a4aca4990e49d0a3030804347308aa8c062c1113dbc81cb",
+    "theorem_partition_sha256": "774a273245aa3e7704a1c40b6dcbbfda70cd2b5b9d1a625d47e7100e689e8875"
+  },
+  "summary": {
+    "all_roots_reused": true,
+    "candidate_infrastructure_error_count": 0,
+    "family_count": 13,
+    "promoted_item_count": 0,
+    "provisional_count": 145,
+    "resolved_label_count": 0,
+    "result_count": 832,
+    "results_per_family": 64,
+    "terminal_status_counts": {
+      "audit_quarantined": 17,
+      "candidate_invalid": 1,
+      "not_applicable": 669,
+      "provisional_variant": 145
+    },
+    "training_eligible": false
+  },
+  "verification": {
+    "all_log_hashes_match_receipt": true,
+    "all_manifest_counts_sum_to_64": true,
+    "all_root_bindings_match_receipt": true,
+    "all_root_hashes_match_receipt": true,
+    "all_roots_normal_loader_accepted": true,
+    "all_roots_schema_version_3": true,
+    "canonical_launch_spec_validated": true,
+    "canonical_receipt_validated": true,
+    "canonical_status_validated": true,
+    "commands_were_read_only": true,
+    "family_order_and_identity_match": true,
+    "receipt_launch_spec_hash_match": true,
+    "receipt_self_identity_validated": true,
+    "receipt_status_hash_match": true,
+    "status_exit_codes_all_zero": true,
+    "status_states_all_reused": true
+  }
+}

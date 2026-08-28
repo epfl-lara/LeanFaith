@@ -1,0 +1,113 @@
+{
+  "artifact_class": "exploratory_inventory",
+  "audit_only": true,
+  "combination": {
+    "combination_hash": "db5984baadb4b2b5797be1b576866de69c4feff24fe6f1b46ce5b0cdc14ecd13",
+    "gross_observation_count": 5497,
+    "gross_output_sha256": "78db9cb76329b59a49c757615b22771e9b15d0b00e3490c65e398f71989817ef",
+    "manifest_sha256": "a4566046c64d15491f815c4f52794234fa62db9399d975c7e52712e254e53aa7",
+    "unique_output_sha256": "44f00aca84265843c066f319fc9f794075b6c51ec4a396911450a483174c19e5",
+    "unique_pair_count": 5497
+  },
+  "deduplication_semantics": {
+    "semantic_uniqueness_claimed": false,
+    "unique_pair_count_meaning": "unique context_id + source_theorem_ids + candidate_code_hash groups",
+    "wider_candidate_and_alpha_overlaps": "reported separately and retained for later near-duplicate grouping"
+  },
+  "duplicate_audit": {
+    "cross_family_duplicate_group_count": 0,
+    "cross_source_duplicate_group_count": 0,
+    "duplicate_excess_count": 0,
+    "duplicate_group_count": 0,
+    "key_name": "exact_pair_key"
+  },
+  "exact_replay": {
+    "input_order_reversed": true,
+    "replayed_combination_hash": "db5984baadb4b2b5797be1b576866de69c4feff24fe6f1b46ce5b0cdc14ecd13",
+    "status": "passed"
+  },
+  "family_counts": {
+    "n11_bound_variable_substitution": 1708,
+    "n12_implication_converse": 2478,
+    "n13_witness_dependency": 3,
+    "n14_negation_scope": 16,
+    "n15_conjunct_omission": 247,
+    "n16_domain_guard_removal": 9,
+    "n17_role_sensitive_arguments": 6,
+    "p05_resolved_names": 1,
+    "p08_type_ascriptions": 7,
+    "p11_bounded_quantifiers": 20,
+    "p14_independent_binder_permutation": 870,
+    "p15_root_iff_reversal": 94,
+    "p16_conjunction_reassociation": 37,
+    "p17_hypothesis_packing": 1
+  },
+  "family_manifest_sha256": {
+    "e0_lf032": "04b31508577108a73802b1464571f2cf8b0b80535677b2af4a57c8424a2b25d7",
+    "e0_surface": "ad1ebde2a9e28d32017719b269349e2a774589abe504be1823a842c59ecf2e44",
+    "n11": "38529e43fc8dd6f9978fdd3198865f433712c497e7ea28cf261557810261edb5",
+    "n12": "ed1aad5cd262c453ae97a93ddd06ed988e04b4fad173abb93e6b0f8c269c6f9e",
+    "n13": "5e6dbffbb07e37f2113909766922cdf628d486ffdb1958cbba185ce90fbc9057",
+    "n14": "e4cfdbf5eff6166674fe97296974ad825f8e469a24c68ca6503c10ee63f5a2eb",
+    "n15": "c0f110ac245a53b9917f34fd0ce749af3062f27bed6604351ac8ae2a5d94d82d",
+    "n16": "05843728243d0af4b9d59f1b62378a1091bf81b4b13ca244d15f3dc1dbfaa769",
+    "n17": "1928978cd9645d8f9802865648024f62fbcfb07c3f6c9e8a8690869cf8bc2803",
+    "p14": "4995270548871056630d1ea1c0ac7e8baea81e3d4dbaf1a97a5e1f77577fdbc2",
+    "p15": "1c9564ec917115f2e5d2b7e71b58c204d907e999349154250deff06c82f0937c",
+    "p16": "beda2df9b492540c6215b7f4bb22302259004b50a9a57f50828ebcc825b0f874",
+    "p17": "bd3b3b39baa1632273738e44dc97d81641222512c9587c123fff979bcb2c6266"
+  },
+  "frozen_source": {
+    "record_count": 5000,
+    "representation_partition_sha256": "c63bf8e2706d4fc3fff430bee920cb0c575b2947023a4141a4d0384f747cad24",
+    "source": "sft_classic",
+    "subset_manifest_sha256": "e0600a5b5b8dc20d2983e66daef78aef18cd0cc9c652414a35263ea55f0ac43f",
+    "theorem_partition_sha256": "3241ea0ff7f7e80a27ea6deafe680043c8ac8e782db049dcc551c50441115c30"
+  },
+  "operational_history": {
+    "initial_stop": "e0_surface audit expected one result per source although the profile contains two rules",
+    "recovery": "all completed roots were rehashed and audited against each run specification before continuation",
+    "resume_exit_code": 0
+  },
+  "overlap_audits": {
+    "alpha_candidate_key": {
+      "duplicate_excess_count": 2,
+      "duplicate_group_count": 2,
+      "key_available_count": 5497,
+      "observation_count": 5497,
+      "unique_key_count": 5495
+    },
+    "ancestry_candidate_key": {
+      "duplicate_excess_count": 0,
+      "duplicate_group_count": 0,
+      "key_available_count": 5497,
+      "observation_count": 5497,
+      "unique_key_count": 5497
+    },
+    "candidate_code_key": {
+      "duplicate_excess_count": 1,
+      "duplicate_group_count": 1,
+      "key_available_count": 5497,
+      "observation_count": 5497,
+      "unique_key_count": 5496
+    },
+    "exact_pair_key": {
+      "duplicate_excess_count": 0,
+      "duplicate_group_count": 0,
+      "key_available_count": 5497,
+      "observation_count": 5497,
+      "unique_key_count": 5497
+    }
+  },
+  "policy": {
+    "evaluation_eligible": false,
+    "gate_credit": false,
+    "private_text_in_report": false,
+    "promoted_item_count": 0,
+    "resolved_label_count": 0,
+    "semantic_labels_created": false,
+    "training_eligible": false
+  },
+  "schema_version": 1,
+  "status": "completed_provisional_inventory"
+}

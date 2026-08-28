@@ -35,6 +35,16 @@ _CRASH_EXCEPTIONS = (
     MemoryError,
 )
 
+# LeanInteract includes the REPL process stderr in the exception text when the
+# child closes unexpectedly.  Lean itself emits this exact message when the
+# runtime cannot create another worker thread.  Treat it as a process/resource
+# failure even if a LeanInteract version wraps it in a generic exception type.
+# This is deliberately a narrow marker: ordinary RuntimeError instances remain
+# INTERNAL_ERROR, and no semantic status is inferred from process stderr.
+_THREAD_CREATION_FAILURE_MARKER = "failed to create thread"
+_THREAD_CREATION_FAILURE_PREFIX = "resource_limit_thread_creation"
+_MAX_INFRASTRUCTURE_ERROR_CHARS = 2000
+
 
 def _messages(raw: Mapping[str, Any]) -> tuple[dict[str, Any], ...]:
     return tuple(dict(message) for message in raw.get("messages") or ())
@@ -149,9 +159,16 @@ def status_for_exception(exc: BaseException) -> LeanStatus:
     """Canonical §8.6/A.6 status for a per-request exception."""
     if isinstance(exc, TimeoutError):
         return LeanStatus.TIMEOUT
-    if isinstance(exc, _CRASH_EXCEPTIONS):
+    if isinstance(exc, _CRASH_EXCEPTIONS) or _THREAD_CREATION_FAILURE_MARKER in str(exc).lower():
         return LeanStatus.CRASH
     return LeanStatus.INTERNAL_ERROR
+
+
+def _bounded_infrastructure_error(exc: BaseException) -> str:
+    detail = f"{type(exc).__name__}: {exc}"
+    if _THREAD_CREATION_FAILURE_MARKER in detail.lower():
+        detail = f"{_THREAD_CREATION_FAILURE_PREFIX}: {detail}"
+    return detail[:_MAX_INFRASTRUCTURE_ERROR_CHARS]
 
 
 def normalize_exception(
@@ -172,5 +189,5 @@ def normalize_exception(
         status=status_for_exception(exc),
         elapsed_ms=elapsed_ms,
         raw_response_path=raw_response_path,
-        infrastructure_error=f"{type(exc).__name__}: {exc}"[:2000],
+        infrastructure_error=_bounded_infrastructure_error(exc),
     )

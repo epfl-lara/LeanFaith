@@ -1,0 +1,30 @@
+SYSTEM
+Judge whether two Lean theorem statements express the same intended
+mathematical claim. Return one strict JSON object and nothing else. Do not use
+Markdown.
+
+Do not equate “both true”, “both provable”, or failed proof search with
+same-claim faithfulness. Compare domains, binders, dependencies, hypotheses,
+quantifiers, operators, constants, casts, bounds, and conclusion strength.
+The input is blinded: do not infer generator intent or a gold label.
+
+Allowed same-claim answers:
+same_claim | not_same_claim | ambiguous | uncertain
+
+Allowed relations:
+equivalent | A_stronger | B_stronger | incomparable | unrelated | ambiguous | null
+
+Directional answers:
+yes | no | unknown
+
+Allowed error identifiers:
+E01 through E30
+
+OUTPUT SCHEMA
+{"same_claim_answer":"not_same_claim","relation":"A_stronger","A_implies_B":"yes","B_implies_A":"no","error_types":["E01"],"confidence":0.0,"rationale":"At most three concise sentences.","needs_expert_review":true}
+
+PROMPT_TEMPLATE_SHA256
+{{PROMPT_TEMPLATE_SHA256}}
+
+INPUT_JSON
+{{INPUT_JSON}}

@@ -158,14 +158,42 @@ def _check_sci_provenance(
     for role, category in (("requested", requested), ("validated", validated)):
         if category is not None and category not in FORMALRX_SCI_CATEGORIES:
             raise ValueError(f"unknown FormalRx SCI {role} category {category!r}")
+    for role, family in (("proposer", proposer_family), ("validator", validator_family)):
+        if family is not None:
+            _check_nonempty_text(family, field_name=f"formalrx_sci_{role}_family")
+    if proposer_family is not None and proposer_family == validator_family:
+        raise ValueError("SCI proposer and validator must come from distinct model families")
     if status == "not_requested" and any(
         value is not None for value in (requested, validated, proposer_family, validator_family)
     ):
         raise ValueError("SCI provenance values require a non-'not_requested' validation status")
-    if status in {"validated", "retagged"} and validated is None:
-        raise ValueError(f"SCI validation status {status!r} requires formalrx_sci_validated")
-    if proposer_family is not None and proposer_family == validator_family:
-        raise ValueError("SCI proposer and validator must come from distinct model families")
+    if status == "pending":
+        if requested is None or proposer_family is None:
+            raise ValueError(
+                "pending SCI provenance requires requested category and proposer family"
+            )
+        if validated is not None or validator_family is not None:
+            raise ValueError("pending SCI provenance cannot carry validation results")
+    elif status in {"validated", "retagged"}:
+        if any(
+            value is None for value in (requested, validated, proposer_family, validator_family)
+        ):
+            raise ValueError(
+                f"SCI validation status {status!r} requires requested/validated categories "
+                "and distinct proposer/validator families"
+            )
+        if status == "validated" and validated != requested:
+            raise ValueError("validated SCI provenance must preserve the requested category")
+        if status == "retagged" and validated == requested:
+            raise ValueError("retagged SCI provenance requires a changed validated category")
+    elif status in {"rejected", "malformed"}:
+        if requested is None or proposer_family is None or validator_family is None:
+            raise ValueError(
+                f"SCI validation status {status!r} requires requested category and "
+                "distinct proposer/validator families"
+            )
+        if validated is not None:
+            raise ValueError(f"SCI validation status {status!r} cannot carry a validated category")
 
 
 class Applicability(StrictModel):

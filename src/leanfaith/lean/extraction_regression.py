@@ -117,6 +117,8 @@ def _failure_projection(row: dict[str, Any]) -> str:
     fields = (
         "source_record",
         "declaration_name",
+        "declaration_full_name",
+        "declaration_ordinal",
         "code",
         "outcome_level",
         "extraction_route",
@@ -221,6 +223,8 @@ def audit_gate2_scale(
 
     accepted_ids: set[str] = set()
     theorem_ids: set[str] = set()
+    allowed_routes = {"question_statement", "lean_code_fallback"}
+    accepted_declaration_keys: set[tuple[str, str, int]] = set()
     for row in theorems:
         theorem = row.get("theorem", row)
         theorem_id = theorem.get("theorem_id")
@@ -233,6 +237,19 @@ def audit_gate2_scale(
             errors.append(f"unexpected theorem source_record_id: {source_id!r}")
             continue
         accepted_ids.add(source_id)
+        route = theorem.get("extraction_route")
+        if route not in allowed_routes:
+            errors.append(f"accepted source {source_id} has invalid extraction_route {route!r}")
+        ordinal = theorem.get("declaration_ordinal")
+        if type(ordinal) is not int or ordinal < 0:
+            errors.append(
+                f"accepted source {source_id} has invalid declaration_ordinal {ordinal!r}"
+            )
+        elif isinstance(route, str):
+            declaration_key = (source_id, route, ordinal)
+            if declaration_key in accepted_declaration_keys:
+                errors.append(f"duplicate accepted declaration terminal key {declaration_key!r}")
+            accepted_declaration_keys.add(declaration_key)
         required = (
             "raw_row_hash",
             "question_hash",
@@ -247,8 +264,39 @@ def audit_gate2_scale(
             errors.append(f"accepted source {source_id} lacks provenance fields {missing}")
 
     failed_ids: set[str] = set()
+    failed_declaration_keys: set[tuple[str, str, int]] = set()
     for row in failures:
-        if row.get("outcome_level") != "row":
+        outcome_level = row.get("outcome_level")
+        if outcome_level == "declaration":
+            source_id = row.get("source_record")
+            if not isinstance(source_id, str) or source_id not in expected_ids:
+                errors.append(f"unexpected declaration-level failure source_record: {source_id!r}")
+                continue
+            route = row.get("extraction_route")
+            if route not in allowed_routes:
+                errors.append(
+                    f"declaration failure for {source_id} has invalid extraction_route {route!r}"
+                )
+                continue
+            ordinal = row.get("declaration_ordinal")
+            if type(ordinal) is not int or ordinal < 0:
+                errors.append(
+                    f"declaration failure for {source_id} has invalid "
+                    f"declaration_ordinal {ordinal!r}"
+                )
+                continue
+            declaration_key = (source_id, str(route), ordinal)
+            if declaration_key in failed_declaration_keys:
+                errors.append(f"duplicate failed declaration terminal key {declaration_key!r}")
+            failed_declaration_keys.add(declaration_key)
+            if declaration_key in accepted_declaration_keys:
+                errors.append(
+                    f"declaration has both accepted and failed terminal outcomes "
+                    f"{declaration_key!r}"
+                )
+            continue
+        if outcome_level != "row":
+            errors.append(f"invalid failure outcome_level: {outcome_level!r}")
             continue
         source_id = row.get("source_record")
         if not isinstance(source_id, str) or source_id not in expected_ids:

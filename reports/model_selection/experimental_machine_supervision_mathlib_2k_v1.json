@@ -1,0 +1,67 @@
+{
+  "artifact_kind": "experimental_machine_supervision_milestone",
+  "artifact_root": "/storage/milikic/leanfaith/experimental_machine_supervision/mathlib_2k_v1",
+  "benchmark_overlap_excluded_count": 3,
+  "code_tree_hash": "3ed393cfbe97c3dc355dabc9e5bd030030fd01ef405a13adcd4f6fc12374391e",
+  "component_count": 1569,
+  "counts_by_family": {
+    "n11_bound_variable_substitution": 232,
+    "n12_implication_converse": 383,
+    "n15_conjunct_omission": 1,
+    "n16_domain_guard_removal": 1,
+    "n18_root_equality_polarity": 383,
+    "p14_independent_binder_permutation": 400,
+    "p15_root_iff_reversal": 169,
+    "p16_conjunction_reassociation": 1,
+    "p18_root_equality_symmetry": 430
+  },
+  "counts_by_pseudo_target": {
+    "not_same_claim": 1000,
+    "same_claim": 1000
+  },
+  "counts_by_split": {
+    "test": 189,
+    "train": 1618,
+    "validation": 193
+  },
+  "counts_by_split_and_target": {
+    "test:not_same_claim": 95,
+    "test:same_claim": 94,
+    "train:not_same_claim": 808,
+    "train:same_claim": 810,
+    "validation:not_same_claim": 97,
+    "validation:same_claim": 96
+  },
+  "created_at": "2026-08-11T22:56:00Z",
+  "dataset_id": "experimental-machine-supervision:a5851226b1c8b132880548fd2c084fed2a9118721009e3d17b4a600245be1033",
+  "duplicate_excluded_counts": {
+    "alpha_candidate_duplicate": 8,
+    "candidate_code_duplicate": 5
+  },
+  "eligibility": {
+    "calibration": false,
+    "evaluation": false,
+    "learning_curve_with_explicit_opt_in": true,
+    "model_selection": false,
+    "scientific_training": false,
+    "smoke_training_with_explicit_opt_in": true
+  },
+  "exact_replay_passed": true,
+  "manifest_sha256": "c35079c7c7cc6421844a0c5eb1ee30684ca6faf23d71e1f136b18238477fda1d",
+  "maximum_variants_per_component": 4,
+  "output_sha256": {
+    "public_sample.jsonl": "ec90e8896dcb886d4307a2ae31b208aa4aaab4bd4ffeb7289d78a332e7f9b002",
+    "public_sample.md": "a004cfa085e6441a6f004e33476245a1b2e3c379e670f97f205a439c032f895a",
+    "records.jsonl": "e580cd71425d52b41a674a388ab0d51003a94c6d5d18862dcc76ac0967ae4f76",
+    "split_assignments.jsonl": "65329e4f768d44f7eed3bd10f31df2f83331809da6f5b2d9f88977598bbd67a3",
+    "summary.json": "bd14cd8f935ebc4612bd37820bd8d08d64bc75b3f4da0ad5cc08aa6288ee17b9"
+  },
+  "producer_commit": "df4f1112f67386ccc6739fb03b3424d9088677c5",
+  "public_sample_count": 20,
+  "record_count": 2000,
+  "resolved_semantic_label_count": 0,
+  "schema_version": 1,
+  "source_category": "mathlib",
+  "source_theorem_count": 1569,
+  "status": "PASS_EXPERIMENTAL"
+}

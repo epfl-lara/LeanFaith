@@ -15,7 +15,7 @@ from typing import Any
 from huggingface_hub import hf_hub_download
 
 from leanfaith.config.code_bundle import validate_code_bundle
-from leanfaith.config.hashing import hash_canonical, hash_file
+from leanfaith.config.hashing import canonical_json_bytes, hash_canonical, hash_file, sha256_hex
 from leanfaith.config.loading import load_config
 from leanfaith.config.paths import RepoPaths
 from leanfaith.datasets.denylist import (
@@ -32,7 +32,11 @@ from leanfaith.lean.extract_run import (
     merge_extraction_partitions,
     write_extraction_manifest,
 )
-from leanfaith.lean.leaninteract_backend import BackendSettings, LeanInteractBackend
+from leanfaith.lean.leaninteract_backend import (
+    COMMAND_ISOLATION_VERSION,
+    BackendSettings,
+    LeanInteractBackend,
+)
 from leanfaith.lean.project_registry import (
     ContextPayload,
     ProjectSpec,
@@ -67,10 +71,43 @@ from leanfaith.schemas import (
     write_manifest,
 )
 from leanfaith.sources.mathlib import build_inventory
+from leanfaith.sources.mathlib_frame import (
+    build_mathlib_file_frame,
+    load_and_verify_mathlib_file_frame,
+    mathlib_frame_additions,
+    write_mathlib_file_frame,
+)
 
 FORMALRX_DATASET = "LARK-Lab/FormalRx-Test"
 FORMALRX_REVISION = "4b7c6b883e0859e9bd38620a539bdcef408f91b4"
 SFT_CLASSIC_REVISION = "0bf9f424309f668c2c2dd214aef6ec5d1d5c042f"
+SCALE_ENVIRONMENT_SETUP_VERSION = "parent_prebuilt_v1"
+DEFAULT_ENVIRONMENT_SETUP_VERSION = "backend_default_v1"
+SFT_CLASSIC_EXECUTION_POLICY = "shared_server_nonce_sync_fresh_invalid_confirmation_v3"
+SFT_CLASSIC_COMMAND_ISOLATION = COMMAND_ISOLATION_VERSION
+SFT_CLASSIC_METHOD_VERSION = (
+    "leaninteract_backend_v3/sft_classic_nonce_sync_fresh_invalid_oracle_v5"
+)
+
+
+def _prepare_scale_lean_environment(
+    *,
+    project_dir: Path,
+    context_fingerprint: str,
+    raw_response_dir: Path,
+    memory_hard_limit_mb: int | None,
+) -> None:
+    """Build the shared project and REPL once before chunk workers start."""
+
+    LeanInteractBackend.prepare_environment(
+        BackendSettings(
+            project_dir=project_dir,
+            context_fingerprint=context_fingerprint,
+            environment_schema_version=1,
+            raw_response_dir=raw_response_dir / "_environment_preflight",
+            memory_hard_limit_mb=memory_hard_limit_mb,
+        )
+    )
 
 
 def _extract_sft_chunk(
@@ -86,8 +123,16 @@ def _extract_sft_chunk(
     out_dir: Path,
     memory_hard_limit_mb: int | None,
     job_hash: str,
+    environment_is_prepared: bool = False,
 ) -> ExtractStats:
-    """Process-safe extraction unit with one stable LeanInteract server."""
+    """Process-safe extraction with cached imports and isolated commands.
+
+    Incrementality retains the REPL's import-header cache. A deterministic
+    request-specific transport prefix prevents theorem-body trie states from
+    crossing request boundaries, synchronous elaboration prevents background
+    work from surviving them, and a fresh non-incremental process confirms
+    every provisional INVALID before it becomes a semantic terminal outcome.
+    """
 
     backend = LeanInteractBackend(
         BackendSettings(
@@ -96,6 +141,12 @@ def _extract_sft_chunk(
             environment_schema_version=1,
             raw_response_dir=raw_response_dir,
             memory_hard_limit_mb=memory_hard_limit_mb,
+            environment_is_prepared=environment_is_prepared,
+            method_version=SFT_CLASSIC_METHOD_VERSION,
+            enable_incremental_optimization=True,
+            enable_parallel_elaboration=False,
+            isolate_incremental_commands=True,
+            confirm_invalid_on_fresh_process=True,
         )
     )
     try:
@@ -218,6 +269,7 @@ def _extract_sft_parallel(
                 "row_offset": row_offset + start,
                 "out_dir": work_root / f"chunk-{chunk_index:05d}",
                 "memory_hard_limit_mb": memory_hard_limit_mb,
+                "environment_is_prepared": True,
                 "job_hash": hash_canonical(
                     {
                         "source": "sft_classic",
@@ -232,9 +284,17 @@ def _extract_sft_parallel(
                         "rows": rows[start:stop],
                         "context_id": context_id,
                         "adapter": "extract_v2",
+                        "execution_isolation_policy": SFT_CLASSIC_EXECUTION_POLICY,
+                        "lean_incremental_optimization": True,
+                        "lean_parallel_elaboration": False,
+                        "explicit_elab_async": False,
+                        "lean_command_isolation": SFT_CLASSIC_COMMAND_ISOLATION,
+                        "lean_fresh_invalid_confirmation": True,
+                        "lean_method_version": SFT_CLASSIC_METHOD_VERSION,
                         "code_tree_hash": code_tree_hash,
                         "code_bundle_hash": code_bundle_hash,
                         "memory_hard_limit_mb": memory_hard_limit_mb,
+                        "leaninteract_environment_setup": SCALE_ENVIRONMENT_SETUP_VERSION,
                         "workers": workers,
                         "chunk_size": chunk_size,
                     }
@@ -255,6 +315,13 @@ def _extract_sft_parallel(
                 pending.append((index, job))
             else:
                 chunk_stats[index] = ExtractStats.from_dict(marker)
+        if pending:
+            _prepare_scale_lean_environment(
+                project_dir=project_dir,
+                context_fingerprint=context_fingerprint,
+                raw_response_dir=raw_response_dir,
+                memory_hard_limit_mb=memory_hard_limit_mb,
+            )
         if pending and workers == 1:
             for index, job in pending:
                 chunk_stats[index] = _extract_sft_chunk(**job)
@@ -295,6 +362,7 @@ def _extract_mathlib_chunk(
     out_dir: Path,
     memory_hard_limit_mb: int | None,
     job_hash: str,
+    environment_is_prepared: bool = False,
 ) -> ExtractStats:
     """Process-safe mathlib file extraction unit."""
 
@@ -305,6 +373,7 @@ def _extract_mathlib_chunk(
             environment_schema_version=1,
             raw_response_dir=raw_response_dir,
             memory_hard_limit_mb=memory_hard_limit_mb,
+            environment_is_prepared=environment_is_prepared,
         )
     )
     try:
@@ -362,6 +431,7 @@ def _extract_mathlib_parallel(
                 "source_revision": source_revision,
                 "out_dir": work_root / f"chunk-{chunk_index:05d}",
                 "memory_hard_limit_mb": memory_hard_limit_mb,
+                "environment_is_prepared": True,
                 "job_hash": hash_canonical(
                     {
                         "source": "mathlib",
@@ -372,6 +442,7 @@ def _extract_mathlib_parallel(
                         "code_tree_hash": code_tree_hash,
                         "code_bundle_hash": code_bundle_hash,
                         "memory_hard_limit_mb": memory_hard_limit_mb,
+                        "leaninteract_environment_setup": SCALE_ENVIRONMENT_SETUP_VERSION,
                         "workers": workers,
                         "chunk_size": chunk_size,
                     }
@@ -391,6 +462,13 @@ def _extract_mathlib_parallel(
                 pending.append((index, job))
             else:
                 chunk_stats[index] = ExtractStats.from_dict(marker)
+        if pending:
+            _prepare_scale_lean_environment(
+                project_dir=project_dir,
+                context_fingerprint=context_fingerprint,
+                raw_response_dir=raw_response_dir,
+                memory_hard_limit_mb=memory_hard_limit_mb,
+            )
         if pending and workers == 1:
             for index, job in pending:
                 chunk_stats[index] = _extract_mathlib_chunk(**job)
@@ -469,6 +547,7 @@ def _represent_chunk(
     source: str,
     memory_hard_limit_mb: int | None,
     job_hash: str,
+    environment_is_prepared: bool = False,
 ) -> dict[str, int]:
     """Process-safe representation unit with one bounded Lean server lifetime."""
 
@@ -479,6 +558,7 @@ def _represent_chunk(
             environment_schema_version=1,
             raw_response_dir=raw_response_dir,
             memory_hard_limit_mb=memory_hard_limit_mb,
+            environment_is_prepared=environment_is_prepared,
             # Theorems remain independent LeanInteract requests. Incremental
             # mode only reuses the common import/helper prefix, which keeps
             # memory and latency bounded at Gate-3 scale. The backend detects
@@ -652,6 +732,9 @@ def run_extract(
     memory_hard_limit_mb: int | None = None,
     code_bundle_path: Path | None = None,
     resume_work_dir: Path | None = None,
+    mathlib_file_frame_path: Path | None = None,
+    mathlib_frame_selection_seed: str | None = None,
+    mathlib_previous_file_frame_path: Path | None = None,
 ) -> tuple[Path, dict[str, object]]:
     """Execute the stable `leanfaith extract` command."""
 
@@ -659,6 +742,20 @@ def run_extract(
         raise ValueError("MVP extraction source must be mathlib or sft_classic")
     if workers < 1:
         raise ValueError("workers must be positive")
+    if source != "mathlib" and (
+        mathlib_file_frame_path is not None
+        or mathlib_frame_selection_seed is not None
+        or mathlib_previous_file_frame_path is not None
+    ):
+        raise ValueError("mathlib file-frame options require source=mathlib")
+    if (mathlib_file_frame_path is None) != (mathlib_frame_selection_seed is None):
+        raise ValueError(
+            "--mathlib-file-frame and --mathlib-frame-selection-seed must be provided together"
+        )
+    if mathlib_file_frame_path is not None and limit is not None:
+        raise ValueError("--mathlib-file-frame and --limit are mutually exclusive")
+    if mathlib_previous_file_frame_path is not None and mathlib_file_frame_path is None:
+        raise ValueError("--mathlib-previous-file-frame requires --mathlib-file-frame")
     context, context_hash = build_mathlib_context(paths, project_dir)
     code = collect_code_state(paths.root)
     code_bundle_hash: str | None = None
@@ -670,17 +767,57 @@ def run_extract(
     created_at = datetime.datetime.now(tz=datetime.UTC)
     run_id = new_run_id(created_at)
     raw_response_dir = paths.data / "raw" / "lean_extract" / run_id
+    mathlib_frame_id: str | None = None
+    mathlib_frame_sha256: str | None = None
+    mathlib_previous_frame_id: str | None = None
+    mathlib_previous_frame_sha256: str | None = None
     if source == "mathlib":
         spec = _mathlib_spec(paths)
-        inventory = build_inventory(
-            project_dir,
-            source="mathlib",
-            revision=spec.revision,
-            root_module=spec.root_module or "Mathlib",
-            globs=spec.globs,
-            limit=limit,
-        )
-        rel_paths = [entry.relative_path for entry in inventory.files]
+        if mathlib_file_frame_path is None:
+            inventory = build_inventory(
+                project_dir,
+                source="mathlib",
+                revision=spec.revision,
+                root_module=spec.root_module or "Mathlib",
+                globs=spec.globs,
+                limit=limit,
+            )
+            rel_paths = [entry.relative_path for entry in inventory.files]
+        else:
+            inventory = build_inventory(
+                project_dir,
+                source="mathlib",
+                revision=spec.revision,
+                root_module=spec.root_module or "Mathlib",
+                globs=spec.globs,
+            )
+            if mathlib_frame_selection_seed is None:  # guarded above; narrows for mypy
+                raise AssertionError("mathlib frame selection seed is missing")
+            frame = load_and_verify_mathlib_file_frame(
+                mathlib_file_frame_path,
+                inventory=inventory,
+                expected_revision=spec.revision,
+                selection_seed=mathlib_frame_selection_seed,
+            )
+            mathlib_frame_id = frame.frame_id
+            mathlib_frame_sha256 = sha256_hex(
+                canonical_json_bytes(frame.model_dump(mode="json")) + b"\n"
+            )
+            if mathlib_previous_file_frame_path is None:
+                selected_members = frame.members
+            else:
+                previous = load_and_verify_mathlib_file_frame(
+                    mathlib_previous_file_frame_path,
+                    inventory=inventory,
+                    expected_revision=spec.revision,
+                    selection_seed=mathlib_frame_selection_seed,
+                )
+                selected_members = mathlib_frame_additions(previous, frame)
+                mathlib_previous_frame_id = previous.frame_id
+                mathlib_previous_frame_sha256 = sha256_hex(
+                    canonical_json_bytes(previous.model_dump(mode="json")) + b"\n"
+                )
+            rel_paths = [member.relative_path for member in selected_members]
         if workers == 1 and resume_work_dir is None:
             backend = LeanInteractBackend(
                 BackendSettings(
@@ -720,7 +857,40 @@ def run_extract(
                 code_tree_hash=code.code_tree_hash,
                 code_bundle_hash=code_bundle_hash,
             )
+        if mathlib_file_frame_path is not None:
+            # Recheck the exact pinned tree and immutable frame after Lean has
+            # consumed every selected file. This prevents a long extraction
+            # from being finalized if checkout or frame bytes drifted during
+            # execution.
+            post_inventory = build_inventory(
+                project_dir,
+                source="mathlib",
+                revision=spec.revision,
+                root_module=spec.root_module or "Mathlib",
+                globs=spec.globs,
+            )
+            post_frame = load_and_verify_mathlib_file_frame(
+                mathlib_file_frame_path,
+                inventory=post_inventory,
+                expected_revision=spec.revision,
+                selection_seed=mathlib_frame_selection_seed or "",
+            )
+            if post_frame != frame:
+                raise ValueError("mathlib file frame changed during extraction")
+            if mathlib_previous_file_frame_path is not None:
+                post_previous = load_and_verify_mathlib_file_frame(
+                    mathlib_previous_file_frame_path,
+                    inventory=post_inventory,
+                    expected_revision=spec.revision,
+                    selection_seed=mathlib_frame_selection_seed or "",
+                )
+                if post_previous != previous:
+                    raise ValueError("previous mathlib file frame changed during extraction")
         input_paths = tuple(project_dir / relative for relative in rel_paths)
+        if mathlib_file_frame_path is not None:
+            input_paths = (*input_paths, mathlib_file_frame_path)
+        if mathlib_previous_file_frame_path is not None:
+            input_paths = (*input_paths, mathlib_previous_file_frame_path)
         revision = spec.revision
     else:
         if input_path is None:
@@ -744,6 +914,11 @@ def run_extract(
                     environment_schema_version=1,
                     raw_response_dir=raw_response_dir,
                     memory_hard_limit_mb=memory_hard_limit_mb,
+                    method_version=SFT_CLASSIC_METHOD_VERSION,
+                    enable_incremental_optimization=True,
+                    enable_parallel_elaboration=False,
+                    isolate_incremental_commands=True,
+                    confirm_invalid_on_fresh_process=True,
                 )
             )
             try:
@@ -783,6 +958,7 @@ def run_extract(
     if code_bundle_path is not None:
         input_paths = (*input_paths, code_bundle_path)
     environment_path = paths.configs / "environment.lock.yaml"
+    chunked_environment_setup = workers != 1 or resume_work_dir is not None
     manifest = write_extraction_manifest(
         stats,
         source=source,
@@ -803,11 +979,85 @@ def run_extract(
             "workers": workers,
             "chunk_size": chunk_size,
             "memory_hard_limit_mb": memory_hard_limit_mb,
+            "execution_isolation_policy": (
+                SFT_CLASSIC_EXECUTION_POLICY if source == "sft_classic" else None
+            ),
+            "lean_incremental_optimization": True,
+            "lean_parallel_elaboration": source != "sft_classic",
+            "explicit_elab_async": False if source == "sft_classic" else None,
+            "lean_command_isolation": (
+                SFT_CLASSIC_COMMAND_ISOLATION if source == "sft_classic" else None
+            ),
+            "lean_fresh_invalid_confirmation": source == "sft_classic",
+            "lean_method_version": (
+                SFT_CLASSIC_METHOD_VERSION if source == "sft_classic" else None
+            ),
+            "leaninteract_environment_setup": (
+                SCALE_ENVIRONMENT_SETUP_VERSION
+                if chunked_environment_setup
+                else DEFAULT_ENVIRONMENT_SETUP_VERSION
+            ),
             "code_bundle_sha256": code_bundle_hash,
             "resumable_chunk_markers": resume_work_dir is not None,
+            "mathlib_file_frame_id": mathlib_frame_id,
+            "mathlib_file_frame_sha256": mathlib_frame_sha256,
+            "mathlib_previous_file_frame_id": mathlib_previous_frame_id,
+            "mathlib_previous_file_frame_sha256": mathlib_previous_frame_sha256,
+            "mathlib_frame_selection_seed_sha256": (
+                hash_canonical(
+                    {
+                        "schema": "mathlib_file_frame_selection_seed_v1",
+                        "selection_seed": mathlib_frame_selection_seed,
+                    }
+                )
+                if mathlib_frame_selection_seed is not None
+                else None
+            ),
         },
     )
     return manifest, stats.as_dict()
+
+
+def run_freeze_mathlib_file_frame(
+    *,
+    paths: RepoPaths,
+    project_dir: Path,
+    target_file_count: int,
+    selection_seed: str,
+    excluded_domains: tuple[str, ...],
+    output_path: Path,
+) -> tuple[Path, str, dict[str, object]]:
+    """Freeze one replayable public mathlib extraction frame."""
+
+    spec = _mathlib_spec(paths)
+    inventory = build_inventory(
+        project_dir,
+        source="mathlib",
+        revision=spec.revision,
+        root_module=spec.root_module or "Mathlib",
+        globs=spec.globs,
+    )
+    frame = build_mathlib_file_frame(
+        inventory,
+        expected_revision=spec.revision,
+        target_file_count=target_file_count,
+        selection_seed=selection_seed,
+        excluded_domains=excluded_domains,
+    )
+    digest = write_mathlib_file_frame(frame, output_path)
+    return (
+        output_path,
+        digest,
+        {
+            "frame_id": frame.frame_id,
+            "inventory_id": frame.inventory_id,
+            "inventory_file_count": frame.inventory_file_count,
+            "eligible_file_count": frame.eligible_file_count,
+            "excluded_file_count": frame.excluded_file_count,
+            "selected_file_count": frame.selected_file_count,
+            "domain_count": len(frame.domain_allocations),
+        },
+    )
 
 
 def _formalrx_rows(path: Path | None) -> list[dict[str, Any]]:
@@ -971,6 +1221,7 @@ def run_represent(
                 "out_dir": partition,
                 "source": source,
                 "memory_hard_limit_mb": memory_hard_limit_mb,
+                "environment_is_prepared": True,
                 "job_hash": hash_canonical(
                     {
                         "source": source,
@@ -980,6 +1231,7 @@ def run_represent(
                         "code_bundle_hash": code_bundle_hash,
                         "memory_hard_limit_mb": memory_hard_limit_mb,
                         "incremental_optimization": True,
+                        "leaninteract_environment_setup": SCALE_ENVIRONMENT_SETUP_VERSION,
                         "workers": workers,
                         "chunk_size": chunk_size,
                         "theorems": [
@@ -1016,6 +1268,13 @@ def run_represent(
                         raise ValueError(f"representation chunk count {key} must be an integer")
                     parsed_counts[str(key)] = value
                 chunk_counts[index] = parsed_counts
+        if pending:
+            _prepare_scale_lean_environment(
+                project_dir=project_dir,
+                context_fingerprint=context_fingerprint,
+                raw_response_dir=raw_response_dir,
+                memory_hard_limit_mb=memory_hard_limit_mb,
+            )
         if pending and workers == 1:
             for index, job in pending:
                 chunk_counts[index] = _represent_chunk(**job)
@@ -1053,6 +1312,7 @@ def run_represent(
                 "chunk_size": chunk_size,
                 "memory_hard_limit_mb": memory_hard_limit_mb,
                 "incremental_optimization": True,
+                "leaninteract_environment_setup": SCALE_ENVIRONMENT_SETUP_VERSION,
                 "code_bundle_sha256": code_bundle_hash,
                 "frozen_manifest_sha256": (
                     hash_file(frozen_manifest_path) if frozen_manifest_path is not None else None

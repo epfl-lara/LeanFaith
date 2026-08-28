@@ -227,6 +227,14 @@ def test_extract_selects_props_and_quarantines_duplicates() -> None:
     failure_codes = {f.code for f in result.failures}
     assert ExtractionFailureCode.NOT_A_PROPOSITION in failure_codes
     assert ExtractionFailureCode.DUPLICATE_DECLARATION_NAME in failure_codes
+    assert all(f.extraction_route == "source_declaration" for f in result.failures)
+    assert [f.declaration_ordinal for f in result.failures] == [1, 2, 3]
+    duplicate_failures = [
+        failure
+        for failure in result.failures
+        if failure.code is ExtractionFailureCode.DUPLICATE_DECLARATION_NAME
+    ]
+    assert [failure.declaration_ordinal for failure in duplicate_failures] == [2, 3]
 
 
 def test_quality_flags_trivial_conclusion() -> None:

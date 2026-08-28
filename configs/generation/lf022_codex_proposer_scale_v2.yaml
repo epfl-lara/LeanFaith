@@ -1,0 +1,31 @@
+schema_version: 2
+config_id: lf022_codex_proposer_scale_v2
+status: bounded_public_scale_only
+delegate_v1_config:
+  path: configs/generation/lf022_codex_proposer_smoke_v1.yaml
+  sha256: db6987998a54c8c051c467b8540f74649d75a877891e1801670784068df7ec6b
+provider: openai_codex_exec
+provider_slot: lf022_codex_proposer_terra_v1
+model_family: openai_codex
+model: gpt-5.6-terra
+reasoning_effort: xhigh
+task_limit: 64
+hard_maximum_task_count: 64
+maximum_concurrency: 1
+execution_order: manifest_order_sequential
+one_v1_invocation_per_task: true
+immutable_per_item_artifacts: true
+terminal_replay_required: true
+execute_requires_explicit_flag: true
+public_sources_only: true
+private_source_content_forbidden: true
+own_validator_allowed: false
+separate_family_validation_required: true
+validation_performed: false
+outputs_provisional_only: true
+semantic_labels_created: false
+silver_records_created: false
+supervision_eligible: false
+training_eligible: false
+evaluation_eligible: false
+gate_credit_claimed: false

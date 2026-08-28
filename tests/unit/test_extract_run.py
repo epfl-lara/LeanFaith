@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 from leanfaith.lean.extract_run import (
     ExtractStats,
     extract_dataset_snippets,
@@ -149,6 +151,291 @@ def test_sft_invalid_partial_declarations_are_diagnostic_only(tmp_path: Path) ->
     assert "partial_declarations_reported=1" in failures[0]["detail"]
 
 
+class RejectBlankDatasetRouteBackend:
+    """A source-unavailable route must never reach the Lean boundary."""
+
+    def __init__(self, *, declarations: tuple[dict, ...] = ()) -> None:
+        self.declarations = declarations
+        self.calls: list[LeanRequest] = []
+
+    def run(self, request: LeanRequest) -> LeanResult:
+        assert request.code is not None
+        assert request.code.strip()
+        self.calls.append(request)
+        return LeanResult(
+            request_id=request.request_id,
+            request_hash="b" * 64,
+            context_id=request.context_id,
+            context_fingerprint="e" * 64,
+            status=LeanStatus.VALID_WITH_SORRY,
+            declarations=self.declarations,
+        )
+
+
+class NonPropQuestionValidFallbackBackend:
+    """The canonical route is the first accepted proposition, not any declaration."""
+
+    def __init__(self) -> None:
+        self.calls: list[LeanRequest] = []
+
+    def run(self, request: LeanRequest) -> LeanResult:
+        assert request.code is not None
+        assert request.code.strip()
+        self.calls.append(request)
+        if "reval" in request.request_id:
+            declarations: tuple[dict, ...] = ()
+        elif "question_statement" in request.request_id:
+            declarations = (
+                {
+                    **_DECL,
+                    "kind": "definition",
+                    "signature": {**_DECL["signature"], "pp": ": Nat"},
+                    "type": {"pp": "Nat"},
+                },
+            )
+        else:
+            declarations = (_DECL,)
+        return LeanResult(
+            request_id=request.request_id,
+            request_hash="c" * 64,
+            context_id=request.context_id,
+            context_fingerprint="e" * 64,
+            status=LeanStatus.VALID_WITH_SORRY,
+            declarations=declarations,
+        )
+
+
+def test_sft_non_prop_question_does_not_suppress_valid_theorem_fallback(tmp_path: Path) -> None:
+    backend = NonPropQuestionValidFallbackBackend()
+    row = {
+        "uuid": "non-prop-question-valid-fallback",
+        "data_source": "fixture",
+        "question": "```lean4\ndef t_ok : Nat := 1\n```",
+        "lean_code": _SNIPPET,
+        "valid": False,
+        "proof_repair": False,
+    }
+
+    stats = extract_sft_classic_rows(
+        backend,  # type: ignore[arg-type]
+        [row],
+        source_revision="0bf9",
+        split="train",
+        row_offset=0,
+        context_id=_CTX,
+        out_dir=tmp_path,
+    )
+
+    assert stats.sources_processed == 1
+    assert stats.declarations_seen == 2
+    assert stats.accepted == 1
+    assert stats.failures == 1
+    assert stats.failure_codes == {"not_a_proposition": 1}
+    assert stats.row_outcomes == {"accepted_lean_code_fallback": 1}
+    assert stats.declaration_outcomes == {"accepted": 1, "failed_or_skipped": 1}
+    assert [call.request_id.rsplit("-", 1)[-1] for call in backend.calls[:2]] == [
+        "question_statement",
+        "lean_code_fallback",
+    ]
+    theorem = json.loads((tmp_path / "theorems" / "sft_classic.jsonl").read_text().splitlines()[0])[
+        "theorem"
+    ]
+    assert theorem["extraction_route"] == "lean_code_fallback"
+    assert theorem["nl_pair_eligibility"] == "unverified"
+    assert theorem["question_lean_code_agreement"] == "question_unavailable"
+    failures = [
+        json.loads(line)
+        for line in (tmp_path / "failures" / "sft_classic.jsonl").read_text().splitlines()
+    ]
+    assert failures == [
+        {
+            "code": "not_a_proposition",
+            "declaration_full_name": "t_ok",
+            "declaration_name": "t_ok",
+            "declaration_ordinal": 0,
+            "detail": "declaration kind 'definition' is not proposition-valued",
+            "extraction_route": "question_statement",
+            "outcome_level": "declaration",
+            "source_record": theorem["source_record_id"],
+        }
+    ]
+
+
+def test_sft_persists_skipped_alternate_route_declaration(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    backend = FakeBackend(
+        decl_status=LeanStatus.VALID_WITH_SORRY,
+        reval_status=LeanStatus.VALID_WITH_SORRY,
+    )
+    monkeypatch.setattr(
+        "leanfaith.lean.extract_run._route_alpha_fingerprints",
+        lambda *args, **kwargs: ("a" * 64,),
+    )
+    row = {
+        "uuid": "both-routes-valid",
+        "data_source": "fixture",
+        "question": f"```lean4\n{_SNIPPET}\n```",
+        "lean_code": _SNIPPET,
+        "valid": True,
+        "proof_repair": False,
+    }
+
+    stats = extract_sft_classic_rows(
+        backend,  # type: ignore[arg-type]
+        [row],
+        source_revision="0bf9",
+        split="train",
+        row_offset=0,
+        context_id=_CTX,
+        out_dir=tmp_path,
+    )
+
+    theorem = json.loads((tmp_path / "theorems" / "sft_classic.jsonl").read_text())["theorem"]
+    failure = json.loads((tmp_path / "failures" / "sft_classic.jsonl").read_text())
+    assert stats.declarations_seen == 2
+    assert stats.accepted == 1
+    assert stats.failures == 1
+    assert stats.declaration_outcomes == {"accepted": 1, "failed_or_skipped": 1}
+    assert stats.failure_codes == {"alternate_route_skipped": 1}
+    assert failure == {
+        "code": "alternate_route_skipped",
+        "declaration_full_name": "t_ok",
+        "declaration_name": "t_ok",
+        "declaration_ordinal": 0,
+        "detail": (
+            "lean_code_fallback proposition skipped because "
+            "question_statement is the canonical extraction route"
+        ),
+        "extraction_route": "lean_code_fallback",
+        "outcome_level": "declaration",
+        "source_record": theorem["source_record_id"],
+    }
+
+
+def test_sft_unstrippable_fallback_is_source_unavailable_not_infrastructure_error(
+    tmp_path: Path,
+) -> None:
+    non_prop = {
+        **_DECL,
+        "kind": "definition",
+        "signature": {
+            **_DECL["signature"],
+            "pp": ": Nat",
+        },
+        "type": {"pp": "Nat"},
+    }
+    backend = RejectBlankDatasetRouteBackend(declarations=(non_prop,))
+    row = {
+        "uuid": "empty-fallback",
+        "data_source": "fixture",
+        "question": "```lean4\ndef t_ok : Nat := 1\n```",
+        # A non-theorem fallback is real source content, but the proof-strip
+        # route is unsupported and therefore produces no Lean command.
+        "lean_code": "def fallback : Nat := 1",
+        "valid": False,
+        "proof_repair": False,
+    }
+
+    stats = extract_sft_classic_rows(
+        backend,  # type: ignore[arg-type]
+        [row],
+        source_revision="0bf9",
+        split="train",
+        row_offset=0,
+        context_id=_CTX,
+        out_dir=tmp_path,
+    )
+
+    assert len(backend.calls) == 1
+    assert "question_statement" in backend.calls[0].request_id
+    assert stats.row_outcomes == {"not_a_proposition": 1}
+    failure = json.loads((tmp_path / "failures" / "sft_classic.jsonl").read_text().splitlines()[-1])
+    assert "fallback=unsupported" in failure["detail"]
+    assert "infrastructure_error" not in failure["detail"]
+
+
+def test_sft_whitespace_fence_is_unsupported_structure_not_missing_fence(tmp_path: Path) -> None:
+    backend = RejectBlankDatasetRouteBackend()
+    row = {
+        "uuid": "whitespace-fence",
+        "data_source": "fixture",
+        "question": "```lean4\n   \n```",
+        "lean_code": "   ",
+        "valid": False,
+        "proof_repair": False,
+    }
+
+    stats = extract_sft_classic_rows(
+        backend,  # type: ignore[arg-type]
+        [row],
+        source_revision="0bf9",
+        split="train",
+        row_offset=0,
+        context_id=_CTX,
+        out_dir=tmp_path,
+    )
+
+    assert backend.calls == []
+    assert stats.row_outcomes == {"unsupported_structure": 1}
+    failure = json.loads((tmp_path / "failures" / "sft_classic.jsonl").read_text().splitlines()[-1])
+    assert failure["code"] == "unsupported_structure"
+    assert "question=unsupported; fallback=unsupported" in failure["detail"]
+    assert "infrastructure_error" not in failure["detail"]
+
+
+def test_sft_two_blank_routes_never_call_lean(tmp_path: Path) -> None:
+    backend = RejectBlankDatasetRouteBackend()
+    row = {
+        "uuid": "blank-routes",
+        "data_source": "fixture",
+        "question": "No fenced Lean declaration is present.",
+        "lean_code": "   ",
+        "valid": False,
+        "proof_repair": False,
+    }
+
+    stats = extract_sft_classic_rows(
+        backend,  # type: ignore[arg-type]
+        [row],
+        source_revision="0bf9",
+        split="train",
+        row_offset=0,
+        context_id=_CTX,
+        out_dir=tmp_path,
+    )
+
+    assert backend.calls == []
+    assert stats.row_outcomes == {"missing_lean_fence": 1}
+    failure = json.loads((tmp_path / "failures" / "sft_classic.jsonl").read_text().splitlines()[-1])
+    assert "question=unsupported; fallback=unsupported" in failure["detail"]
+    assert "infrastructure_error" not in failure["detail"]
+
+
+def test_sft_empty_route_rejects_noncanonical_context_before_lean(tmp_path: Path) -> None:
+    backend = RejectBlankDatasetRouteBackend()
+    row = {
+        "uuid": "bad-context",
+        "data_source": "fixture",
+        "question": "No fenced Lean declaration is present.",
+        "lean_code": "",
+        "valid": False,
+        "proof_repair": False,
+    }
+
+    with pytest.raises(ValueError, match="canonical form"):
+        extract_sft_classic_rows(
+            backend,  # type: ignore[arg-type]
+            [row],
+            source_revision="0bf9",
+            split="train",
+            row_offset=0,
+            context_id="ctx:not-a-fingerprint",
+            out_dir=tmp_path,
+        )
+    assert backend.calls == []
+
+
 def test_dataset_extraction_counts_non_elaborating_source(tmp_path: Path) -> None:
     backend = FakeBackend(decl_status=LeanStatus.INVALID, reval_status=LeanStatus.VALID_WITH_SORRY)
     rows = [{"uuid": "row-1", "lean_code": "theorem broken : Nonsense := foo"}]
@@ -194,6 +481,78 @@ class ZeroDeclBackend:
             status=LeanStatus.VALID,
             declarations=(),
         )
+
+
+class CrashBackend:
+    """Return one scripted infrastructure crash without invoking Lean."""
+
+    def __init__(self, infrastructure_error: str) -> None:
+        self.infrastructure_error = infrastructure_error
+
+    def run(self, request: LeanRequest) -> LeanResult:
+        return LeanResult(
+            request_id=request.request_id,
+            request_hash="c" * 64,
+            context_id=request.context_id,
+            context_fingerprint="e" * 64,
+            status=LeanStatus.CRASH,
+            infrastructure_error=self.infrastructure_error,
+        )
+
+
+def test_repository_thread_creation_crash_persists_bounded_diagnostic(
+    tmp_path: Path,
+) -> None:
+    checkout = tmp_path / "mathlib"
+    (checkout / "Mathlib").mkdir(parents=True)
+    relative_path = "Mathlib/F.lean"
+    (checkout / relative_path).write_text(_SNIPPET + "\n")
+    raw_error = (
+        "resource_limit_thread_creation: ConnectionAbortedError: "
+        "stderr: failed to create thread\n" + "x" * 4000
+    )
+
+    stats = extract_repository_files(
+        CrashBackend(raw_error),  # type: ignore[arg-type]
+        checkout,
+        [relative_path],
+        source="mathlib",
+        source_revision="d568",
+        context_id=_CTX,
+        out_dir=tmp_path / "out",
+    )
+
+    failure = json.loads((tmp_path / "out" / "failures" / "mathlib.jsonl").read_text().strip())
+    assert stats.row_outcomes == {"worker_crash": 1}
+    assert stats.failure_codes == {"worker_crash": 1}
+    assert failure["code"] == "worker_crash"
+    assert "resource_limit_thread_creation" in failure["detail"]
+    assert "failed to create thread" in failure["detail"]
+    assert len(failure["detail"]) == 2000
+
+
+def test_repository_ordinary_crash_keeps_worker_crash_mapping(tmp_path: Path) -> None:
+    checkout = tmp_path / "mathlib"
+    (checkout / "Mathlib").mkdir(parents=True)
+    relative_path = "Mathlib/F.lean"
+    (checkout / relative_path).write_text(_SNIPPET + "\n")
+
+    stats = extract_repository_files(
+        CrashBackend("ConnectionAbortedError: ordinary child exit"),  # type: ignore[arg-type]
+        checkout,
+        [relative_path],
+        source="mathlib",
+        source_revision="d568",
+        context_id=_CTX,
+        out_dir=tmp_path / "out",
+    )
+
+    failure = json.loads((tmp_path / "out" / "failures" / "mathlib.jsonl").read_text().strip())
+    assert stats.row_outcomes == {"worker_crash": 1}
+    assert failure["code"] == "worker_crash"
+    assert failure["detail"].endswith(
+        "file_infrastructure_error=ConnectionAbortedError: ordinary child exit"
+    )
 
 
 def test_elaborating_no_declarations_counted_distinctly(tmp_path: Path) -> None:

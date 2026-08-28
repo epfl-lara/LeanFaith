@@ -133,6 +133,42 @@ def test_sci_provenance_rejects_same_family_proposer_and_validator() -> None:
         )
 
 
+@pytest.mark.parametrize(
+    "overrides",
+    (
+        {
+            "formalrx_sci_validation_status": "pending",
+        },
+        {
+            "formalrx_sci_requested": "S1.1",
+            "formalrx_sci_validated": "S1.2",
+            "formalrx_sci_validation_status": "validated",
+            "formalrx_sci_proposer_family": "family_a",
+            "formalrx_sci_validator_family": "family_b",
+        },
+        {
+            "formalrx_sci_requested": "S1.1",
+            "formalrx_sci_validated": "S1.1",
+            "formalrx_sci_validation_status": "retagged",
+            "formalrx_sci_proposer_family": "family_a",
+            "formalrx_sci_validator_family": "family_b",
+        },
+        {
+            "formalrx_sci_requested": "S1.1",
+            "formalrx_sci_validated": "S1.2",
+            "formalrx_sci_validation_status": "rejected",
+            "formalrx_sci_proposer_family": "family_a",
+            "formalrx_sci_validator_family": "family_b",
+        },
+    ),
+)
+def test_sci_provenance_rejects_incoherent_state_shapes(
+    overrides: dict[str, object],
+) -> None:
+    with pytest.raises(ValueError, match=r"SCI|sci"):
+        variant_record(**overrides)
+
+
 def test_formalrx_sci_crosswalk_pins_all_28_paper_categories() -> None:
     policy = yaml.safe_load(
         (_ROOT / "policies" / "formalrx_sci_crosswalk_v1.yaml").read_text(encoding="utf-8")
@@ -366,9 +402,9 @@ def test_gate3_audit_rejects_stale_normalization_version() -> None:
         source_by_theorem={theorem.theorem_id: "mathlib"},
     )
 
-    assert report["expected_normalization_version"] == "repr_v2"
+    assert report["expected_normalization_version"] == "repr_v3"
     assert report["normalization_version_errors"] == [
-        f"normalization version mismatch: {theorem.theorem_id}:repr_v1!=repr_v2"
+        f"normalization version mismatch: {theorem.theorem_id}:repr_v1!=repr_v3"
     ]
     assert not report["mechanical_pass"]
 

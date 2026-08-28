@@ -39,6 +39,7 @@ LLM_CALL_PREFIX = "call"
 LLM_ATTEMPT_PREFIX = "call_attempt"
 PROBLEM_PREFIX = "problem"
 ANNOTATION_PREFIX = "ann"
+WEAK_CONSENSUS_PREFIX = "weak_consensus"
 
 
 def id_pattern(prefix: str) -> str:

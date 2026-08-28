@@ -1,0 +1,48 @@
+{
+  "artifact_root": "/storage/milikic/leanfaith/model_diagnostics/experimental_scalar_learning_curve_5348ffb_v1",
+  "artifact_sha256": {
+    "manifest.json": "bc82628147d6360e1e5488fa0a5a64f670a816ad2a513ece686f9b8b2e43f429",
+    "metrics.jsonl": "6985de2cc8cf2243794edc946859895c749b7046bab996cc1ba6f6a9604140f5",
+    "models.jsonl": "40534ba3b7683f691a19a55b6921cd049405200fa94ccfcd77edae00bd4281fd",
+    "predictions.jsonl": "82424cd1769991a47b3df50764266c1cb2c46bac512fe02938a4225990c98b54",
+    "summary.json": "4c8ed9afe1b9c3728bc5f33efaf9f19982d505e2b86386a1f30ad4d6f024ca83",
+    "summary.md": "32bece3dd667ee5f2994824a602e6429a1f3592b4da26c8706da0552a6b4f440"
+  },
+  "dataset_id": "experimental-machine-supervision:a5851226b1c8b132880548fd2c084fed2a9118721009e3d17b4a600245be1033",
+  "dataset_manifest_sha256": "c35079c7c7cc6421844a0c5eb1ee30684ca6faf23d71e1f136b18238477fda1d",
+  "experiment_id": "experimental-scalar-curve:02386e50c4255cdf5d2b8b2984937830b69bc774cc1af2a2620776906017b0de",
+  "full_budget": {
+    "component_count": 1260,
+    "test": {
+      "constant_auprc": 0.4973544973544973,
+      "pseudo_auprc": 0.8064392865311338,
+      "pseudo_balanced_accuracy": 0.8103583426651736,
+      "pseudo_brier": 0.13194697878660375
+    },
+    "train_record_count": 1618,
+    "validation": {
+      "constant_auprc": 0.49740932642487046,
+      "pseudo_auprc": 0.8154197853341054,
+      "pseudo_balanced_accuracy": 0.7989153780068728,
+      "pseudo_brier": 0.13580972056900656
+    }
+  },
+  "metric_count": 36,
+  "model_count": 18,
+  "prediction_count": 6876,
+  "producer_commit": "5348ffb46b5af049655e8e52e1b60590cdeae3d0",
+  "replay": {
+    "exact_replay_passed": true,
+    "standalone_verification_passed": true
+  },
+  "schema_version": 1,
+  "scientific_boundary": {
+    "calibration_eligible": false,
+    "evaluation_eligible": false,
+    "model_selection_eligible": false,
+    "release_claim_eligible": false,
+    "semantic_prediction": false,
+    "target_basis": "deterministic_transformation_intention"
+  },
+  "status": "PASS_EXPERIMENTAL_DIAGNOSTIC"
+}

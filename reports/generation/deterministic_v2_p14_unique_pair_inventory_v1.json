@@ -1,0 +1,59 @@
+{
+  "artifact_kind": "deterministic_v2_p14_unique_pair_inventory_point_in_time",
+  "captured_at_utc": "2026-08-11T18:18:07Z",
+  "code_commit": "61a6b688da8a2fc347d34312cd18f05afdc34e54",
+  "inventory": {
+    "artifact_root": "/storage/milikic/leanfaith/deterministic_v2/composition_second_hops/chain_8c18476_v1/audit/unique_pairs_p14_recovered_61a6b68_v2",
+    "counts": {
+      "duplicate_excess_count": 0,
+      "gross_chain_count": 1888,
+      "source_alpha_return_count": 1333,
+      "unique_alpha_novel_count": 555,
+      "unique_pair_count": 1888
+    },
+    "files": {
+      "manifest": {
+        "sha256": "b1529761ff2b5603b8184a2a6c072b03033db10cef2958da4ce9cb1d1cc1ebfe"
+      },
+      "unique_pairs": {
+        "sha256": "6bbb532af8660199228cb02b7e61a2828fd1603463605240665286aba22ee924"
+      }
+    },
+    "input_chain_manifest_sha256": "d25b08560a616c82221bde18b69662f761390a6641e0d7d3e096bbe7dc7314e6",
+    "input_chain_records_sha256": "e6de0fa715a7ceb6892e22e0753aea756dbe1f67df39775bed82b8a2c4ae3940",
+    "input_seed_manifest_sha256": "dba3314d4f5e19f08c0115fc0dc7bb265712fd5622c123a60eec4223d2ab0d30",
+    "input_seed_records_sha256": "5f424037dc4a12495a417f569f7b32d3cb8fccfddb5ef35aafa4bb8482cd6543",
+    "sequence_counts": {
+      "p14_independent_binder_permutation->p14_independent_binder_permutation": 1622,
+      "p15_root_iff_reversal->p14_independent_binder_permutation": 31,
+      "p16_conjunction_reassociation->p14_independent_binder_permutation": 11,
+      "p17_hypothesis_packing->p14_independent_binder_permutation": 1,
+      "p18_root_equality_symmetry->p14_independent_binder_permutation": 223
+    },
+    "method_version": "deterministic_v2_composition_unique_pairs_v2",
+    "schema_version": 2,
+    "unique_pair_set_id": "detcomp_unique_pair_set:3c7ccbc5803ad09c4ccb456e596e709c2b2dbc3d92665ccc49b5d61ab850f1e2"
+  },
+  "policy": {
+    "audit_only": true,
+    "evaluation_eligible": false,
+    "gate_credit": false,
+    "promoted_item_count": 0,
+    "resolved_label_count": 0,
+    "reversible_cycles_are_novel": false,
+    "semantic_labels_created": false,
+    "training_eligible": false
+  },
+  "replay": {
+    "exact_second_materialization_replayed": true,
+    "status": "passed"
+  },
+  "schema_version": 1,
+  "status": "validated_audit_only_inventory",
+  "validation": {
+    "adversarial_review_status": "accepted",
+    "clean_detached_worktree": true,
+    "descriptor_relative_publication": true,
+    "focused_test_count": 22
+  }
+}

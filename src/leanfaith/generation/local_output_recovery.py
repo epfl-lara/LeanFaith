@@ -14,9 +14,9 @@ The recovery boundary is fail closed:
 * LeanInteract must report exactly one declaration with the expected name;
 * declaration ranges, rather than proof-text heuristics, delimit the source
   signature;
-* the emitted statement is reconstructed from ``#check @name`` elaborator
-  output and is re-elaborated under the registered context without the
-  model-supplied preamble or proof.
+* the emitted statement is reconstructed from the declaration's elaborated
+  ``ConstantInfo.type`` under ``Options.empty`` and is re-elaborated under the
+  registered context without the model-supplied preamble or proof.
 
 The raw response remains caller-owned and immutable.  This module never
 assigns a semantic label or Gate credit.
@@ -25,6 +25,7 @@ assigns a semantic label or Gate credit.
 from __future__ import annotations
 
 import datetime
+import json
 import re
 from dataclasses import dataclass
 from enum import StrEnum
@@ -42,7 +43,8 @@ from leanfaith.generation.prompts import ParsedLeanDeclaration
 from leanfaith.lean.extraction import pos_to_offset
 from leanfaith.lean.leaninteract_backend import LeanInteractBackend
 from leanfaith.lean.protocol import LeanRequest, LeanResult, LeanStatus
-from leanfaith.representations.views import PP_SIGNATURE_INLINE, parse_check_type
+from leanfaith.representations.atoms import parse_lfsignature_payload
+from leanfaith.representations.pipeline import _expr_json_helper, _imports_with_lean
 from leanfaith.schemas.nl_lean import ProblemPoolRecord
 from leanfaith.schemas.theorem import ContextRecord
 
@@ -480,10 +482,11 @@ def extract_expected_declaration_with_lean(
     normalized_probe_source = "\n".join(
         part
         for part in (
-            header,
+            _imports_with_lean(header),
             preamble.rstrip(),
             proof_free_declaration,
-            f"{PP_SIGNATURE_INLINE} #check @{expected_declaration_name}",
+            _expr_json_helper(),
+            f"lfDumpSignaturePP {json.dumps(expected_declaration_name, ensure_ascii=False)}",
         )
         if part
     )
@@ -505,21 +508,19 @@ def extract_expected_declaration_with_lean(
         ),
         error_code=RecoveryErrorCode.ELABORATED_TYPE,
     )
-    elaborated_types = [
-        parsed
-        for message in probe_result.messages
-        if (
-            parsed := parse_check_type(
-                str(message.get("data", "")),
-                expected_declaration_name,
-            )
+    elaborated_types: list[str] = []
+    for message in probe_result.messages:
+        parsed_name, parsed = parse_lfsignature_payload(
+            str(message.get("data", "")),
+            prefix="LFSIGPPJSON ",
+            field="signature_pp",
         )
-        is not None
-    ]
+        if parsed_name == expected_declaration_name and parsed is not None:
+            elaborated_types.append(parsed)
     if len(elaborated_types) != 1:
         raise RecoveryError(
             RecoveryErrorCode.ELABORATED_TYPE,
-            f"expected one #check type, observed {len(elaborated_types)}",
+            f"expected one option-isolated signature type, observed {len(elaborated_types)}",
         )
     elaborated_type = elaborated_types[0]
     normalized_statement = f"{kind} {expected_declaration_name} : {elaborated_type}"

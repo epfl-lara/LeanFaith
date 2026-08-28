@@ -19,7 +19,8 @@ from leanfaith.cli.pipeline import (
     run_freeze_gate3_inputs,
 )
 from leanfaith.config.hashing import hash_file
-from leanfaith.schemas import ViewStatus, make_id
+from leanfaith.representations import NORMALIZATION_VERSION, audit_representations
+from leanfaith.schemas import RepresentationRecord, ViewStatus, make_id
 from tests.unit.record_factories import representation_record, theorem_record
 
 
@@ -201,6 +202,26 @@ def test_cross_path_rejects_stale_named_normalization_version() -> None:
     assert _cross_path_exclusion_reason(theorem, named) == "named_normalization_version_mismatch"
 
 
+def test_repr_v2_record_remains_readable_but_is_stale_for_repr_v3_audit() -> None:
+    legacy_payload = representation_record(
+        normalization_version="repr_v2",
+    ).model_dump(mode="json")
+
+    legacy = RepresentationRecord.model_validate(legacy_payload)
+    assert legacy.normalization_version == "repr_v2"
+    assert NORMALIZATION_VERSION == "repr_v3"
+
+    report = audit_representations(
+        (legacy,),
+        source_by_theorem={legacy.theorem_id: "mathlib"},
+    )
+    assert report["expected_normalization_version"] == "repr_v3"
+    assert report["normalization_version_errors"] == [
+        f"normalization version mismatch: {legacy.theorem_id}:repr_v2!=repr_v3"
+    ]
+    assert not report["mechanical_pass"]
+
+
 def test_cross_path_selection_is_public_deterministic_and_fully_accounted() -> None:
     def theorem(index: int, full_name: str):
         theorem_id = make_id("thm", {"cross_path": index})
@@ -222,6 +243,7 @@ def test_cross_path_selection_is_public_deterministic_and_fully_accounted() -> N
         return representation_record(
             representation_id=make_id("repr", {"cross_path": theorem_id}),
             theorem_id=theorem_id,
+            normalization_version=NORMALIZATION_VERSION,
             signature_explicit="True" if explicit else None,
             alpha_identity_fingerprint="a" * 64 if alpha else None,
             view_status=statuses,

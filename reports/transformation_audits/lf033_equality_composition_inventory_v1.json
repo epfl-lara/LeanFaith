@@ -1,0 +1,130 @@
+{
+  "artifact_class": "exploratory_deterministic_v2_inventory",
+  "audit_date": "2026-08-11",
+  "code_commit_for_equality_runs": "0e8d84c409098aa94eb8666a5d82259eeda2cb6a",
+  "combined_inventory": {
+    "combination_hash": "745a487927f822620d2b632ba861dce2711be493702ddff4bdb54fc309e7ae9a",
+    "duplicate_excess_count": 0,
+    "gross_observation_count": 11208,
+    "gross_observations_sha256": "ef4b075011b90fdceab499b2b9bf6c7721697c7eda1baebc420fc71928346bc8",
+    "manifest_sha256": "66245742a30e9fcbf6fdd1c74a3379d130d7269242af76ec56b4d5fa16ed9cae",
+    "output_receipt_sha256": "201537db85e2072230a4095812b753ee4917f0ffbe3a463aaa0b4230d033d9b3",
+    "root_count": 30,
+    "source_counts": {
+      "mathlib": 3738,
+      "sft_classic": 7470
+    },
+    "unique_pair_count": 11208,
+    "unique_pairs_sha256": "974c61308072154714a57afbcb511233d65ad5d93c12cc1aca1fd7eff9a5675e"
+  },
+  "equality_scale": {
+    "gross_provisional_count": 3293,
+    "private_n18": {
+      "attempt_count": 5000,
+      "audit_quarantined_count": 0,
+      "candidate_invalid_count": 0,
+      "manifest_sha256": "2986ac9a50d160c08824ab2e8825bc78a81dd96baa23709d9359ad2ddfb753a2",
+      "not_applicable_count": 4040,
+      "provisional_count": 960,
+      "results_sha256": "8424dc23f97a117390f1057c9b77fe08478ca356d574e36ce32e8143200b37e5"
+    },
+    "private_p18": {
+      "attempt_count": 5000,
+      "audit_quarantined_count": 1,
+      "candidate_invalid_count": 1,
+      "candidate_representation_failed_count": 0,
+      "manifest_sha256": "fd2a101ec5f396d1ab76812e8c3596fc660decfee4de7a5da9f49d4232595538",
+      "not_applicable_count": 4067,
+      "provisional_count": 931,
+      "results_sha256": "344f37530e1e76c22e0082c602879dcf946a8dac2406e4d7694b84e634dba4d8"
+    },
+    "public_n18": {
+      "attempt_count": 27786,
+      "audit_quarantined_count": 8,
+      "candidate_invalid_count": 68,
+      "manifest_sha256": "20f3d3fb13acb9eb301fa2611c432c81995ea47dfd255c1bafe1fbdb755eebae",
+      "not_applicable_count": 26999,
+      "provisional_count": 711,
+      "results_sha256": "6038e8acf1d55534f15d7f68d2cc473685545bcf51662226edf414d4be9c7556"
+    },
+    "public_p18": {
+      "attempt_count": 27786,
+      "audit_quarantined_count": 51,
+      "candidate_invalid_count": 37,
+      "candidate_representation_failed_count": 4,
+      "manifest_sha256": "e395824b398836b6a41b9d8bad93429b4871cde499e3fe13f5d40a24d75387da",
+      "not_applicable_count": 27003,
+      "provisional_count": 691,
+      "results_sha256": "33227f0c13b42f8d598558fd7dd4233001334c24e22dca53eb1d65049ff34c06"
+    }
+  },
+  "expanded_sft_representation_source": {
+    "eligible_count": 18668,
+    "excluded_count": 1,
+    "excluded_theorem_id_count": 1,
+    "manifest_id": "sft_transform_eligible:8ba69d7e1b493ab4505804d9783c6bfa19ca8fdd74df631bc7d8353162d49db4",
+    "manifest_sha256": "7bdb89f6dccea57949dfd95da55cf8ee21b83f5c67ba3ab52a848ae853315373",
+    "representation_partition_sha256": "de8622f85f9f43f9a8c30066e060d3b88f9a430b1a6b09f35986a17d88c1b46d",
+    "required_view_failure_count": 4,
+    "source_count": 18669,
+    "source_failure_partition_sha256": "a356afcbd6c5f31651363c7590d39e8bd1a344301902a22f7bd9901147f1ff4d",
+    "theorem_partition_sha256": "a2e4f0cfff2ed20dcc0f886c472727495f56c46f7dc9d75a1b2b69d89899005b"
+  },
+  "family_counts_in_combined_inventory": {
+    "n11_bound_variable_substitution": 1941,
+    "n12_implication_converse": 2897,
+    "n13_witness_dependency": 3,
+    "n14_negation_scope": 16,
+    "n15_conjunct_omission": 248,
+    "n16_domain_guard_removal": 10,
+    "n17_role_sensitive_arguments": 6,
+    "n18_root_equality_polarity": 1671,
+    "p05_resolved_names": 1,
+    "p08_type_ascriptions": 7,
+    "p09_projections": 2,
+    "p11_bounded_quantifiers": 284,
+    "p12_proof_arrow_binder": 181,
+    "p14_independent_binder_permutation": 2013,
+    "p15_root_iff_reversal": 267,
+    "p16_conjunction_reassociation": 38,
+    "p17_hypothesis_packing": 1,
+    "p18_root_equality_symmetry": 1622
+  },
+  "policy": {
+    "audit_only": true,
+    "evaluation_eligible": false,
+    "gate_credit": false,
+    "private_source_content_committed": false,
+    "promoted_item_count": 0,
+    "provisional_intentions_only": true,
+    "resolved_label_count": 0,
+    "semantic_labels_created": false,
+    "training_eligible": false
+  },
+  "positive_composition_seed_set": {
+    "admitted_e2_observation_count": 3941,
+    "exact_duplicate_excess_count": 0,
+    "manifest_sha256": "dba3314d4f5e19f08c0115fc0dc7bb265712fd5622c123a60eec4223d2ab0d30",
+    "negative_source_admitted": false,
+    "output_receipt_sha256": "f61e4c8b37c6922ceae72e297fbc4f8494d55bbf52fff1229e27497a1aae30c1",
+    "seed_count": 3941,
+    "seed_set_id": "detcomp_seed_set:f90ff4800e3c992967f3f5213053a6057fbc31591178d180127ef9cb8a74d926"
+  },
+  "public_p12_clean_replay": {
+    "code_commit": "0e8d84c409098aa94eb8666a5d82259eeda2cb6a",
+    "infrastructure_result_count": 0,
+    "manifest_sha256": "705ad1786f7854c4dbb44227320efaf7c92e58c109577b814edb39daf824cddd",
+    "output_receipt_sha256": "ea2b9ba3b4dea270970c15581540738490c6f339625e2077c893d62059e650cc",
+    "provisional_count": 99,
+    "result_count": 27786,
+    "results_sha256": "08e1bd555332148653278d80e20bc5e4815045d644e5ecbdd66d5a01618676c9",
+    "terminal_status_counts": {
+      "audit_quarantined": 103,
+      "candidate_invalid": 76,
+      "not_applicable": 27508,
+      "provisional_variant": 99
+    }
+  },
+  "schema_version": 1,
+  "status": "composition_seed_set_complete"
+}

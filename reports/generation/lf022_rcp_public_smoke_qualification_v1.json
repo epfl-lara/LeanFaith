@@ -1,0 +1,100 @@
+{
+  "artifact_class": "smoke_qualification_report",
+  "created_at": "2026-07-28T12:16:22Z",
+  "gate_6_closed": false,
+  "gate_6g_closed": false,
+  "live_qualification_status": "one_public_item_replay_verified",
+  "schema_version": 1,
+  "scientific_outputs": {
+    "evaluation_eligible_records": 0,
+    "gate_credit_records": 0,
+    "semantic_labels": 0,
+    "silver_promotions": 0,
+    "supervision_eligible_records": 0,
+    "training_eligible_records": 0
+  },
+  "secret_hygiene": {
+    "credential_marker_hits": 0,
+    "git_checkout_mode_note": "Git preserves only the executable bit; tracked public replay files may check out with mode 0644.",
+    "generation_time_file_mode": "0600",
+    "persisted_api_keys": 0,
+    "public_source_only": true,
+    "tracked_lineage_contains_private_source_content": false
+  },
+  "source": {
+    "license": "Apache-2.0",
+    "problem_record_id": "problem:3f8bc3e9dc8bf7e7850557b75544d8d8ef892afcf0f8776012ebc5fa7af7a05b",
+    "source": "mathlib_post_formalrx_docstrings_v1",
+    "theorem_id": "thm:eaf451e39ccaf0723e4cd5721e78a8d6a988eac904abe8aa6d752a8a3a462cbe"
+  },
+  "terminal_attempts": [
+    {
+      "chat_completion_attempts": 1,
+      "completed_call_count": 0,
+      "config_file": "configs/generation/lf022_rcp_public_smoke_v1.yaml",
+      "config_file_sha256": "9b2be3e8ed683228d7ba7708a78df5edbf1065cf2d1497a1958e2de60cb86201",
+      "config_hash": "eb2a84e7ac8c7474c0698cab5705bd5e227ace97c2f6f87fc274a025f52bf843",
+      "diagnosis": "Kimi used all 4096 completion tokens in reasoning_content, returned finish_reason=length, and emitted no final message.content.",
+      "failure_manifest": "data/raw/llm_variants/lf022_rcp_public_smoke_v1/ba820b59f24090eaa93c8d205e732e7a5c78f9413ae78c325be5e8273a82734a/failure_manifest.json",
+      "failure_manifest_sha256": "f2f1b287dc0c5c0358c72e11880bf68c4d1c874c15fd633b543f033beaef174c",
+      "preflight_id": "lf022_rcp_preflight:9286e69c6ef769d1071a9cf0da46aa9280ee4834b949a17e4a852417514db1d6",
+      "replay_method": "typed_failure_lineage_v1",
+      "replay_verified": true,
+      "retry_permitted": false,
+      "status": "terminal_failure"
+    },
+    {
+      "chat_completion_attempts": 2,
+      "completed_call_count": 1,
+      "config_file": "configs/generation/lf022_rcp_public_smoke_v2.yaml",
+      "config_file_sha256": "551c4f56b8d89dc02be87238f917ef748ae8028dd4de5e382dba28c66cda02d5",
+      "config_hash": "f6a5c0b5c0ef42c7f926929cb1e4311bd6cbb2412516b695d65c728bc6ea123c",
+      "diagnosis": "Kimi generated and Lean validation passed; DeepSeek returned final content containing a non-JSON token inside the confidence number, so strict parsing rejected it.",
+      "failure_manifest": "data/raw/llm_variants/lf022_rcp_public_smoke_v2/f1ce60d318fa59c61da08302cfc33c03b3629e17e57854b810e385d426b35ce6/failure_manifest.json",
+      "failure_manifest_sha256": "8488a9c0fd585dfe16ad761cc516995be97abfd651bb2e63849071e351d2b4b5",
+      "preflight_id": "lf022_rcp_preflight:168cd2c6499217c11c8d87667d24022922c4d6e513b38a988355e0681c58c16c",
+      "replay_method": "typed_failure_lineage_v1",
+      "replay_verified": true,
+      "retry_permitted": false,
+      "status": "terminal_failure"
+    }
+  ],
+  "timestamp_note": {
+    "assessment": "The v3 frozen_at label was entered as 12:20Z, after the 12:10Z-12:12Z provider timestamps. The executable nonetheless cryptographically bound the exact v3 config through its preflight before transport. This smoke receives no gate or scientific credit; the discrepancy is preserved rather than rewritten.",
+    "v3_frozen_at_label": "2026-07-28T12:20:00Z"
+  },
+  "verified_success": {
+    "call_count": 5,
+    "candidate_validation_status": "elaborates_with_placeholder",
+    "config_file": "configs/generation/lf022_rcp_public_smoke_v3.yaml",
+    "config_file_sha256": "25113c8a43be33e91a3d20d6a73956ae680e7f0989d68503aa97d659f04312ca",
+    "config_hash": "0e1bc8d0657ab169acb6741992c5e46f0521522e6fcb1fb1f483b18643ebd7ab",
+    "judge_calls": [
+      {
+        "model": "Qwen/Qwen3.5-397B-A17B",
+        "orientations": [
+          "AB",
+          "BA"
+        ]
+      },
+      {
+        "model": "zai-org/GLM-5.2",
+        "orientations": [
+          "AB",
+          "BA"
+        ]
+      }
+    ],
+    "manifest": "data/raw/llm_variants/lf022_rcp_public_smoke_v3/61e201acc254d89cb5e9686bd56a7f4e03c0ea2f8169ae39e22cc31be48a0589/manifest.json",
+    "manifest_id": "lf022_rcp_smoke_manifest:8baafa89d535b08852421cbc3702b48c34992c6c27f91998aa180d6b45fea523",
+    "manifest_sha256": "43118d957c95bed1ed45bce5f80c3b3e2ac95e870f88cfc8caf5a6d98b644d0c",
+    "preflight_id": "lf022_rcp_preflight:fa365bc4038bf802f066f67bfa74460b5e98232e5da81235e401b39ca2a0cfa3",
+    "primary_evaluation_judge_calls": 0,
+    "proposer": "moonshotai/Kimi-K2.7-Code",
+    "proposer_calls": 1,
+    "replay_method": "typed_success_lineage_v1",
+    "replay_verified": true,
+    "status": "success",
+    "weak_consensus_status": "candidate_consensus"
+  }
+}

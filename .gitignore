@@ -236,12 +236,39 @@ __marimo__/
 !/data/raw/real_outputs/public_research_v1/
 /data/raw/real_outputs/public_research_v1/*
 !/data/raw/real_outputs/public_research_v1/mathlib_post_formalrx_docstrings_v1.json
+# except the tiny, public, smoke-quarantined LF-022 qualification lineages;
+# these are required for offline replay of the two terminal failures and the
+# successful five-call admission. Production LF-022 collections remain ignored.
+!/data/raw/llm_variants/
+/data/raw/llm_variants/*
+!/data/raw/llm_variants/lf022_rcp_public_smoke_v1/
+!/data/raw/llm_variants/lf022_rcp_public_smoke_v1/**
+!/data/raw/llm_variants/lf022_rcp_public_smoke_v2/
+!/data/raw/llm_variants/lf022_rcp_public_smoke_v2/**
+!/data/raw/llm_variants/lf022_rcp_public_smoke_v3/
+!/data/raw/llm_variants/lf022_rcp_public_smoke_v3/**
+# and the three tiny, public, hash-bound source records required to load and
+# replay those exact LF-022 smoke admissions from a clean checkout
+!/data/parsed/
+/data/parsed/*
+!/data/parsed/real_outputs/
+/data/parsed/real_outputs/*
+!/data/parsed/real_outputs/public_research_v1/
+/data/parsed/real_outputs/public_research_v1/*
+!/data/parsed/real_outputs/public_research_v1/one_example_preflight_v1/
+/data/parsed/real_outputs/public_research_v1/one_example_preflight_v1/*
+!/data/parsed/real_outputs/public_research_v1/one_example_preflight_v1/problem_pool_records.jsonl
+!/data/parsed/real_outputs/public_research_v1/one_example_preflight_v1/reference_theorems.jsonl
+!/data/parsed/real_outputs/public_research_v1/one_example_preflight_v1/reference_representations.jsonl
 artifacts/
 runs/
 # Human annotation exports, assignments, raw responses, and blinding keys are
 # operational artifacts. Keep only guidelines/templates/configs in git.
 /annotation/exports/
 /annotation/assignments/
+/annotation/attestations/
+/annotation/keys/
+/annotation/responses/
 /data/human/
 # Immutable LF-019 per-run reports are retained on disk but excluded from the
 # code-state denominator so Run A cannot make the independent Run B dirty.

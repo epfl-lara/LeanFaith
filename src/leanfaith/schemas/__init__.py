@@ -59,6 +59,7 @@ from leanfaith.schemas.ids import (
     REPRESENTATION_PREFIX,
     THEOREM_PREFIX,
     VARIANT_PREFIX,
+    WEAK_CONSENSUS_PREFIX,
     InvalidIdError,
     id_pattern,
     id_prefix,
@@ -92,6 +93,12 @@ from leanfaith.schemas.manifest import (
     run_manifest_path,
     write_manifest,
 )
+from leanfaith.schemas.model_silver import (
+    ModelAdjudicatedSilverCellV1,
+    ModelAdjudicatedSilverPromotionManifestV1,
+    ModelAdjudicatedSilverPromotionRecordV1,
+    ModelAdjudicatedSilverRejectionV1,
+)
 from leanfaith.schemas.nl_lean import (
     NLPLeanRecord,
     ProblemPoolRecord,
@@ -102,9 +109,12 @@ from leanfaith.schemas.nl_lean import (
 from leanfaith.schemas.pair import PairRecord, check_pair_groups
 from leanfaith.schemas.prediction import PredictionRecord
 from leanfaith.schemas.source import (
+    GIT_DECLARATION_IDENTITY_VERSION,
     HFSourceRecordIdentity,
     SourceManifest,
+    make_git_declaration_source_locator_id,
     make_hf_source_record_id,
+    make_source_ancestry_id,
 )
 from leanfaith.schemas.theorem import (
     CANONICAL_VIEW_NAMES,
@@ -124,6 +134,11 @@ from leanfaith.schemas.variant import (
     VariantRecord,
     check_deterministic_variant_lineage,
 )
+from leanfaith.schemas.weak_supervision import (
+    WeakConsensusCandidateRecord,
+    WeakConsensusStatus,
+    make_weak_consensus_id,
+)
 
 __all__ = [
     "ANCESTRY_PREFIX",
@@ -134,6 +149,7 @@ __all__ = [
     "DRAFT_PREFIX",
     "ECODE_PATTERN",
     "EVIDENCE_PREFIX",
+    "GIT_DECLARATION_IDENTITY_VERSION",
     "HEX64_PATTERN",
     "LABEL_PREFIX",
     "LLM_ATTEMPT_PREFIX",
@@ -145,6 +161,7 @@ __all__ = [
     "REQUIRED_V0_VIEWS",
     "THEOREM_PREFIX",
     "VARIANT_PREFIX",
+    "WEAK_CONSENSUS_PREFIX",
     "AccessStatus",
     "AnnotationAnswer",
     "AnnotationRecord",
@@ -177,6 +194,10 @@ __all__ = [
     "LLMRole",
     "ManifestError",
     "MigrationMap",
+    "ModelAdjudicatedSilverCellV1",
+    "ModelAdjudicatedSilverPromotionManifestV1",
+    "ModelAdjudicatedSilverPromotionRecordV1",
+    "ModelAdjudicatedSilverRejectionV1",
     "NLPLeanRecord",
     "NLTrust",
     "OutputManifest",
@@ -207,6 +228,8 @@ __all__ = [
     "VariantDraft",
     "VariantRecord",
     "ViewStatus",
+    "WeakConsensusCandidateRecord",
+    "WeakConsensusStatus",
     "check_deterministic_variant_lineage",
     "check_label_target_link",
     "check_llm_call_attempt_lineage",
@@ -216,11 +239,14 @@ __all__ = [
     "id_pattern",
     "id_prefix",
     "is_valid_id",
+    "make_git_declaration_source_locator_id",
     "make_hf_source_record_id",
     "make_id",
     "make_llm_attempt_id",
     "make_llm_call_id",
     "make_problem_record_id",
+    "make_source_ancestry_id",
+    "make_weak_consensus_id",
     "manifest_hash",
     "new_run_id",
     "parse_id",

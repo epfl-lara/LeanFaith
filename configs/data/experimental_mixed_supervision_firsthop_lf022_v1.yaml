@@ -1,0 +1,11 @@
+schema_version: 1
+profile_id: experimental_mixed_supervision_firsthop_lf022_v1
+selection_seed: leanfaith-experimental-mixed-firsthop-lf022-v1
+model_input_profile: headless_only_v1
+retain_all_clean_pairs: true
+first_hop_partition: included
+lf022_codex_partition: included
+composition_partition: omitted_pending_receipt
+train_percent: 80
+validation_percent: 10
+test_percent: 10

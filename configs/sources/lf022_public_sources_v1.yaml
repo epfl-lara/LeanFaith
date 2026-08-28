@@ -1,0 +1,20 @@
+schema_version: 1
+approved_sources:
+  - schema_version: 1
+    source: mathlib
+    source_revision: d568c8c09630de097a046763c17b9ea99f95f950
+    license_id: Apache-2.0
+    license_evidence_uri: https://github.com/leanprover-community/mathlib4/blob/d568c8c09630de097a046763c17b9ea99f95f950/LICENSE
+    approval_status: approved_public_research_compatible
+    source_is_public: true
+    redistribution_allowed: true
+    external_transmission_allowed: true
+    context_project_kind: git
+    context_project_uri: https://github.com/leanprover-community/mathlib4
+    context_project_registry_key: mathlib
+
+# This file only authorizes the reviewed public source.  It does not authorize
+# provider execution and contains no semantic labels.
+public_sources_only: true
+network_execution_authorized: false
+semantic_labels_included: false

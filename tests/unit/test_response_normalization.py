@@ -148,3 +148,40 @@ def test_normalize_exception_preserves_digest() -> None:
     assert result.status == LeanStatus.TIMEOUT
     assert result.infrastructure_error is not None
     assert result.infrastructure_error.startswith("TimeoutError:")
+
+
+def test_thread_creation_stderr_is_resource_crash() -> None:
+    error = RuntimeError(
+        "The Lean server closed unexpectedly.\n"
+        "stderr:\n"
+        "libc++abi: terminating due to uncaught exception of type lean::exception: "
+        "failed to create thread"
+    )
+    result = normalize_exception(
+        _request(),
+        error,
+        request_hash="h" * 64,
+        context_fingerprint="0" * 64,
+        elapsed_ms=7,
+        raw_response_path="raw/thread-crash.json",
+    )
+
+    assert result.status == LeanStatus.CRASH
+    assert result.infrastructure_error is not None
+    assert result.infrastructure_error.startswith("resource_limit_thread_creation:")
+    assert "failed to create thread" in result.infrastructure_error
+    assert result.raw_response_path == "raw/thread-crash.json"
+
+
+def test_ordinary_runtime_error_remains_internal_error() -> None:
+    result = normalize_exception(
+        _request(),
+        RuntimeError("ordinary adapter failure"),
+        request_hash="h" * 64,
+        context_fingerprint="0" * 64,
+        elapsed_ms=7,
+        raw_response_path=None,
+    )
+
+    assert result.status == LeanStatus.INTERNAL_ERROR
+    assert result.infrastructure_error == "RuntimeError: ordinary adapter failure"

@@ -1,0 +1,52 @@
+schema_version: 1
+artifact_class: proposer_qualification_contract
+contract_id: qwen3_5_proposer_qualification_v1
+role: proposer
+qualification_status: pending_one_item_live_qualification
+model_id: Qwen/Qwen3.5-397B-A17B
+family_id: qwen3
+canonical_family: qwen/qwen3
+provider: epfl_rcp
+transport: rcp_openai_compatible
+execution_scope: one_item_proposer_qualification_only
+proposal_count: 1
+decoding:
+  temperature: 0.6
+  top_p: 0.95
+  top_k: 20
+  min_p: 0.0
+  presence_penalty: 0.0
+  repetition_penalty: 1.0
+  max_tokens: 4096
+  seed: 42
+  stream: false
+  thinking_mode: enabled
+  reasoning_effort: high
+  chat_template_enable_thinking: true
+  chat_template_thinking: null
+  thinking_fields_forbidden: false
+portfolio_source:
+  artifact: configs/generation/rcp_provider_portfolio_v2.yaml
+  sha256: 729bb9c56e4787906bcdf4ffec2e70365523e1e6fe0de59c6d3e6ddc0aedfbe3
+  decoding_contract_id: qwen3_5_thinking_code_v2
+prior_transport_evidence:
+  artifact: reports/generation/lf022_rcp_public_smoke_qualification_v1.json
+  sha256: 8d952a9bb6e61b056858946404ef19714b7f90ce5e7541d11396e429ffcdfbbb
+  observed_role: judge
+  proposer_evidence: false
+wire_capability_policy:
+  status: exact_fields_accepted_by_bound_prior_rcp_call
+  reasoning_effort_values:
+    - high
+  chat_template_enable_thinking_values:
+    - true
+  unsupported_reasoning_fields: reject
+  evidence:
+    artifact: reports/generation/lf022_rcp_public_smoke_qualification_v1.json
+    sha256: 8d952a9bb6e61b056858946404ef19714b7f90ce5e7541d11396e429ffcdfbbb
+    observed_role: judge
+    proposer_evidence: false
+  accepted_call_label: judge_A_AB
+  accepted_wire_request:
+    artifact: data/raw/llm_variants/lf022_rcp_public_smoke_v3/61e201acc254d89cb5e9686bd56a7f4e03c0ea2f8169ae39e22cc31be48a0589/calls/judge_A_AB/wire_request.json
+    sha256: f23519f6fb29f4657b14a8641107bd642a644f3adb49f2d25e89468794a9eda9

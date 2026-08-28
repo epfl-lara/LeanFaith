@@ -1,0 +1,38 @@
+schema_version: 1
+profile_id: deterministic_v2_e2_p17_experimental
+profile_version: 1.0.0
+status: experimental
+portfolio_id: leanfaith_deterministic_v2_design
+portfolio_config_hash: f48e2dfd4555e71dfd07518330f33d222894fa935fb81b6c9e7678a8a1a66594
+accepted_v1_effective_registry_hash: 8a5316dacba064d9b3b13e12dfd46cd707445ecc520101a9374463f336f6466f
+candidate_pool: deterministic_v2_e2_p17_experimental
+active_rules:
+  - family_id: p17_hypothesis_packing
+    rule_id: p17_hypothesis_packing
+    rule_version: 1.0.0
+    implementation_key: p17_hypothesis_packing
+    evidence_class: E2
+required_candidate_views:
+  - alpha_identity_fingerprint
+  - operator_tree
+  - semantic_atoms
+  - signature_explicit
+require_same_context_reelaboration: true
+require_exact_inverse_replay: true
+require_exact_hypothesis_packing_certificate: true
+supported_operations:
+  - pack_two
+  - unpack_pair
+require_final_header_site: true
+require_nondependent_propositional_hypotheses: true
+require_direct_distinct_prior_prop_variables: true
+require_singleton_default_hypothesis_binders: true
+require_preserved_hypothesis_order: true
+require_exact_surface_expr_alignment: true
+require_p12_span_disjointness: true
+fresh_name_policy: fixed_names_fail_on_collision_v1
+failed_proof_search_is_negative_evidence: false
+resolved_label_count: 0
+promoted_item_count: 0
+training_eligible: false
+output_quality_tier: provisional

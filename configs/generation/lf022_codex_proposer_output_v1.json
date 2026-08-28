@@ -1,0 +1,79 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "variants": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "assumptions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "candidate_lean": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "confidence": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "type": "number"
+          },
+          "edit_summary": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "intended_error_types": {
+            "items": {
+              "pattern": "^E(?:0[1-9]|[12][0-9]|30)$",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "intended_relation": {
+            "description": "Proposal-intention provenance only. near_miss later maps to semantic incomparable plus near_miss slice metadata; unknown remains unresolved and never becomes a terminal semantic relation or label.",
+            "enum": [
+              "equivalent",
+              "A_stronger",
+              "B_stronger",
+              "near_miss",
+              "unrelated",
+              "unknown"
+            ],
+            "type": "string"
+          },
+          "potential_ambiguity": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "candidate_lean",
+          "intended_relation",
+          "intended_error_types",
+          "edit_summary",
+          "confidence",
+          "assumptions",
+          "potential_ambiguity"
+        ],
+        "type": "object"
+      },
+      "maxItems": 1,
+      "minItems": 1,
+      "type": "array"
+    }
+  },
+  "required": [
+    "variants"
+  ],
+  "title": "LeanFaith LF-022 Codex proposer output v1",
+  "type": "object"
+}

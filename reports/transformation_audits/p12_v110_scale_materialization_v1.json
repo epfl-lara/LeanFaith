@@ -1,0 +1,83 @@
+{
+  "artifact_class": "exploratory_deterministic_materialization",
+  "audit_date": "2026-08-11",
+  "code_commit": "5f0a12f27d14b453e1144a8666e4b717a50e22fe",
+  "execution_profile": {
+    "effective_hash": "4389b297ce3cb84a77b1d44de4938cffc84015b9453b69df902c27f51e85ace0",
+    "file_sha256": "d5faef8f349af50970d5c7276d6be9fbe3dce717980009c7b87bcf2768e241f4",
+    "profile_id": "deterministic_v2_e0_p12_v110_experimental",
+    "rule_id": "p12_proof_arrow_binder",
+    "rule_version": "1.1.0",
+    "version_addendum_sha256": "08fcb0fde487aed973ecb34b4a89c252f064b43074e4d6fe621b795386f4948c"
+  },
+  "launchers": {
+    "private_workers_4_sha256": "550412cca11987bf03be2665df05d80eda22b8dadb7cbcc116aaebf578c40663",
+    "public_workers_1_resume_sha256": "c41a78b72fdb2a79d6994e888ecaf35d591f6254b7a0db03eac9d71dc5156a6b",
+    "public_workers_2_resume_sha256": "7f670c08ba7e956ecd7bb6de206935c2a8ab6ebd23e41121575683b02225bb3b",
+    "public_workers_4_sha256": "f7f196b474dd8a87822993b57b267db204e947caa0bff3964edf7841bffb8055",
+    "replay_verifier_sha256": "67a62cfd1432165bbd6690219f6353c53355ff7b218464c33be7dc852d5f059b"
+  },
+  "policy": {
+    "evaluation_eligible": false,
+    "gate_credit": false,
+    "promoted_item_count": 0,
+    "resolved_label_count": 0,
+    "semantic_labels_created": false,
+    "training_eligible": false
+  },
+  "private": {
+    "attempt_count": 5000,
+    "candidate_invalid_count": 2,
+    "distinct_text_pair_count": 82,
+    "failure_code_counts": {
+      "alpha_canonical_bytes_mismatch+alpha_identity_fingerprint_mismatch+semantic_atoms_mismatch": 5,
+      "lean_invalid": 2
+    },
+    "infrastructure_failure_count": 0,
+    "journal_tree_hash": "2e22647e0ab12c209b0b09f93169359ef12fd43580abda2221b0287c2780290f",
+    "manifest_file_sha256": "d77de74d6565ac5658c436cb88ee03795efc36584947bb791f1880eff9c025de",
+    "not_applicable_count": 4911,
+    "opportunity_count": 89,
+    "provisional_pair_count": 82,
+    "quarantined_count": 5,
+    "results_sha256": "ffe6eaa82b1425690a06f18ffe27e32097c0678c796e406f09fa43d72b17f0b1",
+    "run_spec_sha256": "c3166bdfc1972933548b3d1231b4fca9ff6f284a5007b67ebbc18e3c7dae0673",
+    "source": "sft_classic_internal_frozen_gate3_subset",
+    "source_content_committed": false,
+    "source_representation_partition_sha256": "c63bf8e2706d4fc3fff430bee920cb0c575b2947023a4141a4d0384f747cad24",
+    "source_theorem_partition_sha256": "3241ea0ff7f7e80a27ea6deafe680043c8ac8e782db049dcc551c50441115c30"
+  },
+  "public": {
+    "attempt_count": 27786,
+    "candidate_invalid_count": 78,
+    "distinct_text_pair_count": 97,
+    "failure_code_counts": {
+      "alpha_canonical_bytes_mismatch+alpha_identity_fingerprint_mismatch+candidate_operator_tree_missing+candidate_semantic_atoms_missing+candidate_signature_explicit_missing+semantic_atoms_mismatch": 4,
+      "alpha_canonical_bytes_mismatch+alpha_identity_fingerprint_mismatch+semantic_atoms_mismatch": 97,
+      "lean_crash": 2,
+      "lean_invalid": 76
+    },
+    "infrastructure_failure_count": 2,
+    "journal_tree_hash": "93b279bae99a2a2b56b6ce8764b0aecd1c6e09e2c4f394bfa43d8b8399995897",
+    "manifest_file_sha256": "e87b41d85c7b110ed5b4921826d46cffd364bf026dd135ab6509d4ea612ea6e5",
+    "not_applicable_count": 27508,
+    "opportunity_count": 278,
+    "provisional_pair_count": 99,
+    "quarantined_count": 101,
+    "results_sha256": "5b8fb82ad80361251cd79b464d4a8819a3de5fd9ca6b84ca208a56e681f2b4af",
+    "run_spec_sha256": "c1d33449528e5241d237ae73b2a0487c52580e2d0e50d611fa0b947b99c2b48b",
+    "source": "mathlib_public_frozen_lf022_subset",
+    "source_representation_partition_sha256": "c799f54c60d3eb3f45a0fa473231ba991e871b7de440c65b037436721037e505",
+    "source_theorem_partition_sha256": "7f1a157bfb818b49d082dcc58de221bdddb67f6e8309554395baeb29850838d7"
+  },
+  "replay_verification": {
+    "exit_code": 0,
+    "fail_closed_shell": true,
+    "log_sha256": "e09f76e577aaa02a35732122d27bc850fe8abee9e80ee79de2404720f0bd315d",
+    "manifest_results_and_run_spec_byte_identical": true
+  },
+  "schema_version": 1,
+  "status": "completed_replay_verified",
+  "total_distinct_text_pair_count": 179,
+  "total_provisional_record_count": 181
+}

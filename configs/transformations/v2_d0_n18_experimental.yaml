@@ -1,0 +1,32 @@
+schema_version: 1
+profile_id: deterministic_v2_d0_n18_experimental
+profile_version: 1.0.0
+status: experimental
+portfolio_id: leanfaith_deterministic_v2_design
+portfolio_config_hash: f48e2dfd4555e71dfd07518330f33d222894fa935fb81b6c9e7678a8a1a66594
+accepted_v1_effective_registry_hash: 8a5316dacba064d9b3b13e12dfd46cd707445ecc520101a9374463f336f6466f
+candidate_pool: deterministic_v2_d0_n18_experimental
+active_rules:
+  - family_id: n18_root_equality_polarity
+    rule_id: n18_root_equality_polarity
+    rule_version: 1.0.0
+    implementation_key: n18_root_equality_polarity
+    evidence_class: D0
+    intended_error_types: [E10, E26]
+required_candidate_views:
+  - alpha_identity_fingerprint
+  - operator_tree
+  - semantic_atoms
+  - signature_explicit
+require_same_context_reelaboration: true
+require_exact_inverse_replay: true
+require_exact_root_equality_polarity: true
+require_exact_semantic_atom_delta: true
+require_distinct_equality_operands: true
+version_addendum_path: configs/transformations/v2_n18_v100_addendum.yaml
+version_addendum_sha256: d57453dcc4cc6fb8218ee4847c3b5e9239a678734d35399e35ea2eca7d601012
+failed_proof_search_is_negative_evidence: false
+resolved_label_count: 0
+promoted_item_count: 0
+training_eligible: false
+output_quality_tier: provisional

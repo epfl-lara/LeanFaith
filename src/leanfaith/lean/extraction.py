@@ -19,7 +19,8 @@ from typing import Any
 
 from leanfaith.config.hashing import hash_canonical, sha256_hex
 from leanfaith.schemas.enums import NLTrust, ValidationStatus, ViewStatus
-from leanfaith.schemas.ids import ANCESTRY_PREFIX, REPRESENTATION_PREFIX, THEOREM_PREFIX, make_id
+from leanfaith.schemas.ids import REPRESENTATION_PREFIX, THEOREM_PREFIX, make_id
+from leanfaith.schemas.source import make_source_ancestry_id
 from leanfaith.schemas.theorem import (
     CANONICAL_VIEW_NAMES,
     RepresentationRecord,
@@ -51,6 +52,7 @@ class ExtractionFailureCode(StrEnum):
     RANGE_OUT_OF_BOUNDS = "range_out_of_bounds"
     PROOF_LEAK_DETECTED = "proof_leak_detected"
     REVALIDATION_FAILED = "revalidation_failed"
+    ALTERNATE_ROUTE_SKIPPED = "alternate_route_skipped"
 
 
 @dataclass(frozen=True, slots=True)
@@ -84,6 +86,11 @@ class ExtractionFailure:
     detail: str
     outcome_level: str = "declaration"
     extraction_route: str | None = None
+    # Optional for backward-compatible readers, but populated by every new
+    # declaration-level writer so one attempted declaration can be matched to
+    # exactly one terminal outcome.
+    declaration_ordinal: int | None = None
+    declaration_full_name: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -162,14 +169,11 @@ def _build_ids(
 ) -> tuple[str, str]:
     full_name = declaration.get("full_name") or declaration.get("name")
     source_locator = identity.source_record_id or identity.source_record
-    ancestry_id = make_id(
-        ANCESTRY_PREFIX,
-        {
-            "source": identity.source,
-            "revision": identity.source_revision,
-            "source_locator": source_locator,
-            "declaration": full_name,
-        },
+    ancestry_id = make_source_ancestry_id(
+        source=identity.source,
+        revision=identity.source_revision,
+        source_locator=source_locator,
+        declaration_full_name=str(full_name),
     )
     theorem_id = make_id(
         THEOREM_PREFIX,
@@ -243,13 +247,25 @@ def build_theorem_record(
     name = declaration.get("name")
     full_name = declaration.get("full_name") or name
     kind = str(declaration.get("kind", ""))
+    extraction_route = identity.extraction_route or "source_declaration"
     if kind not in PROPOSITION_KINDS:
         return ExtractionFailure(
-            identity.source_record, name, ExtractionFailureCode.NOT_A_PROPOSITION, kind
+            identity.source_record,
+            name,
+            ExtractionFailureCode.NOT_A_PROPOSITION,
+            kind,
+            extraction_route=extraction_route,
+            declaration_ordinal=declaration_ordinal,
+            declaration_full_name=str(full_name) if full_name else None,
         )
     if not full_name:
         return ExtractionFailure(
-            identity.source_record, None, ExtractionFailureCode.ANONYMOUS_DECLARATION, ""
+            identity.source_record,
+            None,
+            ExtractionFailureCode.ANONYMOUS_DECLARATION,
+            "",
+            extraction_route=extraction_route,
+            declaration_ordinal=declaration_ordinal,
         )
     try:
         proof_stripped = strip_proof(source, declaration)
@@ -259,7 +275,15 @@ def build_theorem_record(
             if "signature" in str(exc)
             else ExtractionFailureCode.RANGE_OUT_OF_BOUNDS
         )
-        return ExtractionFailure(identity.source_record, name, code, str(exc))
+        return ExtractionFailure(
+            identity.source_record,
+            name,
+            code,
+            str(exc),
+            extraction_route=extraction_route,
+            declaration_ordinal=declaration_ordinal,
+            declaration_full_name=str(full_name),
+        )
 
     statement_hash = _statement_hash(source, declaration)
     theorem_id, ancestry_id = _build_ids(identity, declaration, statement_hash, declaration_ordinal)
@@ -386,6 +410,8 @@ def extract_from_declarations(
     seen_names = [str(d.get("full_name") or d.get("name") or "") for d in declarations]
     for declaration_ordinal, declaration in enumerate(declarations):
         kind = str(declaration.get("kind", ""))
+        full_name = str(declaration.get("full_name") or declaration.get("name") or "")
+        extraction_route = identity.extraction_route or "source_declaration"
         if kind not in accepted_kinds:
             failures.append(
                 ExtractionFailure(
@@ -393,13 +419,14 @@ def extract_from_declarations(
                     declaration.get("name"),
                     ExtractionFailureCode.NOT_A_PROPOSITION,
                     f"declaration kind {kind!r} is not proposition-valued",
-                    extraction_route=identity.extraction_route,
+                    extraction_route=extraction_route,
+                    declaration_ordinal=declaration_ordinal,
+                    declaration_full_name=full_name or None,
                 )
             )
             continue
         # Multi-declaration ambiguity: a name appearing twice cannot be
         # unambiguously referenced; quarantine both (§12.3).
-        full_name = str(declaration.get("full_name") or declaration.get("name") or "")
         if full_name and seen_names.count(full_name) > 1:
             failures.append(
                 ExtractionFailure(
@@ -407,6 +434,9 @@ def extract_from_declarations(
                     declaration.get("name"),
                     ExtractionFailureCode.DUPLICATE_DECLARATION_NAME,
                     f"duplicate declaration name {full_name!r}",
+                    extraction_route=extraction_route,
+                    declaration_ordinal=declaration_ordinal,
+                    declaration_full_name=full_name,
                 )
             )
             continue

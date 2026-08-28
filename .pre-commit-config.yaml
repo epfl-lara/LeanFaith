@@ -7,10 +7,11 @@ repos:
         # Frozen prompts may intentionally end a prefix with one space.
         exclude: ^prompts/autoformalizers/goedel_card_chat_v1\.txt$
       - id: end-of-file-fixer
-        # Reports, frozen benchmark registries, and gate fixtures are
-        # content-addressed artifacts; byte-normalization would invalidate
-        # their recorded hashes.
-        exclude: ^(reports/|data/benchmarks/|tests/fixtures/gates/)
+        # Reports, frozen benchmark registries, raw provider/replay artifacts,
+        # generated LF-022 freeze artifacts, and gate fixtures are
+        # content-addressed; byte-normalization would invalidate their
+        # recorded hashes.
+        exclude: ^(reports/|data/benchmarks/|data/raw/(llm_variants|real_outputs)/|tests/fixtures/gates/|configs/generation/lf022_(codex_catalog_snapshot_v1|rcp_catalog_snapshot_v1|production_family_matrix_v[12])\.json$)
       - id: check-yaml
       - id: check-toml
       - id: check-added-large-files

@@ -5,9 +5,11 @@ Pure string logic: the ``headless`` cosmetic normalization, parsing the
 content/near-duplicate hashing. The Lean-backed builder lives in
 ``pipeline.py``.
 
-``signature_pp`` and ``signature_explicit`` are obtained by ``#check @name``
-under pinned options because LeanInteract's declaration extractor ignores
-ambient ``set_option`` (verified). Options follow §13.4.
+``signature_pp`` and ``signature_explicit`` are obtained from the elaborated
+``ConstantInfo.type`` under ``Options.empty`` so ambient core, Mathlib, and
+future extension ``pp.*`` settings cannot change the bytes. The complete
+Lean-4.31 core inline profiles remain available for legacy ``#check`` recovery
+paths. Options follow §13.4.
 """
 
 from __future__ import annotations
@@ -16,18 +18,104 @@ import re
 
 from leanfaith.config.hashing import hash_canonical, sha256_hex
 
-NORMALIZATION_VERSION = "repr_v2"
+NORMALIZATION_VERSION = "repr_v3"
 
-#: §13.4 pinned options, inline form (``set_option X in`` chains before a
-#: ``#check``). signature_pp keeps implicits readable with stable full names;
-#: signature_explicit shows every implicit, instance, universe, and coercion.
-PP_SIGNATURE_INLINE = "set_option pp.fullNames true in set_option pp.proofs false in"
-PP_EXPLICIT_INLINE = (
-    "set_option pp.explicit true in "
-    "set_option pp.universes true in "
-    "set_option pp.fullNames true in "
-    "set_option pp.proofs false in"
+# Every Lean 4.31 delaborator option that can change serialized signature text
+# is reset explicitly. Inline dataset declarations may set ambient ``pp.*``
+# options before LeanFaith's checks; pinning only the desired non-default
+# values would therefore make the same theorem serialize differently by
+# source. Values below are Lean 4.31 defaults except for ``pp.fullNames`` and
+# the deliberately stable ``pp.mvars=false``.
+_PP_BASE_OPTIONS: tuple[tuple[str, str], ...] = (
+    ("pp.maxSteps", "5000"),
+    ("pp.all", "false"),
+    ("pp.raw", "false"),
+    ("pp.raw.showInfo", "false"),
+    ("pp.raw.maxDepth", "32"),
+    ("pp.rawOnError", "false"),
+    ("pp.oneline", "false"),
+    ("pp.exprSizes", "false"),
+    ("pp.macroStack", "false"),
+    ("pp.notation", "true"),
+    ("pp.parens", "false"),
+    ("pp.unicode", "true"),
+    ("pp.unicode.fun", "false"),
+    ("pp.match", "true"),
+    ("pp.sorrySource", "false"),
+    ("pp.coercions", "true"),
+    ("pp.coercions.types", "false"),
+    ("pp.fullNames", "true"),
+    ("pp.privateNames", "false"),
+    ("pp.sanitizeNames", "true"),
+    ("pp.inaccessibleNames", "true"),
+    ("pp.auxDecls", "false"),
+    ("pp.implementationDetailHyps", "false"),
+    ("pp.showLetValues", "false"),
+    ("pp.showLetValues.threshold", "0"),
+    ("pp.showLetValues.tactic.threshold", "255"),
+    ("pp.funBinderTypes", "false"),
+    ("pp.piBinderTypes", "true"),
+    ("pp.piBinderNames", "false"),
+    ("pp.piBinderNames.hygienic", "false"),
+    ("pp.foralls", "true"),
+    ("pp.letVarTypes", "false"),
+    ("pp.natLit", "false"),
+    ("pp.numericTypes", "false"),
+    ("pp.mdata", "false"),
+    ("pp.instantiateMVars", "true"),
+    ("pp.mvars", "false"),
+    ("pp.mvars.levels", "true"),
+    ("pp.mvars.anonymous", "true"),
+    ("pp.mvars.withType", "false"),
+    ("pp.mvars.delayed", "false"),
+    ("pp.fvars.anonymous", "true"),
+    ("pp.beta", "false"),
+    ("pp.structureInstances", "true"),
+    ("pp.structureInstances.flatten", "true"),
+    ("pp.structureInstances.defaults", "false"),
+    ("pp.fieldNotation", "true"),
+    ("pp.fieldNotation.generalized", "true"),
+    ("pp.structureInstanceTypes", "false"),
+    ("pp.safeShadowing", "true"),
+    ("pp.tagAppFns", "false"),
+    ("pp.proofs", "false"),
+    ("pp.proofs.withType", "false"),
+    ("pp.proofs.threshold", "0"),
+    ("pp.instances", "true"),
+    ("pp.instanceTypes", "false"),
+    ("pp.deepTerms", "false"),
+    ("pp.deepTerms.threshold", "50"),
+    ("pp.motives.pi", "true"),
+    ("pp.motives.nonConst", "false"),
+    ("pp.motives.all", "false"),
+    ("pp.analyze", "false"),
+    ("pp.analyze.checkInstances", "false"),
+    ("pp.analyze.typeAscriptions", "true"),
+    ("pp.analyze.trustSubst", "false"),
+    ("pp.analyze.trustOfNat", "true"),
+    ("pp.analyze.trustOfScientific", "true"),
+    ("pp.analyze.trustSubtypeMk", "true"),
+    ("pp.analyze.trustId", "true"),
+    ("pp.analyze.trustKnownFOType2TypeHOFuns", "true"),
+    ("pp.analyze.omitMax", "true"),
+    ("pp.analyze.knowsType", "true"),
+    ("pp.analyze.explicitHoles", "false"),
 )
+
+
+def _pp_inline_profile(*, explicit: bool, universes: bool) -> str:
+    options = (
+        *_PP_BASE_OPTIONS,
+        ("pp.explicit", str(explicit).lower()),
+        ("pp.universes", str(universes).lower()),
+    )
+    return " ".join(f"set_option {name} {value} in" for name, value in options)
+
+
+#: §13.4 fully pinned inline profiles. ``signature_pp`` keeps implicits
+#: readable; ``signature_explicit`` exposes implicit arguments and universes.
+PP_SIGNATURE_INLINE = _pp_inline_profile(explicit=False, universes=False)
+PP_EXPLICIT_INLINE = _pp_inline_profile(explicit=True, universes=True)
 
 _WS = re.compile(r"\s+")
 _PP_UNIVERSE_PLACEHOLDER = re.compile(r"\bu_\d+\b")
@@ -142,7 +230,51 @@ def parse_check_type(message: str, full_name: str) -> str | None:
     match = _NAME_TYPE_SEP.search(body)
     if match is None:
         return None
-    return _WS.sub(" ", body[match.end() :]).strip() or None
+    return collapse_lean_whitespace(body[match.end() :]) or None
+
+
+def collapse_lean_whitespace(text: str) -> str:
+    """Collapse layout whitespace without changing quoted Lean tokens.
+
+    Lean's pretty printer wraps long types across lines. A plain regex collapse
+    also changes string literals and guillemet identifiers, turning
+    ``"a  b"`` or ``«name  with  spaces»`` into different Lean syntax.
+    This small scanner preserves those regions byte-for-byte while
+    canonicalizing layout outside them.
+    """
+
+    output: list[str] = []
+    pending_space = False
+    in_string = False
+    in_guillemet = False
+    escaped = False
+    for char in text.strip():
+        if in_string:
+            output.append(char)
+            if escaped:
+                escaped = False
+            elif char == "\\":
+                escaped = True
+            elif char == '"':
+                in_string = False
+            continue
+        if in_guillemet:
+            output.append(char)
+            if char == "»":
+                in_guillemet = False
+            continue
+        if char.isspace():
+            pending_space = True
+            continue
+        if pending_space and output:
+            output.append(" ")
+        pending_space = False
+        output.append(char)
+        if char == '"':
+            in_string = True
+        elif char == "«":
+            in_guillemet = True
+    return "".join(output)
 
 
 def representation_content_hash(views: dict[str, object]) -> str:

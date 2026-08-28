@@ -17,7 +17,7 @@ from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from leanfaith.config.hashing import hash_file
+from leanfaith.config.hashing import hash_canonical, hash_file
 from leanfaith.lean.extraction import (
     ExtractedDeclaration,
     ExtractionFailure,
@@ -36,6 +36,7 @@ from leanfaith.representations import (
     build_representation_batch,
 )
 from leanfaith.schemas import (
+    CONTEXT_PREFIX,
     ArtifactClass,
     CodeState,
     DataStage,
@@ -52,6 +53,7 @@ from leanfaith.sources.hf_sft_classic import (
 )
 
 _VALID = (LeanStatus.VALID, LeanStatus.VALID_WITH_SORRY)
+_MAX_ROW_FAILURE_DETAIL_CHARS = 2000
 
 
 def _run_request(backend: LeanInteractBackend, request: LeanRequest) -> LeanResult:
@@ -70,6 +72,25 @@ def _failure_code_for_status(status: LeanStatus) -> ExtractionFailureCode:
     if status == LeanStatus.UNSUPPORTED:
         return ExtractionFailureCode.UNSUPPORTED_STRUCTURE
     return ExtractionFailureCode.SOURCE_NON_ELABORATION
+
+
+def _bounded_row_failure_detail(
+    summary: str,
+    *infrastructure_results: tuple[str, LeanResult],
+) -> str:
+    """Attach bounded process diagnostics to a row-level extraction failure.
+
+    ``LeanResult.infrastructure_error`` is diagnostic evidence only.  It can
+    explain a CRASH/TIMEOUT/INTERNAL_ERROR (including Lean's
+    ``failed to create thread`` stderr), but it never changes a theorem label
+    or the canonical extraction failure code.
+    """
+
+    parts = [summary]
+    for name, result in infrastructure_results:
+        if result.infrastructure_error:
+            parts.append(f"{name}_infrastructure_error={result.infrastructure_error}")
+    return "; ".join(parts)[:_MAX_ROW_FAILURE_DETAIL_CHARS]
 
 
 def _persist_source_failure(
@@ -216,6 +237,8 @@ def _append_failures(result: ExtractionResult, failures_path: Path) -> None:
     failures_path.parent.mkdir(parents=True, exist_ok=True)
     with failures_path.open("a", encoding="utf-8") as fh:
         for failure in result.failures:
+            if failure.outcome_level == "declaration" and not failure.extraction_route:
+                raise ValueError("declaration failure lacks extraction_route")
             fh.write(
                 json.dumps(
                     {
@@ -225,6 +248,8 @@ def _append_failures(result: ExtractionResult, failures_path: Path) -> None:
                         "detail": failure.detail,
                         "outcome_level": failure.outcome_level,
                         "extraction_route": failure.extraction_route,
+                        "declaration_ordinal": failure.declaration_ordinal,
+                        "declaration_full_name": failure.declaration_full_name,
                     },
                     ensure_ascii=False,
                     sort_keys=True,
@@ -323,7 +348,10 @@ def extract_repository_files(
                 failures_path,
                 rel,
                 _failure_code_for_status(result.status),
-                f"file elaboration ended as {result.status.value}",
+                _bounded_row_failure_detail(
+                    f"file elaboration ended as {result.status.value}",
+                    ("file", result),
+                ),
             )
             stats.row_outcomes[_failure_code_for_status(result.status).value] += 1
             continue
@@ -349,6 +377,7 @@ def extract_repository_files(
                 source_revision=source_revision,
                 source_record=rel,
                 context_id=context_id,
+                extraction_route="repository_file",
                 source_file=rel,
             ),
             source_text,
@@ -412,7 +441,10 @@ def extract_dataset_snippets(
                 failures_path,
                 record_id,
                 _failure_code_for_status(decl_result.status),
-                f"snippet elaboration ended as {decl_result.status.value}",
+                _bounded_row_failure_detail(
+                    f"snippet elaboration ended as {decl_result.status.value}",
+                    ("snippet", decl_result),
+                ),
             )
             stats.row_outcomes[_failure_code_for_status(decl_result.status).value] += 1
             continue
@@ -436,6 +468,7 @@ def extract_dataset_snippets(
                 source_revision=source_revision,
                 source_record=record_id,
                 context_id=context_id,
+                extraction_route="dataset_snippet",
             ),
             snippet,
             declarations,
@@ -472,6 +505,11 @@ def extract_dataset_snippets(
                             extracted.theorem.declaration_name,
                             ExtractionFailureCode.REVALIDATION_FAILED,
                             f"stripped statement re-elaborated as {reval.status.value}",
+                            extraction_route=(
+                                extracted.theorem.extraction_route or "dataset_snippet"
+                            ),
+                            declaration_ordinal=extracted.theorem.declaration_ordinal,
+                            declaration_full_name=extracted.theorem.declaration_full_name,
                         )
                     )
                     stats.failures += 1
@@ -594,10 +632,44 @@ def _elaborate_dataset_route(
     created_at: datetime.datetime,
     timeout_seconds: float,
 ) -> tuple[LeanResult, ExtractionResult]:
+    context_prefix = f"{CONTEXT_PREFIX}:"
+    context_fingerprint = (
+        context_id[len(context_prefix) :] if context_id.startswith(context_prefix) else ""
+    )
+    if len(context_fingerprint) != 64 or any(
+        character not in "0123456789abcdef" for character in context_fingerprint
+    ):
+        raise ValueError("context_id must have canonical form 'ctx:' + 64 lowercase hex digits")
+    request_id = f"{source}-{parsed.source_record_id[:16]}-{route}"
+    if not snippet.strip():
+        # An absent question fence or a fallback whose completed proof could
+        # not be stripped is source-route unavailability, not a LeanInteract
+        # execution failure.  In particular, never construct a LeanInteract
+        # ``Command`` with the resulting empty ``cmd``: its Pydantic boundary
+        # rejects that payload and would misleadingly persist an
+        # ``infrastructure_error`` for an ordinary source-row condition.
+        return (
+            LeanResult(
+                request_id=request_id,
+                request_hash=hash_canonical(
+                    {
+                        "method": "empty_dataset_route_v1",
+                        "source_record_id": parsed.source_record_id,
+                        "route": route,
+                        "context_id": context_id,
+                        "snippet": snippet,
+                    }
+                ),
+                context_id=context_id,
+                context_fingerprint=context_fingerprint,
+                status=LeanStatus.UNSUPPORTED,
+            ),
+            ExtractionResult(),
+        )
     result = _run_request(
         backend,
         LeanRequest(
-            request_id=f"{source}-{parsed.source_record_id[:16]}-{route}",
+            request_id=request_id,
             context_id=context_id,
             code=snippet,
             declarations=True,
@@ -670,6 +742,9 @@ def _revalidate_route(
                     item.theorem.declaration_name,
                     ExtractionFailureCode.REVALIDATION_FAILED,
                     f"stripped statement re-elaborated as {result.status.value}",
+                    extraction_route=item.theorem.extraction_route,
+                    declaration_ordinal=item.theorem.declaration_ordinal,
+                    declaration_full_name=item.theorem.declaration_full_name,
                 )
             )
         else:
@@ -737,7 +812,20 @@ def extract_sft_classic_rows(
         question_has_declarations = question_result.status in _VALID and bool(
             question_result.declarations
         )
-        if question_extraction.accepted or question_has_declarations:
+        if question_extraction.accepted:
+            chosen_snippet = question_snippet
+            chosen = question_extraction
+            chosen_result = question_result
+            route = "question_statement"
+        elif fallback_extraction.accepted:
+            chosen_snippet = fallback_snippet
+            chosen = fallback_extraction
+            chosen_result = fallback_result
+            route = "lean_code_fallback"
+        elif question_has_declarations:
+            # Preserve a valid-but-unusable question route as the canonical
+            # diagnostic only after confirming that no proposition-valued
+            # fallback was accepted.
             chosen_snippet = question_snippet
             chosen = question_extraction
             chosen_result = question_result
@@ -754,9 +842,54 @@ def extract_sft_classic_rows(
         canonical_declarations = (
             chosen_result.declarations if chosen_result.status in _VALID else ()
         )
+        if route == "question_statement":
+            alternate_route = "lean_code_fallback"
+            alternate_result = fallback_result
+            alternate_extraction = fallback_extraction
+        else:
+            alternate_route = "question_statement"
+            alternate_result = question_result
+            alternate_extraction = question_extraction
+        alternate_declarations = (
+            alternate_result.declarations if alternate_result.status in _VALID else ()
+        )
         partial_declarations = len(chosen_result.declarations) - len(canonical_declarations)
-        stats.declarations_seen += len(canonical_declarations)
+        stats.declarations_seen += len(canonical_declarations) + len(alternate_declarations)
         stats.partial_declarations_reported += partial_declarations
+        # Every declaration from a valid attempted route receives exactly one
+        # terminal outcome. The alternate route is never emitted as another
+        # canonical theorem, but its real extraction failures remain valuable
+        # evidence and must not disappear merely because the other route won.
+        alternate_skips = tuple(
+            ExtractionFailure(
+                source_record=parsed.source_record_id,
+                declaration_name=(
+                    item.theorem.declaration_full_name or item.theorem.declaration_name
+                ),
+                code=ExtractionFailureCode.ALTERNATE_ROUTE_SKIPPED,
+                detail=(
+                    f"{alternate_route} proposition skipped because "
+                    f"{route} is the canonical extraction route"
+                ),
+                outcome_level="declaration",
+                extraction_route=alternate_route,
+                declaration_ordinal=item.theorem.declaration_ordinal,
+                declaration_full_name=item.theorem.declaration_full_name,
+            )
+            for item in alternate_extraction.accepted
+        )
+        alternate_terminal_outcomes = alternate_extraction.failures + alternate_skips
+        if alternate_declarations:
+            stats.declaration_outcomes["failed_or_skipped"] += len(alternate_declarations)
+        if alternate_terminal_outcomes:
+            stats.failures += len(alternate_terminal_outcomes)
+            for failure in alternate_terminal_outcomes:
+                stats.failure_codes[failure.code.value] += 1
+            _write_records(
+                ExtractionResult(failures=alternate_terminal_outcomes),
+                theorems_path,
+                failures_path,
+            )
 
         question_status = question_result.status.value
         fallback_status = fallback_result.status.value
@@ -790,7 +923,7 @@ def extract_sft_classic_rows(
 
         if not chosen.accepted:
             status = chosen_result.status
-            if not question_snippet:
+            if parsed.parse_status == "no_fence":
                 code = ExtractionFailureCode.MISSING_LEAN_FENCE
             elif chosen.failures:
                 code = chosen.failures[0].code
@@ -810,8 +943,12 @@ def extract_sft_classic_rows(
                 failures_path,
                 parsed.source_record_id,
                 code,
-                f"question={question_status}; fallback={fallback_status}; "
-                f"partial_declarations_reported={partial_declarations}",
+                _bounded_row_failure_detail(
+                    f"question={question_status}; fallback={fallback_status}; "
+                    f"partial_declarations_reported={partial_declarations}",
+                    ("question", question_result),
+                    ("fallback", fallback_result),
+                ),
             )
             stats.source_not_elaborating += int(
                 question_result.status not in _VALID and fallback_result.status not in _VALID

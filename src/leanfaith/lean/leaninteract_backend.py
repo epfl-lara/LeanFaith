@@ -46,13 +46,29 @@ from leanfaith.lean.response_normalization import (
     normalize_response,
 )
 from leanfaith.lean.session_policy import ServerMode
+from leanfaith.lean.source_scan import has_top_level_import_family
 
-METHOD_VERSION = "leaninteract_backend_v2"
+METHOD_VERSION = "leaninteract_backend_v3"
+COMMAND_ISOLATION_VERSION = "deterministic_request_nonce_prefix_v1"
 
 _CORE_ENVIRONMENT_SECONDARY_ERRORS = (
     "Unknown constant `CoeFun`",
     "Unknown constant `Lean.ParserDescr`",
     "The expected type of `.default`\n  BinderInfo",
+)
+
+# A second corruption shape was observed during the frozen Gate-2 replay:
+# after a previously valid ``import Mathlib`` prefix had been reused, the REPL
+# returned a normal command response whose environment lacked basic Mathlib
+# namespaces and even ``OfNat``.  These diagnostics are impossible after a
+# successful Mathlib import in the pinned project.  Keep the markers exact and
+# require the request itself to import ``Mathlib``; an ordinary
+# user typo such as ``unknown namespace `Foo``` must remain a semantic INVALID.
+_MATHLIB_ENVIRONMENT_CORRUPTION_ERRORS = (
+    "unknown namespace `Real`",
+    "unknown namespace `Classical`",
+    "unknown namespace `Topology`",
+    "Unknown constant `OfNat`",
 )
 
 
@@ -70,6 +86,19 @@ class BackendSettings:
     method_version: str = METHOD_VERSION
     verbose: bool = False
     enable_incremental_optimization: bool = True
+    enable_parallel_elaboration: bool = True
+    isolate_incremental_commands: bool = False
+    confirm_invalid_on_fresh_process: bool = False
+    environment_is_prepared: bool = False
+
+
+@dataclass(frozen=True, slots=True)
+class BackendExecutionBinding:
+    """Immutable execution settings that affect persisted scale semantics."""
+
+    server_mode: ServerMode
+    workers: int | None
+    memory_hard_limit_mb: int | None
 
 
 class LeanInteractBackend:
@@ -95,37 +124,218 @@ class LeanInteractBackend:
         """True when experimental AUTO mode fell back to the stable server."""
         return self._auto_fallback_active
 
+    @property
+    def execution_binding(self) -> BackendExecutionBinding:
+        """Return a safe immutable view of the effective process configuration."""
+
+        return BackendExecutionBinding(
+            server_mode=self._settings.server_mode,
+            workers=self._settings.workers,
+            memory_hard_limit_mb=self._settings.memory_hard_limit_mb,
+        )
+
     def _repl_config(self) -> LeanREPLConfig:
+        # Scale pipelines prepare the immutable project and REPL once in the
+        # parent process before starting workers. Child chunks must not run
+        # ``lake exe cache get`` / ``lake build`` for the project or rebuild
+        # the same cached REPL. Other callers retain LeanInteract's safe
+        # build-on-first-use defaults.
+        build_environment = not self._settings.environment_is_prepared
         return LeanREPLConfig(
-            project=LocalProject(directory=self._settings.project_dir),
+            project=LocalProject(
+                directory=self._settings.project_dir,
+                auto_build=build_environment,
+            ),
+            build_repl=build_environment,
             memory_hard_limit_mb=self._settings.memory_hard_limit_mb,
             enable_incremental_optimization=self._settings.enable_incremental_optimization,
+            enable_parallel_elaboration=self._settings.enable_parallel_elaboration,
             verbose=self._settings.verbose,
         )
+
+    @classmethod
+    def prepare_environment(cls, settings: BackendSettings) -> None:
+        """Build and validate one project's LeanInteract environment.
+
+        This is intentionally a setup-only operation: it does not start a
+        server or submit a Lean request. Scale orchestrators call it once in
+        the parent process, then construct chunk backends with
+        ``environment_is_prepared=True``. LeanInteract therefore retains sole
+        ownership of project/REPL setup while avoiding redundant builds.
+        """
+
+        if settings.environment_is_prepared:
+            raise ValueError("environment preparation requires build-enabled settings")
+        cls(settings)._repl_config()
 
     @staticmethod
     def _core_environment_is_corrupted(request: LeanRequest, raw: dict[str, Any]) -> bool:
         """Detect the impossible core-import failure observed in Gate 3.
 
         LeanInteract's incremental REPL optimization can occasionally reuse a
-        damaged prefix environment: a command beginning with ``import Lean``
-        then reports that the ``Lean`` namespace and core constants do not
-        exist. This is an infrastructure/session failure, not a theorem
-        verdict. Keep the detector deliberately narrow so ordinary invalid
-        Lean programs are never retried as infrastructure failures.
+        damaged prefix environment.  Two observed, independently replayed
+        signatures are recognized: ``import Lean`` followed by missing Lean
+        core declarations, and ``import Mathlib`` followed by missing standard
+        Mathlib namespaces/basic ``OfNat`` infrastructure.  Both are
+        infrastructure/session failures, not theorem verdicts.  Keep the
+        detector deliberately narrow so ordinary invalid Lean programs are
+        never retried as infrastructure failures.
         """
 
         code = request.code
-        if code is None or not code.lstrip("\ufeff \t\r\n").startswith("import Lean\n"):
+        if code is None:
             return False
+        stripped_code = code.lstrip("\ufeff \t\r\n")
+        imports_mathlib = has_top_level_import_family(stripped_code, "Mathlib")
         errors = "\n".join(
             str(message.get("data", ""))
             for message in raw.get("messages") or ()
             if message.get("severity") == "error"
         )
-        return "unknown namespace `Lean`" in errors and any(
-            marker in errors for marker in _CORE_ENVIRONMENT_SECONDARY_ERRORS
+        lean_corruption = stripped_code.startswith("import Lean\n") and (
+            "unknown namespace `Lean`" in errors
+            and any(marker in errors for marker in _CORE_ENVIRONMENT_SECONDARY_ERRORS)
         )
+        mathlib_corruption = imports_mathlib and (
+            "Unknown constant `OfNat`" in errors
+            and any(
+                marker in errors
+                for marker in _MATHLIB_ENVIRONMENT_CORRUPTION_ERRORS
+                if marker != "Unknown constant `OfNat`"
+            )
+        )
+        return lean_corruption or mathlib_corruption
+
+    def _recover_corrupted_environment(
+        self,
+        request: LeanRequest,
+        *,
+        request_hash: str,
+        raw: dict[str, Any],
+        raw_path: str,
+        elapsed_ms: int,
+        originated_from_pool: bool = False,
+    ) -> LeanResult | None:
+        """Recover one impossible imported environment, independent of mode.
+
+        Stable and pooled requests share this path so a poisoned response can
+        never become a semantic INVALID merely because it was dispatched by a
+        different server mode. The corrupt raw response is already persisted
+        before this method runs.
+        """
+
+        if not self._core_environment_is_corrupted(request, raw):
+            return None
+        if request.metadata.get("core_environment_recovery") == "1":
+            # A fresh process returned the same impossible import environment.
+            # Never normalize that infrastructure failure as a semantic
+            # INVALID. The caller's bounded infrastructure retry policy may
+            # now make its next outer attempt with a fresh process; if it also
+            # fails, the row remains an explicit crash rather than a false
+            # theorem verdict.
+            self.reset_session()
+            normalized = normalize_response(
+                request,
+                self._raw_for_normalization(request, raw),
+                request_hash=request_hash,
+                context_fingerprint=self._settings.context_fingerprint,
+                elapsed_ms=elapsed_ms,
+                raw_response_path=raw_path,
+            )
+            return replace(
+                normalized,
+                status=LeanStatus.CRASH,
+                infrastructure_error="core_environment_corruption_after_recovery",
+            )
+
+        # Pool workers cannot be individually identified through LeanInteract's
+        # returned item. Reset the whole pool/session, then retry this request
+        # exactly once through a fresh stable process. Other already-returned
+        # pool items remain independently normalizable.
+        self.reset_session()
+        attempt = str(request.metadata.get("attempt", "0"))
+        recovery_request = replace(
+            request,
+            metadata={
+                **dict(request.metadata),
+                "attempt": f"{attempt}-core-recovery",
+                "core_environment_recovery": "1",
+            },
+        )
+        recovered = self.run(recovery_request)
+        if originated_from_pool:
+            # Pool recovery deliberately uses a stable one-off process. Do not
+            # retain it alongside the replacement pool used by later batch
+            # groups.
+            self._drop_server()
+        return replace(recovered, elapsed_ms=elapsed_ms + recovered.elapsed_ms)
+
+    def _fresh_invalid_confirmation_backend(self) -> LeanInteractBackend:
+        """Return the one-off correctness oracle for a provisional INVALID.
+
+        A long-lived REPL can lose imported parser state without emitting one
+        of the narrow core-corruption signatures above.  Semantic INVALID is
+        therefore not terminal for callers that opt into confirmation: replay
+        the exact request in a new stable process with neither incremental
+        trie reuse nor asynchronous elaboration.  The normal backend remains
+        the fast path; only provisional INVALID results pay this cost.
+        """
+
+        return LeanInteractBackend(
+            replace(
+                self._settings,
+                server_mode=ServerMode.STABLE,
+                workers=None,
+                enable_incremental_optimization=False,
+                enable_parallel_elaboration=False,
+                isolate_incremental_commands=False,
+                confirm_invalid_on_fresh_process=False,
+                # The original request already constructed a working REPL for
+                # this project.  Avoid repeating project/cache setup while
+                # still creating a genuinely new Lean server process.
+                environment_is_prepared=True,
+            )
+        )
+
+    def _confirm_invalid_result(
+        self,
+        request: LeanRequest,
+        result: LeanResult,
+        *,
+        originated_from_pool: bool = False,
+    ) -> LeanResult:
+        """Confirm an incremental INVALID in a fresh synchronous process."""
+
+        if (
+            not self._settings.confirm_invalid_on_fresh_process
+            or result.status != LeanStatus.INVALID
+            or request.metadata.get("fresh_invalid_confirmation") == "1"
+        ):
+            return result
+
+        # The shared process is no longer trusted once it disagrees with the
+        # fresh-process oracle, so discard it before replay.  Resetting first
+        # also prevents pool and stable state from coexisting during the
+        # confirmation request.
+        self.reset_session()
+        attempt = self._normalized_attempt(request)
+        confirmation_request = replace(
+            request,
+            metadata={
+                **dict(request.metadata),
+                "attempt": f"{attempt}-invalid-confirmation",
+                "fresh_invalid_confirmation": "1",
+            },
+        )
+        oracle = self._fresh_invalid_confirmation_backend()
+        try:
+            confirmed = oracle.run(confirmation_request)
+        finally:
+            oracle.close()
+        if originated_from_pool:
+            # The next pool group must be created lazily after the reset.
+            self._drop_server()
+        return replace(confirmed, elapsed_ms=result.elapsed_ms + confirmed.elapsed_ms)
 
     def _ensure_server(self) -> LeanServer:
         if self._server is None:
@@ -154,12 +364,25 @@ class LeanInteractBackend:
                 self._server.kill()
             self._server = None
 
-    def close(self) -> None:
+    def reset_session(self) -> None:
+        """Discard all live REPL state while preserving immutable settings.
+
+        The next request lazily starts a fresh server (or pool).  This remains
+        the correctness-oracle and recovery boundary for callers that require
+        process isolation; scalable SFT extraction uses deterministic
+        per-request trie namespaces for the fast path and a fresh-process
+        oracle before any INVALID becomes terminal.
+        """
+
         self._drop_server()
         if self._pool is not None:
             with contextlib.suppress(Exception):
                 self._pool.close()
             self._pool = None
+        self._auto_fallback_active = False
+
+    def close(self) -> None:
+        self.reset_session()
 
     # -- raw persistence (§8.4: save before normalization) --------------------
 
@@ -170,6 +393,8 @@ class LeanInteractBackend:
         raw: dict[str, Any] | None,
         error: str | None,
     ) -> str:
+        isolation_prefix = self._command_isolation_prefix(request)
+        isolation_attempt = self._normalized_attempt(request)
         record = {
             "request": {
                 "request_id": request.request_id,
@@ -182,6 +407,16 @@ class LeanInteractBackend:
                 "allow_sorry": request.allow_sorry,
                 "timeout_seconds": request.timeout_seconds,
             },
+            "transport_isolation": (
+                {
+                    "version": COMMAND_ISOLATION_VERSION,
+                    "attempt": isolation_attempt,
+                    "prefix_sha256": sha256_hex(isolation_prefix.encode("ascii")),
+                    "prefix_width": len(isolation_prefix),
+                }
+                if isolation_prefix
+                else None
+            ),
             "request_hash": request_hash,
             "method_version": self._settings.method_version,
             "response": raw,
@@ -190,14 +425,30 @@ class LeanInteractBackend:
         directory = self._settings.raw_response_dir
         directory.mkdir(parents=True, exist_ok=True)
         # Raw responses are append-only (§8.4): the filename keys on the
-        # request hash PLUS a submission digest, so identical resubmissions
-        # never overwrite each other; retries additionally carry the attempt
-        # counter (metadata, excluded from the hash) per §28.4.
+        # request hash PLUS a submission digest; retries additionally carry
+        # the attempt counter (metadata, excluded from the hash) per §28.4.
+        # A deterministic replay can submit the same request ID and attempt
+        # while receiving session-local response fields that differ. Never
+        # overwrite the first observation in that case: retain the later
+        # response under a content-addressed suffix.
         attempt = str(request.metadata.get("attempt", "0"))
         suffix = f".attempt{attempt}" if attempt != "0" else ""
         submission = sha256_hex(request.request_id.encode("utf-8"))[:8]
         path = directory / f"{request_hash}.{submission}{suffix}.json"
-        path.write_text(json.dumps(record, ensure_ascii=False, sort_keys=True), encoding="utf-8")
+        payload = json.dumps(record, ensure_ascii=False, sort_keys=True).encode("utf-8")
+        if path.exists():
+            if path.read_bytes() == payload:
+                return str(path)
+            response_digest = sha256_hex(payload)[:16]
+            path = directory / (
+                f"{request_hash}.{submission}{suffix}.response-{response_digest}.json"
+            )
+            if path.exists():
+                if path.read_bytes() != payload:
+                    raise RuntimeError(f"raw Lean response content-address collision at {path}")
+                return str(path)
+        with path.open("xb") as handle:
+            handle.write(payload)
         return str(path)
 
     # -- request execution -----------------------------------------------------
@@ -231,14 +482,76 @@ class LeanInteractBackend:
             file_content_hash=self._file_content_hash(request),
         )
 
+    def _command_isolation_prefix(self, request: LeanRequest) -> str:
+        """Unique, deterministic REPL-trie namespace for one code request.
+
+        The REPL's import-header cache canonicalizes away comments and
+        whitespace, while its incremental-state trie matches the full command
+        prefix.  A same-line ASCII comment therefore preserves shared import
+        caching but prevents any body snapshot from another request being
+        reused.  The request hash keeps equal semantic computations stable;
+        the request ID additionally separates independent submissions.
+        """
+
+        if not self._settings.isolate_incremental_commands or request.code is None:
+            return ""
+        nonce = sha256_hex(
+            (
+                f"{request.request_id}\0{self._request_hash(request)}\0"
+                f"{self._normalized_attempt(request)}"
+            ).encode()
+        )[:24]
+        return f"/-leanfaith-isolation:{nonce}-/ "
+
+    @staticmethod
+    def _normalized_attempt(request: LeanRequest) -> str:
+        attempt = str(request.metadata.get("attempt", "0")).strip()
+        return attempt or "0"
+
+    @classmethod
+    def _restore_prefixed_positions(cls, value: Any, *, prefix_width: int) -> Any:
+        """Return a deep JSON copy with line-one columns mapped to source code."""
+
+        if isinstance(value, list):
+            return [
+                cls._restore_prefixed_positions(item, prefix_width=prefix_width) for item in value
+            ]
+        if isinstance(value, dict):
+            restored = {
+                key: cls._restore_prefixed_positions(item, prefix_width=prefix_width)
+                for key, item in value.items()
+            }
+            line = restored.get("line")
+            column = restored.get("column")
+            if line == 1 and isinstance(column, int) and column >= prefix_width:
+                restored["column"] = column - prefix_width
+            return restored
+        return value
+
+    def _raw_for_normalization(self, request: LeanRequest, raw: dict[str, Any]) -> dict[str, Any]:
+        prefix = self._command_isolation_prefix(request)
+        if not prefix:
+            return raw
+        restored = self._restore_prefixed_positions(raw, prefix_width=len(prefix))
+        assert isinstance(restored, dict)
+        return restored
+
     def _build_repl_request(self, request: LeanRequest) -> Command | FileCommand:
         infotree = None if request.infotree == "none" else request.infotree
+        # Lean itself defaults ``Elab.async`` to true.  LeanInteract's config
+        # flag controls whether it injects ``true``; setting it to false does
+        # not inject an explicit false.  Isolation-sensitive callers therefore
+        # need both the config flag and this per-request option.
+        set_options: list[tuple[list[str], bool | int | str | list[str]]] | None = (
+            [(["Elab", "async"], False)] if not self._settings.enable_parallel_elaboration else None
+        )
         if request.code is not None:
             return Command(
-                cmd=request.code,
+                cmd=self._command_isolation_prefix(request) + request.code,
                 declarations=request.declarations,
                 root_goals=request.root_goals,
                 infotree=infotree,
+                set_options=set_options,
             )
         resolved = self._resolve_file_path(request)
         assert resolved is not None  # validate_request guarantees this
@@ -247,6 +560,7 @@ class LeanInteractBackend:
             declarations=request.declarations,
             root_goals=request.root_goals,
             infotree=infotree,
+            set_options=set_options,
         )
 
     def run(self, request: LeanRequest) -> LeanResult:
@@ -305,33 +619,24 @@ class LeanInteractBackend:
 
         raw = response.model_dump(mode="json")
         raw_path = self._persist_raw(request, request_hash, raw, None)
-        if request.metadata.get(
-            "core_environment_recovery"
-        ) != "1" and self._core_environment_is_corrupted(request, raw):
-            # Preserve the corrupt raw response, discard the poisoned REPL,
-            # and retry exactly once on a fresh process. Attempt metadata is
-            # excluded from the request hash but gives the retry a distinct,
-            # append-only raw-artifact path.
-            self._drop_server()
-            attempt = str(request.metadata.get("attempt", "0"))
-            recovery_request = replace(
-                request,
-                metadata={
-                    **dict(request.metadata),
-                    "attempt": f"{attempt}-core-recovery",
-                    "core_environment_recovery": "1",
-                },
-            )
-            recovered = self.run(recovery_request)
-            return replace(recovered, elapsed_ms=elapsed_ms + recovered.elapsed_ms)
-        return normalize_response(
+        recovered = self._recover_corrupted_environment(
             request,
-            raw,
+            request_hash=request_hash,
+            raw=raw,
+            raw_path=raw_path,
+            elapsed_ms=elapsed_ms,
+        )
+        if recovered is not None:
+            return recovered
+        normalized = normalize_response(
+            request,
+            self._raw_for_normalization(request, raw),
             request_hash=request_hash,
             context_fingerprint=self._settings.context_fingerprint,
             elapsed_ms=elapsed_ms,
             raw_response_path=raw_path,
         )
+        return self._confirm_invalid_result(request, normalized)
 
     def run_batch(self, requests: Sequence[LeanRequest]) -> list[LeanResult]:
         """One terminal result per request, in input order (§8.4).
@@ -365,6 +670,8 @@ class LeanInteractBackend:
         request_hash: str,
         item: object,
         elapsed_ms: int,
+        *,
+        recover_corrupted_environment: bool = True,
     ) -> LeanResult:
         if isinstance(item, LeanError):
             raw_path = self._persist_raw(
@@ -392,14 +699,175 @@ class LeanInteractBackend:
             )
         raw = item.model_dump(mode="json")  # type: ignore[attr-defined]
         raw_path = self._persist_raw(request, request_hash, raw, None)
-        return normalize_response(
+        if recover_corrupted_environment:
+            recovered = self._recover_corrupted_environment(
+                request,
+                request_hash=request_hash,
+                raw=raw,
+                raw_path=raw_path,
+                elapsed_ms=elapsed_ms,
+                originated_from_pool=True,
+            )
+            if recovered is not None:
+                return recovered
+        elif self._core_environment_is_corrupted(request, raw):
+            # Coordinated pool recovery already retried this request once.
+            # Never recurse into another per-item reset from inside batch
+            # normalization: retain the second raw observation and expose an
+            # infrastructure terminal result instead of a semantic INVALID.
+            normalized = normalize_response(
+                request,
+                self._raw_for_normalization(request, raw),
+                request_hash=request_hash,
+                context_fingerprint=self._settings.context_fingerprint,
+                elapsed_ms=elapsed_ms,
+                raw_response_path=raw_path,
+            )
+            return replace(
+                normalized,
+                status=LeanStatus.CRASH,
+                infrastructure_error="core_environment_corruption_after_pool_recovery",
+            )
+        normalized = normalize_response(
             request,
-            raw,
+            self._raw_for_normalization(request, raw),
             request_hash=request_hash,
             context_fingerprint=self._settings.context_fingerprint,
             elapsed_ms=elapsed_ms,
             raw_response_path=raw_path,
         )
+        return self._confirm_invalid_result(
+            request,
+            normalized,
+            originated_from_pool=True,
+        )
+
+    def _pool_item_has_core_corruption(self, request: LeanRequest, item: object) -> bool:
+        """Inspect a returned pool value without mutating shared pool state."""
+
+        if isinstance(item, (LeanError, BaseException)):
+            return False
+        raw = item.model_dump(mode="json")  # type: ignore[attr-defined]
+        return self._core_environment_is_corrupted(request, raw)
+
+    def _coordinated_pool_recovery(
+        self,
+        *,
+        requests: Sequence[LeanRequest],
+        hashes: Sequence[str],
+        indices: Sequence[int],
+        raw_results: Sequence[object],
+        first_elapsed_ms: int,
+        timeout_seconds: float,
+    ) -> dict[int, LeanResult]:
+        """Persist corrupt observations, reset once, and retry their subset.
+
+        ``LeanServerPool.run_batch`` joins its worker futures before returning,
+        so the coordinator can safely close the poisoned pool once.  Previous
+        code normalized each corrupt item independently; every item reset the
+        same shared pool and launched a stable fallback, producing reset churn
+        and effectively serial scale execution.
+        """
+
+        affected = [
+            i
+            for i, item in zip(indices, raw_results, strict=True)
+            if self._pool_item_has_core_corruption(requests[i], item)
+        ]
+        if not affected:
+            return {}
+
+        # Persist every first-pass corrupt response before discarding the
+        # poisoned pool. Recovery is deliberately disabled here so no item can
+        # reset shared state during normalization.
+        by_index = dict(zip(indices, raw_results, strict=True))
+        for i in affected:
+            provisional = self._normalize_pool_item(
+                requests[i],
+                hashes[i],
+                by_index[i],
+                first_elapsed_ms,
+                recover_corrupted_environment=False,
+            )
+            assert provisional.status == LeanStatus.CRASH
+
+        self.reset_session()
+        retry_requests = [
+            replace(
+                requests[i],
+                metadata={
+                    **dict(requests[i].metadata),
+                    "attempt": f"{self._normalized_attempt(requests[i])}-pool-recovery",
+                    "core_environment_recovery": "1",
+                },
+            )
+            for i in affected
+        ]
+        retry_started = time.monotonic()
+        try:
+            retry_pool = self._ensure_pool()
+            retry_items = retry_pool.run_batch(
+                [self._build_repl_request(request) for request in retry_requests],
+                timeout_per_cmd=timeout_seconds,
+            )
+        except Exception as exc:
+            retry_elapsed = int((time.monotonic() - retry_started) * 1000)
+            recovered: dict[int, LeanResult] = {}
+            for i, retry_request in zip(affected, retry_requests, strict=True):
+                raw_path = self._persist_raw(
+                    retry_request,
+                    hashes[i],
+                    None,
+                    f"pool recovery: {type(exc).__name__}: {exc}",
+                )
+                recovered[i] = normalize_exception(
+                    requests[i],
+                    exc,
+                    request_hash=hashes[i],
+                    context_fingerprint=self._settings.context_fingerprint,
+                    elapsed_ms=first_elapsed_ms + retry_elapsed,
+                    raw_response_path=raw_path,
+                )
+            return recovered
+
+        retry_elapsed = int((time.monotonic() - retry_started) * 1000)
+        recovered = {}
+        for i, retry_request, item in zip(affected, retry_requests, retry_items, strict=True):
+            result = self._normalize_pool_item(
+                retry_request,
+                hashes[i],
+                item,
+                first_elapsed_ms + retry_elapsed,
+                recover_corrupted_environment=False,
+            )
+            if result.infrastructure_error == "core_environment_corruption_after_pool_recovery":
+                # A replacement pool still returned an impossible imported
+                # environment for this one request.  All replacement-pool
+                # futures have already joined, so it is now safe to discard
+                # that pool and use the existing bounded stable-process
+                # recovery as a rare correctness oracle.  Pass the original
+                # request (without the pool-recovery marker): the stable run
+                # adds the single core-recovery marker itself, and a third
+                # corrupt response therefore terminates as an explicit CRASH.
+                if isinstance(item, (LeanError, BaseException)):
+                    raise AssertionError("core-corruption response lacks a raw payload")
+                if result.raw_response_path is None:
+                    raise AssertionError("core-corruption response was not persisted")
+                raw = item.model_dump(mode="json")
+                stable_result = self._recover_corrupted_environment(
+                    requests[i],
+                    request_hash=hashes[i],
+                    raw=raw,
+                    raw_path=result.raw_response_path,
+                    elapsed_ms=first_elapsed_ms + retry_elapsed,
+                    originated_from_pool=True,
+                )
+                assert stable_result is not None
+                result = stable_result
+            # Metadata does not participate in request identity; nevertheless
+            # expose the caller's original request ID explicitly.
+            recovered[i] = replace(result, request_id=requests[i].request_id)
+        return recovered
 
     def _run_batch_pooled(self, requests: Sequence[LeanRequest]) -> list[LeanResult]:
         hashes: list[str] = []
@@ -411,7 +879,7 @@ class LeanInteractBackend:
         # Pool construction failure is a SETUP_ERROR for the whole batch
         # (§8.3), never CRASH/INTERNAL_ERROR.
         try:
-            pool = self._ensure_pool()
+            self._ensure_pool()
         except Exception as exc:
             elapsed_ms = int((time.monotonic() - started) * 1000)
             return [
@@ -432,6 +900,9 @@ class LeanInteractBackend:
             indices = groups[timeout_seconds]
             group_started = time.monotonic()
             try:
+                # A prior group's corruption recovery resets the pool. Never
+                # reuse a captured, already-closed pool across timeout groups.
+                pool = self._ensure_pool()
                 raw_results = pool.run_batch(
                     [self._build_repl_request(requests[i]) for i in indices],
                     timeout_per_cmd=timeout_seconds,
@@ -454,8 +925,21 @@ class LeanInteractBackend:
             # Per-item wall time is unavailable from the pool; each item
             # records its group's elapsed time (documented limitation).
             group_elapsed = int((time.monotonic() - group_started) * 1000)
+            coordinated = self._coordinated_pool_recovery(
+                requests=requests,
+                hashes=hashes,
+                indices=indices,
+                raw_results=raw_results,
+                first_elapsed_ms=group_elapsed,
+                timeout_seconds=timeout_seconds,
+            )
             for i, item in zip(indices, raw_results, strict=True):
-                results[i] = self._normalize_pool_item(requests[i], hashes[i], item, group_elapsed)
+                if i in coordinated:
+                    results[i] = coordinated[i]
+                else:
+                    results[i] = self._normalize_pool_item(
+                        requests[i], hashes[i], item, group_elapsed
+                    )
         final = [result for result in results if result is not None]
         assert len(final) == len(requests)  # every index filled exactly once
         return final

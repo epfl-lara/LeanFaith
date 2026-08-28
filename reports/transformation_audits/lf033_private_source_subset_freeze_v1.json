@@ -1,0 +1,22 @@
+{
+  "artifact_kind": "lf033_private_source_subset_freeze_audit",
+  "audit_version": 1,
+  "disposition": "frozen_exploratory_input_not_training_data",
+  "source": "sft_classic",
+  "record_count": 5000,
+  "context_id": "ctx:0cd06826b8767b3bc951c0eb00c802424af95785b558f9f8a61f18694a86c4ce",
+  "input_theorem_path": "/storage/milikic/leanfaith/gate3/frozen/gate3_inputs.theorems.jsonl",
+  "input_theorem_sha256": "8eb75ffa0b9233c5a91492fa181f604e3c098a6f3970799bcb0406f8b517f09e",
+  "input_representation_path": "/storage/milikic/leanfaith/gate3/run_repr_v3_df7baa3/run_a/records/gate3.jsonl",
+  "input_representation_sha256": "cd0a706448a1df2effab245ca175aa918c34f28f3f840ed666361f84397602ae",
+  "subset_manifest_path": "/storage/milikic/leanfaith/gate3/frozen/source_subsets/sft_classic_v1/manifest.json",
+  "subset_manifest_sha256": "e0600a5b5b8dc20d2983e66daef78aef18cd0cc9c652414a35263ea55f0ac43f",
+  "theorem_output_path": "/storage/milikic/leanfaith/gate3/frozen/source_subsets/sft_classic_v1/theorems.jsonl",
+  "theorem_output_sha256": "3241ea0ff7f7e80a27ea6deafe680043c8ac8e782db049dcc551c50441115c30",
+  "representation_output_path": "/storage/milikic/leanfaith/gate3/frozen/source_subsets/sft_classic_v1/representations.jsonl",
+  "representation_output_sha256": "c63bf8e2706d4fc3fff430bee920cb0c575b2947023a4141a4d0384f747cad24",
+  "exact_replay_verified": true,
+  "resolved_label_count": 0,
+  "promoted_item_count": 0,
+  "training_eligible": false
+}

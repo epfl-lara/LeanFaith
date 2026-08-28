@@ -122,9 +122,12 @@ def test_extraction_replay_ignores_volatile_fields_but_not_normalized_outcomes(
     _write(right_theorems, [dict(theorem, created_at="volatile-right")])
     failure = {
         "source_record": "f" * 64,
-        "declaration_name": None,
-        "code": "source_non_elaboration",
-        "outcome_level": "row",
+        "declaration_name": "t",
+        "declaration_full_name": "Ns.t",
+        "declaration_ordinal": 0,
+        "code": "revalidation_failed",
+        "outcome_level": "declaration",
+        "extraction_route": "question_statement",
         "detail": "volatile diagnostic",
     }
     _write(left_failures, [failure])
@@ -146,6 +149,18 @@ def test_extraction_replay_ignores_volatile_fields_but_not_normalized_outcomes(
         right_failure_path=right_failures,
     )
     assert not report.ok
+
+    _write(right_theorems, [dict(theorem, created_at="volatile-right")])
+    changed_failure = dict(failure, declaration_ordinal=1)
+    _write(right_failures, [changed_failure])
+    report = compare_extraction_replays(
+        left_theorem_path=left_theorems,
+        left_failure_path=left_failures,
+        right_theorem_path=right_theorems,
+        right_failure_path=right_failures,
+    )
+    assert not report.ok
+    assert "failure" in report.errors[0]
 
 
 def test_extraction_replay_rejects_reordered_normalized_outcomes(tmp_path: Path) -> None:
@@ -204,6 +219,9 @@ def test_gate2_scale_audit_reconciles_frozen_denominator_and_hashes(tmp_path: Pa
                     "question_hash": "2" * 64,
                     "lean_code_hash": "3" * 64,
                     "extraction_route": "question_statement",
+                    "declaration_name": "t",
+                    "declaration_full_name": "t",
+                    "declaration_ordinal": 0,
                     "inline_elaboration_source": "theorem t : True := by sorry",
                     "nl_source_link": "hf://owner/data/train/3",
                     "nl_trust": "uncertain",
@@ -219,7 +237,16 @@ def test_gate2_scale_audit_reconciles_frozen_denominator_and_hashes(tmp_path: Pa
                 "source_record": source_7,
                 "outcome_level": "row",
                 "code": "source_non_elaboration",
-            }
+            },
+            {
+                "source_record": source_3,
+                "declaration_name": "alternate",
+                "declaration_full_name": "alternate",
+                "declaration_ordinal": 0,
+                "outcome_level": "declaration",
+                "code": "alternate_route_skipped",
+                "extraction_route": "lean_code_fallback",
+            },
         ],
     )
     sample_manifest_path = tmp_path / "sample_manifest.json"
@@ -242,7 +269,7 @@ def test_gate2_scale_audit_reconciles_frozen_denominator_and_hashes(tmp_path: Pa
             {
                 "attempted_row_count": 2,
                 "row_count": 1,
-                "declaration_count": 1,
+                "declaration_count": 2,
                 "terminal_outcome_counts": {"accepted": 1, "failed": 1},
                 "config_hash": "5" * 64,
                 "environment_hash": "6" * 64,
@@ -264,3 +291,130 @@ def test_gate2_scale_audit_reconciles_frozen_denominator_and_hashes(tmp_path: Pa
     )
     assert report.ok
     assert report.accepted_rows == report.failed_rows == 1
+
+
+def _audit_with_declaration_failure(
+    tmp_path: Path, failure: dict[str, object]
+) -> tuple[bool, tuple[str, ...]]:
+    dataset_id, revision, split = "owner/data", "a" * 40, "train"
+    sample_path = tmp_path / "sample.jsonl"
+    _write(sample_path, [{"source_row_index": 3, "row": {"uuid": "u3"}}])
+    source_id = make_hf_source_record_id(dataset_id, revision, split, 3)
+    theorem_path = tmp_path / "theorems.jsonl"
+    _write(
+        theorem_path,
+        [
+            {
+                "theorem": {
+                    "theorem_id": "thm:" + "9" * 64,
+                    "source_record_id": source_id,
+                    "raw_row_hash": "1" * 64,
+                    "question_hash": "2" * 64,
+                    "lean_code_hash": "3" * 64,
+                    "extraction_route": "question_statement",
+                    "declaration_name": "t",
+                    "declaration_full_name": "t",
+                    "declaration_ordinal": 0,
+                    "inline_elaboration_source": "theorem t : True := by sorry",
+                    "nl_source_link": "hf://owner/data/train/3",
+                    "nl_trust": "uncertain",
+                }
+            }
+        ],
+    )
+    failure_path = tmp_path / "failures.jsonl"
+    _write(failure_path, [failure])
+    sample_manifest_path = tmp_path / "sample_manifest.json"
+    sample_manifest_path.write_text(
+        json.dumps(
+            {
+                "dataset_id": dataset_id,
+                "revision": revision,
+                "split": split,
+                "sample_rows": 1,
+                "output_sha256": hash_file(sample_path),
+                "input_partitions": [{"path": "shard.arrow", "rows": 10, "sha256": "4" * 64}],
+            }
+        ),
+        encoding="utf-8",
+    )
+    extraction_manifest_path = tmp_path / "extraction_manifest.json"
+    extraction_manifest_path.write_text(
+        json.dumps(
+            {
+                "attempted_row_count": 1,
+                "row_count": 1,
+                "declaration_count": 2,
+                "terminal_outcome_counts": {"accepted_question_statement": 1},
+                "config_hash": "5" * 64,
+                "environment_hash": "6" * 64,
+                "context_hash": "7" * 64,
+                "code_tree_hash": "8" * 64,
+                "input_partition_checksums": {str(sample_path): hash_file(sample_path)},
+                "output_partition_checksums": {str(theorem_path): hash_file(theorem_path)},
+                "failure_partition_checksums": {str(failure_path): hash_file(failure_path)},
+            }
+        ),
+        encoding="utf-8",
+    )
+    report = audit_gate2_scale(
+        sample_path=sample_path,
+        sample_manifest_path=sample_manifest_path,
+        extraction_manifest_path=extraction_manifest_path,
+        theorem_path=theorem_path,
+        failure_path=failure_path,
+    )
+    return report.ok, report.errors
+
+
+def test_gate2_scale_audit_rejects_foreign_declaration_failure(tmp_path: Path) -> None:
+    ok, errors = _audit_with_declaration_failure(
+        tmp_path,
+        {
+            "source_record": "foreign-source",
+            "declaration_name": "alternate",
+            "declaration_ordinal": 0,
+            "outcome_level": "declaration",
+            "code": "alternate_route_skipped",
+            "extraction_route": "lean_code_fallback",
+        },
+    )
+    assert not ok
+    assert any("unexpected declaration-level failure source_record" in error for error in errors)
+
+
+def test_gate2_scale_audit_rejects_null_declaration_route(tmp_path: Path) -> None:
+    source_id = make_hf_source_record_id("owner/data", "a" * 40, "train", 3)
+    ok, errors = _audit_with_declaration_failure(
+        tmp_path,
+        {
+            "source_record": source_id,
+            "declaration_name": "alternate",
+            "declaration_ordinal": 0,
+            "outcome_level": "declaration",
+            "code": "alternate_route_skipped",
+            "extraction_route": None,
+        },
+    )
+    assert not ok
+    assert any("invalid extraction_route" in error for error in errors)
+
+
+def test_gate2_scale_audit_rejects_accepted_and_failed_declaration_duplicate(
+    tmp_path: Path,
+) -> None:
+    source_id = make_hf_source_record_id("owner/data", "a" * 40, "train", 3)
+    ok, errors = _audit_with_declaration_failure(
+        tmp_path,
+        {
+            "source_record": source_id,
+            "declaration_name": "t",
+            "declaration_full_name": "t",
+            "declaration_ordinal": 0,
+            "outcome_level": "declaration",
+            "code": "revalidation_failed",
+            "extraction_route": "question_statement",
+        },
+    )
+    assert not ok
+    assert any("both accepted and failed terminal outcomes" in error for error in errors)

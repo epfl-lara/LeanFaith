@@ -169,6 +169,7 @@ def build_derived_theorem_record(
     primary_source_id: str,
     elaboration_status: ValidationStatus,
     elaboration_diagnostics: Sequence[str] = (),
+    inline_elaboration_source: str | None = None,
     metadata: Mapping[str, str | int | float | bool | None] | None = None,
 ) -> TheoremRecord:
     """Build one deterministic child theorem without inferring a label.
@@ -212,6 +213,11 @@ def build_derived_theorem_record(
     candidate_hash = hashlib.sha256(draft.candidate_code.encode("utf-8")).hexdigest()
     if candidate_hash != draft.candidate_code_hash:
         raise TransformationIdentityError("draft candidate hash does not match candidate code")
+    effective_inline_source = inline_elaboration_source or draft.candidate_code
+    if effective_inline_source.count(draft.candidate_code) != 1:
+        raise TransformationIdentityError(
+            "candidate inline elaboration source must contain candidate code exactly once"
+        )
 
     theorem_id = _expected_derived_theorem_id(
         draft=draft,
@@ -250,7 +256,7 @@ def build_derived_theorem_record(
         declaration_full_name=primary.declaration_full_name,
         declaration_ordinal=primary.declaration_ordinal,
         proof_stripped_declaration=draft.candidate_code,
-        inline_elaboration_source=draft.candidate_code,
+        inline_elaboration_source=effective_inline_source,
         is_proposition=primary.is_proposition,
         elaboration_status=elaboration_status,
         elaboration_diagnostics=tuple(elaboration_diagnostics),
@@ -347,9 +353,12 @@ def build_deterministic_pair_record(
         )
     if candidate.proof_stripped_declaration != draft.candidate_code:
         raise TransformationIdentityError("candidate theorem text does not match draft code")
-    if candidate.inline_elaboration_source != draft.candidate_code:
+    if (
+        candidate.inline_elaboration_source is None
+        or candidate.inline_elaboration_source.count(draft.candidate_code) != 1
+    ):
         raise TransformationIdentityError(
-            "candidate inline elaboration source does not match draft code"
+            "candidate inline elaboration source does not contain draft code exactly once"
         )
     if candidate.statement_content_hash != draft.candidate_code_hash:
         raise TransformationIdentityError("candidate theorem hash does not match draft code hash")

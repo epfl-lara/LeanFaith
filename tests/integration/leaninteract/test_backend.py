@@ -122,6 +122,8 @@ def test_file_command_declarations(backend: LeanInteractBackend) -> None:
         "lf_proof_body_b",
         "LeanFaithLF021OfflineToken",
         "hidden",
+        "hiddenComplex",
+        "publicComplex",
     ]
 
 

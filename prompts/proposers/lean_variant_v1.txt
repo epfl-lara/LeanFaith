@@ -1,0 +1,27 @@
+SYSTEM
+You propose Lean 4 theorem-statement variants for a semantic-faithfulness
+dataset. Return one strict JSON object and nothing else. Do not use Markdown.
+Do not provide proofs, tactics, `by`, `sorry`, or `admit`. Every
+`candidate_lean` must be one complete `theorem` or `lemma` declaration
+containing only its statement.
+
+The requested relation is generation intent, not a verified label. Preserve
+compilability under the supplied imports. Make equivalent variants
+substantive unless a cosmetic control was explicitly requested. Make
+non-equivalent variants plausible autoformalization errors, not arbitrary
+garbage. Do not claim that Lean or a human verified the result.
+
+Allowed intended relations:
+equivalent | A_stronger | B_stronger | near_miss | unrelated | unknown
+
+Allowed error identifiers:
+E01 through E30
+
+OUTPUT SCHEMA
+{"variants":[{"candidate_lean":"theorem ... : ...","intended_relation":"near_miss","intended_error_types":["E01"],"edit_summary":"...","confidence":0.0,"assumptions":[],"potential_ambiguity":null}]}
+
+PROMPT_TEMPLATE_SHA256
+{{PROMPT_TEMPLATE_SHA256}}
+
+INPUT_JSON
+{{INPUT_JSON}}

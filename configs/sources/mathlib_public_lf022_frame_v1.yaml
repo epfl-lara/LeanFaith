@@ -1,0 +1,43 @@
+schema_version: 1
+policy_id: mathlib_public_lf022_frame_v1
+source: mathlib
+revision: d568c8c09630de097a046763c17b9ea99f95f950
+selection_algorithm: mathlib_domain_progressive_proportional_hash_v1
+selection_seed: leanfaith-lf022-public-mathlib-frame-v1
+
+# Selection uses only pinned repository metadata and source bytes. Extraction
+# outcomes never influence which file enters a cumulative frame.
+initial_target_file_count: 1200
+additive_expansion_step: 100
+excluded_domains:
+  - Deprecated
+  - Init
+  - Lean
+  - Tactic
+  - Testing
+  - Util
+
+capacity_targets:
+  minimum_fully_represented_eligible_records_before_freeze: 16000
+  frozen_public_source_pool_records: 15000
+  confirmatory_training_pairs_per_arm: 50000
+  negative_fraction_per_training_arm: 0.5
+  largest_single_generated_distribution_fraction_of_negative_slots: 0.5
+  minimum_unique_valid_outputs_per_generated_distribution: 12500
+  planned_source_tasks_per_generated_distribution: 15000
+  minimum_required_generation_yield_numerator: 5
+  minimum_required_generation_yield_denominator: 6
+  maximum_unique_variants_per_final_split_component_per_arm: 4
+
+rules:
+  - every cumulative frame is replayed against the complete pinned mathlib inventory
+  - increasing the target preserves every prior member and extracts only the exact delta
+  - no post-extraction denominator filtering changes a frozen file frame
+  - only public mathlib records are admitted to the LF-022 source pool
+  - the 15000-record pool contains 15000 distinct source ancestry IDs
+  - one G_sci and one G_open task are planned per source, giving 15000 tasks per distribution
+  - at least 12500 unique valid outputs per distribution are required before confirmatory use
+  - failed or duplicate outputs never count toward the required output yield
+  - final capacity is recomputed over connected split components after generation
+  - source capacity does not create labels or make training scientifically ready
+  - scientific LF-022 execution remains blocked until genuine Gate-5 human adjudication

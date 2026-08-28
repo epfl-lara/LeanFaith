@@ -103,22 +103,46 @@ class _FakeBenchmarkBackend:
                 status=LeanStatus.VALID_WITH_SORRY,
                 declarations=(declaration,),
             )
-        match = re.search(r"#check @(\w+)", request.code)
-        assert match is not None
-        name = match.group(1)
-        return _result(
-            request,
-            status=LeanStatus.VALID_WITH_SORRY,
-            messages=(
-                {"severity": "info", "data": f"@{name} : True"},
-                {"severity": "info", "data": f"@{name} : True"},
+        calls = re.findall(
+            r'(?m)^(lfDumpSignaturePP|lfDumpSignatureExplicit|lfDumpTree)\s+"([^"]+)"$',
+            request.code,
+        )
+        assert calls
+        assert len({name for _command, name in calls}) == 1
+        name = calls[0][1]
+        commands = {command for command, _name in calls}
+        messages: list[dict[str, object]] = []
+        if "lfDumpSignaturePP" in commands:
+            messages.append(
+                {
+                    "severity": "info",
+                    "data": ('LFSIGPPJSON {"name":"' + name + '","signature_pp":"True"}'),
+                }
+            )
+        if "lfDumpSignatureExplicit" in commands:
+            messages.append(
                 {
                     "severity": "info",
                     "data": (
-                        'LFJSON {"name":"' + name + '","tree":{"k":"const","n":"True","us":"[]"}}'
+                        'LFSIGEXPLICITJSON {"name":"' + name + '","signature_explicit":"True"}'
                     ),
-                },
-            ),
+                }
+            )
+        if "lfDumpTree" in commands:
+            messages.append(
+                {
+                    "severity": "info",
+                    "data": (
+                        'LFTREEJSON {"name":"'
+                        + name
+                        + '","tree":{"k":"const","n":"True","us":"[]"}}'
+                    ),
+                }
+            )
+        return _result(
+            request,
+            status=LeanStatus.VALID_WITH_SORRY,
+            messages=tuple(messages),
         )
 
     def close(self) -> None:

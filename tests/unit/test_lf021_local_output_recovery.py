@@ -80,14 +80,21 @@ class _RecoveryBackend:
         self.requests.append(request)
         source = request.code
         normalized = f"theorem {NAME} : ∀ (n : Nat), n = n"
-        if "#check @" in source:
+        if "lfDumpSignaturePP" in source:
             return LeanResult(
                 request_id=request.request_id,
                 request_hash=sha256_hex(source.encode()),
                 context_id=request.context_id,
                 context_fingerprint=CONTEXT_FINGERPRINT,
                 status=LeanStatus.VALID_WITH_SORRY,
-                messages=({"severity": "info", "data": f"{NAME} : ∀ (n : Nat), n = n"},),
+                messages=(
+                    {
+                        "severity": "info",
+                        "data": (
+                            f'LFSIGPPJSON {{"name":"{NAME}","signature_pp":"∀ (n : Nat), n = n"}}'
+                        ),
+                    },
+                ),
             )
         statement = normalized if normalized in source else f"theorem {NAME} (n : Nat) : n = n"
         return LeanResult(

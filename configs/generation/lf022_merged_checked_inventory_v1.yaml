@@ -1,0 +1,106 @@
+schema_version: 1
+method_version: lf022_merged_checked_inventory_v1
+inventory_spec_id: lf022_merged_inventory_spec:905a61334ce957f2e8e977c344349c474c503c576d3b50b3a6fb20f4535c501c
+partitions:
+  - partition_id: legacy668
+    source_root: /localhome/milikic/LeanFaith-rcp-5e672b9
+    selection_kind: legacy_check_input_scan
+    selection_artifact: null
+    lean_check_manifest:
+      path: /storage/milikic/leanfaith/lf022_lean_checks/rcp_5e672b9_v1/manifest.json
+      sha256: 5b7bdf168d4158406b7ddefc6fa3e545346f9aba676608bb964be3d0882ad77e
+    codex_audit_manifest:
+      path: /storage/milikic/leanfaith/lf022_codex_audit/sol_xhigh_v2/manifest.json
+      sha256: b2866946d6a8285ddaff79a60c3d7f91520907aebf681165a931c1701f99f8c3
+  - partition_id: kimi248
+    source_root: /localhome/milikic/LeanFaith-kimi-641d13d
+    selection_kind: frozen_batch_manifest
+    selection_artifact:
+      path: data/lf022_kimi_v4_scientific_641d13d/prefix_256/batch/batch_manifest.json
+      sha256: 1e0d6c8b86224ddab31930756e755a9ea6a51970745322248c66f99c2c6ffb1f
+    lean_check_manifest:
+      path: /storage/milikic/leanfaith/lf022_lean_checks/kimi_v4_641d13d_prefix256_v1/manifest.json
+      sha256: 8805cec56a157ce955354b63d54e9714948856e437ead076f59b3295656b253d
+    codex_audit_manifest:
+      path: /storage/milikic/leanfaith/lf022_codex_audits/kimi_v4_641d13d_prefix256_v1/manifest.json
+      sha256: b2ea47f15495f88e8d1bb5703c3e7622c9b7b5a221685c0ed7526d27bf402c17
+  - partition_id: qwen1019
+    source_root: /localhome/milikic/LeanFaith-rcp-5e672b9
+    selection_kind: verified_terminal_selector
+    selection_artifact:
+      path: /storage/milikic/leanfaith/lf022_postgen_reconciliations/qwen3_5_397b_incremental_v2/9b48c04658ac9c6bf221660da35a00bed824ccd90b2077854b132bd9f0601242/terminal_selector.json
+      sha256: 2491b4175dc9441b9028b8e422908c5d9c58e6acfac73440b78470e503c274a7
+    lean_check_manifest:
+      path: /storage/milikic/leanfaith/lf022_lean_checks/qwen3_5_397b_incremental/6472682bd2de081e9b007d82eb374556b2fb95ec29f0ea2c39ab2f42ca1582ee/manifest.json
+      sha256: f106d1a299c89eca5b5c82df562bb6522b42ca1de79b9d2caa91dd1a042d65e9
+    codex_audit_manifest:
+      path: /storage/milikic/leanfaith/lf022_codex_audits/qwen3_5_397b_incremental/6472682bd2de081e9b007d82eb374556b2fb95ec29f0ea2c39ab2f42ca1582ee/gpt-5.6-sol_xhigh_v2/manifest.json
+      sha256: e6d1ea0ba1c391dd63896465cb77c2ed2f2b7bb71da708baacaba6ca570497f9
+  - partition_id: deepseek32
+    source_root: /localhome/milikic/LeanFaith
+    selection_kind: frozen_batch_manifest
+    selection_artifact:
+      path: data/lf022_deepseek_v4_scientific_82b6e8f/prefix_32/batch/batch_manifest.json
+      sha256: 74a950dd36dbfeb4979ff6181fe7e7847eef90062168c95f8a31f537017bda23
+    lean_check_manifest:
+      path: /storage/milikic/leanfaith/lf022_lean_checks/deepseek_v4_82b6e8f_prefix32_v1/manifest.json
+      sha256: 0b49c3304efd102459986196d1a3e4eb52577b20ae120ff5004126b215bb3744
+    codex_audit_manifest: null
+expected:
+  by_partition:
+    legacy668:
+      gross_observation_count: 668
+      lean_valid_observation_count: 493
+      audited_observation_count: 493
+    kimi248:
+      gross_observation_count: 248
+      lean_valid_observation_count: 201
+      audited_observation_count: 201
+    qwen1019:
+      gross_observation_count: 1019
+      lean_valid_observation_count: 718
+      audited_observation_count: 718
+    deepseek32:
+      gross_observation_count: 32
+      lean_valid_observation_count: 27
+      audited_observation_count: 0
+  counts:
+    gross_observation_count: 1967
+    unique_variant_id_count: 1529
+    unique_candidate_content_count: 1502
+    unique_pair_key_count: 1502
+    lean_valid_gross_observation_count: 1439
+    lean_valid_unique_variant_id_count: 1130
+    lean_valid_unique_candidate_content_count: 1106
+    lean_valid_unique_pair_key_count: 1106
+    audited_gross_observation_count: 1412
+    audited_unique_variant_id_count: 1103
+    audited_unique_candidate_content_count: 1080
+    audited_unique_pair_key_count: 1080
+    lean_valid_unaudited_pair_key_count: 26
+    duplicate_pair_observation_count: 465
+    cross_partition_pair_key_count: 465
+    cross_model_pair_key_count: 1
+  pairwise_partition_intersections:
+    "legacy668 | kimi248": 26
+    "legacy668 | qwen1019": 438
+    "legacy668 | deepseek32": 1
+    "kimi248 | qwen1019": 0
+    "kimi248 | deepseek32": 0
+    "qwen1019 | deepseek32": 0
+  conflicts:
+    lean_outcome_conflict_pair_key_count: 0
+    audit_same_claim_conflict_pair_key_count: 3
+    audit_relation_conflict_pair_key_count: 32
+    audit_directional_conflict_pair_key_count: 20
+    audit_any_core_tuple_conflict_pair_key_count: 51
+audit_only: true
+inventory_only: true
+generation_complete: false
+human_labels_created: false
+semantic_labels_created: false
+silver_records_created: false
+gold_records_created: false
+training_eligible: false
+evaluation_eligible: false
+gate_credit_claimed: false

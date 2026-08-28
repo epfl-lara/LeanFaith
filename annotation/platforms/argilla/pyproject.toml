@@ -1,0 +1,13 @@
+[project]
+name = "leanfaith-argilla-integration"
+version = "0.1.0"
+description = "Pinned LF-023 Argilla integration environment"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "argilla==2.8.0",
+    "httpx>=0.27,<1",
+    "leanfaith",
+]
+
+[tool.uv.sources]
+leanfaith = { path = "../../..", editable = true }

@@ -1,0 +1,89 @@
+x-argilla-environment: &argilla-environment
+  ARGILLA_HOME_PATH: /var/lib/argilla
+  ARGILLA_ELASTICSEARCH: http://elasticsearch:9200
+  ARGILLA_DATABASE_URL: postgresql+asyncpg://postgres:${LF_ARGILLA_POSTGRES_PASSWORD:?set LF_ARGILLA_POSTGRES_PASSWORD}@postgres:5432/argilla
+  ARGILLA_REDIS_URL: redis://redis:6379/0
+  ARGILLA_AUTH_SECRET_KEY: ${LF_ARGILLA_AUTH_SECRET_KEY:?set LF_ARGILLA_AUTH_SECRET_KEY}
+  HF_HUB_DISABLE_TELEMETRY: "1"
+
+services:
+  argilla:
+    image: argilla/argilla-server:v2.8.0@sha256:6f4af8fcf4b809d25aa88a6a4f8838dbacab9296c83b055a9a58f1db7526431a
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${LF_ARGILLA_PORT:-6900}:6900"
+    environment:
+      <<: *argilla-environment
+      USERNAME: ${LF_ARGILLA_OWNER_USERNAME:?set LF_ARGILLA_OWNER_USERNAME}
+      PASSWORD: ${LF_ARGILLA_OWNER_PASSWORD:?set LF_ARGILLA_OWNER_PASSWORD}
+      API_KEY: ${LF_ARGILLA_OWNER_API_KEY:?set LF_ARGILLA_OWNER_API_KEY}
+      WORKSPACE: ${LF_ARGILLA_OWNER_WORKSPACE:-leanfaith-admin}
+    volumes:
+      - argilladata:/var/lib/argilla
+    depends_on:
+      - postgres
+      - elasticsearch
+      - redis
+    networks:
+      - argilla
+
+  worker:
+    image: argilla/argilla-server:v2.8.0@sha256:6f4af8fcf4b809d25aa88a6a4f8838dbacab9296c83b055a9a58f1db7526431a
+    restart: unless-stopped
+    environment:
+      <<: *argilla-environment
+      BACKGROUND_NUM_WORKERS: "2"
+    command: sh -c 'python -m argilla_server worker --num-workers $${BACKGROUND_NUM_WORKERS}'
+    volumes:
+      - argilladata:/var/lib/argilla
+    depends_on:
+      - postgres
+      - elasticsearch
+      - redis
+    networks:
+      - argilla
+
+  postgres:
+    image: postgres:14@sha256:caf49e3b10d377aa2cfee478591d623808527beb27125d38797b418013f72d81
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${LF_ARGILLA_POSTGRES_PASSWORD:?set LF_ARGILLA_POSTGRES_PASSWORD}
+      POSTGRES_DB: argilla
+    volumes:
+      - postgresdata:/var/lib/postgresql/data
+    networks:
+      - argilla
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.17.0@sha256:2f602552550869fb29b6fd5848c5118d3ef3a2e1d5d45802e3ab9088cb2de8e2
+    restart: unless-stopped
+    environment:
+      - node.name=elasticsearch
+      - cluster.name=leanfaith-argilla
+      - discovery.type=single-node
+      - cluster.routing.allocation.disk.threshold_enabled=false
+      - xpack.security.enabled=false
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    volumes:
+      - elasticdata:/usr/share/elasticsearch/data
+    networks:
+      - argilla
+
+  redis:
+    image: redis:7.4.2@sha256:fbdbaea47b9ae4ecc2082ecdb4e1cea81e32176ffb1dcf643d422ad07427e5d9
+    restart: unless-stopped
+    networks:
+      - argilla
+
+networks:
+  argilla:
+    driver: bridge
+
+volumes:
+  argilladata:
+  elasticdata:
+  postgresdata:

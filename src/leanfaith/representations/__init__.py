@@ -17,6 +17,7 @@ from leanfaith.representations.pipeline import (
     build_representation_batch,
     build_representations,
     declaration_environment_lookup_name,
+    inline_replay_environment_lookup_name,
 )
 from leanfaith.representations.views import (
     NORMALIZATION_VERSION,
@@ -48,6 +49,7 @@ __all__ = [
     "close_manual_collision_audit",
     "compare_representation_replays",
     "declaration_environment_lookup_name",
+    "inline_replay_environment_lookup_name",
     "normalize_headless",
     "parse_check_type",
     "representation_content_hash",

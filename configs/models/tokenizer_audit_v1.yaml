@@ -1,0 +1,140 @@
+schema_version: 2
+profile_id: gate3_repr_v3_backbone_tokenizer_audit_v1
+backbone_registry_path: configs/models/backbone_registry.yaml
+backbone_registry_sha256: 185dfc070acaf68440a7f4158298c0845147e556a3948e5fece3f1a895f890c4
+inputs:
+  gate3_manifest: /storage/milikic/leanfaith/gate3/frozen/gate3_inputs.json
+  gate3_manifest_sha256: 19f5c38ea15bbc72c97fe73be6f4a50d5491e3e27cdf024cc05889d4eb1471e3
+  theorem_partition: /storage/milikic/leanfaith/gate3/frozen/gate3_inputs.theorems.jsonl
+  theorem_partition_sha256: 8eb75ffa0b9233c5a91492fa181f604e3c098a6f3970799bcb0406f8b517f09e
+  representation_manifest: /storage/milikic/leanfaith/gate3/run_repr_v3_df7baa3/run_a/manifests/gate3.json
+  representation_manifest_sha256: 69d70157681442a06bcecd4d97715ff102a59bd73c04028f06d74928b064ab78
+  representation_partition: /storage/milikic/leanfaith/gate3/run_repr_v3_df7baa3/run_a/records/gate3.jsonl
+  representation_partition_sha256: cd0a706448a1df2effab245ca175aa918c34f28f3f840ed666361f84397602ae
+  expected_records: 10000
+  expected_per_source:
+    mathlib: 5000
+    sft_classic: 5000
+  expected_normalization_version: repr_v3
+  semantic_sections_status: frozen
+  semantic_sections_manifest: /storage/milikic/leanfaith/tokenizer_sections_v1/frozen_b4680f5_v1/manifest.json
+  semantic_sections_manifest_sha256: 25dfc07f68e4b05bd515c661208e1afb47d5c6dd9ef10f6f0343c84b231b7594
+  semantic_sections_partition: /storage/milikic/leanfaith/tokenizer_sections_v1/frozen_b4680f5_v1/sections.jsonl
+  semantic_sections_partition_sha256: 7ebdc105e9156f5aed0bde7b739b5ba578348d91cbe43608590cfe7292d2cddc
+  semantic_sections_method_version: lean_meta_tokenizer_sections_v1
+candidates:
+  modernbert_base:
+    model_id: answerdotai/ModernBERT-base
+    revision: 8949b909ec900327062f0ebf497f51aef5e6f0c8
+    cache_snapshot: /storage/milikic/models/hub/models--answerdotai--ModernBERT-base/snapshots/8949b909ec900327062f0ebf497f51aef5e6f0c8
+    branch: full_encoder
+    use_fast: true
+    native_max_length: 8192
+    files:
+      config.json:
+        sha256: 1609d59e627c33eaed524b4f01e546d42e84190a079a5a5ded84b212c41c324f
+        byte_count: 1193
+      special_tokens_map.json:
+        sha256: ea97ecdbcc73713039d8d64dbb05e3689495c96657fbd9a18f5bed381be81049
+        byte_count: 694
+      tokenizer.json:
+        sha256: 9fd55248d51d33976b324fc11592e28071da7d41e0e9401dfb7082e30574b7b1
+        byte_count: 2132967
+      tokenizer_config.json:
+        sha256: 3cd2017ff46d0a527e5d39cae39272eccfa1f19bb9f89b05d166aab2e38354e2
+        byte_count: 20810
+  modernbert_large:
+    model_id: answerdotai/ModernBERT-large
+    revision: 45bb4654a4d5aaff24dd11d4781fa46d39bf8c13
+    cache_snapshot: /storage/milikic/models/hub/models--answerdotai--ModernBERT-large/snapshots/45bb4654a4d5aaff24dd11d4781fa46d39bf8c13
+    branch: full_encoder
+    use_fast: true
+    native_max_length: 8192
+    files:
+      config.json:
+        sha256: 55dca68059e98f0debf8eb63ab355c451c65b1f5d90fdca4754113fdaadd2cca
+        byte_count: 1194
+      special_tokens_map.json:
+        sha256: ea97ecdbcc73713039d8d64dbb05e3689495c96657fbd9a18f5bed381be81049
+        byte_count: 694
+      tokenizer.json:
+        sha256: 9fd55248d51d33976b324fc11592e28071da7d41e0e9401dfb7082e30574b7b1
+        byte_count: 2132967
+      tokenizer_config.json:
+        sha256: 3cd2017ff46d0a527e5d39cae39272eccfa1f19bb9f89b05d166aab2e38354e2
+        byte_count: 20810
+  codet5p_220m_encoder:
+    model_id: Salesforce/codet5p-220m
+    revision: 2b92f36e2782341a50551759fdba0dd15e821f99
+    cache_snapshot: /storage/milikic/models/hub/models--Salesforce--codet5p-220m/snapshots/2b92f36e2782341a50551759fdba0dd15e821f99
+    branch: encoder_only
+    use_fast: true
+    native_max_length: 512
+    files:
+      added_tokens.json:
+        sha256: 44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a
+        byte_count: 2
+      config.json:
+        sha256: 223473301c42995448a6ac7d12dc5f0f559ca995def89e03d761983e103118e2
+        byte_count: 768
+      merges.txt:
+        sha256: 5d346f84939a98df0cde902df7d60154b461cde1b90dc653ab9b81d74e752a4d
+        byte_count: 294364
+      special_tokens_map.json:
+        sha256: 2454193b9f88437a3c0497300f21a2a4372115b5367ea71f07e912589baedaa6
+        byte_count: 12512
+      tokenizer_config.json:
+        sha256: ccc2672ac229eef1a36010a147b8d3e7881d39a30b9bca7ddaa73a30fccfd517
+        byte_count: 1477
+      vocab.json:
+        sha256: 43bb485f4de0f2fd49b370bef4efab23ea3ab6d0019e72bdd9cec1436a6eaa2b
+        byte_count: 703051
+  deberta_v3_large:
+    model_id: microsoft/deberta-v3-large
+    revision: 64a8c8eab3e352a784c658aef62be1662607476f
+    cache_snapshot: /storage/milikic/models/hub/models--microsoft--deberta-v3-large/snapshots/64a8c8eab3e352a784c658aef62be1662607476f
+    branch: full_encoder
+    use_fast: false
+    native_max_length: 512
+    files:
+      config.json:
+        sha256: ddec8b81d079d218ce9e54fc0af5d1d5937d6d53b5d42e70c1f251a1cebc830d
+        byte_count: 580
+      generator_config.json:
+        sha256: 36956d8ce96c4a9f3acbb43501394c78756f75f491bb7288cff065ad7636e223
+        byte_count: 560
+      spm.model:
+        sha256: c679fbf93643d19aab7ee10c0b99e460bdbc02fedf34b92b05af343b4af586fd
+        byte_count: 2464616
+      tokenizer_config.json:
+        sha256: 3f3978e0c036f2c2588cac34a6047cbb0af0b0dc1814254e291028529805496d
+        byte_count: 52
+budgets: [512, 1024]
+complete_semantics_fraction_at_512: 0.99
+representation_markers: ["[HEADLESS]", "[SIGNATURE_EXPLICIT]"]
+section_budget_policy: conclusion_then_ordered_lean_sections_v2
+unicode_symbols:
+  - "¬"
+  - "×"
+  - "Σ"
+  - "Π"
+  - "λ"
+  - "∀"
+  - "∃"
+  - "∈"
+  - "∉"
+  - "∧"
+  - "∨"
+  - "≠"
+  - "≤"
+  - "≥"
+  - "⊂"
+  - "⊆"
+  - "ℕ"
+  - "ℤ"
+  - "ℚ"
+  - "ℝ"
+  - "ℂ"
+  - "→"
+  - "↔"
+maximum_namespace_piece_bins: 100
