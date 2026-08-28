@@ -77,10 +77,3 @@ disallow_any_generics = false
 # datasets ships no type stubs; only the lazy live-client path touches it.
 module = ["datasets", "datasets.*"]
 ignore_missing_imports = true
-
-[[tool.mypy.overrides]]
-# Collector v4 is an immutable, hash-bound historical execution snapshot.
-# Its versioned v5 successor contains the two corresponding typing repairs;
-# suppress only the frozen snapshot's known narrowing/union-assignment codes.
-module = "leanfaith.generation.research_collection_v4"
-disable_error_code = ["return-value", "assignment"]
