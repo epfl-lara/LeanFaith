@@ -182,3 +182,178 @@ def partition_golden(
 
 def main() -> None:
     app()
+
+
+_DEFAULT_CHECKPOINT = Path(
+    "/storage/milikic/leanfaith/m1_proxy_training/"
+    "firsthop_kimi_qwen_composition_8d815af_v1/model.safetensors"
+)
+_DEFAULT_SNAPSHOT = Path(
+    "/storage/milikic/models/hub/models--answerdotai--ModernBERT-base/snapshots/"
+    "8949b909ec900327062f0ebf497f51aef5e6f0c8"
+)
+
+
+def _subset_metrics(
+    pairs: list[GoldenPair],
+    scores: list[Any],
+    indices: list[int],
+    threshold: float,
+) -> dict[str, Any] | None:
+    from leanfaith.eval.metrics import coverage_aware_summary
+
+    if not indices:
+        return None
+    subset_scores = [scores[i] for i in indices]
+    subset_labels = [pairs[i].label for i in indices]
+    if all(score.abstained for score in subset_scores):
+        return None
+    summary = dict(coverage_aware_summary(subset_scores, subset_labels, threshold))
+    summary["n_pairs"] = len(indices)
+    summary["prevalence"] = sum(subset_labels) / len(subset_labels)
+    return summary
+
+
+@app.command("evaluate")
+def evaluate(
+    checkpoint: Annotated[Path, typer.Option()] = _DEFAULT_CHECKPOINT,
+    snapshot: Annotated[Path, typer.Option()] = _DEFAULT_SNAPSHOT,
+    pairs_path: Annotated[Path, typer.Option()] = Path(
+        "/storage/milikic/leanfaith/golden/canonical/golden_pairs_v1.jsonl"
+    ),
+    partition: Annotated[str, typer.Option()] = "dev",
+    unseal_final_test: Annotated[bool, typer.Option("--unseal-final-test")] = False,
+    threshold: Annotated[float, typer.Option()] = 0.5,
+    batch_size: Annotated[int, typer.Option()] = 32,
+    device: Annotated[str, typer.Option()] = "cuda",
+    label: Annotated[str, typer.Option(help="Run label used in the output dir name.")] = "m1",
+    out_root: Annotated[Path, typer.Option()] = Path("/storage/milikic/leanfaith/golden/eval_runs"),
+) -> None:
+    """Score one checkpoint on a golden partition (strict zero-shot track)."""
+
+    from leanfaith.eval.m1_runtime import load_m1_scorer, score_pairs
+    from leanfaith.eval.metrics import compute_classification_metrics, group_bootstrap_ci
+    from leanfaith.representations.views import signature_near_dup_hash
+
+    if partition == "final_test" and not unseal_final_test:
+        raise typer.BadParameter(
+            "final_test is SEALED until the frozen comparison set is ready "
+            "(PLAN.md Track A); pass --unseal-final-test only for that one run."
+        )
+    all_pairs = load_pairs(pairs_path)
+    pairs = [pair for pair in all_pairs if pair.partition == partition]
+    if not pairs:
+        raise typer.BadParameter(f"no pairs in partition {partition!r}")
+    scorer = load_m1_scorer(checkpoint, snapshot, device)
+    scores = score_pairs(
+        scorer, [(p.reference_headless, p.candidate_headless) for p in pairs], batch_size
+    )
+
+    headline = [
+        i
+        for i, pair in enumerate(pairs)
+        if not pair.label_conflict
+        and pair.label_provenance == "expert_human"
+        and any(m.dataset != "proofnetverif" for m in pair.memberships)
+    ]
+    breakdowns: dict[str, Any] = {
+        "headline_expert": _subset_metrics(pairs, scores, headline, threshold),
+        "all_non_conflicted": _subset_metrics(
+            pairs,
+            scores,
+            [i for i, p in enumerate(pairs) if not p.label_conflict],
+            threshold,
+        ),
+    }
+    for dataset in sorted({m.dataset for p in pairs for m in p.memberships}):
+        indices = [
+            i
+            for i, p in enumerate(pairs)
+            if not p.label_conflict and any(m.dataset == dataset for m in p.memberships)
+        ]
+        breakdowns[f"dataset:{dataset}"] = _subset_metrics(pairs, scores, indices, threshold)
+
+    scored_headline = [i for i in headline if scores[i].probability is not None]
+    ci: dict[str, Any] = {}
+    if scored_headline:
+        labels = [pairs[i].label for i in scored_headline]
+        probs = [
+            probability
+            for i in scored_headline
+            if (probability := scores[i].probability) is not None
+        ]
+        groups = [pairs[i].group_key for i in scored_headline]
+
+        def _balanced_accuracy(y: Any, p: Any) -> float:
+            return float(compute_classification_metrics(y, p, threshold)["balanced_accuracy"])
+
+        def _accuracy(y: Any, p: Any) -> float:
+            return float(compute_classification_metrics(y, p, threshold)["accuracy"])
+
+        for name, fn in (("balanced_accuracy", _balanced_accuracy), ("accuracy", _accuracy)):
+            point, lo, hi = group_bootstrap_ci(
+                labels, probs, groups, fn, n_boot=1000, seed=20260828
+            )
+            ci[name] = {"point": point, "lo95": lo, "hi95": hi}
+
+    majority = sum(pairs[i].label for i in headline) / max(len(headline), 1)
+    identity_correct = sum(
+        1
+        for i in headline
+        if (
+            signature_near_dup_hash(pairs[i].reference_headless)
+            == signature_near_dup_hash(pairs[i].candidate_headless)
+        )
+        == pairs[i].label
+    )
+    baselines = {
+        "always_majority_accuracy": max(majority, 1.0 - majority),
+        "identity_match_accuracy": identity_correct / max(len(headline), 1),
+    }
+
+    checkpoint_digest = hash_file(checkpoint)
+    out_dir = out_root / f"{partition}_{label}_{checkpoint_digest[:12]}"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    with (out_dir / "predictions.jsonl").open("w", encoding="utf-8") as stream:
+        for pair, score in zip(pairs, scores, strict=True):
+            stream.write(
+                json.dumps(
+                    {
+                        "pair_id": pair.pair_id,
+                        "group_key": pair.group_key,
+                        "datasets": sorted({m.dataset for m in pair.memberships}),
+                        "label": pair.label,
+                        "label_conflict": pair.label_conflict,
+                        "label_provenance": pair.label_provenance,
+                        "probability": score.probability,
+                        "abstained": score.abstained,
+                        "token_length": score.token_length,
+                    },
+                    sort_keys=True,
+                )
+                + "\n"
+            )
+    metrics_payload = {
+        "partition": partition,
+        "threshold": threshold,
+        "track": "strict_zero_shot",
+        "breakdowns": breakdowns,
+        "bootstrap_ci_headline": ci,
+        "trivial_baselines": baselines,
+    }
+    (out_dir / "metrics.json").write_bytes(canonical_json_bytes(metrics_payload))
+    _write_run_manifest(
+        out_dir,
+        "evaluate",
+        {
+            "checkpoint": {"path": str(checkpoint), "sha256": checkpoint_digest},
+            "pairs": {"path": str(pairs_path), "sha256": hash_file(pairs_path)},
+            "partition": partition,
+            "threshold": threshold,
+            "batch_size": batch_size,
+            "device": device,
+        },
+    )
+    typer.echo(json.dumps(breakdowns["headline_expert"], indent=2, sort_keys=True))
+    typer.echo(json.dumps({"ci": ci, "baselines": baselines}, indent=2, sort_keys=True))
+    typer.echo(f"full results -> {out_dir}")
