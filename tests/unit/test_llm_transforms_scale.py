@@ -99,6 +99,7 @@ def _theorem_row(
             "source": "mathlib",
             "source_revision": revision,
             "source_file": f"Mathlib/Fixture/{theorem_id}.lean",
+            "source_range": [2, 3],
             "metadata": {"transform_source_eligible": eligible},
         }
     }
@@ -385,6 +386,69 @@ def test_production_scale_requires_exactly_200_jobs(tmp_path: Path) -> None:
     assert not storage_output.exists()
 
 
+def test_production_mathlib_checkout_must_match_clean_pinned_revision(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    config = transforms.ScaleConfig(
+        output_root=Path("/storage/milikic/leanfaith/fixture-output"),
+        mathlib_project=tmp_path / "mathlib",
+        expected_source_revision="expected-revision",
+        enforce_storage_root=True,
+    )
+    monkeypatch.setattr(transforms, "_git_rev", lambda _path: "wrong-revision")
+    monkeypatch.setattr(transforms, "_git_is_clean", lambda _path: True)
+    with pytest.raises(ValueError, match="revision mismatch"):
+        transforms._validate_mathlib_checkout(config)
+
+    monkeypatch.setattr(transforms, "_git_rev", lambda _path: "expected-revision")
+    monkeypatch.setattr(transforms, "_git_is_clean", lambda _path: False)
+    with pytest.raises(ValueError, match="requires a clean mathlib checkout"):
+        transforms._validate_mathlib_checkout(config)
+
+
+def test_contextual_lean_resume_rejects_source_prefix_drift(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    blocklist_path = _write_blocklist(tmp_path / "blocklist.json")
+    mathlib_project = tmp_path / "mathlib"
+    source_path = mathlib_project / "Mathlib" / "Fixture" / "Context.lean"
+    source_path.parent.mkdir(parents=True)
+    source_path.write_text("import Mathlib\n", encoding="utf-8")
+    source = transforms.SourceStatement(
+        statement_id="repr::context-resume",
+        content_hash="fixture-hash",
+        headless="(P : Prop) (h : P) : P",
+        theorem_id="mathlib::context-resume",
+        group_key="mathlib::context-resume",
+        source_file="Mathlib/Fixture/Context.lean",
+        source_range_start=2,
+    )
+    job = _job(0, source)
+    record = _record(job, "(P : Prop) (h : P) : P ∧ True")
+    monkeypatch.setattr(
+        transforms.subprocess,
+        "run",
+        lambda *_args, **_kwargs: SimpleNamespace(returncode=0, stdout="", stderr=""),
+    )
+    config = transforms.ScaleConfig(
+        output_root=tmp_path / "lean-output",
+        blocklist_path=blocklist_path,
+        mathlib_project=mathlib_project,
+        lean_batch_size=1,
+        enforce_storage_root=False,
+    )
+
+    first, reused = transforms.run_lean_checks(config, [job], [record])
+    assert reused == 0
+    assert first[0].status == "valid"
+    source_path.write_text("import Mathlib.Data.Nat.Basic\n", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="Lean terminal source/config mismatch"):
+        transforms.run_lean_checks(config, [job], [record])
+
+
 def test_incomplete_provider_attempt_refuses_implicit_duplicate(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -442,12 +506,16 @@ def test_provider_oserror_blocks_tiny_scale_with_zero_started_processes(
     output_root = tmp_path / "oserror-output"
     mathlib_project = tmp_path / "mathlib"
     mathlib_project.mkdir()
+    source_path = mathlib_project / "Mathlib" / "Fixture" / "arrow-source.lean"
+    source_path.parent.mkdir(parents=True)
+    source_path.write_text("import Mathlib\n", encoding="utf-8")
 
     def missing_codex(*_args: Any, **_kwargs: Any) -> SimpleNamespace:
         raise OSError("fixture Codex executable is missing")
 
     monkeypatch.setattr(transforms, "_codex_cli_version", lambda: "fixture-codex")
     monkeypatch.setattr(transforms, "_git_rev", lambda _path: "fixture-revision")
+    monkeypatch.setattr(transforms, "_git_is_clean", lambda _path: True)
     monkeypatch.setattr(transforms.subprocess, "run", missing_codex)
     config = transforms.ScaleConfig(
         pairs_path=pairs_path,
@@ -525,6 +593,10 @@ def test_scale_resume_reuses_fake_provider_and_fake_lean_terminals(
     output_root = tmp_path / "scale-output"
     mathlib_project = tmp_path / "mathlib"
     mathlib_project.mkdir()
+    for theorem_id in ("arrow-source", "numeric-source"):
+        source_path = mathlib_project / "Mathlib" / "Fixture" / f"{theorem_id}.lean"
+        source_path.parent.mkdir(parents=True, exist_ok=True)
+        source_path.write_text("import Mathlib\n", encoding="utf-8")
     provider_prompts: list[str] = []
     lean_commands: list[list[str]] = []
 
@@ -562,6 +634,7 @@ def test_scale_resume_reuses_fake_provider_and_fake_lean_terminals(
     monkeypatch.setattr(transforms, "run_provider", fake_provider)
     monkeypatch.setattr(transforms, "_codex_cli_version", lambda: "fixture-codex")
     monkeypatch.setattr(transforms, "_git_rev", lambda _path: "fixture-revision")
+    monkeypatch.setattr(transforms, "_git_is_clean", lambda _path: True)
     monkeypatch.setattr(transforms.subprocess, "run", fake_lean)
     config = transforms.ScaleConfig(
         pairs_path=pairs_path,
@@ -594,7 +667,7 @@ def test_scale_resume_reuses_fake_provider_and_fake_lean_terminals(
     assert first["generation"]["calls_executed_this_invocation"] == 2
     assert first["trainer"]["record_count"] == 2
     assert len(provider_prompts) == 2
-    assert len(lean_commands) == 1
+    assert len(lean_commands) == 2
 
     second = transforms.run_scale(config)
 
@@ -602,7 +675,7 @@ def test_scale_resume_reuses_fake_provider_and_fake_lean_terminals(
     assert second["generation"]["terminals_reused_at_start"] == 2
     assert second["lean"]["terminals_reused_at_start"] == 2
     assert len(provider_prompts) == 2
-    assert len(lean_commands) == 1
+    assert len(lean_commands) == 2
     assert (output_root / "records.jsonl").read_bytes() == first_records
     assert (output_root / "trainer_records.jsonl").read_bytes() == first_trainer
     assert all(path.read_bytes() == payload for path, payload in generation_terminals.items())
@@ -655,6 +728,49 @@ def test_lean_memory_limit_and_bisection_isolate_one_invalid_candidate(
         assert kwargs["stdin"] == subprocess.DEVNULL
         assert kwargs["timeout"] == 41
         assert source.startswith("import Mathlib\n")
+
+
+def test_contextual_lean_source_replaces_original_declaration_with_unique_name(
+    tmp_path: Path,
+) -> None:
+    mathlib_project = tmp_path / "mathlib"
+    source_path = mathlib_project / "Mathlib" / "Fixture" / "Context.lean"
+    source_path.parent.mkdir(parents=True)
+    source_path.write_text(
+        "import Mathlib\n\nnamespace Fixture\n\nvariable (P Q : Prop)\n\n"
+        "theorem original (h : P) : P := h\n\nend Fixture\n",
+        encoding="utf-8",
+    )
+    source = transforms.SourceStatement(
+        statement_id="repr::context",
+        content_hash="fixture-hash",
+        headless="(P Q : Prop) (h : P) : P",
+        theorem_id="mathlib::context",
+        group_key="mathlib::context",
+        source_file="Mathlib/Fixture/Context.lean",
+        source_range_start=7,
+    )
+    job = _job(0, source)
+    rewritten = "(P Q : Prop) (h : P) : P ∧ True"
+    candidate = transforms._LeanCandidate(
+        job=job,
+        statement=rewritten,
+        candidate_sha256=hashlib.sha256(rewritten.encode()).hexdigest(),
+        near_dup_hash=signature_near_dup_hash(rewritten),
+        candidate_blocked=False,
+    )
+    config = transforms.ScaleConfig(
+        output_root=tmp_path / "output",
+        mathlib_project=mathlib_project,
+        enforce_storage_root=False,
+    )
+
+    generated = transforms._lean_source_bytes(config, [candidate]).decode()
+
+    assert generated.startswith("import Mathlib\n\nnamespace Fixture\n\nvariable (P Q : Prop)\n\n")
+    assert "theorem original" not in generated
+    assert f"theorem {transforms._lean_theorem_name(job)} {rewritten} := by" in generated
+    assert generated.endswith("\n  sorry\n")
 
 
 def test_corrupted_lean_batch_source_is_rejected_on_resume(

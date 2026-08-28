@@ -23,6 +23,7 @@ import hashlib
 import json
 import os
 import random
+import re
 import statistics
 import subprocess
 import time
@@ -162,6 +163,7 @@ class SourceStatement:
     theorem_id: str = ""
     group_key: str = ""
     source_file: str = ""
+    source_range_start: int | None = None
 
 
 @dataclass
@@ -342,7 +344,6 @@ def build_prompt(
             f"family {assigned_family.family_id} has direction {assigned_family.direction!r}, "
             f"not {direction!r}"
         )
-
     menu: tuple[str, ...]
     if direction == "preserve":
         goal = (
@@ -394,7 +395,7 @@ keyword, no name, no proof). Your job is to {goal}
 REQUIREMENTS:
 - The rewritten statement must remain a well-typed, headless Lean 4 statement in
   mathlib style (same shape: binders followed by `:` and the goal). It must elaborate
-  against `import Mathlib`.
+  against the supplied source context (built on `import Mathlib`) in the pinned checkout.
 - Keep it self-contained: do not invent constants that do not exist in mathlib.
 - {family_action_requirement}
 - {transformation_requirement}
@@ -506,6 +507,7 @@ class _TheoremSourceInfo:
     theorem_id: str
     group_key: str
     source_file: str
+    source_range_start: int
     transform_source_eligible: bool
 
 
@@ -545,6 +547,8 @@ def load_scale_source_statements(
             roots = theorem.get("root_ancestry_ids")
             parents = theorem.get("parent_theorem_ids")
             metadata = theorem.get("metadata")
+            source_range = theorem.get("source_range")
+            source_file = theorem.get("source_file")
             if not isinstance(theorem_id, str) or not theorem_id:
                 raise ValueError(f"theorem row {theorem_rows} has invalid theorem_id")
             if theorem_id in theorem_info:
@@ -564,10 +568,21 @@ def load_scale_source_statements(
                 raise ValueError(f"D-3 source theorem is not a root: {theorem_id}")
             if not isinstance(metadata, dict):
                 raise ValueError(f"source theorem lacks metadata: {theorem_id}")
+            if (
+                not isinstance(source_range, list)
+                or len(source_range) != 2
+                or not all(isinstance(value, int) for value in source_range)
+                or source_range[0] <= 0
+                or source_range[1] < source_range[0]
+            ):
+                raise ValueError(f"source theorem lacks a valid source range: {theorem_id}")
+            if not isinstance(source_file, str) or not source_file:
+                raise ValueError(f"source theorem lacks a source file: {theorem_id}")
             theorem_info[theorem_id] = _TheoremSourceInfo(
                 theorem_id=theorem_id,
                 group_key=roots[0],
-                source_file=str(theorem.get("source_file", "")),
+                source_file=source_file,
+                source_range_start=source_range[0],
                 transform_source_eligible=metadata.get("transform_source_eligible") is True,
             )
 
@@ -628,6 +643,7 @@ def load_scale_source_statements(
                 theorem_id=info.theorem_id,
                 group_key=info.group_key,
                 source_file=info.source_file,
+                source_range_start=info.source_range_start,
             )
             existing = candidates_by_near_dup.get(near_dup)
             if existing is None:
@@ -864,6 +880,27 @@ def _git_rev(repo_root: Path) -> str:
         return "unknown"
 
 
+def _git_is_clean(repo_root: Path) -> bool:
+    try:
+        proc = subprocess.run(
+            [
+                "git",
+                "-C",
+                str(repo_root),
+                "status",
+                "--porcelain=v1",
+                "--untracked-files=all",
+            ],
+            stdin=subprocess.DEVNULL,
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+    return proc.returncode == 0 and not proc.stdout.strip()
+
+
 def make_record(
     provider: str,
     index: int,
@@ -1080,6 +1117,7 @@ class ScaleJob:
             "theorem_id": self.statement.theorem_id,
             "group_key": self.statement.group_key,
             "source_file": self.statement.source_file,
+            "source_range_start": self.statement.source_range_start,
             "source_statement": self.statement.headless,
             "direction": self.direction,
             "assigned_family": self.family.family_id,
@@ -1142,7 +1180,8 @@ class ScaleConfig:
 def _family_likely_applicable(family_id: str, statement: str) -> bool:
     arrows = statement.count("→") + statement.count("->")
     if family_id == "P23":
-        return arrows >= 2
+        adjacent_named_hypotheses = re.search(r"\(\s*h\w*\s*:[^()\n]+\)\s*\(\s*h\w*\s*:", statement)
+        return adjacent_named_hypotheses is not None
     if family_id == "P27":
         return arrows >= 1
     if family_id == "P29":
@@ -1442,14 +1481,29 @@ def _load_lean_terminal(
         raise ValueError(f"unknown Lean terminal status: {path}")
     if result.status != "not_generated":
         source_path = Path(result.batch_source_path or "")
-        expected_declaration = (
-            f"theorem LeanFaithD3_{job.job_id.replace('-', '_')} {record.rewritten_statement} := by"
-        )
+        assert record.rewritten_statement is not None
+        expected_declaration = _lean_declaration_header(job, record.rewritten_statement)
+        expected_context_sha256: str | None = None
+        if job.statement.source_range_start is not None:
+            expected_candidate = _LeanCandidate(
+                job=job,
+                statement=record.rewritten_statement,
+                candidate_sha256=candidate_hash or "",
+                near_dup_hash=signature_near_dup_hash(record.rewritten_statement),
+                candidate_blocked=False,
+            )
+            expected_context_sha256 = _sha256_bytes(
+                _lean_source_bytes(config, [expected_candidate])
+            )
         if (
             result.batch_source_path is None
             or result.batch_source_sha256 is None
             or not source_path.is_file()
             or _sha256_file(source_path) != result.batch_source_sha256
+            or (
+                expected_context_sha256 is not None
+                and result.batch_source_sha256 != expected_context_sha256
+            )
             or expected_declaration not in source_path.read_text(encoding="utf-8")
             or result.memory_hard_limit_mb != config.lean_memory_mb
         ):
@@ -1498,6 +1552,103 @@ class _LeanBatchCapture:
     stderr_sha256: str
 
 
+def _lean_theorem_name(job: ScaleJob) -> str:
+    digest = hashlib.sha256(job.job_id.encode("utf-8")).hexdigest()[:16]
+    alpha_digest = digest.translate(str.maketrans("0123456789", "ghijklmnop"))
+    return f"LeanFaithDThree_{alpha_digest}"
+
+
+def _lean_declaration_header(job: ScaleJob, statement: str) -> str:
+    return f"theorem {_lean_theorem_name(job)} {statement} := by"
+
+
+def _lean_source_bytes(
+    config: ScaleConfig,
+    candidates: Sequence[_LeanCandidate],
+) -> bytes:
+    contextual = [
+        candidate
+        for candidate in candidates
+        if candidate.job.statement.source_range_start is not None
+    ]
+    if contextual:
+        if len(candidates) != 1:
+            raise ValueError("contextual D-3 Lean checks must contain exactly one candidate")
+        candidate = contextual[0]
+        relative_source = Path(candidate.job.statement.source_file)
+        if relative_source.is_absolute() or ".." in relative_source.parts:
+            raise ValueError(f"invalid mathlib source path: {relative_source}")
+        source_path = (config.mathlib_project / relative_source).resolve()
+        if not source_path.is_relative_to(config.mathlib_project.resolve()):
+            raise ValueError(f"mathlib source escapes the project: {source_path}")
+        source_lines = source_path.read_text(encoding="utf-8").splitlines(keepends=True)
+        start = candidate.job.statement.source_range_start
+        assert start is not None
+        if start > len(source_lines) + 1:
+            raise ValueError(f"source range starts past EOF: {source_path}:{start}")
+        prefix = "".join(source_lines[: start - 1])
+        if prefix and not prefix.endswith("\n"):
+            prefix += "\n"
+        source = (
+            prefix
+            + "\n"
+            + _lean_declaration_header(candidate.job, candidate.statement)
+            + "\n  sorry\n"
+        )
+        return source.encode("utf-8")
+    declarations = ["import Mathlib", ""]
+    for candidate in candidates:
+        declarations.extend(
+            [
+                _lean_declaration_header(candidate.job, candidate.statement),
+                "  sorry",
+                "",
+            ]
+        )
+    return "\n".join(declarations).encode("utf-8")
+
+
+def _validate_scale_source_contexts(
+    config: ScaleConfig,
+    jobs: Sequence[ScaleJob],
+) -> dict[str, int]:
+    """Fail before provider calls if a frozen source context cannot be reconstructed."""
+    total_bytes = 0
+    source_files: set[str] = set()
+    for job in jobs:
+        statement = job.statement.headless
+        candidate = _LeanCandidate(
+            job=job,
+            statement=statement,
+            candidate_sha256=_sha256_text(statement),
+            near_dup_hash=signature_near_dup_hash(statement),
+            candidate_blocked=False,
+        )
+        total_bytes += len(_lean_source_bytes(config, [candidate]))
+        source_files.add(job.statement.source_file)
+    return {
+        "validated_jobs": len(jobs),
+        "source_files": len(source_files),
+        "total_reconstructed_bytes": total_bytes,
+    }
+
+
+def _validate_mathlib_checkout(config: ScaleConfig) -> tuple[str, bool]:
+    revision = _git_rev(config.mathlib_project)
+    clean = _git_is_clean(config.mathlib_project)
+    if config.enforce_storage_root:
+        if config.expected_source_revision is None:
+            raise ValueError("production D-3 scale requires a pinned mathlib source revision")
+        if revision != config.expected_source_revision:
+            raise ValueError(
+                "mathlib checkout revision mismatch: "
+                f"expected {config.expected_source_revision}, got {revision}"
+            )
+        if not clean:
+            raise ValueError("production D-3 scale requires a clean mathlib checkout")
+    return revision, clean
+
+
 def _execute_lean_batch(
     config: ScaleConfig,
     candidates: Sequence[_LeanCandidate],
@@ -1510,17 +1661,7 @@ def _execute_lean_batch(
     source_path = attempt_dir / "batch.lean"
     stdout_path = attempt_dir / "stdout.txt"
     stderr_path = attempt_dir / "stderr.txt"
-    declarations = ["import Mathlib", ""]
-    for candidate in candidates:
-        name = candidate.job.job_id.replace("-", "_")
-        declarations.extend(
-            [
-                f"theorem LeanFaithD3_{name} {candidate.statement} := by",
-                "  sorry",
-                "",
-            ]
-        )
-    source_bytes = "\n".join(declarations).encode("utf-8")
+    source_bytes = _lean_source_bytes(config, candidates)
     _write_immutable(source_path, source_bytes)
     returncode: int | None = None
     timed_out = False
@@ -1599,6 +1740,14 @@ def _check_lean_candidates_recursive(
     config: ScaleConfig,
     candidates: Sequence[_LeanCandidate],
 ) -> list[LeanCheckResult]:
+    if len(candidates) > 1 and any(
+        candidate.job.statement.source_range_start is not None for candidate in candidates
+    ):
+        return [
+            result
+            for candidate in candidates
+            for result in _check_lean_candidates_recursive(config, [candidate])
+        ]
     capture = _execute_lean_batch(config, candidates)
     if capture.returncode == 0:
         return [
@@ -1747,6 +1896,7 @@ def run_scale(config: ScaleConfig) -> dict[str, Any]:
         )
     if config.max_workers <= 0 or config.lean_batch_size <= 0:
         raise ValueError("worker and Lean batch counts must be positive")
+    mathlib_git_rev, mathlib_git_clean = _validate_mathlib_checkout(config)
     config.output_root.mkdir(parents=True, exist_ok=True)
     fewshots = build_fewshots(
         config.pairs_path,
@@ -1763,6 +1913,7 @@ def run_scale(config: ScaleConfig) -> dict[str, Any]:
         expected_source_revision=config.expected_source_revision,
     )
     jobs = build_scale_jobs(pool, fewshots, config.count)
+    source_context_preflight = _validate_scale_source_contexts(config, jobs)
     plan_rows = [job.plan_json() for job in jobs]
     plan_bytes = _canonical_jsonl_bytes(plan_rows)
     job_plan_path = config.output_root / "job_plan.jsonl"
@@ -1810,12 +1961,19 @@ def run_scale(config: ScaleConfig) -> dict[str, Any]:
             "direction=index mod 2; family=(index//2) mod direction-menu length"
         ),
         "mathlib_project": str(config.mathlib_project),
-        "mathlib_git_rev": _git_rev(config.mathlib_project),
+        "mathlib_git_rev": mathlib_git_rev,
+        "mathlib_git_clean": mathlib_git_clean,
+        "source_context_preflight": source_context_preflight,
         "lean_check": {
             "launcher": "lake env lean",
+            "source_context_policy": (
+                "one generated declaration per pinned source-file prefix ending immediately "
+                "before the source theorem"
+            ),
             "memory_hard_limit_mb": config.lean_memory_mb,
             "lean_cli_memory_args": ["-M", str(config.lean_memory_mb)],
             "batch_size": config.lean_batch_size,
+            "effective_context_batch_size": 1,
             "timeout_seconds": config.lean_timeout,
         },
     }
