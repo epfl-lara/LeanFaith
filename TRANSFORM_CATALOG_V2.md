@@ -1,8 +1,8 @@
 # Deterministic Transform Catalog v2 — expansion design
 
 > Provenance: produced 2026-08-28 by codex exec (gpt-5.6-sol, high reasoning) as a consultation
-> for PLAN_REFOCUS.md Track D, at the owner's request ("be more ambitious with deterministic
-> data; expand the set of transforms; look at the literature"). Companion to `PLAN_REFOCUS.md`.
+> for the refocus plan's Track D, at the owner's request ("be more ambitious with deterministic
+> data; expand the set of transforms; look at the literature"). Companion to `PLAN.md`.
 > This is the design of record for the deterministic data engine; implementation tickets should
 > reference family IDs from here.
 
