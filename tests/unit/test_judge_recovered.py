@@ -461,6 +461,38 @@ def test_final_attempt_ledger_binds_failed_retry_history(tmp_path: Path) -> None
     assert len(ledger_path.read_text(encoding="utf-8").splitlines()) == 2
 
 
+def test_requestless_crash_directory_can_retry_and_finalize(tmp_path: Path) -> None:
+    output_root = tmp_path / "requestless-retry"
+    plan = _small_plan()
+    row = plan.execution_rows[0]
+    empty_attempt = recovered._item_dir(output_root, row) / "primary_ab" / "attempts" / "0000"
+    empty_attempt.mkdir(parents=True)
+    config = recovered.RecoveredJudgeConfig(
+        repo_root=tmp_path,
+        output_root=output_root,
+        count=1,
+        retry_incomplete_attempts=True,
+        enforce_storage_root=False,
+    )
+
+    recovered.run_recovered_judge(
+        config=config,
+        plan=plan,
+        executor=_FakeExecutor([_response_raw()]),
+    )
+    final = recovered.finalize_recovered_judge(
+        config=config,
+        plan=plan,
+        require_complete=False,
+    )
+
+    assert final["attempt_status_counts"] == {
+        "aborted_before_journal": 1,
+        "completed": 1,
+    }
+    assert final["counts"]["ambiguous_paid_calls"] == 0
+
+
 @dataclass(frozen=True, slots=True)
 class _AuditFixture:
     record_id: str

@@ -17,6 +17,7 @@ import signal
 import subprocess
 import tempfile
 import threading
+import time
 from collections import Counter, defaultdict
 from collections.abc import Iterable, Iterator, Mapping, Sequence
 from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
@@ -871,16 +872,19 @@ class CodexJudgeExecutor:
         self.termination_grace_seconds = termination_grace_seconds
         self._active_lock = threading.Lock()
         self._active_processes: set[subprocess.Popen[str]] = set()
+        self._cancel_requested = threading.Event()
 
     def cancel_active(self) -> None:
         """Terminate every active process group before dispatch can resume."""
 
+        self._cancel_requested.set()
         with self._active_lock:
             processes = tuple(self._active_processes)
-        for process in processes:
-            _terminate_process_group(process, self.termination_grace_seconds)
+        _terminate_process_groups(processes, self.termination_grace_seconds)
 
     def execute(self, *, prompt: str, cwd: Path, timeout_seconds: int) -> JudgeProcessCapture:
+        if self._cancel_requested.is_set():
+            raise InterruptedError("Codex judge executor was cancelled")
         cwd.mkdir(parents=True, exist_ok=True)
         schema_path = self.output_schema_path or (cwd / "judge_response.schema.json")
         schema_payload = canonical_json_bytes(_judge_response_schema())
@@ -908,7 +912,13 @@ class CodexJudgeExecutor:
             start_new_session=True,
         )
         with self._active_lock:
-            self._active_processes.add(process)
+            cancelled_after_spawn = self._cancel_requested.is_set()
+            if not cancelled_after_spawn:
+                self._active_processes.add(process)
+        if cancelled_after_spawn:
+            _terminate_process_group(process, self.termination_grace_seconds)
+            process.communicate()
+            raise InterruptedError("Codex judge executor was cancelled after spawn")
         status: Literal["completed", "timeout", "interrupted"] = "completed"
         try:
             try:
@@ -947,6 +957,25 @@ def _terminate_process_group(process: subprocess.Popen[str], grace_seconds: int)
             with suppress(ProcessLookupError):
                 os.killpg(process.pid, signal.SIGKILL)
             process.wait()
+
+
+def _terminate_process_groups(
+    processes: Sequence[subprocess.Popen[str]], grace_seconds: int
+) -> None:
+    """Terminate many groups against one shared grace deadline."""
+
+    for process in processes:
+        if process.poll() is None:
+            with suppress(ProcessLookupError):
+                os.killpg(process.pid, signal.SIGTERM)
+    deadline = time.monotonic() + grace_seconds
+    survivors = tuple(process for process in processes if process.poll() is None)
+    while survivors and time.monotonic() < deadline:
+        time.sleep(min(0.05, max(0.0, deadline - time.monotonic())))
+        survivors = tuple(process for process in survivors if process.poll() is None)
+    for process in survivors:
+        with suppress(ProcessLookupError):
+            os.killpg(process.pid, signal.SIGKILL)
 
 
 class _JudgeExecutor(Protocol):
@@ -2274,6 +2303,39 @@ def _build_attempt_ledger(
         )
         for orientation, presentation, directory_name in orientations:
             for attempt_dir in _attempt_dirs(_item_dir(config.output_root, row) / directory_name):
+                status: str
+                request_path = attempt_dir / "request.json"
+                if not request_path.is_file():
+                    terminal_path = attempt_dir / "terminal.json"
+                    if terminal_path.exists():
+                        raise RecoveredJudgeError(
+                            f"attempt terminal exists without a request: {attempt_dir}"
+                        )
+                    try:
+                        attempt_index = int(attempt_dir.name)
+                    except ValueError as exc:
+                        raise RecoveredJudgeError(
+                            f"invalid attempt directory: {attempt_dir}"
+                        ) from exc
+                    status = "aborted_before_journal"
+                    statuses[status] += 1
+                    inventory = _attempt_inventory(attempt_dir)
+                    ledger.append(
+                        {
+                            "schema_version": 1,
+                            "plan_row_id": row.plan_row_id,
+                            "plan_index": row.plan_index,
+                            "orientation": orientation,
+                            "attempt_index": attempt_index,
+                            "status": status,
+                            "ambiguous_paid_call": False,
+                            "request_sha256": None,
+                            "terminal_sha256": None,
+                            "artifact_inventory": list(inventory),
+                            "artifact_inventory_sha256": hash_canonical(list(inventory)),
+                        }
+                    )
+                    continue
                 request, request_sha = _verify_request_journal(
                     config=config,
                     row=row,
@@ -2284,7 +2346,6 @@ def _build_attempt_ledger(
                 )
                 terminal_path = attempt_dir / "terminal.json"
                 terminal_sha: str | None = None
-                status: str
                 if terminal_path.is_file():
                     outcome = _verify_attempt(
                         config=config,
