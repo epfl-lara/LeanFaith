@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import datetime
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from types import SimpleNamespace
 from typing import Any, cast
 
@@ -17,6 +17,7 @@ from leanfaith.config.hashing import (
     hash_file,
     sha256_hex,
 )
+from leanfaith.generation import lf022_historical_replay as historical_replay_module
 from leanfaith.generation import lf022_prefix256_qa as qa_module
 from leanfaith.generation.lf022_batch import (
     LF022BatchRouteManifest,
@@ -66,6 +67,81 @@ def _write(path: Path, payload: bytes) -> str:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_bytes(payload)
     return hash_file(path)
+
+
+def test_historical_replay_compatibility_accepts_terminal_references_and_restores(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    reference = {
+        "execution_task_id": f"lf022_execution_task:{'1' * 64}",
+        "terminal_id": f"lf022_execution_terminal:{'2' * 64}",
+        "terminal_artifact": {
+            "path": "data/executor/terminal.json",
+            "sha256": "3" * 64,
+        },
+        "status": "provisional_variants_created",
+        "terminal_error_code": None,
+    }
+    module_binding = {
+        "module_name": "leanfaith.generation.lf022_batch",
+        "path": "src/leanfaith/generation/lf022_batch.py",
+        "sha256": "4" * 64,
+    }
+    original = historical_replay_module._explicit_record_bindings
+    original_copy_exact_file = historical_replay_module._copy_exact_file
+    original_source_file = historical_replay_module._source_file
+    # The base module now recognizes lightweight terminal references natively,
+    # so the shim's reference short-circuit must agree with it rather than
+    # correct it; the shim remains load-bearing for the requalification
+    # task-companion copy below.
+    assert original(reference) is None
+
+    sentinel = cast(LF022HistoricalReplayResult, object())
+    source = tmp_path / "source"
+    historical = tmp_path / "historical"
+    historical.mkdir()
+    terminal_relative = PurePosixPath(
+        f"data/lf022_kimi_v4_requalification/v1/{'a' * 64}/tasks/03/terminal.json"
+    )
+    task_relative = terminal_relative.with_name("task.json")
+    terminal = source / Path(terminal_relative.as_posix())
+    task = source / Path(task_relative.as_posix())
+    _write(terminal, canonical_json_bytes({"status": "provisional_variants_created"}))
+    _write(task, canonical_json_bytes({"task_id": "frozen-task"}))
+
+    def fake_replay(**kwargs: object) -> LF022HistoricalReplayResult:
+        del kwargs
+        compatible = historical_replay_module._explicit_record_bindings
+        assert compatible(reference) is None
+        assert compatible(module_binding) == []
+        historical_replay_module._copy_exact_file(
+            source_root=source,
+            historical_root=historical,
+            relative=terminal_relative,
+            expected_sha256=hash_file(terminal),
+            label="bound artifact",
+        )
+        assert (historical / Path(task_relative.as_posix())).read_bytes() == task.read_bytes()
+        return sentinel
+
+    monkeypatch.setattr(
+        qa_module,
+        "run_lf022_historical_replay",
+        fake_replay,
+    )
+    result = qa_module._run_terminal_reference_compatible_historical_replay(
+        repo_root=tmp_path,
+        manifest_binding=LF022ArtifactBinding(path="manifest.json", sha256="4" * 64),
+        loaded_tasks=(),
+        executor_output_root="data/lf022_execution",
+    )
+
+    assert result is sentinel
+    assert historical_replay_module._explicit_record_bindings is original
+    assert historical_replay_module._copy_exact_file is original_copy_exact_file
+    assert historical_replay_module._source_file is original_source_file
+    assert original(reference) is None
 
 
 def _terminal(
