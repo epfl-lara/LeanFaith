@@ -34,6 +34,10 @@ Full numbers: `reports/eval/refocus_day1_summary.md`. Everything below is on `ma
   blocklist. Canonical pairs: `/storage/milikic/leanfaith/golden/canonical/golden_pairs_v1.jsonl`.
 - **Eval harness** `leanfaith-eval` (ingest/partition/evaluate; abstain-not-truncate; CIs;
   final-test seal). First dev numbers exist for 4 checkpoints (see report).
+- **Gold-calibrated dev track** `leanfaith-eval calibrate`: scalar-temperature NLL fit +
+  balanced-accuracy threshold for all 4 checkpoints. Chunks-CPT leads at 0.684 fitted-dev
+  balanced accuracy; all temperature fits hit the `T=1000` boundary (see report). `final_test`
+  remains sealed.
 - **S0**: two adapted encoders at `/storage/milikic/leanfaith/cpt/` — `modernbert_lean_v1_run1`
   (declarations/chunks) and `modernbert_lean_v2_mixed` (+32,860 numina statement↔proof +
   32,580 `[HEADLESS]` signature views). Ablation: chunks-CPT gives best-ever ranking on golden
@@ -51,14 +55,13 @@ Full numbers: `reports/eval/refocus_day1_summary.md`. Everything below is on `ma
   `/storage/milikic/leanfaith/lf022_recovery_trackD0_20260828/` and `lf022_lean_checks/
   {qwen3_5_397b_full9207_v4, kimi_v4_641d13d_full9207_v2}/`.
 
-**NEXT QUEUE (in order):** (1) gold-calibrated track numbers (dev-fit temperature + threshold)
-for the four evaluated checkpoints; (2) D-3 codex scale run (≥200 statements, family assigned
-per record, full 27,786-statement source pool, then codex-audited stratum); (3) single-pass
-judge the 13,373 recovered Qwen/Kimi pairs (escalation protocol per Track D-2); (4) corpus v1 =
+**NEXT QUEUE (in order):** (1) D-3 codex scale run (≥200 statements, family assigned per
+record, full 27,786-statement source pool, then codex-audited stratum); (2) single-pass judge
+the 13,373 recovered Qwen/Kimi pairs (escalation protocol per Track D-2); (3) corpus v1 =
 depth-3 merge + judged Qwen/Kimi + D-3 records + replayed ACE, diversity caps, trainer schema;
-(5) S1 retrain on corpus v1 from the chunks-CPT encoder (+ mixed-CPT arm), golden-dev eval;
-(6) Meta-engine slice 2 (nested sites, P20/P21/P32, content-hash certificates, independent
-audit path); (7) P4 prune.
+(4) S1 retrain on corpus v1 from the chunks-CPT encoder (+ mixed-CPT arm), golden-dev eval;
+(5) Meta-engine slice 2 (nested sites, P20/P21/P32, content-hash certificates, independent
+audit path); (6) P4 prune.
 
 **OPERATIONAL GOTCHAS (hard-won):** background `codex exec`/`lemex exec` MUST get `</dev/null`
 or they hang forever reading stdin; never plain `uv sync` (prunes torch — use
