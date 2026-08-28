@@ -20,13 +20,15 @@ from leanfaith.lean.protocol import (
 )
 
 _REPO_ROOT = find_repo_root(Path(__file__).parent)
-_PLAN = (_REPO_ROOT / "PLAN.md").read_text(encoding="utf-8")
+# The A.5 backend-protocol contract lives in the frozen pre-refocus plan;
+# it remains the spec the live protocol module must match.
+_PLAN = (_REPO_ROOT / "docs" / "archive" / "PLAN-2026-08-frozen.md").read_text(encoding="utf-8")
 
 _CANONICAL_CLASS_NAMES = ("LeanStatus", "LeanRequest", "LeanResult", "LeanBackend")
 
 
 def _python_block_after(heading: str) -> str:
-    """Extract the first ```python fence following a heading line in PLAN.md."""
+    """Extract the first ```python fence following a heading in the frozen plan."""
     heading_index = _PLAN.index(heading)
     match = re.search(r"```python\n(.*?)```", _PLAN[heading_index:], flags=re.DOTALL)
     assert match is not None, f"no python block after {heading!r}"
@@ -36,7 +38,7 @@ def _python_block_after(heading: str) -> str:
 def test_plan_8_4_and_a5_blocks_byte_equivalent() -> None:
     mirror = _python_block_after("### 8.4 Canonical backend protocol mirror")
     canonical = _python_block_after("### A.5 Canonical LeanFaith backend protocol")
-    assert mirror == canonical, "PLAN.md §8.4 must mirror Appendix A.5 byte-for-byte (§8.4)"
+    assert mirror == canonical, "frozen plan §8.4 must mirror Appendix A.5 byte-for-byte"
 
 
 def _classes_by_name(source: str) -> dict[str, ast.ClassDef]:
