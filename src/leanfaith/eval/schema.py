@@ -105,3 +105,18 @@ class PartitionManifest(StrictModel):
     canonical_pairs_path: str
     total_pairs: int
     conflicted_pairs: int
+
+
+class EvalPrediction(StrictModel):
+    """One persisted prediction emitted by the golden evaluation harness."""
+
+    pair_id: str
+    group_key: str
+    partition: Partition | None = None
+    datasets: tuple[GoldenDataset, ...] = Field(min_length=1)
+    label: bool
+    label_conflict: bool
+    label_provenance: LabelProvenance
+    probability: float | None = Field(default=None, ge=0.0, le=1.0)
+    abstained: bool
+    token_length: int = Field(ge=0)

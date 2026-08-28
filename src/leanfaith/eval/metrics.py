@@ -5,12 +5,17 @@ from __future__ import annotations
 import math
 import random
 from collections.abc import Callable, Hashable, Sequence
+from itertools import pairwise
 from typing import Protocol, TypedDict
 
 from leanfaith.models.m0_dual_encoder import _tie_safe_average_precision
 
 _ECE_BIN_COUNT = 15
 _NLL_EPSILON = 1e-15
+_LOGIT_EPSILON = 1e-12
+_DEFAULT_MIN_TEMPERATURE = 1e-3
+_DEFAULT_MAX_TEMPERATURE = 1e3
+_DEFAULT_TEMPERATURE_ITERATIONS = 200
 
 
 class ReliabilityBin(TypedDict):
@@ -61,6 +66,136 @@ def _validate_inputs(y_true: Sequence[bool], probs: Sequence[float]) -> None:
         not math.isfinite(probability) or not 0.0 <= probability <= 1.0 for probability in probs
     ):
         raise ValueError("probabilities must be finite values in [0, 1]")
+
+
+def _require_both_classes(y_true: Sequence[bool]) -> None:
+    if not any(y_true) or all(y_true):
+        raise ValueError("calibration requires at least one example from each class")
+
+
+def _logit(probability: float) -> float:
+    clipped = min(max(probability, _LOGIT_EPSILON), 1.0 - _LOGIT_EPSILON)
+    return math.log(clipped) - math.log1p(-clipped)
+
+
+def _sigmoid(value: float) -> float:
+    if value >= 0.0:
+        return 1.0 / (1.0 + math.exp(-value))
+    exponential = math.exp(value)
+    return exponential / (1.0 + exponential)
+
+
+def apply_temperature(probs: Sequence[float], temperature: float) -> list[float]:
+    """Apply one positive temperature to binary probabilities via their logits."""
+
+    if not probs:
+        raise ValueError("probabilities must be non-empty")
+    if any(
+        not math.isfinite(probability) or not 0.0 <= probability <= 1.0 for probability in probs
+    ):
+        raise ValueError("probabilities must be finite values in [0, 1]")
+    if not math.isfinite(temperature) or temperature <= 0.0:
+        raise ValueError("temperature must be finite and positive")
+    return [_sigmoid(_logit(probability) / temperature) for probability in probs]
+
+
+def fit_temperature(
+    y_true: Sequence[bool],
+    probs: Sequence[float],
+    *,
+    min_temperature: float = _DEFAULT_MIN_TEMPERATURE,
+    max_temperature: float = _DEFAULT_MAX_TEMPERATURE,
+    iterations: int = _DEFAULT_TEMPERATURE_ITERATIONS,
+) -> float:
+    """Fit a scalar temperature by convex binary NLL minimization.
+
+    The inverse temperature is the coefficient of the recovered binary logit,
+    making NLL convex. Its derivative is monotone, so deterministic bisection
+    finds the bounded optimum without adding a SciPy dependency.
+    """
+
+    _validate_inputs(y_true, probs)
+    _require_both_classes(y_true)
+    if (
+        not math.isfinite(min_temperature)
+        or not math.isfinite(max_temperature)
+        or min_temperature <= 0.0
+        or max_temperature <= min_temperature
+    ):
+        raise ValueError("temperature bounds must be finite, positive, and increasing")
+    if iterations <= 0:
+        raise ValueError("iterations must be positive")
+
+    logits = [_logit(probability) for probability in probs]
+    if all(logit == 0.0 for logit in logits):
+        return min(max(1.0, min_temperature), max_temperature)
+
+    def derivative(inverse_temperature: float) -> float:
+        return sum(
+            logit * (_sigmoid(inverse_temperature * logit) - float(label))
+            for label, logit in zip(y_true, logits, strict=True)
+        ) / len(logits)
+
+    lower = 1.0 / max_temperature
+    upper = 1.0 / min_temperature
+    if derivative(lower) >= 0.0:
+        inverse_temperature = lower
+    elif derivative(upper) <= 0.0:
+        inverse_temperature = upper
+    else:
+        for _ in range(iterations):
+            midpoint = (lower + upper) / 2.0
+            if derivative(midpoint) < 0.0:
+                lower = midpoint
+            else:
+                upper = midpoint
+        inverse_temperature = (lower + upper) / 2.0
+    return 1.0 / inverse_temperature
+
+
+def select_balanced_accuracy_threshold(y_true: Sequence[bool], probs: Sequence[float]) -> float:
+    """Select a decision-interval threshold that maximizes balanced accuracy.
+
+    Each distinct classification pattern contributes the point in its valid
+    threshold interval closest to 0.5. Remaining ties choose the lower value.
+    """
+
+    _validate_inputs(y_true, probs)
+    _require_both_classes(y_true)
+    positive_count = sum(y_true)
+    negative_count = len(y_true) - positive_count
+
+    def balanced_accuracy(threshold: float) -> float:
+        true_positive = sum(
+            label and probability >= threshold
+            for label, probability in zip(y_true, probs, strict=True)
+        )
+        true_negative = sum(
+            not label and probability < threshold
+            for label, probability in zip(y_true, probs, strict=True)
+        )
+        return 0.5 * (true_positive / positive_count + true_negative / negative_count)
+
+    unique_probabilities = sorted(set(probs))
+    candidates = [min(0.5, unique_probabilities[0])]
+    for lower, upper in pairwise(unique_probabilities):
+        if lower < 0.5 <= upper:
+            candidates.append(0.5)
+        elif upper < 0.5:
+            candidates.append(upper)
+        else:
+            candidates.append(math.nextafter(lower, upper))
+    maximum = unique_probabilities[-1]
+    if maximum < 1.0:
+        candidates.append(0.5 if maximum < 0.5 else math.nextafter(maximum, 1.0))
+    return min(
+        candidates,
+        key=lambda threshold: (
+            -balanced_accuracy(threshold),
+            abs(threshold - 0.5),
+            threshold,
+        ),
+    )
 
 
 def _tie_aware_roc_auc(y_true: Sequence[bool], probs: Sequence[float]) -> float:
@@ -264,7 +399,10 @@ __all__ = [
     "MetricFunction",
     "PairScoreLike",
     "ReliabilityBin",
+    "apply_temperature",
     "compute_classification_metrics",
     "coverage_aware_summary",
+    "fit_temperature",
     "group_bootstrap_ci",
+    "select_balanced_accuracy_threshold",
 ]

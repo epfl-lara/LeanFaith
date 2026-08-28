@@ -8,10 +8,12 @@ from __future__ import annotations
 
 import datetime
 import json
+import math
 import platform
 import subprocess
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Annotated, Any
+from typing import Annotated, Any, cast
 
 import typer
 
@@ -24,7 +26,7 @@ from leanfaith.eval.ingest import (
     load_proofnetverif,
 )
 from leanfaith.eval.partition import assign_partitions, build_blocklist, partition_counts
-from leanfaith.eval.schema import GoldenPair, PartitionManifest
+from leanfaith.eval.schema import EvalPrediction, GoldenPair, PartitionManifest
 
 app = typer.Typer(no_args_is_help=True, add_completion=False)
 
@@ -36,6 +38,15 @@ _DEFAULT_PNV = Path(
 )
 _EPLA_SHA = "bc7933547d8a6d1aaee41ccf56d68bc1f0fc575d"
 _BEQ_SHA = "5ce3b814a5d0213429cc92244e5467425b22297a"
+_FROZEN_PARTITION_MANIFEST = (
+    Path(__file__).resolve().parents[3] / "data/benchmarks/golden_partition_v1.json"
+)
+_SNAPSHOT_PROVENANCE_FILES = (
+    "config.json",
+    "tokenizer.json",
+    "tokenizer_config.json",
+    "special_tokens_map.json",
+)
 
 
 def _git_revision(repo_root: Path) -> str:
@@ -58,6 +69,17 @@ def _write_run_manifest(out_dir: Path, name: str, payload: dict[str, Any]) -> No
     }
     out_dir.mkdir(parents=True, exist_ok=True)
     (out_dir / f"{name}_run_manifest.json").write_bytes(canonical_json_bytes(manifest))
+
+
+def _snapshot_provenance(snapshot: Path) -> dict[str, Any]:
+    files = {
+        name: hash_file(path)
+        for name in _SNAPSHOT_PROVENANCE_FILES
+        if (path := snapshot / name).is_file()
+    }
+    if not files:
+        raise typer.BadParameter(f"snapshot has no recognized config/tokenizer files: {snapshot}")
+    return {"path": str(snapshot), "files": files}
 
 
 def _write_pairs(pairs: list[GoldenPair], path: Path) -> str:
@@ -321,6 +343,7 @@ def evaluate(
                     {
                         "pair_id": pair.pair_id,
                         "group_key": pair.group_key,
+                        "partition": partition,
                         "datasets": sorted({m.dataset for m in pair.memberships}),
                         "label": pair.label,
                         "label_conflict": pair.label_conflict,
@@ -341,19 +364,484 @@ def evaluate(
         "bootstrap_ci_headline": ci,
         "trivial_baselines": baselines,
     }
-    (out_dir / "metrics.json").write_bytes(canonical_json_bytes(metrics_payload))
+    predictions_out = out_dir / "predictions.jsonl"
+    metrics_out = out_dir / "metrics.json"
+    metrics_out.write_bytes(canonical_json_bytes(metrics_payload))
     _write_run_manifest(
         out_dir,
         "evaluate",
         {
             "checkpoint": {"path": str(checkpoint), "sha256": checkpoint_digest},
+            "snapshot": _snapshot_provenance(snapshot),
             "pairs": {"path": str(pairs_path), "sha256": hash_file(pairs_path)},
             "partition": partition,
             "threshold": threshold,
             "batch_size": batch_size,
             "device": device,
+            "outputs": {
+                "predictions": {
+                    "path": str(predictions_out),
+                    "sha256": hash_file(predictions_out),
+                },
+                "metrics": {"path": str(metrics_out), "sha256": hash_file(metrics_out)},
+            },
         },
     )
     typer.echo(json.dumps(breakdowns["headline_expert"], indent=2, sort_keys=True))
     typer.echo(json.dumps({"ci": ci, "baselines": baselines}, indent=2, sort_keys=True))
     typer.echo(f"full results -> {out_dir}")
+
+
+@dataclass(frozen=True, slots=True)
+class _PostHocScore:
+    probability: float | None
+    abstained: bool
+
+
+def _load_json_object(path: Path) -> dict[str, Any]:
+    try:
+        value: object = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        raise typer.BadParameter(f"cannot read JSON object {path}: {error}") from error
+    if not isinstance(value, dict):
+        raise typer.BadParameter(f"expected one JSON object in {path}")
+    return cast(dict[str, Any], value)
+
+
+def _load_dev_strict_predictions(
+    strict_run: Path,
+) -> tuple[list[EvalPrediction], dict[str, Any], dict[str, Any]]:
+    """Fail closed on the dev-only boundary before reading any predictions."""
+
+    resolved_run = strict_run.resolve()
+    if (
+        strict_run.is_symlink()
+        or not strict_run.name.startswith("dev_")
+        or not resolved_run.name.startswith("dev_")
+    ):
+        raise typer.BadParameter("calibrate accepts only evaluate output directories named dev_*")
+    metrics_path = strict_run / "metrics.json"
+    manifest_path = strict_run / "evaluate_run_manifest.json"
+    predictions_path = strict_run / "predictions.jsonl"
+    if not manifest_path.is_file():
+        raise typer.BadParameter(f"strict evaluate artifact is missing: {manifest_path}")
+    strict_manifest = _load_json_object(manifest_path)
+    if strict_manifest.get("command") != "evaluate" or strict_manifest.get("partition") != "dev":
+        raise typer.BadParameter("calibration is dev-only and requires an evaluate manifest")
+    if strict_manifest.get("threshold") != 0.5:
+        raise typer.BadParameter("strict evaluate manifest must declare threshold 0.5")
+
+    partition_manifest = _load_json_object(_FROZEN_PARTITION_MANIFEST)
+    pairs_input = strict_manifest.get("pairs")
+    canonical_sha256 = partition_manifest.get("canonical_pairs_sha256")
+    if (
+        not isinstance(pairs_input, dict)
+        or not isinstance(canonical_sha256, str)
+        or pairs_input.get("sha256") != canonical_sha256
+    ):
+        raise typer.BadParameter(
+            "evaluate manifest pairs hash does not match the frozen partition manifest"
+        )
+
+    for path in (metrics_path, predictions_path):
+        if not path.is_file():
+            raise typer.BadParameter(f"strict evaluate artifact is missing: {path}")
+    recorded_outputs = strict_manifest.get("outputs")
+    if recorded_outputs is not None:
+        if not isinstance(recorded_outputs, dict):
+            raise typer.BadParameter("evaluate manifest outputs field is invalid")
+        for name, path in (("metrics", metrics_path), ("predictions", predictions_path)):
+            entry = recorded_outputs.get(name)
+            if not isinstance(entry, dict) or entry.get("sha256") != hash_file(path):
+                raise typer.BadParameter(f"evaluate manifest hash mismatch for {name}")
+    strict_metrics = _load_json_object(metrics_path)
+    if strict_metrics.get("partition") != "dev":
+        raise typer.BadParameter("calibration is dev-only; strict metrics must declare dev")
+    if strict_metrics.get("track") != "strict_zero_shot":
+        raise typer.BadParameter("metrics.json is not a strict-zero-shot evaluation artifact")
+    if strict_metrics.get("threshold") != 0.5:
+        raise typer.BadParameter("strict metrics must declare threshold 0.5")
+        raise typer.BadParameter("evaluate_run_manifest.json does not describe evaluate")
+
+    predictions: list[EvalPrediction] = []
+    try:
+        with predictions_path.open(encoding="utf-8") as stream:
+            for line_number, line in enumerate(stream, start=1):
+                if not line.strip():
+                    continue
+                try:
+                    prediction = EvalPrediction.model_validate_json(line)
+                except ValueError as error:
+                    raise typer.BadParameter(
+                        f"invalid prediction at {predictions_path}:{line_number}: {error}"
+                    ) from error
+                if prediction.abstained != (prediction.probability is None):
+                    raise typer.BadParameter(
+                        f"abstention flag disagrees with probability at "
+                        f"{predictions_path}:{line_number}"
+                    )
+                if prediction.partition not in (None, "dev"):
+                    raise typer.BadParameter(
+                        f"non-dev prediction at {predictions_path}:{line_number}"
+                    )
+                predictions.append(prediction)
+    except OSError as error:
+        raise typer.BadParameter(f"cannot read predictions {predictions_path}: {error}") from error
+    if not predictions:
+        raise typer.BadParameter("strict evaluate artifact contains no predictions")
+    pair_ids = {prediction.pair_id for prediction in predictions}
+    if len(pair_ids) != len(predictions):
+        raise typer.BadParameter("strict evaluate artifact contains duplicate pair_id values")
+    counts = partition_manifest.get("counts")
+    dev_counts = counts.get("dev") if isinstance(counts, dict) else None
+    expected_count = dev_counts.get("canonical_pairs") if isinstance(dev_counts, dict) else None
+    if not isinstance(expected_count, int) or len(predictions) != expected_count:
+        raise typer.BadParameter("prediction count does not match frozen dev canonical-pair count")
+    group_partitions = partition_manifest.get("group_partitions")
+    if not isinstance(group_partitions, dict) or any(
+        group_partitions.get(prediction.group_key) != "dev" for prediction in predictions
+    ):
+        raise typer.BadParameter("predictions contain a group outside the frozen dev partition")
+    headline = [
+        index
+        for index, prediction in enumerate(predictions)
+        if not prediction.label_conflict
+        and prediction.label_provenance == "expert_human"
+        and any(dataset != "proofnetverif" for dataset in prediction.datasets)
+    ]
+    strict_scores = [
+        _PostHocScore(
+            probability=prediction.probability,
+            abstained=prediction.abstained,
+        )
+        for prediction in predictions
+    ]
+    recomputed = _prediction_subset_metrics(predictions, strict_scores, headline, 0.5)
+    breakdowns = strict_metrics.get("breakdowns")
+    recorded = breakdowns.get("headline_expert") if isinstance(breakdowns, dict) else None
+    if recomputed is None or not isinstance(recorded, dict):
+        raise typer.BadParameter("strict metrics lack a verifiable headline_expert breakdown")
+    comparison_fields = (
+        "accuracy",
+        "balanced_accuracy",
+        "f1",
+        "auprc",
+        "roc_auc",
+        "brier",
+        "nll",
+        "ece",
+        "coverage",
+        "total_count",
+        "scored_count",
+        "abstained_count",
+        "n_pairs",
+    )
+    for field in comparison_fields:
+        expected = recomputed.get(field)
+        observed = recorded.get(field)
+        if not isinstance(expected, int | float) or not isinstance(observed, int | float):
+            raise typer.BadParameter(f"strict headline metric {field!r} is missing or invalid")
+        if not math.isclose(float(expected), float(observed), rel_tol=1e-12, abs_tol=1e-12):
+            raise typer.BadParameter(
+                f"strict predictions disagree with metrics.json for headline {field}"
+            )
+    return predictions, strict_metrics, strict_manifest
+
+
+def _prediction_subset_metrics(
+    predictions: list[EvalPrediction],
+    scores: list[_PostHocScore],
+    indices: list[int],
+    threshold: float,
+) -> dict[str, Any] | None:
+    from leanfaith.eval.metrics import coverage_aware_summary
+
+    if not indices:
+        return None
+    subset_scores = [scores[index] for index in indices]
+    if all(score.abstained for score in subset_scores):
+        return None
+    subset_labels = [predictions[index].label for index in indices]
+    summary = dict(coverage_aware_summary(subset_scores, subset_labels, threshold))
+    summary["n_pairs"] = len(indices)
+    summary["prevalence"] = sum(subset_labels) / len(subset_labels)
+    return summary
+
+
+@app.command("calibrate")
+def calibrate(
+    strict_run: Annotated[
+        Path,
+        typer.Option(help="One dev_* directory emitted by strict-zero-shot evaluate."),
+    ],
+    out: Annotated[
+        Path | None,
+        typer.Option(help="Output directory; defaults beside the strict run."),
+    ] = None,
+    min_temperature: Annotated[float, typer.Option()] = 1e-3,
+    max_temperature: Annotated[float, typer.Option()] = 1e3,
+    temperature_iterations: Annotated[int, typer.Option()] = 200,
+    n_boot: Annotated[int, typer.Option()] = 1000,
+    seed: Annotated[int, typer.Option()] = 20260828,
+) -> None:
+    """Fit scalar temperature + balanced-accuracy threshold on expert dev pairs."""
+
+    from leanfaith.eval.metrics import (
+        apply_temperature,
+        compute_classification_metrics,
+        fit_temperature,
+        group_bootstrap_ci,
+        select_balanced_accuracy_threshold,
+    )
+
+    predictions, strict_metrics, strict_manifest = _load_dev_strict_predictions(strict_run)
+    if n_boot <= 0:
+        raise typer.BadParameter("n_boot must be positive")
+    out_dir = out or strict_run.with_name(f"{strict_run.name}_gold_calibrated")
+    if out_dir.is_symlink() or out_dir.resolve() == strict_run.resolve():
+        raise typer.BadParameter("calibration output must be a distinct, non-symlink directory")
+    if out_dir.exists() and (not out_dir.is_dir() or any(out_dir.iterdir())):
+        raise typer.BadParameter("calibration output directory must be new or empty")
+    headline = [
+        index
+        for index, prediction in enumerate(predictions)
+        if not prediction.label_conflict
+        and prediction.label_provenance == "expert_human"
+        and any(dataset != "proofnetverif" for dataset in prediction.datasets)
+    ]
+    fit_indices = [index for index in headline if predictions[index].probability is not None]
+    if len(fit_indices) != len(headline):
+        typer.echo(
+            f"warning: fitting on {len(fit_indices)}/{len(headline)} scored headline pairs; "
+            "overlength pairs remain abstentions",
+            err=True,
+        )
+    fit_labels = [predictions[index].label for index in fit_indices]
+    fit_probabilities = [
+        probability
+        for index in fit_indices
+        if (probability := predictions[index].probability) is not None
+    ]
+    try:
+        temperature = fit_temperature(
+            fit_labels,
+            fit_probabilities,
+            min_temperature=min_temperature,
+            max_temperature=max_temperature,
+            iterations=temperature_iterations,
+        )
+        calibrated_fit_probabilities = apply_temperature(fit_probabilities, temperature)
+        threshold = select_balanced_accuracy_threshold(fit_labels, calibrated_fit_probabilities)
+    except ValueError as error:
+        raise typer.BadParameter(str(error)) from error
+
+    calibrated_scores: list[_PostHocScore] = []
+    for prediction in predictions:
+        probability = prediction.probability
+        calibrated_probability = (
+            None if probability is None else apply_temperature([probability], temperature)[0]
+        )
+        calibrated_scores.append(
+            _PostHocScore(
+                probability=calibrated_probability,
+                abstained=calibrated_probability is None,
+            )
+        )
+
+    breakdowns: dict[str, Any] = {
+        "headline_expert": _prediction_subset_metrics(
+            predictions, calibrated_scores, headline, threshold
+        ),
+        "all_non_conflicted": _prediction_subset_metrics(
+            predictions,
+            calibrated_scores,
+            [
+                index
+                for index, prediction in enumerate(predictions)
+                if not prediction.label_conflict
+            ],
+            threshold,
+        ),
+    }
+    datasets = {dataset for prediction in predictions for dataset in prediction.datasets}
+    for dataset in sorted(datasets):
+        indices = [
+            index
+            for index, prediction in enumerate(predictions)
+            if not prediction.label_conflict and dataset in prediction.datasets
+        ]
+        breakdowns[f"dataset:{dataset}"] = _prediction_subset_metrics(
+            predictions, calibrated_scores, indices, threshold
+        )
+
+    fit_groups = [predictions[index].group_key for index in fit_indices]
+
+    def _balanced_accuracy(y: Any, p: Any) -> float:
+        return float(compute_classification_metrics(y, p, threshold)["balanced_accuracy"])
+
+    def _accuracy(y: Any, p: Any) -> float:
+        return float(compute_classification_metrics(y, p, threshold)["accuracy"])
+
+    ci: dict[str, Any] = {}
+    for name, metric_function in (
+        ("balanced_accuracy", _balanced_accuracy),
+        ("accuracy", _accuracy),
+    ):
+        point, lo, hi = group_bootstrap_ci(
+            fit_labels,
+            calibrated_fit_probabilities,
+            fit_groups,
+            metric_function,
+            n_boot=n_boot,
+            seed=seed,
+        )
+        ci[name] = {"point": point, "lo95": lo, "hi95": hi}
+
+    strict_fit_metrics = compute_classification_metrics(
+        fit_labels, fit_probabilities, threshold=0.5
+    )
+    temperature_only_metrics = compute_classification_metrics(
+        fit_labels, calibrated_fit_probabilities, threshold=0.5
+    )
+    calibrated_fit_metrics = compute_classification_metrics(
+        fit_labels, calibrated_fit_probabilities, threshold=threshold
+    )
+    if math.isclose(temperature, min_temperature, rel_tol=1e-12, abs_tol=0.0):
+        temperature_fit_status = "min_temperature_boundary"
+    elif math.isclose(temperature, max_temperature, rel_tol=1e-12, abs_tol=0.0):
+        temperature_fit_status = "max_temperature_boundary"
+    else:
+        temperature_fit_status = "interior_optimum"
+    comparison_metric_names = (
+        "balanced_accuracy",
+        "accuracy",
+        "precision",
+        "recall",
+        "f1",
+        "auprc",
+        "roc_auc",
+        "brier",
+        "nll",
+        "ece",
+    )
+    strict_metric_values = dict(strict_fit_metrics)
+    calibrated_metric_values = dict(calibrated_fit_metrics)
+    comparison = {
+        "strict_zero_shot": {
+            "threshold": 0.5,
+            **{name: strict_metric_values[name] for name in comparison_metric_names},
+        },
+        "gold_calibrated": {
+            "temperature": temperature,
+            "temperature_fit_status": temperature_fit_status,
+            "threshold": threshold,
+            **{name: calibrated_metric_values[name] for name in comparison_metric_names},
+        },
+    }
+    calibration_payload = {
+        "fit_partition": "dev",
+        "fit_subset": "headline_expert_scored",
+        "fit_count": len(fit_indices),
+        "fit_positive_count": sum(fit_labels),
+        "fit_negative_count": len(fit_labels) - sum(fit_labels),
+        "temperature": temperature,
+        "inverse_temperature": 1.0 / temperature,
+        "temperature_objective": "mean_binary_nll",
+        "temperature_optimizer": "bounded_inverse_temperature_derivative_bisection",
+        "temperature_bounds": [min_temperature, max_temperature],
+        "temperature_iterations": temperature_iterations,
+        "temperature_fit_status": temperature_fit_status,
+        "threshold": threshold,
+        "threshold_objective": "balanced_accuracy",
+        "threshold_candidates": "all_distinct_decision_intervals",
+        "threshold_tie_break": "closest_to_0.5_then_lower",
+        "strict_nll_at_0.5": strict_fit_metrics["nll"],
+        "temperature_scaled_nll": temperature_only_metrics["nll"],
+        "strict_balanced_accuracy_at_0.5": strict_fit_metrics["balanced_accuracy"],
+        "gold_calibrated_balanced_accuracy": calibrated_fit_metrics["balanced_accuracy"],
+    }
+    metrics_payload = {
+        "partition": "dev",
+        "fit_partition": "dev",
+        "track": "gold_calibrated",
+        "temperature": temperature,
+        "threshold": threshold,
+        "comparison_headline_expert": comparison,
+        "breakdowns": breakdowns,
+        "bootstrap_ci_headline": ci,
+        "trivial_baselines": strict_metrics.get("trivial_baselines"),
+    }
+
+    out_dir.mkdir(parents=True, exist_ok=True)
+    predictions_out = out_dir / "calibrated_predictions.jsonl"
+    with predictions_out.open("w", encoding="utf-8") as stream:
+        for prediction, score in zip(predictions, calibrated_scores, strict=True):
+            stream.write(
+                json.dumps(
+                    {
+                        **prediction.model_dump(mode="json", exclude={"probability"}),
+                        "partition": "dev",
+                        "strict_probability": prediction.probability,
+                        "calibrated_probability": score.probability,
+                        "decision": (
+                            None if score.probability is None else score.probability >= threshold
+                        ),
+                    },
+                    sort_keys=True,
+                )
+                + "\n"
+            )
+    calibration_out = out_dir / "calibration.json"
+    metrics_out = out_dir / "metrics.json"
+    calibration_out.write_bytes(canonical_json_bytes(calibration_payload))
+    metrics_out.write_bytes(canonical_json_bytes(metrics_payload))
+    strict_predictions = strict_run / "predictions.jsonl"
+    strict_metrics_path = strict_run / "metrics.json"
+    strict_manifest_path = strict_run / "evaluate_run_manifest.json"
+    _write_run_manifest(
+        out_dir,
+        "calibrate",
+        {
+            "seed": seed,
+            "bootstrap_samples": n_boot,
+            "strict_run": str(strict_run),
+            "source_linkage": (
+                "evaluate_manifest_output_hashes"
+                if strict_manifest.get("outputs") is not None
+                else "legacy_recomputed_metrics_plus_frozen_partition"
+            ),
+            "inputs": {
+                "predictions": {
+                    "path": str(strict_predictions),
+                    "sha256": hash_file(strict_predictions),
+                },
+                "metrics": {
+                    "path": str(strict_metrics_path),
+                    "sha256": hash_file(strict_metrics_path),
+                },
+                "evaluate_manifest": {
+                    "path": str(strict_manifest_path),
+                    "sha256": hash_file(strict_manifest_path),
+                },
+                "frozen_partition_manifest": {
+                    "path": str(_FROZEN_PARTITION_MANIFEST),
+                    "sha256": hash_file(_FROZEN_PARTITION_MANIFEST),
+                },
+            },
+            "fit": calibration_payload,
+            "outputs": {
+                "predictions": {
+                    "path": str(predictions_out),
+                    "sha256": hash_file(predictions_out),
+                },
+                "calibration": {
+                    "path": str(calibration_out),
+                    "sha256": hash_file(calibration_out),
+                },
+                "metrics": {"path": str(metrics_out), "sha256": hash_file(metrics_out)},
+            },
+        },
+    )
+    typer.echo(json.dumps(calibration_payload, indent=2, sort_keys=True))
+    typer.echo(json.dumps(comparison, indent=2, sort_keys=True))
+    typer.echo(f"gold-calibrated results -> {out_dir}")

@@ -1,10 +1,17 @@
 from __future__ import annotations
 
-from collections.abc import Sequence
+import math
+from collections.abc import Callable, Sequence
 
 import pytest
 
-from leanfaith.eval.metrics import compute_classification_metrics, group_bootstrap_ci
+from leanfaith.eval.metrics import (
+    apply_temperature,
+    compute_classification_metrics,
+    fit_temperature,
+    group_bootstrap_ci,
+    select_balanced_accuracy_threshold,
+)
 from leanfaith.models.m0_dual_encoder import _tie_safe_average_precision
 
 
@@ -87,3 +94,65 @@ def test_group_bootstrap_is_deterministic_given_seed(
     assert first == second
     assert first[0] == pytest.approx(0.5)
     assert 0.0 <= first[1] <= first[0] <= first[2] <= 1.0
+
+
+def test_apply_temperature_scales_recovered_binary_logits() -> None:
+    calibrated = apply_temperature([0.2, 0.5, 0.8], temperature=2.0)
+
+    assert calibrated == pytest.approx([1.0 / 3.0, 0.5, 2.0 / 3.0])
+
+
+def test_fit_temperature_reduces_nll_for_overconfident_probabilities() -> None:
+    labels = [True, False, True, False]
+    probabilities = [0.99, 0.90, 0.80, 0.01]
+
+    temperature = fit_temperature(labels, probabilities)
+    calibrated = apply_temperature(probabilities, temperature)
+
+    assert temperature > 1.0
+    assert (
+        compute_classification_metrics(labels, calibrated, 0.5)["nll"]
+        < (compute_classification_metrics(labels, probabilities, 0.5)["nll"])
+    )
+
+
+def test_fit_temperature_uses_neutral_value_for_flat_half_probabilities() -> None:
+    assert fit_temperature([True, False], [0.5, 0.5]) == 1.0
+
+
+def test_fit_temperature_reports_numerical_bounds_when_optimum_is_external() -> None:
+    assert fit_temperature(
+        [True, False], [0.9, 0.1], min_temperature=0.1, max_temperature=10.0
+    ) == pytest.approx(0.1)
+    assert fit_temperature(
+        [True, False], [0.1, 0.9], min_temperature=0.1, max_temperature=10.0
+    ) == pytest.approx(10.0)
+
+
+def test_balanced_accuracy_threshold_is_exhaustive_and_deterministic() -> None:
+    labels = [True, True, False, False]
+    probabilities = [0.9, 0.7, 0.6, 0.1]
+
+    threshold = select_balanced_accuracy_threshold(labels, probabilities)
+
+    assert threshold == math.nextafter(0.6, 0.7)
+    assert compute_classification_metrics(labels, probabilities, threshold)[
+        "balanced_accuracy"
+    ] == pytest.approx(1.0)
+
+
+def test_balanced_accuracy_threshold_uses_half_inside_optimal_interval() -> None:
+    threshold = select_balanced_accuracy_threshold([False, True], [0.4, 0.6])
+
+    assert threshold == 0.5
+
+
+@pytest.mark.parametrize(
+    "function",
+    [fit_temperature, select_balanced_accuracy_threshold],
+)
+def test_calibration_requires_both_classes(
+    function: Callable[[Sequence[bool], Sequence[float]], float],
+) -> None:
+    with pytest.raises(ValueError, match="each class"):
+        function([True, True], [0.2, 0.8])
