@@ -240,7 +240,23 @@ def _execute_batch(
         if batch_task.problem_id in completed_problem_ids:
             resumed += 1
             continue
-        rendered = render_task(batch_task.invocation_task(), provider)
+        try:
+            rendered = render_task(batch_task.invocation_task(), provider)
+        except ValueError as exc:
+            # A data-shaped rendering failure (e.g. a template guard tripping
+            # on statement content) rejects one task, never the whole batch.
+            rejected.append(
+                RejectionRecord(
+                    problem_id=batch_task.problem_id,
+                    provider=provider.provider_label,
+                    model=model,
+                    stage="render",
+                    reason=str(exc)[:500],
+                    generator_prompt_sha256="",
+                    raw_output_path=None,
+                )
+            )
+            continue
         raw_relative = Path("raw") / (
             f"{index:05d}-{_safe_filename(batch_task.problem_id)}-{rendered.prompt_sha256[:12]}.txt"
         )

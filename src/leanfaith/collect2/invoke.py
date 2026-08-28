@@ -305,7 +305,8 @@ def _render_user_prompt(task: AutoformalizationTask, profile: LocalModelProfile)
         .replace("{{REGISTERED_HEADER}}", task.header.rstrip())
         .replace("{{COMMON_SUFFIX}}", COMMON_FINAL_FENCE)
     )
-    if "{{" in rendered or "}}" in rendered:
+    unresolved = ("THEOREM_NAME", "NL_STATEMENT", "REGISTERED_HEADER", "COMMON_SUFFIX")
+    if any("{{" + name + "}}" in rendered for name in unresolved):
         raise ValueError("rendered local prompt contains an unresolved placeholder")
     return rendered
 

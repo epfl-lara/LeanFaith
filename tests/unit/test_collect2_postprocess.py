@@ -172,3 +172,42 @@ def test_truncated_declaration_is_rejected() -> None:
             registered_header="",
             blocklist=_empty_blocklist(),
         )
+
+
+def test_let_binder_type_still_strips_proof() -> None:
+    # Regression: a top-level `let` in the statement type previously made the
+    # let-lookback regex swallow every later `:=`, so the proof tail survived
+    # and the record gained a second `:= by sorry`.
+    raw = (
+        "```lean4\n"
+        "theorem with_let (n : Nat) :\n"
+        "    let m : Nat := n + 1\n"
+        "    m > n := by\n"
+        "  simp\n"
+        "```\n"
+    )
+    processed = postprocess_candidate(
+        raw,
+        problem_id="with_let",
+        registered_header="",
+        blocklist=_empty_blocklist(),
+    )
+    assert processed.candidate_lean.count(":= by sorry") == 1
+    assert "simp" not in processed.candidate_lean
+
+
+def test_safe_preamble_is_preserved_on_the_record() -> None:
+    raw = (
+        "```lean4\n"
+        "import Mathlib\n"
+        "open Real Filter\n"
+        "theorem with_open (x : ℝ) : x = x := by rfl\n"
+        "```\n"
+    )
+    processed = postprocess_candidate(
+        raw,
+        problem_id="with_open",
+        registered_header="import Mathlib",
+        blocklist=_empty_blocklist(),
+    )
+    assert "open Real Filter" in processed.safe_preamble

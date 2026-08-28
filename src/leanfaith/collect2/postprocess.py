@@ -45,7 +45,7 @@ _SAFE_PREAMBLE_LINE = re.compile(
 _INCOMPLETE_TAIL = re.compile(
     r"(?:[:,=]|->|→|↔|∧|∨|\(|\[|\{|\+|-|\*|/|\^)\s*$"  # noqa: RUF001
 )
-_LET_BEFORE_ASSIGNMENT = re.compile(r"\b(?:let|have)[ \t]+[^\s:=]+(?:[ \t]*:[^;]+)?[ \t]*$")
+_LET_BEFORE_ASSIGNMENT = re.compile(r"\b(?:let|have)[ \t]+[^\s:=]+(?:[ \t]*:[^;\n]+)?[ \t]*$")
 
 
 class CandidateRejected(ValueError):
@@ -108,6 +108,10 @@ class ProcessedCandidate:
     candidate_lean: str
     candidate_headless: str
     near_dup_hash: str
+    #: Model-emitted, safety-validated ``open``/``set_option`` lines that the
+    #: candidate was generated under (registered header excluded). Downstream
+    #: typechecking must prepend these or lose legitimately-scoped candidates.
+    safe_preamble: str = ""
     blocklist_screened: Literal[True] = True
 
 
@@ -258,7 +262,7 @@ def _validate_safe_preamble(prefix: str) -> None:
             )
 
 
-def _declaration_body(code: str, registered_header: str) -> str:
+def _declaration_body(code: str, registered_header: str) -> tuple[str, str]:
     header = registered_header.rstrip()
     if header and (code == header or code.startswith(header + "\n")):
         code = code[len(header) :].lstrip("\n")
@@ -270,13 +274,15 @@ def _declaration_body(code: str, registered_header: str) -> str:
             f"expected one theorem or lemma, observed {len(heads)}",
         )
     head = heads[0]
-    _validate_safe_preamble(code[: head.start()])
+    preamble_text = code[: head.start()]
+    _validate_safe_preamble(preamble_text)
+    preamble = "\n".join(line.strip() for line in preamble_text.splitlines() if line.strip())
     body = code[head.start() :].strip()
     body_masked = _mask_comments_and_strings(body)
     commands = tuple(_TOP_LEVEL_COMMAND.finditer(body_masked))
     if len(commands) != 1 or commands[0].start() != 0:
         raise CandidateRejected("declaration_count", "candidate contains another top-level command")
-    return body
+    return preamble, body
 
 
 def _top_level_positions(source: str) -> tuple[int, list[int]]:
@@ -346,7 +352,7 @@ def postprocess_candidate(
     """Extract one proof-free source declaration and apply D-2 screens."""
 
     code = _select_envelope(raw_output, family)
-    body = _declaration_body(code, registered_header)
+    safe_preamble, body = _declaration_body(code, registered_header)
     head = _DECLARATION_HEAD.match(_mask_comments_and_strings(body))
     assert head is not None
     declaration_name = head.group("name")
@@ -376,6 +382,7 @@ def postprocess_candidate(
         candidate_lean=candidate_lean,
         candidate_headless=headless,
         near_dup_hash=near_dup_hash,
+        safe_preamble=safe_preamble,
     )
 
 
