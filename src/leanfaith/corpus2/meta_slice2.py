@@ -1,7 +1,7 @@
 """Reproducible, resumable public-mathlib yield probe for Meta-engine slice 2.
 
 The production entry point selects the same frozen 500 public declarations,
-runs contiguous 20-name Lean shards with bounded attempts and deterministic
+runs contiguous 20-name Lean shards with deterministic size-scaled timeouts and
 midpoint bisection, then independently audits emitted candidates in 100-item
 shards.  Every attempt is immutable and content-bound beneath the run root;
 only an atomic ``result.json`` marks a reusable attempt.  No row is sent to an
@@ -36,7 +36,7 @@ from typing import Protocol, cast
 
 from leanfaith.config.hashing import canonical_json_bytes, hash_file
 
-METHOD_VERSION = "meta_engine_slice2_yield_probe_v3"
+METHOD_VERSION = "meta_engine_slice2_yield_probe_v4"
 SELECTION_DOMAIN = "leanfaith_meta_slice2_yield_probe_v1"
 SELECTION_PREFIX = b"leanfaith_meta_slice2_yield_probe_v1\0"
 
@@ -78,9 +78,14 @@ ATTEMPT_LOG_FILENAME = "log.txt"
 ATTEMPT_PROCESS_FILENAME = "process.json"
 ATTEMPT_RESULT_FILENAME = "result.json"
 
-ATTEMPT_SCHEMA_VERSION = 1
+ATTEMPT_SCHEMA_VERSION = 2
 PRIMARY_SHARD_SIZE = 20
 AUDIT_SHARD_SIZE = 100
+PRIMARY_TIMEOUT_FLOOR_SECONDS = 180
+AUDIT_TIMEOUT_FLOOR_SECONDS = 120
+PRIMARY_TIMEOUT_SECONDS_PER_ITEM = 30
+AUDIT_TIMEOUT_SECONDS_PER_ITEM = 5
+ATTEMPT_TIMEOUT_FORMULA = "min(ceiling_seconds, max(floor_seconds, seconds_per_item * item_count))"
 
 _HEX64 = re.compile(r"[0-9a-f]{64}\Z")
 _TERMINAL_STATUSES = frozenset({"complete", "sourceTextRejected", "notfound", "notProp", "error"})
@@ -832,12 +837,49 @@ def select_declarations(config: MetaSlice2Config) -> SelectionResult:
     )
 
 
+def _attempt_timeout_policy_payload(config: MetaSlice2Config) -> dict[str, object]:
+    return {
+        "ceiling_seconds": config.timeout_seconds,
+        "formula": ATTEMPT_TIMEOUT_FORMULA,
+        "primary": {
+            "floor_seconds": PRIMARY_TIMEOUT_FLOOR_SECONDS,
+            "seconds_per_item": PRIMARY_TIMEOUT_SECONDS_PER_ITEM,
+        },
+        "audit": {
+            "floor_seconds": AUDIT_TIMEOUT_FLOOR_SECONDS,
+            "seconds_per_item": AUDIT_TIMEOUT_SECONDS_PER_ITEM,
+        },
+    }
+
+
+def _attempt_timeout_seconds(
+    config: MetaSlice2Config,
+    *,
+    stage: str,
+    item_count: int,
+) -> int:
+    if item_count <= 0:
+        raise MetaSlice2Error("attempt item_count must be positive")
+    if stage == "primary":
+        floor_seconds = PRIMARY_TIMEOUT_FLOOR_SECONDS
+        seconds_per_item = PRIMARY_TIMEOUT_SECONDS_PER_ITEM
+    elif stage == "audit":
+        floor_seconds = AUDIT_TIMEOUT_FLOOR_SECONDS
+        seconds_per_item = AUDIT_TIMEOUT_SECONDS_PER_ITEM
+    else:
+        raise MetaSlice2Error(f"unsupported attempt stage {stage!r}")
+    return min(
+        config.timeout_seconds,
+        max(floor_seconds, seconds_per_item * item_count),
+    )
+
+
 def _config_payload(config: MetaSlice2Config) -> dict[str, object]:
     return {
         "method_version": METHOD_VERSION,
         "selection_domain": SELECTION_DOMAIN,
         "sample_size": config.sample_size,
-        "attempt_timeout_seconds": config.timeout_seconds,
+        "attempt_timeout_policy": _attempt_timeout_policy_payload(config),
         "primary_shard_size": PRIMARY_SHARD_SIZE,
         "audit_shard_size": AUDIT_SHARD_SIZE,
         "fallback_policy": "recursive_contiguous_midpoint_bisection",
@@ -1448,7 +1490,7 @@ def _parse_probe_output(
                         context=context,
                     )
                     if (
-                        row.get("producer") != "runner-aggregate-v3"
+                        row.get("producer") != "runner-aggregate-v4"
                         or accounted_count != len(selection.names)
                         or terminal_count != len(selection.names)
                     ):
@@ -1749,7 +1791,7 @@ def _manifest_base(
         "shard_policy": {
             "primary_base_size": PRIMARY_SHARD_SIZE,
             "audit_base_size": AUDIT_SHARD_SIZE,
-            "attempt_timeout_seconds": config.timeout_seconds,
+            "attempt_timeout_policy": _attempt_timeout_policy_payload(config),
             "fallback": "recursive_contiguous_midpoint_bisection",
             "failed_stdout_salvage": False,
             "audit_singleton_failure": "fatal",
@@ -1946,7 +1988,11 @@ def _attempt_result_path(config: MetaSlice2Config, spec: _AttemptSpec) -> Path:
     return _attempt_dir(config, spec) / ATTEMPT_RESULT_FILENAME
 
 
-def _attempt_bindings(config: MetaSlice2Config) -> dict[str, object]:
+def _attempt_bindings(
+    config: MetaSlice2Config,
+    *,
+    attempt_timeout_seconds: int,
+) -> dict[str, object]:
     return {
         "config_sha256": hashlib.sha256(canonical_json_bytes(_config_payload(config))).hexdigest(),
         "runner_sha256": hash_file(Path(__file__)),
@@ -1954,6 +2000,7 @@ def _attempt_bindings(config: MetaSlice2Config) -> dict[str, object]:
         "source_revision": config.expected_source_revision,
         "theorem_store_sha256": config.theorem_store_sha256,
         "extraction_manifest_sha256": config.extraction_manifest_sha256,
+        "attempt_timeout_seconds": attempt_timeout_seconds,
     }
 
 
@@ -2132,6 +2179,7 @@ def _attempt_result_payload(
     spec: _AttemptSpec,
     material: _AttemptMaterial,
     *,
+    attempt_timeout_seconds: int,
     started_at: str,
     outcome: str,
     execution: Mapping[str, object] | None,
@@ -2159,11 +2207,15 @@ def _attempt_result_payload(
         "parent_attempt_id": spec.parent_attempt_id,
         "range": {"start": spec.start, "stop": spec.stop},
         "item_count": material.item_count,
+        "timeout_seconds": attempt_timeout_seconds,
         "input": {
             "filename": material.input_filename,
             "sha256": hashlib.sha256(material.input_bytes).hexdigest(),
         },
-        "bindings": _attempt_bindings(context.config),
+        "bindings": _attempt_bindings(
+            context.config,
+            attempt_timeout_seconds=attempt_timeout_seconds,
+        ),
         "started_at": started_at,
         "finished_at": _utc_now(),
         "outcome": outcome,
@@ -2190,6 +2242,7 @@ def _validate_process_state(
     config: MetaSlice2Config,
     spec: _AttemptSpec,
     command: Sequence[str],
+    attempt_timeout_seconds: int,
 ) -> dict[str, object]:
     _require_regular_file(path, label=f"{spec.attempt_id} process state")
     state = _parse_json_object(path.read_text(encoding="utf-8"), context="attempt process state")
@@ -2223,7 +2276,7 @@ def _validate_process_state(
         or state.get("command_sha256")
         != hashlib.sha256(canonical_json_bytes(expected_command)).hexdigest()
         or state.get("cwd") != str(_resolve(config.mathlib_project_path))
-        or state.get("timeout_seconds") != config.timeout_seconds
+        or state.get("timeout_seconds") != attempt_timeout_seconds
     ):
         raise MetaSlice2Error(f"process-state execution binding drift for {spec.attempt_id}")
     _string_field(state, "started_at", context="attempt process state")
@@ -2356,6 +2409,7 @@ def _recover_recorded_process(
     spec: _AttemptSpec,
     process_path: Path,
     command: Sequence[str],
+    attempt_timeout_seconds: int,
 ) -> None:
     if not process_path.exists():
         _write_json_atomic(
@@ -2364,7 +2418,7 @@ def _recover_recorded_process(
                 attempt_id=spec.attempt_id,
                 command=command,
                 cwd=context.config.mathlib_project_path,
-                timeout_seconds=context.config.timeout_seconds,
+                timeout_seconds=attempt_timeout_seconds,
                 started_at=_utc_now(),
                 phase="prepared",
                 pid=None,
@@ -2384,6 +2438,7 @@ def _recover_recorded_process(
         config=context.config,
         spec=spec,
         command=command,
+        attempt_timeout_seconds=attempt_timeout_seconds,
     )
     pid = state.get("pid")
     process_group_id = state.get("process_group_id")
@@ -2433,7 +2488,7 @@ def _recover_recorded_process(
                 attempt_id=spec.attempt_id,
                 command=command,
                 cwd=context.config.mathlib_project_path,
-                timeout_seconds=context.config.timeout_seconds,
+                timeout_seconds=attempt_timeout_seconds,
                 started_at=cast(str, state["started_at"]),
                 phase="recovered",
                 pid=recovered_pid,
@@ -2488,7 +2543,7 @@ def _recover_recorded_process(
             attempt_id=spec.attempt_id,
             command=command,
             cwd=context.config.mathlib_project_path,
-            timeout_seconds=context.config.timeout_seconds,
+            timeout_seconds=attempt_timeout_seconds,
             started_at=cast(str, state["started_at"]),
             phase="recovered",
             pid=pid,
@@ -2510,6 +2565,13 @@ def _recover_interrupted_attempt(
     spec: _AttemptSpec,
     material: _AttemptMaterial,
 ) -> None:
+    if material.item_count != spec.stop - spec.start:
+        raise MetaSlice2Error(f"attempt item count differs from its range: {spec.attempt_id}")
+    attempt_timeout_seconds = _attempt_timeout_seconds(
+        context.config,
+        stage=spec.stage,
+        item_count=material.item_count,
+    )
     attempt_dir = _attempt_dir(context.config, spec)
     allowed = {
         material.input_filename,
@@ -2542,6 +2604,7 @@ def _recover_interrupted_attempt(
         spec,
         attempt_dir / ATTEMPT_PROCESS_FILENAME,
         command,
+        attempt_timeout_seconds,
     )
     log_path = attempt_dir / ATTEMPT_LOG_FILENAME
     if not log_path.exists():
@@ -2554,6 +2617,7 @@ def _recover_interrupted_attempt(
         context,
         spec,
         material,
+        attempt_timeout_seconds=attempt_timeout_seconds,
         started_at=_utc_now(),
         outcome="abandoned",
         execution=None,
@@ -2574,6 +2638,13 @@ def _run_new_attempt(
 ) -> _AttemptOutcome:
     if context.executor is None:
         raise MetaSlice2Error(f"missing attempt cannot be replayed: {spec.attempt_id}")
+    if material.item_count != spec.stop - spec.start:
+        raise MetaSlice2Error(f"attempt item count differs from its range: {spec.attempt_id}")
+    attempt_timeout_seconds = _attempt_timeout_seconds(
+        context.config,
+        stage=spec.stage,
+        item_count=material.item_count,
+    )
     attempt_dir = _attempt_dir(context.config, spec)
     attempt_dir.parent.mkdir(parents=True, exist_ok=True)
     attempt_dir.mkdir(mode=0o700)
@@ -2593,7 +2664,7 @@ def _run_new_attempt(
             attempt_id=spec.attempt_id,
             command=command,
             cwd=context.config.mathlib_project_path,
-            timeout_seconds=context.config.timeout_seconds,
+            timeout_seconds=attempt_timeout_seconds,
             started_at=started_at,
             phase="prepared",
             pid=None,
@@ -2612,7 +2683,7 @@ def _run_new_attempt(
     result = context.executor.run(
         command=command,
         cwd=context.config.mathlib_project_path,
-        timeout_seconds=context.config.timeout_seconds,
+        timeout_seconds=attempt_timeout_seconds,
         stdout_path=stdout_path,
         stderr_path=stderr_path,
         process_state_path=process_path,
@@ -2633,7 +2704,7 @@ def _run_new_attempt(
                 attempt_id=spec.attempt_id,
                 command=command,
                 cwd=context.config.mathlib_project_path,
-                timeout_seconds=context.config.timeout_seconds,
+                timeout_seconds=attempt_timeout_seconds,
                 started_at=started_at,
                 phase="finished",
                 pid=result.pid,
@@ -2653,6 +2724,7 @@ def _run_new_attempt(
         config=context.config,
         spec=spec,
         command=command,
+        attempt_timeout_seconds=attempt_timeout_seconds,
     )
     if (
         process_state.get("phase") != "finished"
@@ -2681,7 +2753,7 @@ def _run_new_attempt(
         validation: dict[str, object] | None = None
         failure: dict[str, object] | None = {
             "reason_code": "timeout",
-            "detail": f"timed out after {context.config.timeout_seconds}s",
+            "detail": f"timed out after {attempt_timeout_seconds}s",
         }
     elif result.returncode != 0:
         if type(result.returncode) is not int:
@@ -2721,7 +2793,7 @@ def _run_new_attempt(
     execution = {
         "command": list(command),
         "cwd": str(_resolve(context.config.mathlib_project_path)),
-        "timeout_seconds": context.config.timeout_seconds,
+        "timeout_seconds": attempt_timeout_seconds,
         "stdin": "closed",
         "returncode": result.returncode,
         "timed_out": result.timed_out,
@@ -2738,6 +2810,7 @@ def _run_new_attempt(
         context,
         spec,
         material,
+        attempt_timeout_seconds=attempt_timeout_seconds,
         started_at=started_at,
         outcome=outcome,
         execution=execution,
@@ -2758,6 +2831,13 @@ def _validate_attempt_result(
     selection: SelectionResult | None,
     certificates: Sequence[CandidateCertificate] | None,
 ) -> _AttemptOutcome:
+    if material.item_count != spec.stop - spec.start:
+        raise MetaSlice2Error(f"attempt item count differs from its range: {spec.attempt_id}")
+    attempt_timeout_seconds = _attempt_timeout_seconds(
+        context.config,
+        stage=spec.stage,
+        item_count=material.item_count,
+    )
     result_path = _attempt_result_path(context.config, spec)
     _require_regular_file(result_path, label=f"{spec.attempt_id} result")
     result = _parse_json_object(result_path.read_text(encoding="utf-8"), context="attempt result")
@@ -2771,6 +2851,7 @@ def _validate_attempt_result(
         "parent_attempt_id",
         "range",
         "item_count",
+        "timeout_seconds",
         "input",
         "bindings",
         "started_at",
@@ -2794,11 +2875,15 @@ def _validate_attempt_result(
         "parent_attempt_id": spec.parent_attempt_id,
         "range": {"start": spec.start, "stop": spec.stop},
         "item_count": material.item_count,
+        "timeout_seconds": attempt_timeout_seconds,
         "input": {
             "filename": material.input_filename,
             "sha256": hashlib.sha256(material.input_bytes).hexdigest(),
         },
-        "bindings": _attempt_bindings(context.config),
+        "bindings": _attempt_bindings(
+            context.config,
+            attempt_timeout_seconds=attempt_timeout_seconds,
+        ),
     }
     outcome = _string_field(result, "outcome", context="attempt result")
     if outcome == "abandoned":
@@ -2843,6 +2928,7 @@ def _validate_attempt_result(
         config=context.config,
         spec=spec,
         command=command,
+        attempt_timeout_seconds=attempt_timeout_seconds,
     )
     if log_path.read_bytes() != _log_bytes(command, stdout_path, stderr_path):
         raise MetaSlice2Error(f"attempt log drift for {spec.attempt_id}")
@@ -2886,7 +2972,7 @@ def _validate_attempt_result(
     if (
         execution.get("command") != list(command)
         or execution.get("cwd") != str(_resolve(context.config.mathlib_project_path))
-        or execution.get("timeout_seconds") != context.config.timeout_seconds
+        or execution.get("timeout_seconds") != attempt_timeout_seconds
         or execution.get("stdin") != "closed"
     ):
         raise MetaSlice2Error(f"attempt execution binding drift for {spec.attempt_id}")
@@ -2936,6 +3022,7 @@ def _validate_attempt_result(
     ):
         raise MetaSlice2Error(f"attempt cleanup evidence is malformed for {spec.attempt_id}")
     for key in (
+        "timeout_seconds",
         "pid",
         "process_group_id",
         "process_start_ticks",
@@ -2967,7 +3054,7 @@ def _validate_attempt_result(
     elif outcome == "timeout":
         expected_failure = {
             "reason_code": "timeout",
-            "detail": f"timed out after {context.config.timeout_seconds}s",
+            "detail": f"timed out after {attempt_timeout_seconds}s",
         }
         if (
             not timed_out
@@ -3165,6 +3252,13 @@ def _runner_terminal(
 ) -> dict[str, object]:
     execution = _mapping_field(outcome.result, "execution", context="singleton attempt")
     failure = _mapping_field(outcome.result, "failure", context="singleton attempt")
+    timeout_seconds = _nonnegative_int_field(
+        outcome.result,
+        "timeout_seconds",
+        context="singleton attempt",
+    )
+    if timeout_seconds <= 0 or execution.get("timeout_seconds") != timeout_seconds:
+        raise MetaSlice2Error("singleton attempt has inconsistent timeout evidence")
     reason_code = _string_field(failure, "reason_code", context="singleton attempt")
     if reason_code not in _RUNNER_REASON_CODES:
         raise MetaSlice2Error("singleton attempt lacks a runner disposition reason")
@@ -3179,7 +3273,7 @@ def _runner_terminal(
         "attemptId": outcome.spec.attempt_id,
         "attemptPath": outcome.result_path.parent.relative_to(config.output_root).as_posix(),
         "attemptResultSha256": hash_file(outcome.result_path),
-        "timeoutSeconds": config.timeout_seconds,
+        "timeoutSeconds": timeout_seconds,
         "timedOut": execution.get("timed_out"),
         "returncode": execution.get("returncode"),
         "candidateCount": 0,
@@ -3243,7 +3337,7 @@ def _primary_aggregate_rows(context: _RunContext) -> tuple[dict[str, object], ..
         "schemaVersion": 2,
         "kind": "batch",
         "recordKind": "batch",
-        "producer": "runner-aggregate-v3",
+        "producer": "runner-aggregate-v4",
         "status": "complete" if failed_count == 0 else "partial",
         "namesFile": str(_resolve(context.config.output_root / NAMES_FILENAME)),
         "declarationCount": len(context.selection.names),

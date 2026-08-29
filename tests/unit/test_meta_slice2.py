@@ -9,7 +9,7 @@ import sys
 import threading
 from collections.abc import Callable
 from contextlib import suppress
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 import pytest
@@ -433,6 +433,14 @@ def _result_files(config: MetaSlice2Config, stage: str) -> list[Path]:
     )
 
 
+def _rebind_completed_manifest_inventory(config: MetaSlice2Config) -> None:
+    manifest_path = config.output_root / MANIFEST_FILENAME
+    manifest = json.loads(manifest_path.read_text())
+    manifest["outputs"] = meta_slice2_module._artifact_inventory(config.output_root)
+    manifest["attempts"] = meta_slice2_module._manifest_attempts(config)
+    meta_slice2_module._write_json_atomic(manifest_path, manifest)
+
+
 def test_selector_is_unique_deterministic_and_selection_domain_is_unchanged(
     tmp_path: Path,
 ) -> None:
@@ -451,7 +459,7 @@ def test_selector_is_unique_deterministic_and_selection_domain_is_unchanged(
         )[:3]
     )
     assert SELECTION_DOMAIN == "leanfaith_meta_slice2_yield_probe_v1"
-    assert METHOD_VERSION.endswith("_v3")
+    assert METHOD_VERSION.endswith("_v4")
     assert PRIMARY_SHARD_SIZE == 20
     assert AUDIT_SHARD_SIZE == 100
     assert selection.names == expected
@@ -460,6 +468,48 @@ def test_selector_is_unique_deterministic_and_selection_domain_is_unchanged(
     assert selection.duplicate_eligible_names == 1
     assert selection.excluded_private == 2
     assert selection.excluded_transform_ineligible == 1
+
+
+def test_adaptive_timeout_schedule_and_policy_payload_are_exact(tmp_path: Path) -> None:
+    config = replace(_fixture_config(tmp_path), timeout_seconds=900)
+
+    expected_policy = {
+        "ceiling_seconds": 900,
+        "formula": ("min(ceiling_seconds, max(floor_seconds, seconds_per_item * item_count))"),
+        "primary": {"floor_seconds": 180, "seconds_per_item": 30},
+        "audit": {"floor_seconds": 120, "seconds_per_item": 5},
+    }
+    assert meta_slice2_module._attempt_timeout_policy_payload(config) == expected_policy
+    assert [
+        meta_slice2_module._attempt_timeout_seconds(
+            config,
+            stage="primary",
+            item_count=count,
+        )
+        for count in (1, 5, 6, 7, 10, 20, 30, 31)
+    ] == [180, 180, 180, 210, 300, 600, 900, 900]
+    assert [
+        meta_slice2_module._attempt_timeout_seconds(
+            config,
+            stage="audit",
+            item_count=count,
+        )
+        for count in (1, 24, 25, 100, 180, 181)
+    ] == [120, 120, 125, 500, 900, 900]
+
+    low_ceiling = replace(config, timeout_seconds=19)
+    assert (
+        meta_slice2_module._attempt_timeout_seconds(
+            low_ceiling,
+            stage="primary",
+            item_count=20,
+        )
+        == 19
+    )
+    with pytest.raises(MetaSlice2Error, match="item_count must be positive"):
+        meta_slice2_module._attempt_timeout_seconds(config, stage="primary", item_count=0)
+    with pytest.raises(MetaSlice2Error, match="unsupported attempt stage"):
+        meta_slice2_module._attempt_timeout_seconds(config, stage="unknown", item_count=1)
 
 
 @pytest.mark.skipif(
@@ -528,6 +578,61 @@ def test_sharded_success_summary_manifest_and_replay(tmp_path: Path) -> None:
     assert not list(config.output_root.rglob("*.partial"))
 
 
+def test_adaptive_timeouts_bind_manifest_process_execution_and_result(
+    tmp_path: Path,
+) -> None:
+    config = replace(
+        _fixture_config(tmp_path, output_name="adaptive-bindings", sample_size=100),
+        timeout_seconds=900,
+    )
+    declarations = frozenset(select_declarations(config).names)
+
+    def handler(stdout_path: Path, _call_number: int) -> _FakeResponse:
+        attempt_dir = stdout_path.parent
+        if attempt_dir.name.startswith("attempt-primary-"):
+            return _FakeResponse(
+                _primary_output(
+                    attempt_dir / ATTEMPT_NAMES_FILENAME,
+                    candidate_declarations=declarations,
+                )
+            )
+        return _FakeResponse(_audit_output(attempt_dir / ATTEMPT_CERTIFICATES_FILENAME))
+
+    executor = _FakeExecutor(handler)
+    manifest = run_meta_slice2(config, executor=executor)
+
+    policy = meta_slice2_module._attempt_timeout_policy_payload(config)
+    manifest_config = manifest["config"]
+    shard_policy = manifest["shard_policy"]
+    assert isinstance(manifest_config, dict)
+    assert isinstance(shard_policy, dict)
+    assert manifest_config["attempt_timeout_policy"] == policy
+    assert shard_policy["attempt_timeout_policy"] == policy
+    primary_calls = [
+        call for call in executor.calls if call[3].parent.name.startswith("attempt-primary-")
+    ]
+    audit_calls = [
+        call for call in executor.calls if call[3].parent.name.startswith("attempt-audit-")
+    ]
+    assert [call[2] for call in primary_calls] == [600] * 5
+    assert [call[2] for call in audit_calls] == [500]
+
+    for stage in ("primary", "audit"):
+        for result_path in _result_files(config, stage):
+            result = json.loads(result_path.read_text())
+            expected_timeout = meta_slice2_module._attempt_timeout_seconds(
+                config,
+                stage=stage,
+                item_count=result["item_count"],
+            )
+            process = json.loads((result_path.parent / ATTEMPT_PROCESS_FILENAME).read_text())
+            assert result["timeout_seconds"] == expected_timeout
+            assert result["bindings"]["attempt_timeout_seconds"] == expected_timeout
+            assert result["execution"]["timeout_seconds"] == expected_timeout
+            assert process["timeout_seconds"] == expected_timeout
+    verify_meta_slice2(config)
+
+
 def test_invalid_parent_output_bisects_contiguous_range(tmp_path: Path) -> None:
     config = _fixture_config(tmp_path, output_name="bisect", sample_size=4)
 
@@ -560,6 +665,30 @@ def test_invalid_parent_output_bisects_contiguous_range(tmp_path: Path) -> None:
         "accepted": 2,
         "invalid_output": 1,
     }
+
+
+def test_bisection_recomputes_timeout_for_each_child_range(tmp_path: Path) -> None:
+    config = replace(
+        _fixture_config(tmp_path, output_name="adaptive-bisect", sample_size=20),
+        timeout_seconds=900,
+    )
+
+    def handler(stdout_path: Path, _call_number: int) -> _FakeResponse:
+        names_path = stdout_path.parent / ATTEMPT_NAMES_FILENAME
+        names = names_path.read_text(encoding="utf-8").splitlines()
+        if len(names) == 20:
+            return _FakeResponse("invalid parent\n")
+        return _FakeResponse(_primary_output(names_path))
+
+    executor = _FakeExecutor(handler)
+    run_meta_slice2(config, executor=executor)
+
+    assert [call[2] for call in executor.calls] == [600, 300, 300]
+    results = [json.loads(path.read_text()) for path in _result_files(config, "primary")]
+    assert {
+        (row["range"]["start"], row["range"]["stop"], row["timeout_seconds"]) for row in results
+    } == {(0, 20, 600), (0, 10, 300), (10, 20, 300)}
+    verify_meta_slice2(config)
 
 
 def test_nonzero_exit_bisects_and_singleton_is_external_process_error(
@@ -638,6 +767,51 @@ def test_singleton_timeout_becomes_explicit_runner_disposition(tmp_path: Path) -
     assert runner_row["reasonCode"] == "timeout"
     assert runner_row["candidateCount"] == runner_row["emittedCount"] == 0
     assert verify_meta_slice2(config) == summary
+
+
+def test_runner_terminal_uses_singleton_actual_timeout_not_ceiling(tmp_path: Path) -> None:
+    config = replace(
+        _fixture_config(tmp_path, output_name="adaptive-singleton", sample_size=5),
+        timeout_seconds=900,
+    )
+    failed_declaration = select_declarations(config).names[0]
+
+    def handler(stdout_path: Path, _call_number: int) -> _FakeResponse:
+        names_path = stdout_path.parent / ATTEMPT_NAMES_FILENAME
+        names = names_path.read_text(encoding="utf-8").splitlines()
+        if failed_declaration in names:
+            return _FakeResponse("partial", returncode=None, timed_out=True)
+        return _FakeResponse(_primary_output(names_path))
+
+    executor = _FakeExecutor(handler)
+    manifest = run_meta_slice2(config, executor=executor)
+    summary = manifest["summary"]
+    assert isinstance(summary, dict)
+    dispositions = summary["runner_execution_rejections"]
+    assert isinstance(dispositions, dict)
+    raw_dispositions = dispositions["dispositions"]
+    assert isinstance(raw_dispositions, list)
+    assert len(raw_dispositions) == 1
+    disposition = raw_dispositions[0]
+    assert disposition["attempt_id"] == "attempt-primary-00000000-00000001-r001"
+    assert disposition["declaration"] == failed_declaration
+    assert disposition["reason_code"] == "timeout"
+    assert disposition["returncode"] is None
+    assert disposition["timed_out"] is True
+    assert disposition["timeout_seconds"] == 180
+    aggregate_rows = [
+        json.loads(line) for line in (config.output_root / STDOUT_FILENAME).read_text().splitlines()
+    ]
+    runner_row = next(row for row in aggregate_rows if row.get("status") == "externalTimeout")
+    assert runner_row["timeoutSeconds"] == 180
+    result_timeouts = {
+        (row["range"]["start"], row["range"]["stop"]): row["timeout_seconds"]
+        for row in (json.loads(path.read_text()) for path in _result_files(config, "primary"))
+    }
+    assert result_timeouts[(0, 5)] == 180
+    assert result_timeouts[(0, 1)] == 180
+    assert executor.calls[0][2] == 180
+    verify_meta_slice2(config)
 
 
 def test_singleton_invalid_output_maps_to_external_process_error(tmp_path: Path) -> None:
@@ -854,6 +1028,47 @@ def test_completed_recursive_artifact_tampering_is_detected(tmp_path: Path) -> N
     result["item_count"] = 999
     result_path.write_text(json.dumps(result), encoding="utf-8")
     with pytest.raises(MetaSlice2Error, match="output artifact inventory drifted"):
+        verify_meta_slice2(config)
+
+
+def test_verifier_recomputes_result_timeout_after_hash_inventory_rebinding(
+    tmp_path: Path,
+) -> None:
+    config = replace(
+        _fixture_config(tmp_path, output_name="result-timeout-tamper"),
+        timeout_seconds=900,
+    )
+    run_meta_slice2(config, executor=_FakeExecutor(_success_handler()))
+    result_path = _result_files(config, "primary")[0]
+    result = json.loads(result_path.read_text())
+    result["timeout_seconds"] += 1
+    meta_slice2_module._write_json_atomic(result_path, result)
+    _rebind_completed_manifest_inventory(config)
+
+    with pytest.raises(MetaSlice2Error, match=r"binding drift.*timeout_seconds"):
+        verify_meta_slice2(config)
+
+
+def test_verifier_recomputes_process_timeout_after_nested_hash_rebinding(
+    tmp_path: Path,
+) -> None:
+    config = replace(
+        _fixture_config(tmp_path, output_name="process-timeout-tamper"),
+        timeout_seconds=900,
+    )
+    run_meta_slice2(config, executor=_FakeExecutor(_success_handler()))
+    result_path = _result_files(config, "primary")[0]
+    process_path = result_path.parent / ATTEMPT_PROCESS_FILENAME
+    process = json.loads(process_path.read_text())
+    process["timeout_seconds"] += 1
+    meta_slice2_module._write_json_atomic(process_path, process)
+
+    result = json.loads(result_path.read_text())
+    result["artifacts"][ATTEMPT_PROCESS_FILENAME] = meta_slice2_module._artifact(process_path)
+    meta_slice2_module._write_json_atomic(result_path, result)
+    _rebind_completed_manifest_inventory(config)
+
+    with pytest.raises(MetaSlice2Error, match="process-state execution binding drift"):
         verify_meta_slice2(config)
 
 
