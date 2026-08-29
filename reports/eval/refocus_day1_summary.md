@@ -377,6 +377,34 @@ sweep empty; collection clean; 148 focused collect2/executor/consumer tests gree
 unit tests green**; Ruff green; strict mypy green across 238 source files. This deletion never
 opened a golden pair-text artifact; `final_test` remains sealed and unscored.
 
+## S1 public-repair contract and one-row smoke (`259b6b9`)
+
+The additive repair contract now binds the exact public projection of corpus v1: **9,585 rows**
+(2,351 positive / 7,234 negative; train 7,645 / validation 942 / test 998). It verifies the
+trainer/provenance join and public release flags row by row, and explicitly confirms that all 146
+D-3 records are already present. It also freezes the eleven input hashes, the completed
+16,138-candidate Meta pool, the 16,138 independent audit rows, and the PLAN/catalog-v2 diversity
+caps. This is a new versioned path; frozen corpus-v1 semantics were not changed.
+
+Before any full materialization, the Meta attempt/audit tree replayed successfully in 5.1 seconds
+without invoking Lean. Candidate 0 — a P20 `unfold:DFunLike.coe` transform of
+`MeasureTheory.IsFundamentalDomain.measure_ne_zero` — was joined on the five-field candidate key to
+its exact `verified=true` independent-site-reconstruction audit, screened against the golden
+blocklist, and emitted as one trainer row plus one repair-provenance row. The smoke manifest
+records `lean_reexecution=false`, `external_calls=false`, and `final_test_accessed=false`.
+
+Frozen root:
+`/storage/milikic/leanfaith/corpus2/s1_public_repair_smoke_v1_22386b7_9e2425f/`.
+
+| artifact | SHA-256 |
+|---|---|
+| smoke manifest | `32f825b94d77ad578372537dfdc45a10c8a9dfbdeaeb9559ace3ae6687feaf49` |
+| trainer row | `9a8c712a53626baacac2d2abe54138b4d0990f044825a05bf389c3b7240d4c0a` |
+| repair provenance row | `ca81836dd7ff0a132c4ed04f7593575a9335b13294c7731007c4f30211bf10bc` |
+
+Verification: six new contract/conversion tests plus all 13 corpus-v1 builder tests are green;
+collection is clean; Ruff and format are green; strict mypy is green across 239 source files.
+
 ## Assets produced today (all on `main` unless noted)
 
 - Golden partition frozen: 910 expert `final_test` (sealed) / 821 dev / 819 golden_train
@@ -425,19 +453,16 @@ opened a golden pair-text artifact; `final_test` remains sealed and unscored.
   `/storage/milikic/leanfaith/golden/eval_runs/dev_s1v1_*`.
 - Prunes P1+P2+P4 complete: ~145K LOC removed. P4 removed 14,825 lines; all 2,511 unit tests,
   Ruff, and strict mypy are green.
+- S1 public-repair contract + one-row live smoke complete: exact public baseline and Meta audit
+  pool bound; one audited candidate projected without rerunning Lean or touching `final_test`.
 
 ## Next
 
-1. Freeze an additive public repair-corpus contract from the **9,585 public corpus-v1 rows**:
-   2,351 positive / 7,234 negative; train 7,645 / validation 942 / test 998. Retain the 146 D-3
-   records already included; do not regenerate or duplicate them.
-2. Prove the Meta-to-trainer conversion on one row, including a hash-bound join to its independent
-   `verified=true` audit record. Reuse the completed 16,138/16,138 audit; do not recompile all 500
-   source declarations unless that binding fails.
-3. Build the full public-only corpus with ancestry-disjoint splits, source/family/template caps,
+1. Build the full public-only corpus with ancestry-disjoint splits, source/family/template caps,
    exact-pair deduplication, golden blocklist screening, and explicit label-balance/canary gates.
-   The Meta pool is sampled under those gates rather than admitted wholesale.
-4. Smoke one batch/checkpoint, then retrain both S1 arms and score only golden dev against the
+   The Meta pool is sampled under those gates rather than admitted wholesale; the 500-source Lean
+   run is not repeated.
+2. Smoke one batch/checkpoint, then retrain both S1 arms and score only golden dev against the
    S1v0 chunks-CPT selection marks (0.849 AUPRC / 0.684 calibrated balanced accuracy).
-5. Run Track T-B Stage A separately after its registry and gap/cloze diagnostics are frozen.
+3. Run Track T-B Stage A separately after its registry and gap/cloze diagnostics are frozen.
    Keep `final_test` sealed and unscored.

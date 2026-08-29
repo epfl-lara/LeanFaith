@@ -21,7 +21,7 @@
 >   negative families demoted to silver until separator/witness-upgraded, and compute expanded to
 >   the RunAI cluster (A100/H100/H200).
 
-## Execution status ledger (2026-08-29, Queues 1–6 + S1v1 dev follow-up + P4 executed — read the seal erratum below)
+## Execution status ledger (2026-08-29, Queues 1–6 + S1v1 follow-up + P4 + repair smoke executed — read the seal erratum below)
 
 Full numbers: `reports/eval/refocus_day1_summary.md`. Treat this ledger plus hashed run manifests
 as current execution state; the later track prose preserves approved design and historical
@@ -113,25 +113,28 @@ starting-point context, and may describe work that the ledger has since complete
   0.684 balanced accuracy); all CIs overlap. Frozen training root:
   `/storage/milikic/leanfaith/s1_v1_7e6ef0d/`; split/eval artifacts:
   `/storage/milikic/leanfaith/golden/{canonical/splits_v1,eval_runs}/`.
+- **S1 PUBLIC-REPAIR CONTRACT + ONE-ROW SMOKE COMPLETE**: `259b6b9` freezes the exact 9,585-row
+  public corpus-v1 projection (2,351 positive / 7,234 negative; 146 D-3 rows already included),
+  all eleven source-file hashes, the 16,138/16,138 Meta candidate/audit pool, and the v2 diversity
+  caps. The full Meta attempt/audit tree replayed in 5.1 seconds without invoking Lean. One P20
+  candidate was then joined to its exact `verified=true` independent-audit key and emitted in the
+  trainer + repair-provenance schemas. Six focused tests plus the 13 corpus-v1 builder tests are
+  green; collection, Ruff, format, and strict mypy (239 source files) are green. Frozen smoke:
+  `/storage/milikic/leanfaith/corpus2/s1_public_repair_smoke_v1_22386b7_9e2425f/` (manifest
+  SHA-256 `32f825b94d77ad578372537dfdc45a10c8a9dfbdeaeb9559ace3ae6687feaf49`).
 - **Backbone consultation verified, Track T-B added**: GPT Pro + Claude reports cross-checked
   against pinned configs/modeling code, live HF cards, and a fresh local operator/fertility
   audit (0 UNKs on all three tokenizers — DeBERTa fear refuted; NeoBERT disqualified;
   Ettin/EuroBERT/Qwen3-Reranker/Kimina confirmed with licences). Table + measurements:
   `reports/model_selection/backbone_consult_verification_2026_08_28.md`.
 
-**NEXT QUEUE — S1 public data repair (bounded; no repeat 500-theorem compile):**
-1. Freeze an additive, versioned repair-corpus contract. Start from the **9,585 public corpus-v1
-   rows** (2,351 positive / 7,234 negative; train 7,645 / validation 942 / test 998). Retain the
-   146 D-3 rows already present; do not regenerate, rejudge, or duplicate them.
-2. Convert **one** Meta-engine row end to end into the frozen trainer/provenance schemas and prove
-   its candidate key is joined to a `verified=true` independent-audit row. Reuse the completed
-   16,138/16,138 audit and its hashes; rerun Lean over the 500 declarations only if that binding
-   fails.
-3. Materialize the full public repair corpus with declaration/ancestry-disjoint splits,
+**NEXT QUEUE — S1 full public repair build (the contract/smoke passed; no repeat 500-theorem
+compile):**
+1. Materialize the full public repair corpus with declaration/ancestry-disjoint splits,
    source/family/template caps, exact-pair deduplication, the golden contamination blocklist, and
    an explicit before/after label table. The 16,138 Meta candidates are an eligible pool, not an
    instruction to admit all highly correlated rewrites.
-4. Smoke one training batch/checkpoint, then run the two primary S1 arms once the manifest and
+2. Smoke one training batch/checkpoint, then run the two primary S1 arms once the manifest and
    canaries pass. Score golden **dev** through the sanctioned split-only path and compare against
    S1v0 chunks-CPT (0.849 AUPRC / 0.684 calibrated balanced accuracy). `final_test` remains sealed
    and unscored.
