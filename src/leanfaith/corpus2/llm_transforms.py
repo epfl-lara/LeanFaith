@@ -10,9 +10,7 @@ Codex-only scale path additionally freezes per-job source/family/prompt bindings
 journals each call for resume, Lean-checks every parsed rewrite, and emits trainer rows.
 
 GOLD RULE (enforced in code, see :func:`build_fewshots`): few-shot examples may come
-ONLY from ``partition == "golden_train"`` pairs of the canonical golden pairs file.
-Pairs from any other partition (dev / final_test / quarantine) are dropped at load
-time and never rendered into a prompt.
+ONLY from a hash-bound, split-only ``partition == "golden_train"`` export.
 """
 
 from __future__ import annotations
@@ -57,6 +55,7 @@ DEFAULT_SCALE_OUTPUT_ROOT = Path("/storage/milikic/leanfaith/lf023_llm_transform
 
 FEWSHOT_PARTITION = "golden_train"
 FEWSHOT_PROVENANCE = "expert_human"
+GOLDEN_SPLIT_SCHEMA_VERSION = 1
 DIRECTIONS = ("preserve", "break")
 PROVIDERS = ("codex", "claude", "lemex")
 PROVIDER_TIMEOUT_SECONDS = 240
@@ -221,47 +220,99 @@ class TransformRecord:
 def verify_golden_partition_freeze(
     pairs_path: Path,
     partition_manifest_path: Path,
-) -> dict[str, str]:
-    """Bind the few-shot file to the frozen canonical partition manifest."""
+    split_manifest_path: Path,
+) -> tuple[list[dict[str, Any]], dict[str, str]]:
+    """Validate and parse a complete golden_train-only export, fail closed."""
+    if pairs_path.resolve() == GOLDEN_PAIRS_PATH.resolve():
+        raise GoldRuleViolation("refusing the mixed canonical golden pair path")
     raw = json.loads(partition_manifest_path.read_text(encoding="utf-8"))
     if not isinstance(raw, dict) or raw.get("version") != "golden_partition_v1":
         raise GoldRuleViolation("partition manifest is not golden_partition_v1")
-    expected_hash = raw.get("canonical_pairs_sha256")
-    actual_hash = _sha256_file(pairs_path)
-    if not isinstance(expected_hash, str) or actual_hash != expected_hash:
-        raise GoldRuleViolation(
-            f"golden pairs hash {actual_hash} does not match frozen hash {expected_hash!r}"
-        )
+    parent_hash = raw.get("canonical_pairs_sha256")
+    if not isinstance(parent_hash, str):
+        raise GoldRuleViolation("partition manifest has invalid canonical pairs hash")
     raw_groups = raw.get("group_partitions")
     if not isinstance(raw_groups, dict) or not all(
         isinstance(key, str) and isinstance(value, str) for key, value in raw_groups.items()
     ):
         raise GoldRuleViolation("partition manifest has invalid group_partitions")
-    return {str(key): str(value) for key, value in raw_groups.items()}
+    frozen_groups = {str(key): str(value) for key, value in raw_groups.items()}
 
+    sidecar = json.loads(split_manifest_path.read_text(encoding="utf-8"))
+    required_fields = {
+        "schema_version",
+        "parent_canonical_sha256",
+        "split_sha256",
+        "partition",
+        "row_count",
+        "group_count",
+    }
+    if (
+        not isinstance(sidecar, dict)
+        or set(sidecar) != required_fields
+        or sidecar.get("schema_version") != GOLDEN_SPLIT_SCHEMA_VERSION
+    ):
+        raise GoldRuleViolation("invalid golden split sidecar schema")
+    if sidecar.get("parent_canonical_sha256") != parent_hash:
+        raise GoldRuleViolation("golden split parent hash does not match frozen canonical hash")
+    split_hash = sidecar.get("split_sha256")
+    if not isinstance(split_hash, str) or len(split_hash) != 64:
+        raise GoldRuleViolation("golden split sidecar has invalid split hash")
+    if split_hash == parent_hash:
+        raise GoldRuleViolation("refusing the mixed canonical golden pair hash")
+    if sidecar.get("partition") != FEWSHOT_PARTITION:
+        raise GoldRuleViolation("few-shot split sidecar is not golden_train-only")
+    for field_name in ("row_count", "group_count"):
+        value = sidecar.get(field_name)
+        if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
+            raise GoldRuleViolation(f"golden split sidecar has invalid {field_name}")
 
-def load_golden_train_pairs(pairs_path: Path) -> list[dict[str, Any]]:
-    """Load ONLY partition=="golden_train" pairs from the canonical golden file.
-
-    Every other partition (dev / final_test / quarantine) is discarded the moment
-    its partition field is read; its statement text is never retained.
-    """
-    kept: list[dict[str, Any]] = []
-    with pairs_path.open(encoding="utf-8") as fh:
-        for line in fh:
-            line = line.strip()
-            if not line:
-                continue
-            row: dict[str, Any] = json.loads(line)
-            if row.get("partition") != FEWSHOT_PARTITION:
-                continue  # never retain dev/final_test/quarantine content
-            kept.append(row)
-    for row in kept:
-        if row.get("partition") != FEWSHOT_PARTITION:  # defense in depth
+    pair_bytes = pairs_path.read_bytes()
+    actual_hash = hashlib.sha256(pair_bytes).hexdigest()
+    if actual_hash == parent_hash:
+        raise GoldRuleViolation("refusing the mixed canonical golden pair hash")
+    if actual_hash != split_hash:
+        raise GoldRuleViolation("golden split file hash does not match its sidecar")
+    rows: list[dict[str, Any]] = []
+    for line_number, line in enumerate(pair_bytes.decode("utf-8").splitlines(), start=1):
+        if not line.strip():
+            continue
+        row = json.loads(line)
+        if not isinstance(row, dict):
+            raise GoldRuleViolation(f"golden split row {line_number} is not an object")
+        if row.get("partition") != FEWSHOT_PARTITION:
             raise GoldRuleViolation(
-                f"non-{FEWSHOT_PARTITION} pair leaked into few-shot pool: {row.get('pair_id')}"
+                f"golden split row {line_number} is not partition={FEWSHOT_PARTITION!r}"
             )
-    return kept
+        rows.append(row)
+    if len(rows) != sidecar["row_count"]:
+        raise GoldRuleViolation("golden split row count does not match its sidecar")
+    groups = {row.get("group_key") for row in rows}
+    if None in groups or len(groups) != sidecar["group_count"]:
+        raise GoldRuleViolation("golden split group count does not match its sidecar")
+    expected_groups = {
+        group for group, assigned in frozen_groups.items() if assigned == FEWSHOT_PARTITION
+    }
+    if groups != expected_groups:
+        raise GoldRuleViolation("golden split groups do not exactly match frozen golden_train")
+    counts = raw.get("counts")
+    train_counts = counts.get(FEWSHOT_PARTITION) if isinstance(counts, dict) else None
+    expected_rows = train_counts.get("canonical_pairs") if isinstance(train_counts, dict) else None
+    if expected_rows != len(rows):
+        raise GoldRuleViolation("golden split is not the complete frozen golden_train partition")
+    return rows, frozen_groups
+
+
+def load_golden_train_pairs(
+    pairs_path: Path,
+    split_manifest_path: Path,
+    partition_manifest_path: Path = GOLDEN_PARTITION_PATH,
+) -> list[dict[str, Any]]:
+    """Load a trusted, complete, golden_train-only split."""
+    rows, _ = verify_golden_partition_freeze(
+        pairs_path, partition_manifest_path, split_manifest_path
+    )
+    return rows
 
 
 def build_fewshots(
@@ -269,7 +320,8 @@ def build_fewshots(
     seed: int,
     k_pos: int = 3,
     k_neg: int = 3,
-    partition_manifest_path: Path | None = None,
+    partition_manifest_path: Path = GOLDEN_PARTITION_PATH,
+    split_manifest_path: Path | None = None,
 ) -> list[FewShot]:
     """Deterministically sample k_pos consistent + k_neg inconsistent few-shots.
 
@@ -277,19 +329,9 @@ def build_fewshots(
     label_provenance=="expert_human". Sampling is seeded and order-independent
     (pools are sorted by pair_id before sampling).
     """
-    frozen_groups = (
-        verify_golden_partition_freeze(pairs_path, partition_manifest_path)
-        if partition_manifest_path is not None
-        else None
-    )
-    pool = load_golden_train_pairs(pairs_path)
-    if frozen_groups is not None:
-        for row in pool:
-            group_key = row.get("group_key")
-            if not isinstance(group_key, str) or frozen_groups.get(group_key) != FEWSHOT_PARTITION:
-                raise GoldRuleViolation(
-                    f"pair {row.get('pair_id')} is not bound to a frozen golden_train group"
-                )
+    if split_manifest_path is None:
+        raise GoldRuleViolation("D-3 few-shots require an explicit golden_train split sidecar")
+    pool = load_golden_train_pairs(pairs_path, split_manifest_path, partition_manifest_path)
     eligible = [
         row
         for row in pool
@@ -1020,7 +1062,9 @@ def provider_stats(records: Sequence[TransformRecord]) -> dict[str, Any]:
 class PilotConfig:
     """Configuration for one pilot run."""
 
-    pairs_path: Path = GOLDEN_PAIRS_PATH
+    pairs_path: Path | None = None
+    split_manifest_path: Path | None = None
+    partition_manifest_path: Path = GOLDEN_PARTITION_PATH
     reprs_path: Path = MATHLIB_REPRESENTATIONS_PATH
     output_root: Path = DEFAULT_OUTPUT_ROOT
     seed: int = 20260828
@@ -1039,7 +1083,16 @@ def run_pilot(config: PilotConfig) -> dict[str, Any]:
     raw_dir = config.output_root / "raw"
     raw_dir.mkdir(parents=True, exist_ok=True)
 
-    fewshots = build_fewshots(config.pairs_path, config.seed, config.k_pos, config.k_neg)
+    if config.pairs_path is None or config.split_manifest_path is None:
+        raise GoldRuleViolation("D-3 requires explicit split-only pairs and sidecar paths")
+    fewshots = build_fewshots(
+        config.pairs_path,
+        config.seed,
+        config.k_pos,
+        config.k_neg,
+        config.partition_manifest_path,
+        config.split_manifest_path,
+    )
     samples = sample_source_statements(
         config.reprs_path, config.seed, config.n_per_provider, config.providers
     )
@@ -1091,6 +1144,8 @@ def run_pilot(config: PilotConfig) -> dict[str, Any]:
         "config": {
             "pairs_path": str(config.pairs_path),
             "pairs_sha256": _sha256_file(config.pairs_path),
+            "split_manifest_path": str(config.split_manifest_path),
+            "split_manifest_sha256": _sha256_file(config.split_manifest_path),
             "reprs_path": str(config.reprs_path),
             "reprs_sha256": _sha256_file(config.reprs_path),
             "n_per_provider": config.n_per_provider,
@@ -1184,7 +1239,8 @@ class LeanCheckResult:
 class ScaleConfig:
     """Configuration for the Codex-only, Lean-checked D-3 scale run."""
 
-    pairs_path: Path = GOLDEN_PAIRS_PATH
+    pairs_path: Path | None = None
+    split_manifest_path: Path | None = None
     partition_manifest_path: Path = GOLDEN_PARTITION_PATH
     reprs_path: Path = FULL_MATHLIB_REPRESENTATIONS_PATH
     theorems_path: Path = FULL_MATHLIB_THEOREMS_PATH
@@ -1931,6 +1987,8 @@ def run_scale(config: ScaleConfig) -> dict[str, Any]:
         )
     if config.max_workers <= 0 or config.lean_batch_size <= 0:
         raise ValueError("worker and Lean batch counts must be positive")
+    if config.pairs_path is None or config.split_manifest_path is None:
+        raise GoldRuleViolation("D-3 requires explicit split-only pairs and sidecar paths")
     mathlib_git_rev, mathlib_git_clean = _validate_mathlib_checkout(config)
     config.output_root.mkdir(parents=True, exist_ok=True)
     fewshots = build_fewshots(
@@ -1939,6 +1997,7 @@ def run_scale(config: ScaleConfig) -> dict[str, Any]:
         config.k_pos,
         config.k_neg,
         config.partition_manifest_path,
+        config.split_manifest_path,
     )
     pool, source_stats = load_scale_source_statements(
         config.reprs_path,
@@ -1954,6 +2013,7 @@ def run_scale(config: ScaleConfig) -> dict[str, Any]:
     job_plan_path = config.output_root / "job_plan.jsonl"
     input_hashes = {
         "golden_pairs": _sha256_file(config.pairs_path),
+        "golden_split_manifest": _sha256_file(config.split_manifest_path),
         "golden_partition": _sha256_file(config.partition_manifest_path),
         "golden_blocklist": _sha256_file(config.blocklist_path),
         "representations": _sha256_file(config.reprs_path),
@@ -1980,6 +2040,7 @@ def run_scale(config: ScaleConfig) -> dict[str, Any]:
         "fewshot_pair_ids": [shot.pair_id for shot in fewshots],
         "input_paths": {
             "golden_pairs": str(config.pairs_path),
+            "golden_split_manifest": str(config.split_manifest_path),
             "golden_partition": str(config.partition_manifest_path),
             "golden_blocklist": str(config.blocklist_path),
             "representations": str(config.reprs_path),
@@ -2148,7 +2209,8 @@ def run_scale(config: ScaleConfig) -> dict[str, Any]:
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--scale", action="store_true", help="run the Codex-only D-3 scale flow")
-    parser.add_argument("--pairs-path", type=Path, default=GOLDEN_PAIRS_PATH)
+    parser.add_argument("--pairs-path", type=Path)
+    parser.add_argument("--split-manifest", type=Path)
     parser.add_argument("--partition-manifest", type=Path, default=GOLDEN_PARTITION_PATH)
     parser.add_argument("--reprs-path", type=Path)
     parser.add_argument("--theorems-path", type=Path, default=FULL_MATHLIB_THEOREMS_PATH)
@@ -2171,6 +2233,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.scale:
         scale_config = ScaleConfig(
             pairs_path=args.pairs_path,
+            split_manifest_path=args.split_manifest,
             partition_manifest_path=args.partition_manifest,
             reprs_path=args.reprs_path or FULL_MATHLIB_REPRESENTATIONS_PATH,
             theorems_path=args.theorems_path,
@@ -2202,6 +2265,8 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     config = PilotConfig(
         pairs_path=args.pairs_path,
+        split_manifest_path=args.split_manifest,
+        partition_manifest_path=args.partition_manifest,
         reprs_path=args.reprs_path or MATHLIB_REPRESENTATIONS_PATH,
         output_root=args.output_root or DEFAULT_OUTPUT_ROOT,
         seed=args.seed,

@@ -41,6 +41,8 @@ _BEQ_SHA = "5ce3b814a5d0213429cc92244e5467425b22297a"
 _FROZEN_PARTITION_MANIFEST = (
     Path(__file__).resolve().parents[3] / "data/benchmarks/golden_partition_v1.json"
 )
+_MIXED_CANONICAL_PAIRS = Path("/storage/milikic/leanfaith/golden/canonical/golden_pairs_v1.jsonl")
+_GOLDEN_SPLIT_SCHEMA_VERSION = 1
 _SNAPSHOT_PROVENANCE_FILES = (
     "config.json",
     "tokenizer.json",
@@ -240,9 +242,17 @@ def _subset_metrics(
 def evaluate(
     checkpoint: Annotated[Path, typer.Option()] = _DEFAULT_CHECKPOINT,
     snapshot: Annotated[Path, typer.Option()] = _DEFAULT_SNAPSHOT,
-    pairs_path: Annotated[Path, typer.Option()] = Path(
-        "/storage/milikic/leanfaith/golden/canonical/golden_pairs_v1.jsonl"
-    ),
+    pairs_path: Annotated[
+        Path | None,
+        typer.Option(help="Explicit trusted split-only golden pair JSONL."),
+    ] = None,
+    split_manifest_path: Annotated[
+        Path | None,
+        typer.Option(
+            "--split-manifest",
+            help="Sidecar binding the split file to the frozen canonical parent.",
+        ),
+    ] = None,
     partition: Annotated[str, typer.Option()] = "dev",
     unseal_final_test: Annotated[bool, typer.Option("--unseal-final-test")] = False,
     threshold: Annotated[float, typer.Option()] = 0.5,
@@ -262,10 +272,15 @@ def evaluate(
             "final_test is SEALED until the frozen comparison set is ready "
             "(PLAN.md Track A); pass --unseal-final-test only for that one run."
         )
-    all_pairs = load_pairs(pairs_path)
-    pairs = [pair for pair in all_pairs if pair.partition == partition]
-    if not pairs:
-        raise typer.BadParameter(f"no pairs in partition {partition!r}")
+    if pairs_path is None or split_manifest_path is None:
+        raise typer.BadParameter(
+            "evaluate requires explicit --pairs-path and --split-manifest split-only inputs"
+        )
+    pairs, split_contract = _load_trusted_split_pairs(
+        pairs_path,
+        split_manifest_path,
+        partition,
+    )
     scorer = load_m1_scorer(checkpoint, snapshot, device)
     scores = score_pairs(
         scorer, [(p.reference_headless, p.candidate_headless) for p in pairs], batch_size
@@ -374,6 +389,15 @@ def evaluate(
             "checkpoint": {"path": str(checkpoint), "sha256": checkpoint_digest},
             "snapshot": _snapshot_provenance(snapshot),
             "pairs": {"path": str(pairs_path), "sha256": hash_file(pairs_path)},
+            "split_manifest": {
+                "path": str(split_manifest_path),
+                "sha256": hash_file(split_manifest_path),
+            },
+            "split_contract": split_contract,
+            "frozen_partition_manifest": {
+                "path": str(_FROZEN_PARTITION_MANIFEST),
+                "sha256": hash_file(_FROZEN_PARTITION_MANIFEST),
+            },
             "partition": partition,
             "threshold": threshold,
             "batch_size": batch_size,
@@ -408,6 +432,121 @@ def _load_json_object(path: Path) -> dict[str, Any]:
     return cast(dict[str, Any], value)
 
 
+def _is_sha256(value: object) -> bool:
+    return (
+        isinstance(value, str)
+        and len(value) == 64
+        and all(character in "0123456789abcdef" for character in value)
+    )
+
+
+def _load_trusted_split_pairs(
+    pairs_path: Path,
+    split_manifest_path: Path,
+    partition: str,
+) -> tuple[list[GoldenPair], dict[str, Any]]:
+    """Hash-check and parse one complete golden split without touching the mixed file."""
+
+    if pairs_path.resolve() == _MIXED_CANONICAL_PAIRS.resolve():
+        raise typer.BadParameter("refusing the mixed canonical golden pair path")
+
+    frozen = _load_json_object(_FROZEN_PARTITION_MANIFEST)
+    known_mixed_sha256 = frozen.get("canonical_pairs_sha256")
+    if not _is_sha256(known_mixed_sha256):
+        raise typer.BadParameter("frozen partition manifest has an invalid canonical pairs hash")
+
+    contract = _load_json_object(split_manifest_path)
+    required_fields = {
+        "schema_version",
+        "parent_canonical_sha256",
+        "split_sha256",
+        "partition",
+        "row_count",
+        "group_count",
+    }
+    if set(contract) != required_fields or contract.get("schema_version") != (
+        _GOLDEN_SPLIT_SCHEMA_VERSION
+    ):
+        raise typer.BadParameter("invalid golden split sidecar schema")
+    if contract.get("parent_canonical_sha256") != known_mixed_sha256:
+        raise typer.BadParameter(
+            "golden split parent hash does not match the frozen canonical hash"
+        )
+    split_sha256 = contract.get("split_sha256")
+    if not _is_sha256(split_sha256):
+        raise typer.BadParameter("golden split sidecar has an invalid split hash")
+    if split_sha256 == known_mixed_sha256:
+        raise typer.BadParameter("refusing the mixed canonical golden pair hash")
+    if contract.get("partition") != partition:
+        raise typer.BadParameter(
+            "golden split sidecar partition does not match the requested split"
+        )
+    for field_name in ("row_count", "group_count"):
+        value = contract.get(field_name)
+        if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
+            raise typer.BadParameter(f"golden split sidecar has invalid {field_name}")
+
+    try:
+        pair_bytes = pairs_path.read_bytes()
+    except OSError as error:
+        raise typer.BadParameter(f"cannot read golden split {pairs_path}: {error}") from error
+    actual_sha256 = sha256_hex(pair_bytes)
+    if actual_sha256 == known_mixed_sha256:
+        raise typer.BadParameter("refusing the mixed canonical golden pair hash")
+    if actual_sha256 != split_sha256:
+        raise typer.BadParameter("golden split file hash does not match its sidecar")
+
+    pairs: list[GoldenPair] = []
+    try:
+        text = pair_bytes.decode("utf-8")
+    except UnicodeDecodeError as error:
+        raise typer.BadParameter(f"golden split is not UTF-8: {error}") from error
+    for line_number, line in enumerate(text.splitlines(), start=1):
+        if not line.strip():
+            continue
+        try:
+            pair = GoldenPair.model_validate_json(line)
+        except ValueError as error:
+            raise typer.BadParameter(
+                f"invalid golden pair at {pairs_path}:{line_number}: {error}"
+            ) from error
+        if pair.partition != partition:
+            raise typer.BadParameter(
+                f"golden split row {line_number} has partition {pair.partition!r}, "
+                f"expected {partition!r}"
+            )
+        pairs.append(pair)
+
+    if len(pairs) != contract["row_count"]:
+        raise typer.BadParameter("golden split row count does not match its sidecar")
+    if len({pair.pair_id for pair in pairs}) != len(pairs):
+        raise typer.BadParameter("golden split contains duplicate pair_id values")
+    actual_groups = {pair.group_key for pair in pairs}
+    if len(actual_groups) != contract["group_count"]:
+        raise typer.BadParameter("golden split group count does not match its sidecar")
+
+    counts = frozen.get("counts")
+    partition_counts_raw = counts.get(partition) if isinstance(counts, dict) else None
+    expected_rows = (
+        partition_counts_raw.get("canonical_pairs")
+        if isinstance(partition_counts_raw, dict)
+        else None
+    )
+    if expected_rows != len(pairs):
+        raise typer.BadParameter("golden split is not the complete frozen partition")
+    group_partitions = frozen.get("group_partitions")
+    if not isinstance(group_partitions, dict):
+        raise typer.BadParameter("frozen partition manifest has invalid group assignments")
+    expected_groups = {
+        group
+        for group, assigned_partition in group_partitions.items()
+        if assigned_partition == partition
+    }
+    if actual_groups != expected_groups:
+        raise typer.BadParameter("golden split groups do not exactly match the frozen partition")
+    return pairs, contract
+
+
 def _load_dev_strict_predictions(
     strict_run: Path,
 ) -> tuple[list[EvalPrediction], dict[str, Any], dict[str, Any]]:
@@ -434,14 +573,24 @@ def _load_dev_strict_predictions(
     partition_manifest = _load_json_object(_FROZEN_PARTITION_MANIFEST)
     pairs_input = strict_manifest.get("pairs")
     canonical_sha256 = partition_manifest.get("canonical_pairs_sha256")
-    if (
-        not isinstance(pairs_input, dict)
-        or not isinstance(canonical_sha256, str)
-        or pairs_input.get("sha256") != canonical_sha256
+    split_contract = strict_manifest.get("split_contract")
+    if not isinstance(pairs_input, dict) or not isinstance(canonical_sha256, str):
+        raise typer.BadParameter("evaluate manifest has invalid golden pair linkage")
+    if split_contract is None:
+        # Preserve calibration of pre-hardening dev predictions, which were emitted
+        # from the hash-bound mixed canonical file and contain no pair text.
+        if pairs_input.get("sha256") != canonical_sha256:
+            raise typer.BadParameter(
+                "evaluate manifest pairs hash does not match the frozen partition manifest"
+            )
+    elif (
+        not isinstance(split_contract, dict)
+        or split_contract.get("schema_version") != _GOLDEN_SPLIT_SCHEMA_VERSION
+        or split_contract.get("partition") != "dev"
+        or split_contract.get("parent_canonical_sha256") != canonical_sha256
+        or split_contract.get("split_sha256") != pairs_input.get("sha256")
     ):
-        raise typer.BadParameter(
-            "evaluate manifest pairs hash does not match the frozen partition manifest"
-        )
+        raise typer.BadParameter("evaluate manifest has invalid dev split linkage")
 
     for path in (metrics_path, predictions_path):
         if not path.is_file():

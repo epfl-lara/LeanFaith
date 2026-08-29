@@ -21,7 +21,7 @@
 >   negative families demoted to silver until separator/witness-upgraded, and compute expanded to
 >   the RunAI cluster (A100/H100/H200).
 
-## Execution status ledger (2026-08-29, Queues 1–6 complete — read this before starting work)
+## Execution status ledger (2026-08-29, Queues 1–6 executed — read the seal erratum below)
 
 Full numbers: `reports/eval/refocus_day1_summary.md`. Everything below is on `main`.
 
@@ -36,8 +36,18 @@ Full numbers: `reports/eval/refocus_day1_summary.md`. Everything below is on `ma
   final-test seal). First dev numbers exist for 4 checkpoints (see report).
 - **Gold-calibrated dev track** `leanfaith-eval calibrate`: scalar-temperature NLL fit +
   balanced-accuracy threshold for all 4 checkpoints. Chunks-CPT leads at 0.684 fitted-dev
-  balanced accuracy; all temperature fits hit the `T=1000` boundary (see report). `final_test`
-  remains sealed.
+  balanced accuracy; all temperature fits hit the `T=1000` boundary (see report). Calibration
+  opened only pre-existing dev predictions; their pre-goal strict-run container provenance is
+  qualified by the literal-seal erratum below.
+- **LITERAL-SEAL ERRATUM / FAIL-CLOSED HARDENING**: the pre-goal strict dev evaluator and the
+  Queue-2 D-3 few-shot loader decoded the mixed canonical container before partition filtering.
+  No `final_test` row was selected, scored, prompted, or transmitted, and no private
+  `sft_classic` content was transmitted, but D-3 is not literal no-read compliant. Immutable
+  manifests remain unchanged; additive erratum:
+  `/storage/milikic/leanfaith/compliance_errata/literal_final_test_seal_2026_08_29_v1.json`
+  (SHA-256 `f612f929b2954a69053b446f4d4cd2f6935786dba7cba27eeda55038d759dd88`).
+  `evaluate` and D-3 now reject the mixed path/hash before opening pair text and require complete,
+  hash-bound split-only inputs. No trusted dev/golden-train text exports existed at audit time.
 - **S0**: two adapted encoders at `/storage/milikic/leanfaith/cpt/` — `modernbert_lean_v1_run1`
   (declarations/chunks) and `modernbert_lean_v2_mixed` (+32,860 numina statement↔proof +
   32,580 `[HEADLESS]` signature views). Ablation: chunks-CPT gives best-ever ranking on golden
@@ -66,7 +76,9 @@ Full numbers: `reports/eval/refocus_day1_summary.md`. Everything below is on `ma
   public mathlib representation store; explicit per-record family assignment, closed stdin,
   200/200 parsed, 154 changed, 192/200 Lean-valid, 0 infrastructure errors, and **146 strict
   trainer-schema records** (65 positive / 81 negative) across all 14 assigned families. Frozen
-  run: `/storage/milikic/leanfaith/lf023_llm_transforms/codex_scale_v1_f88931b/`.
+  run: `/storage/milikic/leanfaith/lf023_llm_transforms/codex_scale_v1_f88931b/`. Numerical output
+  is retained, but its literal no-read provenance is noncompliant as disclosed above; a fresh run
+  from a trusted golden-train-only export is required only to restore procedural compliance.
 - **D-2 RECOVERED-PAIR JUDGE COMPLETE**: all 13,373 public Qwen/Kimi Lean-valid pairs were
   processed by the blinded `gpt-5.6-sol` medium-effort judge. The 100-pair pilot escalated 0/100;
   the full run escalated 10/13,373 (0.075%), resolved 13,367 (307 same / 13,060 different), and
@@ -99,7 +111,8 @@ or they hang forever reading stdin; never plain `uv sync` (prunes torch — use
 the shared tree's branch — no git commits while a prune agent runs; Meta yield probes must use
 the size-scaled attempt policy (fixed 900-second recursive attempts wasted an hour isolating one
 declaration); `final_test` evaluation requires `--unseal-final-test` and is forbidden until the
-frozen comparison set exists.
+frozen comparison set exists; pair-text consumers must require a hash-bound split-only export and
+must reject the mixed canonical path/hash before reading it.
 
 ## Context (why this refocus)
 

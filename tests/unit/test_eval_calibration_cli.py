@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 from typing import Any
@@ -10,7 +11,7 @@ from typer.testing import CliRunner
 
 import leanfaith.eval.cli as eval_cli
 from leanfaith.config.hashing import hash_file
-from leanfaith.eval.cli import _load_dev_strict_predictions, app
+from leanfaith.eval.cli import _load_dev_strict_predictions, _load_trusted_split_pairs, app
 from leanfaith.eval.metrics import compute_classification_metrics
 
 
@@ -155,3 +156,114 @@ def test_calibrate_command_refuses_nonempty_output_directory(tmp_path: Path) -> 
 
     assert result.exit_code != 0
     assert (occupied / "metrics.json").read_text(encoding="utf-8") == "do not overwrite"
+
+
+def test_trusted_dev_split_is_hashed_before_parse(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    row = {
+        "pair_id": "pair-0",
+        "group_key": "group-0",
+        "problem_source": "minif2f",
+        "problem_name": "fixture",
+        "header": "import Mathlib",
+        "reference_lean": "theorem a : True := by trivial",
+        "candidate_lean": "theorem b : True := by trivial",
+        "reference_headless": ": True",
+        "candidate_headless": ": True",
+        "memberships": [
+            {
+                "dataset": "epla_minif2f",
+                "row_id": "0",
+                "label": True,
+                "label_provenance": "expert_human",
+            }
+        ],
+        "label": True,
+        "label_provenance": "expert_human",
+        "partition": "dev",
+    }
+    pairs_path = tmp_path / "dev.jsonl"
+    pairs_path.write_text(json.dumps(row) + "\n", encoding="utf-8")
+    split_sha = hashlib.sha256(pairs_path.read_bytes()).hexdigest()
+    parent_sha = "a" * 64
+    frozen = tmp_path / "frozen.json"
+    frozen.write_text(
+        json.dumps(
+            {
+                "canonical_pairs_sha256": parent_sha,
+                "counts": {"dev": {"canonical_pairs": 1}},
+                "group_partitions": {"group-0": "dev"},
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(eval_cli, "_FROZEN_PARTITION_MANIFEST", frozen)
+    sidecar = tmp_path / "dev.manifest.json"
+    sidecar.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "parent_canonical_sha256": parent_sha,
+                "split_sha256": split_sha,
+                "partition": "dev",
+                "row_count": 1,
+                "group_count": 1,
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    pairs, contract = _load_trusted_split_pairs(pairs_path, sidecar, "dev")
+
+    assert [pair.pair_id for pair in pairs] == ["pair-0"]
+    assert contract["split_sha256"] == split_sha
+
+
+def test_split_sidecar_rejects_mixed_hash_before_pair_file_read(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    parent_sha = "a" * 64
+    frozen = tmp_path / "frozen.json"
+    frozen.write_text(
+        json.dumps(
+            {
+                "canonical_pairs_sha256": parent_sha,
+                "counts": {"dev": {"canonical_pairs": 1}},
+                "group_partitions": {"group-0": "dev"},
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(eval_cli, "_FROZEN_PARTITION_MANIFEST", frozen)
+    sidecar = tmp_path / "dev.manifest.json"
+    sidecar.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "parent_canonical_sha256": parent_sha,
+                "split_sha256": parent_sha,
+                "partition": "dev",
+                "row_count": 1,
+                "group_count": 1,
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(typer.BadParameter, match="mixed canonical golden pair hash"):
+        _load_trusted_split_pairs(tmp_path / "does-not-exist.jsonl", sidecar, "dev")
+
+
+def test_evaluate_split_loader_rejects_known_mixed_path_before_read(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    sentinel = tmp_path / "never-created-mixed.jsonl"
+    monkeypatch.setattr(eval_cli, "_MIXED_CANONICAL_PAIRS", sentinel)
+
+    with pytest.raises(typer.BadParameter, match="mixed canonical golden pair path"):
+        _load_trusted_split_pairs(
+            sentinel,
+            tmp_path / "never-created-sidecar.json",
+            "dev",
+        )

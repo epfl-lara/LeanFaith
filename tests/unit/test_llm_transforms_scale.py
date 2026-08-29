@@ -62,7 +62,7 @@ def _pair(pair_id: str, group_key: str, label: bool) -> dict[str, Any]:
     }
 
 
-def _write_frozen_pairs(tmp_path: Path) -> tuple[Path, Path]:
+def _write_frozen_pairs(tmp_path: Path) -> tuple[Path, Path, Path]:
     rows = [
         _pair("positive-0", "gold::positive-0", True),
         _pair("positive-1", "gold::positive-1", True),
@@ -70,18 +70,34 @@ def _write_frozen_pairs(tmp_path: Path) -> tuple[Path, Path]:
         _pair("negative-1", "gold::negative-1", False),
     ]
     pairs_path = _write_jsonl(tmp_path / "pairs.jsonl", rows)
-    manifest_path = tmp_path / "partition.json"
-    manifest_path.write_text(
+    parent_sha = "a" * 64
+    partition_path = tmp_path / "partition.json"
+    partition_path.write_text(
         json.dumps(
             {
                 "version": "golden_partition_v1",
-                "canonical_pairs_sha256": _sha256_file(pairs_path),
+                "canonical_pairs_sha256": parent_sha,
+                "counts": {"golden_train": {"canonical_pairs": len(rows)}},
                 "group_partitions": {row["group_key"]: "golden_train" for row in rows},
             }
         ),
         encoding="utf-8",
     )
-    return pairs_path, manifest_path
+    split_manifest_path = tmp_path / "golden_train.manifest.json"
+    split_manifest_path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "parent_canonical_sha256": parent_sha,
+                "split_sha256": _sha256_file(pairs_path),
+                "partition": "golden_train",
+                "row_count": len(rows),
+                "group_count": len(rows),
+            }
+        ),
+        encoding="utf-8",
+    )
+    return pairs_path, split_manifest_path, partition_path
 
 
 def _theorem_row(
@@ -256,7 +272,7 @@ def test_family_schedule_and_assigned_prompt_are_frozen() -> None:
 
 
 def test_frozen_gold_binding_rejects_hash_and_partition_drift(tmp_path: Path) -> None:
-    pairs_path, manifest_path = _write_frozen_pairs(tmp_path)
+    pairs_path, split_manifest_path, manifest_path = _write_frozen_pairs(tmp_path)
 
     shots = transforms.build_fewshots(
         pairs_path,
@@ -264,6 +280,7 @@ def test_frozen_gold_binding_rejects_hash_and_partition_drift(tmp_path: Path) ->
         k_pos=1,
         k_neg=1,
         partition_manifest_path=manifest_path,
+        split_manifest_path=split_manifest_path,
     )
     assert {shot.verdict for shot in shots} == {"consistent", "inconsistent"}
 
@@ -278,18 +295,54 @@ def test_frozen_gold_binding_rejects_hash_and_partition_drift(tmp_path: Path) ->
             k_pos=1,
             k_neg=1,
             partition_manifest_path=manifest_path,
+            split_manifest_path=split_manifest_path,
         )
 
     manifest["group_partitions"][selected_group] = "golden_train"
     manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
     pairs_path.write_text(pairs_path.read_text(encoding="utf-8") + "\n", encoding="utf-8")
-    with pytest.raises(transforms.GoldRuleViolation, match="does not match frozen hash"):
+    with pytest.raises(transforms.GoldRuleViolation, match="does not match its sidecar"):
         transforms.build_fewshots(
             pairs_path,
             seed=7,
             k_pos=1,
             k_neg=1,
             partition_manifest_path=manifest_path,
+            split_manifest_path=split_manifest_path,
+        )
+
+
+def test_golden_train_split_rejects_forbidden_partition_row(tmp_path: Path) -> None:
+    pairs_path, split_manifest_path, partition_path = _write_frozen_pairs(tmp_path)
+    rows = [json.loads(line) for line in pairs_path.read_text(encoding="utf-8").splitlines()]
+    rows[0]["partition"] = "final_test"
+    _write_jsonl(pairs_path, rows)
+    sidecar = json.loads(split_manifest_path.read_text(encoding="utf-8"))
+    sidecar["split_sha256"] = _sha256_file(pairs_path)
+    split_manifest_path.write_text(json.dumps(sidecar), encoding="utf-8")
+
+    with pytest.raises(transforms.GoldRuleViolation, match="is not partition='golden_train'"):
+        transforms.build_fewshots(
+            pairs_path,
+            seed=7,
+            k_pos=1,
+            k_neg=1,
+            partition_manifest_path=partition_path,
+            split_manifest_path=split_manifest_path,
+        )
+
+
+def test_fewshot_loader_rejects_known_mixed_path_before_read(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    sentinel = tmp_path / "never-created-mixed.jsonl"
+    monkeypatch.setattr(transforms, "GOLDEN_PAIRS_PATH", sentinel)
+
+    with pytest.raises(transforms.GoldRuleViolation, match="mixed canonical golden pair path"):
+        transforms.load_golden_train_pairs(
+            sentinel,
+            tmp_path / "never-created-sidecar.json",
+            tmp_path / "never-created-parent.json",
         )
 
 
@@ -509,7 +562,7 @@ def test_provider_oserror_blocks_tiny_scale_with_zero_started_processes(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    pairs_path, partition_path = _write_frozen_pairs(tmp_path)
+    pairs_path, split_manifest_path, partition_path = _write_frozen_pairs(tmp_path)
     reprs_path, theorems_path, blocklist_path = _write_scale_sources(tmp_path)
     output_root = tmp_path / "oserror-output"
     mathlib_project = tmp_path / "mathlib"
@@ -528,6 +581,7 @@ def test_provider_oserror_blocks_tiny_scale_with_zero_started_processes(
     config = transforms.ScaleConfig(
         pairs_path=pairs_path,
         partition_manifest_path=partition_path,
+        split_manifest_path=split_manifest_path,
         reprs_path=reprs_path,
         theorems_path=theorems_path,
         blocklist_path=blocklist_path,
@@ -596,7 +650,7 @@ def test_scale_resume_reuses_fake_provider_and_fake_lean_terminals(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    pairs_path, partition_path = _write_frozen_pairs(tmp_path)
+    pairs_path, split_manifest_path, partition_path = _write_frozen_pairs(tmp_path)
     reprs_path, theorems_path, blocklist_path = _write_scale_sources(tmp_path)
     output_root = tmp_path / "scale-output"
     mathlib_project = tmp_path / "mathlib"
@@ -647,6 +701,7 @@ def test_scale_resume_reuses_fake_provider_and_fake_lean_terminals(
     config = transforms.ScaleConfig(
         pairs_path=pairs_path,
         partition_manifest_path=partition_path,
+        split_manifest_path=split_manifest_path,
         reprs_path=reprs_path,
         theorems_path=theorems_path,
         blocklist_path=blocklist_path,

@@ -1,8 +1,22 @@
 # Refocus day 1 — consolidated results (2026-08-28)
 
-All numbers are golden-**dev** only; `final_test` remains sealed per PLAN.md.
+All reported selection and scoring is golden-**dev** only; no `final_test` row was selected or
+scored. Literal container-access provenance is qualified by the erratum below.
 Headline subset = expert-labeled, non-conflicted dev pairs (n=228, prevalence 0.689).
 Eval runs: `/storage/milikic/leanfaith/golden/eval_runs/`.
+
+> **Literal-seal provenance erratum (2026-08-29):** the four strict dev runs predate the refocus
+> goal and were produced by an evaluator that decoded the mixed canonical pair container before
+> selecting `dev`. Queue 1 calibration itself opened only the resulting dev prediction artifacts.
+> During Queue 2, the D-3 loader likewise decoded that mixed container before selecting six
+> `golden_train` few-shots. No `final_test` row was selected, scored, retained in a prompt, or
+> transmitted, and no private `sft_classic` content was transmitted, but D-3 is not compliant
+> with the objective's literal no-read rule. Immutable historical manifests were not rewritten.
+> The additive erratum is
+> `/storage/milikic/leanfaith/compliance_errata/literal_final_test_seal_2026_08_29_v1.json`
+> (SHA-256 `f612f929b2954a69053b446f4d4cd2f6935786dba7cba27eeda55038d759dd88`).
+> Current consumers fail closed on the mixed path/hash and require a complete, hash-bound,
+> split-only export; none existed at audit time.
 
 ## First real numbers (strict zero-shot track, threshold 0.5)
 
@@ -19,7 +33,8 @@ Published context: GTED metric ≈0.66–0.70 acc; majority-vote-8 LLM ≈0.70 a
 ## Gold-calibrated comparison (temperature + threshold fit on dev)
 
 The fit and the metrics below use the same 228-pair expert dev subset. They are therefore
-calibration/selection-set results, not held-out estimates; `final_test` remains sealed. The
+calibration/selection-set results, not held-out estimates. The calibration command opened only
+dev prediction artifacts; the upstream strict-run container provenance is disclosed above. The
 temperature minimizes binary NLL and the threshold maximizes balanced accuracy, with ties resolved
 by the point in each decision interval closest to 0.5. Ranking metrics are unchanged by the
 monotone temperature transform.
@@ -104,8 +119,10 @@ unchanged/inapplicable outputs were excluded rather than relabeled.
 | production run manifest | `4e1dd75ff2c3f6eaec88b73fbd81a7589dcc12398feccf97435c824a3f512075` |
 
 The run is bound to repo revision `f88931b3dadf90dae6c8370cf8f581350e8333ff`, clean mathlib
-revision `d568c8c09630de097a046763c17b9ea99f95f950`, the frozen golden-train few-shot partition,
-and hashed input/output artifacts. `final_test` remained sealed and no private source was sent.
+revision `d568c8c09630de097a046763c17b9ea99f95f950`, the frozen golden-train few-shot selection,
+and hashed input/output artifacts. Its six prompts contained only selected `golden_train`
+examples and no private source was sent. However, the local loader decoded the mixed canonical
+container before filtering, so the run is not literal no-read compliant; see the erratum above.
 The next queue item needs no D-3 regeneration: it can judge the 13,373 recovered Qwen/Kimi pairs;
 corpus v1 later consumes this run's `trainer_records.jsonl` directly.
 
@@ -324,7 +341,8 @@ aggregate.
   Formal step-5 merge needs a new reviewed inventory spec (informational dedup: no-op).
 - D-3 Codex scale COMPLETE: 200 provider calls, 192 Lean-valid outputs, and 146 strict
   trainer-schema records at
-  `/storage/milikic/leanfaith/lf023_llm_transforms/codex_scale_v1_f88931b/`.
+  `/storage/milikic/leanfaith/lf023_llm_transforms/codex_scale_v1_f88931b/`; numerical output is
+  retained, but literal no-read provenance is noncompliant and recorded in the erratum above.
 - Recovered-pair judge COMPLETE: 13,373/13,373 processed, 13,367 resolved trainer records,
   10 escalations, 6 fail-closed null labels, and a 150-pair audit sample at
   `/storage/milikic/leanfaith/corpus2/recovered_singlepass_codex_v1_e8567ba/`.

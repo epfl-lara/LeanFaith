@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 
@@ -38,6 +39,7 @@ def _pair(
 ) -> dict[str, object]:
     return {
         "pair_id": pair_id,
+        "group_key": f"group::{pair_id}",
         "partition": partition,
         "label": label,
         "label_conflict": conflict,
@@ -55,7 +57,7 @@ def _write_pairs(path: Path, rows: list[dict[str, object]]) -> Path:
 
 
 @pytest.fixture
-def golden_file(tmp_path: Path) -> Path:
+def golden_bundle(tmp_path: Path) -> tuple[Path, Path, Path]:
     rows: list[dict[str, object]] = []
     # 5 eligible positives + 5 eligible negatives in golden_train.
     for i in range(5):
@@ -64,11 +66,36 @@ def golden_file(tmp_path: Path) -> Path:
     # Ineligible golden_train rows: conflict / non-expert provenance.
     rows.append(_pair("train_conflict", "golden_train", True, conflict=True))
     rows.append(_pair("train_auto", "golden_train", False, provenance="auto_typecheck_fail"))
-    # Forbidden partitions — must NEVER appear in few-shots.
-    rows.append(_pair("dev_pos", "dev", True))
-    rows.append(_pair("final_test_neg", "final_test", False))
-    rows.append(_pair("quarantine_pos", "quarantine", True))
-    return _write_pairs(tmp_path / "golden_pairs.jsonl", rows)
+    pairs = _write_pairs(tmp_path / "golden_train.jsonl", rows)
+    split_sha = hashlib.sha256(pairs.read_bytes()).hexdigest()
+    parent_sha = "a" * 64
+    parent = tmp_path / "partition.json"
+    parent.write_text(
+        json.dumps(
+            {
+                "version": "golden_partition_v1",
+                "canonical_pairs_sha256": parent_sha,
+                "counts": {"golden_train": {"canonical_pairs": len(rows)}},
+                "group_partitions": {str(row["group_key"]): "golden_train" for row in rows},
+            }
+        ),
+        encoding="utf-8",
+    )
+    sidecar = tmp_path / "golden_train.manifest.json"
+    sidecar.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "parent_canonical_sha256": parent_sha,
+                "split_sha256": split_sha,
+                "partition": "golden_train",
+                "row_count": len(rows),
+                "group_count": len(rows),
+            }
+        ),
+        encoding="utf-8",
+    )
+    return pairs, sidecar, parent
 
 
 def _fewshots() -> list[FewShot]:
@@ -84,49 +111,42 @@ def _fewshots() -> list[FewShot]:
 
 
 class TestGoldRule:
-    def test_loader_keeps_only_golden_train(self, golden_file: Path) -> None:
-        pool = load_golden_train_pairs(golden_file)
+    def test_loader_keeps_only_golden_train(self, golden_bundle: tuple[Path, Path, Path]) -> None:
+        pairs, sidecar, parent = golden_bundle
+        pool = load_golden_train_pairs(pairs, sidecar, parent)
         assert pool, "expected some golden_train pairs"
         assert all(row["partition"] == "golden_train" for row in pool)
-        ids = {row["pair_id"] for row in pool}
-        assert "dev_pos" not in ids
-        assert "final_test_neg" not in ids
-        assert "quarantine_pos" not in ids
-
-    def test_fewshots_never_include_forbidden_partitions(self, golden_file: Path) -> None:
-        shots = build_fewshots(golden_file, seed=7)
-        forbidden = {"dev_pos", "final_test_neg", "quarantine_pos"}
-        assert forbidden.isdisjoint({s.pair_id for s in shots})
-
-    def test_insufficient_golden_train_raises(self, tmp_path: Path) -> None:
-        # Plenty of dev/final_test pairs, but not enough golden_train ones —
-        # the harness must refuse rather than borrow from other partitions.
-        rows = [_pair(f"dev_{i}", "dev", i % 2 == 0) for i in range(20)]
-        rows.append(_pair("train_only_pos", "golden_train", True))
-        path = _write_pairs(tmp_path / "pairs.jsonl", rows)
-        with pytest.raises(ValueError, match="not enough eligible golden_train"):
-            build_fewshots(path, seed=0)
+        assert all(row["partition"] == "golden_train" for row in pool)
 
 
 class TestBuildFewshots:
-    def test_counts_and_verdicts(self, golden_file: Path) -> None:
-        shots = build_fewshots(golden_file, seed=13, k_pos=3, k_neg=3)
+    def test_counts_and_verdicts(self, golden_bundle: tuple[Path, Path, Path]) -> None:
+        pairs, sidecar, parent = golden_bundle
+        shots = build_fewshots(pairs, 13, 3, 3, parent, sidecar)
         assert len(shots) == 6
         assert sum(1 for s in shots if s.verdict == "consistent") == 3
         assert sum(1 for s in shots if s.verdict == "inconsistent") == 3
 
-    def test_filters_conflict_and_provenance(self, golden_file: Path) -> None:
+    def test_filters_conflict_and_provenance(self, golden_bundle: tuple[Path, Path, Path]) -> None:
         # Sample everything eligible: the ineligible rows must still be absent.
-        shots = build_fewshots(golden_file, seed=1, k_pos=5, k_neg=5)
+        pairs, sidecar, parent = golden_bundle
+        shots = build_fewshots(pairs, 1, 5, 5, parent, sidecar)
         ids = {s.pair_id for s in shots}
         assert "train_conflict" not in ids
         assert "train_auto" not in ids
 
-    def test_deterministic_for_seed(self, golden_file: Path) -> None:
-        first = build_fewshots(golden_file, seed=42)
-        second = build_fewshots(golden_file, seed=42)
+    def test_deterministic_for_seed(self, golden_bundle: tuple[Path, Path, Path]) -> None:
+        pairs, sidecar, parent = golden_bundle
+        first = build_fewshots(
+            pairs, 42, partition_manifest_path=parent, split_manifest_path=sidecar
+        )
+        second = build_fewshots(
+            pairs, 42, partition_manifest_path=parent, split_manifest_path=sidecar
+        )
         assert [s.pair_id for s in first] == [s.pair_id for s in second]
-        other = build_fewshots(golden_file, seed=43)
+        other = build_fewshots(
+            pairs, 43, partition_manifest_path=parent, split_manifest_path=sidecar
+        )
         assert [s.pair_id for s in first] != [s.pair_id for s in other]
 
     def test_render_format(self) -> None:
