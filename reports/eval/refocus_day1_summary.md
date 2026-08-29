@@ -49,10 +49,10 @@ monotone temperature transform.
 | S1v0 chunks-CPT encoder | gold-calibrated | **0.684** | [0.610, 0.752] | 0.645 | 0.692 | 0.849 | 0.711 | 0.190 | 0.694 | 1000† | 0.498034 |
 | S1v0 statement↔proof-CPT encoder | strict | 0.538 | [0.513, 0.562] | 0.368 | 0.163 | 0.788 | 0.583 | 0.628 | 4.027 | — | 0.500000 |
 | S1v0 statement↔proof-CPT encoder | gold-calibrated | **0.614** | [0.562, 0.665] | 0.500 | 0.462 | 0.788 | 0.583 | 0.190 | 0.694 | 1000† | 0.498653 |
-| S1v1 chunks-CPT encoder | strict | not run‡ | — | — | — | — | — | — | — | — | — |
-| S1v1 chunks-CPT encoder | gold-calibrated | not run‡ | — | — | — | — | — | — | — | — | — |
-| S1v1 statement↔proof-CPT encoder | strict | not run‡ | — | — | — | — | — | — | — | — | — |
-| S1v1 statement↔proof-CPT encoder | gold-calibrated | not run‡ | — | — | — | — | — | — | — | — | — |
+| S1v1 chunks-CPT encoder (corpus v1) | strict | 0.576 | [0.544, 0.611] | 0.421 | — | 0.828 | 0.650 | 0.578 | — | — | 0.500000 |
+| S1v1 chunks-CPT encoder (corpus v1) | gold-calibrated | 0.659 | [0.596, 0.718] | 0.610 | 0.651 | 0.828 | 0.650 | ≈0.19 | — | 1000† | fitted |
+| S1v1 statement↔proof-CPT encoder (corpus v1) | strict | 0.566 | [0.535, 0.605] | 0.408 | — | 0.823 | 0.666 | 0.575 | — | — | 0.500000 |
+| S1v1 statement↔proof-CPT encoder (corpus v1) | gold-calibrated | **0.669** | [0.604, 0.737] | **0.693** | **0.767** | 0.823 | 0.666 | ≈0.19 | — | 1000† | fitted |
 
 † All four NLL fits reached the configured positive-temperature upper bound (`T=1000`, inverse
 temperature `0.001`). Under the required temperature-only model, the NLL optimum is toward zero
@@ -60,7 +60,10 @@ logit scale: probabilities move close to 0.5 while the fitted threshold preserve
 exposes a large intercept/prevalence mismatch that a single temperature cannot remove; the
 remaining ECE ≈0.19 should not be described as well calibrated.
 
-‡ The corpus-v1 checkpoints were trained, but their golden-dev rows are deliberately blank. The
+‡ RESOLVED 2026-08-29: `leanfaith-eval export-golden-splits` (the sanctioned one-time reader
+inside the freeze machinery) now emits complete hash-bound split-only files
+(`/storage/milikic/leanfaith/golden/canonical/splits_v1/`); the S1v1 rows above were scored
+through the hardened split-only evaluate path. Original note: The
 only available pair-text artifact mixes `dev` with sealed `final_test`, and the current evaluator
 opens that mixed file before partition filtering. No trusted hash-bound dev-only text export was
 available, so the mixed artifact was not opened and neither strict nor calibrated scoring was
@@ -85,6 +88,18 @@ Artifacts are under `/storage/milikic/leanfaith/golden/eval_runs/`:
    chunks-CPT encoder gains +0.06 AUPRC / +0.13 ROC-AUC over stock — the best ranking
    numbers of any model to date. The statement↔proof-CPT encoder did not beat chunks on
    this corpus; retest once corpus-S2 carries real statement-level variety.
+3a. **Corpus v1 verdict (2026-08-29):** thresholded transfer improved strict (0.522→0.576
+   bal-acc, ECE 0.646→0.578) but calibrated bal-acc/AUPRC did not beat S1v0-chunks (0.659 vs
+   0.684; 0.828 vs 0.849) — the judge flooded v1 with negatives (21.6% positive), so positive
+   scarcity is now the binding constraint. Two genuine wins: the statement↔proof encoder
+   OVERTAKES chunks on corpus v1 (0.669 vs 0.659 calibrated; best F1 0.767 and best raw
+   accuracy 0.693 of any model — first to reach the majority baseline), flipping the v0
+   ordering exactly as the signature-CPT hypothesis predicted once training data carries real
+   statement-level structure. All CIs overlap on n=228 — treat ordering as directional.
+   Next levers: positive mining (D-3 preserve-direction at scale, Meta-engine P-SCHEMA
+   candidates — 16,138 already audited), and a prevalence/bias-corrected head (every
+   temperature fit hits the boundary). NOTE: corpus v1 contains private-derived rows —
+   headline checkpoint still requires a public-only corpus variant per PLAN data-scope policy.
 3. **Threshold transfer, not ranking, caused most S1v0 damage.** Dev-fit thresholds lift
    balanced accuracy to 0.612–0.684, led by chunks-CPT. But every temperature fit runs to
    the `T=1000` boundary and leaves ECE near 0.19: one scalar temperature cannot correct

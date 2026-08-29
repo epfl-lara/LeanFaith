@@ -204,6 +204,79 @@ def partition_golden(
     typer.echo(f"partition manifest -> {manifest_out}; blocklist -> {blocklist_out}")
 
 
+@app.command("export-golden-splits")
+def export_golden_splits(
+    out_dir: Annotated[Path, typer.Option()] = Path(
+        "/storage/milikic/leanfaith/golden/canonical/splits_v1"
+    ),
+) -> None:
+    """Emit hash-bound split-only pair files from the frozen canonical container.
+
+    This command is the ONE sanctioned reader of the mixed canonical file: it
+    belongs to the freeze machinery that wrote that file (partition-golden)
+    and exists so every consumer (evaluate, calibrate, D-3 few-shot loading)
+    can operate on complete, hash-bound, split-only inputs and never open the
+    mixed container. final_test's export is written but remains sealed for
+    consumers under the evaluate gate. The mixed bytes are verified against
+    the frozen partition manifest before any row is parsed.
+    """
+
+    frozen = _load_json_object(_FROZEN_PARTITION_MANIFEST)
+    expected = frozen.get("canonical_pairs_sha256")
+    if not _is_sha256(expected):
+        raise typer.BadParameter("frozen partition manifest has an invalid canonical pairs hash")
+    mixed_bytes = _MIXED_CANONICAL_PAIRS.read_bytes()
+    actual = sha256_hex(mixed_bytes)
+    if actual != expected:
+        raise typer.BadParameter(
+            "mixed canonical file hash does not match the frozen manifest; refusing to export"
+        )
+    lines_by_partition: dict[str, list[str]] = {}
+    groups_by_partition: dict[str, set[str]] = {}
+    for line in mixed_bytes.decode("utf-8").splitlines():
+        if not line.strip():
+            continue
+        row = json.loads(line)
+        partition = str(row["partition"])
+        lines_by_partition.setdefault(partition, []).append(line)
+        groups_by_partition.setdefault(partition, set()).add(str(row["group_key"]))
+    out_dir.mkdir(parents=True, exist_ok=True)
+    summary: dict[str, Any] = {}
+    for partition, lines in sorted(lines_by_partition.items()):
+        split_path = out_dir / f"golden_{partition}_v1.jsonl"
+        payload = ("\n".join(lines) + "\n").encode("utf-8")
+        split_sha256 = sha256_hex(payload)
+        sidecar = {
+            "schema_version": _GOLDEN_SPLIT_SCHEMA_VERSION,
+            "parent_canonical_sha256": expected,
+            "split_sha256": split_sha256,
+            "partition": partition,
+            "row_count": len(lines),
+            "group_count": len(groups_by_partition[partition]),
+        }
+        sidecar_path = out_dir / f"golden_{partition}_v1.split_manifest.json"
+        if split_path.exists() and hash_file(split_path) != split_sha256:
+            raise typer.BadParameter(f"existing export {split_path} differs; refusing overwrite")
+        split_path.write_bytes(payload)
+        sidecar_path.write_bytes(canonical_json_bytes(sidecar))
+        summary[partition] = {
+            "rows": len(lines),
+            "groups": len(groups_by_partition[partition]),
+            "split_sha256": split_sha256,
+            "pairs": str(split_path),
+            "sidecar": str(sidecar_path),
+        }
+    _write_run_manifest(
+        out_dir,
+        "export_golden_splits",
+        {
+            "parent_canonical_sha256": expected,
+            "partitions": {name: value["rows"] for name, value in summary.items()},
+        },
+    )
+    typer.echo(json.dumps(summary, indent=2, sort_keys=True))
+
+
 def main() -> None:
     app()
 
