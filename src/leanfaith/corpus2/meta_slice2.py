@@ -1,20 +1,21 @@
-"""Reproducible public-mathlib yield probe for Meta-engine slice 2.
+"""Reproducible, resumable public-mathlib yield probe for Meta-engine slice 2.
 
-The production entry point is deliberately narrow: it selects 500 public
-declarations from one content-bound extraction, writes a names file and a
-standalone Mathlib driver beneath a fresh ``/storage/milikic`` run root, and
-runs Lean with the project's 24 GiB memory-hard-limit semantics.  No row is
-sent to an external service.
+The production entry point selects the same frozen 500 public declarations,
+runs contiguous 20-name Lean shards with bounded attempts and deterministic
+midpoint bisection, then independently audits emitted candidates in 100-item
+shards.  Every attempt is immutable and content-bound beneath the run root;
+only an atomic ``result.json`` marks a reusable attempt.  No row is sent to an
+external service.
 
-The verifier is independent of the Lean-side hashing implementation.  It
-recomputes every source/candidate pretty-text SHA-256 in Python and reconciles
-all candidate lines against exactly one terminal line per requested
-declaration.
+The verifier reconstructs both attempt trees and both aggregate streams.  It
+also recomputes every source/candidate pretty-text SHA-256 in Python and
+requires exactly one terminal disposition per requested declaration.
 """
 
 from __future__ import annotations
 
 import argparse
+import fcntl
 import hashlib
 import json
 import math
@@ -26,8 +27,8 @@ import subprocess
 import tempfile
 import time
 from collections import Counter
-from collections.abc import Mapping, Sequence
-from contextlib import suppress
+from collections.abc import Callable, Iterator, Mapping, Sequence
+from contextlib import contextmanager, suppress
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -35,12 +36,12 @@ from typing import Protocol, cast
 
 from leanfaith.config.hashing import canonical_json_bytes, hash_file
 
-METHOD_VERSION = "meta_engine_slice2_yield_probe_v2"
+METHOD_VERSION = "meta_engine_slice2_yield_probe_v3"
 SELECTION_DOMAIN = "leanfaith_meta_slice2_yield_probe_v1"
 SELECTION_PREFIX = b"leanfaith_meta_slice2_yield_probe_v1\0"
 
 PRODUCTION_SAMPLE_SIZE = 500
-PRODUCTION_TIMEOUT_SECONDS = 7_200
+PRODUCTION_TIMEOUT_SECONDS = 900
 PRODUCTION_ADDRESS_SPACE_BYTES = 25_769_803_776
 PRODUCTION_LEAN_MEMORY_MB = 24_576
 PRODUCTION_SOURCE = "mathlib"
@@ -62,20 +63,49 @@ PRODUCTION_MATHLIB_PROJECT = Path("/storage/milikic/leanfaith/mathlib4")
 PRODUCTION_STORAGE_ROOT = Path("/storage/milikic")
 
 NAMES_FILENAME = "declaration_names.txt"
-DRIVER_FILENAME = "MetaSlice2YieldProbe.lean"
 STDOUT_FILENAME = "lean.stdout.jsonl"
-STDERR_FILENAME = "lean.stderr.txt"
-LOG_FILENAME = "lean.log"
 SUMMARY_FILENAME = "summary.json"
 MANIFEST_FILENAME = "manifest.json"
-AUDIT_DRIVER_FILENAME = "MetaSlice2IndependentAudit.lean"
 AUDIT_STDOUT_FILENAME = "audit.stdout.jsonl"
-AUDIT_STDERR_FILENAME = "audit.stderr.txt"
-AUDIT_LOG_FILENAME = "audit.log"
+SHARDS_DIRNAME = "shards"
+RUN_LOCK_FILENAME = ".run.lock"
+ATTEMPT_NAMES_FILENAME = "names.txt"
+ATTEMPT_CERTIFICATES_FILENAME = "certificates.jsonl"
+ATTEMPT_DRIVER_FILENAME = "driver.lean"
+ATTEMPT_STDOUT_FILENAME = "stdout.jsonl"
+ATTEMPT_STDERR_FILENAME = "stderr.txt"
+ATTEMPT_LOG_FILENAME = "log.txt"
+ATTEMPT_PROCESS_FILENAME = "process.json"
+ATTEMPT_RESULT_FILENAME = "result.json"
+
+ATTEMPT_SCHEMA_VERSION = 1
+PRIMARY_SHARD_SIZE = 20
+AUDIT_SHARD_SIZE = 100
 
 _HEX64 = re.compile(r"[0-9a-f]{64}\Z")
 _TERMINAL_STATUSES = frozenset({"complete", "sourceTextRejected", "notfound", "notProp", "error"})
 _PROCESSED_TERMINAL_STATUSES = frozenset({"complete", "sourceTextRejected"})
+_RUNNER_TERMINAL_STATUSES = frozenset({"externalTimeout", "externalProcessError"})
+_RUNNER_STATUS_BY_REASON = {
+    "timeout": "externalTimeout",
+    "nonzero_exit": "externalProcessError",
+    "invalid_output": "externalProcessError",
+}
+_RUNNER_REASON_CODES = frozenset(_RUNNER_STATUS_BY_REASON)
+_ATTEMPT_DIRECTORY_PATTERN = re.compile(r"attempt-(primary|audit)-[0-9]{8}-[0-9]{8}-r[0-9]{3}\Z")
+_ROOT_ARTIFACT_FILENAMES = frozenset(
+    {NAMES_FILENAME, STDOUT_FILENAME, AUDIT_STDOUT_FILENAME, SUMMARY_FILENAME}
+)
+_COMMON_ATTEMPT_FILENAMES = frozenset(
+    {
+        ATTEMPT_DRIVER_FILENAME,
+        ATTEMPT_STDOUT_FILENAME,
+        ATTEMPT_STDERR_FILENAME,
+        ATTEMPT_LOG_FILENAME,
+        ATTEMPT_PROCESS_FILENAME,
+        ATTEMPT_RESULT_FILENAME,
+    }
+)
 _FAMILY_EVIDENCE_CLASS = {
     "P20": "P-DEF",
     "P21": "P-DEF",
@@ -144,6 +174,13 @@ class ExecutionResult:
     returncode: int | None
     timed_out: bool
     elapsed_seconds: float
+    pid: int | None = None
+    process_group_id: int | None = None
+    process_start_ticks: int | None = None
+    boot_id: str | None = None
+    term_sent: bool = False
+    kill_sent: bool = False
+    group_gone: bool = True
 
 
 @dataclass(frozen=True, slots=True)
@@ -175,6 +212,49 @@ class ParsedProbeOutput:
     certificates: tuple[CandidateCertificate, ...]
 
 
+@dataclass(frozen=True, slots=True)
+class _AttemptSpec:
+    stage: str
+    start: int
+    stop: int
+    ordinal: int
+    parent_attempt_id: str | None
+
+    @property
+    def logical_id(self) -> str:
+        prefix = "p" if self.stage == "primary" else "a"
+        return f"{prefix}{self.start:08d}-{self.stop:08d}"
+
+    @property
+    def attempt_id(self) -> str:
+        return f"attempt-{self.stage}-{self.start:08d}-{self.stop:08d}-r{self.ordinal:03d}"
+
+
+@dataclass(frozen=True, slots=True)
+class _AttemptOutcome:
+    spec: _AttemptSpec
+    result: dict[str, object]
+    result_path: Path
+
+
+@dataclass(frozen=True, slots=True)
+class _AttemptMaterial:
+    input_filename: str
+    input_bytes: bytes
+    driver_bytes: bytes
+    item_count: int
+
+
+@dataclass(slots=True)
+class _RunContext:
+    config: MetaSlice2Config
+    selection: SelectionResult
+    executor: LeanExecutor | None
+    execute_missing: bool
+    manifest: dict[str, object] | None
+    visited_attempt_ids: set[str]
+
+
 class LeanExecutor(Protocol):
     """Injectable execution boundary used by the focused CPU tests."""
 
@@ -186,34 +266,117 @@ class LeanExecutor(Protocol):
         timeout_seconds: int,
         stdout_path: Path,
         stderr_path: Path,
+        process_state_path: Path,
+        attempt_id: str,
     ) -> ExecutionResult: ...
 
 
-def _terminate_process_group(process: subprocess.Popen[bytes]) -> None:
-    def group_exists() -> bool:
-        try:
-            os.killpg(process.pid, 0)
-        except ProcessLookupError:
-            return False
-        except PermissionError:
-            return True
-        return True
+def _boot_id() -> str:
+    path = Path("/proc/sys/kernel/random/boot_id")
+    _require_regular_file(path, label="Linux boot identity")
+    value = path.read_text(encoding="ascii").strip()
+    if re.fullmatch(r"[0-9a-f-]{36}", value) is None:
+        raise MetaSlice2Error("Linux boot identity is malformed")
+    return value
 
-    if not group_exists():
-        if process.poll() is None:
-            process.wait()
-        return
+
+def _process_stat(pid: int) -> tuple[int, int]:
+    try:
+        text = Path(f"/proc/{pid}/stat").read_text(encoding="ascii")
+    except (FileNotFoundError, ProcessLookupError) as exc:
+        raise MetaSlice2Error(f"process {pid} disappeared before identity capture") from exc
+    close = text.rfind(")")
+    fields = text[close + 2 :].split() if close >= 0 else []
+    if len(fields) <= 19:
+        raise MetaSlice2Error(f"process {pid} has malformed /proc identity")
+    try:
+        process_group_id = int(fields[2])
+        start_ticks = int(fields[19])
+    except ValueError as exc:
+        raise MetaSlice2Error(f"process {pid} has non-integer /proc identity") from exc
+    return process_group_id, start_ticks
+
+
+def _process_group_exists(process_group_id: int) -> bool:
+    try:
+        os.killpg(process_group_id, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    return True
+
+
+def _process_state_payload(
+    *,
+    attempt_id: str,
+    command: Sequence[str],
+    cwd: Path,
+    timeout_seconds: int,
+    started_at: str,
+    phase: str,
+    pid: int | None,
+    process_group_id: int | None,
+    process_start_ticks: int | None,
+    boot_id: str | None,
+    returncode: int | None,
+    timed_out: bool,
+    interrupted: bool,
+    term_sent: bool,
+    kill_sent: bool,
+    group_gone: bool,
+) -> dict[str, object]:
+    return {
+        "schema_version": 1,
+        "attempt_id": attempt_id,
+        "command": list(command),
+        "command_sha256": hashlib.sha256(canonical_json_bytes(list(command))).hexdigest(),
+        "cwd": str(_resolve(cwd)),
+        "timeout_seconds": timeout_seconds,
+        "started_at": started_at,
+        "updated_at": _utc_now(),
+        "phase": phase,
+        "pid": pid,
+        "process_group_id": process_group_id,
+        "process_start_ticks": process_start_ticks,
+        "boot_id": boot_id,
+        "returncode": returncode,
+        "timed_out": timed_out,
+        "interrupted": interrupted,
+        "term_sent": term_sent,
+        "kill_sent": kill_sent,
+        "group_gone": group_gone,
+    }
+
+
+def _terminate_process_group(
+    process: subprocess.Popen[bytes],
+) -> tuple[bool, bool, bool]:
+    if not _process_group_exists(process.pid):
+        process.poll()
+        return False, False, True
+    term_sent = False
+    kill_sent = False
     with suppress(ProcessLookupError):
         os.killpg(process.pid, signal.SIGTERM)
+        term_sent = True
     deadline = time.monotonic() + 5
-    while group_exists() and time.monotonic() < deadline:
+    while _process_group_exists(process.pid) and time.monotonic() < deadline:
         process.poll()
         time.sleep(0.05)
-    if group_exists():
+    if _process_group_exists(process.pid):
         with suppress(ProcessLookupError):
             os.killpg(process.pid, signal.SIGKILL)
-    if process.poll() is None:
-        process.wait()
+            kill_sent = True
+        deadline = time.monotonic() + 5
+        while _process_group_exists(process.pid) and time.monotonic() < deadline:
+            process.poll()
+            time.sleep(0.05)
+    # Never perform an unbounded reap here. A task stuck in uninterruptible
+    # sleep may survive even SIGKILL; its durable process journal must remain
+    # ``cleanup_pending`` so a later resume can retry without duplicating work.
+    process.poll()
+    return term_sent, kill_sent, not _process_group_exists(process.pid)
 
 
 class SubprocessLeanExecutor:
@@ -227,8 +390,11 @@ class SubprocessLeanExecutor:
         timeout_seconds: int,
         stdout_path: Path,
         stderr_path: Path,
+        process_state_path: Path,
+        attempt_id: str,
     ) -> ExecutionResult:
         started = time.monotonic()
+        started_at = _utc_now()
         with stdout_path.open("xb") as stdout_handle, stderr_path.open("xb") as stderr_handle:
             process = subprocess.Popen(
                 command,
@@ -239,21 +405,140 @@ class SubprocessLeanExecutor:
                 start_new_session=True,
             )
             try:
-                returncode = process.wait(timeout=timeout_seconds)
-            except subprocess.TimeoutExpired:
-                _terminate_process_group(process)
-                return ExecutionResult(
-                    returncode=None,
-                    timed_out=True,
-                    elapsed_seconds=time.monotonic() - started,
+                process_group_id, process_start_ticks = _process_stat(process.pid)
+                if process_group_id != process.pid:
+                    raise MetaSlice2Error(
+                        "new Lean process did not lead its isolated process group"
+                    )
+                boot_id = _boot_id()
+                _write_json_atomic(
+                    process_state_path,
+                    _process_state_payload(
+                        attempt_id=attempt_id,
+                        command=command,
+                        cwd=cwd,
+                        timeout_seconds=timeout_seconds,
+                        started_at=started_at,
+                        phase="running",
+                        pid=process.pid,
+                        process_group_id=process_group_id,
+                        process_start_ticks=process_start_ticks,
+                        boot_id=boot_id,
+                        returncode=None,
+                        timed_out=False,
+                        interrupted=False,
+                        term_sent=False,
+                        kill_sent=False,
+                        group_gone=False,
+                    ),
                 )
             except BaseException:
                 _terminate_process_group(process)
                 raise
+            try:
+                returncode = process.wait(timeout=timeout_seconds)
+            except subprocess.TimeoutExpired:
+                term_sent, kill_sent, group_gone = _terminate_process_group(process)
+                _write_json_atomic(
+                    process_state_path,
+                    _process_state_payload(
+                        attempt_id=attempt_id,
+                        command=command,
+                        cwd=cwd,
+                        timeout_seconds=timeout_seconds,
+                        started_at=started_at,
+                        phase="finished" if group_gone else "cleanup_pending",
+                        pid=process.pid,
+                        process_group_id=process_group_id,
+                        process_start_ticks=process_start_ticks,
+                        boot_id=boot_id,
+                        returncode=None,
+                        timed_out=True,
+                        interrupted=False,
+                        term_sent=term_sent,
+                        kill_sent=kill_sent,
+                        group_gone=group_gone,
+                    ),
+                )
+                if not group_gone:
+                    raise MetaSlice2Error(
+                        "timed-out Lean process group survived TERM and KILL"
+                    ) from None
+                return ExecutionResult(
+                    returncode=None,
+                    timed_out=True,
+                    elapsed_seconds=time.monotonic() - started,
+                    pid=process.pid,
+                    process_group_id=process_group_id,
+                    process_start_ticks=process_start_ticks,
+                    boot_id=boot_id,
+                    term_sent=term_sent,
+                    kill_sent=kill_sent,
+                    group_gone=group_gone,
+                )
+            except BaseException:
+                term_sent, kill_sent, group_gone = _terminate_process_group(process)
+                _write_json_atomic(
+                    process_state_path,
+                    _process_state_payload(
+                        attempt_id=attempt_id,
+                        command=command,
+                        cwd=cwd,
+                        timeout_seconds=timeout_seconds,
+                        started_at=started_at,
+                        phase="finished" if group_gone else "cleanup_pending",
+                        pid=process.pid,
+                        process_group_id=process_group_id,
+                        process_start_ticks=process_start_ticks,
+                        boot_id=boot_id,
+                        returncode=process.poll(),
+                        timed_out=False,
+                        interrupted=True,
+                        term_sent=term_sent,
+                        kill_sent=kill_sent,
+                        group_gone=group_gone,
+                    ),
+                )
+                raise
+        term_sent = False
+        kill_sent = False
+        group_gone = not _process_group_exists(process_group_id)
+        if not group_gone:
+            term_sent, kill_sent, group_gone = _terminate_process_group(process)
+        _write_json_atomic(
+            process_state_path,
+            _process_state_payload(
+                attempt_id=attempt_id,
+                command=command,
+                cwd=cwd,
+                timeout_seconds=timeout_seconds,
+                started_at=started_at,
+                phase="finished" if group_gone else "cleanup_pending",
+                pid=process.pid,
+                process_group_id=process_group_id,
+                process_start_ticks=process_start_ticks,
+                boot_id=boot_id,
+                returncode=returncode,
+                timed_out=False,
+                interrupted=False,
+                term_sent=term_sent,
+                kill_sent=kill_sent,
+                group_gone=group_gone,
+            ),
+        )
+        if not group_gone:
+            raise MetaSlice2Error("Lean process group survived process completion cleanup")
         return ExecutionResult(
             returncode=returncode,
             timed_out=False,
             elapsed_seconds=time.monotonic() - started,
+            pid=process.pid,
+            process_group_id=process_group_id,
+            process_start_ticks=process_start_ticks,
+            boot_id=boot_id,
+            term_sent=term_sent,
+            kill_sent=kill_sent,
+            group_gone=group_gone,
         )
 
 
@@ -552,7 +837,10 @@ def _config_payload(config: MetaSlice2Config) -> dict[str, object]:
         "method_version": METHOD_VERSION,
         "selection_domain": SELECTION_DOMAIN,
         "sample_size": config.sample_size,
-        "timeout_seconds": config.timeout_seconds,
+        "attempt_timeout_seconds": config.timeout_seconds,
+        "primary_shard_size": PRIMARY_SHARD_SIZE,
+        "audit_shard_size": AUDIT_SHARD_SIZE,
+        "fallback_policy": "recursive_contiguous_midpoint_bisection",
         "address_space_bytes": config.address_space_bytes,
         "lean_memory_mb": config.lean_memory_mb,
         "expected_source": config.expected_source,
@@ -629,7 +917,7 @@ def _driver_bytes(config: MetaSlice2Config, names_path: Path) -> bytes:
         "import Mathlib\n\n"
         f"{helper_body}\n"
         "-- The external process-group timeout is the production compute bound;\n"
-        "-- Lean's default heartbeat budget is cumulative across this 500-name command.\n"
+        "-- Lean's default heartbeat budget is cumulative across this shard command.\n"
         "set_option maxHeartbeats 0 in\n"
         f"lfTransformBatch {names_literal}\n"
     )
@@ -688,24 +976,64 @@ def _artifact(path: Path) -> dict[str, object]:
     }
 
 
-def _artifacts_present(output_root: Path) -> dict[str, object]:
+def _artifact_inventory(output_root: Path) -> dict[str, object]:
     result: dict[str, object] = {}
-    for name in (
-        NAMES_FILENAME,
-        DRIVER_FILENAME,
-        STDOUT_FILENAME,
-        STDERR_FILENAME,
-        LOG_FILENAME,
-        SUMMARY_FILENAME,
-        AUDIT_DRIVER_FILENAME,
-        AUDIT_STDOUT_FILENAME,
-        AUDIT_STDERR_FILENAME,
-        AUDIT_LOG_FILENAME,
-    ):
-        path = output_root / name
-        if path.exists() and path.is_file() and not path.is_symlink():
-            result[name] = _artifact(path)
+    for path in sorted(output_root.rglob("*")):
+        relative = path.relative_to(output_root).as_posix()
+        if relative == RUN_LOCK_FILENAME:
+            _require_regular_file(path, label="yield-probe run lock")
+            continue
+        if relative == MANIFEST_FILENAME:
+            _require_regular_file(path, label="yield-probe manifest")
+            continue
+        if path.is_symlink():
+            raise MetaSlice2Error(f"output inventory contains a symlink: {relative}")
+        if path.is_dir():
+            parts = Path(relative).parts
+            if parts == (SHARDS_DIRNAME,):
+                continue
+            if (
+                len(parts) != 2
+                or parts[0] != SHARDS_DIRNAME
+                or _ATTEMPT_DIRECTORY_PATTERN.fullmatch(parts[1]) is None
+            ):
+                raise MetaSlice2Error(f"unexpected output directory: {relative}")
+            continue
+        if not path.is_file():
+            raise MetaSlice2Error(f"output inventory contains a non-file: {relative}")
+        if path.name.endswith(".partial"):
+            raise MetaSlice2Error(f"output inventory contains an unfinished file: {relative}")
+        parts = Path(relative).parts
+        if len(parts) == 1:
+            if parts[0] not in _ROOT_ARTIFACT_FILENAMES:
+                raise MetaSlice2Error(f"unexpected root output artifact: {relative}")
+        elif len(parts) == 3 and parts[0] == SHARDS_DIRNAME:
+            match = _ATTEMPT_DIRECTORY_PATTERN.fullmatch(parts[1])
+            if match is None:
+                raise MetaSlice2Error(f"malformed attempt output path: {relative}")
+            allowed = set(_COMMON_ATTEMPT_FILENAMES)
+            allowed.add(
+                ATTEMPT_NAMES_FILENAME
+                if match.group(1) == "primary"
+                else ATTEMPT_CERTIFICATES_FILENAME
+            )
+            if parts[2] not in allowed:
+                raise MetaSlice2Error(f"unexpected attempt artifact: {relative}")
+        else:
+            raise MetaSlice2Error(f"unexpected output artifact path: {relative}")
+        result[relative] = _artifact(path)
     return result
+
+
+def _progress_artifact_inventory(output_root: Path) -> dict[str, object]:
+    inventory = _artifact_inventory(output_root)
+    for relative in tuple(inventory):
+        path = Path(relative)
+        if path.name != ATTEMPT_PROCESS_FILENAME or len(path.parts) != 3:
+            continue
+        if not (output_root / path.parent / ATTEMPT_RESULT_FILENAME).is_file():
+            inventory.pop(relative)
+    return inventory
 
 
 def _log_bytes(command: Sequence[str], stdout_path: Path, stderr_path: Path) -> bytes:
@@ -896,6 +1224,7 @@ def _terminal_row(
     *,
     context: str,
     selected: frozenset[str],
+    allow_runner_dispositions: bool,
 ) -> dict[str, object]:
     if row.get("schemaVersion") != 2:
         raise MetaSlice2Error(f"{context}.schemaVersion must be 2")
@@ -905,7 +1234,10 @@ def _terminal_row(
     if row.get("recordKind") != "status":
         raise MetaSlice2Error(f"{context}.recordKind must be status")
     status = _string_field(row, "status", context=context)
-    if status not in _TERMINAL_STATUSES:
+    if status in _RUNNER_TERMINAL_STATUSES:
+        if not allow_runner_dispositions:
+            raise MetaSlice2Error(f"{context} contains a runner disposition in raw Lean output")
+    elif status not in _TERMINAL_STATUSES:
         raise MetaSlice2Error(f"{context} has unsupported terminal status {status}")
     candidate_count = _nonnegative_int_field(row, "candidateCount", context=context)
     emitted_count = _nonnegative_int_field(row, "emittedCount", context=context)
@@ -930,6 +1262,7 @@ def _terminal_row(
     else:
         source = None
         source_hash = None
+    runner: dict[str, object] | None = None
     if status == "complete":
         if row.get("sourceTextRoundtripVerified") is not True:
             raise MetaSlice2Error(f"{context} lacks a verified source-text roundtrip")
@@ -947,6 +1280,47 @@ def _terminal_row(
         ):
             raise MetaSlice2Error(f"{context} has a malformed source-text rejection")
         discovered_count = 0
+    elif status in _RUNNER_TERMINAL_STATUSES:
+        if row.get("terminalOrigin") != "runner" or error is not None:
+            raise MetaSlice2Error(f"{context} has a malformed runner-origin disposition")
+        reason_code = _string_field(row, "reasonCode", context=context)
+        if reason_code not in _RUNNER_REASON_CODES:
+            raise MetaSlice2Error(f"{context} has unsupported runner reason {reason_code}")
+        if status != _RUNNER_STATUS_BY_REASON[reason_code]:
+            raise MetaSlice2Error(f"{context} status contradicts its runner reason")
+        attempt_id = _string_field(row, "attemptId", context=context)
+        attempt_path = _string_field(row, "attemptPath", context=context)
+        attempt_result_sha256 = _hash_field(
+            row,
+            "attemptResultSha256",
+            context=context,
+        )
+        timeout_seconds = _nonnegative_int_field(row, "timeoutSeconds", context=context)
+        if timeout_seconds <= 0:
+            raise MetaSlice2Error(f"{context}.timeoutSeconds must be positive")
+        timed_out = _bool_field(row, "timedOut", context=context)
+        returncode = row.get("returncode")
+        if returncode is not None and type(returncode) is not int:
+            raise MetaSlice2Error(f"{context}.returncode must be an integer or null")
+        if reason_code == "timeout":
+            if not timed_out or returncode is not None:
+                raise MetaSlice2Error(f"{context} has inconsistent timeout evidence")
+        elif reason_code == "nonzero_exit":
+            if timed_out or type(returncode) is not int or returncode == 0:
+                raise MetaSlice2Error(f"{context} has inconsistent nonzero-exit evidence")
+        elif timed_out or returncode != 0:
+            raise MetaSlice2Error(f"{context} has inconsistent invalid-output evidence")
+        runner = {
+            "declaration": declaration,
+            "reason_code": reason_code,
+            "attempt_id": attempt_id,
+            "attempt_path": attempt_path,
+            "attempt_result_sha256": attempt_result_sha256,
+            "timeout_seconds": timeout_seconds,
+            "timed_out": timed_out,
+            "returncode": returncode,
+        }
+        discovered_count = 0
     else:
         discovered_count = 0
     return {
@@ -959,6 +1333,8 @@ def _terminal_row(
         "discovered_count": discovered_count,
         "source": source,
         "source_hash": source_hash,
+        "error": error,
+        "runner": runner,
     }
 
 
@@ -974,6 +1350,7 @@ def _parse_probe_output(
     *,
     selection: SelectionResult,
     names_path: Path,
+    allow_runner_dispositions: bool = False,
 ) -> ParsedProbeOutput:
     """Fail-closed audit of line-delimited Lean output and its yield summary."""
     _require_regular_file(stdout_path, label="Lean stdout")
@@ -1028,7 +1405,12 @@ def _parse_probe_output(
             elif kind == "terminal":
                 if batch is not None:
                     raise MetaSlice2Error(f"{context} occurs after the batch terminal")
-                parsed_terminal = _terminal_row(row, context=context, selected=selected)
+                parsed_terminal = _terminal_row(
+                    row,
+                    context=context,
+                    selected=selected,
+                    allow_runner_dispositions=allow_runner_dispositions,
+                )
                 declaration = cast(str, parsed_terminal["declaration"])
                 if declaration in terminals:
                     raise MetaSlice2Error(f"{context} duplicates a terminal declaration")
@@ -1041,21 +1423,36 @@ def _parse_probe_output(
                 if row.get("schemaVersion") != 2:
                     raise MetaSlice2Error(f"{context}.schemaVersion must be 2")
                 status = _string_field(row, "status", context=context)
-                if status != "complete":
-                    raise MetaSlice2Error(
-                        f"{context} reports non-complete batch status {status}: {row.get('error')}"
-                    )
+                if status not in {"complete", "partial"}:
+                    raise MetaSlice2Error(f"{context} reports unsupported batch status {status}")
                 if row.get("namesFile") != str(_resolve(names_path)):
                     raise MetaSlice2Error(f"{context} namesFile differs from the bound input")
                 declaration_count = _nonnegative_int_field(row, "declarationCount", context=context)
                 completed_count = _nonnegative_int_field(row, "completedCount", context=context)
                 failed_count = _nonnegative_int_field(row, "failedCount", context=context)
-                if (
-                    declaration_count != len(selection.names)
-                    or completed_count != len(selection.names)
-                    or failed_count != 0
-                ):
+                if declaration_count != len(
+                    selection.names
+                ) or completed_count + failed_count != len(selection.names):
                     raise MetaSlice2Error(f"{context} batch counts do not reconcile")
+                if status != ("complete" if failed_count == 0 else "partial"):
+                    raise MetaSlice2Error(f"{context} batch status contradicts failedCount")
+                if allow_runner_dispositions:
+                    accounted_count = _nonnegative_int_field(
+                        row,
+                        "accountedCount",
+                        context=context,
+                    )
+                    terminal_count = _nonnegative_int_field(
+                        row,
+                        "terminalCount",
+                        context=context,
+                    )
+                    if (
+                        row.get("producer") != "runner-aggregate-v3"
+                        or accounted_count != len(selection.names)
+                        or terminal_count != len(selection.names)
+                    ):
+                        raise MetaSlice2Error(f"{context} has a malformed runner aggregate")
                 batch = {
                     "status": status,
                     "declaration_count": declaration_count,
@@ -1104,6 +1501,20 @@ def _parse_probe_output(
     )
     evidence_counts = Counter(cast(str, row["evidence_class"]) for row in candidates)
     terminal_status_counts = Counter(cast(str, row["status"]) for row in terminals.values())
+    runner_dispositions = [
+        cast(dict[str, object], terminals[declaration]["runner"])
+        for declaration in selection.names
+        if terminals[declaration]["runner"] is not None
+    ]
+    lean_engine_dispositions = [
+        {
+            "declaration": declaration,
+            "status": terminals[declaration]["status"],
+            "error": terminals[declaration]["error"],
+        }
+        for declaration in selection.names
+        if terminals[declaration]["status"] in {"error", "notProp", "notfound"}
+    ]
     source_text_rejected_declarations = sorted(
         declaration
         for declaration, row in terminals.items()
@@ -1128,6 +1539,14 @@ def _parse_probe_output(
             "reason_code": "source_pretty_roundtrip_mismatch",
             "declarations": source_text_rejected_declarations,
         },
+        "runner_execution_rejections": {
+            "count": len(runner_dispositions),
+            "dispositions": runner_dispositions,
+        },
+        "lean_engine_dispositions": {
+            "count": len(lean_engine_dispositions),
+            "dispositions": lean_engine_dispositions,
+        },
         "total_candidate_count": total,
         "validated_candidate_count": total + duplicate_count,
         "discovered_candidate_count": discovered_count,
@@ -1145,6 +1564,9 @@ def _parse_probe_output(
             "terminal_error": terminal_status_counts["error"],
             "terminal_notProp": terminal_status_counts["notProp"],
             "terminal_notfound": terminal_status_counts["notfound"],
+            "runner_execution": sum(
+                terminal_status_counts[status] for status in _RUNNER_TERMINAL_STATUSES
+            ),
         },
         "declaration_coverage": {
             "with_candidate": covered,
@@ -1251,266 +1673,40 @@ def verify_audit_output(
     }
 
 
-def _manifest_base(config: MetaSlice2Config, *, started_at: str) -> dict[str, object]:
+def _privacy_payload() -> dict[str, object]:
     return {
-        "schema_version": 1,
-        "method_version": METHOD_VERSION,
-        "status": "running",
-        "started_at": started_at,
-        "config": _config_payload(config),
-        "privacy": {
-            "public_only": True,
-            "private_source_content": False,
-            "external_transmission": False,
-        },
-    }
-
-
-def _create_fresh_output_root(config: MetaSlice2Config) -> None:
-    parent = config.output_root.parent
-    parent.mkdir(parents=True, exist_ok=True)
-    if config.output_root.exists() or config.output_root.is_symlink():
-        raise MetaSlice2Error(f"output root must be fresh: {config.output_root}")
-    config.output_root.mkdir(mode=0o700)
-
-
-def run_meta_slice2(
-    config: MetaSlice2Config,
-    *,
-    executor: LeanExecutor | None = None,
-) -> dict[str, object]:
-    """Create and execute one fresh, atomic-manifest Meta slice-2 yield probe."""
-    _validate_config(config)
-    _create_fresh_output_root(config)
-    manifest_path = config.output_root / MANIFEST_FILENAME
-    manifest = _manifest_base(config, started_at=_utc_now())
-    _write_json_atomic(manifest_path, manifest)
-
-    try:
-        selection = select_declarations(config)
-        _require_regular_file(config.transform_engine_path, label="TransformEngine source")
-        if config.mathlib_project_path.is_symlink() or not config.mathlib_project_path.is_dir():
-            raise MetaSlice2Error("mathlib project must be a non-symlink directory")
-        mathlib_revision = (
-            _git_revision(config.mathlib_project_path)
-            if config.verify_mathlib_revision
-            else config.expected_source_revision
-        )
-        if mathlib_revision != config.expected_source_revision:
-            raise MetaSlice2Error(
-                "mathlib checkout revision differs from the extraction source revision"
-            )
-        repository_revision = _git_revision(_repo_root())
-
-        names_path = config.output_root / NAMES_FILENAME
-        driver_path = config.output_root / DRIVER_FILENAME
-        stdout_path = config.output_root / STDOUT_FILENAME
-        stderr_path = config.output_root / STDERR_FILENAME
-        log_path = config.output_root / LOG_FILENAME
-        audit_driver_path = config.output_root / AUDIT_DRIVER_FILENAME
-        audit_stdout_path = config.output_root / AUDIT_STDOUT_FILENAME
-        audit_stderr_path = config.output_root / AUDIT_STDERR_FILENAME
-        audit_log_path = config.output_root / AUDIT_LOG_FILENAME
-        summary_path = config.output_root / SUMMARY_FILENAME
-        _write_atomic(names_path, _names_bytes(selection.names))
-        _write_atomic(driver_path, _driver_bytes(config, names_path))
-        command = _command(config, driver_path)
-        manifest.update(
-            {
-                "selection": selection.manifest_payload(),
-                "source_state": {
-                    "repository_git_revision": repository_revision,
-                    "mathlib_git_revision": mathlib_revision,
-                    "runner_sha256": hash_file(Path(__file__)),
-                    "transform_engine_sha256": hash_file(config.transform_engine_path),
-                },
-                "execution": {
-                    "primary": {
-                        "command": list(command),
-                        "cwd": str(_resolve(config.mathlib_project_path)),
-                        "timeout_seconds": config.timeout_seconds,
-                        "stdin": "closed",
-                    }
-                },
-                "outputs": _artifacts_present(config.output_root),
-            }
-        )
-        _write_json_atomic(manifest_path, manifest)
-
-        active_executor = executor or SubprocessLeanExecutor()
-        result = active_executor.run(
-            command=command,
-            cwd=config.mathlib_project_path,
-            timeout_seconds=config.timeout_seconds,
-            stdout_path=stdout_path,
-            stderr_path=stderr_path,
-        )
-        if not stdout_path.is_file():
-            _write_atomic(stdout_path, b"")
-        if not stderr_path.is_file():
-            _write_atomic(stderr_path, b"")
-        _write_atomic(log_path, _log_bytes(command, stdout_path, stderr_path))
-        primary_execution: dict[str, object] = {
-            "command": list(command),
-            "cwd": str(_resolve(config.mathlib_project_path)),
-            "timeout_seconds": config.timeout_seconds,
-            "stdin": "closed",
-            "returncode": result.returncode,
-            "timed_out": result.timed_out,
-            "elapsed_seconds": result.elapsed_seconds,
-        }
-        manifest["execution"] = {"primary": primary_execution}
-        if result.timed_out:
-            raise MetaSlice2Error(f"Lean yield probe timed out after {config.timeout_seconds}s")
-        if result.returncode != 0:
-            raise MetaSlice2Error(f"Lean yield probe exited with status {result.returncode}")
-
-        parsed = _parse_probe_output(
-            stdout_path,
-            selection=selection,
-            names_path=names_path,
-        )
-        _write_atomic(
-            audit_driver_path,
-            _audit_driver_bytes(config, parsed.certificates),
-        )
-        audit_command = _command(config, audit_driver_path)
-        manifest["execution"] = {
-            "primary": primary_execution,
-            "audit": {
-                "command": list(audit_command),
-                "cwd": str(_resolve(config.mathlib_project_path)),
-                "timeout_seconds": config.timeout_seconds,
-                "stdin": "closed",
-            },
-        }
-        manifest["outputs"] = _artifacts_present(config.output_root)
-        _write_json_atomic(manifest_path, manifest)
-        audit_result = active_executor.run(
-            command=audit_command,
-            cwd=config.mathlib_project_path,
-            timeout_seconds=config.timeout_seconds,
-            stdout_path=audit_stdout_path,
-            stderr_path=audit_stderr_path,
-        )
-        if not audit_stdout_path.is_file():
-            _write_atomic(audit_stdout_path, b"")
-        if not audit_stderr_path.is_file():
-            _write_atomic(audit_stderr_path, b"")
-        _write_atomic(
-            audit_log_path,
-            _log_bytes(audit_command, audit_stdout_path, audit_stderr_path),
-        )
-        audit_execution: dict[str, object] = {
-            "command": list(audit_command),
-            "cwd": str(_resolve(config.mathlib_project_path)),
-            "timeout_seconds": config.timeout_seconds,
-            "stdin": "closed",
-            "returncode": audit_result.returncode,
-            "timed_out": audit_result.timed_out,
-            "elapsed_seconds": audit_result.elapsed_seconds,
-        }
-        manifest["execution"] = {
-            "primary": primary_execution,
-            "audit": audit_execution,
-        }
-        if audit_result.timed_out:
-            raise MetaSlice2Error(
-                f"Lean independent audit timed out after {config.timeout_seconds}s"
-            )
-        if audit_result.returncode != 0:
-            raise MetaSlice2Error(
-                f"Lean independent audit exited with status {audit_result.returncode}"
-            )
-        audit_summary = verify_audit_output(
-            audit_stdout_path,
-            certificates=parsed.certificates,
-        )
-        summary = dict(parsed.summary)
-        summary["independent_audit"] = audit_summary
-        _write_json_atomic(summary_path, summary)
-        manifest.update(
-            {
-                "status": "completed",
-                "completed_at": _utc_now(),
-                "summary": summary,
-                "outputs": _artifacts_present(config.output_root),
-            }
-        )
-        _write_json_atomic(manifest_path, manifest)
-        verify_meta_slice2(config)
-        return manifest
-    except BaseException as exc:
-        manifest.update(
-            {
-                "status": "failure",
-                "failed_at": _utc_now(),
-                "failure": {"type": type(exc).__name__, "message": str(exc)},
-                "outputs": _artifacts_present(config.output_root),
-            }
-        )
-        _write_json_atomic(manifest_path, manifest)
-        raise
-
-
-def _load_completed_manifest(config: MetaSlice2Config) -> dict[str, object]:
-    path = config.output_root / MANIFEST_FILENAME
-    _require_regular_file(path, label="yield-probe manifest")
-    manifest = _parse_json_object(path.read_text(encoding="utf-8"), context="yield-probe manifest")
-    if manifest.get("schema_version") != 1 or manifest.get("method_version") != METHOD_VERSION:
-        raise MetaSlice2Error("yield-probe manifest schema/method mismatch")
-    if manifest.get("status") != "completed":
-        raise MetaSlice2Error("yield-probe manifest is not completed")
-    if manifest.get("config") != _config_payload(config):
-        raise MetaSlice2Error("yield-probe manifest config differs from the verifier config")
-    if manifest.get("privacy") != {
         "public_only": True,
         "private_source_content": False,
         "external_transmission": False,
-    }:
-        raise MetaSlice2Error("yield-probe privacy boundary is not explicit")
-    return manifest
-
-
-def _verify_artifact_inventory(config: MetaSlice2Config, manifest: Mapping[str, object]) -> None:
-    recorded = _mapping_field(manifest, "outputs", context="yield-probe manifest")
-    expected_names = {
-        NAMES_FILENAME,
-        DRIVER_FILENAME,
-        STDOUT_FILENAME,
-        STDERR_FILENAME,
-        LOG_FILENAME,
-        SUMMARY_FILENAME,
-        AUDIT_DRIVER_FILENAME,
-        AUDIT_STDOUT_FILENAME,
-        AUDIT_STDERR_FILENAME,
-        AUDIT_LOG_FILENAME,
     }
-    if set(recorded) != expected_names:
-        raise MetaSlice2Error("completed manifest does not bind the exact output inventory")
-    for name in sorted(expected_names):
-        entry = _mapping_field(recorded, name, context="yield-probe outputs")
-        path = config.output_root / name
-        expected_path = str(_resolve(path))
-        if entry.get("path") != expected_path:
-            raise MetaSlice2Error(f"output path binding mismatch for {name}")
-        expected_hash = _hash_field(entry, "sha256", context=f"output {name}")
-        expected_size = _nonnegative_int_field(entry, "size_bytes", context=f"output {name}")
-        _require_regular_file(path, label=f"output {name}")
-        if path.stat().st_size != expected_size or hash_file(path) != expected_hash:
-            raise MetaSlice2Error(f"output artifact drift for {name}")
 
 
-def verify_meta_slice2(config: MetaSlice2Config) -> dict[str, object]:
-    """Replay selection and independently verify one completed output root."""
-    _validate_config(config)
-    if config.output_root.is_symlink() or not config.output_root.is_dir():
-        raise MetaSlice2Error("yield-probe output root must be a non-symlink directory")
-    manifest = _load_completed_manifest(config)
-    selection = select_declarations(config)
-    if manifest.get("selection") != selection.manifest_payload():
-        raise MetaSlice2Error("completed manifest selection statistics drifted")
-    source_state = _mapping_field(manifest, "source_state", context="yield-probe manifest")
+def _source_state(config: MetaSlice2Config) -> dict[str, object]:
+    _require_regular_file(config.transform_engine_path, label="TransformEngine source")
+    if config.mathlib_project_path.is_symlink() or not config.mathlib_project_path.is_dir():
+        raise MetaSlice2Error("mathlib project must be a non-symlink directory")
+    mathlib_revision = (
+        _git_revision(config.mathlib_project_path)
+        if config.verify_mathlib_revision
+        else config.expected_source_revision
+    )
+    if mathlib_revision != config.expected_source_revision:
+        raise MetaSlice2Error(
+            "mathlib checkout revision differs from the extraction source revision"
+        )
+    return {
+        "repository_git_revision": _git_revision(_repo_root()),
+        "mathlib_git_revision": mathlib_revision,
+        "runner_sha256": hash_file(Path(__file__)),
+        "transform_engine_sha256": hash_file(config.transform_engine_path),
+        "config_sha256": hashlib.sha256(canonical_json_bytes(_config_payload(config))).hexdigest(),
+    }
+
+
+def _validate_source_state(
+    config: MetaSlice2Config,
+    source_state: Mapping[str, object],
+) -> None:
     repository_revision = _string_field(
         source_state,
         "repository_git_revision",
@@ -1525,62 +1721,1854 @@ def verify_meta_slice2(config: MetaSlice2Config) -> dict[str, object]:
         and _git_revision(config.mathlib_project_path) != config.expected_source_revision
     ):
         raise MetaSlice2Error("live mathlib revision differs from the extraction")
-    if _hash_field(
-        source_state,
-        "runner_sha256",
-        context="yield-probe source_state",
-    ) != hash_file(Path(__file__)):
-        raise MetaSlice2Error("current verifier differs from the recorded runner source")
-    if _hash_field(
-        source_state,
-        "transform_engine_sha256",
-        context="yield-probe source_state",
-    ) != hash_file(config.transform_engine_path):
-        raise MetaSlice2Error("current TransformEngine differs from the recorded source")
+    expected = {
+        "runner_sha256": hash_file(Path(__file__)),
+        "transform_engine_sha256": hash_file(config.transform_engine_path),
+        "config_sha256": hashlib.sha256(canonical_json_bytes(_config_payload(config))).hexdigest(),
+    }
+    for key, value in expected.items():
+        if _hash_field(source_state, key, context="yield-probe source_state") != value:
+            raise MetaSlice2Error(f"current {key} differs from the recorded source binding")
 
+
+def _manifest_base(
+    config: MetaSlice2Config,
+    *,
+    selection: SelectionResult,
+    source_state: Mapping[str, object],
+    started_at: str,
+) -> dict[str, object]:
+    return {
+        "schema_version": 2,
+        "method_version": METHOD_VERSION,
+        "status": "running",
+        "started_at": started_at,
+        "config": _config_payload(config),
+        "selection": selection.manifest_payload(),
+        "source_state": dict(source_state),
+        "shard_policy": {
+            "primary_base_size": PRIMARY_SHARD_SIZE,
+            "audit_base_size": AUDIT_SHARD_SIZE,
+            "attempt_timeout_seconds": config.timeout_seconds,
+            "fallback": "recursive_contiguous_midpoint_bisection",
+            "failed_stdout_salvage": False,
+            "audit_singleton_failure": "fatal",
+        },
+        "privacy": _privacy_payload(),
+        "attempts": [],
+        "outputs": {},
+    }
+
+
+def _ensure_output_root(config: MetaSlice2Config) -> bool:
+    config.output_root.parent.mkdir(parents=True, exist_ok=True)
+    if config.output_root.exists() or config.output_root.is_symlink():
+        if config.output_root.is_symlink() or not config.output_root.is_dir():
+            raise MetaSlice2Error("yield-probe output root must be a non-symlink directory")
+        return False
+    config.output_root.mkdir(mode=0o700)
+    return True
+
+
+@contextmanager
+def _exclusive_run_lock(output_root: Path) -> Iterator[None]:
+    lock_path = output_root / RUN_LOCK_FILENAME
+    if (lock_path.exists() or lock_path.is_symlink()) and (
+        lock_path.is_symlink() or not lock_path.is_file()
+    ):
+        raise MetaSlice2Error("yield-probe run lock must be a regular non-symlink file")
+    flags = os.O_RDWR | os.O_CREAT | getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_NOFOLLOW", 0)
+    descriptor = os.open(lock_path, flags, 0o600)
+    try:
+        try:
+            fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError as exc:
+            raise MetaSlice2Error("another yield-probe runner holds the output-root lock") from exc
+        yield
+    finally:
+        with suppress(OSError):
+            fcntl.flock(descriptor, fcntl.LOCK_UN)
+        os.close(descriptor)
+
+
+def _load_bound_manifest(
+    config: MetaSlice2Config,
+    *,
+    require_completed: bool,
+) -> dict[str, object]:
+    path = config.output_root / MANIFEST_FILENAME
+    _require_regular_file(path, label="yield-probe manifest")
+    manifest = _parse_json_object(path.read_text(encoding="utf-8"), context="yield-probe manifest")
+    if manifest.get("schema_version") != 2 or manifest.get("method_version") != METHOD_VERSION:
+        raise MetaSlice2Error("yield-probe manifest schema/method mismatch")
+    status = manifest.get("status")
+    allowed = {"completed"} if require_completed else {"running", "failure", "completed"}
+    if status not in allowed:
+        raise MetaSlice2Error(f"yield-probe manifest has unsupported status {status!r}")
+    if status == "completed" and set(manifest) != {
+        "schema_version",
+        "method_version",
+        "status",
+        "started_at",
+        "completed_at",
+        "config",
+        "selection",
+        "source_state",
+        "shard_policy",
+        "shard_plan",
+        "privacy",
+        "attempts",
+        "outputs",
+        "summary",
+    }:
+        raise MetaSlice2Error("completed yield-probe manifest fields drifted")
+    if status in {"running", "failure"}:
+        allowed_fields = {
+            "schema_version",
+            "method_version",
+            "status",
+            "started_at",
+            "config",
+            "selection",
+            "source_state",
+            "shard_policy",
+            "privacy",
+            "attempts",
+            "outputs",
+            "updated_at",
+            "resumed_at",
+            "failed_at",
+            "failure",
+        }
+        if not set(manifest).issubset(allowed_fields):
+            raise MetaSlice2Error("resumable yield-probe manifest fields drifted")
+    if manifest.get("config") != _config_payload(config):
+        raise MetaSlice2Error("yield-probe manifest config differs from the verifier config")
+    if manifest.get("privacy") != _privacy_payload():
+        raise MetaSlice2Error("yield-probe privacy boundary is not explicit")
+    return manifest
+
+
+def _verify_recorded_inventory_subset(
+    config: MetaSlice2Config,
+    manifest: Mapping[str, object],
+) -> None:
+    recorded = _mapping_field(manifest, "outputs", context="yield-probe manifest")
+    for relative, raw_entry in recorded.items():
+        if relative in {MANIFEST_FILENAME, RUN_LOCK_FILENAME}:
+            raise MetaSlice2Error(f"manifest cannot inventory mutable control file {relative}")
+        relative_path = Path(relative)
+        if relative_path.is_absolute() or ".." in relative_path.parts:
+            raise MetaSlice2Error(f"unsafe output inventory path {relative}")
+        entry = _mapping_field({"entry": raw_entry}, "entry", context=f"output {relative}")
+        path = config.output_root / relative_path
+        if entry.get("path") != str(_resolve(path)):
+            raise MetaSlice2Error(f"output path binding mismatch for {relative}")
+        expected_hash = _hash_field(entry, "sha256", context=f"output {relative}")
+        expected_size = _nonnegative_int_field(entry, "size_bytes", context=f"output {relative}")
+        _require_regular_file(path, label=f"output {relative}")
+        if path.stat().st_size != expected_size or hash_file(path) != expected_hash:
+            raise MetaSlice2Error(f"output artifact drift for {relative}")
+
+
+def _verify_recorded_attempt_subset(
+    config: MetaSlice2Config,
+    manifest: Mapping[str, object],
+) -> None:
+    raw_attempts = _list_field(manifest, "attempts", context="yield-probe manifest")
+    current = {cast(str, row["attempt_id"]): row for row in _manifest_attempts(config)}
+    recorded_ids: list[str] = []
+    for index, raw_attempt in enumerate(raw_attempts):
+        attempt = _mapping_field(
+            {"attempt": raw_attempt},
+            "attempt",
+            context=f"yield-probe attempt {index}",
+        )
+        attempt_id = _string_field(attempt, "attempt_id", context="yield-probe attempt")
+        recorded_ids.append(attempt_id)
+        if current.get(attempt_id) != attempt:
+            raise MetaSlice2Error(f"recorded attempt inventory drift for {attempt_id}")
+    if recorded_ids != sorted(set(recorded_ids)):
+        raise MetaSlice2Error("recorded attempt inventory is not unique and sorted")
+
+
+def _write_or_verify(path: Path, payload: bytes, *, label: str) -> None:
+    if path.exists() or path.is_symlink():
+        _require_regular_file(path, label=label)
+        if path.read_bytes() != payload:
+            raise MetaSlice2Error(f"{label} differs from deterministic replay")
+        return
+    _write_atomic(path, payload)
+
+
+def _selection_slice(selection: SelectionResult, names: Sequence[str]) -> SelectionResult:
+    return SelectionResult(
+        names=tuple(names),
+        theorem_rows=selection.theorem_rows,
+        eligible_rows=selection.eligible_rows,
+        eligible_unique_names=selection.eligible_unique_names,
+        duplicate_eligible_names=selection.duplicate_eligible_names,
+        excluded_transform_ineligible=selection.excluded_transform_ineligible,
+        excluded_private=selection.excluded_private,
+    )
+
+
+def _certificate_payload(certificate: CandidateCertificate) -> dict[str, object]:
+    return {
+        "declaration": certificate.declaration,
+        "family": certificate.family,
+        "operation": certificate.operation,
+        "site_path": certificate.site_path,
+        "candidate_type_hash": certificate.candidate_type_hash,
+    }
+
+
+def _certificates_bytes(certificates: Sequence[CandidateCertificate]) -> bytes:
+    return b"".join(
+        canonical_json_bytes(_certificate_payload(certificate)) + b"\n"
+        for certificate in certificates
+    )
+
+
+def _jsonl_bytes(rows: Sequence[Mapping[str, object]]) -> bytes:
+    return b"".join(canonical_json_bytes(dict(row)) + b"\n" for row in rows)
+
+
+def _base_ranges(count: int, size: int) -> tuple[tuple[int, int], ...]:
+    return tuple((start, min(start + size, count)) for start in range(0, count, size))
+
+
+def _attempt_dir(config: MetaSlice2Config, spec: _AttemptSpec) -> Path:
+    return config.output_root / SHARDS_DIRNAME / spec.attempt_id
+
+
+def _attempt_result_path(config: MetaSlice2Config, spec: _AttemptSpec) -> Path:
+    return _attempt_dir(config, spec) / ATTEMPT_RESULT_FILENAME
+
+
+def _attempt_bindings(config: MetaSlice2Config) -> dict[str, object]:
+    return {
+        "config_sha256": hashlib.sha256(canonical_json_bytes(_config_payload(config))).hexdigest(),
+        "runner_sha256": hash_file(Path(__file__)),
+        "transform_engine_sha256": hash_file(config.transform_engine_path),
+        "source_revision": config.expected_source_revision,
+        "theorem_store_sha256": config.theorem_store_sha256,
+        "extraction_manifest_sha256": config.extraction_manifest_sha256,
+    }
+
+
+def _attempt_artifact_inventory(
+    attempt_dir: Path,
+    *,
+    input_filename: str,
+) -> dict[str, object]:
+    names = {
+        input_filename,
+        ATTEMPT_DRIVER_FILENAME,
+        ATTEMPT_STDOUT_FILENAME,
+        ATTEMPT_STDERR_FILENAME,
+        ATTEMPT_LOG_FILENAME,
+        ATTEMPT_PROCESS_FILENAME,
+    }
+    actual = {path.name for path in attempt_dir.iterdir() if path.name != ATTEMPT_RESULT_FILENAME}
+    if actual != names:
+        raise MetaSlice2Error(
+            f"attempt artifact inventory differs: expected={sorted(names)}, actual={sorted(actual)}"
+        )
+    result: dict[str, object] = {}
+    for name in sorted(names):
+        result[name] = _artifact(attempt_dir / name)
+    return result
+
+
+def _primary_rows_and_validation(
+    stdout_path: Path,
+    *,
+    selection: SelectionResult,
+    names_path: Path,
+) -> tuple[tuple[dict[str, object], ...], dict[str, object]]:
+    parsed = _parse_probe_output(stdout_path, selection=selection, names_path=names_path)
+    rows_by_declaration: dict[str, list[dict[str, object]]] = {name: [] for name in selection.names}
+    with stdout_path.open(encoding="utf-8") as handle:
+        for line_number, raw_line in enumerate(handle, start=1):
+            if not raw_line.strip():
+                continue
+            row = _parse_json_object(raw_line, context=f"Lean stdout line {line_number}")
+            if row.get("kind") == "batch":
+                continue
+            declaration = _string_field(
+                row, "declaration", context=f"Lean stdout line {line_number}"
+            )
+            rows_by_declaration[declaration].append(row)
+    rows = tuple(row for name in selection.names for row in rows_by_declaration[name])
+    batch = _mapping_field(parsed.summary, "batch", context="primary attempt summary")
+    validation = {
+        "candidate_count": len(parsed.certificates),
+        "terminal_count": len(selection.names),
+        "batch_status": batch.get("status"),
+        "summary_sha256": hashlib.sha256(canonical_json_bytes(parsed.summary)).hexdigest(),
+        "certificates_sha256": hashlib.sha256(_certificates_bytes(parsed.certificates)).hexdigest(),
+    }
+    return rows, validation
+
+
+def _audit_rows_and_validation(
+    stdout_path: Path,
+    *,
+    certificates: Sequence[CandidateCertificate],
+) -> tuple[tuple[dict[str, object], ...], dict[str, object]]:
+    summary = verify_audit_output(stdout_path, certificates=certificates)
+    expected = {certificate.key for certificate in certificates}
+    by_key: dict[tuple[str, str, str, str, str], dict[str, object]] = {}
+    with stdout_path.open(encoding="utf-8") as handle:
+        for line_number, raw_line in enumerate(handle, start=1):
+            if not raw_line.strip():
+                continue
+            row = _parse_json_object(raw_line, context=f"Lean audit stdout line {line_number}")
+            key = (
+                _string_field(row, "declaration", context="audit row"),
+                _string_field(row, "family", context="audit row"),
+                _string_field(row, "operation", context="audit row"),
+                _string_field(row, "sitePath", context="audit row"),
+                _hash_field(row, "expectedCandidateTypeHash", context="audit row"),
+            )
+            if key not in expected or key in by_key:
+                raise MetaSlice2Error("audit row ordering projection is not one-to-one")
+            by_key[key] = row
+    rows = tuple(by_key[certificate.key] for certificate in certificates)
+    validation = {
+        "candidate_count": len(certificates),
+        "verified_count": len(rows),
+        "summary_sha256": hashlib.sha256(canonical_json_bytes(summary)).hexdigest(),
+        "certificates_sha256": hashlib.sha256(_certificates_bytes(certificates)).hexdigest(),
+    }
+    return rows, validation
+
+
+def _attempt_validation(
+    spec: _AttemptSpec,
+    stdout_path: Path,
+    input_path: Path,
+    *,
+    selection: SelectionResult | None,
+    certificates: Sequence[CandidateCertificate] | None,
+) -> tuple[tuple[dict[str, object], ...], dict[str, object]]:
+    if spec.stage == "primary":
+        if selection is None or certificates is not None:
+            raise AssertionError("primary attempt validation lacks its selection")
+        return _primary_rows_and_validation(
+            stdout_path,
+            selection=selection,
+            names_path=input_path,
+        )
+    if selection is not None or certificates is None:
+        raise AssertionError("audit attempt validation lacks its certificates")
+    return _audit_rows_and_validation(stdout_path, certificates=certificates)
+
+
+def _validation_failure(
+    spec: _AttemptSpec,
+    stdout_path: Path,
+    input_path: Path,
+    *,
+    selection: SelectionResult | None,
+    certificates: Sequence[CandidateCertificate] | None,
+) -> str | None:
+    try:
+        _attempt_validation(
+            spec,
+            stdout_path,
+            input_path,
+            selection=selection,
+            certificates=certificates,
+        )
+    except Exception as exc:
+        return f"{type(exc).__name__}: {exc}"
+    return None
+
+
+def _manifest_attempts(config: MetaSlice2Config) -> list[dict[str, object]]:
+    shards_root = config.output_root / SHARDS_DIRNAME
+    if not shards_root.exists():
+        return []
+    if shards_root.is_symlink() or not shards_root.is_dir():
+        raise MetaSlice2Error("shards root must be a non-symlink directory")
+    attempts: list[dict[str, object]] = []
+    for result_path in sorted(shards_root.glob(f"attempt-*/{ATTEMPT_RESULT_FILENAME}")):
+        result = _parse_json_object(
+            result_path.read_text(encoding="utf-8"), context="attempt result"
+        )
+        attempts.append(
+            {
+                "attempt_id": _string_field(result, "attempt_id", context="attempt result"),
+                "stage": _string_field(result, "stage", context="attempt result"),
+                "outcome": _string_field(result, "outcome", context="attempt result"),
+                "result_path": result_path.relative_to(config.output_root).as_posix(),
+                "result_sha256": hash_file(result_path),
+                "result_size_bytes": result_path.stat().st_size,
+            }
+        )
+    return sorted(attempts, key=lambda row: cast(str, row["attempt_id"]))
+
+
+def _record_progress(context: _RunContext) -> None:
+    if context.manifest is None:
+        return
+    context.manifest.update(
+        {
+            "status": "running",
+            "updated_at": _utc_now(),
+            "attempts": _manifest_attempts(context.config),
+            "outputs": _progress_artifact_inventory(context.config.output_root),
+        }
+    )
+    context.manifest.pop("failure", None)
+    context.manifest.pop("failed_at", None)
+    _write_json_atomic(context.config.output_root / MANIFEST_FILENAME, context.manifest)
+
+
+def _attempt_result_payload(
+    context: _RunContext,
+    spec: _AttemptSpec,
+    material: _AttemptMaterial,
+    *,
+    started_at: str,
+    outcome: str,
+    execution: Mapping[str, object] | None,
+    validation: Mapping[str, object] | None,
+    failure: Mapping[str, object] | None,
+) -> dict[str, object]:
+    attempt_dir = _attempt_dir(context.config, spec)
+    if outcome == "abandoned":
+        resolution = "interrupted_retry"
+    elif outcome == "accepted":
+        resolution = "leaf"
+    elif material.item_count > 1:
+        resolution = "bisect"
+    elif spec.stage == "primary":
+        resolution = "runner_terminal"
+    else:
+        resolution = "fatal"
+    return {
+        "schema_version": ATTEMPT_SCHEMA_VERSION,
+        "method_version": METHOD_VERSION,
+        "stage": spec.stage,
+        "logical_id": spec.logical_id,
+        "attempt_id": spec.attempt_id,
+        "attempt_ordinal": spec.ordinal,
+        "parent_attempt_id": spec.parent_attempt_id,
+        "range": {"start": spec.start, "stop": spec.stop},
+        "item_count": material.item_count,
+        "input": {
+            "filename": material.input_filename,
+            "sha256": hashlib.sha256(material.input_bytes).hexdigest(),
+        },
+        "bindings": _attempt_bindings(context.config),
+        "started_at": started_at,
+        "finished_at": _utc_now(),
+        "outcome": outcome,
+        "resolution": resolution,
+        "execution": dict(execution) if execution is not None else None,
+        "validation": dict(validation) if validation is not None else None,
+        "failure": dict(failure) if failure is not None else None,
+        "artifacts": _attempt_artifact_inventory(
+            attempt_dir,
+            input_filename=material.input_filename,
+        ),
+    }
+
+
+def _ensure_attempt_regular_file(path: Path) -> None:
+    if not path.exists():
+        _write_atomic(path, b"")
+    _require_regular_file(path, label="attempt artifact")
+
+
+def _validate_process_state(
+    path: Path,
+    *,
+    config: MetaSlice2Config,
+    spec: _AttemptSpec,
+    command: Sequence[str],
+) -> dict[str, object]:
+    _require_regular_file(path, label=f"{spec.attempt_id} process state")
+    state = _parse_json_object(path.read_text(encoding="utf-8"), context="attempt process state")
+    if set(state) != {
+        "schema_version",
+        "attempt_id",
+        "command",
+        "command_sha256",
+        "cwd",
+        "timeout_seconds",
+        "started_at",
+        "updated_at",
+        "phase",
+        "pid",
+        "process_group_id",
+        "process_start_ticks",
+        "boot_id",
+        "returncode",
+        "timed_out",
+        "interrupted",
+        "term_sent",
+        "kill_sent",
+        "group_gone",
+    }:
+        raise MetaSlice2Error(f"process-state fields drifted for {spec.attempt_id}")
+    expected_command = list(command)
+    if (
+        state.get("schema_version") != 1
+        or state.get("attempt_id") != spec.attempt_id
+        or state.get("command") != expected_command
+        or state.get("command_sha256")
+        != hashlib.sha256(canonical_json_bytes(expected_command)).hexdigest()
+        or state.get("cwd") != str(_resolve(config.mathlib_project_path))
+        or state.get("timeout_seconds") != config.timeout_seconds
+    ):
+        raise MetaSlice2Error(f"process-state execution binding drift for {spec.attempt_id}")
+    _string_field(state, "started_at", context="attempt process state")
+    _string_field(state, "updated_at", context="attempt process state")
+    phase = _string_field(state, "phase", context="attempt process state")
+    if phase not in {"prepared", "running", "cleanup_pending", "finished", "recovered"}:
+        raise MetaSlice2Error(f"process-state phase is invalid for {spec.attempt_id}")
+    pid = state.get("pid")
+    process_group_id = state.get("process_group_id")
+    process_start_ticks = state.get("process_start_ticks")
+    boot_id = state.get("boot_id")
+    if pid is None:
+        identity_absent_allowed = phase in {"prepared", "recovered"} or (
+            phase == "finished" and not config.enforce_production_bindings
+        )
+        if (
+            not identity_absent_allowed
+            or process_group_id is not None
+            or process_start_ticks is not None
+            or not isinstance(boot_id, str)
+            or not boot_id
+        ):
+            raise MetaSlice2Error(f"process-state identity is absent for {spec.attempt_id}")
+    elif (
+        type(pid) is not int
+        or pid <= 1
+        or type(process_group_id) is not int
+        or process_group_id != pid
+        or type(process_start_ticks) is not int
+        or process_start_ticks < 0
+        or not isinstance(boot_id, str)
+        or not boot_id
+    ):
+        raise MetaSlice2Error(f"process-state identity is malformed for {spec.attempt_id}")
+    if (phase == "prepared" and pid is not None) or (phase == "running" and pid is None):
+        raise MetaSlice2Error(f"process-state phase/identity mismatch for {spec.attempt_id}")
+    returncode = state.get("returncode")
+    if returncode is not None and type(returncode) is not int:
+        raise MetaSlice2Error(f"process-state return code is malformed for {spec.attempt_id}")
+    for key in ("timed_out", "interrupted", "term_sent", "kill_sent", "group_gone"):
+        _bool_field(state, key, context="attempt process state")
+    if state.get("kill_sent") is True and state.get("term_sent") is not True:
+        raise MetaSlice2Error(f"process-state kill evidence is malformed for {spec.attempt_id}")
+    if phase in {"prepared", "running"} and (
+        returncode is not None
+        or state.get("timed_out") is not False
+        or state.get("interrupted") is not False
+        or state.get("term_sent") is not False
+        or state.get("kill_sent") is not False
+        or state.get("group_gone") is not False
+    ):
+        raise MetaSlice2Error(f"pending process-state evidence is malformed for {spec.attempt_id}")
+    if phase in {"finished", "recovered"} and state.get("group_gone") is not True:
+        raise MetaSlice2Error(f"finished process group is not confirmed gone for {spec.attempt_id}")
+    return state
+
+
+def _terminate_recorded_process_group(process_group_id: int) -> tuple[bool, bool, bool]:
+    if not _process_group_exists(process_group_id):
+        return False, False, True
+    term_sent = False
+    kill_sent = False
+    with suppress(ProcessLookupError):
+        os.killpg(process_group_id, signal.SIGTERM)
+        term_sent = True
+    deadline = time.monotonic() + 5
+    while _process_group_exists(process_group_id) and time.monotonic() < deadline:
+        time.sleep(0.05)
+    if _process_group_exists(process_group_id):
+        with suppress(ProcessLookupError):
+            os.killpg(process_group_id, signal.SIGKILL)
+            kill_sent = True
+        deadline = time.monotonic() + 5
+        while _process_group_exists(process_group_id) and time.monotonic() < deadline:
+            time.sleep(0.05)
+    return term_sent, kill_sent, not _process_group_exists(process_group_id)
+
+
+def _recorded_group_members(process_group_id: int) -> tuple[tuple[int, int, str, Path], ...]:
+    members: list[tuple[int, int, str, Path]] = []
+    for entry in Path("/proc").iterdir():
+        if not entry.name.isdigit():
+            continue
+        pid = int(entry.name)
+        try:
+            observed_group, start_ticks = _process_stat(pid)
+            if observed_group != process_group_id:
+                continue
+            command = (
+                (entry / "cmdline")
+                .read_bytes()
+                .replace(b"\0", b" ")
+                .decode("utf-8", errors="replace")
+            )
+            cwd = (entry / "cwd").resolve(strict=True)
+        except (FileNotFoundError, ProcessLookupError, PermissionError):
+            continue
+        members.append((pid, start_ticks, command, cwd))
+    return tuple(sorted(members))
+
+
+def _driver_process_matches(
+    *,
+    expected_driver: str,
+    expected_cwd: Path,
+) -> tuple[tuple[int, int, int], ...]:
+    matches: list[tuple[int, int, int]] = []
+    for entry in Path("/proc").iterdir():
+        if not entry.name.isdigit():
+            continue
+        pid = int(entry.name)
+        try:
+            process_group_id, start_ticks = _process_stat(pid)
+            command = (
+                (entry / "cmdline")
+                .read_bytes()
+                .replace(b"\0", b" ")
+                .decode("utf-8", errors="replace")
+            )
+            cwd = (entry / "cwd").resolve(strict=True)
+        except (FileNotFoundError, ProcessLookupError, PermissionError):
+            continue
+        if expected_driver in command and cwd == expected_cwd:
+            matches.append((pid, process_group_id, start_ticks))
+    return tuple(sorted(matches))
+
+
+def _recover_recorded_process(
+    context: _RunContext,
+    spec: _AttemptSpec,
+    process_path: Path,
+    command: Sequence[str],
+) -> None:
+    if not process_path.exists():
+        _write_json_atomic(
+            process_path,
+            _process_state_payload(
+                attempt_id=spec.attempt_id,
+                command=command,
+                cwd=context.config.mathlib_project_path,
+                timeout_seconds=context.config.timeout_seconds,
+                started_at=_utc_now(),
+                phase="prepared",
+                pid=None,
+                process_group_id=None,
+                process_start_ticks=None,
+                boot_id=_boot_id(),
+                returncode=None,
+                timed_out=False,
+                interrupted=False,
+                term_sent=False,
+                kill_sent=False,
+                group_gone=False,
+            ),
+        )
+    state = _validate_process_state(
+        process_path,
+        config=context.config,
+        spec=spec,
+        command=command,
+    )
+    pid = state.get("pid")
+    process_group_id = state.get("process_group_id")
+    if pid is None:
+        if state.get("phase") == "finished" and state.get("group_gone") is True:
+            return
+        expected_driver = str(
+            _resolve(_attempt_dir(context.config, spec) / ATTEMPT_DRIVER_FILENAME)
+        )
+        expected_cwd = _resolve(context.config.mathlib_project_path)
+        matches = _driver_process_matches(
+            expected_driver=expected_driver,
+            expected_cwd=expected_cwd,
+        )
+        groups = {match[1] for match in matches}
+        if len(groups) > 1:
+            raise MetaSlice2Error(
+                f"multiple live process groups match interrupted attempt {spec.attempt_id}"
+            )
+        if not groups:
+            recovered_pid: int | None = None
+            recovered_group: int | None = None
+            recovered_start: int | None = None
+            term_sent = False
+            kill_sent = False
+            group_gone = True
+        else:
+            recovered_group = groups.pop()
+            members = _recorded_group_members(recovered_group)
+            if not members or any(member[3] != expected_cwd for member in members):
+                raise MetaSlice2Error(
+                    f"discovered process group identity mismatch: {spec.attempt_id}"
+                )
+            leader = next((member for member in members if member[0] == recovered_group), None)
+            recovered_pid = recovered_group
+            recovered_start = (
+                leader[1] if leader is not None else min(member[1] for member in members)
+            )
+            term_sent, kill_sent, group_gone = _terminate_recorded_process_group(recovered_group)
+            if not group_gone:
+                raise MetaSlice2Error(
+                    f"discovered process group survived cleanup: {spec.attempt_id}"
+                )
+        _write_json_atomic(
+            process_path,
+            _process_state_payload(
+                attempt_id=spec.attempt_id,
+                command=command,
+                cwd=context.config.mathlib_project_path,
+                timeout_seconds=context.config.timeout_seconds,
+                started_at=cast(str, state["started_at"]),
+                phase="recovered",
+                pid=recovered_pid,
+                process_group_id=recovered_group,
+                process_start_ticks=recovered_start,
+                boot_id=_boot_id(),
+                returncode=None,
+                timed_out=False,
+                interrupted=True,
+                term_sent=term_sent,
+                kill_sent=kill_sent,
+                group_gone=group_gone,
+            ),
+        )
+        return
+    assert type(pid) is int
+    assert type(process_group_id) is int
+    if not _process_group_exists(process_group_id):
+        term_sent = False
+        kill_sent = False
+        group_gone = True
+    else:
+        if state.get("boot_id") != _boot_id():
+            raise MetaSlice2Error(
+                f"cannot clean process group from an earlier boot: {spec.attempt_id}"
+            )
+        members = _recorded_group_members(process_group_id)
+        if not members:
+            raise MetaSlice2Error(
+                f"live process group has no inspectable members: {spec.attempt_id}"
+            )
+        expected_driver = str(
+            _resolve(_attempt_dir(context.config, spec) / ATTEMPT_DRIVER_FILENAME)
+        )
+        expected_cwd = _resolve(context.config.mathlib_project_path)
+        start_ticks = state.get("process_start_ticks")
+        assert type(start_ticks) is int
+        leader = next((member for member in members if member[0] == pid), None)
+        if leader is not None and (leader[1] != start_ticks or expected_driver not in leader[2]):
+            raise MetaSlice2Error(f"recorded process identity was reused: {spec.attempt_id}")
+        if any(
+            member_start < start_ticks or member_cwd != expected_cwd
+            for _, member_start, _, member_cwd in members
+        ):
+            raise MetaSlice2Error(f"recorded process group identity mismatch: {spec.attempt_id}")
+        term_sent, kill_sent, group_gone = _terminate_recorded_process_group(process_group_id)
+        if not group_gone:
+            raise MetaSlice2Error(f"recorded process group survived cleanup: {spec.attempt_id}")
+    _write_json_atomic(
+        process_path,
+        _process_state_payload(
+            attempt_id=spec.attempt_id,
+            command=command,
+            cwd=context.config.mathlib_project_path,
+            timeout_seconds=context.config.timeout_seconds,
+            started_at=cast(str, state["started_at"]),
+            phase="recovered",
+            pid=pid,
+            process_group_id=process_group_id,
+            process_start_ticks=cast(int, state["process_start_ticks"]),
+            boot_id=cast(str, state["boot_id"]),
+            returncode=cast(int | None, state["returncode"]),
+            timed_out=cast(bool, state["timed_out"]),
+            interrupted=True,
+            term_sent=cast(bool, state["term_sent"]) or term_sent,
+            kill_sent=cast(bool, state["kill_sent"]) or kill_sent,
+            group_gone=group_gone,
+        ),
+    )
+
+
+def _recover_interrupted_attempt(
+    context: _RunContext,
+    spec: _AttemptSpec,
+    material: _AttemptMaterial,
+) -> None:
+    attempt_dir = _attempt_dir(context.config, spec)
+    allowed = {
+        material.input_filename,
+        ATTEMPT_DRIVER_FILENAME,
+        ATTEMPT_STDOUT_FILENAME,
+        ATTEMPT_STDERR_FILENAME,
+        ATTEMPT_LOG_FILENAME,
+        ATTEMPT_PROCESS_FILENAME,
+    }
+    actual = {path.name for path in attempt_dir.iterdir()}
+    if not actual.issubset(allowed):
+        raise MetaSlice2Error(f"interrupted attempt {spec.attempt_id} has unexpected artifacts")
+    _write_or_verify(
+        attempt_dir / material.input_filename,
+        material.input_bytes,
+        label=f"{spec.attempt_id} input",
+    )
+    _write_or_verify(
+        attempt_dir / ATTEMPT_DRIVER_FILENAME,
+        material.driver_bytes,
+        label=f"{spec.attempt_id} driver",
+    )
+    stdout_path = attempt_dir / ATTEMPT_STDOUT_FILENAME
+    stderr_path = attempt_dir / ATTEMPT_STDERR_FILENAME
+    _ensure_attempt_regular_file(stdout_path)
+    _ensure_attempt_regular_file(stderr_path)
+    command = _command(context.config, attempt_dir / ATTEMPT_DRIVER_FILENAME)
+    _recover_recorded_process(
+        context,
+        spec,
+        attempt_dir / ATTEMPT_PROCESS_FILENAME,
+        command,
+    )
+    log_path = attempt_dir / ATTEMPT_LOG_FILENAME
+    if not log_path.exists():
+        _write_atomic(
+            log_path,
+            _log_bytes(command, stdout_path, stderr_path),
+        )
+    _require_regular_file(log_path, label="interrupted attempt log")
+    result = _attempt_result_payload(
+        context,
+        spec,
+        material,
+        started_at=_utc_now(),
+        outcome="abandoned",
+        execution=None,
+        validation=None,
+        failure={"reason_code": "interrupted_before_atomic_result"},
+    )
+    _write_json_atomic(_attempt_result_path(context.config, spec), result)
+    _record_progress(context)
+
+
+def _run_new_attempt(
+    context: _RunContext,
+    spec: _AttemptSpec,
+    material: _AttemptMaterial,
+    *,
+    selection: SelectionResult | None,
+    certificates: Sequence[CandidateCertificate] | None,
+) -> _AttemptOutcome:
+    if context.executor is None:
+        raise MetaSlice2Error(f"missing attempt cannot be replayed: {spec.attempt_id}")
+    attempt_dir = _attempt_dir(context.config, spec)
+    attempt_dir.parent.mkdir(parents=True, exist_ok=True)
+    attempt_dir.mkdir(mode=0o700)
+    input_path = attempt_dir / material.input_filename
+    driver_path = attempt_dir / ATTEMPT_DRIVER_FILENAME
+    stdout_path = attempt_dir / ATTEMPT_STDOUT_FILENAME
+    stderr_path = attempt_dir / ATTEMPT_STDERR_FILENAME
+    log_path = attempt_dir / ATTEMPT_LOG_FILENAME
+    process_path = attempt_dir / ATTEMPT_PROCESS_FILENAME
+    _write_atomic(input_path, material.input_bytes)
+    _write_atomic(driver_path, material.driver_bytes)
+    command = _command(context.config, driver_path)
+    started_at = _utc_now()
+    _write_json_atomic(
+        process_path,
+        _process_state_payload(
+            attempt_id=spec.attempt_id,
+            command=command,
+            cwd=context.config.mathlib_project_path,
+            timeout_seconds=context.config.timeout_seconds,
+            started_at=started_at,
+            phase="prepared",
+            pid=None,
+            process_group_id=None,
+            process_start_ticks=None,
+            boot_id=_boot_id(),
+            returncode=None,
+            timed_out=False,
+            interrupted=False,
+            term_sent=False,
+            kill_sent=False,
+            group_gone=False,
+        ),
+    )
+    _record_progress(context)
+    result = context.executor.run(
+        command=command,
+        cwd=context.config.mathlib_project_path,
+        timeout_seconds=context.config.timeout_seconds,
+        stdout_path=stdout_path,
+        stderr_path=stderr_path,
+        process_state_path=process_path,
+        attempt_id=spec.attempt_id,
+    )
+    process_phase: object = None
+    if process_path.exists() and not process_path.is_symlink():
+        process_phase = _parse_json_object(
+            process_path.read_text(encoding="utf-8"),
+            context="attempt process state",
+        ).get("phase")
+    if not process_path.exists() or process_phase == "prepared":
+        if context.config.enforce_production_bindings:
+            raise MetaSlice2Error("production executor did not persist process identity")
+        _write_json_atomic(
+            process_path,
+            _process_state_payload(
+                attempt_id=spec.attempt_id,
+                command=command,
+                cwd=context.config.mathlib_project_path,
+                timeout_seconds=context.config.timeout_seconds,
+                started_at=started_at,
+                phase="finished",
+                pid=result.pid,
+                process_group_id=result.process_group_id,
+                process_start_ticks=result.process_start_ticks,
+                boot_id=result.boot_id or "fixture",
+                returncode=result.returncode,
+                timed_out=result.timed_out,
+                interrupted=False,
+                term_sent=result.term_sent,
+                kill_sent=result.kill_sent,
+                group_gone=result.group_gone,
+            ),
+        )
+    process_state = _validate_process_state(
+        process_path,
+        config=context.config,
+        spec=spec,
+        command=command,
+    )
+    if (
+        process_state.get("phase") != "finished"
+        or process_state.get("pid") != result.pid
+        or process_state.get("process_group_id") != result.process_group_id
+        or process_state.get("process_start_ticks") != result.process_start_ticks
+        or process_state.get("boot_id") != (result.boot_id or "fixture")
+        or process_state.get("returncode") != result.returncode
+        or process_state.get("timed_out") != result.timed_out
+        or process_state.get("interrupted") is not False
+        or process_state.get("term_sent") != result.term_sent
+        or process_state.get("kill_sent") != result.kill_sent
+        or process_state.get("group_gone") != result.group_gone
+        or not result.group_gone
+    ):
+        raise MetaSlice2Error("executor process-state result does not reconcile")
+    _ensure_attempt_regular_file(stdout_path)
+    _ensure_attempt_regular_file(stderr_path)
+    _write_atomic(log_path, _log_bytes(command, stdout_path, stderr_path))
+    if not math.isfinite(result.elapsed_seconds) or result.elapsed_seconds < 0:
+        raise MetaSlice2Error("executor returned an invalid elapsed time")
+    if result.timed_out:
+        if result.returncode is not None:
+            raise MetaSlice2Error("timed-out executor result cannot have a return code")
+        outcome = "timeout"
+        validation: dict[str, object] | None = None
+        failure: dict[str, object] | None = {
+            "reason_code": "timeout",
+            "detail": f"timed out after {context.config.timeout_seconds}s",
+        }
+    elif result.returncode != 0:
+        if type(result.returncode) is not int:
+            raise MetaSlice2Error("non-timeout executor result must have an integer return code")
+        outcome = "nonzero_exit"
+        validation = None
+        failure = {
+            "reason_code": "nonzero_exit",
+            "detail": f"Lean exited with status {result.returncode}",
+        }
+    else:
+        validation_error = _validation_failure(
+            spec,
+            stdout_path,
+            input_path,
+            selection=selection,
+            certificates=certificates,
+        )
+        if validation_error is None:
+            _, validation = _attempt_validation(
+                spec,
+                stdout_path,
+                input_path,
+                selection=selection,
+                certificates=certificates,
+            )
+            outcome = "accepted"
+            failure = None
+        else:
+            outcome = "invalid_output"
+            validation = None
+            failure = {
+                "reason_code": "invalid_output",
+                "detail": validation_error,
+                "detail_sha256": _sha256_text(validation_error),
+            }
+    execution = {
+        "command": list(command),
+        "cwd": str(_resolve(context.config.mathlib_project_path)),
+        "timeout_seconds": context.config.timeout_seconds,
+        "stdin": "closed",
+        "returncode": result.returncode,
+        "timed_out": result.timed_out,
+        "elapsed_seconds": result.elapsed_seconds,
+        "pid": result.pid,
+        "process_group_id": result.process_group_id,
+        "process_start_ticks": result.process_start_ticks,
+        "boot_id": result.boot_id or "fixture",
+        "term_sent": result.term_sent,
+        "kill_sent": result.kill_sent,
+        "group_gone": result.group_gone,
+    }
+    payload = _attempt_result_payload(
+        context,
+        spec,
+        material,
+        started_at=started_at,
+        outcome=outcome,
+        execution=execution,
+        validation=validation,
+        failure=failure,
+    )
+    result_path = _attempt_result_path(context.config, spec)
+    _write_json_atomic(result_path, payload)
+    _record_progress(context)
+    return _AttemptOutcome(spec=spec, result=payload, result_path=result_path)
+
+
+def _validate_attempt_result(
+    context: _RunContext,
+    spec: _AttemptSpec,
+    material: _AttemptMaterial,
+    *,
+    selection: SelectionResult | None,
+    certificates: Sequence[CandidateCertificate] | None,
+) -> _AttemptOutcome:
+    result_path = _attempt_result_path(context.config, spec)
+    _require_regular_file(result_path, label=f"{spec.attempt_id} result")
+    result = _parse_json_object(result_path.read_text(encoding="utf-8"), context="attempt result")
+    expected_result_keys = {
+        "schema_version",
+        "method_version",
+        "stage",
+        "logical_id",
+        "attempt_id",
+        "attempt_ordinal",
+        "parent_attempt_id",
+        "range",
+        "item_count",
+        "input",
+        "bindings",
+        "started_at",
+        "finished_at",
+        "outcome",
+        "resolution",
+        "execution",
+        "validation",
+        "failure",
+        "artifacts",
+    }
+    if set(result) != expected_result_keys:
+        raise MetaSlice2Error(f"attempt result fields drifted for {spec.attempt_id}")
+    exact = {
+        "schema_version": ATTEMPT_SCHEMA_VERSION,
+        "method_version": METHOD_VERSION,
+        "stage": spec.stage,
+        "logical_id": spec.logical_id,
+        "attempt_id": spec.attempt_id,
+        "attempt_ordinal": spec.ordinal,
+        "parent_attempt_id": spec.parent_attempt_id,
+        "range": {"start": spec.start, "stop": spec.stop},
+        "item_count": material.item_count,
+        "input": {
+            "filename": material.input_filename,
+            "sha256": hashlib.sha256(material.input_bytes).hexdigest(),
+        },
+        "bindings": _attempt_bindings(context.config),
+    }
+    outcome = _string_field(result, "outcome", context="attempt result")
+    if outcome == "abandoned":
+        expected_resolution = "interrupted_retry"
+    elif outcome == "accepted":
+        expected_resolution = "leaf"
+    elif material.item_count > 1:
+        expected_resolution = "bisect"
+    elif spec.stage == "primary":
+        expected_resolution = "runner_terminal"
+    else:
+        expected_resolution = "fatal"
+    exact["resolution"] = expected_resolution
+    for key, value in exact.items():
+        if result.get(key) != value:
+            raise MetaSlice2Error(f"attempt result binding drift for {spec.attempt_id}.{key}")
+    _string_field(result, "started_at", context="attempt result")
+    _string_field(result, "finished_at", context="attempt result")
+    attempt_dir = _attempt_dir(context.config, spec)
+    input_path = attempt_dir / material.input_filename
+    driver_path = attempt_dir / ATTEMPT_DRIVER_FILENAME
+    stdout_path = attempt_dir / ATTEMPT_STDOUT_FILENAME
+    stderr_path = attempt_dir / ATTEMPT_STDERR_FILENAME
+    log_path = attempt_dir / ATTEMPT_LOG_FILENAME
+    process_path = attempt_dir / ATTEMPT_PROCESS_FILENAME
+    for label, path in (
+        ("input", input_path),
+        ("driver", driver_path),
+        ("stdout", stdout_path),
+        ("stderr", stderr_path),
+        ("log", log_path),
+        ("process state", process_path),
+    ):
+        _require_regular_file(path, label=f"{spec.attempt_id} {label}")
+    if input_path.read_bytes() != material.input_bytes:
+        raise MetaSlice2Error(f"attempt input drift for {spec.attempt_id}")
+    if driver_path.read_bytes() != material.driver_bytes:
+        raise MetaSlice2Error(f"attempt driver drift for {spec.attempt_id}")
+    command = _command(context.config, driver_path)
+    process_state = _validate_process_state(
+        process_path,
+        config=context.config,
+        spec=spec,
+        command=command,
+    )
+    if log_path.read_bytes() != _log_bytes(command, stdout_path, stderr_path):
+        raise MetaSlice2Error(f"attempt log drift for {spec.attempt_id}")
+    artifacts = _mapping_field(result, "artifacts", context="attempt result")
+    if artifacts != _attempt_artifact_inventory(
+        attempt_dir,
+        input_filename=material.input_filename,
+    ):
+        raise MetaSlice2Error(f"attempt artifact hashes drifted for {spec.attempt_id}")
+    execution_raw = result.get("execution")
+    validation_raw = result.get("validation")
+    failure_raw = result.get("failure")
+    if outcome == "abandoned":
+        if (
+            execution_raw is not None
+            or validation_raw is not None
+            or failure_raw != {"reason_code": "interrupted_before_atomic_result"}
+            or process_state.get("phase") not in {"finished", "recovered"}
+            or process_state.get("group_gone") is not True
+        ):
+            raise MetaSlice2Error(f"abandoned attempt metadata is malformed for {spec.attempt_id}")
+        return _AttemptOutcome(spec=spec, result=result, result_path=result_path)
+    execution = _mapping_field(result, "execution", context="attempt result")
+    if set(execution) != {
+        "command",
+        "cwd",
+        "timeout_seconds",
+        "stdin",
+        "returncode",
+        "timed_out",
+        "elapsed_seconds",
+        "pid",
+        "process_group_id",
+        "process_start_ticks",
+        "boot_id",
+        "term_sent",
+        "kill_sent",
+        "group_gone",
+    }:
+        raise MetaSlice2Error(f"attempt execution fields drifted for {spec.attempt_id}")
+    if (
+        execution.get("command") != list(command)
+        or execution.get("cwd") != str(_resolve(context.config.mathlib_project_path))
+        or execution.get("timeout_seconds") != context.config.timeout_seconds
+        or execution.get("stdin") != "closed"
+    ):
+        raise MetaSlice2Error(f"attempt execution binding drift for {spec.attempt_id}")
+    elapsed = execution.get("elapsed_seconds")
+    if (
+        isinstance(elapsed, bool)
+        or not isinstance(elapsed, (int, float))
+        or not math.isfinite(float(elapsed))
+        or elapsed < 0
+    ):
+        raise MetaSlice2Error(f"attempt elapsed time is malformed for {spec.attempt_id}")
+    timed_out = execution.get("timed_out")
+    returncode = execution.get("returncode")
+    if not isinstance(timed_out, bool) or (returncode is not None and type(returncode) is not int):
+        raise MetaSlice2Error(f"attempt process outcome is malformed for {spec.attempt_id}")
+    pid = execution.get("pid")
+    process_group_id = execution.get("process_group_id")
+    process_start_ticks = execution.get("process_start_ticks")
+    boot_id = execution.get("boot_id")
+    if pid is None:
+        if (
+            context.config.enforce_production_bindings
+            or process_group_id is not None
+            or process_start_ticks is not None
+            or boot_id != "fixture"
+        ):
+            raise MetaSlice2Error(f"attempt process identity is absent for {spec.attempt_id}")
+    elif (
+        type(pid) is not int
+        or pid <= 1
+        or type(process_group_id) is not int
+        or process_group_id != pid
+        or type(process_start_ticks) is not int
+        or process_start_ticks < 0
+        or not isinstance(boot_id, str)
+        or not boot_id
+    ):
+        raise MetaSlice2Error(f"attempt process identity is malformed for {spec.attempt_id}")
+    term_sent = execution.get("term_sent")
+    kill_sent = execution.get("kill_sent")
+    group_gone = execution.get("group_gone")
+    if (
+        not isinstance(term_sent, bool)
+        or not isinstance(kill_sent, bool)
+        or group_gone is not True
+        or (kill_sent and not term_sent)
+    ):
+        raise MetaSlice2Error(f"attempt cleanup evidence is malformed for {spec.attempt_id}")
+    for key in (
+        "pid",
+        "process_group_id",
+        "process_start_ticks",
+        "boot_id",
+        "returncode",
+        "timed_out",
+        "term_sent",
+        "kill_sent",
+        "group_gone",
+    ):
+        if process_state.get(key) != execution.get(key):
+            raise MetaSlice2Error(f"process-state/result drift for {spec.attempt_id}.{key}")
+    if process_state.get("phase") != "finished" or process_state.get("interrupted") is not False:
+        raise MetaSlice2Error(f"completed process-state is malformed for {spec.attempt_id}")
+    if outcome == "accepted":
+        if timed_out or returncode != 0 or failure_raw is not None:
+            raise MetaSlice2Error(
+                f"accepted attempt process result is dishonest for {spec.attempt_id}"
+            )
+        _, validation = _attempt_validation(
+            spec,
+            stdout_path,
+            input_path,
+            selection=selection,
+            certificates=certificates,
+        )
+        if validation_raw != validation:
+            raise MetaSlice2Error(f"accepted attempt validation drift for {spec.attempt_id}")
+    elif outcome == "timeout":
+        expected_failure = {
+            "reason_code": "timeout",
+            "detail": f"timed out after {context.config.timeout_seconds}s",
+        }
+        if (
+            not timed_out
+            or returncode is not None
+            or validation_raw is not None
+            or failure_raw != expected_failure
+        ):
+            raise MetaSlice2Error(f"timeout attempt metadata is malformed for {spec.attempt_id}")
+    elif outcome == "nonzero_exit":
+        expected_failure = {
+            "reason_code": "nonzero_exit",
+            "detail": f"Lean exited with status {returncode}",
+        }
+        if (
+            timed_out
+            or type(returncode) is not int
+            or returncode == 0
+            or validation_raw is not None
+            or failure_raw != expected_failure
+        ):
+            raise MetaSlice2Error(f"nonzero attempt metadata is malformed for {spec.attempt_id}")
+    elif outcome == "invalid_output":
+        error = _validation_failure(
+            spec,
+            stdout_path,
+            input_path,
+            selection=selection,
+            certificates=certificates,
+        )
+        expected_invalid_failure = (
+            None
+            if error is None
+            else {
+                "reason_code": "invalid_output",
+                "detail": error,
+                "detail_sha256": _sha256_text(error),
+            }
+        )
+        if (
+            timed_out
+            or returncode != 0
+            or validation_raw is not None
+            or failure_raw != expected_invalid_failure
+        ):
+            raise MetaSlice2Error(
+                f"invalid-output attempt metadata is malformed for {spec.attempt_id}"
+            )
+    else:
+        raise MetaSlice2Error(f"unsupported attempt outcome {outcome!r}")
+    return _AttemptOutcome(spec=spec, result=result, result_path=result_path)
+
+
+def _node_attempt_specs(
+    context: _RunContext,
+    *,
+    stage: str,
+    start: int,
+    stop: int,
+    parent_attempt_id: str | None,
+) -> list[_AttemptSpec]:
+    shards_root = context.config.output_root / SHARDS_DIRNAME
+    if not shards_root.exists():
+        return []
+    prefix = f"attempt-{stage}-{start:08d}-{stop:08d}-r"
+    specs: list[_AttemptSpec] = []
+    for path in sorted(shards_root.glob(f"{prefix}*")):
+        if path.is_symlink() or not path.is_dir():
+            raise MetaSlice2Error(f"attempt path must be a non-symlink directory: {path}")
+        suffix = path.name.removeprefix(prefix)
+        if re.fullmatch(r"[0-9]{3}", suffix) is None:
+            raise MetaSlice2Error(f"malformed attempt directory name: {path.name}")
+        specs.append(
+            _AttemptSpec(
+                stage=stage,
+                start=start,
+                stop=stop,
+                ordinal=int(suffix),
+                parent_attempt_id=parent_attempt_id,
+            )
+        )
+    if [spec.ordinal for spec in specs] != list(range(1, len(specs) + 1)):
+        raise MetaSlice2Error(f"attempt ordinals are not contiguous for {prefix}")
+    return specs
+
+
+def _obtain_attempt(
+    context: _RunContext,
+    *,
+    stage: str,
+    start: int,
+    stop: int,
+    parent_attempt_id: str | None,
+    material_factory: Callable[[_AttemptSpec], _AttemptMaterial],
+    selection: SelectionResult | None,
+    certificates: Sequence[CandidateCertificate] | None,
+) -> _AttemptOutcome:
+    specs = _node_attempt_specs(
+        context,
+        stage=stage,
+        start=start,
+        stop=stop,
+        parent_attempt_id=parent_attempt_id,
+    )
+    outcomes: list[_AttemptOutcome] = []
+    for index, spec in enumerate(specs):
+        material = material_factory(spec)
+        result_path = _attempt_result_path(context.config, spec)
+        if not result_path.exists():
+            if index != len(specs) - 1:
+                raise MetaSlice2Error(
+                    f"non-final attempt is missing result metadata: {spec.attempt_id}"
+                )
+            if not context.execute_missing:
+                raise MetaSlice2Error(f"completed run has interrupted attempt {spec.attempt_id}")
+            _recover_interrupted_attempt(context, spec, material)
+        outcome = _validate_attempt_result(
+            context,
+            spec,
+            material,
+            selection=selection,
+            certificates=certificates,
+        )
+        context.visited_attempt_ids.add(spec.attempt_id)
+        outcomes.append(outcome)
+    non_abandoned = [item for item in outcomes if item.result.get("outcome") != "abandoned"]
+    if len(non_abandoned) > 1 or (
+        non_abandoned and outcomes[-1].spec.attempt_id != non_abandoned[0].spec.attempt_id
+    ):
+        raise MetaSlice2Error(
+            f"attempt retries continued after a terminal result for {stage}:{start}:{stop}"
+        )
+    if non_abandoned:
+        return non_abandoned[0]
+    if not context.execute_missing:
+        raise MetaSlice2Error(f"completed run lacks a terminal attempt for {stage}:{start}:{stop}")
+    ordinal = len(specs) + 1
+    if ordinal > 999:
+        raise MetaSlice2Error("attempt retry ordinal exceeds the frozen three-digit format")
+    spec = _AttemptSpec(
+        stage=stage,
+        start=start,
+        stop=stop,
+        ordinal=ordinal,
+        parent_attempt_id=parent_attempt_id,
+    )
+    material = material_factory(spec)
+    outcome = _run_new_attempt(
+        context,
+        spec,
+        material,
+        selection=selection,
+        certificates=certificates,
+    )
+    context.visited_attempt_ids.add(spec.attempt_id)
+    return _validate_attempt_result(
+        context,
+        spec,
+        material,
+        selection=selection,
+        certificates=certificates,
+    )
+
+
+def _primary_material(
+    config: MetaSlice2Config,
+    spec: _AttemptSpec,
+    names: Sequence[str],
+) -> _AttemptMaterial:
+    names_path = _attempt_dir(config, spec) / ATTEMPT_NAMES_FILENAME
+    return _AttemptMaterial(
+        input_filename=ATTEMPT_NAMES_FILENAME,
+        input_bytes=_names_bytes(names),
+        driver_bytes=_driver_bytes(config, names_path),
+        item_count=len(names),
+    )
+
+
+def _audit_material(
+    config: MetaSlice2Config,
+    spec: _AttemptSpec,
+    certificates: Sequence[CandidateCertificate],
+) -> _AttemptMaterial:
+    return _AttemptMaterial(
+        input_filename=ATTEMPT_CERTIFICATES_FILENAME,
+        input_bytes=_certificates_bytes(certificates),
+        driver_bytes=_audit_driver_bytes(config, certificates),
+        item_count=len(certificates),
+    )
+
+
+def _runner_terminal(
+    config: MetaSlice2Config,
+    declaration: str,
+    outcome: _AttemptOutcome,
+) -> dict[str, object]:
+    execution = _mapping_field(outcome.result, "execution", context="singleton attempt")
+    failure = _mapping_field(outcome.result, "failure", context="singleton attempt")
+    reason_code = _string_field(failure, "reason_code", context="singleton attempt")
+    if reason_code not in _RUNNER_REASON_CODES:
+        raise MetaSlice2Error("singleton attempt lacks a runner disposition reason")
+    return {
+        "schemaVersion": 2,
+        "kind": "terminal",
+        "recordKind": "status",
+        "declaration": declaration,
+        "status": _RUNNER_STATUS_BY_REASON[reason_code],
+        "terminalOrigin": "runner",
+        "reasonCode": reason_code,
+        "attemptId": outcome.spec.attempt_id,
+        "attemptPath": outcome.result_path.parent.relative_to(config.output_root).as_posix(),
+        "attemptResultSha256": hash_file(outcome.result_path),
+        "timeoutSeconds": config.timeout_seconds,
+        "timedOut": execution.get("timed_out"),
+        "returncode": execution.get("returncode"),
+        "candidateCount": 0,
+        "emittedCount": 0,
+        "duplicateCount": 0,
+        "rejectedCount": 0,
+        "error": None,
+    }
+
+
+def _collect_primary_range(
+    context: _RunContext,
+    start: int,
+    stop: int,
+    *,
+    parent_attempt_id: str | None,
+) -> tuple[dict[str, object], ...]:
+    names = context.selection.names[start:stop]
+    outcome = _obtain_attempt(
+        context,
+        stage="primary",
+        start=start,
+        stop=stop,
+        parent_attempt_id=parent_attempt_id,
+        material_factory=lambda spec: _primary_material(context.config, spec, names),
+        selection=_selection_slice(context.selection, names),
+        certificates=None,
+    )
+    attempt_outcome = _string_field(outcome.result, "outcome", context="primary attempt")
+    if attempt_outcome == "accepted":
+        rows, _ = _primary_rows_and_validation(
+            outcome.result_path.parent / ATTEMPT_STDOUT_FILENAME,
+            selection=_selection_slice(context.selection, names),
+            names_path=outcome.result_path.parent / ATTEMPT_NAMES_FILENAME,
+        )
+        return rows
+    if stop - start == 1:
+        return (_runner_terminal(context.config, names[0], outcome),)
+    midpoint = start + (stop - start) // 2
+    return _collect_primary_range(
+        context,
+        start,
+        midpoint,
+        parent_attempt_id=outcome.spec.attempt_id,
+    ) + _collect_primary_range(
+        context,
+        midpoint,
+        stop,
+        parent_attempt_id=outcome.spec.attempt_id,
+    )
+
+
+def _primary_aggregate_rows(context: _RunContext) -> tuple[dict[str, object], ...]:
+    rows: tuple[dict[str, object], ...] = ()
+    for start, stop in _base_ranges(len(context.selection.names), PRIMARY_SHARD_SIZE):
+        rows += _collect_primary_range(context, start, stop, parent_attempt_id=None)
+    terminals = [row for row in rows if row.get("kind") == "terminal"]
+    completed_count = sum(row.get("status") in _PROCESSED_TERMINAL_STATUSES for row in terminals)
+    failed_count = len(terminals) - completed_count
+    batch = {
+        "schemaVersion": 2,
+        "kind": "batch",
+        "recordKind": "batch",
+        "producer": "runner-aggregate-v3",
+        "status": "complete" if failed_count == 0 else "partial",
+        "namesFile": str(_resolve(context.config.output_root / NAMES_FILENAME)),
+        "declarationCount": len(context.selection.names),
+        "accountedCount": len(terminals),
+        "terminalCount": len(terminals),
+        "completedCount": completed_count,
+        "failedCount": failed_count,
+    }
+    return (*rows, batch)
+
+
+def _collect_audit_range(
+    context: _RunContext,
+    certificates: Sequence[CandidateCertificate],
+    start: int,
+    stop: int,
+    *,
+    parent_attempt_id: str | None,
+) -> tuple[dict[str, object], ...]:
+    shard = tuple(certificates[start:stop])
+    outcome = _obtain_attempt(
+        context,
+        stage="audit",
+        start=start,
+        stop=stop,
+        parent_attempt_id=parent_attempt_id,
+        material_factory=lambda spec: _audit_material(context.config, spec, shard),
+        selection=None,
+        certificates=shard,
+    )
+    attempt_outcome = _string_field(outcome.result, "outcome", context="audit attempt")
+    if attempt_outcome == "accepted":
+        rows, _ = _audit_rows_and_validation(
+            outcome.result_path.parent / ATTEMPT_STDOUT_FILENAME,
+            certificates=shard,
+        )
+        return rows
+    if stop - start == 1:
+        raise MetaSlice2Error(
+            f"independent audit singleton failed: {outcome.spec.attempt_id} ({attempt_outcome})"
+        )
+    midpoint = start + (stop - start) // 2
+    return _collect_audit_range(
+        context,
+        certificates,
+        start,
+        midpoint,
+        parent_attempt_id=outcome.spec.attempt_id,
+    ) + _collect_audit_range(
+        context,
+        certificates,
+        midpoint,
+        stop,
+        parent_attempt_id=outcome.spec.attempt_id,
+    )
+
+
+def _audit_aggregate_rows(
+    context: _RunContext,
+    certificates: Sequence[CandidateCertificate],
+) -> tuple[dict[str, object], ...]:
+    rows: tuple[dict[str, object], ...] = ()
+    for start, stop in _base_ranges(len(certificates), AUDIT_SHARD_SIZE):
+        rows += _collect_audit_range(
+            context,
+            certificates,
+            start,
+            stop,
+            parent_attempt_id=None,
+        )
+    return rows
+
+
+def _attempt_summary(config: MetaSlice2Config) -> dict[str, object]:
+    attempts = _manifest_attempts(config)
+    by_stage = Counter(cast(str, row["stage"]) for row in attempts)
+    by_outcome = Counter(cast(str, row["outcome"]) for row in attempts)
+    return {
+        "total": len(attempts),
+        "by_stage": dict(sorted(by_stage.items())),
+        "by_outcome": dict(sorted(by_outcome.items())),
+    }
+
+
+def _shard_plan(
+    declaration_count: int,
+    certificate_count: int,
+) -> dict[str, object]:
+    return {
+        "primary_base_ranges": [
+            {"start": start, "stop": stop}
+            for start, stop in _base_ranges(declaration_count, PRIMARY_SHARD_SIZE)
+        ],
+        "audit_base_ranges": [
+            {"start": start, "stop": stop}
+            for start, stop in _base_ranges(certificate_count, AUDIT_SHARD_SIZE)
+        ],
+    }
+
+
+def _all_attempt_ids(config: MetaSlice2Config) -> set[str]:
+    shards_root = config.output_root / SHARDS_DIRNAME
+    if not shards_root.exists():
+        return set()
+    result: set[str] = set()
+    for path in shards_root.iterdir():
+        if path.is_symlink() or not path.is_dir() or not path.name.startswith("attempt-"):
+            raise MetaSlice2Error(f"unexpected entry beneath shards/: {path.name}")
+        if not (path / ATTEMPT_RESULT_FILENAME).is_file():
+            raise MetaSlice2Error(f"completed attempt lacks atomic result: {path.name}")
+        result.add(path.name)
+    return result
+
+
+def _verify_visited_attempts(context: _RunContext) -> None:
+    actual = _all_attempt_ids(context.config)
+    if actual != context.visited_attempt_ids:
+        extra = sorted(actual.difference(context.visited_attempt_ids))
+        missing = sorted(context.visited_attempt_ids.difference(actual))
+        raise MetaSlice2Error(
+            "attempt tree differs from deterministic replay: "
+            f"extra={extra[:5]}, missing={missing[:5]}"
+        )
+
+
+def _prepare_existing_manifest(
+    config: MetaSlice2Config,
+    *,
+    selection: SelectionResult,
+) -> dict[str, object]:
+    manifest = _load_bound_manifest(config, require_completed=False)
+    if manifest.get("selection") != selection.manifest_payload():
+        raise MetaSlice2Error("yield-probe selection differs from deterministic replay")
+    source_state = _mapping_field(manifest, "source_state", context="yield-probe manifest")
+    _validate_source_state(config, source_state)
+    expected_policy = _manifest_base(
+        config,
+        selection=selection,
+        source_state=source_state,
+        started_at=cast(str, manifest.get("started_at", "")),
+    )["shard_policy"]
+    if manifest.get("shard_policy") != expected_policy:
+        raise MetaSlice2Error("yield-probe shard policy differs from the frozen contract")
+    _verify_recorded_inventory_subset(config, manifest)
+    _artifact_inventory(config.output_root)
+    _verify_recorded_attempt_subset(config, manifest)
     names_path = config.output_root / NAMES_FILENAME
-    driver_path = config.output_root / DRIVER_FILENAME
-    audit_driver_path = config.output_root / AUDIT_DRIVER_FILENAME
-    _verify_artifact_inventory(config, manifest)
+    _require_regular_file(names_path, label="declaration names")
     if names_path.read_bytes() != _names_bytes(selection.names):
         raise MetaSlice2Error("declaration names differ from deterministic selection")
-    if driver_path.read_bytes() != _driver_bytes(config, names_path):
-        raise MetaSlice2Error("Lean driver differs from the bound TransformEngine helper body")
+    return manifest
 
+
+def run_meta_slice2(
+    config: MetaSlice2Config,
+    *,
+    executor: LeanExecutor | None = None,
+) -> dict[str, object]:
+    """Run or strictly resume the deterministic sharded Meta slice-2 probe."""
+    _validate_config(config)
+    selection = select_declarations(config)
+    live_source_state = _source_state(config)
+    fresh = _ensure_output_root(config)
+    with _exclusive_run_lock(config.output_root):
+        manifest_path = config.output_root / MANIFEST_FILENAME
+        if fresh:
+            names_path = config.output_root / NAMES_FILENAME
+            _write_atomic(names_path, _names_bytes(selection.names))
+            manifest = _manifest_base(
+                config,
+                selection=selection,
+                source_state=live_source_state,
+                started_at=_utc_now(),
+            )
+            manifest["outputs"] = _artifact_inventory(config.output_root)
+            _write_json_atomic(manifest_path, manifest)
+        else:
+            manifest = _prepare_existing_manifest(config, selection=selection)
+            if manifest.get("status") == "completed":
+                verify_meta_slice2(config)
+                return manifest
+            manifest["status"] = "running"
+            manifest["resumed_at"] = _utc_now()
+            manifest.pop("failure", None)
+            manifest.pop("failed_at", None)
+            _write_json_atomic(manifest_path, manifest)
+        context = _RunContext(
+            config=config,
+            selection=selection,
+            executor=executor or SubprocessLeanExecutor(),
+            execute_missing=True,
+            manifest=manifest,
+            visited_attempt_ids=set(),
+        )
+        try:
+            primary_rows = _primary_aggregate_rows(context)
+            primary_bytes = _jsonl_bytes(primary_rows)
+            _write_or_verify(
+                config.output_root / STDOUT_FILENAME,
+                primary_bytes,
+                label="primary aggregate",
+            )
+            parsed = _parse_probe_output(
+                config.output_root / STDOUT_FILENAME,
+                selection=selection,
+                names_path=config.output_root / NAMES_FILENAME,
+                allow_runner_dispositions=True,
+            )
+            audit_rows = _audit_aggregate_rows(context, parsed.certificates)
+            audit_bytes = _jsonl_bytes(audit_rows)
+            _write_or_verify(
+                config.output_root / AUDIT_STDOUT_FILENAME,
+                audit_bytes,
+                label="audit aggregate",
+            )
+            audit_summary = verify_audit_output(
+                config.output_root / AUDIT_STDOUT_FILENAME,
+                certificates=parsed.certificates,
+            )
+            _verify_visited_attempts(context)
+            summary = dict(parsed.summary)
+            summary["independent_audit"] = audit_summary
+            summary["execution_attempts"] = _attempt_summary(config)
+            _write_or_verify(
+                config.output_root / SUMMARY_FILENAME,
+                canonical_json_bytes(summary) + b"\n",
+                label="yield summary",
+            )
+            manifest.update(
+                {
+                    "status": "completed",
+                    "completed_at": _utc_now(),
+                    "summary": summary,
+                    "shard_plan": _shard_plan(len(selection.names), len(parsed.certificates)),
+                    "attempts": _manifest_attempts(config),
+                    "outputs": _artifact_inventory(config.output_root),
+                }
+            )
+            manifest.pop("updated_at", None)
+            manifest.pop("resumed_at", None)
+            _write_json_atomic(manifest_path, manifest)
+            verify_meta_slice2(config)
+            return manifest
+        except BaseException as exc:
+            for completed_only in ("completed_at", "summary", "shard_plan"):
+                manifest.pop(completed_only, None)
+            manifest.update(
+                {
+                    "status": "failure",
+                    "failed_at": _utc_now(),
+                    "failure": {"type": type(exc).__name__, "message": str(exc)},
+                }
+            )
+            with suppress(Exception):
+                manifest["attempts"] = _manifest_attempts(config)
+                manifest["outputs"] = _progress_artifact_inventory(config.output_root)
+                _write_json_atomic(manifest_path, manifest)
+            raise
+
+
+def verify_meta_slice2(config: MetaSlice2Config) -> dict[str, object]:
+    """Strictly replay selection, attempt trees, aggregates, audit, and inventory."""
+    _validate_config(config)
+    if config.output_root.is_symlink() or not config.output_root.is_dir():
+        raise MetaSlice2Error("yield-probe output root must be a non-symlink directory")
+    manifest = _load_bound_manifest(config, require_completed=True)
+    selection = select_declarations(config)
+    if manifest.get("selection") != selection.manifest_payload():
+        raise MetaSlice2Error("completed manifest selection statistics drifted")
+    source_state = _mapping_field(manifest, "source_state", context="yield-probe manifest")
+    _validate_source_state(config, source_state)
+    expected_policy = _manifest_base(
+        config,
+        selection=selection,
+        source_state=source_state,
+        started_at=cast(str, manifest.get("started_at", "")),
+    )["shard_policy"]
+    if manifest.get("shard_policy") != expected_policy:
+        raise MetaSlice2Error("completed shard policy differs from the frozen contract")
+    recorded_inventory = _mapping_field(manifest, "outputs", context="yield-probe manifest")
+    if recorded_inventory != _artifact_inventory(config.output_root):
+        raise MetaSlice2Error("completed output artifact inventory drifted")
+    names_path = config.output_root / NAMES_FILENAME
+    _require_regular_file(names_path, label="declaration names")
+    if names_path.read_bytes() != _names_bytes(selection.names):
+        raise MetaSlice2Error("declaration names differ from deterministic selection")
+    context = _RunContext(
+        config=config,
+        selection=selection,
+        executor=None,
+        execute_missing=False,
+        manifest=None,
+        visited_attempt_ids=set(),
+    )
+    primary_rows = _primary_aggregate_rows(context)
+    if (config.output_root / STDOUT_FILENAME).read_bytes() != _jsonl_bytes(primary_rows):
+        raise MetaSlice2Error("primary aggregate differs from deterministic shard replay")
     parsed = _parse_probe_output(
         config.output_root / STDOUT_FILENAME,
         selection=selection,
         names_path=names_path,
+        allow_runner_dispositions=True,
     )
-    if audit_driver_path.read_bytes() != _audit_driver_bytes(config, parsed.certificates):
-        raise MetaSlice2Error("audit driver differs from the emitted candidate certificates")
-
-    execution = _mapping_field(manifest, "execution", context="yield-probe manifest")
-    for stage, stage_driver in (("primary", driver_path), ("audit", audit_driver_path)):
-        stage_execution = _mapping_field(execution, stage, context="yield-probe execution")
-        if stage_execution.get("command") != list(_command(config, stage_driver)):
-            raise MetaSlice2Error(f"recorded {stage} Lean command differs from the frozen command")
-        if stage_execution.get("cwd") != str(_resolve(config.mathlib_project_path)):
-            raise MetaSlice2Error(f"recorded {stage} cwd differs from the pinned checkout")
-        if stage_execution.get("timeout_seconds") != config.timeout_seconds:
-            raise MetaSlice2Error(f"recorded {stage} timeout differs from the frozen timeout")
-        if stage_execution.get("stdin") != "closed":
-            raise MetaSlice2Error(f"recorded {stage} subprocess did not have closed stdin")
-        if stage_execution.get("returncode") != 0 or stage_execution.get("timed_out") is not False:
-            raise MetaSlice2Error(f"completed manifest records unsuccessful {stage} Lean")
-
+    audit_rows = _audit_aggregate_rows(context, parsed.certificates)
+    if (config.output_root / AUDIT_STDOUT_FILENAME).read_bytes() != _jsonl_bytes(audit_rows):
+        raise MetaSlice2Error("audit aggregate differs from deterministic shard replay")
     audit_summary = verify_audit_output(
         config.output_root / AUDIT_STDOUT_FILENAME,
         certificates=parsed.certificates,
     )
+    _verify_visited_attempts(context)
     summary = dict(parsed.summary)
     summary["independent_audit"] = audit_summary
-    summary_path = config.output_root / SUMMARY_FILENAME
+    summary["execution_attempts"] = _attempt_summary(config)
     recorded_summary = _parse_json_object(
-        summary_path.read_text(encoding="utf-8"), context="yield-probe summary"
+        (config.output_root / SUMMARY_FILENAME).read_text(encoding="utf-8"),
+        context="yield-probe summary",
     )
     if recorded_summary != summary or manifest.get("summary") != summary:
         raise MetaSlice2Error("yield summary differs from independently replayed output")
+    expected_plan = _shard_plan(len(selection.names), len(parsed.certificates))
+    if manifest.get("shard_plan") != expected_plan:
+        raise MetaSlice2Error("completed manifest shard plan differs from replay")
+    if manifest.get("attempts") != _manifest_attempts(config):
+        raise MetaSlice2Error("completed manifest attempt inventory differs from replay")
     return summary
 
 
