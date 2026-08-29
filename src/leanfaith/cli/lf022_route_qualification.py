@@ -6,10 +6,6 @@ from pathlib import Path, PurePosixPath
 from typing import Literal, cast
 
 from leanfaith.config.hashing import hash_file
-from leanfaith.generation.lf022_kimi_v4_eligibility import (
-    CertifiedLF022KimiV4Route,
-    certify_lf022_kimi_v4_production_eligibility,
-)
 from leanfaith.generation.lf022_production import LF022ArtifactBinding
 from leanfaith.generation.lf022_route_qualification import (
     CertifiedLF022ProposerRoute,
@@ -57,35 +53,6 @@ def certify_proposer_route(
     )
 
 
-def certify_kimi_v4_route(
-    *,
-    repo_root: Path,
-    selection_path: Path,
-    qualification_path: Path,
-    family_matrix_path: Path,
-) -> CertifiedLF022KimiV4Route:
-    """Replay the passing 16-item challenge and create no provider request."""
-
-    return certify_lf022_kimi_v4_production_eligibility(
-        repo_root=repo_root,
-        selection_binding=_binding(
-            repo_root,
-            selection_path,
-            label="Kimi-v4 challenge selection",
-        ),
-        qualification_binding=_binding(
-            repo_root,
-            qualification_path,
-            label="Kimi-v4 qualification",
-        ),
-        family_matrix_binding=_binding(
-            repo_root,
-            family_matrix_path,
-            label="production family matrix",
-        ),
-    )
-
-
 def supersede_failed_qualification(
     *,
     repo_root: Path,
@@ -123,7 +90,6 @@ def supersede_failed_qualification(
 
 
 __all__ = [
-    "certify_kimi_v4_route",
     "certify_proposer_route",
     "supersede_failed_qualification",
 ]

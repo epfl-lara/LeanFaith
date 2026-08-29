@@ -38,7 +38,6 @@ from leanfaith.generation.lf022_public_pool import LF022PublicPoolAudit
 from leanfaith.generation.llm_variants import (
     PROPOSER_TEMPLATE_ID,
     PROPOSER_TEMPLATE_VERSION,
-    PROPOSER_TEMPLATE_VERSION_V2,
     PublicLeanVariantSource,
     VariantPromptRequest,
 )
@@ -53,10 +52,6 @@ LF022_REVIEWED_PROPOSER_PROMPT_PATH = "prompts/proposers/lean_variant_v1.txt"
 LF022_REVIEWED_PROPOSER_PROMPT_SHA256 = (
     "0f7b74aab06659e745980879cf9a13cdbcdd29927c1ddbb7ca47c6840e541f36"
 )
-LF022_REVIEWED_PROPOSER_PROMPT_V2_PATH = "prompts/proposers/lean_variant_v2.txt"
-LF022_REVIEWED_PROPOSER_PROMPT_V2_SHA256 = (
-    "f4b6792b9ed1dc4000c72e3aa552be00950f312b4418e2fa5c3d822618cf0944"
-)
 
 
 def lf022_reviewed_proposer_prompt(version: str) -> tuple[str, str]:
@@ -66,10 +61,6 @@ def lf022_reviewed_proposer_prompt(version: str) -> tuple[str, str]:
         PROPOSER_TEMPLATE_VERSION: (
             LF022_REVIEWED_PROPOSER_PROMPT_PATH,
             LF022_REVIEWED_PROPOSER_PROMPT_SHA256,
-        ),
-        PROPOSER_TEMPLATE_VERSION_V2: (
-            LF022_REVIEWED_PROPOSER_PROMPT_V2_PATH,
-            LF022_REVIEWED_PROPOSER_PROMPT_V2_SHA256,
         ),
     }
     try:
@@ -171,7 +162,6 @@ class LF022RCPDecodingContract(StrictModel):
     schema_version: Literal[1] = 1
     contract_id: Literal[
         "kimi_k2_7_public_smoke_v3",
-        "kimi_k2_7_public_proposer_v4",
         "qwen3_5_proposer_qualification_v1",
         "qwen3_5_proposer_qualification_v2",
         "glm5_2_proposer_qualification_v1",
@@ -204,22 +194,6 @@ class LF022RCPDecodingContract(StrictModel):
                 "presence_penalty": None,
                 "repetition_penalty": None,
                 "max_tokens": 16384,
-                "seed": 42,
-                "stream": False,
-                "thinking_mode": "forced_thinking",
-                "reasoning_effort": "high",
-                "chat_template_enable_thinking": True,
-                "chat_template_thinking": None,
-                "thinking_fields_forbidden": False,
-            },
-            "kimi_k2_7_public_proposer_v4": {
-                "temperature": 1.0,
-                "top_p": 0.95,
-                "top_k": None,
-                "min_p": None,
-                "presence_penalty": None,
-                "repetition_penalty": None,
-                "max_tokens": 32768,
                 "seed": 42,
                 "stream": False,
                 "thinking_mode": "forced_thinking",
@@ -383,10 +357,7 @@ class LF022RCPRouteBinding(StrictModel):
             "moonshotai/Kimi-K2.7-Code": (
                 "moonshot_kimi_k2",
                 "moonshotai/kimi-k2",
-                (
-                    "kimi_k2_7_public_smoke_v3",
-                    "kimi_k2_7_public_proposer_v4",
-                ),
+                ("kimi_k2_7_public_smoke_v3",),
                 ("public_provisional_g_open",),
             ),
             "Qwen/Qwen3.5-397B-A17B": (
@@ -587,12 +558,7 @@ class LF022GOpenExecutionAdmission(StrictModel):
 
     @model_validator(mode="after")
     def _content_addressed(self) -> Self:
-        expected_prompt_version = (
-            PROPOSER_TEMPLATE_VERSION_V2
-            if self.route.decoding.contract_id == "kimi_k2_7_public_proposer_v4"
-            else PROPOSER_TEMPLATE_VERSION
-        )
-        if self.prompt_template_version != expected_prompt_version:
+        if self.prompt_template_version != PROPOSER_TEMPLATE_VERSION:
             raise ValueError("prompt version differs from the reviewed decoding contract")
         if self.retry_policy_hash != self.retry_policy.policy_hash:
             raise ValueError("retry_policy_hash does not match retry_policy")
@@ -603,7 +569,6 @@ class LF022GOpenExecutionAdmission(StrictModel):
             self.route.execution_scope == "public_provisional_g_open"
             and self.route.decoding.contract_id
             in {
-                "kimi_k2_7_public_proposer_v4",
                 "qwen3_5_proposer_qualification_v2",
                 "glm5_2_proposer_qualification_v2",
                 "deepseek_v4_proposer_qualification_v1",
@@ -673,11 +638,7 @@ def make_lf022_g_open_execution_admission(
         "retry_policy_hash": retry_policy.policy_hash,
         "code_tree_hash": code_tree_hash,
         "prompt_template_id": PROPOSER_TEMPLATE_ID,
-        "prompt_template_version": (
-            PROPOSER_TEMPLATE_VERSION_V2
-            if route.decoding.contract_id == "kimi_k2_7_public_proposer_v4"
-            else PROPOSER_TEMPLATE_VERSION
-        ),
+        "prompt_template_version": PROPOSER_TEMPLATE_VERSION,
         "distribution": "G_open",
         "public_sources_only": True,
         "private_source_content_forbidden": True,
@@ -1088,48 +1049,6 @@ def _verify_reviewed_route_contract(
     if route.proposer_family_id == "moonshot_kimi_k2":
         if route.execution_scope != "public_provisional_g_open":
             raise LF022ExecutionError("Kimi route must use the reviewed production scope")
-        if route.decoding.contract_id == "kimi_k2_7_public_proposer_v4":
-            required_contract = "configs/generation/lf022_kimi_k2_7_proposer_v4.yaml"
-            if contract_path.as_posix().split("/")[
-                -len(PurePosixPath(required_contract).parts) :
-            ] != list(PurePosixPath(required_contract).parts):
-                raise LF022ExecutionError(
-                    "Kimi-v4 route does not bind its canonical challenge contract"
-                )
-            from leanfaith.generation.lf022_kimi_v4_selection import (
-                LF022KimiV4ChallengeContract,
-            )
-
-            try:
-                mapping = dict(load_yaml_mapping(contract_path))
-                contract_decoding = dict(cast(dict[str, object], mapping["decoding"]))
-                contract_decoding.update(
-                    schema_version=1,
-                    contract_id=mapping["contract_id"],
-                )
-                mapping["decoding"] = contract_decoding
-                contract = LF022KimiV4ChallengeContract.model_validate(mapping)
-            except (KeyError, TypeError, ValueError) as exc:
-                raise LF022ExecutionError(f"invalid Kimi-v4 route contract: {exc}") from exc
-            if (
-                contract.model_id != route.model_id
-                or contract.family_id != route.proposer_family_id
-                or contract.canonical_family != route.canonical_family
-                or contract.provider != route.provider_id
-                or contract.execution_scope != route.execution_scope
-                or contract.decoding != route.decoding
-                or contract.prompt.artifact != LF022_REVIEWED_PROPOSER_PROMPT_V2_PATH
-                or contract.prompt.sha256 != LF022_REVIEWED_PROPOSER_PROMPT_V2_SHA256
-                or evidence.verified_success.proposer != route.model_id
-                or evidence.verified_success.config_file
-                != "configs/generation/lf022_rcp_public_smoke_v3.yaml"
-                or evidence.verified_success.config_file_sha256
-                != hash_file(repo_root / "configs/generation/lf022_rcp_public_smoke_v3.yaml")
-            ):
-                raise LF022ExecutionError(
-                    "Kimi-v4 route differs from its reviewed challenge and prior transport evidence"
-                )
-            return
         reviewed = _reviewed_route_payload(path=contract_path, route=route)
         expected = route.decoding.model_dump(mode="json")
         for field in (
@@ -1707,8 +1626,6 @@ def verify_lf022_execution_admission(
         "glm5": "glm5_2_proposer_qualification_v2",
         "deepseek_v4": "deepseek_v4_proposer_qualification_v1",
     }.get(route.proposer_family_id)
-    if route.decoding.contract_id == "kimi_k2_7_public_proposer_v4":
-        expected_qualified_production_contract = "kimi_k2_7_public_proposer_v4"
     if (
         expected_qualified_production_contract is not None
         and route.execution_scope == "public_provisional_g_open"
@@ -1783,44 +1700,7 @@ def verify_lf022_execution_admission(
             raise LF022ExecutionError(
                 "qualification supersession belongs to a different recovery route"
             )
-    if route.proposer_family_id == "moonshot_kimi_k2" and (
-        route.execution_scope == "public_provisional_g_open"
-        and route.decoding.contract_id == "kimi_k2_7_public_proposer_v4"
-    ):
-        from leanfaith.generation.lf022_kimi_v4_eligibility import (
-            LF022KimiV4EligibilityError,
-            verify_lf022_kimi_v4_production_eligibility,
-        )
-
-        eligibility_binding = admission.artifacts.proposer_production_eligibility
-        assert eligibility_binding is not None
-        try:
-            kimi_eligibility = verify_lf022_kimi_v4_production_eligibility(
-                repo_root=repo_root,
-                eligibility_binding=eligibility_binding,
-            )
-        except LF022KimiV4EligibilityError as exc:
-            raise LF022ExecutionError(f"Kimi-v4 production eligibility rejected: {exc}") from exc
-        if (
-            kimi_eligibility.proposer_family_id != route.proposer_family_id
-            or kimi_eligibility.model_id != route.model_id
-            or kimi_eligibility.deployment_id != route.deployment_id
-            or kimi_eligibility.canonical_family != route.canonical_family
-            or kimi_eligibility.provider_id != route.provider_id
-            or kimi_eligibility.catalog_snapshot_id != route.catalog_snapshot_id
-            or kimi_eligibility.route_snapshot_revision != route.route_snapshot_revision
-            or kimi_eligibility.decoding_contract_id != route.decoding.contract_id
-            or kimi_eligibility.decoding_contract_hash
-            != hash_canonical(route.decoding.model_dump(mode="json"))
-            or kimi_eligibility.v4_contract != admission.artifacts.reviewed_route_contract
-            or kimi_eligibility.v4_prompt != admission.artifacts.prompt_template
-            or kimi_eligibility.family_matrix != plan.artifacts.family_matrix
-            or kimi_eligibility.family_matrix_id != family_matrix.matrix_id
-        ):
-            raise LF022ExecutionError(
-                "Kimi-v4 production eligibility belongs to a different route or matrix"
-            )
-    elif (
+    if (
         route.proposer_family_id in {"qwen3", "glm5", "deepseek_v4"}
         and route.execution_scope == "public_provisional_g_open"
     ):
@@ -2126,8 +2006,6 @@ __all__ = [
     "LF022_CANONICAL_EXECUTOR_OUTPUT_ROOT",
     "LF022_REVIEWED_PROPOSER_PROMPT_PATH",
     "LF022_REVIEWED_PROPOSER_PROMPT_SHA256",
-    "LF022_REVIEWED_PROPOSER_PROMPT_V2_PATH",
-    "LF022_REVIEWED_PROPOSER_PROMPT_V2_SHA256",
     "LF022ExecutionArtifacts",
     "LF022ExecutionError",
     "LF022GOpenExecutionAdmission",

@@ -1374,41 +1374,6 @@ def test_unreviewed_vl_route_is_rejected() -> None:
         )
 
 
-def test_kimi_v4_contract_requires_replay_verified_eligibility(tmp_path: Path) -> None:
-    historical, _ = _fixture(tmp_path)
-    decoding = LF022RCPDecodingContract(
-        contract_id="kimi_k2_7_public_proposer_v4",
-        temperature=1.0,
-        top_p=0.95,
-        max_tokens=32_768,
-        seed=42,
-        thinking_mode="forced_thinking",
-        reasoning_effort="high",
-        chat_template_enable_thinking=True,
-    )
-    route = LF022RCPRouteBinding(
-        provider_id="epfl_rcp",
-        model_id="moonshotai/Kimi-K2.7-Code",
-        deployment_id="moonshotai/Kimi-K2.7-Code",
-        proposer_family_id="moonshot_kimi_k2",
-        canonical_family="moonshotai/kimi-k2",
-        catalog_snapshot_id=historical.route.catalog_snapshot_id,
-        route_snapshot_revision=historical.route.route_snapshot_revision,
-        underlying_checkpoint_revision_status="provider_not_disclosed",
-        execution_scope="public_provisional_g_open",
-        decoding=decoding,
-    )
-    with pytest.raises(ValueError, match="qualified production scope requires"):
-        make_lf022_g_open_execution_admission(
-            public_pool_audit_id=historical.public_pool_audit_id,
-            allocation_plan_id=historical.allocation_plan_id,
-            artifacts=historical.artifacts,
-            route=route,
-            retry_policy=historical.retry_policy,
-            code_tree_hash=historical.code_tree_hash,
-        )
-
-
 @pytest.mark.parametrize(
     "model_id",
     (
