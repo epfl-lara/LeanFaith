@@ -223,6 +223,76 @@ rows above.
 | statement↔proof-CPT best checkpoint | `d034937ccd981fe487b18c48060c33517050632648835cb41bad8e4ab1754880` |
 | tmux log | `41ebf7f6f29a590144ba4d1e80fed2db804b5a8a0121a04d4a4103a8d62313d2` |
 
+## Meta-engine slice 2
+
+Meta-engine slice 2 is complete in `LeanFaith/Meta/TransformEngine.lean`, with the resumable
+production runner in `leanfaith.corpus2.meta_slice2`. The production root is
+`/storage/milikic/leanfaith/meta_engine_slice2_6ace45e/`, bound to implementation commit
+`6ace45ec78b064ec952a5528d3dc72bb26a0038c`, mathlib revision
+`d568c8c09630de097a046763c17b9ea99f95f950`, runner SHA-256
+`4e8d87706902255d07d308634add5eeb32b55e0b1ff74748d984ac443561f2c7`, and engine SHA-256
+`33a9b8449c6ea16f3b7b106c5e0487e9508b3b4bac8b5fd9937aa86051c82e67`.
+The frozen selector chose exactly 500 unique public mathlib declarations from the 27,786-row
+representation store (SHA-256
+`7f1a157bfb818b49d082dcc58de221bdddb67f6e8309554395baeb29850838d7`); the ordered-name SHA-256 is
+`1230b5bab24c2a55a4d3991f838aca8dab35adb75577c7eddd34d17b2f86f76c`.
+No private source was used or externally transmitted, and `final_test` remained sealed.
+
+The engine now traverses nested proposition subexpressions with stable paths, emits P20 exact
+delta-unfold candidates with independently reconstructed inverse-fold certificates, performs
+exact single-step P21 beta/zeta rewrites, and applies nested P23/P24 schema rewrites. Candidate
+records bind exact SHA-256 hashes of source and candidate pretty text. The batch runner uses
+immutable per-attempt artifacts, process-group cleanup, deterministic midpoint replay, and a
+size-scaled timeout policy: primary attempts use 30 seconds/name with a 180-second floor; audit
+attempts use 5 seconds/certificate with a 120-second floor; both have a 900-second ceiling.
+
+The 7 h 18 m production run accounted for all 500 declarations: **393 complete**, **93
+fail-closed `sourceTextRejected`** because their pretty source text did not roundtrip to the same
+typed expression, and **14 explicit `externalTimeout`** terminals at the 180-second singleton
+limit. No Lean `error`, `notProp`, or `notfound` terminal occurred. The 393 yielding declarations
+produced **16,138 accepted candidates**, with 15,350 (95.1%) at nested sites:
+
+| family | accepted candidates | operation detail |
+|---|---:|---|
+| P20 | 7,813 | exact unfold; inverse fold independently certified |
+| P21 | 8,078 | 4,039 beta-introduce + 4,039 zeta-introduce |
+| P23 | 102 | 93 curry + 9 uncurry |
+| P24 | 145 | adjacent binder swap |
+
+Observed P20 yield is unfold-only: fold is the independently verified inverse certificate, not
+a global fold-search output. Observed P21 yield is introduce-only; no beta/zeta-eliminate
+candidate survived on this sample. These yields are lower bounds because 93 declarations closed
+before transformation and 14 reached the singleton timeout.
+
+The engine discovered 75,920 raw candidates. Validation rejected 55,689 and deterministic
+deduplication rejected 4,093; the remaining 16,138 were all independently reconstructed from
+their declaration, family, operation, and site certificate. The audit verified
+**16,138/16,138 (100%)**, with zero audit timeout, failure, or waiver. The run contains 307
+immutable attempts: primary 71 accepted + 60 timeout/bisect + 14 timeout/terminal, and audit 162
+accepted; all 307 process journals end with `group_gone=true` and none was abandoned. The
+standalone verifier replayed selection, both attempt trees, byte-exact aggregates, all hashes,
+and complete audit coverage successfully.
+
+| artifact | SHA-256 |
+|---|---|
+| production manifest | `9e2425f17a44fa2005d2856c290b2f551a19e46c8a10bf0ae9888875ab311fe0` |
+| summary | `497e5a17a7f8875ed2241aef4d4a26a84992073c07626766a458d61a93908093` |
+| selected declaration names | `1230b5bab24c2a55a4d3991f838aca8dab35adb75577c7eddd34d17b2f86f76c` |
+| primary aggregate | `61acf7436e03025a173249360915833dcbba7527d1b2504e10235445922a59f8` |
+| independent-audit aggregate | `ae77075722c1942e018a0402b8e8700d0d86e6ee6484dd35168cec81e92e6957` |
+| tmux log | `14e86d0a3f7be52d793c89f6150bb278a0ee8a57f39566c1ab42d8c7057f0b5c` |
+
+Failed development runs remain untouched for provenance. The first run at
+`/storage/milikic/leanfaith/meta_engine_slice2_85cddb2/` exposed cumulative Lean heartbeats; the
+monolithic v2 run at `meta_engine_slice2_717f057/` hit its exact 7,200-second outer timeout; and
+the fixed-timeout resumable v3 run at `meta_engine_slice2_f444709/` was cleanly interrupted after
+showing that a 900-second timeout at every bisection level wastes an hour per pathological
+declaration (failure-manifest SHA-256
+`ecf49ac54b74049b3eea5957ab938ced6ba398d7b594ccb184a7b37c34f3c5c0`). The v3 process journal
+proves its interrupted group was removed; the earlier roots predate per-attempt journals, and a
+current process scan is clean. No failed-run partial stdout was admitted to the production
+aggregate.
+
 ## Assets produced today (all on `main` unless noted)
 
 - Golden partition frozen: 910 expert `final_test` (sealed) / 821 dev / 819 golden_train
@@ -242,6 +312,10 @@ rows above.
   (10/10), lemex conditional (8/10), claude blocked on CLI login.
 - Typed Lean Meta transform engine first slice (`LeanFaith/Meta/TransformEngine.lean`):
   P24+P23 over typed Expr, 9/9 re-elaborating candidates on real mathlib theorems.
+- Typed Lean Meta transform engine slice 2 COMPLETE: nested sites, P20/P21, exact type-text
+  hashes, resumable batch execution, and independent reconstruction audit. The exact public
+  500-name probe emitted 16,138 candidates and audited 16,138/16,138 at
+  `/storage/milikic/leanfaith/meta_engine_slice2_6ace45e/`.
 - D-0 recovery COMPLETE: Qwen 6,391 Lean-valid / 2,444 invalid; Kimi 6,982 / 2,056;
   0 infrastructure errors (root cause of the old crash: 10GB RLIMIT_AS broke Lean
   thread creation, not the olean). 13,373 unique Lean-valid pairs across proposers,
@@ -265,6 +339,7 @@ rows above.
 
 ## Next
 
-1. Meta-engine second slice: nested sites, P20/P21, type hashes, batch driver, and yield probe.
+1. P4 prune: retire the superseded `lf022` inventory modules and now-deletable `local_hf` path
+   under the reviewed replacement constraints in `PLAN.md`.
 2. Fill the four S1v1 golden-dev rows only after a trusted, hash-bound dev-only text export exists;
    do not open the mixed canonical artifact to obtain it.

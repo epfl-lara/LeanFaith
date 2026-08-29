@@ -21,7 +21,7 @@
 >   negative families demoted to silver until separator/witness-upgraded, and compute expanded to
 >   the RunAI cluster (A100/H100/H200).
 
-## Execution status ledger (2026-08-28, end of day 1 — read this before starting work)
+## Execution status ledger (2026-08-29, Queues 1–6 complete — read this before starting work)
 
 Full numbers: `reports/eval/refocus_day1_summary.md`. Everything below is on `main`.
 
@@ -50,6 +50,14 @@ Full numbers: `reports/eval/refocus_day1_summary.md`. Everything below is on `ma
 - **Meta engine slice 1**: `LeanFaith/Meta/TransformEngine.lean` (P24+P23 over typed Expr,
   `lfTransform "decl.name"` JSON driver; compile: `cd /storage/milikic/leanfaith/mathlib4 &&
   lake env lean <abs-path>`).
+- **META ENGINE SLICE 2 COMPLETE**: nested stable `SubExpr.Pos` sites; P20 exact delta-unfold
+  candidates with independently checked inverse-fold certificates; P21 exact beta/zeta steps;
+  nested P23/P24; SHA-256 source/candidate pretty-text bindings; file-backed batch driver; and
+  independent site-reconstruction audit. The exact public 500-name probe produced **16,138
+  candidates** (P20 7,813 / P21 8,078 / P23 102 / P24 145), including 15,350 nested candidates.
+  Terminal coverage is 393 complete / 93 fail-closed source-text roundtrip rejections / 14
+  explicit runner timeouts; audit verified 16,138/16,138. Frozen root:
+  `/storage/milikic/leanfaith/meta_engine_slice2_6ace45e/`.
 - **D-0 COMPLETE**: Qwen 6,391 Lean-valid / 2,444 invalid; Kimi 6,982 / 2,056; 0 infra errors.
   **13,373 unique Lean-valid model-generated pairs** await judging. Roots + frozen counts:
   `/storage/milikic/leanfaith/lf022_recovery_trackD0_20260828/` and `lf022_lean_checks/
@@ -80,18 +88,18 @@ Full numbers: `reports/eval/refocus_day1_summary.md`. Everything below is on `ma
   loaded before filtering; the manifest records that it was not opened. Frozen root:
   `/storage/milikic/leanfaith/s1_v1_7e6ef0d/`.
 
-**NEXT QUEUE (in order):** (1) Meta-engine slice 2 (nested sites, P20/P21, content-hash
-certificates, independent audit path); (2) P4 prune. Track T-B backbone-pilot Stage A remains a
-separate concurrent cluster track and does not block this queue. Fill the S1v1 golden-dev rows
-only after a trusted, hash-bound dev-only pair-text export exists; never open the mixed canonical
-artifact to obtain it.
+**NEXT QUEUE:** P4 prune. Track T-B backbone-pilot Stage A remains a separate concurrent cluster
+track and does not block this queue. Fill the S1v1 golden-dev rows only after a trusted,
+hash-bound dev-only pair-text export exists; never open the mixed canonical artifact to obtain it.
 
 **OPERATIONAL GOTCHAS (hard-won):** background `codex exec`/`lemex exec` MUST get `</dev/null`
 or they hang forever reading stdin; never plain `uv sync` (prunes torch — use
 `uv sync --group dev --group local-inference`); Lean checks need
 `--memory-hard-limit-mb 24576` (10GB RLIMIT_AS breaks Lean thread creation); agents switching
-the shared tree's branch — no git commits while a prune agent runs; `final_test` evaluation
-requires `--unseal-final-test` and is forbidden until the frozen comparison set exists.
+the shared tree's branch — no git commits while a prune agent runs; Meta yield probes must use
+the size-scaled attempt policy (fixed 900-second recursive attempts wasted an hour isolating one
+declaration); `final_test` evaluation requires `--unseal-final-test` and is forbidden until the
+frozen comparison set exists.
 
 ## Context (why this refocus)
 
