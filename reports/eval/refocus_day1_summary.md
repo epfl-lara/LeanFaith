@@ -2,7 +2,8 @@
 
 All reported selection and scoring is golden-**dev** only; no `final_test` row was selected or
 scored. Literal container-access provenance is qualified by the erratum below.
-Headline subset = expert-labeled, non-conflicted dev pairs (n=228, prevalence 0.689).
+Headline subset = expert-labeled, non-conflicted dev pairs with at least one non-ProofNetVerif
+membership (n=228, prevalence 0.689).
 Eval runs: `/storage/milikic/leanfaith/golden/eval_runs/`.
 
 > **Literal-seal provenance erratum (2026-08-29):** the four strict dev runs predate the refocus
@@ -16,7 +17,30 @@ Eval runs: `/storage/milikic/leanfaith/golden/eval_runs/`.
 > `/storage/milikic/leanfaith/compliance_errata/literal_final_test_seal_2026_08_29_v1.json`
 > (SHA-256 `f612f929b2954a69053b446f4d4cd2f6935786dba7cba27eeda55038d759dd88`).
 > Current consumers fail closed on the mixed path/hash and require a complete, hash-bound,
-> split-only export; none existed at audit time.
+> split-only export. None existed at audit time; follow-up commit `f8d7069` added the sanctioned
+> exporter and used its dev-only output to score S1v1 without opening the mixed container.
+
+## Current benchmark and training scope
+
+- The official frozen benchmark is Golden Partition v1: 5,111 canonical pairs from 5,497 raw
+  memberships — EPLA/ASSESS 1,247, BEq Human Equivalence 200, GTED 298, and ProofNetVerif 3,752.
+  Frozen splits are dev 821, `final_test` 910, golden_train 819, and quarantine 2,561. Current
+  model comparisons are the dev proxy described above, not a held-out final estimate;
+  `final_test` remains sealed and unscored. All BEq groups are in `final_test`, while PNV-only
+  records are excluded from the headline.
+- S1v1 names a two-arm experiment, not one checkpoint: ModernBERT-base initialized from either
+  chunks-CPT or statement↔proof-CPT, then trained with the same corpus-v1 recipe. Corpus v1 has
+  23,414 pairs (18,760 train / 2,166 validation / 2,488 corpus test; 5,050 same / 18,364
+  different). It contains 13,829 private-derived rows, including 11,115 training rows, so S1v1
+  is not the required public-only headline checkpoint. Public Numina statement↔proof data occurs
+  only in the mixed CPT arm, not as S1v1 supervised pair rows. The chunks-CPT source contains
+  467,207 screened public Lean training-stream rows + 2,346 validation rows; the mixed CPT source
+  contains 464,871 Lean chunks + 32,860 statement↔proof rows + 32,580 signature views, plus a
+  separate 2,664-row validation slice.
+- Integrated benchmark sources are EPLA, BEq, GTED, and ProofNetVerif. ACE remains planned for a
+  later corpus after certificate replay; Lean Workbook has only the 30-output autoformalizer
+  pilot and is absent from corpus v1. The broader legacy benchmark registry is not the current
+  benchmark definition and has not been integrated into this golden evaluation.
 
 ## First real numbers (strict zero-shot track, threshold 0.5)
 
@@ -49,25 +73,22 @@ monotone temperature transform.
 | S1v0 chunks-CPT encoder | gold-calibrated | **0.684** | [0.610, 0.752] | 0.645 | 0.692 | 0.849 | 0.711 | 0.190 | 0.694 | 1000† | 0.498034 |
 | S1v0 statement↔proof-CPT encoder | strict | 0.538 | [0.513, 0.562] | 0.368 | 0.163 | 0.788 | 0.583 | 0.628 | 4.027 | — | 0.500000 |
 | S1v0 statement↔proof-CPT encoder | gold-calibrated | **0.614** | [0.562, 0.665] | 0.500 | 0.462 | 0.788 | 0.583 | 0.190 | 0.694 | 1000† | 0.498653 |
-| S1v1 chunks-CPT encoder (corpus v1) | strict | 0.576 | [0.544, 0.611] | 0.421 | — | 0.828 | 0.650 | 0.578 | — | — | 0.500000 |
-| S1v1 chunks-CPT encoder (corpus v1) | gold-calibrated | 0.659 | [0.596, 0.718] | 0.610 | 0.651 | 0.828 | 0.650 | ≈0.19 | — | 1000† | fitted |
-| S1v1 statement↔proof-CPT encoder (corpus v1) | strict | 0.566 | [0.535, 0.605] | 0.408 | — | 0.823 | 0.666 | 0.575 | — | — | 0.500000 |
-| S1v1 statement↔proof-CPT encoder (corpus v1) | gold-calibrated | **0.669** | [0.604, 0.737] | **0.693** | **0.767** | 0.823 | 0.666 | ≈0.19 | — | 1000† | fitted |
+| S1v1 chunks-CPT encoder (corpus v1) | strict | 0.576 | [0.544, 0.611] | 0.421 | 0.283 | 0.828 | 0.650 | 0.578 | 3.755 | — | 0.500000 |
+| S1v1 chunks-CPT encoder (corpus v1) | gold-calibrated | 0.659 | [0.596, 0.718] | 0.610 | 0.651 | 0.828 | 0.650 | 0.190 | 0.694 | 1000† | 0.498336 |
+| S1v1 statement↔proof-CPT encoder (corpus v1) | strict | 0.566 | [0.535, 0.605] | 0.408 | 0.254 | 0.823 | 0.666 | 0.575 | 3.039 | — | 0.500000 |
+| S1v1 statement↔proof-CPT encoder (corpus v1) | gold-calibrated | **0.669** | [0.604, 0.737] | **0.693** | **0.767** | 0.823 | 0.666 | 0.190 | 0.694 | 1000† | 0.498414 |
 
-† All four NLL fits reached the configured positive-temperature upper bound (`T=1000`, inverse
+† All six NLL fits reached the configured positive-temperature upper bound (`T=1000`, inverse
 temperature `0.001`). Under the required temperature-only model, the NLL optimum is toward zero
 logit scale: probabilities move close to 0.5 while the fitted threshold preserves ranking. This
 exposes a large intercept/prevalence mismatch that a single temperature cannot remove; the
 remaining ECE ≈0.19 should not be described as well calibrated.
 
 ‡ RESOLVED 2026-08-29: `leanfaith-eval export-golden-splits` (the sanctioned one-time reader
-inside the freeze machinery) now emits complete hash-bound split-only files
-(`/storage/milikic/leanfaith/golden/canonical/splits_v1/`); the S1v1 rows above were scored
-through the hardened split-only evaluate path. Original note: The
-only available pair-text artifact mixes `dev` with sealed `final_test`, and the current evaluator
-opens that mixed file before partition filtering. No trusted hash-bound dev-only text export was
-available, so the mixed artifact was not opened and neither strict nor calibrated scoring was
-attempted.
+inside the freeze machinery) emitted complete hash-bound split-only files at
+`/storage/milikic/leanfaith/golden/canonical/splits_v1/`; the S1v1 rows above were scored through
+the hardened split-only evaluate path. The original Queue-5 manifest remains immutable and
+correctly records that scoring was blocked before this exporter existed.
 
 Artifacts are under `/storage/milikic/leanfaith/golden/eval_runs/`:
 
@@ -77,6 +98,8 @@ Artifacts are under `/storage/milikic/leanfaith/golden/eval_runs/`:
 | `dev_s1v0_stock_a55db24b754a_gold_calibrated` | `a5a70a072b401d6c9a8491ace87873fe3e06100562402b053343bd2b2a1102bc` | `878f6858368e87dddebf474604548e85592ed98fe69efac09aeb5fa926100135` | `944fa6cf619f624e0e3a0051f380adb66f792987cc911d4cb2dfbb7455172a85` | `d34caa9ec5e379c4f2b82c6e537f6442d24597b5c1a3fa2178c033d002c3dcce` |
 | `dev_s1v0_cpt_chunks_3cb6b43950ae_gold_calibrated` | `f173483f9766b4d6e086265f4324d0d8c23e6b8f661368f3992df4af5f274cdc` | `a8125116a1da21e3f28cb52d27d5c63aa852261e7e26249c4684ed11b36dc1fa` | `1e6fa996bea80338a47970b264590cfe3255d4febfdf21b23e1a2b881d84a184` | `567ff3de4efe59edce0064cece1366e8935d82e569e32a63bf05784a5fefb190` |
 | `dev_s1v0_cpt_mixed_f6de1e96a6f0_gold_calibrated` | `e807c55271d30a99da3d37d0b8e031d2de897af5d261fff893504f312f2e635b` | `4821ca28e4df75cd5aaf6871f3c6ca56b63e0bd02a147d026bba728f9c36d405` | `dd0281c191b80e52cf4c7f612d87396c65269d05096da4a590d0a61e5e8e8569` | `3ac32836da903e072253b8737e2f6002a09b276142e75a6608a486ff82f71e1c` |
+| `dev_s1v1_cpt_chunks_41a3afae202e_gold_calibrated` | `faa24d054d9661516ae794a2011f3b33a71d39a0254315e5ac58e4fc6762525d` | `11be20e0ba9290908db0c64e0c96b7001cb72e89fd76c847a67a765e3fd7fb6d` | `7d471109abd73219c3db5c0e8bc2ecfea0ef6cc6c89677c0221f9875eb7e909b` | `b55e8ae8262c1c2d7402b95ebedb6de7ceb19e1c5714b0741cd743b0709b9420` |
+| `dev_s1v1_cpt_mixed_d034937ccd98_gold_calibrated` | `0e3f55dcb2669482fb47fa7d928e1c6691a4567ba38621d7d126225cdec30249` | `4a932382d589c7c817194c766f70e8d71aa6d2743a783ca652c5b217bdf98783` | `4e76d93dca3f9ac42b39444bf47140e2af613a59817ab5ea3e6ef71e4f9c2aad` | `6684dd0473ff0d1b8405a1752b5f3c0da74aa635d226038531c8b5f4d9934f2c` |
 
 ## Findings
 
@@ -96,10 +119,12 @@ Artifacts are under `/storage/milikic/leanfaith/golden/eval_runs/`:
    accuracy 0.693 of any model — first to reach the majority baseline), flipping the v0
    ordering exactly as the signature-CPT hypothesis predicted once training data carries real
    statement-level structure. All CIs overlap on n=228 — treat ordering as directional.
-   Next levers: positive mining (D-3 preserve-direction at scale, Meta-engine P-SCHEMA
-   candidates — 16,138 already audited), and a prevalence/bias-corrected head (every
-   temperature fit hits the boundary). NOTE: corpus v1 contains private-derived rows —
-   headline checkpoint still requires a public-only corpus variant per PLAN data-scope policy.
+   Next levers: the 16,138 already-audited Meta-engine positives and a prevalence/bias-corrected
+   head (every temperature fit hits the boundary). All 146 current D-3 rows are already in corpus
+   v1, so they must be retained rather than re-imported; further D-3 scale is a later generation
+   decision, not part of the immediate repair build. NOTE: corpus v1 contains private-derived
+   rows — the headline checkpoint still requires a public-only corpus variant per PLAN
+   data-scope policy.
 3. **Threshold transfer, not ranking, caused most S1v0 damage.** Dev-fit thresholds lift
    balanced accuracy to 0.612–0.684, led by chunks-CPT. But every temperature fit runs to
    the `T=1000` boundary and leaves ECE near 0.19: one scalar temperature cannot correct
@@ -138,8 +163,8 @@ revision `d568c8c09630de097a046763c17b9ea99f95f950`, the frozen golden-train few
 and hashed input/output artifacts. Its six prompts contained only selected `golden_train`
 examples and no private source was sent. However, the local loader decoded the mixed canonical
 container before filtering, so the run is not literal no-read compliant; see the erratum above.
-The next queue item needs no D-3 regeneration: it can judge the 13,373 recovered Qwen/Kimi pairs;
-corpus v1 later consumes this run's `trainer_records.jsonl` directly.
+No D-3 regeneration was required for corpus v1: the completed recovered-pair judge processed the
+13,373 Qwen/Kimi pairs, and corpus v1 consumed this run's `trainer_records.jsonl` directly.
 
 ## Recovered Qwen/Kimi single-pass judge
 
@@ -228,22 +253,27 @@ recorded an idle `nvidia-smi` preflight (1 MiB used, 0% utilization, no compute 
 ran the chunks-CPT arm followed by the statement↔proof-CPT arm. Both completed on attempt 1 in
 about 12 minutes total, with 1,174 optimizer steps and 117 warmup steps each.
 
-These are corpus-v1 **local validation** results, not golden-dev results:
+These corpus-v1 **local validation** results describe checkpoint selection; the separate
+golden-dev follow-up below describes transfer:
 
 | arm | best epoch | validation bal-acc | validation AUPRC | validation acc | validation loss | swap disagreement | wall time |
 |---|---:|---:|---:|---:|---:|---:|---:|
 | chunks-CPT | 2 | **0.9832** | **0.9913** | 0.9898 | 0.04085 | 0.00377 | 359.6 s |
 | statement↔proof-CPT | 2 | 0.9811 | 0.9885 | **0.9903** | 0.04257 | 0.00471 | 364.4 s |
 
-Golden-dev strict and calibrated evaluation is **blocked by the literal seal, not by a model or
-trainer failure**. Scoring requires pair text, but the only available canonical text artifact
-mixes `dev` and sealed `final_test`, and the evaluator loads the whole artifact before filtering.
-The run manifest records reason code
-`literal_seal_missing_trusted_dev_only_text_artifact`, `evaluation_attempted=false`, and
-`mixed_canonical_file_opened=false`. Consequently there is no valid basis yet to claim either
-checkpoint beats the prior golden-dev thresholds of 0.593 balanced accuracy or 0.849 AUPRC. A
-trusted, hash-bound 821-pair dev-only export is the required input to fill the four blank table
-rows above.
+At the time the training queue closed, golden-dev evaluation correctly failed closed: the only
+pair-text artifact mixed `dev` with sealed `final_test`. The immutable queue manifest therefore
+records reason code `literal_seal_missing_trusted_dev_only_text_artifact`,
+`evaluation_attempted=false`, and `mixed_canonical_file_opened=false`.
+
+Follow-up commit `f8d7069` resolved that operational blocker without weakening the seal. The
+sanctioned freeze exporter emitted complete hash-bound files for all four partitions, and the
+hardened evaluator consumed only the 821-pair dev export. On the 228-pair expert headline subset,
+chunks-CPT scored strict/calibrated balanced accuracy 0.576/0.659 with AUPRC 0.828;
+statement↔proof-CPT scored 0.566/0.669 with AUPRC 0.823. The mixed arm leads S1v1 calibrated
+balanced accuracy/F1, while chunks leads ranking AUPRC. Neither beats the prior S1v0 chunks-CPT
+marks of 0.684 calibrated balanced accuracy or 0.849 AUPRC, and all CIs overlap; this is a
+directional dev result, not a final held-out claim.
 
 | artifact | SHA-256 |
 |---|---|
@@ -254,6 +284,13 @@ rows above.
 | statement↔proof-CPT trainer manifest | `66544e5f6796261573d06c6ada59c21a030acee96235cd3c50e7a493c6103e14` |
 | statement↔proof-CPT best checkpoint | `d034937ccd981fe487b18c48060c33517050632648835cb41bad8e4ab1754880` |
 | tmux log | `41ebf7f6f29a590144ba4d1e80fed2db804b5a8a0121a04d4a4103a8d62313d2` |
+| sanctioned dev split | `7687baf621178621ab4b62525b17841e88a38a8db7c73da9841e357028ba9d37` |
+| dev split manifest | `036aeaa4c6143b1ea41b88532e7b02a1ef05693147a662f4e936ca460ac6bec4` |
+| split-export run manifest | `264106774074060f7a60054e601dcec288d88aad5834fd8aed50adb736283f19` |
+| chunks-CPT strict metrics | `83c4d79c38a16cc3557e2834144c9c7b89456fa9f4673bf89b51879966f62a95` |
+| chunks-CPT calibrated metrics | `7d471109abd73219c3db5c0e8bc2ecfea0ef6cc6c89677c0221f9875eb7e909b` |
+| statement↔proof-CPT strict metrics | `533baf2f96c455bbcad8260d83c5b6355bf1899b0e50ee0aadcc6973b7ff02a1` |
+| statement↔proof-CPT calibrated metrics | `4e76d93dca3f9ac42b39444bf47140e2af613a59817ab5ea3e6ef71e4f9c2aad` |
 
 ## Meta-engine slice 2
 
@@ -325,6 +362,21 @@ proves its interrupted group was removed; the earlier roots predate per-attempt 
 current process scan is clean. No failed-run partial stdout was admitted to the production
 aggregate.
 
+## P4 prune (`2400623`)
+
+P4 is complete after the 17,873-variant recovery, recovered-pair judging, and corpus-v1 merge
+removed the last need for the old point-in-time inventory builders. The prune removed the two
+LF-022 inventory producers, `generation/local_hf.py` (replaced by the live-piloted `collect2/`
+package), and the completed Kimi-v4 selection/requalification/eligibility/prefix-QA/historical
+replay chain. Six associated CLI commands, one script, and eleven obsolete test files were also
+removed. The generic LF-022 executor and its Qwen/GLM/DeepSeek route-qualification verification
+remain because retained execution code still imports them.
+
+Exact code/test/script delta: **24 files, +4/−14,825 lines**. Verification: deleted-module import
+sweep empty; collection clean; 148 focused collect2/executor/consumer tests green; all **2,511
+unit tests green**; Ruff green; strict mypy green across 238 source files. This deletion never
+opened a golden pair-text artifact; `final_test` remains sealed and unscored.
+
 ## Assets produced today (all on `main` unless noted)
 
 - Golden partition frozen: 910 expert `final_test` (sealed) / 821 dev / 819 golden_train
@@ -341,7 +393,7 @@ aggregate.
 - `collect2/` autoformalizer package: live pilot 30/30 across Goedel/Kimina/StepFun;
   3 pilot-found defects fixed with regression tests.
 - LLM-transform harness (`corpus2/llm_transforms.py`): codex self-labels trustable
-  (10/10), lemex conditional (8/10), claude blocked on CLI login.
+  (10/10), lemex conditional (8/10), claude blocked on CLI login at pilot time.
 - Typed Lean Meta transform engine first slice (`LeanFaith/Meta/TransformEngine.lean`):
   P24+P23 over typed Expr, 9/9 re-elaborating candidates on real mathlib theorems.
 - Typed Lean Meta transform engine slice 2 COMPLETE: nested sites, P20/P21, exact type-text
@@ -353,7 +405,8 @@ aggregate.
   thread creation, not the olean). 13,373 unique Lean-valid pairs across proposers,
   0 pair-key overlap. Frozen counts + roots under
   /storage/milikic/leanfaith/lf022_recovery_trackD0_20260828/ and lf022_lean_checks/.
-  Formal step-5 merge needs a new reviewed inventory spec (informational dedup: no-op).
+  The old formal step-5 inventory path was superseded by the completed recovered-pair judge and
+  corpus-v1 merge.
 - D-3 Codex scale COMPLETE: 200 provider calls, 192 Lean-valid outputs, and 146 strict
   trainer-schema records at
   `/storage/milikic/leanfaith/lf023_llm_transforms/codex_scale_v1_f88931b/`; numerical output is
@@ -365,14 +418,26 @@ aggregate.
   below 10% and lexical-canary balanced accuracy 0.700/0.680 at
   `/storage/milikic/leanfaith/corpus2/v1_ed41471/`.
 - S1 corpus-v1 retrain COMPLETE: chunks-CPT and statement↔proof-CPT arms finished on attempt 1;
-  local validation balanced accuracy/AUPRC are 0.983/0.991 and 0.981/0.989. Golden-dev scoring is
-  explicitly blocked pending a trusted dev-only text export; the mixed canonical artifact was not
-  opened. Frozen root: `/storage/milikic/leanfaith/s1_v1_7e6ef0d/`.
-- Prunes P1+P2 merged: ~130K LOC removed; suite at baseline (one order-sensitive test).
+  local validation balanced accuracy/AUPRC are 0.983/0.991 and 0.981/0.989. Follow-up `f8d7069`
+  exported the hash-bound dev split and completed strict + calibrated golden-dev scoring through
+  the hardened split-only path. The mixed canonical artifact was not opened. Frozen training
+  root: `/storage/milikic/leanfaith/s1_v1_7e6ef0d/`; eval roots under
+  `/storage/milikic/leanfaith/golden/eval_runs/dev_s1v1_*`.
+- Prunes P1+P2+P4 complete: ~145K LOC removed. P4 removed 14,825 lines; all 2,511 unit tests,
+  Ruff, and strict mypy are green.
 
 ## Next
 
-1. P4 prune: retire the superseded `lf022` inventory modules and now-deletable `local_hf` path
-   under the reviewed replacement constraints in `PLAN.md`.
-2. Fill the four S1v1 golden-dev rows only after a trusted, hash-bound dev-only text export exists;
-   do not open the mixed canonical artifact to obtain it.
+1. Freeze an additive public repair-corpus contract from the **9,585 public corpus-v1 rows**:
+   2,351 positive / 7,234 negative; train 7,645 / validation 942 / test 998. Retain the 146 D-3
+   records already included; do not regenerate or duplicate them.
+2. Prove the Meta-to-trainer conversion on one row, including a hash-bound join to its independent
+   `verified=true` audit record. Reuse the completed 16,138/16,138 audit; do not recompile all 500
+   source declarations unless that binding fails.
+3. Build the full public-only corpus with ancestry-disjoint splits, source/family/template caps,
+   exact-pair deduplication, golden blocklist screening, and explicit label-balance/canary gates.
+   The Meta pool is sampled under those gates rather than admitted wholesale.
+4. Smoke one batch/checkpoint, then retrain both S1 arms and score only golden dev against the
+   S1v0 chunks-CPT selection marks (0.849 AUPRC / 0.684 calibrated balanced accuracy).
+5. Run Track T-B Stage A separately after its registry and gap/cloze diagnostics are frozen.
+   Keep `final_test` sealed and unscored.

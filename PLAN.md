@@ -21,21 +21,27 @@
 >   negative families demoted to silver until separator/witness-upgraded, and compute expanded to
 >   the RunAI cluster (A100/H100/H200).
 
-## Execution status ledger (2026-08-29, Queues 1–6 executed — read the seal erratum below)
+## Execution status ledger (2026-08-29, Queues 1–6 + S1v1 dev follow-up + P4 executed — read the seal erratum below)
 
-Full numbers: `reports/eval/refocus_day1_summary.md`. Everything below is on `main`.
+Full numbers: `reports/eval/refocus_day1_summary.md`. Treat this ledger plus hashed run manifests
+as current execution state; the later track prose preserves approved design and historical
+starting-point context, and may describe work that the ledger has since completed.
 
 **DONE:**
-- Branch unification + docs reset + prunes P1/P2 (~130K LOC removed; suite green except one
-  order-sensitive test). P4 still deferred (lf022 inventory modules; local_hf now deletable —
-  live collect2 pilot passed).
+- Branch unification + docs reset + prunes P1/P2/P4 (**~145K LOC removed**). P4 removed 14,825
+  lines across 24 source/test/script files: superseded LF-022 inventory producers, the legacy
+  `generation/local_hf.py` path, and the completed Kimi-v4 selection/requalification/QA chain.
+  Six dead CLI commands were removed; the generic Qwen/GLM route-qualification executor remains.
+  Import collection, 148 focused replacement/executor tests, all 2,511 unit tests, Ruff, and
+  strict mypy are green. The former order-sensitive `test_generation_local_hf` baseline failure
+  disappeared with its retired module/test. Commit: `2400623`.
 - **Step 0 frozen**: golden partition `data/benchmarks/golden_partition_v1.json` (910 expert
   final_test SEALED / 821 dev / 819 golden_train / 2,561 PNV quarantine) + contamination
   blocklist. Canonical pairs: `/storage/milikic/leanfaith/golden/canonical/golden_pairs_v1.jsonl`.
 - **Eval harness** `leanfaith-eval` (ingest/partition/evaluate; abstain-not-truncate; CIs;
-  final-test seal). First dev numbers exist for 4 checkpoints (see report).
+  final-test seal). Strict + calibrated dev numbers exist for six checkpoint arms (see report).
 - **Gold-calibrated dev track** `leanfaith-eval calibrate`: scalar-temperature NLL fit +
-  balanced-accuracy threshold for all 4 checkpoints. Chunks-CPT leads at 0.684 fitted-dev
+  balanced-accuracy threshold for all six checkpoint arms. S1v0 chunks-CPT leads at 0.684 fitted-dev
   balanced accuracy; all temperature fits hit the `T=1000` boundary (see report). Calibration
   opened only pre-existing dev predictions; their pre-goal strict-run container provenance is
   qualified by the literal-seal erratum below.
@@ -47,7 +53,9 @@ Full numbers: `reports/eval/refocus_day1_summary.md`. Everything below is on `ma
   `/storage/milikic/leanfaith/compliance_errata/literal_final_test_seal_2026_08_29_v1.json`
   (SHA-256 `f612f929b2954a69053b446f4d4cd2f6935786dba7cba27eeda55038d759dd88`).
   `evaluate` and D-3 now reject the mixed path/hash before opening pair text and require complete,
-  hash-bound split-only inputs. No trusted dev/golden-train text exports existed at audit time.
+  hash-bound split-only inputs. No trusted dev/golden-train text exports existed at audit time;
+  the sanctioned freeze exporter added in `f8d7069` subsequently emitted all four complete,
+  hash-bound split files and enabled hardened dev-only scoring without opening the mixed file.
 - **S0**: two adapted encoders at `/storage/milikic/leanfaith/cpt/` — `modernbert_lean_v1_run1`
   (declarations/chunks) and `modernbert_lean_v2_mixed` (+32,860 numina statement↔proof +
   32,580 `[HEADLESS]` signature views). Ablation: chunks-CPT gives best-ever ranking on golden
@@ -69,7 +77,8 @@ Full numbers: `reports/eval/refocus_day1_summary.md`. Everything below is on `ma
   explicit runner timeouts; audit verified 16,138/16,138. Frozen root:
   `/storage/milikic/leanfaith/meta_engine_slice2_6ace45e/`.
 - **D-0 COMPLETE**: Qwen 6,391 Lean-valid / 2,444 invalid; Kimi 6,982 / 2,056; 0 infra errors.
-  **13,373 unique Lean-valid model-generated pairs** await judging. Roots + frozen counts:
+  **13,373 unique Lean-valid model-generated pairs** were recovered and then consumed by the
+  completed D-2 judge below. Roots + frozen counts:
   `/storage/milikic/leanfaith/lf022_recovery_trackD0_20260828/` and `lf022_lean_checks/
   {qwen3_5_397b_full9207_v4, kimi_v4_641d13d_full9207_v2}/`.
 - **D-3 COMPLETE**: 200/200 `gpt-5.6-sol` high-effort Codex calls over the full 27,786-row
@@ -93,16 +102,42 @@ Full numbers: `reports/eval/refocus_day1_summary.md`. Everything below is on `ma
   test 2,488). The lexical canary is below target (validation 0.700 / test 0.680 balanced
   accuracy). The corpus contains private-derived rows and is non-redistributable/non-releasable.
   Frozen root: `/storage/milikic/leanfaith/corpus2/v1_ed41471/`.
-- **S1 CORPUS-V1 RETRAIN COMPLETE / GOLDEN-DEV BLOCKED BY LITERAL SEAL**: the chunks-CPT and
+- **S1 CORPUS-V1 RETRAIN + GOLDEN-DEV FOLLOW-UP COMPLETE**: the chunks-CPT and
   statement↔proof-CPT arms completed sequentially on attempt 1 (local validation balanced
-  accuracy/AUPRC 0.983/0.991 and 0.981/0.989). Golden-dev strict/calibrated scoring was not
-  attempted because the only pair-text artifact mixes `dev` with sealed `final_test` and is
-  loaded before filtering; the manifest records that it was not opened. Frozen root:
-  `/storage/milikic/leanfaith/s1_v1_7e6ef0d/`.
+  accuracy/AUPRC 0.983/0.991 and 0.981/0.989). The original immutable training-run manifest
+  correctly records dev scoring as blocked at that moment. Follow-up `f8d7069` added the
+  sanctioned split exporter and scored both checkpoints through the hardened dev-only path.
+  On the 228-pair expert headline subset, chunks-CPT scored strict/calibrated balanced accuracy
+  0.576/0.659 and AUPRC 0.828; statement↔proof-CPT scored 0.566/0.669 and AUPRC 0.823.
+  Neither clears the prior S1v0 chunks-CPT ranking/calibrated selection marks (0.849 AUPRC /
+  0.684 balanced accuracy); all CIs overlap. Frozen training root:
+  `/storage/milikic/leanfaith/s1_v1_7e6ef0d/`; split/eval artifacts:
+  `/storage/milikic/leanfaith/golden/{canonical/splits_v1,eval_runs}/`.
+- **Backbone consultation verified, Track T-B added**: GPT Pro + Claude reports cross-checked
+  against pinned configs/modeling code, live HF cards, and a fresh local operator/fertility
+  audit (0 UNKs on all three tokenizers — DeBERTa fear refuted; NeoBERT disqualified;
+  Ettin/EuroBERT/Qwen3-Reranker/Kimina confirmed with licences). Table + measurements:
+  `reports/model_selection/backbone_consult_verification_2026_08_28.md`.
 
-**NEXT QUEUE:** P4 prune. Track T-B backbone-pilot Stage A remains a separate concurrent cluster
-track and does not block this queue. Fill the S1v1 golden-dev rows only after a trusted,
-hash-bound dev-only pair-text export exists; never open the mixed canonical artifact to obtain it.
+**NEXT QUEUE — S1 public data repair (bounded; no repeat 500-theorem compile):**
+1. Freeze an additive, versioned repair-corpus contract. Start from the **9,585 public corpus-v1
+   rows** (2,351 positive / 7,234 negative; train 7,645 / validation 942 / test 998). Retain the
+   146 D-3 rows already present; do not regenerate, rejudge, or duplicate them.
+2. Convert **one** Meta-engine row end to end into the frozen trainer/provenance schemas and prove
+   its candidate key is joined to a `verified=true` independent-audit row. Reuse the completed
+   16,138/16,138 audit and its hashes; rerun Lean over the 500 declarations only if that binding
+   fails.
+3. Materialize the full public repair corpus with declaration/ancestry-disjoint splits,
+   source/family/template caps, exact-pair deduplication, the golden contamination blocklist, and
+   an explicit before/after label table. The 16,138 Meta candidates are an eligible pool, not an
+   instruction to admit all highly correlated rewrites.
+4. Smoke one training batch/checkpoint, then run the two primary S1 arms once the manifest and
+   canaries pass. Score golden **dev** through the sanctioned split-only path and compare against
+   S1v0 chunks-CPT (0.849 AUPRC / 0.684 calibrated balanced accuracy). `final_test` remains sealed
+   and unscored.
+
+Track T-B backbone-pilot Stage A remains a separate concurrent cluster track and does not block
+this queue.
 
 **OPERATIONAL GOTCHAS (hard-won):** background `codex exec`/`lemex exec` MUST get `</dev/null`
 or they hang forever reading stdin; never plain `uv sync` (prunes torch — use
@@ -124,7 +159,7 @@ transforms and judging pairs, (c) existing human-labeled benchmarks for golden t
 
 Six weeks and ~350K lines in, three deep audits (2026-08-27/28) established:
 
-**Real assets exist:**
+**Historical refocus starting-point assets (2026-08-27/28; superseded by the ledger above):**
 - Trained **M1 packed cross-encoder** (ModernBERT-base, 1024-token budget): test pseudo-AUPRC
   0.887 / balanced-acc 0.859 on proxy labels. Checkpoint:
   `/storage/milikic/leanfaith/m1_proxy_training/firsthop_kimi_qwen_composition_8d815af_v1/model.safetensors`.
@@ -138,7 +173,7 @@ Six weeks and ~350K lines in, three deep audits (2026-08-27/28) established:
   original corrupted-`.olean` crash no longer reproduces — see
   `reports/model_selection/generated_data_handoff_2026_08_27.md`).
 
-**But zero citable numbers, because the project blocked itself:**
+**Historical 2026-08-27 starting point (superseded by the execution ledger above):**
 - **No benchmark evaluation was ever run.** No `evaluate` command exists among the 119 CLI
   commands. ProofNetVerif (3,752 human-labeled rows) was frozen into a contamination denylist and
   never scored against. GTED was named but never implemented.
@@ -371,17 +406,22 @@ batch: grep for deleted-module imports must be empty → `pytest --collect-only`
 - **P3 (~0.5d, ~8K):** remaining LF-022 dead limbs (`lf022_weak_batch_spec`,
   `lf022_diagnostic_subpool`, `lf022_family_matrix_freeze`, `lf022_pool_reallocation` + commands
   + tests).
-- **P4 (deferred until the 17,873-variant reconciliation ships):** `lf022_merged_inventory` +
-  `lf022_inventory_snapshot` (they produce the frozen-inventory artifacts the
-  supervision-candidate builder consumes as file inputs) and thinning of the
-  kimi_v4/route-qualification chain (~15–25K more).
+- **P4 COMPLETE (2026-08-29; reconciliation shipped; commit `2400623`):** removed `lf022_merged_inventory` +
+  `lf022_inventory_snapshot` after their frozen artifacts were consumed, retired the replaced
+  `generation/local_hf.py` path, and removed the completed Kimi-v4
+  selection/requalification/eligibility/prefix-QA/historical-replay chain. Six associated CLI
+  commands, one script, and eleven obsolete test files went with them. The retained generic
+  LF-022 executor still verifies Qwen/GLM/DeepSeek qualification artifacts. Net P4 delta:
+  24 source/test/script files, +4/−14,825 lines; collection + 2,511 unit tests + Ruff + strict
+  mypy green.
 
 **Keep-list surprises the import graph forced (do NOT delete):**
 `lf022_dual_judge_authorization_v1.py` (the Fable judge fail-closed-validates its artifacts),
 `lf022_model_silver_promotion_v1.py` (the judgments→corpus bridge), the entangled LF-022 execution
 cluster (`lf022_execution`, `lf022_executor`, `lf022_codex_audit` — imported by the corpus
 builder, `lf022_extraction_reuse` — imported by `transforms/scale_materializer`,
-`lf022_historical_replay` — imported by Kimi QA, both judges' deps), `config/code_bundle.py`.
+both judges' deps), `config/code_bundle.py`. `lf022_historical_replay` was retained through
+reconciliation for Kimi QA, then removed by P4 with that completed QA chain.
 Note the inversion: `transforms/scale_materializer.py` imports `cli/pipeline.py` +
 `cli/transformations.py` — those two CLI modules are library code.
 
@@ -393,9 +433,8 @@ own `leanfaith-eval` script and never touches app.py).
 `test_codex_sol_judge_v1.py` 4) guard KEPT judge code — triage on unified main (likely
 authorization-binding drift), do not delete.
 
-**Net effect:** ≈128K LOC removed in week one (≈90K src = 38%, ≈34K tests, ~4K scripts, 4.6K
-PLAN/README archived), rising toward ~150K (43%) after P4. Fail-closed scaffolding *inside* kept
-modules is a rewrite, not surgery — explicitly out of scope for now.
+**Net effect after P4:** ≈145K LOC removed. Fail-closed scaffolding *inside* kept modules is a
+rewrite, not surgery — explicitly out of scope for the prune track.
 
 **Interlock with Track A:** no name clash (science creates `src/leanfaith/eval/`, prune deletes
 `src/leanfaith/evaluation/`), and Track A never edits `cli/app.py`.
@@ -423,7 +462,9 @@ sequential audits — provider × claimed label × family strata, **150 records 
 stratum, ≥300 for high-volume/synthetic strata**, until the one-sided 95% error upper bound is
 below tolerance; LLM self-labels audited by a DIFFERENT provider; failing strata quarantined;
 stratum precision stored as a training weight. No replay, no re-verification loops, no dual-cell
-judging by default.
+judging by default. Certificates additionally record the packed-view token span of each edit site
+(both statements) — the input for length/gap-stratified error analysis and the T-B
+attention-reachability diagnostics.
 
 **D-1a. Typed Lean Meta rewrite engine (prerequisite):** a Lean-side transformation command over
 typed `Expr` (local-context reconstruction, `inferType`/`isProp`/instance synthesis/defeq in
@@ -531,10 +572,54 @@ golden contamination screen; Numina overlaps AMC/AIME/miniF2F so exclusions are 
 theorems' headless signatures rendered with the exact `[HEADLESS]` marker the classifier
 consumes — the encoder learns how a signature is matched by its proof, and the packed-view
 tokens are in-distribution. Builder: `leanfaith.train2.cpt_mix`. Smoke on the 4090; **production run on a cluster
-A100/H100** (~1–3 epochs, 1024 ctx, bf16 — no GPU contention with generation). Compute is not
-scarce, so once the base pipeline works, an S0+S1 pass on **ModernBERT-large** is a cheap headline
-upgrade option (same tokenizer, same M1 wrapper) — base remains the iteration vehicle.
+A100/H100** (~1–3 epochs, 1024 ctx, bf16 — no GPU contention with generation). Backbone scaling
+and alternatives are decided by the **T-B pilot** below (supersedes the earlier "ModernBERT-large
+as cheap headline upgrade" note) — base remains the iteration vehicle. The next CPT pass
+additionally packs a slice of marker-tagged statement *pairs* so the global layers see
+cross-segment attention before S1 (near-free; mixture changes stay measured ablations — the
+chunks-vs-mixed result showed harder CPT can hurt transfer).
 Deliverable: `modernbert-lean-v1` + masked-token accuracy vs. stock on the frozen validation slice.
+
+**T-B. Backbone pilot (added 2026-08-28; dual consultation — GPT Pro + Claude — cross-verified in
+`reports/model_selection/backbone_consult_verification_2026_08_28.md`):** ModernBERT-base (with
+chunks-CPT) stays the iteration vehicle; the *ship* backbone is decided by one small pilot that
+rides corpus v1 concurrently on the cluster and never blocks S1. Verified geometry: global
+attention only every 3rd layer (base 8/22, large 10/28, final layer global in both), local layers
+see ±64 tokens — packed-view A↔B counterparts sit ~70–450 positions apart, so cross-statement
+token alignment happens *only* in the global layers; whether that bites is settled
+interventionally, not observationally. **Arms** (fixed view/budget/head/swap policy; pinned
+revisions frozen in a new `backbone_registry_v2.yaml` before Stage A; the v1 registry + hashes
+stay untouched and ADR-0004's literal conclusion is recorded — only ModernBERT base/large met the
+native-1024 rule): modernbert-base stock + chunks-CPT (controls); modernbert-large;
+modernbert-large with `local_attention` 128→1024 (alignment probe; config-clean — the local RoPE
+θ=10k cache auto-extends; optional all-global variant); ettin-encoder-150m and -400m (MIT, same
+architecture+tokenizer, newer 2T recipe incl. code, no remote code — verified); EuroBERT-610m
+(Apache-2.0, 8192 native, dense attention every layer, math+code; `trust_remote_code` required —
+pilot-acceptable, ship-friction noted); DeBERTa-v3-large @512 as science control only (verified:
+0 operator UNKs, best fertility 0.495 tok/char, 98.7% of packed pairs fit 512 — still
+ship-ineligible: 512-native, no unpadding path, frozen 1024 view); decoder probe
+Qwen3-Reranker-0.6B (Apache-2.0, single-pass yes/no logit; optional Kimina-Preview-Distill-1.5B
+Lean-pretrained ceiling). NeoBERT disqualified (WordPiece tokenizer, no code data). **Protocol:**
+Stage A screen = 1 seed × LR {1e-5, 2e-5, 5e-5} per arm on corpus v1; advance the controls + best
+window arm + best of {ettin, EuroBERT}; finalists get an equal model-token mini-CPT (same mixture
+as chunks-CPT), then 3 seeds at the selected LR. Golden dev is *evaluation only* (no weight
+updates, no checkpoint selection on gold; temperature/threshold from S1-dev in the strict track);
+`final_test` untouched. **Decision rule:** with s = candidate/incumbent swap-averaged 4090
+throughput, promote only if mean golden-dev Δbalanced-acc ≥ {0.5pt at s≥0.9; 1.0pt at s≥0.6;
+1.5pt at s≥0.3; 2.5pt below}, grouped-bootstrap P(Δ>0) ≥ 0.90, cross-fitted ECE ≤ 0.08, and no
+one-edit family (quantifier order, direction, </≤, dropped/added hypothesis, operator
+substitution) regresses >2pts; window/all-global adopted at ≥+1.0pt overall or ≥half the
+length-stratified gap removed at ≤25% throughput cost; the decoder arm wins only at ≥+3pts (it
+exists to bound what Lean pretraining buys); ties → fastest. "Lightweight" is re-pinned as *one
+deterministic forward pass, no sampling/CoT, calibrated logit, ≤2B params* — encoder default.
+Pre-pilot diagnostics still owed: gap-sensitivity probe on the 8d815af checkpoint (insert
+64/128/256 tokens of neutral filler between A and B; median |Δp|>0.03 or balanced-acc −1.5pt ⇒
+topology problem ⇒ weight the window/dense arms up) and a zero-training Lean cloze across
+candidates. Tokenizer frozen for the whole pilot (measured 2026-08-28: 0 UNKs, 0 collisions,
+every operator ≤3 pieces on all three audited tokenizers; markers multi-piece by design); the
+only sanctioned later change is repurposing ≤30 of the 84 reserved `[unused]` slots as operator
+tokens (mean-of-pieces init, no resize) *iff* S1 error analysis concentrates on
+operator-substitution families.
 
 **S1. Large-scale SFT on deterministic data:** train the M1 packed cross-encoder (same
 architecture; new `src/leanfaith/train2/trainer.py`, ~300 lines reusing
@@ -543,7 +628,7 @@ architecture; new `src/leanfaith/train2/trainer.py`, ~300 lines reusing
 cluster GPUs). **Anti-shortcut protocol:**
 balanced or explicitly-weighted batches; source-paired positives/negatives where possible;
 family/template/provider holdout splits + leave-one-mechanism-out eval; **train with swapped
-orientations (or average both directional logits) and report swap disagreement** — packing is
+orientations (or average both directional logits — calibrate after averaging) and report swap disagreement** — packing is
 directional but same-claim is symmetric. Ablation for free: the same run from stock ModernBERT
 quantifies the S0 gain.
 
@@ -589,7 +674,9 @@ majority-vote-8 LLM ≈0.70 acc:
   identity ≈ near-zero recall on golden).
 - Track B: after each prune batch, import sweep (`pytest --collect-only`) + surviving unit suite
   green; final full run + one pipeline smoke (extract → transform → corpus sample → M1 forward
-  pass); P2 only after the D-2 replacement package passes its 10-record pilot.
+  pass); P2 only after the D-2 replacement package passes its 10-record pilot. P4 specifically:
+  deleted-module import sweep empty, 148 focused replacement/executor tests green, all 2,511 unit
+  tests green, Ruff green, strict mypy green (238 source files).
 - Track D: every pair carries an evidence class (`P-DEF`/`P-SCHEMA`/`P-LEMMA`/`N-SEP`/`N-PROOF`;
   `F2-DIR` never labels binary gold); the Meta-engine audit path reconstructs expected candidates
   independently of the generator; stratified audit results recorded per stratum with error-rate
@@ -599,3 +686,6 @@ majority-vote-8 LLM ≈0.70 acc:
 - Track T: S0 masked-LM sanity beats the stock snapshot on the frozen validation slice; the S1
   stock-vs-adapted ablation and swap-disagreement metric are recorded; CPT contamination exclusion
   counts recorded; `final_test` opened exactly once, for the frozen comparison set.
+- Track T-B: `backbone_registry_v2.yaml` revisions pinned before Stage A; the pilot decision is
+  recorded with measured 4090 throughput, grouped-bootstrap CIs, and the frozen T-B decision
+  rule; gap-sensitivity and cloze diagnostics filed alongside the pilot report.
