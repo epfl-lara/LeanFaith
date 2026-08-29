@@ -239,6 +239,7 @@ def _terminal(declaration: str, *, emitted: int) -> dict[str, object]:
         "rejectedCount": 0,
         "source": source,
         "sourceTypeHash": hashlib.sha256(source.encode()).hexdigest(),
+        "sourceTextRoundtripVerified": True,
         "discoveredCount": emitted,
         "pathCount": 4,
     }
@@ -317,6 +318,47 @@ def _audit_output(config: MetaSlice2Config) -> str:
 def _zero_candidate_output(config: MetaSlice2Config) -> str:
     selection = select_declarations(config)
     rows = [_terminal(name, emitted=0) for name in selection.names]
+    rows.append(
+        {
+            "schemaVersion": 2,
+            "kind": "batch",
+            "recordKind": "batch",
+            "status": "complete",
+            "namesFile": str((config.output_root / NAMES_FILENAME).resolve()),
+            "declarationCount": len(selection.names),
+            "completedCount": len(selection.names),
+            "failedCount": 0,
+        }
+    )
+    return "".join(json.dumps(row, sort_keys=True) + "\n" for row in rows)
+
+
+def _source_text_rejected_output(
+    config: MetaSlice2Config,
+    *,
+    reason_code: str = "source_pretty_roundtrip_mismatch",
+) -> str:
+    selection = select_declarations(config)
+    source = "True"
+    first, *rest = selection.names
+    rows: list[dict[str, object]] = [
+        {
+            "schemaVersion": 2,
+            "kind": "terminal",
+            "recordKind": "status",
+            "declaration": first,
+            "status": "sourceTextRejected",
+            "candidateCount": 0,
+            "emittedCount": 0,
+            "duplicateCount": 0,
+            "rejectedCount": 0,
+            "source": source,
+            "sourceTypeHash": hashlib.sha256(source.encode()).hexdigest(),
+            "sourceTextRoundtripVerified": False,
+            "reasonCode": reason_code,
+        }
+    ]
+    rows.extend(_terminal(name, emitted=0) for name in rest)
     rows.append(
         {
             "schemaVersion": 2,
@@ -449,6 +491,8 @@ def test_run_and_verify_with_independent_fake_audit(tmp_path: Path) -> None:
     assert primary_command[-1].endswith(DRIVER_FILENAME)
     assert audit_command[-1].endswith(AUDIT_DRIVER_FILENAME)
     assert executor.calls[0][2] == executor.calls[1][2] == 19
+    primary_driver_text = (config.output_root / DRIVER_FILENAME).read_text()
+    assert "set_option maxHeartbeats 0 in\nlfTransformBatch " in primary_driver_text
     assert (config.output_root / AUDIT_STDOUT_FILENAME).is_file()
     audit_driver_text = (config.output_root / AUDIT_DRIVER_FILENAME).read_text()
     audit_commands = [
@@ -519,6 +563,52 @@ def test_zero_candidate_probe_still_runs_vacuous_independent_audit(tmp_path: Pat
     audit_driver = (config.output_root / AUDIT_DRIVER_FILENAME).read_text()
     assert 'elab "lfAuditTransform ' in audit_driver
     assert not audit_driver.rstrip().endswith('lfAuditTransform "" "" "" "" ""')
+
+
+def test_source_text_rejection_is_counted_as_zero_yield_and_replays(tmp_path: Path) -> None:
+    config = _fixture_config(tmp_path, output_name="source-text-rejected")
+    executor = _FakeExecutor([_source_text_rejected_output(config), ""])
+
+    manifest = run_meta_slice2(config, executor=executor)
+
+    assert manifest["status"] == "completed"
+    summary = verify_meta_slice2(config)
+    rejected = select_declarations(config).names[0]
+    assert summary["successful_declaration_count"] == 2
+    assert summary["source_text_rejections"] == {
+        "count": 1,
+        "reason_code": "source_pretty_roundtrip_mismatch",
+        "declarations": [rejected],
+    }
+    assert summary["rejection_counts"] == {
+        "duplicate_candidate": 0,
+        "candidate_validation": 0,
+        "source_text_roundtrip": 1,
+        "terminal_error": 0,
+        "terminal_notProp": 0,
+        "terminal_notfound": 0,
+    }
+    assert summary["declaration_coverage"] == {
+        "with_candidate": 0,
+        "without_candidate": 3,
+        "share": 0.0,
+    }
+    assert summary["candidate_count_distribution"] == {
+        "mean": 0.0,
+        "median": 0.0,
+        "p95": 0,
+        "max": 0,
+    }
+
+
+def test_source_text_rejection_reason_is_fail_closed(tmp_path: Path) -> None:
+    config = _fixture_config(tmp_path, output_name="bad-source-text-rejection")
+    executor = _FakeExecutor(
+        [_source_text_rejected_output(config, reason_code="unreviewed_reason")]
+    )
+
+    with pytest.raises(MetaSlice2Error, match="malformed source-text rejection"):
+        run_meta_slice2(config, executor=executor)
 
 
 def test_batch_counts_must_reconcile_with_terminal_statuses(tmp_path: Path) -> None:

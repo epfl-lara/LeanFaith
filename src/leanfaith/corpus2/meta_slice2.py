@@ -35,7 +35,7 @@ from typing import Protocol, cast
 
 from leanfaith.config.hashing import canonical_json_bytes, hash_file
 
-METHOD_VERSION = "meta_engine_slice2_yield_probe_v1"
+METHOD_VERSION = "meta_engine_slice2_yield_probe_v2"
 SELECTION_DOMAIN = "leanfaith_meta_slice2_yield_probe_v1"
 SELECTION_PREFIX = b"leanfaith_meta_slice2_yield_probe_v1\0"
 
@@ -74,7 +74,8 @@ AUDIT_STDERR_FILENAME = "audit.stderr.txt"
 AUDIT_LOG_FILENAME = "audit.log"
 
 _HEX64 = re.compile(r"[0-9a-f]{64}\Z")
-_TERMINAL_STATUSES = frozenset({"complete", "notfound", "notProp", "error"})
+_TERMINAL_STATUSES = frozenset({"complete", "sourceTextRejected", "notfound", "notProp", "error"})
+_PROCESSED_TERMINAL_STATUSES = frozenset({"complete", "sourceTextRejected"})
 _FAMILY_EVIDENCE_CLASS = {
     "P20": "P-DEF",
     "P21": "P-DEF",
@@ -624,7 +625,14 @@ def _engine_helper_body(engine_path: Path) -> str:
 def _driver_bytes(config: MetaSlice2Config, names_path: Path) -> bytes:
     helper_body = _engine_helper_body(config.transform_engine_path)
     names_literal = _lean_string(str(_resolve(names_path)))
-    driver = f"import Mathlib\n\n{helper_body}\nlfTransformBatch {names_literal}\n"
+    driver = (
+        "import Mathlib\n\n"
+        f"{helper_body}\n"
+        "-- The external process-group timeout is the production compute bound;\n"
+        "-- Lean's default heartbeat budget is cumulative across this 500-name command.\n"
+        "set_option maxHeartbeats 0 in\n"
+        f"lfTransformBatch {names_literal}\n"
+    )
     return driver.encode("utf-8")
 
 
@@ -914,20 +922,32 @@ def _terminal_row(
         raise MetaSlice2Error(f"{context}.error must be null or a non-empty string")
     if status == "error" and not isinstance(error, str):
         raise MetaSlice2Error(f"{context} error terminal lacks an error message")
-    if status == "complete":
+    if status in _PROCESSED_TERMINAL_STATUSES:
         source = _string_field(row, "source", context=context)
         source_hash = _hash_field(row, "sourceTypeHash", context=context)
         if source_hash != _sha256_text(source):
             raise MetaSlice2Error(f"{context}.sourceTypeHash failed independent SHA-256 audit")
+    else:
+        source = None
+        source_hash = None
+    if status == "complete":
+        if row.get("sourceTextRoundtripVerified") is not True:
+            raise MetaSlice2Error(f"{context} lacks a verified source-text roundtrip")
         discovered_count = _nonnegative_int_field(row, "discoveredCount", context=context)
         _nonnegative_int_field(row, "pathCount", context=context)
         if discovered_count != candidate_count + rejected_count:
             raise MetaSlice2Error(
                 f"{context} discovered/candidate/rejected counts do not reconcile"
             )
+    elif status == "sourceTextRejected":
+        if (
+            row.get("sourceTextRoundtripVerified") is not False
+            or row.get("reasonCode") != "source_pretty_roundtrip_mismatch"
+            or error is not None
+        ):
+            raise MetaSlice2Error(f"{context} has a malformed source-text rejection")
+        discovered_count = 0
     else:
-        source = None
-        source_hash = None
         discovered_count = 0
     return {
         "declaration": declaration,
@@ -1053,7 +1073,9 @@ def _parse_probe_output(
         raise MetaSlice2Error(
             f"terminal declarations do not reconcile: missing={missing[:5]}, extra={extra[:5]}"
         )
-    derived_completed = sum(row["status"] == "complete" for row in terminals.values())
+    derived_completed = sum(
+        row["status"] in _PROCESSED_TERMINAL_STATUSES for row in terminals.values()
+    )
     derived_failed = len(terminals) - derived_completed
     if batch["completed_count"] != derived_completed or batch["failed_count"] != derived_failed:
         raise MetaSlice2Error("batch counts contradict per-declaration terminal statuses")
@@ -1082,6 +1104,11 @@ def _parse_probe_output(
     )
     evidence_counts = Counter(cast(str, row["evidence_class"]) for row in candidates)
     terminal_status_counts = Counter(cast(str, row["status"]) for row in terminals.values())
+    source_text_rejected_declarations = sorted(
+        declaration
+        for declaration, row in terminals.items()
+        if row["status"] == "sourceTextRejected"
+    )
     nested_count = sum(cast(bool, row["nested_site"]) for row in candidates)
     duplicate_count = sum(cast(int, row["duplicate_count"]) for row in terminals.values())
     rejected_count = sum(cast(int, row["rejected_count"]) for row in terminals.values())
@@ -1095,6 +1122,12 @@ def _parse_probe_output(
         "method_version": METHOD_VERSION,
         "selected_declaration_count": len(selection.names),
         "terminal_declaration_count": len(terminals),
+        "successful_declaration_count": terminal_status_counts["complete"],
+        "source_text_rejections": {
+            "count": len(source_text_rejected_declarations),
+            "reason_code": "source_pretty_roundtrip_mismatch",
+            "declarations": source_text_rejected_declarations,
+        },
         "total_candidate_count": total,
         "validated_candidate_count": total + duplicate_count,
         "discovered_candidate_count": discovered_count,
@@ -1108,6 +1141,7 @@ def _parse_probe_output(
         "rejection_counts": {
             "duplicate_candidate": duplicate_count,
             "candidate_validation": rejected_count,
+            "source_text_roundtrip": len(source_text_rejected_declarations),
             "terminal_error": terminal_status_counts["error"],
             "terminal_notProp": terminal_status_counts["notProp"],
             "terminal_notfound": terminal_status_counts["notfound"],

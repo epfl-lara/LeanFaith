@@ -546,12 +546,13 @@ def lfTextElaboratesAs
         let candidate ← Term.elabTerm stx none
         Term.synthesizeSyntheticMVarsNoPostponing
         let candidate ← instantiateMVars candidate
-        if candidate.hasMVar then
-          return false
         check candidate
         if !(← isProp candidate) then
           return false
-        withTransparency .default <| isDefEq candidate expected
+        if !(← withTransparency .default <| isDefEq candidate expected) then
+          return false
+        let candidate ← instantiateMVars candidate
+        return !candidate.hasMVar
     return result.getD false
 
 def lfCheckedProp (e : Expr) : MetaM Bool :=
@@ -655,7 +656,8 @@ def lfPrintTerminal
   ] ++ extra
   IO.println obj.compress
 
-/-- Process one declaration.  Returns true exactly for a complete Prop record. -/
+/-- Process one declaration.  Returns true when it reached either a complete
+    candidate terminal or an explicit fail-closed source-text rejection. -/
 def lfProcessDeclaration (declaration : String) : TermElabM Bool := do
   let name := declaration.toName
   match (← getEnv).find? name with
@@ -677,7 +679,13 @@ def lfProcessDeclaration (declaration : String) : TermElabM Bool := do
       let sourceTypeHash ← lfSha256 source
       let levelNames := lfTransformLevelNames ci
       if !(← lfTextElaboratesAs source sourceType levelNames) then
-        throwError "source pretty text did not re-elaborate to the declaration type"
+        lfPrintTerminal declaration "sourceTextRejected" 0 0 0 0 [
+          ("source", Json.str source),
+          ("sourceTypeHash", Json.str sourceTypeHash),
+          ("sourceTextRoundtripVerified", Json.bool false),
+          ("reasonCode", Json.str "source_pretty_roundtrip_mismatch")
+        ]
+        return true
       let wholeCandidates ← lfWholeCandidates sourceType
       let mut emissions := #[]
       for candidate in wholeCandidates do
@@ -700,6 +708,7 @@ def lfProcessDeclaration (declaration : String) : TermElabM Bool := do
         duplicateCount rejectedCount [
           ("source", Json.str source),
           ("sourceTypeHash", Json.str sourceTypeHash),
+          ("sourceTextRoundtripVerified", Json.bool true),
           ("discoveredCount", toJson wholeCandidates.size),
           ("pathCount", toJson (lfTermPositions sourceType).size)
         ]
