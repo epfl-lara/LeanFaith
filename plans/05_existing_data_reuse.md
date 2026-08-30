@@ -1,11 +1,11 @@
 # DATA-REUSE — existing data inventory and direct-reuse map
 
 > **Task ID:** DATA-REUSE
-> **Status:** not_started
-> **Owner/session:** unassigned
+> **Status:** complete
+> **Owner/session:** Codex `/root` — 2026-08-30 DATA-REUSE session
 > **Last updated:** 2026-08-30
 > **Dependencies:** none
-> **Next gate:** produce a row-count/hash/schema inventory without generating or compiling data
+> **Next gate:** SFT2A owner accepts or rejects the recorded legacy adapter recipe; SFT1 remains user-gated
 > **Compute class:** CPU and storage only
 > **Lean budget:** zero by default; reuse stored verifier evidence
 > **Local staging root:** `/storage/milikic/leanfaith/value_first/reuse_inventory_v1/`
@@ -28,6 +28,11 @@ deleting old artifacts, or publishing rows.
 **Writable paths:** this task brief; `src/leanfaith/data_reuse/`; `configs/data_reuse/`;
 `tests/unit/data_reuse/`; the staging root above. Existing source artifacts and shared packages are
 read-only. Preserve untracked user work.
+
+**Paths claimed by this session:** `plans/05_existing_data_reuse.md`;
+`src/leanfaith/data_reuse/`; `configs/data_reuse/`; `tests/unit/data_reuse/`;
+`/storage/milikic/leanfaith/value_first/reuse_inventory_v1/`. The inventory pass begins read-only;
+no source artifact, shared package, or other task path is claimed.
 
 ## Required inventory
 
@@ -123,8 +128,102 @@ downstream owners, then record evidence and the exact next action in this file.
 
 ## Coordinator requests
 
-- None yet.
+- **Exact next action:** the SFT2A owner reviews and accepts or rejects
+  `sft2a_qwen_kimi_codex_legacy_v1`, freezes its `goal_v1.0` adapter, chooses the policy for seven
+  duplicate directed text-pair rows, keeps six unknown judgments sidecar-only, and asks DATA-REUSE
+  to rerun the preview before any import.
+- The SFT1 owner must keep bootstrap, depth-three, and the 12,122 non-P01 unary rows gated until the
+  user approves the transform catalog. Reject the 15,205-row P01 tranche as leaked; do not request
+  DATA-REUSE to replay or compile it.
+- The EVAL v2 owner may reuse all 5,111 canonical gold rows and labels for evaluation only, but must
+  assign the active 2,555/2,556 split rather than reuse the legacy partition routing.
+- A future CPT owner must assign content-derived IDs, rerun the gold screen, and complete source
+  license review before evaluating the 469,585-row curated corpus as an ablation.
+
+## Completed evidence and downstream decisions
+
+- The checksummed inventory contains 22 artifacts and 117 deterministic adapter previews at
+  `/storage/milikic/leanfaith/value_first/reuse_inventory_v1/`. Its external SHA-256 values are:
+  `inventory_v1.jsonl=7c387ecfdd66a3365cde00ad8f46b9dc01be49d68d74db3ce7a605317033f52f`,
+  `adapter_previews_v1.jsonl=9b1b4c2706d815c3d0efd1c3dc884500ae7a4dec31de52c407659e7a88e12283`,
+  `evidence_v1.json=4e22b1d27b042418eb2809c8c0386097129d90a6832de811468fe4adba1b8d87`,
+  `report_v1.md=4271af51bacaaddd5ca69666752d455e6d636a92462412c4a0edcee520c93be9`,
+  and `manifest.json=40d0d270d3e0c9f3f1bccf01cbb5aa7b2a0d60bf19b12c733701f1e8afd1e200`.
+  A second full run reproduced all five hashes exactly, so rerunning replaces the same bounded
+  outputs rather than accumulating duplicates.
+- The final manifest binds the formatted inventory implementation at
+  `src/leanfaith/data_reuse/inventory.py` by SHA-256
+  `edb1d63461a47051720f8a4e3ba512e369e78739abb21c511cba4552be2044e9`, in addition to the
+  existing config and output hashes. The four scientific output hashes remained byte-identical
+  after formatting, typing, and manifest-binding changes.
+- The eight required inputs reconciled exactly: bootstrap 17,181 at tree hash
+  `763c97ad109319e7b8414bae929bc59436b76a9a55fe5b994f74311b95876488`; depth-three
+  4,031 at `8b5888ca556fa4a79ed0233c64a809b1bf0b2296a9e7a153e6ceeb825ee6d313`;
+  unary 27,327 at `e8cf64154f202effc3e0943b81f7664d9bc02eb2186c8111314c1f696201d63c`;
+  SFT2A 13,373 gross at `d49bad5cbe0f8a19ff76e285d958503d4c96d80afaf2571497ee1988ad970622`;
+  canonical SFT2B 301 at `0e53c7934fa816e09ef47516b0505fba19e7159441218770595d3a1c1383aa41`;
+  legacy mixed 23,414 at `4b762c120febe894e2e966e241674eb7ba60c35f4eb1ca1d8b1b9cd7519a65c3`;
+  gold 5,111 at file hash `5f26c9b1b126e8bc9fe714f3c17fe68ad1d9b3aac60b19d80fdb4993ac8ed4e1`;
+  and curated CPT 469,585 at tree hash
+  `1757f4cb915f97484a4fc3be357ccd0aa1db2e4da9d45b99fa4179963bcf1651`.
+- SFT1 bootstrap and depth-three are `revalidate`, not labels ready for direct training. Unary P01
+  is rejected after an exact 15,205-row theorem-ID set match to candidate views containing
+  `lf_alpha`; the other 12,122 unary rows remain `revalidate` because the merged root records
+  `merge_replayed_with_lean=false`. Exact directed-pair overlap is 259 between bootstrap/depth-three,
+  1,324 between bootstrap/SFT2A, and zero between depth-three/SFT2A; ancestry overlap is 1,523,
+  2,429, and 130 respectively.
+- SFT2A is the only row-level training recipe marked `direct_reuse`, and only in its separate
+  legacy configuration: 13,367 resolved rows (307 true, 13,060 false), six unknown sidecar rows,
+  and seven exact directed text-pair duplicates to remove before splitting. SFT2B is `revalidate`:
+  all 301 compiled rows have unknown semantic labels and remain three-voter inputs, never negatives.
+  The canonical 301 reconciles as 3 public-research + 195 Algebra + 103 cross-domain rows and
+  excludes the superseded public postprocess-v1 tranche.
+- The SFT2B preview joins uncovered and then explicitly bound two frozen dependencies rather than
+  guessing: the 10,000-row Gate 3 input file at
+  `8eb75ffa0b9233c5a91492fa181f604e3c098a6f3970799bcb0406f8b517f09e` and the 20-row
+  cross-domain reference representation file at
+  `072c341f52339edc56fa90f548470d22aeea3a3fcb0936ac1a1e3af3255ee39b`.
+- Gold is `direct_reuse` for evaluation only; its old partition file is `legacy_reference`. Curated
+  CPT is `revalidate`: all 469,585 texts are unique, but 463 legacy IDs are duplicated across 515
+  excess rows, and every duplicated ID maps to distinct text. The legacy mixed corpus and prior
+  screened/mixed CPT roots remain smoke/reference assets only.
+- The one-example smoke traced SFT2A source record
+  `recovered_judgment:000196de5c3727cc5a5caba4b3eaa8520d554c665f6fef9003886b0f9e6c31ad`
+  through its pair plan, stored Lean check, judgment, stable preview ID
+  `reuse_preview:906895fd3b9ddf868d34c896b3284a228f9b40998aa1bb7d1a78e668f6d3dccf`,
+  and serialized minimal row. The source trainer file remained identical in size and nanosecond
+  mtime before/after and retained SHA-256
+  `5de1f904904da6fa204a446e65c58d137a59a6a21d5afa15eb1ad24dbf3bf2f1`.
+- Verification passed: JSON config parse; Ruff format check and Ruff lint on
+  `src/leanfaith/data_reuse/` and `tests/unit/data_reuse/`; strict mypy; three focused pytest tests;
+  `git diff --check`; full hash/row/schema reconciliation; source before/after snapshot; and the
+  deterministic second run. Lean is the bottleneck, so no Lean or LLM was invoked. No data was
+  generated, relabelled, merged, uploaded, deleted, or mutated.
 
 ## Progress log (append-only)
 
 - 2026-08-30 — task brief created; no inventory execution performed.
+- 2026-08-30 — Codex `/root` claimed DATA-REUSE and its exact writable paths. Lean budget remains
+  zero; first action is a read-only, hash-backed inventory. The unrelated existing change in
+  `plans/02_goal_v1.md` is outside this session and will be preserved.
+- 2026-08-30 — completed the read-only pass over all eight required roots and 14 additional
+  evidence assets. Reconciled hashes, schemas, counts, label/checker provenance, representation
+  joins, redistribution boundaries, and duplicate/ancestry overlap before writing any staging
+  output; no mutable-source drift was observed.
+- 2026-08-30 — emitted the 22-record inventory, 117 bounded adapter previews, evidence JSON,
+  manifest, and report under the claimed staging root. A missing three-record SFT2B sample join
+  failed closed, then reconciled against two additional frozen, hash-pinned source catalogs before
+  the successful run.
+- 2026-08-30 — one-example smoke, pilot reconciliation, focused tests, static checks, source
+  immutability check, and deterministic rerun passed. Marked DATA-REUSE complete. Exact next action
+  is SFT2A-owner review of the legacy recipe above; SFT1 remains waiting on explicit user approval.
+- 2026-08-30 — independent review scientifically accepted all 22 artifact decisions and the
+  regenerated 117-preview bundle, but found the repository freeze incomplete: owned files were
+  uncommitted, Ruff formatting failed, strict mypy required three annotations, and the staged
+  manifest lacked an implementation or Git identity. Reopened status as `active`; Lean budget
+  remains zero while these operational blockers are repaired.
+- 2026-08-30 — completed the operational freeze: applied Ruff formatting, added the three strict
+  overlap-map annotations, bound the formatted implementation SHA-256 in the manifest, preserved
+  all four scientific output hashes, and reproduced all five final bundle hashes on a second full
+  run. Ruff format/lint, strict mypy, three focused tests, and diff checks pass. Restored status to
+  `complete`; the final repository commit contains only the claimed DATA-REUSE paths.
