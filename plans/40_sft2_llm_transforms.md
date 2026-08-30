@@ -1,11 +1,11 @@
 # SFT2A — LLM-generated semantic transformations
 
 > **Task ID:** SFT2A
-> **Status:** not_started
-> **Owner/session:** unassigned
+> **Status:** active
+> **Owner/session:** Codex `/root` — 2026-08-30 SFT2A session
 > **Last updated:** 2026-08-30
 > **Dependencies:** REPR `goal_v1.0`; shared rubric; roots may be selected independently of SFT1
-> **Next gate:** one root, four candidate slots, compilation, Claude judgment, and independent retention
+> **Next gate:** Opus one-root smoke passed
 > **Compute class:** external LLM/API plus CPU/RAM for Lean; large run may need explicit budget approval
 > **Lean budget:** compile each novel candidate once through cached persistent workers
 > **Local staging root:** `/storage/milikic/leanfaith/value_first/sft2_llm_transforms_v1/`
@@ -81,9 +81,11 @@ quality/cost pilot; the separate repository-setup review does not choose those s
 - Import the 13,373 compiled Qwen/Kimi + Codex-judged records as a
   `legacy_single_judge` tranche after DATA-REUSE confirms hashes/schema:
   `/storage/milikic/leanfaith/corpus2/recovered_singlepass_codex_v1_e8567ba/outputs/trainer_records.jsonl`.
-- For high-quality double agreement, send all 307 legacy positives, all unresolved records, and at
-  least 2K stratified negatives to Claude. Accepted double-judged rows may join the core; keep the
-  rest explicitly legacy rather than pretending they have two judges.
+- For high-quality double agreement, send all 233 REPR-admitted legacy positives and at least 2K
+  stratified negatives to Claude. Eligible/renderable unresolved records have no prior binary label,
+  so retain them in a `legacy_single_judge_needs_second_judge` auxiliary view without an Opus call;
+  do not pay for a judgment that this runner would necessarily discard. Accepted double-judged rows
+  may join the core; keep the rest explicitly legacy rather than pretending they have two judges.
 
 ## Scope and ownership
 
@@ -97,6 +99,30 @@ using invalid Lean as label `0`, or discarding accepted candidates due to incomp
 `tests/unit/sft2a/`; the staging root. Existing `collect2/`, generation/providers, corpus2, shared
 Lean/project/dependency paths, and other tasks are read-only reusable interfaces; request
 coordinator changes.
+
+**Paths claimed by this session:** `plans/40_sft2_llm_transforms.md`;
+`src/leanfaith/sft2a/`; `configs/sft2a/`; `prompts/sft2a/`; `tests/unit/sft2a/`;
+`/storage/milikic/leanfaith/value_first/sft2_llm_transforms_v1/`. No shared Lean, provider,
+project, dependency, policy, or other task path is claimed.
+
+## DATA-REUSE legacy decision
+
+**Accepted with the explicit placeholder exclusion** for a separate `legacy_single_judge`
+configuration. The immutable source root is
+`sha256:d49bad5cbe0f8a19ff76e285d958503d4c96d80afaf2571497ee1988ad970622`.
+Inspect all 13,367 resolved rows without relabeling, deduplicate on the raw directed
+`(reference_headless, candidate_headless)` pair, and retain the lexicographically smallest immutable
+`record_id` in each group. This removes the seven excess directed-pair rows deterministically. A
+pre-import scan found zero `[anonymous]` rows and 144 `⋯` rows, none overlapping the duplicate
+excess; those 144 rows are rejected to a separate legacy-placeholder audit view. This leaves 13,216
+rows eligible for frozen REPR adaptation (297 positive, 12,919 negative). The fail-closed surface
+adapter accepts 10,333 of them (233 positive, 10,100 negative); 2,883 rows (64 positive, 2,819
+negative) use syntax outside the surface renderer's explicit contract, predominantly untyped
+binders, and remain in the separate invalid view. Compiling 2,883 legacy rows merely to recover them
+is not authorized under the Lean-bottleneck contract. The six unresolved judgments remain keyed
+sidecar-only and never become binary rows. The legacy representation is adapted through frozen
+`goal_v1.0` before any headline mixing, and its label basis remains
+`qwen_or_kimi_proposer+single_codex_judge`; it is never described as new double agreement.
 
 ## Lean-efficiency plan
 
@@ -158,8 +184,120 @@ recorded budget/model decision.
 
 ## Coordinator requests
 
+- Approve the bounded diverse-root sample size/source mix and legacy double-judge spend before the
+  pilot begins; the one-root smoke is not used to project 50K-root quality or cost.
 - Approve pinned production proposer/judge settings and projected API budget after the pilot.
 
 ## Progress log (append-only)
 
 - 2026-08-30 — task brief created; no LLM or Lean calls made.
+- 2026-08-30 — Codex `/root` claimed only the SFT2A brief, package, config, prompt, test, and staging
+  paths. Lean remains the bottleneck: all schema, placeholder, source, provenance, join,
+  deduplication, and cache-key work precedes one reserved persistent Lean worker; no corpus compile,
+  50K-root run, or publication is authorized. Accepted the hash-backed DATA-REUSE legacy recipe:
+  keep 13,367 resolved rows in a separate single-judge view after removing seven excess directed
+  duplicates by deterministic record-ID tie-break, and retain six unknown rows sidecar-only.
+- 2026-08-30 — the required placeholder screen found zero `[anonymous]` rows and 144 resolved rows
+  containing `⋯`; none was one of the seven duplicate excess rows. The legacy decision is accepted
+  only with those 144 rows excluded to a separate audit view, leaving 13,216 binary legacy rows
+  (297 positive and 12,919 negative). Placeholder-bearing rows are not semantic negatives.
+- 2026-08-30 — materialized the accepted legacy recipe and replayed it byte-identically. Frozen
+  REPR admitted 10,333 single-judge rows (233 positive, 10,100 negative); 2,883 surface-render
+  failures remain invalid/auxiliary, the 144 placeholder rows remain audit-only, all six unknowns
+  remain sidecar-only, and the gold blocklist produced zero hits. No Lean or external model was
+  invoked for this import.
+- 2026-08-30 — froze strict Codex proposer and blinded Claude/Lemex judge prompts plus JSON schemas,
+  all fourth-freeze REPR identifiers and implementation hashes, provider CLI bytes/settings, the
+  Mathlib context, and the 5,111-row gold screen. Implemented one-Expr proof-free proposition
+  elaboration, persistent content-addressed Lean/provider caches, four independent slots, a
+  three-attempt per-slot cap, accepted-sibling preservation, separate new-core/legacy/invalid/
+  unknown/rejected/contamination/audit views, and immutable replay receipts. Unit simulation
+  exercised one rejected-slot retry without rerunning accepted siblings.
+- 2026-08-30 — reserved one Lean worker/20 GiB only after the SFT1 reservation cleared, then
+  released it immediately after the bounded root. The exact Mathlib `le_trans` root produced four
+  valid gold-clean candidates, all elaborated once and cached: two preserving and two breaking;
+  blinded Claude accepted all four with high confidence. The live invalid, unknown, semantic
+  disagreement, duplicate, and gold-hit counts were all zero, so no live semantic retry was
+  triggered. The deterministic one-root unit scenario separately forces one rejected first attempt,
+  preserves the other accepted siblings, and accepts only that slot's second attempt under the
+  three-attempt cap.
+- 2026-08-30 — one infrastructure-only Claude retry was needed because CLI 2.1.251 cannot resolve
+  the standard draft-2020-12 `$schema` annotation. The failed capture is durable and created no
+  judgment; the identical candidate was retried after omitting only that non-validating transport
+  annotation. Successful Claude cost was $0.218831; Codex CLI cost is unavailable. Across the four
+  unique candidates, original Lean elapsed time was 23.922 seconds (0.167 candidates/second), not
+  including environment startup; one candidate was a cache hit when the interrupted orchestration
+  resumed. These one-root figures are smoke evidence, not a scale projection.
+- 2026-08-30 — repeated one-root replay produced zero Lean requests, zero provider calls, zero
+  duplicate outputs, and stable snapshot hash
+  `3a5181a363ed29964a8a56e73c89fe0ddcff71c7d57c072e3949736a5207669c`.
+  Only after that receipt, the frozen 10% stratified Lemex audit selected two of four rows because
+  each small stratum rounds up to one; both agreed with Claude, with zero unknown-review rows. Audit
+  replay was also cache-only. The bounded diverse pilot, 50K-root run, and publication remain
+  unstarted; no statistically defensible scale/cost projection is claimed from one root.
+- 2026-08-30 — review requires fixes before pilot authorization. The Fable config and its one-root,
+  replay, audit, and provider receipts are sealed as immutable historical smoke evidence. SFT2A is
+  active again; the next gate is an additive Opus one-root smoke that reuses shared proposer/Lean
+  caches. No diverse-root pilot, legacy bulk rejudging, publication, or 50K run is authorized.
+- 2026-08-30 — added the judge/config-scoped `one_root_opus5_v1` run without changing the Fable
+  config or historical output trees. Provider and Lean caches remain under the shared staging root;
+  derived Opus, comparison, pilot, legacy-rejudge, and release artifacts have versioned run roots.
+  The Opus pin is Claude CLI `2.1.251`, binary
+  `sha256:fd5f10ff0eb58daec04900466b143ea98aab50abf208a422bc008eaec13f61f7`,
+  alias `opus`, effort `max`, and distinct provider ID
+  `claude_opus_alias_max_sft2a_smoke_v1`; the server alias remains explicitly floating.
+- 2026-08-30 — the bounded Opus `mathlib:le_trans` smoke accepted the same four candidates on their
+  first attempts: two preserving and two breaking. It executed exactly four new Opus judgments,
+  while all four proposer calls and all reference/candidate Lean requests were cache hits. There
+  were zero invalid, unknown, disagreement, retry, duplicate, or contamination outcomes. Reported
+  Opus spend was $0.100341 and recorded provider latency was 62.352945 seconds. Replay executed zero
+  provider/Lean calls with snapshot hash
+  `13aa171791110056d1414ac8618bd22f70a9bb47472d7eccccfe06b967122f98`.
+  The side-by-side Fable/Opus join found the same four candidates and 4/4 verdict agreement; Fable
+  reported $0.218831 over 64.578945 seconds. The Fable trees remain immutable.
+- 2026-08-30 — implemented the deterministic four-source sampler and grouped runner, but did not
+  execute it. The exact proposed pilot contains 12 roots: five Mathlib, three Physlib, two CSLib,
+  and two safe-context compiler-data roots. Execution is grouped into Mathlib, Physlib, and CSLib
+  persistent contexts. Hard ceilings are 12 roots, three attempts per slot, 144 Codex calls, 144
+  Opus calls, 288 total provider calls, zero Lemex calls in generation, and $15 reported Opus spend.
+  The separately authorized post-replay 10% audit is proposed at no more than eight Lemex calls,
+  making the end-to-end provider-call cap 296. Codex and Lemex cost remain unavailable. The config
+  keeps pilot and audit authorization false.
+- 2026-08-30 — implemented but did not execute the legacy Opus-rejudge command. Its hash-bound
+  sample has all 233 REPR-admitted positives, 2,000 deterministic family-stratified REPR-admitted
+  negatives, and all three eligible/renderable unresolved pairs (2,236 total); placeholder,
+  REPR-invalid, and contamination views receive no Opus calls. The distinct
+  `legacy_double_judge` path is hard-disabled pending approval, with ceilings of 2,240 Opus/total
+  calls and $250 reported Opus spend. `legacy_single_judge` remains unchanged.
+- 2026-08-30 — materialized the historical Fable post-audit releasable core by stable row ID: four
+  minimal `{reference, candidate, label}` rows and zero excluded IDs because the historical audit
+  had zero disagreements. The exporter and unit regression exclude a disagreed ID before writing
+  core. New audit manifests record source-run hash, full source-Opus and Lemex pins, prompt hashes,
+  usage, latency, cost, and explicit unavailable-cost limitations. No new Lemex audit was run.
+- 2026-08-30 — final readiness review replaced the prior near-duplicate/trivial pilot roots with
+  varied theorem structures while preserving the exact 5/3/2/2 source mix. The hash-bound sample is
+  `d0568942cf276939a47b375a73715fcae489a9b9c380c9aa02bd780bd706ba75`: Mathlib `le_trans`,
+  `List.reverse_reverse`, `Nat.add_comm`, `Nat.gcd_comm`, and `Set.union_comm`; Physlib free-particle
+  energy conservation, FLRW asymptotics, and CKM row normalization; CSLib register write/read and
+  timed merge semantics; and compiler-data real-analysis optimization and factorial Diophantine
+  classification. The pilot remains unexecuted and groups the 12 roots into three persistent
+  project environments.
+- 2026-08-30 — added an append-only provider ledger that preserves cumulative Opus calls and spend
+  across process restart, requires every Opus result to carry a cost report, and enforces the frozen
+  $15 pilot ceiling after resume. Added a persistent cross-root raw/rendered candidate registry and
+  a consolidated pilot quality/cost/throughput/projection manifest plus report. The additive
+  authorization receipt binds the exact sample and ceilings and remains `authorized: false`.
+- 2026-08-30 — corrected the earlier legacy readiness proposal: the 2,233 provider-call rows are
+  exactly 233 admitted positives plus 2,000 deterministic stratified admitted negatives. The three
+  eligible/renderable unresolved rows are now a distinct
+  `legacy_single_judge_needs_second_judge` auxiliary view with `provider_call_allowed: false`; they
+  never enter the Opus request set. Legacy rejudging remains disabled.
+- 2026-08-30 — the user clarified that model spend is not the practical limiter while model tokens
+  remain available and models should be used according to task need. The $15 pilot ceiling remains
+  in this readiness version as a reproducibility and authorization contract, not as an inferred
+  affordability constraint; changing it requires a new additive hash-bound authorization artifact.
+- 2026-08-30 — preserved the historical Fable combined-tree seal algorithm and hash in a repository
+  receipt, left the frozen Fable and Opus smoke bytes unchanged, formatted all reported SFT2A files,
+  and passed the 14 SFT2A tests, Ruff check/format verification, strict Mypy, frozen-config checks,
+  readiness verification, and diff checks. No provider, Lean, diverse-root, legacy, publication, or
+  50K execution occurred during final readiness work.

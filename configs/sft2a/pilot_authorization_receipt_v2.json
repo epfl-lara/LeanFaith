@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "receipt_id": "leanfaith_sft2a_pilot_authorization_receipt_v2",
+  "pilot_config_id": "leanfaith_sft2a_diverse_root_opus5_pilot_v2",
+  "sample_sha256": "d0568942cf276939a47b375a73715fcae489a9b9c380c9aa02bd780bd706ba75",
+  "ceilings_sha256": "a708c9bce0532d462c38b8c7ae55fa064f119f77346c3d9d2ea976103a115dd8",
+  "authorization_scope": "readiness_only_no_provider_or_lean_execution",
+  "authorized": false,
+  "recorded_from_user_instruction_date": "2026-08-30",
+  "reason": "The user explicitly accepted the frozen one-root smoke and explicitly prohibited starting the 12-root and legacy runs."
+}

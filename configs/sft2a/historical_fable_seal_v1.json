@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "receipt_id": "leanfaith_sft2a_historical_fable_combined_tree_seal_v1",
+  "staging_root": "/storage/milikic/leanfaith/value_first/sft2_llm_transforms_v1",
+  "sealed_roots": [
+    "one_root_v1",
+    "audit_lemex_v1"
+  ],
+  "algorithm": "sha256_of_sha256sum_lines_for_all_regular_files_sorted_by_absolute_posix_path_v1",
+  "algorithm_detail": "For every regular file recursively under the two sealed roots, sort absolute POSIX paths bytewise, emit lowercase_sha256 two_spaces absolute_path newline, then SHA-256 the concatenated UTF-8 bytes.",
+  "combined_tree_sha256": "b1097b6855839bfbd10d04c72acfc7e0189380df3eba8ab5dcc92cbaf8a53a77",
+  "required_file_receipts": {
+    "one_root_v1/manifest.json": "74554bf905f8b3cfe6f9aa504ad3d21e4be3848add46800cffb71afdc1ef3209",
+    "one_root_v1/reproducibility_receipt.json": "b79bc7b3e19b08db27c8a525105bc6439063145e8183755ca6d733abc44a21b9",
+    "audit_lemex_v1/manifest.json": "fa789b9c172a8543f84817b33640c5b33a71055d265421388aec6737f53da5cf"
+  },
+  "immutable": true
+}

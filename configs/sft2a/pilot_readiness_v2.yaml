@@ -1,0 +1,60 @@
+schema_version: 1
+config_id: leanfaith_sft2a_diverse_root_opus5_pilot_v2
+status: ready_not_authorized
+task_id: SFT2A
+
+base_opus_smoke_config:
+  path: configs/sft2a/one_root_opus5_v1.yaml
+  sha256: 936f025d8e96048c788f6a57ecf2a717cfae68333fcda552b7815d8103c32aac
+base_opus_smoke_config_hash: e204b9c40be6499a87fd219ec86a84c6d5f0cd0f1e0c60db457d1cb3351ae3e9
+catalog:
+  path: configs/sft2a/pilot_root_catalog_v2.json
+  sha256: 1fe261d705f75d3a0125221403011a1a74343f6dde51e8483d81d5b832e1265a
+expected_sample_sha256: d0568942cf276939a47b375a73715fcae489a9b9c380c9aa02bd780bd706ba75
+sample_output_subdir: runs/diverse_root_opus5_pilot_v2
+allocations:
+  - {source: mathlib, roots: 5}
+  - {source: physlib, roots: 3}
+  - {source: cslib, roots: 2}
+  - {source: compiler_data, roots: 2}
+group_by: project_id+project_revision+compile_context_id
+persistent_lean_environment_per_group: true
+ceilings:
+  maximum_roots: 12
+  maximum_provider_calls: 296
+  maximum_proposer_calls: 144
+  maximum_opus_calls: 144
+  maximum_lemex_calls: 8
+  maximum_attempts_per_slot: 3
+  maximum_reported_opus_spend_usd: 15.0
+  codex_cost_status: unavailable
+  lemex_cost_status: unavailable
+authorization_receipt:
+  path: configs/sft2a/pilot_authorization_receipt_v2.json
+  sha256: a0d3c0aebcfb870ebe9ff970b41c59b8fa32433af2449cf700637e9badfb5b03
+historical_fable_seal:
+  path: configs/sft2a/historical_fable_seal_v1.json
+  sha256: d20bb53d74d65b04d5caf6f25b9aa1629338127e448e469c3c3509474023fdaf
+
+legacy_rejudge:
+  authorized: false
+  input_configuration: legacy_single_judge
+  output_configuration: legacy_double_judge
+  output_subdir: runs/legacy_opus5_rejudge_v2
+  all_admitted_positives: 233
+  minimum_stratified_negatives: 2000
+  renderable_unresolved_action: single_judge_needs_second_judge_auxiliary_no_opus_call
+  exclude_placeholders: true
+  exclude_repr_invalid: true
+  stratify_by: [family]
+  salt: leanfaith-sft2a-legacy-opus-rejudge-v2
+  ceilings:
+    maximum_roots: 1
+    maximum_provider_calls: 2240
+    maximum_proposer_calls: 0
+    maximum_opus_calls: 2240
+    maximum_lemex_calls: 0
+    maximum_attempts_per_slot: 3
+    maximum_reported_opus_spend_usd: 250.0
+    codex_cost_status: unavailable
+    lemex_cost_status: unavailable

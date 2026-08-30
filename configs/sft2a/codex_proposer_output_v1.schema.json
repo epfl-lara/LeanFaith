@@ -1,0 +1,68 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "candidate_signature": {
+      "maxLength": 12000,
+      "minLength": 1,
+      "type": "string"
+    },
+    "change_summary": {
+      "maxLength": 800,
+      "minLength": 1,
+      "type": "string"
+    },
+    "informative": {
+      "const": true,
+      "type": "boolean"
+    },
+    "judge_trap": {
+      "maxLength": 800,
+      "minLength": 1,
+      "type": "string"
+    },
+    "mechanism": {
+      "enum": [
+        "premise_restructure",
+        "quantifier_restructure",
+        "logical_restatement",
+        "equation_orientation",
+        "type_or_domain",
+        "premise_strength",
+        "conclusion_strength",
+        "guard_or_boundary",
+        "converse_or_negation",
+        "existence_or_uniqueness",
+        "witness_dependency",
+        "other"
+      ],
+      "type": "string"
+    },
+    "proof_free": {
+      "const": true,
+      "type": "boolean"
+    },
+    "requested_polarity": {
+      "enum": [
+        "preserving",
+        "breaking"
+      ],
+      "type": "string"
+    },
+    "schema_version": {
+      "const": 1,
+      "type": "integer"
+    }
+  },
+  "required": [
+    "schema_version",
+    "requested_polarity",
+    "mechanism",
+    "candidate_signature",
+    "change_summary",
+    "judge_trap",
+    "informative",
+    "proof_free"
+  ],
+  "type": "object"
+}

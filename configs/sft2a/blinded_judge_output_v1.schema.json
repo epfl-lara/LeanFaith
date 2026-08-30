@@ -1,0 +1,68 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "confidence": {
+      "enum": [
+        "high",
+        "medium",
+        "low"
+      ],
+      "type": "string"
+    },
+    "error_type": {
+      "enum": [
+        "none",
+        "ambiguous",
+        "missing_context",
+        "insufficient_confidence"
+      ],
+      "type": "string"
+    },
+    "rationale": {
+      "maxLength": 1200,
+      "minLength": 1,
+      "type": "string"
+    },
+    "relation_class": {
+      "enum": [
+        "representation_only",
+        "logical_restatement",
+        "quantifier_scope",
+        "type_or_domain",
+        "premise_strength",
+        "conclusion_strength",
+        "converse",
+        "negation_scope",
+        "existence_uniqueness",
+        "witness_dependency",
+        "boundary_case",
+        "unrelated",
+        "ambiguous_or_missing_context",
+        "other"
+      ],
+      "type": "string"
+    },
+    "schema_version": {
+      "const": 1,
+      "type": "integer"
+    },
+    "verdict": {
+      "enum": [
+        "equivalent",
+        "non_equivalent",
+        "unknown"
+      ],
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema_version",
+    "verdict",
+    "confidence",
+    "relation_class",
+    "error_type",
+    "rationale"
+  ],
+  "type": "object"
+}
