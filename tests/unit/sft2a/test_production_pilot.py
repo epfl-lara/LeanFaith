@@ -10,11 +10,20 @@ import pytest
 from leanfaith.config.hashing import canonical_json_bytes, hash_canonical, hash_file
 from leanfaith.sft2a.budget import PersistentProviderBudget
 from leanfaith.sft2a.config import LoadedSFT2AConfig, load_sft2a_config
+from leanfaith.sft2a.detached import (
+    DetachedPilotError,
+    _exclusive_lock,
+    launch_detached_pilot,
+)
 from leanfaith.sft2a.models import SFT2AProductionConfig
 from leanfaith.sft2a.pilot import verify_pilot_replay
 from leanfaith.sft2a.pilot_audit import pilot_audit_indices, run_pilot_lemex_audit
 from leanfaith.sft2a.providers import ProviderCallResult
-from leanfaith.sft2a.readiness import load_pilot_readiness
+from leanfaith.sft2a.readiness import (
+    LoadedPilotReadiness,
+    PilotReadinessError,
+    load_pilot_readiness,
+)
 
 
 def _judge(verdict: str) -> dict[str, object]:
@@ -70,10 +79,9 @@ def _temporary_production(tmp_path: Path) -> LoadedSFT2AConfig:
 
 def _write_fake_completed_pilot(
     loaded: LoadedSFT2AConfig,
-    readiness: object,
+    readiness: LoadedPilotReadiness,
     output: Path,
 ) -> list[dict[str, object]]:
-    assert hasattr(readiness, "config_hash") and hasattr(readiness, "config")
     sidecars: list[dict[str, object]] = []
     sample_rows: list[dict[str, object]] = []
     root_receipts: list[dict[str, object]] = []
@@ -172,7 +180,7 @@ def _write_fake_completed_pilot(
     pilot_manifest = {
         "version": "leanfaith_sft2a_diverse_root_pilot_v2",
         "config_hash": loaded.config_hash,
-        "readiness_config_hash": readiness.config_hash,  # type: ignore[attr-defined]
+        "readiness_config_hash": readiness.config_hash,
         "root_count": 12,
         "root_manifests": root_receipts,
         "pilot_completed": True,
@@ -207,8 +215,8 @@ def test_production_config_is_additive_and_policy_bound() -> None:
 def test_completed_pilot_replay_and_combined_audit_share_budget_and_exclude_disagreement(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    base = load_sft2a_config(Path("configs/sft2a/one_root_opus5_v1.yaml"))
-    readiness = load_pilot_readiness(base)
+    base = load_sft2a_config(Path("configs/sft2a/production_pilot_v1.yaml"))
+    readiness = load_pilot_readiness(base, Path("configs/sft2a/pilot_readiness_production_v1.yaml"))
     loaded = _temporary_production(tmp_path)
     output = tmp_path / readiness.config.sample_output_subdir
     sidecars = _write_fake_completed_pilot(loaded, readiness, output)
@@ -279,3 +287,29 @@ def test_audit_selection_is_stratified_and_hard_capped() -> None:
     assert len(selected) == 8
     assert sum(allocations.values()) == 8
     assert all(value > 0 for value in allocations.values())
+
+
+def test_production_readiness_binds_smoke_and_refuses_unauthorized_launch() -> None:
+    loaded = load_sft2a_config(Path("configs/sft2a/production_pilot_v1.yaml"))
+    readiness = load_pilot_readiness(
+        loaded, Path("configs/sft2a/pilot_readiness_production_v1.yaml")
+    )
+    assert readiness.config_hash == (
+        "5b26cf8cf21a4e5542b0ba7c72a1c110e4bd415681eb2ddf2d3abd14e7203a02"
+    )
+    assert readiness.exact_settings_smoke is not None
+    assert readiness.exact_settings_smoke["successful"] is True
+    assert readiness.authorization["authorized"] is False
+    assert readiness.config.detached_launch.session_name == ("leanfaith-sft2a-production-pilot-v1")
+    with pytest.raises(PilotReadinessError, match="does not authorize execution"):
+        launch_detached_pilot(loaded, readiness, resume=False)
+
+
+def test_detached_run_lock_refuses_duplicate_start(tmp_path: Path) -> None:
+    lock = tmp_path / "detached/run.lock"
+    with (
+        _exclusive_lock(lock, label="test pilot run lock"),
+        pytest.raises(DetachedPilotError, match="duplicate start refused"),
+        _exclusive_lock(lock, label="test pilot run lock"),
+    ):
+        pytest.fail("duplicate lock unexpectedly acquired")

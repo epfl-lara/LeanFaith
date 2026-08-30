@@ -1,11 +1,11 @@
 # SFT2A — LLM-generated semantic transformations
 
 > **Task ID:** SFT2A
-> **Status:** active
+> **Status:** pilot_ready
 > **Owner/session:** Codex `/root` — 2026-08-30 SFT2A session
 > **Last updated:** 2026-08-30
 > **Dependencies:** REPR `goal_v1.0`; shared rubric; roots may be selected independently of SFT1
-> **Next gate:** Opus one-root smoke passed
+> **Next gate:** user authorization for the 12-root pilot only
 > **Compute class:** external LLM/API plus CPU/RAM for Lean; large run may need explicit budget approval
 > **Lean budget:** compile each novel candidate once through cached persistent workers
 > **Local staging root:** `/storage/milikic/leanfaith/value_first/sft2_llm_transforms_v1/`
@@ -301,3 +301,32 @@ recorded budget/model decision.
   and passed the 14 SFT2A tests, Ruff check/format verification, strict Mypy, frozen-config checks,
   readiness verification, and diff checks. No provider, Lean, diverse-root, legacy, publication, or
   50K execution occurred during final readiness work.
+- 2026-08-30 — added the production-default configuration without changing either frozen smoke. It
+  is hash-bound to active policy
+  `4554a071b06b1af9015b253b5e64b2a0a4d013630e5224ef7729bbf65757646f` and pins Claude Code
+  Opus 5/high, `gpt-5.6-terra`/high, and `moonshotai/Kimi-K2.7-Code`/high under distinct provider
+  IDs with exact local CLI versions and binary hashes; all server aliases remain honestly marked
+  floating. Shared provider and Lean caches remain outside the versioned production run trees.
+- 2026-08-30 — ran exactly one authorized production-settings root, Mathlib `le_trans`, through
+  four slots. It accepted two preserving and two breaking candidates on four first attempts with
+  zero invalid, unknown, judge-disagreement, duplicate, retry, or contamination outcomes. Four new
+  Terra calls and four new Opus-high judgments ran; reported Opus spend was $0.083279 and provider
+  latency was 48.188734 seconds. Lean is still the bottleneck: cheap filtering preceded one claimed
+  persistent worker, one novel candidate executed in 15.877 seconds, three candidates hit the
+  shared cache, and the 1-worker/20-GiB claim was released immediately afterward. Replay executed
+  zero provider calls and zero Lean requests with snapshot
+  `80f5f856166c43394df938256b57fd36be7d669735eb7a0012cdb5ad33232814`.
+- 2026-08-30 — completed only the exact one-root smoke's Kimi-high blinded audit: deterministic
+  small-stratum rounding selected two of four accepted rows, both agreed with Opus, cost reporting
+  remained explicitly unavailable, and immutable audit replay made no additional call. Added the
+  pilot-specific completed-run replay receipt, which forbids provider/Lean execution and seals all
+  durable hashes, plus the combined-pilot 10% stratified audit capped at eight calls on the same
+  persistent 296-call ledger. Forced-disagreement regression routes the row to unknown/review,
+  excludes its stable ID from releasable core, propagates audit hashes into the consolidated report,
+  and blocks scale.
+- 2026-08-30 — prepared but did not launch the production pilot's named detached `tmux` path. It
+  requires a clean committed implementation, the exact config/readiness/authorization hashes, one
+  exclusive run lock, one host-wide Lean resource claim, closed stdin, a persistent combined log
+  and append-only journal, explicit resume and health commands, and duplicate-start refusal. The
+  production receipt is `authorized: false`; the next gate is user authorization for the 12-root
+  pilot only. The 2,233-row legacy rejudge, publication, and 50K run remain unauthorized.
