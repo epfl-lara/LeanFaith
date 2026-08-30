@@ -1,12 +1,12 @@
 # REPR — shared `goal_v1.0` theorem representation
 
 > **Task ID:** REPR
-> **Status:** active
+> **Status:** complete
 > **Owner/session:** Codex REPR session (2026-08-30)
-> **Last updated:** 2026-08-30 (fourth repair: shared closed-Expr route and validator coverage)
+> **Last updated:** 2026-08-30 (fourth replacement freeze)
 > **Dependencies:** none
-> **Next gate:** finish Lean-free API/schema/859-row validator work, run one bounded shared-session
-> live gate, then commit an active implementation and one coherent replacement freeze
+> **Next gate:** SFT1 pins the coherent fourth-freeze revision and commit-bound renderer API hash,
+> integrates `closed_expr_in_session`, and passes its own six-real-goal direct-Expr gate
 > **Compute class:** CPU; bounded Lean oracle/renderer tests only
 > **Lean budget:** reuse one loaded environment and already-certified Exprs; no corpus-wide compile
 > **Local staging root:** `/storage/milikic/leanfaith/value_first/goal_v1_0/`
@@ -388,6 +388,116 @@ commit containing this record, the frozen config, matching frozen-state test, an
   validated. The
   raw source sidecar is always authoritative for compilation.
 
+## Fourth replacement freeze record and evidence
+
+Every earlier freeze in this brief is superseded for new downstream pinning, including coherent
+freeze `cbc933c3623d81ba649a1f9c5107ad404389d69f`. The active implementation parent
+`93cd9cf9d4848827f2bacad57a35c3d7f01500f7` is reproducible provenance, but its config and matching
+test deliberately say `active`; it is not the consumable revision. The only consumable revision is
+the child commit containing this record, the frozen config, the matching frozen-state assertion, and
+the completed brief.
+
+- **Frozen identity:** spec hash
+  `68d893a2c566bf3f6a82c899a32a351f9a5420f5ea98168c99b887aaa01a45a8`; renderer semantic hash
+  `0bec5429cc0e539841208be53cd52189a7b80cbdb4649ee2d45b84bd8a5ef1fd`; checked-in Lean SHA-256
+  `4471262f812746046570c51dde5958ee33db31a450a6974071efce584ba56bc3`; exact import-stripped
+  injected-helper SHA-256 `a6650452eebe683db295df1dfe925d3db8b03fc24e55cbc6793e838b5fe2f272`;
+  Python module SHA-256 `496237e190c394e9bd3c3036e2bc01c635905116c5084787a42e6cb569f45517`;
+  frozen config SHA-256 `a65d5b29760bbc5eb89405927f946f205eb99856c0538fdf5b57d3f9eceb0db7`;
+  implementation-set hash `9a9252fff5ffc69cb65e71120fedffa83ed47271aecadbecf0ceb890feea65ff`.
+- **One Lean implementation:** public
+  `LeanFaith.GoalV1.renderClosedProp (e : Expr) : MetaM String` is the sole text implementation.
+  `renderConstantType (ci : ConstantInfo)` is literally `renderClosedProp ci.type`. Both use the
+  same frozen local context, transparency, options, width, telescope handling, and post-validator.
+- **Closed-Expr safety:** assigned metavariables are instantiated. Unresolved expression or universe
+  metavariables, free variables, loose bound variables, malformed expressions, non-`Prop`
+  expressions, `sorry`, and unsupported anonymous outer telescope binders fail closed. A
+  nondependent explicit anonymous or macro-scoped generated Pi is the one supported structural-arrow
+  case and remains `A → B` in the target; dependent or nonexplicit truly anonymous binders fail.
+  Recursive metadata erasure cannot hide an unsupported binder.
+- **SFT1 route:** `closed_expr_in_session` accepts an ordered reference/candidate endpoint list and a
+  single `run_meta do` body in which every certified `Expr` is still live. Each endpoint calls the
+  shared payload emitter exactly once. The route submits one backend request, parses and validates
+  all endpoint payloads atomically, and never creates an endpoint theorem/axiom, proof, or `sorry`;
+  invokes surface mode; pretty-prints then re-elaborates a candidate; or recompiles per candidate.
+  Its admission check forbids declaration/proof APIs and text elaboration in the Meta action, while
+  the live assertion proves the environment's constant count is unchanged across that action.
+- **Expr-side sidecar:** every direct record stores the validated canonical structural Expr-tree
+  SHA-256, original and canonical used level parameters, endpoint ID/role and Expr origin,
+  render-scope ID, compile-context ID, source mode, universe-profile ID/hash, render-context ID/hash,
+  renderer/spec hashes, all implementation hashes, rendered-goal/source-material hashes, and the
+  optional typed-alpha fingerprint. A declaration-backed Expr retains exact `raw_statement`; a
+  text-backed direct proposition retains exact audit-only `proposition_text`; a structurally built
+  candidate has neither and records `constructed_expr_no_source_text` plus a nonempty reason. Goal
+  text is never used to invent missing source.
+- **Universe profile:** every named, direct, and supported surface route uses first structural
+  occurrence names `u_0`, `u_1`, ... . The profile hash is
+  `d9e729134fcd6a086a58191810a9227062c66496ebe76b8da3c458a58b31cb61`; the frozen render-context
+  hash is `5f44b6970f0902c968fc98a2659b26c1c9d0bcaef2960cd3ea73808f203f8f62`.
+  Surface mode accepts only simple explicit `Type`/`Sort` level names for this canonicalization and
+  fails closed on syntax it cannot map soundly. SFT1, SFT2, and EVAL therefore do not receive
+  systematically different universe names.
+- **Runtime source assertion:** before any backend submission, the Python route hashes the full
+  checked-in Lean file and its exact import-stripped injected body, compares both with the pins
+  above, and refuses mismatches. Direct and declaration-backed sidecars serialize the resulting
+  implementation identity; downstream manifests must retain that identity plus the coherent freeze
+  revision.
+- **ConsistencyCheck coverage:** the exact ordered `goal` projection from
+  `GuoxinChen/ConsistencyCheck` revision
+  `1c6a6cca0f87b48d4cccb49946d3b8fc57a1eef9` has source-file SHA-256
+  `81cf6d9988625d84efbd8e1d6a0af4c234b2206da8350ee1d8bf547e612b1d47`. The derived, goal-only,
+  gzip/base64 fixture has encoded SHA-256
+  `8fe6d82e11e3db07c9b6e9eee3c1983e034d50c4c0e4e3a56f90366ebe6b6149` and uncompressed SHA-256
+  `a0cf4ff5f74760712f7f526b87ee290781da036f97e22c3d122f8c4d9a2adf1f`. Targeted rules for paired
+  and leading bars, postfix/factorial/positive-Nat/floor notation, set image and big-operator primes,
+  quantified big operators, inner-product/floor delimiters, generated-name/proof-placeholder forms,
+  and structure literals raise coverage from 804/859 to 859/859. Remaining failure classes: none.
+  Nine explicitly named layout-only collapses are recorded separately; coverage receipt hash is
+  `094550140da0a000388f9f1a588da798ed431ad6615280b99212035aa51c82b8`.
+- **Lean-free gate:** all 291 owned unit cases pass, including the pinned 859-row regression, direct
+  schema/provenance/hash recomputation, route admission, malformed near-neighbors, chained/nested
+  `let`/`have`, diagnostic-only sorry, literals, universe syntax, and surface attestation. Scoped
+  ruff, formatting, strict mypy, source/spec/config assertions, and plan validation pass.
+- **Bounded shared-environment live gate:** the one-example elaborated/surface smoke agrees exactly;
+  cold and replay request hashes are both
+  `5b839070747b8688ddd7f9ffdc333da5d8c7b2deec2c01d47512fe22381aa414` (3,640 ms cold, 841 ms
+  replay). The direct reference plus real SFT1-engine P21 candidate rendered atomically in one
+  request with hash `a86df39654127e4b318d177db1a733f1d92b32189c07a5e4124f819efbc6c6f1`
+  (2 rows, 8 fail-closed probes, 1,447 ms). The elaborated pilot rendered 19/19 rows in 935 ms, with
+  14 exact surface agreements and two expected surface failures. The six-source surface pilot
+  remained 4/6 in 4 ms. Mixed invalid/sorry variants produced zero sidecars and two failures; the
+  incomplete binding produced zero elaborated sidecars and failed surface validation. The complete
+  live test passed 1/1 in 9.96 s at 98,672 KiB peak RSS.
+- **Compute/data boundary:** one worker and one reused environment were reserved for the bounded
+  gate, then released; no active reservation or durable staging output remains. No corpus was
+  compiled and no training data was generated.
+
+## Current downstream integration contract and residual risks
+
+- SFT1 supplies the already-certified reference and candidate Exprs to one
+  `closed_expr_in_session` request while they are live and calls
+  `LeanFaith.GoalV1.emitClosedProp` once per declared endpoint. It persists each full direct sidecar
+  and uses only `sidecar.core_text()` as model-facing text. It must not add endpoint declarations,
+  proofs, `sorry`, surface fallback, text re-elaboration, or a copied `ppGoal` implementation.
+- The SFT1 manifest pins the coherent fourth-freeze commit, namespace `LeanFaith.GoalV1`, signature
+  `renderClosedProp (e : Expr) : MetaM String`, spec hash, Lean/Python/config/injected-helper hashes,
+  implementation-set hash, and its external commit-bound `renderer_api_hash`. That external hash is
+  canonical JSON over `replacement_commit`, `replacement_lean_renderer_path`,
+  `replacement_lean_renderer_sha256`, `required_namespace`, and `required_signature`; it is distinct
+  from the semantic renderer hash because embedding a commit-bound hash in the same commit would be
+  circular.
+- This REPR gate proves API consumability and one real transform candidate. It does not substitute
+  for SFT1's required six-real-goal direct-Expr integration gate. SFT1 must pass and record those six
+  cases before changing its policy or producing data. SFT2 and EVAL likewise pin the same renderer
+  identity rather than fork universe naming or rendering logic.
+- Surface remains a tagged, caller-attested fallback, not an SFT1 candidate path. Its bounded
+  six-source result is still 4/6, so downstream coverage and metrics remain stratified by
+  `goal_v1_source`. Unsupported syntax fails closed; raw source and the complete compilation context
+  remain authoritative.
+- The structural Expr hash intentionally ignores binder names and metadata while retaining binder
+  info and semantic children. It is an identity/dedup provenance field, not a replacement for raw
+  source, proposition text, compile context, or the rendered-goal hash.
+
 ## Session kickoff prompt
 
 ```text
@@ -402,10 +512,12 @@ Do not generate training data. Record the spec hash, evidence, risks, and downst
 
 ## Coordinator requests
 
-- Downstream SFT/evaluation serializers must remain paused until the coherent fourth replacement
-  freeze is available. Commit `cbc933c3623d81ba649a1f9c5107ad404389d69f`, spec hash
+- Downstream SFT/evaluation serializers pin only the coherent fourth replacement child commit
+  containing this record. Active implementation `93cd9cf9d4848827f2bacad57a35c3d7f01500f7`, commit
+  `cbc933c3623d81ba649a1f9c5107ad404389d69f`, spec hash
   `073d92c8e1fcc5cb7a3a9bf325d047e9b2d52149504977086de46abf6f84ef52`, and every earlier freeze
-  are superseded for new pinning.
+  are superseded for new pinning. SFT1 still owns its six-real-goal integration gate before policy
+  activation or data work.
 - Coordinator follow-up: mirror the scoped term-binding `have`-to-`let` exception in
   `plans/00_shared_contracts.md`. Until that coordinator-owned wording is updated, this task-owned
   spec is the explicit `goal_v1.0` normalization policy; the raw sidecar retains original notation.
@@ -524,3 +636,15 @@ Do not generate training data. Record the spec hash, evidence, risks, and downst
   near-neighbors fail closed. All 291 owned unit cases, scoped ruff/formatting, strict mypy, and the
   plan validator pass. No Lean, corpus compilation, or data generation occurred during this gate;
   the next action is the one-worker shared-environment live oracle.
+- 2026-08-30 — committed the fourth replacement implementation at
+  `93cd9cf9d4848827f2bacad57a35c3d7f01500f7` with the config and matching assertion still `active`.
+  The commit contains the sole closed-Expr renderer, direct-session API and sidecars, runtime helper
+  pins, universe profile, targeted 859-row validator, and all owned regressions. It is provenance,
+  not a downstream-consumable freeze.
+- 2026-08-30 — the final one-worker live gate passed 1/1 against the frozen-state bytes. It rendered
+  a loaded reference and an actual SFT1-engine candidate in one direct Meta request, proved all
+  eight unsupported Expr shapes fail closed, preserved the identical smoke request hash, passed the
+  19-row elaborated and six-source surface pilots, and retained zero sidecars for sorry/incomplete
+  failures. Wall time was 9.96 s with 98,672 KiB peak RSS. The reservation was released; no corpus
+  or training data was produced. REPR is complete in the coherent child commit containing this
+  record, frozen config, and frozen-state assertion; only that child is consumable downstream.

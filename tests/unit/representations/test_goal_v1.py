@@ -77,11 +77,11 @@ def _load_config() -> dict[str, object]:
     return cast(dict[str, object], loaded)
 
 
-def test_spec_hash_and_yaml_active_contract_match() -> None:
+def test_spec_hash_and_yaml_frozen_contract_match() -> None:
     config = _load_config()
 
     assert hash_canonical(SPEC_PAYLOAD) == SPEC_HASH
-    assert config["status"] == "active"
+    assert config["status"] == "frozen"
     assert config["spec"] == SPEC_PAYLOAD
     assert config["spec_hash"] == SPEC_HASH
     assert RENDERER_VERSION == "goal_v1.0"
