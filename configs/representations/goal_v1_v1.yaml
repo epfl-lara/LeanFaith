@@ -1,5 +1,5 @@
 schema_version: 1
-status: active
+status: frozen
 spec_hash_algorithm: sha256_canonical_json
 spec_hash: 7ec7b82923b4eb78a737f47653dfc7d7b5eb619373159ec1cf5ed0d794759ae9
 implementation_sources:

@@ -1,12 +1,12 @@
 # REPR — shared `goal_v1.0` theorem representation
 
 > **Task ID:** REPR
-> **Status:** active
+> **Status:** complete
 > **Owner/session:** Codex REPR session (2026-08-30)
-> **Last updated:** 2026-08-30 (second correctness repair)
+> **Last updated:** 2026-08-30 (second reviewed freeze)
 > **Dependencies:** none
-> **Next gate:** fix mixed-invalid sorry enforcement and valid `let` propositions, rerun the bounded
-> live gate, and create replacement implementation/freeze commits before downstream use
+> **Next gate:** downstream manifests pin the second replacement spec hash and implementation
+> revision; retain raw/context sidecars and report metrics by `goal_v1_source`
 > **Compute class:** CPU; bounded Lean oracle/renderer tests only
 > **Lean budget:** reuse loaded environments and candidate compilation; no corpus-wide rendering compile
 > **Local staging root:** `/storage/milikic/leanfaith/value_first/goal_v1_0/`
@@ -18,7 +18,7 @@ Own the one canonical model-facing theorem representation so SFT1, SFT2A, SFT2B,
 build incompatible renderers. Freeze `goal_v1.0`, its provenance flag, and the separate raw
 compilation context. This is an enabling task, not a corpus-generation task.
 
-## Target representation decision
+## Frozen representation decision
 
 `goal_v1.0` contains ordered local variables, hypotheses, typeclass/universe locals, and exactly
 one `⊢ target`. It removes declaration name/kind, attributes, command shell, imports, options,
@@ -210,12 +210,13 @@ historical evidence only and are not authorized for downstream use.
   owned unit tests, the one live integration gate, and the repository task-plan pre-commit hook pass.
   No training data, external model call, durable staging artifact, or active host reservation remains.
 
-## Second repair candidate evidence
+## Second replacement freeze record and evidence
 
-- **Candidate identity:** canonical spec hash
+- **Frozen identity:** canonical spec hash
   `7ec7b82923b4eb78a737f47653dfc7d7b5eb619373159ec1cf5ed0d794759ae9`; unchanged Lean renderer
   SHA-256 `8a2626489d65c7424f039f673fe5910adeb07d833580f5a6870cbf8e19434809`; replacement Python module
-  SHA-256 `d2c0f0121f7085468f442eeb32bc3deac067f2746cf081c983a3b5fb262d81e0`.
+  SHA-256 `d2c0f0121f7085468f442eeb32bc3deac067f2746cf081c983a3b5fb262d81e0`. The reviewed replacement
+  implementation revision is `75923b3ca5aa3915c0fee1278f45b547d9c96e3c`.
 - **Sorry regression:** the live mixed batch compiled one `by sorry` theorem and failed a second
   declaration. With `allow_sorry=False`, the API returned zero sidecars and two explicit failures.
   Any nonempty backend `sorries` payload now triggers the same fail-closed policy as
@@ -231,8 +232,12 @@ historical evidence only and are not authorized for downstream use.
   agreements, two spelling differences, and four deliberate failures. The six-source pilot remained
   4/6 in 1 ms. Full live wall time was 2.09 s with 116,696 KiB peak RSS. No corpus was compiled, no
   training data was generated, and the host reservation was released.
+- **Verification:** 26/26 owned unit tests, the one-example/live pilot, scoped ruff and formatting,
+  strict mypy, plan validation, config/source/spec hash assertions, and both replacement pre-commit
+  runs passed. The active-state implementation and every REPR-owned path were committed before this
+  freeze record was finalized.
 
-## Current risks and downstream handoff
+## Frozen risks and downstream handoff
 
 - Surface mode is safe only for a trusted, complete name-free signature. Raw declaration extraction
   is explicitly tagged `raw_signature_extraction_self_contained_only`; parsed signatures are tagged
@@ -276,8 +281,8 @@ Do not generate training data. Record the spec hash, evidence, risks, and downst
 
 ## Coordinator requests
 
-- Downstream SFT/evaluation serializers must wait for the second replacement freeze commit and pin
-  its spec hash and implementation revision rather than either superseded record.
+- Downstream SFT/evaluation serializers may proceed only with the second replacement spec hash and
+  implementation revision, never either superseded record.
 
 ## Progress log (append-only)
 
@@ -329,3 +334,9 @@ Do not generate training data. Record the spec hash, evidence, risks, and downst
   formatting, ruff, strict mypy, and plan validation were clean. The reservation was released; REPR
   stays `active` until the replacement implementation is committed and the final freeze record is
   committed afterward.
+- 2026-08-30 — committed the second replacement implementation at
+  `75923b3ca5aa3915c0fee1278f45b547d9c96e3c`, froze spec hash
+  `7ec7b82923b4eb78a737f47653dfc7d7b5eb619373159ec1cf5ed0d794759ae9`, and marked REPR `complete`.
+  The final record includes the canonical let policy, batch-wide reported-sorry policy, 26/26 unit
+  tests, the bounded live evidence, source hashes, risks, and downstream handoff. No training data or
+  corpus build occurred.
