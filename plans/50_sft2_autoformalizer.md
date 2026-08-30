@@ -370,3 +370,10 @@ Do not launch 50K sources without the pilot and user compute/model approval.
   `/storage/milikic/leanfaith/value_first/sft2_autoformalizer_v1/hf_subset_v1/publication_receipt.json`.
   This subset publication does not authorize the 32B smoke, matched 500-source pilot, 50K release,
   or training; status remains `waiting_user` for A100/H100 placement and a later compute decision.
+- 2026-08-30 — pushed the complete task-owned setup to GitHub branch
+  `milikic/sft2b-autoformalizer-setup`. Initial setup commit
+  `32b8ea181a3ad81da7b289b6f3cf0d912f2eb427` contains only the claimed SFT2B brief, source,
+  configuration, prompt, and test paths; unrelated EVAL2 worktree changes were excluded. A new
+  machine should fetch this branch first, then consume the private Hub subset at the exact revision
+  recorded above. The Hub `repro/workspace/` snapshot is a fallback transfer artifact, not a reason
+  to overwrite a newer checked-out branch blindly.
