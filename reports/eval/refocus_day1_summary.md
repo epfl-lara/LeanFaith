@@ -405,6 +405,48 @@ Frozen root:
 Verification: six new contract/conversion tests plus all 13 corpus-v1 builder tests are green;
 collection is clean; Ruff and format are green; strict mypy is green across 239 source files.
 
+## S1 public-repair full diagnostic (`f4ab970`)
+
+The full builder reused the frozen public projection and all 16,138 audited Meta candidates; it
+did not rerun Lean. It applied the contract caps to new admissions (four direct rewrites per
+declaration; family 8%; mechanism 15%; exact template 2%; exact P20 lemma 0.5%) and capped the
+negative-heavy recovered-judge source at 20% of the final corpus while explicitly protecting all
+146 already-admitted D-3 rows. Pair deduplication, golden-blocklist screening, anchored
+union-find splits, both-orientation 1,024-token screening, and the lexical canary were replayed.
+
+The first attempt stopped before materialization because the reused Meta provenance IDs were not
+in the lexicographic order required by the corpus-v1 candidate schema. The ordering was fixed and
+covered; attempt 2 completed. This was a schema-ordering failure, not a Lean or data failure, and
+no partial corpus root was admitted.
+
+Final diagnostic counts: **7,488 public/releasable rows**, 3,354 positive / 4,134 negative
+(44.8% positive), split train 5,940 / validation 770 / test 778. Source memberships are public
+v0 4,541; recovered judged 1,497; Meta 1,086; deterministic depth-3 586; D-3 146. Six Meta pairs
+were overlength; 14,560 candidates were removed by the four-per-declaration ancestry cap and
+3,669 pairs by the fixed-point source/family/mechanism/template caps. There are zero private rows.
+
+All structural gates pass, but the training gate correctly fails: the lexical-only canary reaches
+**0.853 validation / 0.841 test balanced accuracy**, above the required `<0.72` ceiling.
+Therefore this is a diagnostic corpus, not an authorized training input. Training was not
+launched. The measured next problem is no longer positive prevalence; it is public
+source/transformation shortcut leakage, requiring source-matched certified negatives on the same
+mathlib declaration distribution as the Meta positives.
+
+Frozen root: `/storage/milikic/leanfaith/corpus2/s1_public_repair_v1_22386b7_9e2425f/`.
+
+| artifact | SHA-256 |
+|---|---|
+| corpus manifest | `3d72e9923f08242b44d3e4f012d6e8c6aec8cf12783ef67becaf8bddb1b01a85` |
+| selection summary | `17c3ae06b961a0248cd71f92a02402163661b58459837638606e0a8e94202634` |
+| lexical canary | `ae937c145e2ce476789e2900b6ad78aff759085ce593baa11d02cbdc6fc945bf` |
+| completed tmux log | `44dfbd2e405b833d223befd12050ff320be2c725d783e668c954e83e26d33e75` |
+
+Verification: six full-build selection/cap tests plus the six repair-contract tests and all 13
+corpus-v1 builder tests are green (25 focused tests); collection is clean; Ruff/format are green;
+strict mypy is green across 240 source files. Independent artifact replay verifies output hashes,
+trainer/provenance joins, public policy, D-3 retention, ancestry/statement split isolation, all
+stored cap memberships, and `final_test_accessed=false`.
+
 ## Assets produced today (all on `main` unless noted)
 
 - Golden partition frozen: 910 expert `final_test` (sealed) / 821 dev / 819 golden_train
@@ -455,14 +497,17 @@ collection is clean; Ruff and format are green; strict mypy is green across 239 
   Ruff, and strict mypy are green.
 - S1 public-repair contract + one-row live smoke complete: exact public baseline and Meta audit
   pool bound; one audited candidate projected without rerunning Lean or touching `final_test`.
+- Full 7,488-row public-repair diagnostic materialized and replay-verified; structural gates pass,
+  but its 0.853/0.841 lexical canary fails the `<0.72` training gate, so no retrain was launched.
 
 ## Next
 
-1. Build the full public-only corpus with ancestry-disjoint splits, source/family/template caps,
-   exact-pair deduplication, golden blocklist screening, and explicit label-balance/canary gates.
-   The Meta pool is sampled under those gates rather than admitted wholesale; the 500-source Lean
-   run is not repeated.
-2. Smoke one batch/checkpoint, then retrain both S1 arms and score only golden dev against the
-   S1v0 chunks-CPT selection marks (0.849 AUPRC / 0.684 calibrated balanced accuracy).
-3. Run Track T-B Stage A separately after its registry and gap/cloze diagnostics are frozen.
+1. Build a one-declaration pilot of source-matched public `N-SEP`/`N-PROOF` negatives on the same
+   mathlib distribution as the Meta positives. Freeze its certificate/audit join and measure its
+   canary effect before any new 500-declaration run.
+2. Rebuild a new versioned public corpus and require all current gates plus lexical-canary
+   balanced accuracy `<0.72`; do not train the failed 7,488-row diagnostic or relax the gate.
+3. After that gate passes, smoke one batch/checkpoint, retrain both S1 arms, and score only golden
+   dev against S1v0 chunks-CPT (0.849 AUPRC / 0.684 calibrated balanced accuracy).
+4. Run Track T-B Stage A separately after its registry and gap/cloze diagnostics are frozen.
    Keep `final_test` sealed and unscored.

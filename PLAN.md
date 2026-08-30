@@ -21,7 +21,7 @@
 >   negative families demoted to silver until separator/witness-upgraded, and compute expanded to
 >   the RunAI cluster (A100/H100/H200).
 
-## Execution status ledger (2026-08-29, Queues 1–6 + S1v1 follow-up + P4 + repair smoke executed — read the seal erratum below)
+## Execution status ledger (2026-08-30, Queues 1–6 + S1v1 follow-up + P4 + public-repair diagnostic executed — read the seal erratum below)
 
 Full numbers: `reports/eval/refocus_day1_summary.md`. Treat this ledger plus hashed run manifests
 as current execution state; the later track prose preserves approved design and historical
@@ -122,22 +122,34 @@ starting-point context, and may describe work that the ledger has since complete
   green; collection, Ruff, format, and strict mypy (239 source files) are green. Frozen smoke:
   `/storage/milikic/leanfaith/corpus2/s1_public_repair_smoke_v1_22386b7_9e2425f/` (manifest
   SHA-256 `32f825b94d77ad578372537dfdc45a10c8a9dfbdeaeb9559ace3ae6687feaf49`).
+- **S1 PUBLIC-REPAIR CORPUS MATERIALIZED / TRAINING GATE FAILED**: `f4ab970` reused the frozen
+  public baseline and Meta audit pool without rerunning Lean, admitted at most four Meta rewrites
+  per declaration, capped each new Meta family at 8%, Meta mechanism at 15%, exact template at
+  2%, exact P20 lemma at 0.5%, and the negative-heavy recovered-judge source at 20%. The result is
+  7,488 public/releasable rows (3,354 positive / 4,134 negative; 44.8% positive), with all 146
+  D-3 rows retained and zero private rows. Diversity, balance, ancestry-split, hash, schema, and
+  final-test-seal checks pass. **Do not train it yet:** the lexical canary is 0.853 validation /
+  0.841 test balanced accuracy, above the preregistered `<0.72` shortcut ceiling, so
+  `training_gate_passed=false`. Frozen diagnostic root:
+  `/storage/milikic/leanfaith/corpus2/s1_public_repair_v1_22386b7_9e2425f/` (manifest SHA-256
+  `3d72e9923f08242b44d3e4f012d6e8c6aec8cf12783ef67becaf8bddb1b01a85`).
 - **Backbone consultation verified, Track T-B added**: GPT Pro + Claude reports cross-checked
   against pinned configs/modeling code, live HF cards, and a fresh local operator/fertility
   audit (0 UNKs on all three tokenizers — DeBERTa fear refuted; NeoBERT disqualified;
   Ettin/EuroBERT/Qwen3-Reranker/Kimina confirmed with licences). Table + measurements:
   `reports/model_selection/backbone_consult_verification_2026_08_28.md`.
 
-**NEXT QUEUE — S1 full public repair build (the contract/smoke passed; no repeat 500-theorem
-compile):**
-1. Materialize the full public repair corpus with declaration/ancestry-disjoint splits,
-   source/family/template caps, exact-pair deduplication, the golden contamination blocklist, and
-   an explicit before/after label table. The 16,138 Meta candidates are an eligible pool, not an
-   instruction to admit all highly correlated rewrites.
-2. Smoke one training batch/checkpoint, then run the two primary S1 arms once the manifest and
-   canaries pass. Score golden **dev** through the sanctioned split-only path and compare against
-   S1v0 chunks-CPT (0.849 AUPRC / 0.684 calibrated balanced accuracy). `final_test` remains sealed
-   and unscored.
+**NEXT QUEUE — repair the measured public lexical shortcut before training:**
+1. Add source-matched, certificate-bearing public negatives (`N-SEP`/`N-PROOF`) on the same
+   mathlib declaration distribution as the admitted Meta positives. Prove one declaration end to
+   end first; do not launch another 500-declaration run until that pilot and its yield/canary
+   effect pass.
+2. Rebuild the versioned public corpus and require every existing diversity/balance/seal gate plus
+   lexical-canary balanced accuracy `<0.72` on validation and test. The failed 7,488-row artifact
+   remains a diagnostic and must not become a training input by relaxing the gate.
+3. Only after the canary passes, smoke one training batch/checkpoint, run the two primary S1 arms,
+   and score golden **dev** through the sanctioned split-only path against S1v0 chunks-CPT (0.849
+   AUPRC / 0.684 calibrated balanced accuracy). `final_test` remains sealed and unscored.
 
 Track T-B backbone-pilot Stage A remains a separate concurrent cluster track and does not block
 this queue.
