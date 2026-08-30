@@ -5,7 +5,7 @@
 > **Owner/session:** Codex `/root` — 2026-08-30 SFT2A session
 > **Last updated:** 2026-08-30
 > **Dependencies:** REPR `goal_v1.0`; shared rubric; roots may be selected independently of SFT1
-> **Next gate:** user authorization for the corrected 12-root recovery pilot only
+> **Next gate:** corrected 12-root recovery pilot completed with zero-call replay and bounded audit
 > **Compute class:** external LLM/API plus CPU/RAM for Lean; large run may need explicit budget approval
 > **Lean budget:** compile each novel candidate once through cached persistent workers
 > **Local staging root:** `/storage/milikic/leanfaith/value_first/sft2_llm_transforms_v1/`
@@ -381,3 +381,13 @@ recorded budget/model decision.
   `leanfaith-sft2a-production-pilot-recovery-v4`. The original authorization was bound to the old
   sample, so recovery launch remains fail-closed pending a new exact user sentence. Legacy
   rejudging, publication, and 50K remain unauthorized.
+- 2026-08-30 — received the exact hash-bound authorization for only the corrected 12-root recovery
+  pilot. While clean at activation commit `c8287a5`, materialized the additive v4 authorization
+  receipt `ecd0b2c21e2a1ca7aab34d86dd9c869472807d28a8beefa4b28e5a1c5ac314b6` and readiness file
+  `2a2c3e275c40c2c1cfed3ba80389cc5b788e753a9c40a9d362ad638e5b236a79` with effective readiness
+  hash `a094a9e6ef365c7c769c6759c34d6dd61f7ffd176e11374b177190761a4e4a58`. The authorized path is
+  bound to corrected sample `52edf04e5cfddefcd6626dfcb0ee0785f4a0f1e9dbd4cfd0851407e6134ccea4`, production config
+  `2f9aafb0f36a1cc01734a02e8197b308b940efac4f0681ba306c9dd9cb0a7877`, correction receipt
+  `6a562f4b9e397ede3b8096ba1ce3d59bee977ee6dd66a0dac8133ce67f3f54b6`, and cumulative failed-run
+  ledger `b5b661ec4828f6616a9e4379d1ca7dcbd9f01100a7c7a23bb5dbd4bbff1ca8e9` under the existing
+  296-call/$15 Opus ceilings. Legacy rejudging, publication, and 50K remain unauthorized.
