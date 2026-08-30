@@ -636,6 +636,48 @@ projection, 96-row audit stream, and all three canary decisions without rerunnin
 offline tests plus the prior 33 focused public-repair/negative tests are green; collection,
 Ruff/format, the v2 Lean compile, and strict mypy across 239 source files are green.
 
+## Implication-aware v3 one-declaration smoke (`6807799`)
+
+The additive v3 engine addresses the exact boundary measured by the v2 pilot. It opens ordinary
+parameters and dependent binders but preserves the first nondependent Prop arrow as an implication
+node, then recursively parses the complete implication/And/Or/Iff/Not Boolean skeleton. In
+addition to N21 atom negation and the prior connective replacements, it defines three N22
+implication operations: `impToIff`, `impConverse`, and `impToAnd`. Every candidate still requires
+exhaustive truth-table root separation over at most eight deduplicated atoms and exact whole-type
+re-elaboration.
+
+The smoke used frozen train ordinal 2, `Dynamics.IsDynCoverOf.monotone_subset`, whose conclusion
+is the three-atom chain `(A0 → (A1 → A2))`. Primary Lean completed in **5.938 seconds** and emitted
+nine typed candidates. The preregistered root `impToIff` candidate changed the skeleton to
+`(A0 ↔ (A1 → A2))`, checked all eight valuations, and re-elaborated with candidate SHA-256
+`7d30f3e4183dcd105ee3f28c9759ecec75ed59cef7eefa819c6ea8f5aecb32b3`.
+Independent Lean reconstruction completed in **4.350 seconds** and reproduced the exact hash.
+Both stages exited 0 with empty stderr under 120-second hard timeouts.
+
+All implication-smoke gates pass. The decision remains narrow:
+`same_fixed_96_feasibility_precheck_authorized=true`, while `canary_fit_authorized=false`,
+`sample_size_increase_authorized=false`, `scale_authorized=false`, and
+`training_authorized=false`. The run used one public train theorem, made no external call, and did
+not access `final_test`.
+
+Frozen root:
+`/storage/milikic/leanfaith/corpus2/s1_public_negative_skeleton_implication_smoke_v1_4fd2c6a_d568c8c/`.
+
+| artifact | SHA-256 |
+|---|---|
+| manifest | `6d1de2b05fa7c8ab3e3f4fe043ad3d9a684c07fd53c3b78d14b1dcb25aa55200` |
+| summary | `52d54487c463ae10a219fd7999e07da1d05b9ab093c569d2dba3cc1e4694eba7` |
+| selected candidate | `14c7924539d50028352150bdb7518d50d365c76176ae840bf26c012b750a9d0f` |
+| primary process | `e97ef3dd8fe183c42a108c5e86b71a9592df875984d0d92c095a069a245892f2` |
+| audit process | `55324bf047a1c6bffa3cef60344c0c3b1af007545c38df54a4895e8477acc254` |
+
+Verification: independent artifact replay revalidates the failed v2 manifest and exact ordinal-2
+selection row, both engine hashes, generated combined drivers, nine-candidate primary inventory,
+selected implication operation, audit stream, summary, privacy boundary, and no-training decision.
+Seven new offline tests are green; the combined v2+v3 Lean driver compiles in the pinned mathlib
+environment; the 47 focused public-repair/negative tests, collection, Ruff/format, and strict mypy
+across 240 source files are green.
+
 ## Assets produced today (all on `main` unless noted)
 
 - Golden partition frozen: 910 expert `final_test` (sealed) / 821 dev / 819 golden_train
@@ -702,18 +744,20 @@ Ruff/format, the v2 Lean compile, and strict mypy across 239 source files are gr
   improvement pass, but 87/96 selected rows are the same N21 root-negation template and the paired
   validation canary is 0.875. The result identifies implication-aware skeleton parsing—not a larger
   sample—as the next bounded repair.
+- Implication-aware v3 one-declaration smoke complete: nine typed candidates generated on the exact
+  frozen train theorem; the required root `impToIff` candidate passed exhaustive eight-valuation
+  separation and exact independent reconstruction. Only a fixed-sample distribution-feasibility
+  precheck is authorized next.
 
 ## Next
 
-1. Add an implication-aware v3 Boolean-skeleton engine with at least two separated N22 implication
-   operations, then prove one implication declaration through generation and independent audit.
-2. On the same 72/12/12 names, require a deterministic subset satisfying all yield/family/operation
+1. On the same 72/12/12 names, require a deterministic subset satisfying all yield/family/operation
    constraints before fitting canaries. Stop if infeasible; do not enlarge to 500 declarations.
-3. Only after feasibility passes, rerun the unchanged full-canary and paired-canary gates.
-4. Rebuild a new versioned public corpus only after the small pilot passes. Require all current
+2. Only after feasibility passes, rerun the unchanged full-canary and paired-canary gates.
+3. Rebuild a new versioned public corpus only after the small pilot passes. Require all current
    gates and lexical-canary balanced accuracy `<0.72`; do not train the failed 7,488-row
    diagnostic or relax the gate.
-5. After that gate passes, smoke one batch/checkpoint, retrain both S1 arms, and score only golden
+4. After that gate passes, smoke one batch/checkpoint, retrain both S1 arms, and score only golden
    dev against S1v0 chunks-CPT (0.849 AUPRC / 0.684 calibrated balanced accuracy).
-6. Run Track T-B Stage A separately after its registry and gap/cloze diagnostics are frozen.
+5. Run Track T-B Stage A separately after its registry and gap/cloze diagnostics are frozen.
    Keep `final_test` sealed and unscored.

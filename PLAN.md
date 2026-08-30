@@ -21,7 +21,7 @@
 >   negative families demoted to silver until separator/witness-upgraded, and compute expanded to
 >   the RunAI cluster (A100/H100/H200).
 
-## Execution status ledger (2026-08-30, Queues 1–6 + S1v1 follow-up + P4 + public-repair diagnostic + nested N21/N22 smoke + fixed v2 pilot executed — read the seal erratum below)
+## Execution status ledger (2026-08-30, Queues 1–6 + S1v1 follow-up + P4 + public-repair diagnostic + N21/N22 v1/v2 pilots + implication smoke executed — read the seal erratum below)
 
 Full numbers: `reports/eval/refocus_day1_summary.md`. Treat this ledger plus hashed run manifests
 as current execution state; the later track prose preserves approved design and historical
@@ -187,6 +187,19 @@ starting-point context, and may describe work that the ledger has since complete
   `training_authorized=false`; no rebuild or training is authorized. Frozen root:
   `/storage/milikic/leanfaith/corpus2/s1_public_negative_skeleton_pilot_v2_3d72e99_d568c8c/`
   (manifest SHA-256 `4fd2c6a769d28d24322f7cedbfc5a2a01ef9edec5e2686eed74add1b914dbe44`).
+- **IMPLICATION-AWARE V3 ONE-DECLARATION SMOKE COMPLETE / PASSED**: `6807799` preserves
+  nondependent Prop arrows while opening only ordinary parameters and dependent binders, and adds
+  three independently separated N22 implication operations (`impToIff`, `impConverse`, and
+  `impToAnd`). On frozen train ordinal 2, `Dynamics.IsDynCoverOf.monotone_subset`, primary Lean
+  emitted nine typed candidates in 5.938 seconds. The required root N22 mutation changed
+  `(A0 → (A1 → A2))` to `(A0 ↔ (A1 → A2))` over all eight valuations and re-elaborated with
+  candidate hash `7d30f3e4183dcd105ee3f28c9759ecec75ed59cef7eefa819c6ea8f5aecb32b3`.
+  Independent Lean reconstruction reproduced that exact hash in 4.350 seconds. Both stages exited
+  0 under 120-second hard timeouts with empty stderr. This authorizes only the same fixed 96-name
+  candidate-distribution feasibility precheck; canary fitting, sample growth, scale, and training
+  remain unauthorized, and `final_test` was not accessed. Frozen smoke:
+  `/storage/milikic/leanfaith/corpus2/s1_public_negative_skeleton_implication_smoke_v1_4fd2c6a_d568c8c/`
+  (manifest SHA-256 `6d1de2b05fa7c8ab3e3f4fe043ad3d9a684c07fd53c3b78d14b1dcb25aa55200`).
 - **Backbone consultation verified, Track T-B added**: GPT Pro + Claude reports cross-checked
   against pinned configs/modeling code, live HF cards, and a fresh local operator/fertility
   audit (0 UNKs on all three tokenizers — DeBERTa fear refuted; NeoBERT disqualified;
@@ -194,21 +207,17 @@ starting-point context, and may describe work that the ledger has since complete
   `reports/model_selection/backbone_consult_verification_2026_08_28.md`.
 
 **NEXT QUEUE — repair the measured public lexical shortcut before training:**
-1. Add an additive v3 engine that opens only parameter/dependent binders and preserves
-   nondependent Prop arrows as implication nodes in the exact Boolean skeleton. Add at least two
-   truth-table-separated N22 implication operations so a single new template cannot dominate.
-   Prove one implication declaration through generation and independent reconstruction first.
-2. On the same frozen 72/12/12 sample, run a candidate-distribution feasibility precheck before
+1. On the same frozen 72/12/12 sample, run a candidate-distribution feasibility precheck before
    canaries: require that some deterministic one-per-declaration subset can simultaneously reach
    24 total, 4/4 validation/test, N22 ≥60%, N21 ≤40%, and every operation kind ≤40%. Stop before
    canary fitting if that is impossible. Do not change the source sample or enlarge to 500.
-3. Only if the feasibility precheck passes, freeze the deterministic chooser and rerun the same
+2. Only if the feasibility precheck passes, freeze the deterministic chooser and rerun the same
    yield, family, operation, full-canary, and paired-canary gates.
-4. Rebuild a new versioned public corpus only after that pilot passes. Require every existing
+3. Rebuild a new versioned public corpus only after that pilot passes. Require every existing
    diversity/balance/seal gate and lexical-canary balanced accuracy `<0.72` on validation and
    test. The failed 7,488-row artifact
    remains a diagnostic and must not become a training input by relaxing the gate.
-5. Only after the canary passes, smoke one training batch/checkpoint, run the two primary S1 arms,
+4. Only after the canary passes, smoke one training batch/checkpoint, run the two primary S1 arms,
    and score golden **dev** through the sanctioned split-only path against S1v0 chunks-CPT (0.849
    AUPRC / 0.684 calibrated balanced accuracy). `final_test` remains sealed and unscored.
 
