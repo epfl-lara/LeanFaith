@@ -68,6 +68,9 @@ may proceed.
   probability. Other architecture families are deferred.
 - Theorem statements are in scope now. Applying the same system to `def` declarations is a future
   extension.
+- New SFT2A/SFT2B LLM work defaults to Claude Code Opus 5/high, Codex GPT-5.6 Terra/high, and
+  Lemex Kimi 2.7/high. Cost is tracked and safety-capped but is not the model-selection objective;
+  frozen earlier runs remain immutable and new settings use additive configs.
 
 ## Session and ownership model
 

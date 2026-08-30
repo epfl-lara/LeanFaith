@@ -79,6 +79,18 @@ Repeat this decision in every implementation plan and progress handoff:
   requires manifests, hashes, counts, and release of reservations; a missing tmux session alone is
   neither success nor permission to relaunch.
 
+## SFT2 LLM defaults
+
+- For new SFT2A and SFT2B transformation, judging, and labeling configs, use the active defaults in
+  `policies/sft2_llm_labeling_defaults_v1.yaml`: Claude Code Opus 5 via alias `opus` at `high`,
+  Codex `gpt-5.6-terra` at `high`, and Lemex `moonshotai/Kimi-K2.7-Code` at `high`.
+- Dollar cost is recorded for provenance and guarded against accidental runaway jobs, but it is not
+  the model-selection objective. The `high` effort default is a token-efficiency choice; quality and
+  label value remain primary.
+- Never edit a frozen config or hash-bound run to adopt these defaults. Historical Fable/max/xhigh/
+  medium evidence remains immutable; create an additive config/run and record any deliberate
+  deviation from the active defaults.
+
 ## Implementation and cleanup
 
 - Prefer extending existing modules over creating parallel replacements. Search the repo and the

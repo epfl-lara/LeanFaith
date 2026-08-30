@@ -16,6 +16,26 @@ The project optimizes useful supervision per unit of compute and human/model jud
 - CPT1, CPT2, SFT1, and SFT2 are optional experimental stages. Evaluation is mandatory. Keep each
   stage as a separate versioned dataset so later ablations can skip, reorder, or merge stages.
 
+### SFT2 LLM defaults
+
+For new SFT2A and SFT2B transformation, judging, and labeling runs, the active default provider
+settings are:
+
+- Claude Code: Opus 5 through model alias `opus`, reasoning effort `high`;
+- Codex: `gpt-5.6-terra`, reasoning effort `high`; and
+- Lemex: `moonshotai/Kimi-K2.7-Code`, reasoning effort `high`.
+
+The machine-readable contract is `policies/sft2_llm_labeling_defaults_v1.yaml`. These are defaults,
+not retroactive edits: frozen smoke/pilot configs and their manifests remain byte-identical, and a
+new run adopts the defaults through an additive config. Any deviation records its reason and exact
+provider/model/effort pin.
+
+Dollar cost is not a primary optimization or model-selection criterion for this research. Continue
+recording usage and reported spend, and retain provider-call/token/spend ceilings as runaway-job
+safety controls. Effort `high` is chosen to reduce unnecessary reasoning tokens relative to
+`max`/`xhigh` while preserving strong labeling quality; value and correctness remain the decision
+criteria.
+
 ## 2. Model-facing theorem representation
 
 The initial representation is versioned as `goal_v1.0`, modeled after the useful goal view in

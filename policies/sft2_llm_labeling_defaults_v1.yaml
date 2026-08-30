@@ -1,0 +1,43 @@
+schema_version: 1
+policy_id: leanfaith_sft2_llm_labeling_defaults_v1
+status: active_default
+applies_to:
+  - SFT2A
+  - SFT2B
+scope:
+  - transformation
+  - judging
+  - labeling
+
+selection_policy:
+  primary_objective: label_value_and_quality
+  dollar_cost_is_primary: false
+  token_efficiency_reason: use_high_instead_of_max_or_xhigh_by_default
+  usage_and_reported_spend_required: true
+  runaway_safety_ceilings_required: true
+
+providers:
+  claude:
+    cli: claude
+    product: Claude Code
+    model_family: Opus 5
+    model: opus
+    effort: high
+    server_revision_status: unavailable_floating_provider_alias
+  codex:
+    cli: codex
+    model_family: GPT-5.6 Terra
+    model: gpt-5.6-terra
+    effort: high
+    server_revision_status: unavailable_floating_provider_alias
+  lemex:
+    cli: lemex
+    model_family: Kimi 2.7
+    model: moonshotai/Kimi-K2.7-Code
+    effort: high
+    server_revision_status: unavailable_floating_provider_alias
+
+frozen_run_policy:
+  mutate_existing_hash_bound_configs: false
+  adoption_method: additive_config_and_run
+  deviations_require_recorded_reason: true
