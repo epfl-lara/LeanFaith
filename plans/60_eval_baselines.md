@@ -65,10 +65,15 @@ and versioned manifests:
 - Lean typecheck/validity and DefEq where applicable;
 - BEq and BEq+;
 - GTED/ASSESS family metrics (confirm exact names/contracts from primary implementations/papers);
-- CriticLean where the required natural-language fields exist;
 - Codex, Claude, and Lemex under one frozen consistency rubric;
 - all predefined two/three-model majority/consensus voting combinations;
 - any already-frozen LeanFaith checkpoints as clearly historical baselines.
+
+CriticLean is out of scope for EVAL v2. Its required natural-language input makes it an
+NL↔Lean/autoformalization baseline rather than a directly comparable Lean↔Lean consistency
+baseline, and scoring only the gold subset with natural-language fields would create selective
+coverage. Reconsider it in a separate future NL↔Lean evaluation track alongside SFT2B rather than
+mixing its score into this benchmark.
 
 Do not force a baseline onto incompatible rows. Record coverage, abstentions/errors, latency/cost,
 model/prompt revision, threshold/calibration source, and per-row raw prediction. Never convert
@@ -95,8 +100,9 @@ versioned configuration; they do not overwrite prior scores.
 **In scope:** split builder/verification, contamination guard, baseline adapters, cached Lean
 features, LLM judge/vote runs, metrics, prediction/result registry, reports, and private publication.
 
-**Out of scope:** training on gold, test-tuned thresholds, deleting old sealed artifacts, silently
-changing baseline prompts/models, or calling ConsistencyCheck the main Lean↔Lean benchmark.
+**Out of scope:** training on gold, test-tuned thresholds, CriticLean or other NL↔Lean-only
+baselines, deleting old sealed artifacts, silently changing baseline prompts/models, or calling
+ConsistencyCheck the main Lean↔Lean benchmark.
 
 **Writable paths:** this brief; `src/leanfaith/eval2/`; `configs/eval2/`; `prompts/eval2/`;
 `tests/unit/eval2/`; `reports/eval/value_first_v2/`; the staging root. Existing `eval/`, v1 split/
@@ -167,3 +173,6 @@ Lean↔Lean benchmark. Record every revision, score artifact, blocker, and next 
 ## Progress log (append-only)
 
 - 2026-08-30 — task brief created; no split or baseline run performed.
+- 2026-08-30 — owner decision: CriticLean moved out of EVAL v2 because its natural-language input
+  is not directly comparable to the benchmark's Lean↔Lean contract; defer it to a future NL↔Lean
+  evaluation track.
