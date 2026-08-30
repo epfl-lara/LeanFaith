@@ -8,12 +8,18 @@ from pathlib import Path
 import pytest
 
 from leanfaith.config.hashing import canonical_json_bytes, hash_canonical, hash_file
+from leanfaith.sft2a.activation import (
+    PilotActivationError,
+    build_authorized_activation,
+    load_pilot_activation,
+)
 from leanfaith.sft2a.budget import PersistentProviderBudget
 from leanfaith.sft2a.config import LoadedSFT2AConfig, load_sft2a_config
 from leanfaith.sft2a.detached import (
     DetachedPilotError,
     _exclusive_lock,
     launch_detached_pilot,
+    preflight_detached_launch,
 )
 from leanfaith.sft2a.models import SFT2AProductionConfig
 from leanfaith.sft2a.pilot import verify_pilot_replay
@@ -23,6 +29,7 @@ from leanfaith.sft2a.readiness import (
     LoadedPilotReadiness,
     PilotReadinessError,
     load_pilot_readiness,
+    require_pilot_authorization,
 )
 
 
@@ -313,3 +320,71 @@ def test_detached_run_lock_refuses_duplicate_start(tmp_path: Path) -> None:
         _exclusive_lock(lock, label="test pilot run lock"),
     ):
         pytest.fail("duplicate lock unexpectedly acquired")
+
+
+def test_authorization_transition_uses_fresh_root_and_stops_before_tmux(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    loaded = load_sft2a_config(Path("configs/sft2a/production_pilot_v1.yaml"))
+    activation = load_pilot_activation(loaded)
+    source = activation.source_readiness
+    old_output = Path(loaded.config.staging_root) / source.config.sample_output_subdir
+    old_sample = old_output / "sample.jsonl"
+    old_manifest = old_output / "sample_manifest.json"
+    old_hashes = (hash_file(old_sample), hash_file(old_manifest))
+    with pytest.raises(PilotReadinessError, match="does not authorize execution"):
+        require_pilot_authorization(source)
+    with pytest.raises(PilotActivationError, match="exact pilot authorization sentence"):
+        build_authorized_activation(
+            activation,
+            authorization_sentence="not authorized",
+            implementation={
+                "implementation_commit": "a" * 40,
+                "implementation_tree": "b" * 40,
+            },
+        )
+    identity = {
+        "implementation_commit": "a" * 40,
+        "implementation_tree": "b" * 40,
+    }
+    artifacts = build_authorized_activation(
+        activation,
+        authorization_sentence=activation.expected_authorization_sentence,
+        implementation=identity,
+    )
+    assert artifacts.authorization_receipt["authorized"] is True
+    assert artifacts.readiness.status == "authorized_pilot"
+    assert artifacts.readiness.sample_output_subdir == (
+        "runs/diverse_root_production_defaults_pilot_v2"
+    )
+    assert artifacts.tmux_session == "leanfaith-sft2a-production-pilot-v2"
+    authorized = LoadedPilotReadiness(
+        config=artifacts.readiness,
+        path=tmp_path / "pilot_readiness_production_v2.yaml",
+        config_hash=artifacts.readiness_hash,
+        repo_root=loaded.repo_root,
+        authorization=artifacts.authorization_receipt,
+        historical_seal=source.historical_seal,
+        exact_settings_smoke=source.exact_settings_smoke,
+    )
+    require_pilot_authorization(authorized)
+    temporary = _temporary_production(tmp_path)
+    monkeypatch.setattr("leanfaith.sft2a.detached._tmux_session_exists", lambda _name: False)
+    preflight = preflight_detached_launch(
+        temporary,
+        authorized,
+        resume=False,
+        implementation=identity,
+    )
+    fresh_output = tmp_path / artifacts.readiness.sample_output_subdir
+    assert fresh_output != old_output
+    assert hash_file(fresh_output / "sample.jsonl") == old_hashes[0]
+    assert preflight["sample_sha256"] == old_hashes[0]
+    assert preflight["boundary"] == "tmux_start_not_executed"
+    assert preflight["provider_calls_executed"] == 0
+    assert preflight["lean_requests_executed"] == 0
+    assert preflight["tmux_sessions_started"] == 0
+    assert (hash_file(old_sample), hash_file(old_manifest)) == old_hashes
+    assert not (loaded.repo_root / activation.plan.target_authorization_receipt_path).exists()
+    assert not (loaded.repo_root / activation.plan.target_readiness_config_path).exists()

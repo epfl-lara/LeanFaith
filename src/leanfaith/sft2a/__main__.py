@@ -6,10 +6,17 @@ import argparse
 import json
 from pathlib import Path
 
+from leanfaith.sft2a.activation import (
+    activation_summary,
+    load_pilot_activation,
+    materialize_authorized_activation,
+    preview_authorized_activation,
+)
 from leanfaith.sft2a.config import load_sft2a_config
 from leanfaith.sft2a.detached import (
     launch_detached_pilot,
     pilot_health,
+    preflight_detached_launch,
     run_detached_worker,
 )
 from leanfaith.sft2a.layout import run_paths
@@ -29,6 +36,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--config", type=Path)
     parser.add_argument("--pilot-config", type=Path)
+    parser.add_argument("--activation-plan", type=Path)
     subcommands = parser.add_subparsers(dest="command", required=True)
     subcommands.add_parser("verify-config")
     subcommands.add_parser("verify-pilot-readiness")
@@ -44,7 +52,11 @@ def main() -> int:
     subcommands.add_parser("launch-authorized-pilot")
     subcommands.add_parser("resume-authorized-pilot")
     subcommands.add_parser("pilot-health")
+    subcommands.add_parser("preflight-authorized-pilot")
     subcommands.add_parser("detached-pilot-worker")
+    subcommands.add_parser("preview-pilot-activation")
+    activation_parser = subcommands.add_parser("activate-authorized-pilot")
+    activation_parser.add_argument("--authorization-sentence", required=True)
     subcommands.add_parser("prepare-legacy-opus-sample")
     subcommands.add_parser("run-legacy-opus-rejudge")
     subcommands.add_parser("materialize-fable-post-audit-core")
@@ -67,6 +79,7 @@ def main() -> int:
         "launch-authorized-pilot",
         "resume-authorized-pilot",
         "pilot-health",
+        "preflight-authorized-pilot",
         "detached-pilot-worker",
         "prepare-legacy-opus-sample",
         "run-legacy-opus-rejudge",
@@ -143,9 +156,27 @@ def main() -> int:
     elif arguments.command == "pilot-health":
         assert readiness is not None
         result = pilot_health(loaded, readiness)
+    elif arguments.command == "preflight-authorized-pilot":
+        assert readiness is not None
+        result = preflight_detached_launch(loaded, readiness, resume=False)
     elif arguments.command == "detached-pilot-worker":
         assert readiness is not None
         result = run_detached_worker(loaded, readiness)
+    elif arguments.command == "preview-pilot-activation":
+        activation = load_pilot_activation(loaded, arguments.activation_plan)
+        preview = preview_authorized_activation(activation)
+        result = activation_summary(activation, preview)
+    elif arguments.command == "activate-authorized-pilot":
+        activation = load_pilot_activation(loaded, arguments.activation_plan)
+        activated = materialize_authorized_activation(
+            activation,
+            authorization_sentence=arguments.authorization_sentence,
+        )
+        result = {
+            **activation_summary(activation, activated),
+            "authorized_artifacts_materialized": True,
+            "launch_started": False,
+        }
     elif arguments.command == "prepare-legacy-opus-sample":
         assert readiness is not None
         result = prepare_legacy_opus_sample(loaded, readiness)

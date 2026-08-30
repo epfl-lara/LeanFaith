@@ -330,3 +330,18 @@ recorded budget/model decision.
   and append-only journal, explicit resume and health commands, and duplicate-start refusal. The
   production receipt is `authorized: false`; the next gate is user authorization for the 12-root
   pilot only. The 2,233-row legacy rejudge, publication, and 50K run remain unauthorized.
+- 2026-08-30 — fixed the authorization-transition collision without editing the frozen
+  readiness-only receipt/config or its staged sample. The additive v2 activation plan verifies the
+  old `pilot_authorized: false` manifest and exact hashes, requires the full authorization sentence,
+  and only then can materialize new authorized receipt/readiness files. Those targets remain absent,
+  so launch is still disabled. The authorized transition uses fresh output
+  `runs/diverse_root_production_defaults_pilot_v2` and `tmux` session
+  `leanfaith-sft2a-production-pilot-v2`; preflight writes the same hash-bound 12-root sample there
+  with zero provider/Lean execution and stops before starting `tmux`. A regression proves the
+  current unauthorized state fails closed, the prospective authorized model passes
+  `require_pilot_authorization`, the old sample stays byte-identical, and the fresh-root preflight
+  reaches the detached boundary. Legacy rejudging, publication, and 50K remain unauthorized.
+- 2026-08-30 — separated SFT2A from the accidental combined history: branch
+  `milikic/sft2a-production-activation` starts at `57a63e3` and cherry-picks only the SFT2A
+  production-readiness commits before this activation fix. The two SFT2B setup commits are not
+  ancestors of this branch and must not be silently merged as part of SFT2A integration.

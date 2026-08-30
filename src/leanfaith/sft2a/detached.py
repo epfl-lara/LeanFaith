@@ -23,7 +23,12 @@ from leanfaith.sft2a.models import (
     ProductionPilotReadinessConfig,
     SFT2AProductionConfig,
 )
-from leanfaith.sft2a.pilot import _pilot_output, run_multi_root_pilot, verify_pilot_replay
+from leanfaith.sft2a.pilot import (
+    _pilot_output,
+    prepare_pilot_sample,
+    run_multi_root_pilot,
+    verify_pilot_replay,
+)
 from leanfaith.sft2a.pilot_audit import run_pilot_lemex_audit
 from leanfaith.sft2a.readiness import (
     LoadedPilotReadiness,
@@ -197,6 +202,68 @@ def pilot_health(
     }
 
 
+def _ensure_detached_startable(
+    policy: DetachedLaunchPolicy,
+    paths: Mapping[str, Path],
+    *,
+    resume: bool,
+) -> None:
+    if _tmux_session_exists(policy.session_name):
+        raise DetachedPilotError("named pilot tmux session already exists")
+    if not _lock_is_free(paths["run_lock"]):
+        raise DetachedPilotError("pilot run lock is held; duplicate restart refused")
+    terminal: dict[str, object] | None = None
+    if paths["terminal"].is_file():
+        value = json.loads(paths["terminal"].read_text(encoding="utf-8"))
+        terminal = value if isinstance(value, dict) else None
+    if terminal is not None and terminal.get("status") == "complete":
+        raise DetachedPilotError("pilot is already complete; restart refused")
+    if terminal is not None and not resume:
+        raise DetachedPilotError("pilot has prior terminal state; use the explicit resume command")
+
+
+def preflight_detached_launch(
+    loaded: LoadedSFT2AConfig,
+    readiness: LoadedPilotReadiness,
+    *,
+    resume: bool,
+    implementation: Mapping[str, str] | None = None,
+) -> dict[str, object]:
+    """Prepare the fresh sample and stop immediately before the tmux boundary."""
+
+    if not isinstance(loaded.config, SFT2AProductionConfig):
+        raise DetachedPilotError("detached pilot requires the production-default config")
+    require_pilot_authorization(readiness)
+    identity = dict(implementation or implementation_identity(loaded.repo_root))
+    output, policy, paths = _paths(loaded, readiness)
+    sample = prepare_pilot_sample(loaded, readiness, implementation=identity)
+    if (
+        sample.get("sample_sha256") != readiness.config.expected_sample_sha256
+        or sample.get("pilot_authorized") is not True
+        or sample.get("provider_calls_executed") != 0
+        or sample.get("lean_requests_executed") != 0
+        or sample.get("implementation") != identity
+    ):
+        raise DetachedPilotError("authorized detached preflight sample lineage differs")
+    _ensure_detached_startable(policy, paths, resume=resume)
+    return {
+        "version": "leanfaith_sft2a_detached_preflight_v1",
+        "boundary": "tmux_start_not_executed",
+        "resume": resume,
+        "session_name": policy.session_name,
+        "output_root": str(output),
+        "sample_sha256": sample["sample_sha256"],
+        "sample_manifest_sha256": hash_file(output / "sample_manifest.json"),
+        "config_hash": loaded.config_hash,
+        "readiness_config_hash": readiness.config_hash,
+        "authorization_receipt_sha256": readiness.config.authorization_receipt.sha256,
+        "implementation": identity,
+        "provider_calls_executed": 0,
+        "lean_requests_executed": 0,
+        "tmux_sessions_started": 0,
+    }
+
+
 def launch_detached_pilot(
     loaded: LoadedSFT2AConfig,
     readiness: LoadedPilotReadiness,
@@ -209,22 +276,15 @@ def launch_detached_pilot(
         raise DetachedPilotError("detached pilot requires the production-default config")
     require_pilot_authorization(readiness)
     identity = implementation_identity(loaded.repo_root)
+    preflight = preflight_detached_launch(
+        loaded,
+        readiness,
+        resume=resume,
+        implementation=identity,
+    )
     _output, policy, paths = _paths(loaded, readiness)
     with _exclusive_lock(paths["launch_lock"], label="pilot launch lock"):
-        if _tmux_session_exists(policy.session_name):
-            raise DetachedPilotError("named pilot tmux session already exists")
-        if not _lock_is_free(paths["run_lock"]):
-            raise DetachedPilotError("pilot run lock is held; duplicate restart refused")
-        terminal: dict[str, object] | None = None
-        if paths["terminal"].is_file():
-            value = json.loads(paths["terminal"].read_text(encoding="utf-8"))
-            terminal = value if isinstance(value, dict) else None
-        if terminal is not None and terminal.get("status") == "complete":
-            raise DetachedPilotError("pilot is already complete; restart refused")
-        if terminal is not None and not resume:
-            raise DetachedPilotError(
-                "pilot has prior terminal state; use the explicit resume command"
-            )
+        _ensure_detached_startable(policy, paths, resume=resume)
         command = (
             sys.executable,
             "-m",
@@ -266,7 +326,7 @@ def launch_detached_pilot(
             break
     if not bool(health["healthy_start"]):
         raise DetachedPilotError(f"detached pilot failed startup health check: {health}")
-    return {"launch_request": request, "health": health}
+    return {"preflight": preflight, "launch_request": request, "health": health}
 
 
 def run_detached_worker(
@@ -429,5 +489,6 @@ __all__ = [
     "DetachedPilotError",
     "launch_detached_pilot",
     "pilot_health",
+    "preflight_detached_launch",
     "run_detached_worker",
 ]

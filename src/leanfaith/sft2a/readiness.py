@@ -13,6 +13,7 @@ from leanfaith.config.loading import LoadedConfig, load_config, load_yaml_mappin
 from leanfaith.config.paths import find_repo_root
 from leanfaith.sft2a.config import LoadedSFT2AConfig
 from leanfaith.sft2a.models import (
+    AuthorizedProductionPilotReadinessConfig,
     PilotReadinessConfig,
     ProductionPilotReadinessConfig,
     SFT2AProductionConfig,
@@ -35,7 +36,11 @@ class PilotReadinessError(RuntimeError):
 
 @dataclass(frozen=True, slots=True)
 class LoadedPilotReadiness:
-    config: PilotReadinessConfig | ProductionPilotReadinessConfig
+    config: (
+        PilotReadinessConfig
+        | ProductionPilotReadinessConfig
+        | AuthorizedProductionPilotReadinessConfig
+    )
     path: Path
     config_hash: str
     repo_root: Path
@@ -106,11 +111,15 @@ def load_pilot_readiness(
         config_path = repo_root / config_path
     raw = load_yaml_mapping(config_path)
     if raw.get("config_id") == "leanfaith_sft2a_diverse_root_opus5_pilot_v2":
-        loaded: LoadedConfig[PilotReadinessConfig | ProductionPilotReadinessConfig] = load_config(
-            config_path, PilotReadinessConfig
-        )
+        loaded: LoadedConfig[
+            PilotReadinessConfig
+            | ProductionPilotReadinessConfig
+            | AuthorizedProductionPilotReadinessConfig
+        ] = load_config(config_path, PilotReadinessConfig)
     elif raw.get("config_id") == "leanfaith_sft2a_production_defaults_pilot_v1":
         loaded = load_config(config_path, ProductionPilotReadinessConfig)
+    elif raw.get("config_id") == "leanfaith_sft2a_production_defaults_pilot_v2":
+        loaded = load_config(config_path, AuthorizedProductionPilotReadinessConfig)
     else:
         raise PilotReadinessError("unsupported pilot readiness config ID")
     config = loaded.config
@@ -179,6 +188,39 @@ def load_pilot_readiness(
         }
         if providers != expected_providers:
             raise PilotReadinessError("exact-settings smoke provider pins differ")
+    if isinstance(config, AuthorizedProductionPilotReadinessConfig):
+        activation_plan = load_yaml_mapping(
+            _repo_file(
+                repo_root,
+                config.activation_plan.path,
+                config.activation_plan.sha256,
+            )
+        )
+        _repo_file(
+            repo_root,
+            config.source_readiness_config.path,
+            config.source_readiness_config.sha256,
+        )
+        _repo_file(
+            repo_root,
+            config.source_authorization_receipt.path,
+            config.source_authorization_receipt.sha256,
+        )
+        if (
+            activation_plan.get("activation_id") != "leanfaith_sft2a_production_pilot_activation_v2"
+            or activation_plan.get("pilot_launch_currently_authorized") is not False
+            or config.source_readiness_config_hash
+            != activation_plan.get("source_readiness_config_hash")
+            or authorization.get("source_readiness_config_hash")
+            != config.source_readiness_config_hash
+            or authorization.get("activation_plan_sha256") != config.activation_plan.sha256
+            or authorization.get("sample_output_subdir") != config.sample_output_subdir
+            or authorization.get("tmux_session") != config.detached_launch.session_name
+            or authorization.get("legacy_rejudge_authorized") is not False
+            or authorization.get("publication_authorized") is not False
+            or authorization.get("scale_50k_authorized") is not False
+        ):
+            raise PilotReadinessError("authorized activation lineage or scope differs")
     return LoadedPilotReadiness(
         config=config,
         path=config_path,

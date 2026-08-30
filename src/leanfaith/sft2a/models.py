@@ -318,6 +318,49 @@ class ProductionPilotReadinessConfig(PilotReadinessConfig):
     detached_launch: DetachedLaunchPolicy
 
 
+class AuthorizedProductionPilotReadinessConfig(ProductionPilotReadinessConfig):
+    config_id: Literal[  # type: ignore[assignment]
+        "leanfaith_sft2a_production_defaults_pilot_v2"
+    ]
+    status: Literal["authorized_pilot"]
+    activation_plan: ArtifactBinding
+    source_readiness_config: ArtifactBinding
+    source_readiness_config_hash: Sha256
+    source_authorization_receipt: ArtifactBinding
+
+
+class PilotActivationPlan(StrictModel):
+    schema_version: Literal[1]
+    activation_id: Literal["leanfaith_sft2a_production_pilot_activation_v2"]
+    status: Literal["awaiting_exact_authorization"]
+    task_id: Literal["SFT2A"]
+    production_config: ArtifactBinding
+    production_config_hash: Sha256
+    source_readiness_config: ArtifactBinding
+    source_readiness_config_hash: Sha256
+    source_authorization_receipt: ArtifactBinding
+    labeling_defaults_policy: ArtifactBinding
+    exact_settings_smoke_receipt: ArtifactBinding
+    catalog: ArtifactBinding
+    expected_sample_sha256: Sha256
+    source_staged_sample_manifest_sha256: Sha256
+    source_sample_implementation_commit: GitCommit
+    source_sample_implementation_tree: GitCommit
+    ceilings: ExecutionCeilings
+    ceilings_sha256: Sha256
+    target_config_id: Literal["leanfaith_sft2a_production_defaults_pilot_v2"]
+    target_authorization_receipt_path: NonEmpty
+    target_readiness_config_path: NonEmpty
+    fresh_sample_output_subdir: NonEmpty
+    authorized_detached_launch: DetachedLaunchPolicy
+    authorization_sentence_sha256: Sha256
+    requires_exact_authorization_sentence: Literal[True]
+    pilot_launch_currently_authorized: Literal[False]
+    legacy_rejudge_authorized: Literal[False]
+    publication_authorized: Literal[False]
+    scale_50k_authorized: Literal[False]
+
+
 class SFT2AConfig(StrictModel):
     schema_version: Literal[1]
     config_id: Literal["leanfaith_sft2a_one_root_v1"]
