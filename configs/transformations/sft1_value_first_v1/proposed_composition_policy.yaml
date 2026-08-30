@@ -1,0 +1,1971 @@
+schema_version: 1
+policy_id: sft1_value_first_composition_proposal
+policy_version: 0.3.0
+status: awaiting_user_approval
+approval_recorded: false
+
+authorization:
+  policy_loader_and_invariant_tests: true
+  transform_implementation: false
+  lean_execution: false
+  one_example_gate: false
+  hundred_root_gate: false
+  ten_k_pilot: false
+  row_generation: false
+  bulk_scale: false
+  publication: false
+  row_count_commitment: false
+
+dependencies:
+  repr_reviewed_predecessor:
+    status: reviewed_but_superseded
+    consumable_by_sft1: false
+    hashes_are_execution_dependencies: false
+    freeze_ordinal: 3
+    coherent_commit: cbc933c3623d81ba649a1f9c5107ad404389d69f
+    spec_hash: 073d92c8e1fcc5cb7a3a9bf325d047e9b2d52149504977086de46abf6f84ef52
+    config_path: configs/representations/goal_v1_v1.yaml
+    config_file_sha256: ae81b4675433d8f12e7830bc80e7c6e5c663580652475e51071de1ad86a58bce
+    lean_renderer_path: LeanFaith/Meta/GoalV1.lean
+    lean_renderer_sha256: 8a2626489d65c7424f039f673fe5910adeb07d833580f5a6870cbf8e19434809
+    python_renderer_path: src/leanfaith/representations/goal_v1.py
+    python_renderer_sha256: 09912e28687756a9cd203e6069a9f9c130259840d8309a3126fe1c8e1f333cbb
+  expr_renderer_api:
+    status: coordinator_request_open
+    required_signature: "renderClosedProp (e : Expr) : MetaM String"
+    required_namespace: LeanFaith.GoalV1
+    replacement_must_be_new_coherent_freeze: true
+    replacement_commit: null
+    replacement_spec_hash: null
+    replacement_config_path: null
+    replacement_config_file_sha256: null
+    replacement_lean_renderer_path: null
+    replacement_lean_renderer_sha256: null
+    replacement_python_renderer_path: null
+    replacement_python_renderer_sha256: null
+    renderer_api_hash: null
+    renderer_api_hash_basis: sha256_canonical_renderer_api_binding_v1
+    renderer_api_hash_payload_fields:
+      - replacement_commit
+      - replacement_lean_renderer_path
+      - replacement_lean_renderer_sha256
+      - required_namespace
+      - required_signature
+    populated_renderer_api_hash_must_replay_from_payload: true
+    canonical_universe_profile_id: null
+    canonical_universe_profile_hash: null
+    canonical_universe_profile_must_define_level_instantiation_and_naming: true
+    render_context_id: null
+    render_context_hash: null
+    real_goal_coverage_regression_id: null
+    real_goal_coverage_regression_hash: null
+    real_goal_coverage_regression_passed: false
+    real_goal_coverage_uses_closed_expr_api: true
+    all_required_real_goals_must_render_successfully: true
+    required_real_goal_case_ids:
+      - mathlib_add_pow
+      - physlib_kinetic_energy_conserved
+      - cslib_ret_merge
+      - lean_compiler_int_lt
+      - canonical_gold_aime_1983_p1
+      - consistency_check_amc12a_2019_p21
+    unresolved_expr_mvars_allowed: false
+    unresolved_universe_mvars_allowed: false
+    free_variables_allowed: false
+    loose_bound_variables_allowed: false
+    anonymous_telescope_binder_names_allowed: false
+    anonymous_binder_rejection_scope: rendered_outer_pi_telescope
+    type_inference_must_succeed_before_render: true
+    api_rejects_anonymous_telescope_binder: true
+    api_rejects_ill_typed_expr: true
+    non_prop_allowed: false
+  shared_contract_update:
+    status: coordinator_request_open
+    required_rule: exact_evidence_plus_operation_admission_creates_sft1_labels_not_polarity_multiplication
+    merged_commit: null
+
+representation_contract:
+  reference_input: canonical_closed_expr
+  candidate_input: canonical_closed_expr
+  same_renderer_for_both_sides: true
+  direct_renderer_call_for_both_sides: true
+  same_persistent_meta_request: true
+  renderer_signature: "renderClosedProp (e : Expr) : MetaM String"
+  candidate_theorem_declaration_allowed: false
+  candidate_axiom_declaration_allowed: false
+  sorry_for_rendering_allowed: false
+  synthesize_candidate_proof_for_rendering: false
+  copy_renderer_or_options_into_sft1: false
+  surface_render_candidate: false
+  pretty_print_then_reelaborate_candidate: false
+  compile_goal_v1_text: false
+  reelaborate_goal_v1_text: false
+  require_goal_v1_text_to_compile: false
+  render_complete_pi_telescope: true
+  canonical_universe_profile_required: true
+  reference_and_candidate_share_universe_profile: true
+  universe_profile_source: repr_replacement_freeze
+  local_u_i_canonicalization_without_repr_profile_allowed: false
+
+label_contract:
+  positive_evidence_classes: [P-DEF, P-SCHEMA, P-LEMMA, P-REFLECT]
+  negative_label_lanes: [N-RUBRIC, N-PROOF]
+  generic_d0_is_label_evidence: false
+  family_polarity_multiplication_allowed: false
+  exact_evidence_required: true
+  n_rubric_family_dimension_user_admission_required: true
+  operation_level_user_admission_required: true
+  n_rubric:
+    exact_typed_mutation_required: true
+    protected_rubric_dimension_required: true
+    operation_specific_applicability_required: true
+    anti_degeneracy_checks_required: true
+    exact_delta_evidence_required: true
+    claims_f2_truth: false
+  n_proof:
+    subtype_of_admitted_n_rubric_operation: true
+    exact_source_proof_required: true
+    exact_candidate_refutation_required: true
+    inherits_parent_typed_applicability: true
+    inherits_parent_exact_delta_evidence: true
+    inherits_parent_anti_degeneracy_checks: true
+    aggregate_retained_share_maximum: 0.10
+  candidate_truth_evidence_values: [proved, refuted, unknown]
+  candidate_truth_evidence_required_in_sidecar: true
+  operation_candidate_truth_default_may_fill_missing_sidecar: false
+  candidate_truth_evidence_determines_label: false
+  lane_selected_before_proof_validation: true
+  proof_success_or_failure_may_select_label_lane: false
+  candidate_provability_may_create_label: false
+
+negative_family_dimension_admissions:
+  - admission_id: n19_negation_mistakes_natural_v1
+    family_id: N19
+    rubric_dimension: negation_mistakes
+    track: natural
+    operation_ids: [N19_NEGATE_CLOSED_CLAIM_RUBRIC_V1, N19_NEGATE_CLOSED_CLAIM_PROOF_V1]
+    status: pending_user_decision
+    approved: false
+  - admission_id: n25_negation_mistakes_natural_v1
+    family_id: N25
+    rubric_dimension: negation_mistakes
+    track: natural
+    operation_ids: [N25_TOGGLE_EQ_NE_RUBRIC_V1, N25_TOGGLE_EQ_NE_PROOF_V1]
+    status: pending_user_decision
+    approved: false
+  - admission_id: n26_edge_cases_natural_v1
+    family_id: N26
+    rubric_dimension: edge_cases
+    track: natural
+    operation_ids: [N26_INCREMENT_BOUND_RUBRIC_V1, N26_INCREMENT_BOUND_PROOF_V1]
+    status: pending_user_decision
+    approved: false
+  - admission_id: n29_witness_dependency_natural_v1
+    family_id: N29
+    rubric_dimension: witness_dependency
+    track: natural
+    operation_ids: [N29_SWAP_WITNESS_DEPENDENCY_RUBRIC_V1, N29_SWAP_WITNESS_DEPENDENCY_PROOF_V1]
+    status: pending_user_decision
+    approved: false
+  - admission_id: n30_existence_uniqueness_natural_v1
+    family_id: N30
+    rubric_dimension: existence_uniqueness
+    track: natural
+    operation_ids: [N30_ADD_UNJUSTIFIED_UNIQUENESS_RUBRIC_V1, N30_ADD_UNJUSTIFIED_UNIQUENESS_PROOF_V1]
+    status: pending_user_decision
+    approved: false
+  - admission_id: n31_required_domain_guard_natural_v1
+    family_id: N31
+    rubric_dimension: required_domain_guard
+    track: natural
+    operation_ids: [N31_DROP_REQUIRED_GUARD_RUBRIC_V1, N31_DROP_REQUIRED_GUARD_PROOF_V1]
+    status: pending_user_decision
+    approved: false
+  - admission_id: n32_converse_mistakes_natural_v1
+    family_id: N32
+    rubric_dimension: converse_mistakes
+    track: natural
+    operation_ids: [N32_SWAP_ROLE_ORDER_RUBRIC_V1, N32_SWAP_ROLE_ORDER_PROOF_V1]
+    status: pending_user_decision
+    approved: false
+  - admission_id: n28_edge_cases_synthetic_v1
+    family_id: N28
+    rubric_dimension: edge_cases
+    track: synthetic_separate
+    operation_ids: [N28_FINITE_ARITHMETIC_RUBRIC_V1, N28_FINITE_ARITHMETIC_PROOF_V1]
+    status: pending_user_decision
+    approved: false
+  - admission_id: n28_negation_mistakes_synthetic_v1
+    family_id: N28
+    rubric_dimension: negation_mistakes
+    track: synthetic_separate
+    operation_ids: [N28_FINITE_SET_RUBRIC_V1, N28_FINITE_SET_PROOF_V1]
+    status: pending_user_decision
+    approved: false
+
+claim_erasure_guard_contract:
+  required_for_evidence_classes: [P-LEMMA, P-REFLECT]
+  reject_complete_claim_lemma_reuse: true
+  reject_reflexive_or_true_false_collapse: true
+  reject_hypothesis_to_true_deletion: true
+  reject_root_relation_reflective_normalization: true
+
+axiom_profiles:
+  - profile_id: classical_recorded
+    allowed_axioms: [Classical.choice, Quot.sound, propext]
+    unlisted_axioms_allowed: false
+  - profile_id: constructive_kernel
+    allowed_axioms: []
+    unlisted_axioms_allowed: false
+  - profile_id: propext_recorded
+    allowed_axioms: [propext]
+    unlisted_axioms_allowed: false
+
+starter_banks:
+  path: configs/transformations/sft1_value_first_v1/starter_banks_v0_3_0.yaml
+  file_sha256: 70b605dcdcd8a1d061cb1c4706c1fdd4867e327db00ccd738419727764736189
+  bank_set_id: sft1_starter_banks_v0_3_0
+  bank_set_version: 0.3.0
+  frozen_before_transform_implementation: true
+  resolved_lean_hashes_required_before_operation_execution: true
+
+inline_anchor_resolution:
+  status: pending
+  design_reference_hashes_are_executable_hashes: false
+  resolved_schema_lemma_procedure_hashes_required_before_one_example_gate: true
+  resolved_manifest_hash: null
+
+adversarial_fixture_freeze:
+  status: pending
+  operation_fixture_ids_are_design_ids_only: true
+  per_operation_and_eligible_project_specs_required: true
+  success_and_expected_rejection_code_required: true
+  fixture_bundle_hash_required_before_one_example_gate: true
+  fixture_bundle_hash: null
+
+p23_binder_hygiene_contract:
+  status: design_frozen_implementation_pending
+  existing_shared_engine_path: LeanFaith/Meta/TransformEngine.lean
+  existing_shared_engine_is_consumable: false
+  user_reported_failure_render: "[anonymous] : True✝"
+  future_task_owned_path: LeanFaith/Meta/SFT1/TransformEngine.lean
+  binder_naming_policy_id: p23_neutral_proof_binder_names_v1
+  binder_naming_policy_hash_basis: sha256_canonical_p23_binder_hygiene_contract_v1
+  binder_naming_policy_hash: 248896c182ca20655068eeff77063f68c7288f349f3e44c07f968d02a396dd94
+  introduced_binder_count: 1
+  generated_name_constructor: Name.mkSimple
+  anonymous_name_constructor_allowed: false
+  name_sequence_grammar: h_then_h_underscore_smallest_positive_ascii_decimal_without_leading_zero
+  collision_domains: [lean_name_equality, repr_displayed_or_sanitized_local_name_equality]
+  reserved_names_scope: complete_original_ordered_telescope
+  naming_inputs: [canonical_closed_expr_hash, selected_site_lineage_hash]
+  forbidden_naming_inputs: [family, operation_id, label, root_id, row_id, seed, randomness]
+  stable_under_resume_for_same_closed_expr_and_site: true
+  introduced_name_is_nonanonymous: true
+  introduced_name_renders_exactly_as_allocated: true
+  surviving_binder_names_and_lineage_unchanged: true
+  forbidden_render_substring: "[anonymous]"
+  inspect_expr_binder_names_before_render: true
+  required_regressions:
+    - p23_pack_no_collision_uses_h
+    - p23_pack_existing_h_h_1_uses_h_2
+    - p23_pack_nested_shadowed_survivors_unchanged
+    - p23_pack_no_anonymous_or_inaccessible_display
+    - p23_pack_cross_worker_replay_same_names_and_render_hash
+    - p23_proof_dependent_continuation_reject
+  sidecar_bindings:
+    - binder_naming_policy_id
+    - binder_naming_policy_hash
+    - introduced_binder_names
+    - reserved_user_names_hash
+    - reserved_rendered_names_hash
+    - surviving_binder_lineage_before_hash
+    - surviving_binder_lineage_after_hash
+    - candidate_render_hash
+    - replay_render_hash
+  regressions_passed: false
+
+representation_pre_gate_acceptance:
+  status: blocked_on_repr_replacement
+  required_before_one_example_gate: true
+  reference_render_succeeds_through_shared_api: true
+  candidate_render_succeeds_through_shared_api: true
+  required_distinct_render_is_distinct: true
+  exact_turnstile_count: 1
+  expr_mvars_allowed: false
+  universe_mvars_allowed: false
+  free_variables_allowed: false
+  loose_bound_variables_allowed: false
+  anonymous_binder_names_allowed: false
+  anonymous_binder_rejection_scope: rendered_outer_pi_telescope
+  type_inference_must_succeed_before_render: true
+  repr_real_goal_coverage_regression_must_pass: true
+  failure_reporting_dimensions: [source, family, operation, polarity, exact_failure_class]
+  exact_failure_classes:
+    - reference_render_failure
+    - candidate_render_failure
+    - expr_mvar
+    - universe_mvar
+    - free_variable
+    - loose_bound_variable
+    - anonymous_binder_name
+    - ill_typed
+    - non_prop
+    - wrong_turnstile_count
+    - required_distinct_render_collapsed
+    - universe_profile_mismatch
+    - renderer_context_mismatch
+    - repr_real_goal_coverage_not_passed
+  stable_id_and_sidecar_bindings:
+    - reference_closed_expr_hash
+    - candidate_closed_expr_hash
+    - reference_render_hash
+    - candidate_render_hash
+    - repr_replacement_commit
+    - renderer_api_hash
+    - repr_spec_hash
+    - canonical_universe_profile_id
+    - canonical_universe_profile_hash
+    - render_context_id
+    - render_context_hash
+
+family_dispositions:
+  - {family_id: P01, disposition: operation_registry_only}
+  - {family_id: P02, disposition: diagnostic_only}
+  - {family_id: P11, disposition: diagnostic_only}
+  - {family_id: P20, disposition: starter_bank_bound}
+  - {family_id: P21, disposition: split_reductions_and_diagnostic_introductions}
+  - {family_id: P32, disposition: starter_bank_bound}
+  - {family_id: P34, disposition: starter_bank_bound}
+  - {family_id: P35, disposition: starter_bank_bound}
+  - {family_id: P39, disposition: proof_of_concept}
+  - {family_id: P41, disposition: proof_of_concept}
+  - {family_id: P42, disposition: proof_of_concept}
+  - {family_id: N21, disposition: redesign_only}
+  - {family_id: N22, disposition: redesign_only}
+  - {family_id: N28, disposition: synthetic_separate_track}
+  - {family_id: N29, disposition: proof_of_concept}
+  - {family_id: N30, disposition: proof_of_concept}
+  - {family_id: N31, disposition: prioritized_proof_of_concept}
+  - {family_id: N32, disposition: proof_of_concept}
+  - {family_id: OTHER, disposition: not_authorized_without_exact_operation}
+
+operations:
+  - operation_id: P01_ALPHA_RENAME_SINGLE_V1
+    family_id: P01
+    track: natural
+    status: implementation_candidate
+    priority: 40
+    label_lane: positive
+    evidence_class: P-DEF
+    mechanism_superclass: presentation_alpha
+    anchor: {kind: procedure, ref: sft1.meta.p01_alpha_rename_single.v1, hash_basis: sha256_utf8_anchor_ref_v1, schema_lemma_procedure_hash: ca485f300ecc818057f10877f0eec5c6b4b963fec2e0a574a6895f9d83357095, bank_id: null, bank_entry_id: null}
+    orientation: rename_once
+    typed_applicability: one explicit local binder with capture-free deterministic neutral-name replacement and exact use remapping
+    context_restrictions: one use per chain; final text must differ; no generated marker names; only the declared alpha-fingerprint cycle exception applies
+    transparency: none
+    logic_regime: definitional
+    allowed_axiom_profile: constructive_kernel
+    inverse_token: P01_ALPHA_RENAME
+    cap: {maximum_retained_share: 0.005, maximum_per_root: 1}
+    budget: {heartbeat_seconds: 0.25, soft_seconds: 0.5, hard_seconds: 2.0}
+    eligible_projects: [compiler_data, cslib, mathlib, physlib]
+    adversarial_fixtures: {success: p01_alpha_rename_single_success, reject: p01_alpha_capture_or_second_hop_reject}
+    claim_erasure_guards: null
+    rubric_dimension: null
+    anti_degeneracy_checks: []
+    n_proof_subtype_of: null
+    candidate_truth_default: unknown
+    exact_delta_evidence_required: false
+    executable: false
+    label_emission_authorized: false
+    admission: {status: pending_user_decision, approved: false}
+  - operation_id: P02_REGROUP_BINDERS_V1
+    family_id: P02
+    track: diagnostic
+    status: diagnostic
+    priority: 90
+    label_lane: positive
+    evidence_class: P-DEF
+    mechanism_superclass: presentation_binders
+    anchor: {kind: schema, ref: sft1.schema.p02_regroup_binders.v1, hash_basis: sha256_utf8_anchor_ref_v1, schema_lemma_procedure_hash: 8c0dfe8b1c2ef813a44025483986cd3f3e4febf55187ab0aaa5deb3bece2562d, bank_id: null, bank_entry_id: null}
+    orientation: regroup
+    typed_applicability: adjacent binders with identical kinds types and dependency graph whose canonical rendering remains distinct
+    context_restrictions: diagnostic only; no split-then-join chain and no model-facing duplicate
+    transparency: none
+    logic_regime: definitional
+    allowed_axiom_profile: constructive_kernel
+    inverse_token: P02_BINDER_REGROUP
+    cap: {maximum_retained_share: 0.002, maximum_per_root: 1}
+    budget: {heartbeat_seconds: 0.25, soft_seconds: 0.5, hard_seconds: 2.0}
+    eligible_projects: [compiler_data, cslib, mathlib, physlib]
+    adversarial_fixtures: {success: p02_regroup_distinct_render_success, reject: p02_dependency_or_same_render_reject}
+    claim_erasure_guards: null
+    rubric_dimension: null
+    anti_degeneracy_checks: []
+    n_proof_subtype_of: null
+    candidate_truth_default: unknown
+    exact_delta_evidence_required: false
+    executable: false
+    label_emission_authorized: false
+    admission: {status: pending_user_decision, approved: false}
+  - operation_id: P11_BOUNDED_FORALL_EXPAND_V1
+    family_id: P11
+    track: diagnostic
+    status: diagnostic
+    priority: 90
+    label_lane: positive
+    evidence_class: P-SCHEMA
+    mechanism_superclass: presentation_bounded_quantifier
+    anchor: {kind: schema, ref: sft1.schema.p11_bounded_forall_expand.v1, hash_basis: sha256_utf8_anchor_ref_v1, schema_lemma_procedure_hash: 3219af70bceb0dc4ef6a18907d03e8f4b48827be886343bd52ca33a9be01a581, bank_id: null, bank_entry_id: null}
+    orientation: expand
+    typed_applicability: exact bounded universal with identical binder membership instance guard order and body
+    context_restrictions: diagnostic only; prohibit overlap with guard-removal negatives and reject same renderer output
+    transparency: none
+    logic_regime: constructive
+    allowed_axiom_profile: constructive_kernel
+    inverse_token: P11_BOUNDED_FORALL
+    cap: {maximum_retained_share: 0.002, maximum_per_root: 1}
+    budget: {heartbeat_seconds: 0.25, soft_seconds: 1.0, hard_seconds: 5.0}
+    eligible_projects: [compiler_data, cslib, mathlib, physlib]
+    adversarial_fixtures: {success: p11_bounded_forall_exact_success, reject: p11_guard_order_or_instance_reject}
+    claim_erasure_guards: null
+    rubric_dimension: null
+    anti_degeneracy_checks: []
+    n_proof_subtype_of: null
+    candidate_truth_default: unknown
+    exact_delta_evidence_required: false
+    executable: false
+    label_emission_authorized: false
+    admission: {status: pending_user_decision, approved: false}
+  - operation_id: P14_SWAP_INDEPENDENT_DATA_BINDERS_V1
+    family_id: P14
+    track: natural
+    status: implementation_candidate
+    priority: 30
+    label_lane: positive
+    evidence_class: P-SCHEMA
+    mechanism_superclass: binder_permutation
+    anchor: {kind: schema, ref: sft1.schema.p14_swap_independent_data_binders.v1, hash_basis: sha256_utf8_anchor_ref_v1, schema_lemma_procedure_hash: 2731f8daf2e084d79c81a783cc4b9e57fc91798e3045e577878644d4754ee1ed, bank_id: null, bank_entry_id: null}
+    orientation: adjacent_swap
+    typed_applicability: adjacent explicit data binders whose domains and continuation are independent under exact bvar reindexing
+    context_restrictions: one swap token per chain; exclude implicit instance proof and mutually dependent binders
+    transparency: none
+    logic_regime: constructive
+    allowed_axiom_profile: constructive_kernel
+    inverse_token: P14_ADJACENT_DATA_SWAP
+    cap: {maximum_retained_share: 0.02, maximum_per_root: 1}
+    budget: {heartbeat_seconds: 0.25, soft_seconds: 1.0, hard_seconds: 5.0}
+    eligible_projects: [compiler_data, cslib, mathlib, physlib]
+    adversarial_fixtures: {success: p14_independent_binders_success, reject: p14_dependent_binders_reject}
+    claim_erasure_guards: null
+    rubric_dimension: null
+    anti_degeneracy_checks: []
+    n_proof_subtype_of: null
+    candidate_truth_default: unknown
+    exact_delta_evidence_required: false
+    executable: false
+    label_emission_authorized: false
+    admission: {status: pending_user_decision, approved: false}
+  - operation_id: P15_SWAP_IFF_SIDES_V1
+    family_id: P15
+    track: natural
+    status: implementation_candidate
+    priority: 30
+    label_lane: positive
+    evidence_class: P-SCHEMA
+    mechanism_superclass: logical_symmetry
+    anchor: {kind: schema, ref: sft1.schema.p15_swap_iff_sides.v1, hash_basis: sha256_utf8_anchor_ref_v1, schema_lemma_procedure_hash: ecad6c6ea110dff281b051045eb37846b194b54fa1a879bce11f5c04e5ed6bd4, bank_id: null, bank_entry_id: null}
+    orientation: swap
+    typed_applicability: exact Iff node with distinct typed sides
+    context_restrictions: one use per chain and no repeated inverse token
+    transparency: none
+    logic_regime: constructive
+    allowed_axiom_profile: constructive_kernel
+    inverse_token: P15_IFF_SWAP
+    cap: {maximum_retained_share: 0.02, maximum_per_root: 1}
+    budget: {heartbeat_seconds: 0.25, soft_seconds: 1.0, hard_seconds: 5.0}
+    eligible_projects: [compiler_data, cslib, mathlib, physlib]
+    adversarial_fixtures: {success: p15_distinct_iff_success, reject: p15_identical_or_second_swap_reject}
+    claim_erasure_guards: null
+    rubric_dimension: null
+    anti_degeneracy_checks: []
+    n_proof_subtype_of: null
+    candidate_truth_default: unknown
+    exact_delta_evidence_required: false
+    executable: false
+    label_emission_authorized: false
+    admission: {status: pending_user_decision, approved: false}
+  - operation_id: P16_REASSOC_AND_LEFT_V1
+    family_id: P16
+    track: natural
+    status: implementation_candidate
+    priority: 30
+    label_lane: positive
+    evidence_class: P-SCHEMA
+    mechanism_superclass: logical_association
+    anchor: {kind: schema, ref: sft1.schema.p16_reassoc_and_left.v1, hash_basis: sha256_utf8_anchor_ref_v1, schema_lemma_procedure_hash: 04cdbbc58de730423e4baff3c03779f401286fded5814f4588c701d487b9ce0a, bank_id: null, bank_entry_id: null}
+    orientation: right_to_left
+    typed_applicability: exact three-node conjunction tree with preserved atom order
+    context_restrictions: one association hop and no overlapping omission or inverse
+    transparency: none
+    logic_regime: constructive
+    allowed_axiom_profile: constructive_kernel
+    inverse_token: P16_AND_ASSOC
+    cap: {maximum_retained_share: 0.02, maximum_per_root: 1}
+    budget: {heartbeat_seconds: 0.25, soft_seconds: 1.0, hard_seconds: 5.0}
+    eligible_projects: [compiler_data, cslib, mathlib, physlib]
+    adversarial_fixtures: {success: p16_three_and_success, reject: p16_reordered_or_overlap_reject}
+    claim_erasure_guards: null
+    rubric_dimension: null
+    anti_degeneracy_checks: []
+    n_proof_subtype_of: null
+    candidate_truth_default: unknown
+    exact_delta_evidence_required: false
+    executable: false
+    label_emission_authorized: false
+    admission: {status: pending_user_decision, approved: false}
+  - operation_id: P18_SYMMETRIZE_EQUALITY_V1
+    family_id: P18
+    track: natural
+    status: implementation_candidate
+    priority: 30
+    label_lane: positive
+    evidence_class: P-SCHEMA
+    mechanism_superclass: relation_symmetry
+    anchor: {kind: schema, ref: sft1.schema.p18_equality_symmetry.v1, hash_basis: sha256_utf8_anchor_ref_v1, schema_lemma_procedure_hash: a79b0b92d5fca0360c38a9edaead1edec038df63bc2167da580bcf9d2c335b8d, bank_id: null, bank_entry_id: null}
+    orientation: swap_operands
+    typed_applicability: exact equality with distinct well-typed operands at one selected site
+    context_restrictions: one use per chain and no protected negative relation site overlap
+    transparency: none
+    logic_regime: constructive
+    allowed_axiom_profile: constructive_kernel
+    inverse_token: P18_EQUALITY_SYMMETRY
+    cap: {maximum_retained_share: 0.02, maximum_per_root: 1}
+    budget: {heartbeat_seconds: 0.25, soft_seconds: 1.0, hard_seconds: 5.0}
+    eligible_projects: [compiler_data, cslib, mathlib, physlib]
+    adversarial_fixtures: {success: p18_distinct_equality_success, reject: p18_reflexive_or_second_swap_reject}
+    claim_erasure_guards: null
+    rubric_dimension: null
+    anti_degeneracy_checks: []
+    n_proof_subtype_of: null
+    candidate_truth_default: unknown
+    exact_delta_evidence_required: false
+    executable: false
+    label_emission_authorized: false
+    admission: {status: pending_user_decision, approved: false}
+  - operation_id: P20_FOLD_SET_NONEMPTY_V1
+    family_id: P20
+    track: natural
+    status: implementation_candidate
+    priority: 20
+    label_lane: positive
+    evidence_class: P-DEF
+    mechanism_superclass: definitional_fold
+    anchor: {kind: definition, ref: Set.Nonempty, hash_basis: bank_anchor_spec_sha256, schema_lemma_procedure_hash: a7417ad6dcd9ae9bcaa57bd4f80fb55e3cd95b291a6f490f10ffee18893544c2, bank_id: p20_definitions_v1, bank_entry_id: p20_set_nonempty}
+    orientation: fold
+    typed_applicability: exact unfolded Set.Nonempty body with recorded universe term and instance arguments and unique inverse reconstruction
+    context_restrictions: one definitional mechanism per chain; no proof or theorem unfolding; reject complete-claim collapse
+    transparency: reducible
+    logic_regime: definitional
+    allowed_axiom_profile: constructive_kernel
+    inverse_token: P20_SET_NONEMPTY_FOLD_UNFOLD
+    cap: {maximum_retained_share: 0.015, maximum_per_root: 1}
+    budget: {heartbeat_seconds: 0.25, soft_seconds: 1.0, hard_seconds: 5.0}
+    eligible_projects: [compiler_data, cslib, mathlib, physlib]
+    adversarial_fixtures: {success: p20_set_nonempty_fold_success, reject: p20_ambiguous_or_whole_claim_collapse_reject}
+    claim_erasure_guards: null
+    rubric_dimension: null
+    anti_degeneracy_checks: []
+    n_proof_subtype_of: null
+    candidate_truth_default: unknown
+    exact_delta_evidence_required: false
+    executable: false
+    label_emission_authorized: false
+    admission: {status: pending_user_decision, approved: false}
+  - operation_id: P20_UNFOLD_SET_NONEMPTY_V1
+    family_id: P20
+    track: natural
+    status: implementation_candidate
+    priority: 20
+    label_lane: positive
+    evidence_class: P-DEF
+    mechanism_superclass: definitional_unfold
+    anchor: {kind: definition, ref: Set.Nonempty, hash_basis: bank_anchor_spec_sha256, schema_lemma_procedure_hash: a7417ad6dcd9ae9bcaa57bd4f80fb55e3cd95b291a6f490f10ffee18893544c2, bank_id: p20_definitions_v1, bank_entry_id: p20_set_nonempty}
+    orientation: unfold
+    typed_applicability: exact Set.Nonempty application with recorded universe term and instance arguments and unique inverse reconstruction
+    context_restrictions: one definitional mechanism per chain; no proof or theorem unfolding; reject complete-claim collapse
+    transparency: reducible
+    logic_regime: definitional
+    allowed_axiom_profile: constructive_kernel
+    inverse_token: P20_SET_NONEMPTY_FOLD_UNFOLD
+    cap: {maximum_retained_share: 0.015, maximum_per_root: 1}
+    budget: {heartbeat_seconds: 0.25, soft_seconds: 1.0, hard_seconds: 5.0}
+    eligible_projects: [compiler_data, cslib, mathlib, physlib]
+    adversarial_fixtures: {success: p20_set_nonempty_unfold_success, reject: p20_proof_or_opaque_definition_reject}
+    claim_erasure_guards: null
+    rubric_dimension: null
+    anti_degeneracy_checks: []
+    n_proof_subtype_of: null
+    candidate_truth_default: unknown
+    exact_delta_evidence_required: false
+    executable: false
+    label_emission_authorized: false
+    admission: {status: pending_user_decision, approved: false}
+
+  - operation_id: P21_BETA_INTRO_V1
+    family_id: P21
+    track: diagnostic
+    status: diagnostic
+    priority: 95
+    label_lane: positive
+    evidence_class: P-DEF
+    mechanism_superclass: definitional_beta
+    anchor: {kind: procedure, ref: sft1.meta.p21_beta_intro.v1, hash_basis: sha256_utf8_anchor_ref_v1, schema_lemma_procedure_hash: 47093f880cd98c927206b7f60f9611c87942a9d5df2c416c669dbb868b4140b3, bank_id: null, bank_entry_id: null}
+    orientation: introduce
+    typed_applicability: one explicit term with a uniquely reconstructible capture-free beta redex whose immediate reduction is the exact source expression
+    context_restrictions: diagnostic only; one definitional mechanism per chain; reject renderer collapse and artificial size inflation
+    transparency: reducible
+    logic_regime: definitional
+    allowed_axiom_profile: constructive_kernel
+    inverse_token: P21_BETA_INTRO_REDUCE
+    cap: {maximum_retained_share: 0.001, maximum_per_root: 1}
+    budget: {heartbeat_seconds: 0.25, soft_seconds: 0.5, hard_seconds: 2.0}
+    eligible_projects: [compiler_data, cslib, mathlib, physlib]
+    adversarial_fixtures: {success: p21_beta_intro_distinct_success, reject: p21_beta_intro_renderer_or_capture_reject}
+    claim_erasure_guards: null
+    rubric_dimension: null
+    anti_degeneracy_checks: []
+    n_proof_subtype_of: null
+    candidate_truth_default: unknown
+    exact_delta_evidence_required: false
+    executable: false
+    label_emission_authorized: false
+    admission: {status: pending_user_decision, approved: false}
+  - operation_id: P21_BETA_REDUCE_V1
+    family_id: P21
+    track: natural
+    status: implementation_candidate
+    priority: 20
+    label_lane: positive
+    evidence_class: P-DEF
+    mechanism_superclass: definitional_beta
+    anchor: {kind: procedure, ref: sft1.meta.p21_beta_reduce.v1, hash_basis: sha256_utf8_anchor_ref_v1, schema_lemma_procedure_hash: dd364fd25afd801ae97c2f47ea59ca9f46cae0fff393da5a57b5842acb306d4c, bank_id: null, bank_entry_id: null}
+    orientation: reduce
+    typed_applicability: one explicit beta redex with a closed argument and exact capture-avoiding substitution
+    context_restrictions: one definitional mechanism per chain; reject complete-claim erasure and renderer-identical output
+    transparency: reducible
+    logic_regime: definitional
+    allowed_axiom_profile: constructive_kernel
+    inverse_token: P21_BETA_INTRO_REDUCE
+    cap: {maximum_retained_share: 0.015, maximum_per_root: 1}
+    budget: {heartbeat_seconds: 0.25, soft_seconds: 1.0, hard_seconds: 5.0}
+    eligible_projects: [compiler_data, cslib, mathlib, physlib]
+    adversarial_fixtures: {success: p21_beta_reduce_success, reject: p21_beta_reduce_open_or_same_render_reject}
+    claim_erasure_guards: null
+    rubric_dimension: null
+    anti_degeneracy_checks: []
+    n_proof_subtype_of: null
+    candidate_truth_default: unknown
+    exact_delta_evidence_required: false
+    executable: false
+    label_emission_authorized: false
+    admission: {status: pending_user_decision, approved: false}
+  - operation_id: P21_ZETA_INTRO_V1
+    family_id: P21
+    track: diagnostic
+    status: diagnostic
+    priority: 95
+    label_lane: positive
+    evidence_class: P-DEF
+    mechanism_superclass: definitional_zeta
+    anchor: {kind: procedure, ref: sft1.meta.p21_zeta_intro.v1, hash_basis: sha256_utf8_anchor_ref_v1, schema_lemma_procedure_hash: 12cb8456f80447132fb7f7f007aaacef82feeff7d84a1fcffb195d7861c00cee, bank_id: null, bank_entry_id: null}
+    orientation: introduce
+    typed_applicability: one explicit term with a uniquely reconstructible local let whose zeta reduction is the exact source expression
+    context_restrictions: diagnostic only; one definitional mechanism per chain; reject unused-let padding and renderer collapse
+    transparency: reducible
+    logic_regime: definitional
+    allowed_axiom_profile: constructive_kernel
+    inverse_token: P21_ZETA_INTRO_REDUCE
+    cap: {maximum_retained_share: 0.001, maximum_per_root: 1}
+    budget: {heartbeat_seconds: 0.25, soft_seconds: 0.5, hard_seconds: 2.0}
+    eligible_projects: [compiler_data, cslib, mathlib, physlib]
+    adversarial_fixtures: {success: p21_zeta_intro_distinct_success, reject: p21_zeta_unused_or_same_render_reject}
+    claim_erasure_guards: null
+    rubric_dimension: null
+    anti_degeneracy_checks: []
+    n_proof_subtype_of: null
+    candidate_truth_default: unknown
+    exact_delta_evidence_required: false
+    executable: false
+    label_emission_authorized: false
+    admission: {status: pending_user_decision, approved: false}
+  - operation_id: P21_ZETA_REDUCE_V1
+    family_id: P21
+    track: natural
+    status: implementation_candidate
+    priority: 20
+    label_lane: positive
+    evidence_class: P-DEF
+    mechanism_superclass: definitional_zeta
+    anchor: {kind: procedure, ref: sft1.meta.p21_zeta_reduce.v1, hash_basis: sha256_utf8_anchor_ref_v1, schema_lemma_procedure_hash: 3e991814bbc89f759e0da75ba85a9a276230df4244a2456f463a051a9fb0ff35, bank_id: null, bank_entry_id: null}
+    orientation: reduce
+    typed_applicability: one local let with a closed value and exact capture-avoiding zeta substitution
+    context_restrictions: one definitional mechanism per chain; reject complete-claim erasure and renderer-identical output
+    transparency: reducible
+    logic_regime: definitional
+    allowed_axiom_profile: constructive_kernel
+    inverse_token: P21_ZETA_INTRO_REDUCE
+    cap: {maximum_retained_share: 0.015, maximum_per_root: 1}
+    budget: {heartbeat_seconds: 0.25, soft_seconds: 1.0, hard_seconds: 5.0}
+    eligible_projects: [compiler_data, cslib, mathlib, physlib]
+    adversarial_fixtures: {success: p21_zeta_reduce_success, reject: p21_zeta_open_or_same_render_reject}
+    claim_erasure_guards: null
+    rubric_dimension: null
+    anti_degeneracy_checks: []
+    n_proof_subtype_of: null
+    candidate_truth_default: unknown
+    exact_delta_evidence_required: false
+    executable: false
+    label_emission_authorized: false
+    admission: {status: pending_user_decision, approved: false}
+  - operation_id: P22_ETA_REDUCE_EXPLICIT_FUN_V1
+    family_id: P22
+    track: natural
+    status: implementation_candidate
+    priority: 30
+    label_lane: positive
+    evidence_class: P-DEF
+    mechanism_superclass: definitional_eta
+    anchor: {kind: schema, ref: sft1.schema.p22_eta_reduce_explicit_fun.v1, hash_basis: sha256_utf8_anchor_ref_v1, schema_lemma_procedure_hash: 76defc29941a22925bfbe315b4978c2929f99986934d70b41a8a579b3ca8d309, bank_id: null, bank_entry_id: null}
+    orientation: reduce
+    typed_applicability: explicit nondependent function lambda whose bound variable occurs exactly as the final argument and is absent from the function prefix
+    context_restrictions: eta reduction only; no eta introduction in the natural track; reject implicit instance coercion and renderer collapse
+    transparency: reducible
+    logic_regime: definitional
+    allowed_axiom_profile: constructive_kernel
+    inverse_token: P22_ETA_REDUCE
+    cap: {maximum_retained_share: 0.01, maximum_per_root: 1}
+    budget: {heartbeat_seconds: 0.25, soft_seconds: 1.0, hard_seconds: 5.0}
+    eligible_projects: [compiler_data, cslib, mathlib, physlib]
+    adversarial_fixtures: {success: p22_explicit_eta_success, reject: p22_dependent_or_implicit_eta_reject}
+    claim_erasure_guards: null
+    rubric_dimension: null
+    anti_degeneracy_checks: []
+    n_proof_subtype_of: null
+    candidate_truth_default: unknown
+    exact_delta_evidence_required: false
+    executable: false
+    label_emission_authorized: false
+    admission: {status: pending_user_decision, approved: false}
+  - operation_id: P23_CURRY_PROP_PAIR_V1
+    family_id: P23
+    track: natural
+    status: implementation_candidate
+    priority: 25
+    label_lane: positive
+    evidence_class: P-SCHEMA
+    mechanism_superclass: proposition_packaging
+    anchor: {kind: schema, ref: sft1.schema.p23_curry_prop_pair.v1, hash_basis: sha256_utf8_anchor_ref_v1, schema_lemma_procedure_hash: 0c90c52c881be081f09642f020e94fd51f79131b734a28bf46325266004352c6, bank_id: null, bank_entry_id: null}
+    orientation: pack
+    typed_applicability: pack exactly two adjacent independent proposition binders with order preserved and a continuation independent of both proof terms; the one introduced conjunction-proof Pi binder receives the deterministic hygienic non-anonymous name required by p23_binder_hygiene_contract
+    context_restrictions: no P12 or P17 token in the chain; one packaging site; reject proof-dependent continuation, Name.anonymous, any anonymous Expr binder, and any render containing [anonymous]
+    transparency: none
+    logic_regime: constructive
+    allowed_axiom_profile: constructive_kernel
+    inverse_token: P23_PROP_PAIR_PACK_UNPACK
+    cap: {maximum_retained_share: 0.02, maximum_per_root: 1}
+    budget: {heartbeat_seconds: 0.25, soft_seconds: 1.0, hard_seconds: 5.0}
+    eligible_projects: [compiler_data, cslib, mathlib, physlib]
+    adversarial_fixtures: {success: p23_independent_prop_pair_success, reject: p23_proof_dependent_continuation_reject}
+    claim_erasure_guards: null
+    rubric_dimension: null
+    anti_degeneracy_checks: []
+    n_proof_subtype_of: null
+    candidate_truth_default: unknown
+    exact_delta_evidence_required: false
+    executable: false
+    label_emission_authorized: false
+    admission: {status: pending_user_decision, approved: false}
+  - operation_id: P24_SWAP_INDEPENDENT_PROP_BINDERS_V1
+    family_id: P24
+    track: natural
+    status: implementation_candidate
+    priority: 25
+    label_lane: positive
+    evidence_class: P-SCHEMA
+    mechanism_superclass: proof_binder_permutation
+    anchor: {kind: schema, ref: sft1.schema.p24_swap_independent_prop_binders.v1, hash_basis: sha256_utf8_anchor_ref_v1, schema_lemma_procedure_hash: 86d51614f68b930a93e875b0753aeebac4a87a8dfb2b8123e4cefcc8281e0c87, bank_id: null, bank_entry_id: null}
+    orientation: adjacent_swap
+    typed_applicability: adjacent proposition binders whose types and continuation are mutually proof-independent under exact bvar reindexing
+    context_restrictions: one swap per chain; exclude data implicit instance and proof-dependent binders
+    transparency: none
+    logic_regime: constructive
+    allowed_axiom_profile: constructive_kernel
+    inverse_token: P24_ADJACENT_PROP_SWAP
+    cap: {maximum_retained_share: 0.02, maximum_per_root: 1}
+    budget: {heartbeat_seconds: 0.25, soft_seconds: 1.0, hard_seconds: 5.0}
+    eligible_projects: [compiler_data, cslib, mathlib, physlib]
+    adversarial_fixtures: {success: p24_independent_prop_binders_success, reject: p24_proof_dependency_reject}
+    claim_erasure_guards: null
+    rubric_dimension: null
+    anti_degeneracy_checks: []
+    n_proof_subtype_of: null
+    candidate_truth_default: unknown
+    exact_delta_evidence_required: false
+    executable: false
+    label_emission_authorized: false
+    admission: {status: pending_user_decision, approved: false}
+  - operation_id: P28_DECOMPOSE_IFF_V1
+    family_id: P28
+    track: natural
+    status: implementation_candidate
+    priority: 30
+    label_lane: positive
+    evidence_class: P-SCHEMA
+    mechanism_superclass: logical_decomposition
+    anchor: {kind: schema, ref: sft1.schema.p28_decompose_iff.v1, hash_basis: sha256_utf8_anchor_ref_v1, schema_lemma_procedure_hash: 965a5520cc9fc06404569b3e3871096e0f2ebe5785dd3e219989d98557fdad41, bank_id: null, bank_entry_id: null}
+    orientation: expand
+    typed_applicability: one exact Iff node with distinct sides expanded to the two implication conjunction in fixed order
+    context_restrictions: one direction per chain; no P15 on the same site; reject duplicate or renderer-identical result
+    transparency: none
+    logic_regime: constructive
+    allowed_axiom_profile: constructive_kernel
+    inverse_token: P28_IFF_DECOMPOSE_RECOMPOSE
+    cap: {maximum_retained_share: 0.015, maximum_per_root: 1}
+    budget: {heartbeat_seconds: 0.25, soft_seconds: 1.0, hard_seconds: 5.0}
+    eligible_projects: [compiler_data, cslib, mathlib, physlib]
+    adversarial_fixtures: {success: p28_iff_decompose_success, reject: p28_same_side_or_inverse_cycle_reject}
+    claim_erasure_guards: null
+    rubric_dimension: null
+    anti_degeneracy_checks: []
+    n_proof_subtype_of: null
+    candidate_truth_default: unknown
+    exact_delta_evidence_required: false
+    executable: false
+    label_emission_authorized: false
+    admission: {status: pending_user_decision, approved: false}
+  - operation_id: P32_ADD_ASSOC_LOCAL_V1
+    family_id: P32
+    track: natural
+    status: implementation_candidate
+    priority: 15
+    label_lane: positive
+    evidence_class: P-LEMMA
+    mechanism_superclass: ac_local_rewrite
+    anchor: {kind: lemma, ref: add_assoc, hash_basis: bank_anchor_spec_sha256, schema_lemma_procedure_hash: 34e552b83e5dbf5408b335dc02b11a37d1f9b537b28636e11cacdcfb3a8b741d, bank_id: p32_ac_lemmas_v1, bank_entry_id: p32_add_assoc}
+    orientation: forward
+    typed_applicability: one exact additive associativity occurrence with resolved carrier operation and instances matching the frozen lemma anchor
+    context_restrictions: one AC operation per chain; no overlap with P34 P35 or P42; local occurrence only
+    transparency: reducible
+    logic_regime: constructive
+    allowed_axiom_profile: constructive_kernel
+    inverse_token: P32_ADD_ASSOC
+    cap: {maximum_retained_share: 0.01, maximum_per_root: 1}
+    budget: {heartbeat_seconds: 0.25, soft_seconds: 1.0, hard_seconds: 5.0}
+    eligible_projects: [compiler_data, cslib, mathlib, physlib]
+    adversarial_fixtures: {success: p32_add_assoc_local_success, reject: p32_whole_claim_or_instance_drift_reject}
+    claim_erasure_guards: [reject_complete_claim_lemma_reuse, reject_reflexive_or_true_false_collapse, reject_hypothesis_to_true_deletion, reject_root_relation_reflective_normalization]
+    rubric_dimension: null
+    anti_degeneracy_checks: []
+    n_proof_subtype_of: null
+    candidate_truth_default: unknown
+    exact_delta_evidence_required: false
+    executable: false
+    label_emission_authorized: false
+    admission: {status: pending_user_decision, approved: false}
+  - operation_id: P32_ADD_COMM_LOCAL_V1
+    family_id: P32
+    track: natural
+    status: implementation_candidate
+    priority: 15
+    label_lane: positive
+    evidence_class: P-LEMMA
+    mechanism_superclass: ac_local_rewrite
+    anchor: {kind: lemma, ref: add_comm, hash_basis: bank_anchor_spec_sha256, schema_lemma_procedure_hash: 7884aa08459aa7924afedb63898e456b82c8c456ae828de4334c4b55457d766a, bank_id: p32_ac_lemmas_v1, bank_entry_id: p32_add_comm}
+    orientation: forward
+    typed_applicability: one exact additive commutativity occurrence with distinct operands and resolved carrier operation and instances
+    context_restrictions: one AC operation per chain; no overlap with P34 P35 or P42; local occurrence only
+    transparency: reducible
+    logic_regime: constructive
+    allowed_axiom_profile: constructive_kernel
+    inverse_token: P32_ADD_COMM
+    cap: {maximum_retained_share: 0.01, maximum_per_root: 1}
+    budget: {heartbeat_seconds: 0.25, soft_seconds: 1.0, hard_seconds: 5.0}
+    eligible_projects: [compiler_data, cslib, mathlib, physlib]
+    adversarial_fixtures: {success: p32_add_comm_local_success, reject: p32_equal_operands_or_root_collapse_reject}
+    claim_erasure_guards: [reject_complete_claim_lemma_reuse, reject_reflexive_or_true_false_collapse, reject_hypothesis_to_true_deletion, reject_root_relation_reflective_normalization]
+    rubric_dimension: null
+    anti_degeneracy_checks: []
+    n_proof_subtype_of: null
+    candidate_truth_default: unknown
+    exact_delta_evidence_required: false
+    executable: false
+    label_emission_authorized: false
+    admission: {status: pending_user_decision, approved: false}
+  - operation_id: P33_EQ_HYP_SUBSTITUTE_NONDEPENDENT_V1
+    family_id: P33
+    track: natural
+    status: proof_of_concept
+    priority: 60
+    label_lane: positive
+    evidence_class: P-LEMMA
+    mechanism_superclass: hypothesis_transport
+    anchor: {kind: lemma, ref: Eq.rec, hash_basis: sha256_utf8_anchor_ref_v1, schema_lemma_procedure_hash: dfc96edc5620319cb3b07b894437638dbbb288c0d13d78d55dfb59bd7af5e531, bank_id: null, bank_entry_id: null}
+    orientation: substitute
+    typed_applicability: one equality proof local transports one exact nondependent continuation occurrence with all remaining local types stable
+    context_restrictions: proof of equality remains present; one substitution site; no P39 or binder permutation on the same local
+    transparency: reducible
+    logic_regime: constructive
+    allowed_axiom_profile: constructive_kernel
+    inverse_token: P33_EQ_HYP_SUBSTITUTE
+    cap: {maximum_retained_share: 0.005, maximum_per_root: 1}
+    budget: {heartbeat_seconds: 0.25, soft_seconds: 2.0, hard_seconds: 10.0}
+    eligible_projects: [cslib, mathlib, physlib]
+    adversarial_fixtures: {success: p33_nondependent_substitution_success, reject: p33_complete_claim_or_dependent_context_reject}
+    claim_erasure_guards: [reject_complete_claim_lemma_reuse, reject_reflexive_or_true_false_collapse, reject_hypothesis_to_true_deletion, reject_root_relation_reflective_normalization]
+    rubric_dimension: null
+    anti_degeneracy_checks: []
+    n_proof_subtype_of: null
+    candidate_truth_default: unknown
+    exact_delta_evidence_required: false
+    executable: false
+    label_emission_authorized: false
+    admission: {status: pending_user_decision, approved: false}
+  - operation_id: P34_NAT_SUCC_ADD_ONE_LOCAL_V1
+    family_id: P34
+    track: natural
+    status: implementation_candidate
+    priority: 15
+    label_lane: positive
+    evidence_class: P-LEMMA
+    mechanism_superclass: semantic_local_rewrite
+    anchor: {kind: lemma, ref: Nat.succ_eq_add_one, hash_basis: bank_anchor_spec_sha256, schema_lemma_procedure_hash: 0313261d20dfcd41dc4c2c084a70dcc680d7612578acb9632cb25580690a4925, bank_id: p34_semantic_rewrites_v1, bank_entry_id: p34_nat_succ_add_one}
+    orientation: forward
+    typed_applicability: one exact Nat successor occurrence with the frozen theorem and explicit local context transport
+    context_restrictions: one semantic rewrite per chain; no overlapping P32 P35 or P42 site
+    transparency: reducible
+    logic_regime: constructive
+    allowed_axiom_profile: constructive_kernel
+    inverse_token: P34_NAT_SUCC_ADD_ONE
+    cap: {maximum_retained_share: 0.01, maximum_per_root: 1}
+    budget: {heartbeat_seconds: 0.25, soft_seconds: 1.0, hard_seconds: 5.0}
+    eligible_projects: [compiler_data, cslib, mathlib, physlib]
+    adversarial_fixtures: {success: p34_nat_succ_local_success, reject: p34_complete_claim_or_wrong_type_reject}
+    claim_erasure_guards: [reject_complete_claim_lemma_reuse, reject_reflexive_or_true_false_collapse, reject_hypothesis_to_true_deletion, reject_root_relation_reflective_normalization]
+    rubric_dimension: null
+    anti_degeneracy_checks: []
+    n_proof_subtype_of: null
+    candidate_truth_default: unknown
+    exact_delta_evidence_required: false
+    executable: false
+    label_emission_authorized: false
+    admission: {status: pending_user_decision, approved: false}
+  - operation_id: P35_SET_INTER_MEMBERSHIP_V1
+    family_id: P35
+    track: natural
+    status: implementation_candidate
+    priority: 15
+    label_lane: positive
+    evidence_class: P-SCHEMA
+    mechanism_superclass: membership_schema
+    anchor: {kind: schema, ref: sft1.p35.set_inter_membership.schema.v1, hash_basis: bank_anchor_spec_sha256, schema_lemma_procedure_hash: 669aae4a12c1c357dd017a2a4e60e04e52016db5fb2e2adb990dfeae0ff9f2c2, bank_id: p35_membership_v1, bank_entry_id: p35_set_inter_membership}
+    orientation: forward
+    typed_applicability: one exact Set intersection membership proposition with identical universe membership and set arguments
+    context_restrictions: one membership schema per chain; no overlapping P32 P34 or P42 site
+    transparency: reducible
+    logic_regime: constructive
+    allowed_axiom_profile: constructive_kernel
+    inverse_token: P35_SET_INTER_MEMBERSHIP
+    cap: {maximum_retained_share: 0.01, maximum_per_root: 1}
+    budget: {heartbeat_seconds: 0.25, soft_seconds: 1.0, hard_seconds: 5.0}
+    eligible_projects: [compiler_data, cslib, mathlib, physlib]
+    adversarial_fixtures: {success: p35_set_inter_membership_success, reject: p35_wrong_membership_or_same_render_reject}
+    claim_erasure_guards: null
+    rubric_dimension: null
+    anti_degeneracy_checks: []
+    n_proof_subtype_of: null
+    candidate_truth_default: unknown
+    exact_delta_evidence_required: false
+    executable: false
+    label_emission_authorized: false
+    admission: {status: pending_user_decision, approved: false}
+  - operation_id: P36_SET_EXTENTIONALITY_V1
+    family_id: P36
+    track: natural
+    status: proof_of_concept
+    priority: 65
+    label_lane: positive
+    evidence_class: P-LEMMA
+    mechanism_superclass: extensionality
+    anchor: {kind: lemma, ref: Set.ext, hash_basis: sha256_utf8_anchor_ref_v1, schema_lemma_procedure_hash: be0a0929e99a9fa2f6fbef668340cf5a5671e2ffdca347746273cae4916ce7c8, bank_id: null, bank_entry_id: null}
+    orientation: expand
+    typed_applicability: root equality between two same-carrier sets with exact elementwise membership equivalence generated under one fresh explicit binder
+    context_restrictions: root only; prohibit reflexive equal sets and complete-claim theorem reuse; record propext profile
+    transparency: reducible
+    logic_regime: extensional_propext
+    allowed_axiom_profile: propext_recorded
+    inverse_token: P36_SET_EXT
+    cap: {maximum_retained_share: 0.005, maximum_per_root: 1}
+    budget: {heartbeat_seconds: 0.25, soft_seconds: 2.0, hard_seconds: 10.0}
+    eligible_projects: [cslib, mathlib, physlib]
+    adversarial_fixtures: {success: p36_nonreflexive_set_ext_success, reject: p36_reflexive_or_complete_claim_reject}
+    claim_erasure_guards: [reject_complete_claim_lemma_reuse, reject_reflexive_or_true_false_collapse, reject_hypothesis_to_true_deletion, reject_root_relation_reflective_normalization]
+    rubric_dimension: null
+    anti_degeneracy_checks: []
+    n_proof_subtype_of: null
+    candidate_truth_default: unknown
+    exact_delta_evidence_required: false
+    executable: false
+    label_emission_authorized: false
+    admission: {status: pending_user_decision, approved: false}
+  - operation_id: P38_EXISTS_SUBTYPE_NONEMPTY_V1
+    family_id: P38
+    track: natural
+    status: proof_of_concept
+    priority: 65
+    label_lane: positive
+    evidence_class: P-SCHEMA
+    mechanism_superclass: subtype_packaging
+    anchor: {kind: schema, ref: sft1.schema.p38_exists_subtype_nonempty.v1, hash_basis: sha256_utf8_anchor_ref_v1, schema_lemma_procedure_hash: 43fe6d223744ce9ac8712b195a5e216a1a3d7f8e1b93831cfae19a042db3acca, bank_id: null, bank_entry_id: null}
+    orientation: fold
+    typed_applicability: exact existential over one predicate and Nonempty of the corresponding subtype with proof-independent projection
+    context_restrictions: one subtype packaging operation; no P40 or P41 at the introduced quantifier
+    transparency: reducible
+    logic_regime: constructive
+    allowed_axiom_profile: constructive_kernel
+    inverse_token: P38_EXISTS_SUBTYPE_NONEMPTY
+    cap: {maximum_retained_share: 0.005, maximum_per_root: 1}
+    budget: {heartbeat_seconds: 0.25, soft_seconds: 2.0, hard_seconds: 10.0}
+    eligible_projects: [cslib, mathlib, physlib]
+    adversarial_fixtures: {success: p38_exists_subtype_success, reject: p38_proof_dependent_or_wrong_subtype_reject}
+    claim_erasure_guards: null
+    rubric_dimension: null
+    anti_degeneracy_checks: []
+    n_proof_subtype_of: null
+    candidate_truth_default: unknown
+    exact_delta_evidence_required: false
+    executable: false
+    label_emission_authorized: false
+    admission: {status: pending_user_decision, approved: false}
+  - operation_id: P39_HYP_SET_INTER_REWRITE_V1
+    family_id: P39
+    track: natural
+    status: proof_of_concept
+    priority: 55
+    label_lane: positive
+    evidence_class: P-LEMMA
+    mechanism_superclass: hypothesis_transport
+    anchor: {kind: schema, ref: sft1.p39.hyp_set_inter.schema.v1, hash_basis: bank_anchor_spec_sha256, schema_lemma_procedure_hash: f2614ef5e4018c2eb50dc432b86d213b09da8e71326dd2bbf24c915430bed8fc, bank_id: p39_hypothesis_rewrites_v1, bank_entry_id: p39_hyp_set_inter}
+    orientation: forward
+    typed_applicability: one proposition local of exact Set intersection membership whose proof term is absent from every later local type and target
+    context_restrictions: one hypothesis rewrite; no P23 P24 or P33 on the same local; continuation must be proof-independent
+    transparency: reducible
+    logic_regime: constructive
+    allowed_axiom_profile: constructive_kernel
+    inverse_token: P39_HYP_SET_INTER
+    cap: {maximum_retained_share: 0.005, maximum_per_root: 1}
+    budget: {heartbeat_seconds: 0.25, soft_seconds: 2.0, hard_seconds: 10.0}
+    eligible_projects: [cslib, mathlib, physlib]
+    adversarial_fixtures: {success: p39_hyp_set_inter_success, reject: p39_claim_erasure_or_proof_dependency_reject}
+    claim_erasure_guards: [reject_complete_claim_lemma_reuse, reject_reflexive_or_true_false_collapse, reject_hypothesis_to_true_deletion, reject_root_relation_reflective_normalization]
+    rubric_dimension: null
+    anti_degeneracy_checks: []
+    n_proof_subtype_of: null
+    candidate_truth_default: unknown
+    exact_delta_evidence_required: false
+    executable: false
+    label_emission_authorized: false
+    admission: {status: pending_user_decision, approved: false}
+  - operation_id: P40_EXISTS_UNIQUE_EXPAND_V1
+    family_id: P40
+    track: natural
+    status: proof_of_concept
+    priority: 60
+    label_lane: positive
+    evidence_class: P-SCHEMA
+    mechanism_superclass: uniqueness_schema
+    anchor: {kind: schema, ref: sft1.schema.p40_exists_unique_expand.v1, hash_basis: sha256_utf8_anchor_ref_v1, schema_lemma_procedure_hash: 84900e4681c72969b5f446c57c935bb034030a5752c0e90665fc399636c78a53, bank_id: null, bank_entry_id: null}
+    orientation: expand
+    typed_applicability: exact ExistsUnique application expanded to existence satisfaction and uniqueness with the same predicate and equality orientation
+    context_restrictions: one direction per chain; no P38 or P41 at the introduced existential; reject length-only duplicate template
+    transparency: reducible
+    logic_regime: constructive
+    allowed_axiom_profile: constructive_kernel
+    inverse_token: P40_EXISTS_UNIQUE
+    cap: {maximum_retained_share: 0.005, maximum_per_root: 1}
+    budget: {heartbeat_seconds: 0.25, soft_seconds: 2.0, hard_seconds: 10.0}
+    eligible_projects: [compiler_data, cslib, mathlib, physlib]
+    adversarial_fixtures: {success: p40_exists_unique_expand_success, reject: p40_predicate_or_equality_mismatch_reject}
+    claim_erasure_guards: null
+    rubric_dimension: null
+    anti_degeneracy_checks: []
+    n_proof_subtype_of: null
+    candidate_truth_default: unknown
+    exact_delta_evidence_required: false
+    executable: false
+    label_emission_authorized: false
+    admission: {status: pending_user_decision, approved: false}
+  - operation_id: P41_SUBTYPE_FORALL_GUARD_V1
+    family_id: P41
+    track: natural
+    status: proof_of_concept
+    priority: 50
+    label_lane: positive
+    evidence_class: P-LEMMA
+    mechanism_superclass: subtype_quantifier_transport
+    anchor: {kind: schema, ref: sft1.p41.subtype_forall_guard.schema.v1, hash_basis: bank_anchor_spec_sha256, schema_lemma_procedure_hash: f649ab818a9b8a6a9399de94c84f579214fde9d23d2525832deea4facd5a1a2f, bank_id: p41_subtype_quantifiers_v1, bank_entry_id: p41_subtype_forall_guard}
+    orientation: forward
+    typed_applicability: universal over one subtype whose body depends only on the coerced value transported to a guarded universal over the carrier
+    context_restrictions: one subtype quantifier operation; body cannot inspect proof field; no P23 or P39 at the introduced guard
+    transparency: reducible
+    logic_regime: constructive
+    allowed_axiom_profile: constructive_kernel
+    inverse_token: P41_SUBTYPE_FORALL_GUARD
+    cap: {maximum_retained_share: 0.005, maximum_per_root: 1}
+    budget: {heartbeat_seconds: 0.25, soft_seconds: 2.0, hard_seconds: 10.0}
+    eligible_projects: [cslib, mathlib, physlib]
+    adversarial_fixtures: {success: p41_subtype_forall_success, reject: p41_claim_erasure_or_proof_field_dependency_reject}
+    claim_erasure_guards: [reject_complete_claim_lemma_reuse, reject_reflexive_or_true_false_collapse, reject_hypothesis_to_true_deletion, reject_root_relation_reflective_normalization]
+    rubric_dimension: null
+    anti_degeneracy_checks: []
+    n_proof_subtype_of: null
+    candidate_truth_default: unknown
+    exact_delta_evidence_required: false
+    executable: false
+    label_emission_authorized: false
+    admission: {status: pending_user_decision, approved: false}
+  - operation_id: P42_RING_POLYNOMIAL_LOCAL_V1
+    family_id: P42
+    track: natural
+    status: proof_of_concept
+    priority: 50
+    label_lane: positive
+    evidence_class: P-REFLECT
+    mechanism_superclass: reflective_local_normalization
+    anchor: {kind: procedure, ref: Mathlib.Tactic.Ring, hash_basis: bank_anchor_spec_sha256, schema_lemma_procedure_hash: d75a79205fdfb875d34cbd59f6f1fc9236493605d0c6c596feb51c116f9f1e31, bank_id: p42_reflective_procedures_v1, bank_entry_id: p42_ring_local}
+    orientation: balanced_alternative
+    typed_applicability: one proper local polynomial subexpression in the frozen supported semiring or ring fragment with a retained proof-producing equality certificate
+    context_restrictions: proper subterm only; root relation normalization forbidden; no overlap with P32 P34 or P35; one reflective operation
+    transparency: reducible
+    logic_regime: constructive_reflective
+    allowed_axiom_profile: constructive_kernel
+    inverse_token: P42_RING_LOCAL
+    cap: {maximum_retained_share: 0.005, maximum_per_root: 1}
+    budget: {heartbeat_seconds: 0.25, soft_seconds: 3.0, hard_seconds: 15.0}
+    eligible_projects: [mathlib]
+    adversarial_fixtures: {success: p42_ring_proper_subterm_success, reject: p42_root_relation_or_true_collapse_reject}
+    claim_erasure_guards: [reject_complete_claim_lemma_reuse, reject_reflexive_or_true_false_collapse, reject_hypothesis_to_true_deletion, reject_root_relation_reflective_normalization]
+    rubric_dimension: null
+    anti_degeneracy_checks: []
+    n_proof_subtype_of: null
+    candidate_truth_default: unknown
+    exact_delta_evidence_required: false
+    executable: false
+    label_emission_authorized: false
+    admission: {status: pending_user_decision, approved: false}
+
+  - operation_id: N19_NEGATE_CLOSED_CLAIM_RUBRIC_V1
+    family_id: N19
+    track: natural
+    status: proof_of_concept
+    priority: 70
+    label_lane: N-RUBRIC
+    evidence_class: N-RUBRIC
+    mechanism_superclass: negation_scope_mutation
+    anchor: {kind: rubric, ref: shared_consistency_rubric.negation_mistakes, hash_basis: bank_anchor_spec_sha256, schema_lemma_procedure_hash: c986cbfad21e4d2c70b9d0ac91f2947938280e027ba396182068f91d8ee028a2, bank_id: negative_rubric_models_v1, bank_entry_id: rubric_negation_scope}
+    orientation: mutate
+    typed_applicability: one exact complete canonical closed proposition selected as the protected negation-scope dimension
+    context_restrictions: final operation only; candidate must differ after rendering; no claim about candidate truth or F2
+    transparency: none
+    logic_regime: constructive_or_classical_recorded
+    allowed_axiom_profile: classical_recorded
+    inverse_token: N19_NEGATE_CLOSED_CLAIM
+    cap: {maximum_retained_share: 0.01, maximum_per_root: 1}
+    budget: {heartbeat_seconds: 0.25, soft_seconds: 1.0, hard_seconds: 5.0}
+    eligible_projects: [compiler_data, cslib, mathlib, physlib]
+    adversarial_fixtures: {success: n19_rubric_exact_closed_negation_success, reject: n19_rubric_double_negation_or_same_render_reject}
+    claim_erasure_guards: null
+    rubric_dimension: negation_mistakes
+    anti_degeneracy_checks: [reject_existing_outer_negation, reject_prop_defeq_true_or_false, reject_same_renderer_output]
+    n_proof_subtype_of: null
+    candidate_truth_default: unknown
+    exact_delta_evidence_required: true
+    executable: false
+    label_emission_authorized: false
+    admission: {status: pending_user_decision, approved: false}
+  - operation_id: N19_NEGATE_CLOSED_CLAIM_PROOF_V1
+    family_id: N19
+    track: natural
+    status: proof_of_concept
+    priority: 70
+    label_lane: N-PROOF
+    evidence_class: N-PROOF
+    mechanism_superclass: negation_scope_mutation
+    anchor: {kind: schema, ref: sft1.nproof.whole_claim_negation.v1, hash_basis: bank_anchor_spec_sha256, schema_lemma_procedure_hash: 09dfe2942330b97dadb9c6a7815452902087315cb03a8ab325afe245194de1e3, bank_id: negative_proof_templates_v1, bank_entry_id: proof_whole_claim_negation}
+    orientation: prove_source_refute_candidate
+    typed_applicability: admitted N19 rubric mutation plus exact allowed source proof and exact candidate refutation over the same closed Expr pair
+    context_restrictions: final operation only; stronger capped subtype; no endpoint declaration may be created for rendering or proof
+    transparency: reducible
+    logic_regime: constructive_or_classical_recorded
+    allowed_axiom_profile: classical_recorded
+    inverse_token: N19_NEGATE_CLOSED_CLAIM_PROOF
+    cap: {maximum_retained_share: 0.005, maximum_per_root: 1}
+    budget: {heartbeat_seconds: 0.25, soft_seconds: 2.0, hard_seconds: 10.0}
+    eligible_projects: [compiler_data, cslib, mathlib, physlib]
+    adversarial_fixtures: {success: n19_proof_source_and_refutation_success, reject: n19_proof_missing_or_unapproved_axiom_reject}
+    claim_erasure_guards: null
+    rubric_dimension: negation_mistakes
+    anti_degeneracy_checks: [replay_exact_source_proof, replay_exact_candidate_refutation, reject_same_renderer_output]
+    n_proof_subtype_of: N19_NEGATE_CLOSED_CLAIM_RUBRIC_V1
+    candidate_truth_default: refuted
+    exact_delta_evidence_required: true
+    executable: false
+    label_emission_authorized: false
+    admission: {status: pending_user_decision, approved: false}
+  - operation_id: N25_TOGGLE_EQ_NE_RUBRIC_V1
+    family_id: N25
+    track: natural
+    status: proof_of_concept
+    priority: 35
+    label_lane: N-RUBRIC
+    evidence_class: N-RUBRIC
+    mechanism_superclass: relation_polarity_mutation
+    anchor: {kind: rubric, ref: shared_consistency_rubric.negation_mistakes, hash_basis: bank_anchor_spec_sha256, schema_lemma_procedure_hash: 1400de8db4cb15c8ed92663d63b40b771a691f6e2c2dc84ca6dcfac9bf9ce585, bank_id: negative_rubric_models_v1, bank_entry_id: rubric_equality_or_relation_polarity}
+    orientation: mutate
+    typed_applicability: one protected Eq or Ne proposition with both operands fully typed and a nonvacuous reachable context
+    context_restrictions: final operation only; exclude proposition-valued equality and any defeq operands; no F2 claim
+    transparency: reducible
+    logic_regime: constructive
+    allowed_axiom_profile: constructive_kernel
+    inverse_token: N25_EQ_NE_TOGGLE
+    cap: {maximum_retained_share: 0.015, maximum_per_root: 1}
+    budget: {heartbeat_seconds: 0.25, soft_seconds: 1.0, hard_seconds: 5.0}
+    eligible_projects: [compiler_data, cslib, mathlib, physlib]
+    adversarial_fixtures: {success: n25_rubric_eq_ne_exact_delta_success, reject: n25_rubric_defeq_or_vacuous_reject}
+    claim_erasure_guards: null
+    rubric_dimension: negation_mistakes
+    anti_degeneracy_checks: [reject_defeq_operands, reject_unreachable_site, reject_same_renderer_output]
+    n_proof_subtype_of: null
+    candidate_truth_default: unknown
+    exact_delta_evidence_required: true
+    executable: false
+    label_emission_authorized: false
+    admission: {status: pending_user_decision, approved: false}
+  - operation_id: N25_TOGGLE_EQ_NE_PROOF_V1
+    family_id: N25
+    track: natural
+    status: proof_of_concept
+    priority: 35
+    label_lane: N-PROOF
+    evidence_class: N-PROOF
+    mechanism_superclass: relation_polarity_mutation
+    anchor: {kind: schema, ref: sft1.nproof.relation_counterexample.v1, hash_basis: bank_anchor_spec_sha256, schema_lemma_procedure_hash: 1b6bb838079781377d5a339ae5b9a6ecdaa2cb3df1bc68a94528390da85e5c68, bank_id: negative_proof_templates_v1, bank_entry_id: proof_relation_counterexample}
+    orientation: prove_source_refute_candidate
+    typed_applicability: admitted N25 rubric mutation plus a complete binder assignment retained-hypothesis proofs exact source proof and exact candidate refutation
+    context_restrictions: final operation only; stronger capped subtype; no failed proof search evidence
+    transparency: reducible
+    logic_regime: constructive_or_classical_recorded
+    allowed_axiom_profile: classical_recorded
+    inverse_token: N25_EQ_NE_TOGGLE_PROOF
+    cap: {maximum_retained_share: 0.0075, maximum_per_root: 1}
+    budget: {heartbeat_seconds: 0.25, soft_seconds: 3.0, hard_seconds: 15.0}
+    eligible_projects: [compiler_data, cslib, mathlib, physlib]
+    adversarial_fixtures: {success: n25_proof_relation_counterexample_success, reject: n25_proof_partial_telescope_or_failed_search_reject}
+    claim_erasure_guards: null
+    rubric_dimension: negation_mistakes
+    anti_degeneracy_checks: [complete_telescope_assignment, replay_exact_source_proof, replay_exact_candidate_refutation]
+    n_proof_subtype_of: N25_TOGGLE_EQ_NE_RUBRIC_V1
+    candidate_truth_default: refuted
+    exact_delta_evidence_required: true
+    executable: false
+    label_emission_authorized: false
+    admission: {status: pending_user_decision, approved: false}
+  - operation_id: N26_INCREMENT_BOUND_RUBRIC_V1
+    family_id: N26
+    track: natural
+    status: proof_of_concept
+    priority: 25
+    label_lane: N-RUBRIC
+    evidence_class: N-RUBRIC
+    mechanism_superclass: numeric_bound_mutation
+    anchor: {kind: rubric, ref: shared_consistency_rubric.edge_cases, hash_basis: bank_anchor_spec_sha256, schema_lemma_procedure_hash: 22b676d83f4f7df5a0440074b0dac95be2031970447149954f38788c3304eec0, bank_id: negative_rubric_models_v1, bank_entry_id: rubric_numeric_bound}
+    orientation: mutate
+    typed_applicability: one protected normalized numeric bound exponent or index with a unique operation-specific increment and unchanged expected type
+    context_restrictions: final operation only; bounded allowlisted numeral types and ranges; no F2 claim
+    transparency: reducible
+    logic_regime: constructive
+    allowed_axiom_profile: constructive_kernel
+    inverse_token: N26_INCREMENT_BOUND
+    cap: {maximum_retained_share: 0.015, maximum_per_root: 1}
+    budget: {heartbeat_seconds: 0.25, soft_seconds: 1.0, hard_seconds: 5.0}
+    eligible_projects: [compiler_data, cslib, mathlib, physlib]
+    adversarial_fixtures: {success: n26_rubric_bound_delta_success, reject: n26_rubric_coerced_or_irrelevant_literal_reject}
+    claim_erasure_guards: null
+    rubric_dimension: edge_cases
+    anti_degeneracy_checks: [reject_type_change, reject_unused_or_unreachable_literal, reject_same_renderer_output]
+    n_proof_subtype_of: null
+    candidate_truth_default: unknown
+    exact_delta_evidence_required: true
+    executable: false
+    label_emission_authorized: false
+    admission: {status: pending_user_decision, approved: false}
+  - operation_id: N26_INCREMENT_BOUND_PROOF_V1
+    family_id: N26
+    track: natural
+    status: proof_of_concept
+    priority: 25
+    label_lane: N-PROOF
+    evidence_class: N-PROOF
+    mechanism_superclass: numeric_bound_mutation
+    anchor: {kind: schema, ref: sft1.nproof.numeric_boundary.v1, hash_basis: bank_anchor_spec_sha256, schema_lemma_procedure_hash: 358900c175f79d52630c6c5e6a4de3f070394416153f1e3a9e5c070c7de5d20f, bank_id: negative_proof_templates_v1, bank_entry_id: proof_numeric_boundary}
+    orientation: prove_source_refute_candidate
+    typed_applicability: admitted N26 rubric mutation plus one complete boundary witness proving the source and refuting the exact candidate
+    context_restrictions: final operation only; stronger capped subtype; pinned proof procedure only and no search-failure label
+    transparency: reducible
+    logic_regime: constructive
+    allowed_axiom_profile: constructive_kernel
+    inverse_token: N26_INCREMENT_BOUND_PROOF
+    cap: {maximum_retained_share: 0.01, maximum_per_root: 1}
+    budget: {heartbeat_seconds: 0.25, soft_seconds: 3.0, hard_seconds: 15.0}
+    eligible_projects: [compiler_data, cslib, mathlib, physlib]
+    adversarial_fixtures: {success: n26_proof_boundary_success, reject: n26_proof_timeout_or_missing_refutation_reject}
+    claim_erasure_guards: null
+    rubric_dimension: edge_cases
+    anti_degeneracy_checks: [complete_telescope_assignment, replay_exact_source_proof, replay_exact_candidate_refutation]
+    n_proof_subtype_of: N26_INCREMENT_BOUND_RUBRIC_V1
+    candidate_truth_default: refuted
+    exact_delta_evidence_required: true
+    executable: false
+    label_emission_authorized: false
+    admission: {status: pending_user_decision, approved: false}
+  - operation_id: N29_SWAP_WITNESS_DEPENDENCY_RUBRIC_V1
+    family_id: N29
+    track: natural
+    status: proof_of_concept
+    priority: 20
+    label_lane: N-RUBRIC
+    evidence_class: N-RUBRIC
+    mechanism_superclass: witness_dependency_mutation
+    anchor: {kind: rubric, ref: shared_consistency_rubric.witness_dependency, hash_basis: bank_anchor_spec_sha256, schema_lemma_procedure_hash: b2141e83519f7221456e5c35dce30e6c502e4402133843770695f2bb4d7c1b2f, bank_id: negative_rubric_models_v1, bank_entry_id: rubric_witness_dependency}
+    orientation: mutate
+    typed_applicability: one protected forall-exists dependency edge changed to exists-forall with exact bvar remapping and nonempty finite-testable domains
+    context_restrictions: final operation only; protect both binders domain and body; prohibit P14 or P24 on either binder; no F2 claim
+    transparency: none
+    logic_regime: constructive_or_classical_recorded
+    allowed_axiom_profile: classical_recorded
+    inverse_token: N29_WITNESS_DEPENDENCY_SWAP
+    cap: {maximum_retained_share: 0.0075, maximum_per_root: 1}
+    budget: {heartbeat_seconds: 0.25, soft_seconds: 2.0, hard_seconds: 10.0}
+    eligible_projects: [cslib, mathlib]
+    adversarial_fixtures: {success: n29_rubric_dependency_delta_success, reject: n29_rubric_singleton_or_independent_body_reject}
+    claim_erasure_guards: null
+    rubric_dimension: witness_dependency
+    anti_degeneracy_checks: [prove_two_distinguishable_inputs, reject_body_independent_of_witness, reject_same_renderer_output]
+    n_proof_subtype_of: null
+    candidate_truth_default: unknown
+    exact_delta_evidence_required: true
+    executable: false
+    label_emission_authorized: false
+    admission: {status: pending_user_decision, approved: false}
+  - operation_id: N29_SWAP_WITNESS_DEPENDENCY_PROOF_V1
+    family_id: N29
+    track: natural
+    status: proof_of_concept
+    priority: 20
+    label_lane: N-PROOF
+    evidence_class: N-PROOF
+    mechanism_superclass: witness_dependency_mutation
+    anchor: {kind: schema, ref: sft1.nproof.finite_two_point_dependency.v1, hash_basis: bank_anchor_spec_sha256, schema_lemma_procedure_hash: a62b5041648b9c88c0d04511a2822da05bdf2d5f099cfa3ff8066125706e340e, bank_id: negative_proof_templates_v1, bank_entry_id: proof_finite_two_point_dependency}
+    orientation: prove_source_refute_candidate
+    typed_applicability: admitted N29 rubric mutation plus exact finite cases proving the source and refuting one uniform candidate witness
+    context_restrictions: final operation only; stronger capped subtype; complete cases and dependency evidence required
+    transparency: reducible
+    logic_regime: constructive
+    allowed_axiom_profile: constructive_kernel
+    inverse_token: N29_WITNESS_DEPENDENCY_SWAP_PROOF
+    cap: {maximum_retained_share: 0.003, maximum_per_root: 1}
+    budget: {heartbeat_seconds: 0.25, soft_seconds: 4.0, hard_seconds: 20.0}
+    eligible_projects: [cslib, mathlib]
+    adversarial_fixtures: {success: n29_proof_two_point_dependency_success, reject: n29_proof_incomplete_cases_or_uniform_witness_success_reject}
+    claim_erasure_guards: null
+    rubric_dimension: witness_dependency
+    anti_degeneracy_checks: [complete_finite_cases, replay_exact_source_proof, replay_exact_candidate_refutation]
+    n_proof_subtype_of: N29_SWAP_WITNESS_DEPENDENCY_RUBRIC_V1
+    candidate_truth_default: refuted
+    exact_delta_evidence_required: true
+    executable: false
+    label_emission_authorized: false
+    admission: {status: pending_user_decision, approved: false}
+  - operation_id: N30_ADD_UNJUSTIFIED_UNIQUENESS_RUBRIC_V1
+    family_id: N30
+    track: natural
+    status: proof_of_concept
+    priority: 15
+    label_lane: N-RUBRIC
+    evidence_class: N-RUBRIC
+    mechanism_superclass: uniqueness_mutation
+    anchor: {kind: rubric, ref: shared_consistency_rubric.existence_uniqueness, hash_basis: bank_anchor_spec_sha256, schema_lemma_procedure_hash: 3a265ba8a4baff0bf2754ae916688696cc1bcbf809ad8482fdcf49563e21212c, bank_id: negative_rubric_models_v1, bank_entry_id: rubric_existence_uniqueness}
+    orientation: mutate
+    typed_applicability: one protected Exists proposition changed to ExistsUnique with the identical carrier predicate and equality relation
+    context_restrictions: final operation only; predicate protected; require two distinguishable typed witness candidates; no F2 claim
+    transparency: reducible
+    logic_regime: constructive
+    allowed_axiom_profile: constructive_kernel
+    inverse_token: N30_ADD_UNIQUENESS
+    cap: {maximum_retained_share: 0.005, maximum_per_root: 1}
+    budget: {heartbeat_seconds: 0.25, soft_seconds: 2.0, hard_seconds: 10.0}
+    eligible_projects: [cslib, mathlib, physlib]
+    adversarial_fixtures: {success: n30_rubric_existence_uniqueness_delta_success, reject: n30_rubric_subsingleton_or_predicate_drift_reject}
+    claim_erasure_guards: null
+    rubric_dimension: existence_uniqueness
+    anti_degeneracy_checks: [require_two_distinguishable_witness_candidates, reject_subsingleton_carrier, reject_same_renderer_output]
+    n_proof_subtype_of: null
+    candidate_truth_default: unknown
+    exact_delta_evidence_required: true
+    executable: false
+    label_emission_authorized: false
+    admission: {status: pending_user_decision, approved: false}
+  - operation_id: N30_ADD_UNJUSTIFIED_UNIQUENESS_PROOF_V1
+    family_id: N30
+    track: natural
+    status: proof_of_concept
+    priority: 15
+    label_lane: N-PROOF
+    evidence_class: N-PROOF
+    mechanism_superclass: uniqueness_mutation
+    anchor: {kind: schema, ref: sft1.nproof.two_witness_nonunique.v1, hash_basis: bank_anchor_spec_sha256, schema_lemma_procedure_hash: 0b377d74918a7834de846bd65658dbc709d7076a8bb2326aeaa450396482fd69, bank_id: negative_proof_templates_v1, bank_entry_id: proof_two_witness_nonunique}
+    orientation: prove_source_refute_candidate
+    typed_applicability: admitted N30 rubric mutation plus exact source existence proof and two satisfying disequal witnesses refuting uniqueness
+    context_restrictions: final operation only; stronger capped subtype; witnesses predicate proofs and disequality all replay
+    transparency: reducible
+    logic_regime: constructive
+    allowed_axiom_profile: constructive_kernel
+    inverse_token: N30_ADD_UNIQUENESS_PROOF
+    cap: {maximum_retained_share: 0.0025, maximum_per_root: 1}
+    budget: {heartbeat_seconds: 0.25, soft_seconds: 4.0, hard_seconds: 20.0}
+    eligible_projects: [cslib, mathlib, physlib]
+    adversarial_fixtures: {success: n30_proof_two_witness_success, reject: n30_proof_equal_witness_or_missing_predicate_proof_reject}
+    claim_erasure_guards: null
+    rubric_dimension: existence_uniqueness
+    anti_degeneracy_checks: [replay_exact_source_proof, replay_two_predicate_proofs, replay_witness_disequality]
+    n_proof_subtype_of: N30_ADD_UNJUSTIFIED_UNIQUENESS_RUBRIC_V1
+    candidate_truth_default: refuted
+    exact_delta_evidence_required: true
+    executable: false
+    label_emission_authorized: false
+    admission: {status: pending_user_decision, approved: false}
+  - operation_id: N31_DROP_REQUIRED_GUARD_RUBRIC_V1
+    family_id: N31
+    track: natural
+    status: proof_of_concept
+    priority: 1
+    label_lane: N-RUBRIC
+    evidence_class: N-RUBRIC
+    mechanism_superclass: required_guard_mutation
+    anchor: {kind: rubric, ref: shared_consistency_rubric.required_domain_guard, hash_basis: bank_anchor_spec_sha256, schema_lemma_procedure_hash: 03789414409dca332f807a6b53ed1fe4416fbfd13c377362119a910858fbf00d, bank_id: negative_rubric_models_v1, bank_entry_id: rubric_required_guard}
+    orientation: mutate
+    typed_applicability: one protected required hypothesis or domain guard removed with exact continuation bvar reindexing and all other binders unchanged
+    context_restrictions: final operation only; removed local and target site protected; guard must syntactically and semantically constrain the selected body; no F2 claim
+    transparency: reducible
+    logic_regime: constructive_or_classical_recorded
+    allowed_axiom_profile: classical_recorded
+    inverse_token: N31_DROP_REQUIRED_GUARD
+    cap: {maximum_retained_share: 0.01, maximum_per_root: 1}
+    budget: {heartbeat_seconds: 0.25, soft_seconds: 2.0, hard_seconds: 10.0}
+    eligible_projects: [compiler_data, cslib, mathlib, physlib]
+    adversarial_fixtures: {success: n31_rubric_required_guard_delta_success, reject: n31_rubric_redundant_guard_or_true_body_reject}
+    claim_erasure_guards: null
+    rubric_dimension: required_domain_guard
+    anti_degeneracy_checks: [reject_redundant_or_unused_guard, reject_body_defeq_true, reject_empty_or_unreachable_context]
+    n_proof_subtype_of: null
+    candidate_truth_default: unknown
+    exact_delta_evidence_required: true
+    executable: false
+    label_emission_authorized: false
+    admission: {status: pending_user_decision, approved: false}
+  - operation_id: N31_DROP_REQUIRED_GUARD_PROOF_V1
+    family_id: N31
+    track: natural
+    status: proof_of_concept
+    priority: 1
+    label_lane: N-PROOF
+    evidence_class: N-PROOF
+    mechanism_superclass: required_guard_mutation
+    anchor: {kind: schema, ref: sft1.nproof.boundary_guard_counterexample.v1, hash_basis: bank_anchor_spec_sha256, schema_lemma_procedure_hash: a10a6a7702d5b56e8127350fbb51518ce3d3cbcbe0a7efe1757da7d4905250c9, bank_id: negative_proof_templates_v1, bank_entry_id: proof_boundary_guard_counterexample}
+    orientation: prove_source_refute_candidate
+    typed_applicability: admitted N31 rubric mutation plus complete remaining-binder values retained-hypothesis proofs source proof and exact unguarded-candidate refutation
+    context_restrictions: final operation only; strongest priority capped subtype; regenerate witness after any relevant positive rewrite
+    transparency: reducible
+    logic_regime: constructive_or_classical_recorded
+    allowed_axiom_profile: classical_recorded
+    inverse_token: N31_DROP_REQUIRED_GUARD_PROOF
+    cap: {maximum_retained_share: 0.005, maximum_per_root: 1}
+    budget: {heartbeat_seconds: 0.25, soft_seconds: 4.0, hard_seconds: 20.0}
+    eligible_projects: [compiler_data, cslib, mathlib, physlib]
+    adversarial_fixtures: {success: n31_proof_boundary_counterexample_success, reject: n31_proof_partial_context_or_missing_refutation_reject}
+    claim_erasure_guards: null
+    rubric_dimension: required_domain_guard
+    anti_degeneracy_checks: [complete_telescope_assignment, replay_retained_hypothesis_proofs, replay_exact_source_and_refutation]
+    n_proof_subtype_of: N31_DROP_REQUIRED_GUARD_RUBRIC_V1
+    candidate_truth_default: refuted
+    exact_delta_evidence_required: true
+    executable: false
+    label_emission_authorized: false
+    admission: {status: pending_user_decision, approved: false}
+  - operation_id: N32_SWAP_ROLE_ORDER_RUBRIC_V1
+    family_id: N32
+    track: natural
+    status: proof_of_concept
+    priority: 20
+    label_lane: N-RUBRIC
+    evidence_class: N-RUBRIC
+    mechanism_superclass: role_order_mutation
+    anchor: {kind: rubric, ref: shared_consistency_rubric.converse_mistakes, hash_basis: bank_anchor_spec_sha256, schema_lemma_procedure_hash: 47fe17327fbcd940485922cfe95ebfc82fd557d2e818cd70bab792efb457e9e5, bank_id: negative_rubric_models_v1, bank_entry_id: rubric_role_order}
+    orientation: mutate
+    typed_applicability: one application of the same binary relation to a protected ordered pair of distinct same-typed role arguments with the candidate formed only by reversing those arguments
+    context_restrictions: final operation only; relation-converse case only; reject function-composition reordering; protect the relation head both roles and application; no overlapping P32 P34 or P42; no F2 claim
+    transparency: reducible
+    logic_regime: constructive_or_classical_recorded
+    allowed_axiom_profile: classical_recorded
+    inverse_token: N32_SWAP_ROLE_ORDER
+    cap: {maximum_retained_share: 0.005, maximum_per_root: 1}
+    budget: {heartbeat_seconds: 0.25, soft_seconds: 2.0, hard_seconds: 10.0}
+    eligible_projects: [cslib, mathlib, physlib]
+    adversarial_fixtures: {success: n32_rubric_role_order_delta_success, reject: n32_rubric_commuting_or_equal_roles_reject}
+    claim_erasure_guards: null
+    rubric_dimension: converse_mistakes
+    anti_degeneracy_checks: [reject_identical_roles, reject_symmetric_or_commutative_relation_head, reject_function_composition_case, reject_same_renderer_output]
+    n_proof_subtype_of: null
+    candidate_truth_default: unknown
+    exact_delta_evidence_required: true
+    executable: false
+    label_emission_authorized: false
+    admission: {status: pending_user_decision, approved: false}
+  - operation_id: N32_SWAP_ROLE_ORDER_PROOF_V1
+    family_id: N32
+    track: natural
+    status: proof_of_concept
+    priority: 20
+    label_lane: N-PROOF
+    evidence_class: N-PROOF
+    mechanism_superclass: role_order_mutation
+    anchor: {kind: schema, ref: sft1.nproof.noncommuting_role_swap.v1, hash_basis: bank_anchor_spec_sha256, schema_lemma_procedure_hash: 09e4d685b30ced0e04cd46de9934fc97c9a1a1dcbc9c33208b57a4aef9d6e292, bank_id: negative_proof_templates_v1, bank_entry_id: proof_noncommuting_role_swap}
+    orientation: prove_source_refute_candidate
+    typed_applicability: admitted relation-converse-only N32 rubric mutation plus exact source proof and exact reversed-argument candidate refutation
+    context_restrictions: final operation only; stronger capped subtype; relation applications source proof refutation and nonsymmetry evidence all replay
+    transparency: reducible
+    logic_regime: constructive_or_classical_recorded
+    allowed_axiom_profile: classical_recorded
+    inverse_token: N32_SWAP_ROLE_ORDER_PROOF
+    cap: {maximum_retained_share: 0.0025, maximum_per_root: 1}
+    budget: {heartbeat_seconds: 0.25, soft_seconds: 4.0, hard_seconds: 20.0}
+    eligible_projects: [cslib, mathlib, physlib]
+    adversarial_fixtures: {success: n32_proof_noncommuting_evaluation_success, reject: n32_proof_commuting_or_missing_refutation_reject}
+    claim_erasure_guards: null
+    rubric_dimension: converse_mistakes
+    anti_degeneracy_checks: [replay_exact_source_evaluation, replay_exact_candidate_refutation, reject_equal_results]
+    n_proof_subtype_of: N32_SWAP_ROLE_ORDER_RUBRIC_V1
+    candidate_truth_default: refuted
+    exact_delta_evidence_required: true
+    executable: false
+    label_emission_authorized: false
+    admission: {status: pending_user_decision, approved: false}
+
+synthetic_track:
+  track_id: sft1_n28_synthetic_v0_3_0
+  status: separate_unapproved
+  mixed_with_natural_roots: false
+  ten_k_pilot_authorized: false
+  row_generation_authorized: false
+  operations:
+    - operation_id: N28_FINITE_ARITHMETIC_RUBRIC_V1
+      family_id: N28
+      track: synthetic_separate
+      status: proof_of_concept
+      priority: 80
+      label_lane: N-RUBRIC
+      evidence_class: N-RUBRIC
+      mechanism_superclass: synthetic_numeric_near_miss
+      anchor: {kind: rubric, ref: shared_consistency_rubric.edge_cases, hash_basis: bank_anchor_spec_sha256, schema_lemma_procedure_hash: 22b676d83f4f7df5a0440074b0dac95be2031970447149954f38788c3304eec0, bank_id: negative_rubric_models_v1, bank_entry_id: rubric_numeric_bound}
+      orientation: mutate
+      typed_applicability: generated finite arithmetic source with one protected bound or literal and an exact one-site typed mutation
+      context_restrictions: synthetic-only ancestry and split; never mixed with natural roots; no F2 claim
+      transparency: reducible
+      logic_regime: constructive
+      allowed_axiom_profile: constructive_kernel
+      inverse_token: N28_FINITE_ARITHMETIC
+      cap: {maximum_retained_share: 0.0025, maximum_per_root: 1}
+      budget: {heartbeat_seconds: 0.25, soft_seconds: 2.0, hard_seconds: 10.0}
+      eligible_projects: [mathlib]
+      adversarial_fixtures: {success: n28_arithmetic_rubric_delta_success, reject: n28_arithmetic_irrelevant_or_same_render_reject}
+      claim_erasure_guards: null
+      rubric_dimension: edge_cases
+      anti_degeneracy_checks: [reject_irrelevant_literal, reject_same_renderer_output, isolate_synthetic_ancestry]
+      n_proof_subtype_of: null
+      candidate_truth_default: unknown
+      exact_delta_evidence_required: true
+      executable: false
+      label_emission_authorized: false
+      admission: {status: pending_user_decision, approved: false}
+    - operation_id: N28_FINITE_ARITHMETIC_PROOF_V1
+      family_id: N28
+      track: synthetic_separate
+      status: proof_of_concept
+      priority: 80
+      label_lane: N-PROOF
+      evidence_class: N-PROOF
+      mechanism_superclass: synthetic_numeric_near_miss
+      anchor: {kind: schema, ref: sft1.synthetic.finite_arithmetic_near_miss.v1, hash_basis: bank_anchor_spec_sha256, schema_lemma_procedure_hash: 3be5c6d09d5fa8c582bc0ee9dc01c2173f0658e12047beec0d26fc41fb6eabb2, bank_id: n28_synthetic_templates_v1, bank_entry_id: n28_finite_arithmetic_near_miss}
+      orientation: prove_source_refute_candidate
+      typed_applicability: admitted synthetic arithmetic rubric mutation with replayable exact source proof and candidate refutation
+      context_restrictions: synthetic-only stronger capped subtype; no natural-root mixing; template-held-out evaluation required
+      transparency: reducible
+      logic_regime: constructive
+      allowed_axiom_profile: constructive_kernel
+      inverse_token: N28_FINITE_ARITHMETIC_PROOF
+      cap: {maximum_retained_share: 0.001, maximum_per_root: 1}
+      budget: {heartbeat_seconds: 0.25, soft_seconds: 3.0, hard_seconds: 15.0}
+      eligible_projects: [mathlib]
+      adversarial_fixtures: {success: n28_arithmetic_proof_success, reject: n28_arithmetic_missing_refutation_reject}
+      claim_erasure_guards: null
+      rubric_dimension: edge_cases
+      anti_degeneracy_checks: [replay_exact_source_proof, replay_exact_candidate_refutation, isolate_synthetic_ancestry]
+      n_proof_subtype_of: N28_FINITE_ARITHMETIC_RUBRIC_V1
+      candidate_truth_default: refuted
+      exact_delta_evidence_required: true
+      executable: false
+      label_emission_authorized: false
+      admission: {status: pending_user_decision, approved: false}
+    - operation_id: N28_FINITE_SET_RUBRIC_V1
+      family_id: N28
+      track: synthetic_separate
+      status: proof_of_concept
+      priority: 80
+      label_lane: N-RUBRIC
+      evidence_class: N-RUBRIC
+      mechanism_superclass: synthetic_set_near_miss
+      anchor: {kind: rubric, ref: shared_consistency_rubric.negation_mistakes, hash_basis: bank_anchor_spec_sha256, schema_lemma_procedure_hash: 1400de8db4cb15c8ed92663d63b40b771a691f6e2c2dc84ca6dcfac9bf9ce585, bank_id: negative_rubric_models_v1, bank_entry_id: rubric_equality_or_relation_polarity}
+      orientation: mutate
+      typed_applicability: generated finite-set source with one protected relation or membership dimension and an exact one-site typed mutation
+      context_restrictions: synthetic-only ancestry and split; never mixed with natural roots; no F2 claim
+      transparency: reducible
+      logic_regime: constructive
+      allowed_axiom_profile: constructive_kernel
+      inverse_token: N28_FINITE_SET
+      cap: {maximum_retained_share: 0.0025, maximum_per_root: 1}
+      budget: {heartbeat_seconds: 0.25, soft_seconds: 2.0, hard_seconds: 10.0}
+      eligible_projects: [mathlib]
+      adversarial_fixtures: {success: n28_set_rubric_delta_success, reject: n28_set_symmetric_or_same_render_reject}
+      claim_erasure_guards: null
+      rubric_dimension: negation_mistakes
+      anti_degeneracy_checks: [reject_symmetric_relation, reject_same_renderer_output, isolate_synthetic_ancestry]
+      n_proof_subtype_of: null
+      candidate_truth_default: unknown
+      exact_delta_evidence_required: true
+      executable: false
+      label_emission_authorized: false
+      admission: {status: pending_user_decision, approved: false}
+    - operation_id: N28_FINITE_SET_PROOF_V1
+      family_id: N28
+      track: synthetic_separate
+      status: proof_of_concept
+      priority: 80
+      label_lane: N-PROOF
+      evidence_class: N-PROOF
+      mechanism_superclass: synthetic_set_near_miss
+      anchor: {kind: schema, ref: sft1.synthetic.finite_set_near_miss.v1, hash_basis: bank_anchor_spec_sha256, schema_lemma_procedure_hash: 3ae660981eeaac541329c1edb9503c0bd9090674570b641f1e91b0b68f53d035, bank_id: n28_synthetic_templates_v1, bank_entry_id: n28_finite_set_near_miss}
+      orientation: prove_source_refute_candidate
+      typed_applicability: admitted synthetic finite-set rubric mutation with replayable exact source proof and candidate refutation
+      context_restrictions: synthetic-only stronger capped subtype; no natural-root mixing; template-held-out evaluation required
+      transparency: reducible
+      logic_regime: constructive
+      allowed_axiom_profile: constructive_kernel
+      inverse_token: N28_FINITE_SET_PROOF
+      cap: {maximum_retained_share: 0.001, maximum_per_root: 1}
+      budget: {heartbeat_seconds: 0.25, soft_seconds: 3.0, hard_seconds: 15.0}
+      eligible_projects: [mathlib]
+      adversarial_fixtures: {success: n28_set_proof_success, reject: n28_set_missing_refutation_reject}
+      claim_erasure_guards: null
+      rubric_dimension: negation_mistakes
+      anti_degeneracy_checks: [replay_exact_source_proof, replay_exact_candidate_refutation, isolate_synthetic_ancestry]
+      n_proof_subtype_of: N28_FINITE_SET_RUBRIC_V1
+      candidate_truth_default: refuted
+      exact_delta_evidence_required: true
+      executable: false
+      label_emission_authorized: false
+      admission: {status: pending_user_decision, approved: false}
+
+composition_grammar:
+  maximum_total_operations: 3
+  admitted_statuses_after_operation_approval: [implementation_candidate, proof_of_concept]
+  diagnostic_operations_may_emit_rows: false
+  positive_terminal: admitted_positive_operation
+  negative_terminal: admitted_n_rubric_or_n_proof_operation
+  productions:
+    - "positive_row := P"
+    - "positive_row := P P"
+    - "positive_row := P P P"
+    - "negative_row := N"
+    - "negative_row := P N"
+    - "negative_row := P P N"
+  post_negative_operations_allowed: false
+  positive_row_negative_operation_count: 0
+  negative_row_negative_operation_count: 1
+  all_sites_pairwise_disjoint_after_typed_rediscovery: true
+  one_operation_per_mechanism_superclass: true
+  repeated_inverse_tokens_rejected: true
+  repeated_text_hashes_rejected: true
+  repeated_closed_expr_hashes_rejected: true
+  repeated_render_hashes_rejected: true
+  repeated_selected_site_lineage_rejected: true
+  direct_only_operation_ids: []
+  mutual_exclusion_groups:
+    - group_id: one_definitional_mechanism_per_chain
+      maximum_members_per_chain: 1
+      operation_ids:
+        - P20_FOLD_SET_NONEMPTY_V1
+        - P20_UNFOLD_SET_NONEMPTY_V1
+        - P21_BETA_INTRO_V1
+        - P21_BETA_REDUCE_V1
+        - P21_ZETA_INTRO_V1
+        - P21_ZETA_REDUCE_V1
+        - P22_ETA_REDUCE_EXPLICIT_FUN_V1
+  p01_alpha_fingerprint_repeat_exception:
+    operation_id: P01_ALPHA_RENAME_SINGLE_V1
+    maximum_uses_per_chain: 1
+    may_repeat_alpha_fingerprint_once: true
+    exception_applies_only_to_the_single_p01_hop: true
+    may_repeat_expr_or_render_hash: false
+  all_other_repeated_path_fingerprints_rejected: true
+  current_typed_site_rediscovery_each_hop: true
+
+root_census:
+  census_id: sft1_zero_lean_root_census_v1
+  status: pending
+  executes_lean: false
+  required_before_any_row_commitment: true
+  required_before_one_example_gate: true
+  row_commitment_authorized: false
+  required_metrics:
+    - raw_theorem_or_lemma_count
+    - license_and_revision_eligible_count
+    - exact_signature_duplicate_clusters
+    - alpha_or_structure_near_duplicate_clusters
+    - source_domain_and_signature_strata
+    - import_context_availability
+    - expected_renderer_route
+
+source_eligibility_matrix:
+  - source_id: compiler_data
+    source_kind: extracted_signature
+    census_route: pinned_files_and_metadata_without_lean
+    closed_expr_route: persistent_term_elab_of_signature_and_complete_telescope_without_declaration
+    status: pending_census
+    declaration_insertion_allowed: false
+  - source_id: cslib
+    source_kind: imported_constant
+    census_route: pinned_extracted_constant_inventory_without_lean
+    closed_expr_route: constant_info_type_with_canonical_universe_instantiation
+    status: pending_census
+    declaration_insertion_allowed: false
+  - source_id: mathlib
+    source_kind: imported_constant
+    census_route: pinned_extracted_constant_inventory_without_lean
+    closed_expr_route: constant_info_type_with_canonical_universe_instantiation
+    status: pending_census
+    declaration_insertion_allowed: false
+  - source_id: physlib
+    source_kind: imported_constant
+    census_route: pinned_extracted_constant_inventory_without_lean
+    closed_expr_route: constant_info_type_with_canonical_universe_instantiation
+    status: pending_census
+    declaration_insertion_allowed: false
+
+execution_contract:
+  no_per_row_process_spawn: true
+  retained_row_typed_meta_validation: true
+  retained_row_evidence_replay: true
+  retained_certificate_replay_fraction: 1.0
+  persistent_meta_workers_required: true
+  in_process_hashing_required: true
+  sample_candidates_before_typed_validation: true
+  prevalidation_candidate_sampling_uses_randomness: false
+  prevalidation_candidate_sampling_rule: stable_hash_total_order_then_operation_budget_prefix
+  prevalidation_candidate_sampling_hash_fields:
+    - source_closed_expr_hash
+    - operation_id
+    - selected_site_lineage_hash
+    - candidate_closed_expr_hash
+  per_operation_heartbeat_and_time_budget_required: true
+  per_root_durable_journal_required: true
+  measure_lean_seconds_per_retained_pair: true
+  measure_sidecar_bytes_per_retained_pair: true
+  retry_only_infrastructure_failures: true
+  machine_wide_worker_limit: 2
+  machine_wide_lean_rss_gib_limit: 40
+
+cache_contract:
+  exact_ordered_key_fields:
+    - source_closed_expr_hash
+    - candidate_closed_expr_hash
+    - canonical_universe_profile_id
+    - canonical_universe_profile_hash
+    - source_expr_builder_version
+    - candidate_expr_builder_version
+    - lean_version
+    - project_id
+    - project_revision
+    - toolchain_revision
+    - imports_hash
+    - options_hash
+    - synthesized_instance_hashes
+    - operation_id
+    - operation_registry_entry_hash
+    - schema_lemma_procedure_hash
+    - evidence_certificate_payload_hash
+    - bank_resolved_lean_hash
+    - transparency
+    - allowed_axiom_profile
+    - typed_meta_validator_version
+    - evidence_replay_version
+    - evaluation_blocklist_sha256
+    - repr_replacement_commit
+    - render_context_id
+    - render_context_hash
+    - renderer_api_hash
+    - repr_spec_hash
+    - policy_config_hash
+  cache_successes: true
+  cache_deterministic_terminal_failures: true
+  hash_inside_persistent_process: true
+  operation_registry_entry_hash_basis: sha256_canonical_operation_spec_v1
+
+sampling_and_quality:
+  deterministic_training_orientation_swap_fraction: 0.50
+  orientation_swap_scope: training_only
+  orientation_swap_rule: stable_hash_sort_then_swap_exactly_half_of_even_training_shard
+  even_training_shards_required: true
+  stable_row_hash_basis: sha256_canonical_sft1_row_selection_identity_v1
+  stable_row_hash_fields:
+    - root_ancestry_id
+    - source_identity_hash
+    - reference_closed_expr_hash
+    - candidate_closed_expr_hash
+    - operation_chain_hash
+    - selected_site_lineage_hash
+    - label
+    - evidence_certificate_payload_hash
+    - renderer_api_hash
+    - repr_spec_hash
+    - canonical_universe_profile_hash
+    - render_context_hash
+  canonical_unordered_pair_hash_basis: sha256_sorted_reference_candidate_render_hashes_v1
+  same_label_duplicate_survivor_rule: minimum_stable_row_hash
+  conflicting_label_class_action: reject_entire_canonical_unordered_pair_class
+  preserve_root_ancestry_clusters: true
+  preserve_near_duplicate_clusters: true
+  evaluation_blocklist_path: data/benchmarks/golden_blocklist_v1.json
+  evaluation_blocklist_sha256: 8e4af6a9e47fb06d281169cdaddb01c5c66c1b0d150f2df9c9283ecb587117f7
+  both_blocklist_screens_use_exact_binding: true
+  root_level_evaluation_blocklist_screen: true
+  post_transform_evaluation_blocklist_screen: true
+  global_model_facing_duplicate_rejection: true
+  global_conflicting_label_rejection: true
+  duplicate_conflict_screen_before_caps_uses_canonical_unordered_pairs: true
+  duplicate_conflict_screen_before_caps_checks_both_orientations: true
+  orientation_swap_after_cap_selection: true
+  post_orientation_global_model_facing_duplicate_and_conflict_assertion: true
+  post_orientation_assertion_failure_action: fail_shard_without_commit_or_refill
+  source_polarity_joint_stratification: true
+  negative_share_range_when_measured_yield_allows: [0.40, 0.60]
+  force_rows_to_fill_balance: false
+  candidate_only_balanced_accuracy_strictly_below: 0.60
+  reference_only_balanced_accuracy_strictly_below: 0.60
+  paired_family_heldout_balanced_accuracy_strictly_below: 0.65
+  paired_mechanism_heldout_balanced_accuracy_strictly_below: 0.65
+  paired_template_heldout_balanced_accuracy_strictly_below: 0.65
+  confidence_bounds_required: true
+  confidence_level: 0.95
+  confidence_interval_method: stratified_cluster_bootstrap
+  confidence_interval_upper_bound_must_be_strictly_below_threshold: true
+
+cap_contract:
+  natural_and_synthetic_denominators_separate: true
+  synthetic_rows_count_toward_natural_caps: false
+  compiler_data_root_share_maximum: 0.20
+  any_single_source_share_maximum: 0.40
+  family_share_maximum: 0.08
+  mechanism_superclass_share_maximum: 0.12
+  presentation_and_definitional_combined_share_maximum: 0.10
+  exact_operation_share_maximum: 0.02
+  bank_entry_or_template_share_maximum: 0.005
+  lemma_or_procedure_share_maximum: 0.0025
+  exact_ordered_composition_template_share_maximum: 0.005
+  per_root_retained_pair_maximum: 8
+  caps_are_maxima_not_quotas: true
+  force_rows_to_fill_cap_or_balance: false
+
+deterministic_cap_order:
+  - source_eligibility
+  - operation_applicability
+  - root_level_blocklist
+  - prevalidation_candidate_sampling
+  - typed_meta_validation_and_evidence_replay
+  - post_transform_blocklist
+  - stable_row_hash_total_order
+  - canonical_unordered_pair_duplicate_and_conflict_classification
+  - same_label_duplicate_keep_minimum_stable_row_hash
+  - conflicting_label_canonical_pair_class_rejection
+  - per_root_cap
+  - operation_cap
+  - bank_entry_or_template_cap
+  - lemma_or_procedure_cap
+  - family_cap
+  - mechanism_superclass_cap
+  - source_cap
+  - source_polarity_joint_balance
+  - deterministic_training_orientation_swap
+  - post_orientation_global_model_facing_duplicate_conflict_assertion
+
+gates:
+  one_example:
+    authorized: false
+    requires_user_approval: true
+    requires_repr_expr_renderer_dependency: true
+    requires_shared_contract_update: true
+    requires_representation_pre_gate_acceptance: true
+    requires_p23_binder_hygiene_regression: true
+    requires_inline_anchor_and_fixture_freezes: true
+    success_per_operation_and_eligible_project: 1
+    adversarial_rejection_per_operation_and_eligible_project: 1
+    zero_yield_waiver_allowed: false
+    census_backed_inapplicable_project_requires_policy_revision: true
+    retained_certificate_replay_fraction: 1.0
+  hundred_root:
+    authorized: false
+    requires_one_example_gate_pass: true
+    eligible_roots_per_operation_approximately: 100
+    retained_certificate_replay_fraction: 1.0
+    persistent_meta_required: true
+    every_retained_row_typed_meta_validated_and_replayed: true
+  ten_k_pilot:
+    authorized: false
+    requires_separate_user_approval_after_hundred_root_report: true
+    requested_root_count: 10000
+  bulk_scale:
+    authorized: false
+  publication:
+    authorized: false
+
+scale_contract:
+  illustrative_root_count_for_cap_arithmetic: 500000
+  retained_pairs_per_root_cap: 8
+  illustrative_arithmetical_maximum_rows: 4000000
+  post_census_planning_band_rows: [2000000, 3000000]
+  measured_target_is_minimum: false
+  measured_target_is_commitment: false
+  five_million_stretch_rows: 5000000
+  minimum_roots_for_five_million_at_current_cap: 625000
+  five_million_feasible_at_illustrative_root_count: false
+  all_row_count_commitments_authorized: false

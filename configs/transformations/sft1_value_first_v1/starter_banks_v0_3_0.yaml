@@ -1,0 +1,330 @@
+schema_version: 1
+bank_set_id: sft1_starter_banks_v0_3_0
+bank_set_version: 0.3.0
+status: frozen_design
+hash_basis: sha256_canonical_anchor_spec_v1
+implementation_authorized: false
+lean_resolution_complete: false
+banks:
+  - bank_id: p20_definitions_v1
+    bank_kind: positive_definition
+    family_id: P20
+    track: natural
+    entries:
+      - entry_id: p20_set_nonempty
+        anchor_kind: definition
+        anchor_ref: Set.Nonempty
+        expected_type_contract: exact transparent definition application with all universe and term arguments recorded
+        orientations: [fold, unfold]
+        allowed_axiom_profiles: [constructive_kernel]
+        anchor_spec_hash: a7417ad6dcd9ae9bcaa57bd4f80fb55e3cd95b291a6f490f10ffee18893544c2
+        resolved_lean_hash: null
+      - entry_id: p20_function_bijective
+        anchor_kind: definition
+        anchor_ref: Function.Bijective
+        expected_type_contract: exact transparent definition application to one function with injective and surjective fields
+        orientations: [fold, unfold]
+        allowed_axiom_profiles: [constructive_kernel]
+        anchor_spec_hash: ed6babbb6abfbed9be243f83148e6e2c82c0e52bf8b358c2a43b95d3b64cd57c
+        resolved_lean_hash: null
+  - bank_id: p32_ac_lemmas_v1
+    bank_kind: positive_lemma
+    family_id: P32
+    track: natural
+    entries:
+      - entry_id: p32_add_comm
+        anchor_kind: lemma
+        anchor_ref: add_comm
+        expected_type_contract: one exact additive commutativity equality with resolved carrier and instance arguments
+        orientations: [forward, reverse]
+        allowed_axiom_profiles: [constructive_kernel]
+        anchor_spec_hash: 7884aa08459aa7924afedb63898e456b82c8c456ae828de4334c4b55457d766a
+        resolved_lean_hash: null
+      - entry_id: p32_add_assoc
+        anchor_kind: lemma
+        anchor_ref: add_assoc
+        expected_type_contract: one exact additive associativity equality with resolved carrier and instance arguments
+        orientations: [forward, reverse]
+        allowed_axiom_profiles: [constructive_kernel]
+        anchor_spec_hash: 34e552b83e5dbf5408b335dc02b11a37d1f9b537b28636e11cacdcfb3a8b741d
+        resolved_lean_hash: null
+      - entry_id: p32_mul_comm
+        anchor_kind: lemma
+        anchor_ref: mul_comm
+        expected_type_contract: one exact multiplicative commutativity equality with resolved carrier and instance arguments
+        orientations: [forward, reverse]
+        allowed_axiom_profiles: [constructive_kernel]
+        anchor_spec_hash: e643b935142e905494233a4efcc225b4f1bc2807c28ec33497ca91f5bf2978fd
+        resolved_lean_hash: null
+      - entry_id: p32_mul_assoc
+        anchor_kind: lemma
+        anchor_ref: mul_assoc
+        expected_type_contract: one exact multiplicative associativity equality with resolved carrier and instance arguments
+        orientations: [forward, reverse]
+        allowed_axiom_profiles: [constructive_kernel]
+        anchor_spec_hash: fb9692c95be86705b154e5c42262b9bc51572d9cfcf18627ab09c45f48ef529c
+        resolved_lean_hash: null
+  - bank_id: p34_semantic_rewrites_v1
+    bank_kind: positive_lemma
+    family_id: P34
+    track: natural
+    entries:
+      - entry_id: p34_nat_succ_add_one
+        anchor_kind: lemma
+        anchor_ref: Nat.succ_eq_add_one
+        expected_type_contract: exact equality between Nat successor and addition by one at one selected occurrence
+        orientations: [forward, reverse]
+        allowed_axiom_profiles: [constructive_kernel]
+        anchor_spec_hash: 0313261d20dfcd41dc4c2c084a70dcc680d7612578acb9632cb25580690a4925
+        resolved_lean_hash: null
+      - entry_id: p34_set_image_image
+        anchor_kind: schema
+        anchor_ref: sft1.p34.set_image_composition.schema.v1
+        expected_type_contract: exact Set image composition equivalence with functions and universe levels explicit
+        orientations: [forward, reverse]
+        allowed_axiom_profiles: [constructive_kernel]
+        anchor_spec_hash: 4b922f7555fa5b7c91874ff7af597d28893813d8bded1c812e503bfc7a4d235f
+        resolved_lean_hash: null
+  - bank_id: p35_membership_v1
+    bank_kind: positive_schema
+    family_id: P35
+    track: natural
+    entries:
+      - entry_id: p35_set_inter_membership
+        anchor_kind: schema
+        anchor_ref: sft1.p35.set_inter_membership.schema.v1
+        expected_type_contract: membership in Set intersection iff conjunction of exact membership propositions
+        orientations: [forward, reverse]
+        allowed_axiom_profiles: [constructive_kernel]
+        anchor_spec_hash: 669aae4a12c1c357dd017a2a4e60e04e52016db5fb2e2adb990dfeae0ff9f2c2
+        resolved_lean_hash: null
+      - entry_id: p35_set_union_membership
+        anchor_kind: schema
+        anchor_ref: sft1.p35.set_union_membership.schema.v1
+        expected_type_contract: membership in Set union iff disjunction of exact membership propositions
+        orientations: [forward, reverse]
+        allowed_axiom_profiles: [constructive_kernel]
+        anchor_spec_hash: 1199ef6f607cb37f6e7384f582a1a8556c2fa3c53e4eb6560c0234535617e7de
+        resolved_lean_hash: null
+  - bank_id: p39_hypothesis_rewrites_v1
+    bank_kind: positive_schema
+    family_id: P39
+    track: natural
+    entries:
+      - entry_id: p39_hyp_set_inter
+        anchor_kind: schema
+        anchor_ref: sft1.p39.hyp_set_inter.schema.v1
+        expected_type_contract: nondependent continuation transport from Set intersection membership to conjunction
+        orientations: [forward, reverse]
+        allowed_axiom_profiles: [constructive_kernel]
+        anchor_spec_hash: f2614ef5e4018c2eb50dc432b86d213b09da8e71326dd2bbf24c915430bed8fc
+        resolved_lean_hash: null
+  - bank_id: p41_subtype_quantifiers_v1
+    bank_kind: positive_schema
+    family_id: P41
+    track: natural
+    entries:
+      - entry_id: p41_subtype_forall_guard
+        anchor_kind: schema
+        anchor_ref: sft1.p41.subtype_forall_guard.schema.v1
+        expected_type_contract: universal quantifier over subtype iff guarded universal over carrier with proof-independent body
+        orientations: [forward, reverse]
+        allowed_axiom_profiles: [constructive_kernel]
+        anchor_spec_hash: f649ab818a9b8a6a9399de94c84f579214fde9d23d2525832deea4facd5a1a2f
+        resolved_lean_hash: null
+      - entry_id: p41_subtype_exists_guard
+        anchor_kind: schema
+        anchor_ref: sft1.p41.subtype_exists_guard.schema.v1
+        expected_type_contract: existential quantifier over subtype iff guarded existential over carrier with proof-independent body
+        orientations: [forward, reverse]
+        allowed_axiom_profiles: [constructive_kernel]
+        anchor_spec_hash: 5e23398aa0f16580665e381408812eb80a681598edab4fa41cbcb920906c06a2
+        resolved_lean_hash: null
+  - bank_id: p42_reflective_procedures_v1
+    bank_kind: positive_procedure
+    family_id: P42
+    track: natural
+    entries:
+      - entry_id: p42_ring_local
+        anchor_kind: procedure
+        anchor_ref: Mathlib.Tactic.Ring
+        expected_type_contract: proof-producing local polynomial equality over an explicitly supported commutative semiring or ring fragment
+        orientations: [balanced_alternative]
+        allowed_axiom_profiles: [constructive_kernel]
+        anchor_spec_hash: d75a79205fdfb875d34cbd59f6f1fc9236493605d0c6c596feb51c116f9f1e31
+        resolved_lean_hash: null
+  - bank_id: negative_rubric_models_v1
+    bank_kind: negative_rubric_model
+    family_id: N-RUBRIC
+    track: natural
+    entries:
+      - entry_id: rubric_witness_dependency
+        anchor_kind: rubric
+        anchor_ref: shared_consistency_rubric.witness_dependency
+        expected_type_contract: exact typed quantifier-order mutation that changes which binder a witness may depend on
+        orientations: [mutate]
+        allowed_axiom_profiles: [constructive_kernel, classical_recorded]
+        anchor_spec_hash: b2141e83519f7221456e5c35dce30e6c502e4402133843770695f2bb4d7c1b2f
+        resolved_lean_hash: null
+      - entry_id: rubric_existence_uniqueness
+        anchor_kind: rubric
+        anchor_ref: shared_consistency_rubric.existence_uniqueness
+        expected_type_contract: exact typed mutation between existence and unjustified uniqueness at one protected site
+        orientations: [mutate]
+        allowed_axiom_profiles: [constructive_kernel, classical_recorded]
+        anchor_spec_hash: 3a265ba8a4baff0bf2754ae916688696cc1bcbf809ad8482fdcf49563e21212c
+        resolved_lean_hash: null
+      - entry_id: rubric_required_guard
+        anchor_kind: rubric
+        anchor_ref: shared_consistency_rubric.required_domain_guard
+        expected_type_contract: exact removal of one protected hypothesis or domain guard named by the consistency rubric
+        orientations: [mutate]
+        allowed_axiom_profiles: [constructive_kernel, classical_recorded]
+        anchor_spec_hash: 03789414409dca332f807a6b53ed1fe4416fbfd13c377362119a910858fbf00d
+        resolved_lean_hash: null
+      - entry_id: rubric_equality_or_relation_polarity
+        anchor_kind: rubric
+        anchor_ref: shared_consistency_rubric.negation_mistakes
+        expected_type_contract: exact typed Eq to Ne mutation at one protected site under the shared rubric's named negation-mistake dimension with anti-degeneracy checks
+        orientations: [mutate]
+        allowed_axiom_profiles: [constructive_kernel, classical_recorded]
+        anchor_spec_hash: 1400de8db4cb15c8ed92663d63b40b771a691f6e2c2dc84ca6dcfac9bf9ce585
+        resolved_lean_hash: null
+      - entry_id: rubric_numeric_bound
+        anchor_kind: rubric
+        anchor_ref: shared_consistency_rubric.edge_cases
+        expected_type_contract: exact typed mutation of one protected literal bound exponent or index under the shared rubric's named edge-cases dimension
+        orientations: [mutate]
+        allowed_axiom_profiles: [constructive_kernel, classical_recorded]
+        anchor_spec_hash: 22b676d83f4f7df5a0440074b0dac95be2031970447149954f38788c3304eec0
+        resolved_lean_hash: null
+      - entry_id: rubric_negation_scope
+        anchor_kind: rubric
+        anchor_ref: shared_consistency_rubric.negation_mistakes
+        expected_type_contract: exact negation of one protected complete closed claim under the shared rubric's named negation-mistake dimension
+        orientations: [mutate]
+        allowed_axiom_profiles: [constructive_kernel, classical_recorded]
+        anchor_spec_hash: c986cbfad21e4d2c70b9d0ac91f2947938280e027ba396182068f91d8ee028a2
+        resolved_lean_hash: null
+      - entry_id: rubric_role_order
+        anchor_kind: rubric
+        anchor_ref: shared_consistency_rubric.converse_mistakes
+        expected_type_contract: exact reversal of one protected ordered pair of same-typed distinct arguments to the same binary relation under the shared rubric's named converse-mistake dimension
+        orientations: [mutate]
+        allowed_axiom_profiles: [constructive_kernel, classical_recorded]
+        anchor_spec_hash: 47fe17327fbcd940485922cfe95ebfc82fd557d2e818cd70bab792efb457e9e5
+        resolved_lean_hash: null
+  - bank_id: negative_proof_templates_v1
+    bank_kind: negative_proof_template
+    family_id: N-PROOF
+    track: natural
+    entries:
+      - entry_id: proof_finite_two_point_dependency
+        anchor_kind: schema
+        anchor_ref: sft1.nproof.finite_two_point_dependency.v1
+        expected_type_contract: exact source proof and candidate refutation by exhaustive cases over two distinguished inhabitants
+        orientations: [prove_source_refute_candidate]
+        allowed_axiom_profiles: [constructive_kernel]
+        anchor_spec_hash: a62b5041648b9c88c0d04511a2822da05bdf2d5f099cfa3ff8066125706e340e
+        resolved_lean_hash: null
+      - entry_id: proof_two_witness_nonunique
+        anchor_kind: schema
+        anchor_ref: sft1.nproof.two_witness_nonunique.v1
+        expected_type_contract: exact source existence proof plus two satisfying disequal witnesses refuting uniqueness
+        orientations: [prove_source_refute_candidate]
+        allowed_axiom_profiles: [constructive_kernel]
+        anchor_spec_hash: 0b377d74918a7834de846bd65658dbc709d7076a8bb2326aeaa450396482fd69
+        resolved_lean_hash: null
+      - entry_id: proof_boundary_guard_counterexample
+        anchor_kind: schema
+        anchor_ref: sft1.nproof.boundary_guard_counterexample.v1
+        expected_type_contract: complete binder assignment and retained-hypothesis proofs refuting an unguarded candidate
+        orientations: [prove_source_refute_candidate]
+        allowed_axiom_profiles: [constructive_kernel, classical_recorded]
+        anchor_spec_hash: a10a6a7702d5b56e8127350fbb51518ce3d3cbcbe0a7efe1757da7d4905250c9
+        resolved_lean_hash: null
+      - entry_id: proof_relation_counterexample
+        anchor_kind: schema
+        anchor_ref: sft1.nproof.relation_counterexample.v1
+        expected_type_contract: complete binder assignment and retained-hypothesis proofs separating the exact relation mutation
+        orientations: [prove_source_refute_candidate]
+        allowed_axiom_profiles: [constructive_kernel, classical_recorded]
+        anchor_spec_hash: 1b6bb838079781377d5a339ae5b9a6ecdaa2cb3df1bc68a94528390da85e5c68
+        resolved_lean_hash: null
+      - entry_id: proof_numeric_boundary
+        anchor_kind: schema
+        anchor_ref: sft1.nproof.numeric_boundary.v1
+        expected_type_contract: exact source proof and candidate refutation at one recorded numeric boundary witness
+        orientations: [prove_source_refute_candidate]
+        allowed_axiom_profiles: [constructive_kernel]
+        anchor_spec_hash: 358900c175f79d52630c6c5e6a4de3f070394416153f1e3a9e5c070c7de5d20f
+        resolved_lean_hash: null
+      - entry_id: proof_whole_claim_negation
+        anchor_kind: schema
+        anchor_ref: sft1.nproof.whole_claim_negation.v1
+        expected_type_contract: exact source proof and candidate refutation for negation of the same complete closed proposition
+        orientations: [prove_source_refute_candidate]
+        allowed_axiom_profiles: [constructive_kernel, classical_recorded]
+        anchor_spec_hash: 09dfe2942330b97dadb9c6a7815452902087315cb03a8ab325afe245194de1e3
+        resolved_lean_hash: null
+      - entry_id: proof_noncommuting_role_swap
+        anchor_kind: schema
+        anchor_ref: sft1.nproof.noncommuting_role_swap.v1
+        expected_type_contract: exact source proof and candidate refutation for one protected reversal of distinct same-typed arguments to the same nonsymmetric binary relation
+        orientations: [prove_source_refute_candidate]
+        allowed_axiom_profiles: [constructive_kernel, classical_recorded]
+        anchor_spec_hash: 09e4d685b30ced0e04cd46de9934fc97c9a1a1dcbc9c33208b57a4aef9d6e292
+        resolved_lean_hash: null
+  - bank_id: n28_synthetic_templates_v1
+    bank_kind: synthetic_negative_template
+    family_id: N28
+    track: synthetic_separate
+    entries:
+      - entry_id: n28_finite_arithmetic_near_miss
+        anchor_kind: schema
+        anchor_ref: sft1.synthetic.finite_arithmetic_near_miss.v1
+        expected_type_contract: synthetic closed Nat arithmetic source proof and exact refuted mutation that increments one protected normalized numeric bound by one with every other Expr node unchanged
+        orientations: [prove_source_refute_candidate]
+        allowed_axiom_profiles: [constructive_kernel]
+        anchor_spec_hash: 3be5c6d09d5fa8c582bc0ee9dc01c2173f0658e12047beec0d26fc41fb6eabb2
+        resolved_lean_hash: null
+      - entry_id: n28_finite_set_near_miss
+        anchor_kind: schema
+        anchor_ref: sft1.synthetic.finite_set_near_miss.v1
+        expected_type_contract: synthetic finite-set source proof and exact refuted mutation toggling one protected Eq proposition to Ne with typed operands and every other Expr node unchanged
+        orientations: [prove_source_refute_candidate]
+        allowed_axiom_profiles: [constructive_kernel]
+        anchor_spec_hash: 3ae660981eeaac541329c1edb9503c0bd9090674570b641f1e91b0b68f53d035
+        resolved_lean_hash: null
+
+registry_bindings:
+  - {bank_id: p20_definitions_v1, entry_id: p20_set_nonempty, disposition: admitted_design, operation_ids: [P20_FOLD_SET_NONEMPTY_V1, P20_UNFOLD_SET_NONEMPTY_V1]}
+  - {bank_id: p20_definitions_v1, entry_id: p20_function_bijective, disposition: reserved_unadmitted, operation_ids: []}
+  - {bank_id: p32_ac_lemmas_v1, entry_id: p32_add_comm, disposition: admitted_design, operation_ids: [P32_ADD_COMM_LOCAL_V1]}
+  - {bank_id: p32_ac_lemmas_v1, entry_id: p32_add_assoc, disposition: admitted_design, operation_ids: [P32_ADD_ASSOC_LOCAL_V1]}
+  - {bank_id: p32_ac_lemmas_v1, entry_id: p32_mul_comm, disposition: reserved_unadmitted, operation_ids: []}
+  - {bank_id: p32_ac_lemmas_v1, entry_id: p32_mul_assoc, disposition: reserved_unadmitted, operation_ids: []}
+  - {bank_id: p34_semantic_rewrites_v1, entry_id: p34_nat_succ_add_one, disposition: admitted_design, operation_ids: [P34_NAT_SUCC_ADD_ONE_LOCAL_V1]}
+  - {bank_id: p34_semantic_rewrites_v1, entry_id: p34_set_image_image, disposition: reserved_unadmitted, operation_ids: []}
+  - {bank_id: p35_membership_v1, entry_id: p35_set_inter_membership, disposition: admitted_design, operation_ids: [P35_SET_INTER_MEMBERSHIP_V1]}
+  - {bank_id: p35_membership_v1, entry_id: p35_set_union_membership, disposition: reserved_unadmitted, operation_ids: []}
+  - {bank_id: p39_hypothesis_rewrites_v1, entry_id: p39_hyp_set_inter, disposition: admitted_design, operation_ids: [P39_HYP_SET_INTER_REWRITE_V1]}
+  - {bank_id: p41_subtype_quantifiers_v1, entry_id: p41_subtype_forall_guard, disposition: admitted_design, operation_ids: [P41_SUBTYPE_FORALL_GUARD_V1]}
+  - {bank_id: p41_subtype_quantifiers_v1, entry_id: p41_subtype_exists_guard, disposition: reserved_unadmitted, operation_ids: []}
+  - {bank_id: p42_reflective_procedures_v1, entry_id: p42_ring_local, disposition: admitted_design, operation_ids: [P42_RING_POLYNOMIAL_LOCAL_V1]}
+  - {bank_id: negative_rubric_models_v1, entry_id: rubric_witness_dependency, disposition: admitted_design, operation_ids: [N29_SWAP_WITNESS_DEPENDENCY_RUBRIC_V1]}
+  - {bank_id: negative_rubric_models_v1, entry_id: rubric_existence_uniqueness, disposition: admitted_design, operation_ids: [N30_ADD_UNJUSTIFIED_UNIQUENESS_RUBRIC_V1]}
+  - {bank_id: negative_rubric_models_v1, entry_id: rubric_required_guard, disposition: admitted_design, operation_ids: [N31_DROP_REQUIRED_GUARD_RUBRIC_V1]}
+  - {bank_id: negative_rubric_models_v1, entry_id: rubric_equality_or_relation_polarity, disposition: admitted_design, operation_ids: [N25_TOGGLE_EQ_NE_RUBRIC_V1, N28_FINITE_SET_RUBRIC_V1]}
+  - {bank_id: negative_rubric_models_v1, entry_id: rubric_numeric_bound, disposition: admitted_design, operation_ids: [N26_INCREMENT_BOUND_RUBRIC_V1, N28_FINITE_ARITHMETIC_RUBRIC_V1]}
+  - {bank_id: negative_rubric_models_v1, entry_id: rubric_negation_scope, disposition: admitted_design, operation_ids: [N19_NEGATE_CLOSED_CLAIM_RUBRIC_V1]}
+  - {bank_id: negative_rubric_models_v1, entry_id: rubric_role_order, disposition: admitted_design, operation_ids: [N32_SWAP_ROLE_ORDER_RUBRIC_V1]}
+  - {bank_id: negative_proof_templates_v1, entry_id: proof_finite_two_point_dependency, disposition: admitted_design, operation_ids: [N29_SWAP_WITNESS_DEPENDENCY_PROOF_V1]}
+  - {bank_id: negative_proof_templates_v1, entry_id: proof_two_witness_nonunique, disposition: admitted_design, operation_ids: [N30_ADD_UNJUSTIFIED_UNIQUENESS_PROOF_V1]}
+  - {bank_id: negative_proof_templates_v1, entry_id: proof_boundary_guard_counterexample, disposition: admitted_design, operation_ids: [N31_DROP_REQUIRED_GUARD_PROOF_V1]}
+  - {bank_id: negative_proof_templates_v1, entry_id: proof_relation_counterexample, disposition: admitted_design, operation_ids: [N25_TOGGLE_EQ_NE_PROOF_V1]}
+  - {bank_id: negative_proof_templates_v1, entry_id: proof_numeric_boundary, disposition: admitted_design, operation_ids: [N26_INCREMENT_BOUND_PROOF_V1]}
+  - {bank_id: negative_proof_templates_v1, entry_id: proof_whole_claim_negation, disposition: admitted_design, operation_ids: [N19_NEGATE_CLOSED_CLAIM_PROOF_V1]}
+  - {bank_id: negative_proof_templates_v1, entry_id: proof_noncommuting_role_swap, disposition: admitted_design, operation_ids: [N32_SWAP_ROLE_ORDER_PROOF_V1]}
+  - {bank_id: n28_synthetic_templates_v1, entry_id: n28_finite_arithmetic_near_miss, disposition: admitted_design, operation_ids: [N28_FINITE_ARITHMETIC_PROOF_V1]}
+  - {bank_id: n28_synthetic_templates_v1, entry_id: n28_finite_set_near_miss, disposition: admitted_design, operation_ids: [N28_FINITE_SET_PROOF_V1]}
