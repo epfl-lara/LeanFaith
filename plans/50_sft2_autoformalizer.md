@@ -2,12 +2,12 @@
 
 > **Task ID:** SFT2B
 > **Status:** pilot_ready
-> **Owner/session:** Codex `/root` — 2026-08-30 matched-500 source-freeze complete
+> **Owner/session:** Codex `/root` — 2026-08-30 matched-500 runner handoff ready
 > **Last updated:** 2026-08-30
 > **Dependencies:** REPR `goal_v1.0`; source-quality audit and frozen consistency/voting prompts
-> **Next gate:** the separate 8xA100 agent consumes Hub revision
-> `08aa352a1e6c80f7c98f63070f0351ad39f8a272` and runs the already-authorized 2,000
-> ReForm-32B generations at DP=4/TP=2
+> **Next gate:** on the authorized 8xA100 host, run the single pinned command recorded below; it
+> consumes Hub revision `08aa352a1e6c80f7c98f63070f0351ad39f8a272`, fills the 2,000
+> ReForm-32B DP=4/TP=2 cells, and publishes/fresh-verifies an additive output revision
 > **Compute class:** source-freeze work is Lean/GPU-free; downstream inference uses eight
 > A100-SXM4-80GB GPUs at DP=4/TP=2
 > **Lean budget:** compile each novel formalization candidate once through persistent cached workers
@@ -188,6 +188,30 @@ ReForm-8B/32B, Lean, any judge, output publication, or training.
 Lean is the bottleneck: all work in this source-freeze session is deliberately Lean-free. Existing
 trusted compilation evidence and exact contexts are replayed; no corpus compile or per-row process
 is started.
+
+### Authorized matched-500 one-command runner subplan
+
+This session may implement and test orchestration but does not launch the 2,000-request GPU run on
+the original machine.
+
+1. Fetch the exact private input revision and four-file path, verify its checksums, strict 500-row
+   `SourceRecord` schema, source ordering, mix, prompt hashes/counts, prompt/tokenizer/placement and
+   REPR pins, four slots/seeds, and required model length before any model download or server start.
+2. Download the exact ReForm-32B revision, replay every pinned Git/LFS file identity, require eight
+   A100/H100-class GPUs, and start the existing vLLM backend at DP=4/TP=2 with the measured profile.
+3. Generate the Cartesian product of the 500 ordered source IDs and four frozen slots with
+   content-addressed terminals, append-only journals, bounded concurrency, resume, and duplicate
+   suppression. Shut the server down cleanly on success or failure.
+4. Deterministically compact raw responses, formalizer attempts, admitted candidates, invalid
+   output-contract attempts, telemetry, and a manifest. Do not run Lean or judges and do not create
+   semantic labels in this command.
+5. Upload the compacted generation outputs additively under a new content-addressed Hub path, obtain
+   the immutable revision, fresh-download it, replay checksums/counts/IDs, and emit a machine-readable
+   receipt. Never overwrite the frozen input path or the earlier two-source release.
+
+Lean is the bottleneck for the later compilation stage, so this generation-only command invokes no
+Lean process. It performs every schema, string, provenance, hash, join, and deduplication check
+before GPU startup.
 
 Lean is the bottleneck throughout this plan: all safe string parsing, source filtering, schemas,
 provenance, joins, deduplication, prompt validation, hashing, and restart logic precede Lean. The
@@ -486,3 +510,17 @@ Do not launch 50K sources without the pilot and user compute/model approval.
   replay and a second fresh download from the immutable Hub revision both revalidated all 500
   SourceRecords, every prompt hash/token count, the source manifest, and all checksums. Status is
   `pilot_ready` for the already-authorized 2,000-request DP=4/TP=2 ReForm-32B generation.
+- 2026-08-30 — added the fail-closed matched-500 one-command runner at
+  `leanfaith.sft2b.matched_500_pipeline` with frozen config
+  `configs/sft2b/reform_32b_matched_500_pipeline_v1.json`. The A100 invocation is
+  `uv run --with vllm==0.12.0 python -m leanfaith.sft2b.matched_500_pipeline`. Before server
+  startup it verifies the private immutable four-file input, all 500 strict sources and token rows,
+  source mix/contamination/ShadowBench exclusion, task code, REPR, prompt, placement, tokenizer,
+  every model file, 5,063-token context, exact slots/seeds, vLLM version, and eight 80-GB GPUs. It
+  starts one vLLM server at DP=4/TP=2 with concurrency 64, reuses complete content-addressed cells,
+  writes the append-only journal and telemetry, requires the exact 500x4 Cartesian product, and
+  publishes raw generations/attempts/candidates/formalizer-invalid views additively before a fresh
+  immutable-revision download check. It runs no Lean, judges, labels, core rows, publication to a
+  public repository, or training. Offline unit checks passed and the command's own live Hub input
+  downloader reverified revision `08aa352a1e6c80f7c98f63070f0351ad39f8a272` at 500 rows and 967
+  maximum prompt tokens; no model download, GPU server, or generation ran on the original machine.

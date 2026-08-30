@@ -180,7 +180,9 @@ def _backend(tmp_path: Path, source: SourceRecord) -> LoadedVllmBackend:
 
 def test_vllm_request_replay_is_a_cache_hit_without_duplicate_generation(
     tmp_path: Path,
+    monkeypatch,
 ) -> None:
+    monkeypatch.setattr("leanfaith.sft2b.vllm_backend.metadata.version", lambda _name: "test")
     source = _source()
     backend = _backend(tmp_path, source)
     calls = 0

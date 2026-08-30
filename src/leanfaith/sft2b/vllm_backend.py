@@ -238,6 +238,21 @@ class VllmProfileResult:
         return sum(item.metrics.completion_tokens for item in self.terminals)
 
 
+@dataclass(frozen=True, slots=True)
+class VllmCacheInspection:
+    """Read-only profile cache state used to avoid unnecessary GPU startup."""
+
+    run_id: str
+    root: Path
+    request_count: int
+    cached_terminals: tuple[VllmRequestTerminal, ...]
+    missing_request_keys: tuple[str, ...]
+
+    @property
+    def complete(self) -> bool:
+        return not self.missing_request_keys
+
+
 def load_vllm_spec(repo_root: Path, config_path: Path) -> VllmBackendSpec:
     """Load the additive backend config and bind it to the frozen placement config."""
 
@@ -730,16 +745,65 @@ def _append_journal(root: Path, terminal: VllmRequestTerminal) -> None:
             fcntl.flock(lock.fileno(), fcntl.LOCK_UN)
 
 
-def run_vllm_profile(
+def _validate_profile_sources(
     backend: LoadedVllmBackend,
     *,
     profile_name: str,
+    sources: tuple[SourceRecord, ...],
+) -> None:
+    try:
+        profile = backend.spec.profiles[profile_name]
+    except KeyError as exc:
+        raise VllmBackendError(f"unknown vLLM profile: {profile_name}") from exc
+    source_ids = tuple(source.source_id for source in sources)
+    if len(set(source_ids)) != len(source_ids) or source_ids != profile.source_ids:
+        raise VllmBackendError("supplied source order/IDs differ from the vLLM profile")
+
+
+def inspect_vllm_sources_cache(
+    backend: LoadedVllmBackend,
+    *,
+    profile_name: str,
+    sources: tuple[SourceRecord, ...],
+    endpoint_url: str,
+) -> VllmCacheInspection:
+    """Validate completed cells without sending a request or starting a model server."""
+
+    _validate_profile_sources(backend, profile_name=profile_name, sources=sources)
+    run_id, root, requests = _prepare_requests(
+        backend,
+        profile_name=profile_name,
+        sources=sources,
+        endpoint_url=endpoint_url,
+    )
+    cached: list[VllmRequestTerminal] = []
+    missing: list[str] = []
+    for request in requests:
+        terminal = _cache_terminal(request)
+        if terminal is None:
+            missing.append(request.request_key)
+        else:
+            cached.append(terminal)
+    return VllmCacheInspection(
+        run_id=run_id,
+        root=root,
+        request_count=len(requests),
+        cached_terminals=tuple(cached),
+        missing_request_keys=tuple(missing),
+    )
+
+
+def run_vllm_sources(
+    backend: LoadedVllmBackend,
+    *,
+    profile_name: str,
+    sources: tuple[SourceRecord, ...],
     endpoint_url: str,
     transport: CompletionTransport | None = None,
 ) -> VllmProfileResult:
-    """Run one bounded profile, reusing only fully verified immutable terminals."""
+    """Run a supplied frozen source set, reusing only verified immutable terminals."""
 
-    sources = load_profile_sources(backend, profile_name)
+    _validate_profile_sources(backend, profile_name=profile_name, sources=sources)
     profile = backend.spec.profiles[profile_name]
     run_id, root, requests = _prepare_requests(
         backend,
@@ -784,6 +848,24 @@ def run_vllm_profile(
         model_calls=len(missing),
         cache_hits=len(requests) - len(missing),
         wall_time_ms=elapsed_ms,
+    )
+
+
+def run_vllm_profile(
+    backend: LoadedVllmBackend,
+    *,
+    profile_name: str,
+    endpoint_url: str,
+    transport: CompletionTransport | None = None,
+) -> VllmProfileResult:
+    """Run one release-backed profile, reusing verified immutable terminals."""
+
+    return run_vllm_sources(
+        backend,
+        profile_name=profile_name,
+        sources=load_profile_sources(backend, profile_name),
+        endpoint_url=endpoint_url,
+        transport=transport,
     )
 
 

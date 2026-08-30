@@ -1,0 +1,109 @@
+{
+  "schema_version": "sft2b_reform_32b_matched_500_pipeline_v1",
+  "status": "matched_500_generation_authorized",
+  "input": {
+    "repo_id": "Lemmy00/leanfaith-sft2-autoformalizer-v1",
+    "repo_type": "dataset",
+    "private_required": true,
+    "revision": "08aa352a1e6c80f7c98f63070f0351ad39f8a272",
+    "path": "pilot_inputs/reform_matched_500_v1",
+    "files": {
+      "SHA256SUMS": "047ee7de17f6165421c9560d5cc5770338911d89608b8a269acf34417f51b8b1",
+      "prompt_token_counts.json": "514d63ae7f993e79f528755eef7bfb6aeb3e876c6b8b598a2b783c21a3134bd0",
+      "source_manifest.json": "41980d1e2b5c0f1e65f04d5b7fc0cb71ba8eccef6c9932d10b25202a95f1e9bf",
+      "sources.jsonl": "6dac6614773f72496db289de79ba52a506326834c7f4f544198c9ab6b0d1c765"
+    },
+    "source_config_path": "configs/sft2b/reform_matched_500_sources_v1.json",
+    "source_config_sha256": "cfaa1d1508bc5273b795fd06e1f25d436dfda12e0903668ad1dab59c640e1558",
+    "expected_rows": 500,
+    "source_mix": {
+      "library_docstring": 175,
+      "theorem_problem": 175,
+      "broader_public_synthetic": 100,
+      "specialist_high_difficulty": 50
+    },
+    "maximum_prompt_tokens": 967,
+    "required_max_model_len": 5063
+  },
+  "model": {
+    "model_id": "GuoxinChen/ReForm-32B",
+    "revision": "80e9d9d83998d8c118c512bd6a35d1cdf11b57c8",
+    "placement_config_path": "configs/sft2b/reform_32b_placement_v1.json",
+    "placement_config_sha256": "faef13dba4d21eb381e85a201fb8bda3617003bc8323c3e796006dd97caa77a5",
+    "snapshot_binding_sha256": "8dfcd12699d8a3730d1776dc6969e96ebe678d29ccaa43754e0deea3cd90773a",
+    "checkpoint_dtype": "bfloat16",
+    "quantization": null,
+    "trust_remote_code": false,
+    "served_model_name": "reform-32b-80e9d9d83998"
+  },
+  "generation": {
+    "profile_id": "sft2b_reform_32b_matched_500_dp4_tp2_v1",
+    "visible_devices": [0, 1, 2, 3, 4, 5, 6, 7],
+    "data_parallel_size": 4,
+    "tensor_parallel_size": 2,
+    "port": 8102,
+    "max_model_len": 5063,
+    "max_num_seqs": 16,
+    "gpu_memory_utilization": 0.9,
+    "prefix_caching": false,
+    "concurrency": 64,
+    "slots": ["slot_0", "slot_1", "slot_2", "slot_3"],
+    "seeds": [0, 1, 2, 3],
+    "expected_requests": 2000,
+    "request_timeout_seconds": 900,
+    "telemetry_interval_seconds": 0.5,
+    "server_startup_timeout_seconds": 2400,
+    "server_shutdown_timeout_seconds": 300
+  },
+  "runtime": {
+    "work_root": "/scratch/milikic/data/leanfaith/value_first/sft2_autoformalizer_v1",
+    "reservation_root": "/scratch/milikic/data/leanfaith/value_first/host_reservations",
+    "vllm_version": "0.12.0",
+    "minimum_gpu_memory_mib": 79000,
+    "allowed_gpu_name_fragments": ["A100-SXM4-80GB", "A100 80GB", "H100 80GB"]
+  },
+  "publication": {
+    "repo_id": "Lemmy00/leanfaith-sft2-autoformalizer-v1",
+    "repo_type": "dataset",
+    "private_required": true,
+    "path_prefix": "pilot_outputs/reform_32b_matched_500_v1",
+    "commit_message": "Add SFT2B matched-500 ReForm-32B generations"
+  },
+  "repr": {
+    "freeze_commit": "176a783842c5a73b84413dfa8347670608b615d9",
+    "spec_sha256": "68d893a2c566bf3f6a82c899a32a351f9a5420f5ea98168c99b887aaa01a45a8",
+    "implementation_set_sha256": "9a9252fff5ffc69cb65e71120fedffa83ed47271aecadbecf0ceb890feea65ff",
+    "api_sha256": "c695ad868c98f27218e82184559d90624491df25c7805bf29861dd891787261d"
+  },
+  "code_pins": [
+    {
+      "path": "src/leanfaith/sft2b/matched_500_pipeline.py",
+      "sha256": "34f21a53500d1bb9fe8b1e2823839482f7a12de50092849a1e8d7f7491978961"
+    },
+    {
+      "path": "src/leanfaith/sft2b/vllm_backend.py",
+      "sha256": "ce859852fcb5f9c81103ebb94fc69097014bf4bcaf2952c73d23306a878ce640"
+    },
+    {
+      "path": "src/leanfaith/sft2b/pilot_source_freeze.py",
+      "sha256": "69c9881c81a94fe60928d4796989bdb2044ef1dd7a143756e17d6f5a73040ca8"
+    },
+    {
+      "path": "src/leanfaith/sft2b/schemas.py",
+      "sha256": "3c55738a6cab77c74ee872074e6511a06cecb4c0b312d798b1750c7333c43550"
+    },
+    {
+      "path": "prompts/sft2b/reform_8b_generation_theorem_v1.md",
+      "sha256": "9aa0de0550bd871fc1cff03cf2614ed4e7e5bfa6c4371351b901d745515afe36"
+    },
+    {
+      "path": "configs/sft2b/reform_32b_placement_v1.json",
+      "sha256": "faef13dba4d21eb381e85a201fb8bda3617003bc8323c3e796006dd97caa77a5"
+    },
+    {
+      "path": "configs/sft2b/reform_matched_500_sources_v1.json",
+      "sha256": "cfaa1d1508bc5273b795fd06e1f25d436dfda12e0903668ad1dab59c640e1558"
+    }
+  ],
+  "owner_session": "Codex /root SFT2B matched-500 one-command runner"
+}

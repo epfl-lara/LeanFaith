@@ -1043,16 +1043,20 @@ def _ranked_select(
     raise SourceFreezeError(f"ranked source pool exhausted at {len(selected)}/{count}")
 
 
-def _tokenizer(config: Mapping[str, Any]) -> Any:
+def _tokenizer(config: Mapping[str, Any], *, snapshot_override: Path | None = None) -> Any:
     raw = cast(dict[str, Any], config["tokenizer"])
-    snapshot = Path(str(raw["snapshot_path"]))
+    snapshot = snapshot_override or Path(str(raw["snapshot_path"]))
     if not snapshot.is_dir():
         raise SourceFreezeError(f"missing pinned tokenizer snapshot: {snapshot}")
     files = cast(dict[str, str], raw["files"])
     actual = {item.name for item in snapshot.iterdir() if item.is_file()}
-    if actual != set(files):
+    if snapshot_override is None and actual != set(files):
         raise SourceFreezeError(
             f"tokenizer file set mismatch: expected {sorted(files)}, observed {sorted(actual)}"
+        )
+    if snapshot_override is not None and not set(files).issubset(actual):
+        raise SourceFreezeError(
+            f"model snapshot lacks pinned tokenizer files: {sorted(set(files).difference(actual))}"
         )
     for name, expected in files.items():
         _require_hash(snapshot / name, expected, f"tokenizer asset {name}")
@@ -1440,7 +1444,13 @@ def build_bundle(repo_root: Path, *, config_path: Path, output_dir: Path) -> Fre
     return result
 
 
-def verify_bundle(repo_root: Path, *, config_path: Path, bundle_dir: Path) -> FreezeResult:
+def verify_bundle(
+    repo_root: Path,
+    *,
+    config_path: Path,
+    bundle_dir: Path,
+    tokenizer_snapshot_path: Path | None = None,
+) -> FreezeResult:
     """Verify a bundle from only its four bytes plus pinned repo/tokenizer files."""
 
     names = {item.name for item in bundle_dir.iterdir() if item.is_file()}
@@ -1485,7 +1495,7 @@ def verify_bundle(repo_root: Path, *, config_path: Path, bundle_dir: Path) -> Fr
     prompt_path = repo_root / str(prompt_raw["path"])
     _require_hash(prompt_path, prompt_raw["sha256"], "ReForm prompt")
     template = prompt_path.read_text(encoding="utf-8")
-    tokenizer = _tokenizer(config)
+    tokenizer = _tokenizer(config, snapshot_override=tokenizer_snapshot_path)
     maximum = 0
     for source, token_row_raw in zip(rows, token_rows, strict=True):
         if not isinstance(token_row_raw, dict):
