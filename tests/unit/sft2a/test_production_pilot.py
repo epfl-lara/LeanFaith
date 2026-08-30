@@ -22,7 +22,7 @@ from leanfaith.sft2a.detached import (
     preflight_detached_launch,
 )
 from leanfaith.sft2a.models import SFT2AProductionConfig
-from leanfaith.sft2a.pilot import verify_pilot_replay
+from leanfaith.sft2a.pilot import prepare_pilot_sample, verify_pilot_replay
 from leanfaith.sft2a.pilot_audit import pilot_audit_indices, run_pilot_lemex_audit
 from leanfaith.sft2a.providers import ProviderCallResult
 from leanfaith.sft2a.readiness import (
@@ -310,6 +310,62 @@ def test_production_readiness_binds_smoke_and_refuses_unauthorized_launch() -> N
     assert readiness.config.detached_launch.session_name == ("leanfaith-sft2a-production-pilot-v1")
     with pytest.raises(PilotReadinessError, match="does not authorize execution"):
         launch_detached_pilot(loaded, readiness, resume=False)
+
+
+def test_failed_pilot_recovery_corrects_ckm_and_seeds_cumulative_budget(
+    tmp_path: Path,
+) -> None:
+    loaded = load_sft2a_config(Path("configs/sft2a/production_pilot_v1.yaml"))
+    readiness = load_pilot_readiness(
+        loaded,
+        Path("configs/sft2a/pilot_recovery_readiness_production_v3.yaml"),
+    )
+    source = Path(loaded.config.staging_root) / "runs/diverse_root_production_defaults_pilot_v2"
+    frozen_hashes = {
+        relative: hash_file(source / relative)
+        for relative in (
+            "sample.jsonl",
+            "sample_manifest.json",
+            "provider_budget_journal.jsonl",
+            "detached/terminal_status.json",
+        )
+    }
+    manifest = prepare_pilot_sample(
+        loaded,
+        readiness,
+        implementation={
+            "implementation_commit": "a" * 40,
+            "implementation_tree": "b" * 40,
+        },
+        output_root=tmp_path / "recovery",
+    )
+    recovery = tmp_path / "recovery"
+    assert manifest["sample_sha256"] == (
+        "52edf04e5cfddefcd6626dfcb0ee0785f4a0f1e9dbd4cfd0851407e6134ccea4"
+    )
+    assert manifest["pilot_authorized"] is False
+    assert manifest["catalog_corrections_sha256"] == (
+        "6a562f4b9e397ede3b8096ba1ce3d59bee977ee6dd66a0dac8133ce67f3f54b6"
+    )
+    assert (
+        hash_file(recovery / "provider_budget_journal.jsonl")
+        == frozen_hashes["provider_budget_journal.jsonl"]
+    )
+    budget = PersistentProviderBudget(
+        recovery / "provider_budget_journal.jsonl",
+        readiness.config.ceilings,
+    ).snapshot()
+    assert budget["unique_provider_calls"] == 73
+    assert budget["reported_opus_spend_usd"] == pytest.approx(0.754154)
+    rows = [json.loads(line) for line in (recovery / "sample.jsonl").read_text().splitlines()]
+    ckm = next(row for row in rows if row["root"]["root_id"] == "physlib:ckm_row_norm")
+    assert ckm["root"]["reference_signature"] == (
+        "∀ (V : Quotient CKMMatrixSetoid) (i : Fin 3), "
+        "VAbs i 0 V ^ 2 + VAbs i 1 V ^ 2 + VAbs i 2 V ^ 2 = 1"
+    )
+    with pytest.raises(PilotReadinessError, match="does not authorize execution"):
+        require_pilot_authorization(readiness)
+    assert {relative: hash_file(source / relative) for relative in frozen_hashes} == frozen_hashes
 
 
 def test_detached_run_lock_refuses_duplicate_start(tmp_path: Path) -> None:

@@ -22,8 +22,10 @@ from leanfaith.sft2a.config import LoadedSFT2AConfig
 from leanfaith.sft2a.legacy import _atomic_exact
 from leanfaith.sft2a.models import (
     AuthorizedProductionPilotReadinessConfig,
+    AuthorizedRecoveryProductionPilotReadinessConfig,
     PilotActivationPlan,
     ProductionPilotReadinessConfig,
+    RecoveryProductionPilotReadinessConfig,
     SFT2AProductionConfig,
 )
 from leanfaith.sft2a.readiness import (
@@ -57,7 +59,9 @@ class AuthorizedActivationArtifacts:
     authorization_receipt: dict[str, object]
     authorization_receipt_bytes: bytes
     authorization_receipt_sha256: str
-    readiness: AuthorizedProductionPilotReadinessConfig
+    readiness: (
+        AuthorizedProductionPilotReadinessConfig | AuthorizedRecoveryProductionPilotReadinessConfig
+    )
     readiness_bytes: bytes
     readiness_file_sha256: str
     readiness_hash: str
@@ -231,9 +235,14 @@ def build_authorized_activation(
         raise PilotActivationError("exact pilot authorization sentence was not supplied")
     identity = _identity(implementation)
     plan = activation.plan
+    recovery = plan.target_config_id.endswith("_recovery_v4")
     receipt: dict[str, object] = {
         "schema_version": 1,
-        "receipt_id": "leanfaith_sft2a_pilot_authorization_receipt_production_v2",
+        "receipt_id": (
+            "leanfaith_sft2a_pilot_recovery_authorization_receipt_production_v4"
+            if recovery
+            else "leanfaith_sft2a_pilot_authorization_receipt_production_v2"
+        ),
         "pilot_config_id": plan.target_config_id,
         "source_readiness_config": plan.source_readiness_config.model_dump(mode="json"),
         "source_readiness_config_hash": plan.source_readiness_config_hash,
@@ -257,10 +266,22 @@ def build_authorized_activation(
         "publication_authorized": False,
         "scale_50k_authorized": False,
     }
+    if recovery:
+        source_config = activation.source_readiness.config
+        if not isinstance(source_config, RecoveryProductionPilotReadinessConfig):
+            raise PilotActivationError("recovery activation source lacks recovery lineage")
+        receipt.update(
+            {
+                "catalog_corrections_sha256": source_config.catalog_corrections.sha256,
+                "failed_pilot_budget_journal_sha256": (
+                    source_config.failed_pilot_recovery_source.provider_budget_journal_sha256
+                ),
+            }
+        )
     receipt_bytes = canonical_json_bytes(receipt) + b"\n"
     receipt_sha256 = sha256_hex(receipt_bytes)
-    source_config = activation.source_readiness.config.model_dump(mode="json")
-    source_config.update(
+    source_config_mapping = activation.source_readiness.config.model_dump(mode="json")
+    source_config_mapping.update(
         {
             "config_id": plan.target_config_id,
             "status": "authorized_pilot",
@@ -281,7 +302,11 @@ def build_authorized_activation(
             ),
         }
     )
-    readiness = AuthorizedProductionPilotReadinessConfig.model_validate(source_config)
+    readiness = (
+        AuthorizedRecoveryProductionPilotReadinessConfig.model_validate(source_config_mapping)
+        if recovery
+        else AuthorizedProductionPilotReadinessConfig.model_validate(source_config_mapping)
+    )
     readiness_mapping = readiness.model_dump(mode="json")
     readiness_bytes = yaml.safe_dump(
         readiness_mapping,

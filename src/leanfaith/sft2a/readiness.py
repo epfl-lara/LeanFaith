@@ -14,8 +14,10 @@ from leanfaith.config.paths import find_repo_root
 from leanfaith.sft2a.config import LoadedSFT2AConfig
 from leanfaith.sft2a.models import (
     AuthorizedProductionPilotReadinessConfig,
+    AuthorizedRecoveryProductionPilotReadinessConfig,
     PilotReadinessConfig,
     ProductionPilotReadinessConfig,
+    RecoveryProductionPilotReadinessConfig,
     SFT2AProductionConfig,
 )
 
@@ -40,6 +42,8 @@ class LoadedPilotReadiness:
         PilotReadinessConfig
         | ProductionPilotReadinessConfig
         | AuthorizedProductionPilotReadinessConfig
+        | AuthorizedRecoveryProductionPilotReadinessConfig
+        | RecoveryProductionPilotReadinessConfig
     )
     path: Path
     config_hash: str
@@ -115,11 +119,17 @@ def load_pilot_readiness(
             PilotReadinessConfig
             | ProductionPilotReadinessConfig
             | AuthorizedProductionPilotReadinessConfig
+            | AuthorizedRecoveryProductionPilotReadinessConfig
+            | RecoveryProductionPilotReadinessConfig
         ] = load_config(config_path, PilotReadinessConfig)
     elif raw.get("config_id") == "leanfaith_sft2a_production_defaults_pilot_v1":
         loaded = load_config(config_path, ProductionPilotReadinessConfig)
     elif raw.get("config_id") == "leanfaith_sft2a_production_defaults_pilot_v2":
         loaded = load_config(config_path, AuthorizedProductionPilotReadinessConfig)
+    elif raw.get("config_id") == "leanfaith_sft2a_production_defaults_pilot_recovery_v3":
+        loaded = load_config(config_path, RecoveryProductionPilotReadinessConfig)
+    elif raw.get("config_id") == "leanfaith_sft2a_production_defaults_pilot_recovery_v4":
+        loaded = load_config(config_path, AuthorizedRecoveryProductionPilotReadinessConfig)
     else:
         raise PilotReadinessError("unsupported pilot readiness config ID")
     config = loaded.config
@@ -134,6 +144,12 @@ def load_pilot_readiness(
     ):
         raise PilotReadinessError("pilot readiness is not bound to the loaded Opus smoke config")
     _repo_file(repo_root, config.catalog.path, config.catalog.sha256)
+    if isinstance(config, RecoveryProductionPilotReadinessConfig):
+        _repo_file(
+            repo_root,
+            config.catalog_corrections.path,
+            config.catalog_corrections.sha256,
+        )
     authorization = _object(
         _repo_file(
             repo_root,
@@ -188,7 +204,13 @@ def load_pilot_readiness(
         }
         if providers != expected_providers:
             raise PilotReadinessError("exact-settings smoke provider pins differ")
-    if isinstance(config, AuthorizedProductionPilotReadinessConfig):
+    if isinstance(
+        config,
+        (
+            AuthorizedProductionPilotReadinessConfig,
+            AuthorizedRecoveryProductionPilotReadinessConfig,
+        ),
+    ):
         activation_plan = load_yaml_mapping(
             _repo_file(
                 repo_root,
@@ -221,6 +243,12 @@ def load_pilot_readiness(
             or authorization.get("scale_50k_authorized") is not False
         ):
             raise PilotReadinessError("authorized activation lineage or scope differs")
+        if isinstance(config, AuthorizedRecoveryProductionPilotReadinessConfig) and (
+            authorization.get("catalog_corrections_sha256") != config.catalog_corrections.sha256
+            or authorization.get("failed_pilot_budget_journal_sha256")
+            != config.failed_pilot_recovery_source.provider_budget_journal_sha256
+        ):
+            raise PilotReadinessError("authorized recovery lineage differs")
     return LoadedPilotReadiness(
         config=config,
         path=config_path,

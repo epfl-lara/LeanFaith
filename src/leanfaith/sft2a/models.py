@@ -278,6 +278,15 @@ class DetachedLaunchPolicy(StrictModel):
         return value
 
 
+class FailedPilotRecoverySource(StrictModel):
+    failed_output_subdir: NonEmpty
+    source_sample_sha256: Sha256
+    source_sample_manifest_sha256: Sha256
+    terminal_status_sha256: Sha256
+    provider_budget_journal_sha256: Sha256
+    required_terminal_status: Literal["failed"]
+
+
 class PilotReadinessConfig(StrictModel):
     schema_version: Literal[1]
     config_id: Literal["leanfaith_sft2a_diverse_root_opus5_pilot_v2"]
@@ -318,11 +327,31 @@ class ProductionPilotReadinessConfig(PilotReadinessConfig):
     detached_launch: DetachedLaunchPolicy
 
 
+class RecoveryProductionPilotReadinessConfig(ProductionPilotReadinessConfig):
+    config_id: Literal[  # type: ignore[assignment]
+        "leanfaith_sft2a_production_defaults_pilot_recovery_v3"
+    ]
+    status: Literal["ready_not_authorized"]
+    catalog_corrections: ArtifactBinding
+    failed_pilot_recovery_source: FailedPilotRecoverySource
+
+
 class AuthorizedProductionPilotReadinessConfig(ProductionPilotReadinessConfig):
     config_id: Literal[  # type: ignore[assignment]
         "leanfaith_sft2a_production_defaults_pilot_v2"
     ]
     status: Literal["authorized_pilot"]
+    activation_plan: ArtifactBinding
+    source_readiness_config: ArtifactBinding
+    source_readiness_config_hash: Sha256
+    source_authorization_receipt: ArtifactBinding
+
+
+class AuthorizedRecoveryProductionPilotReadinessConfig(RecoveryProductionPilotReadinessConfig):
+    config_id: Literal[  # type: ignore[assignment]
+        "leanfaith_sft2a_production_defaults_pilot_recovery_v4"
+    ]
+    status: Literal["authorized_pilot"]  # type: ignore[assignment]
     activation_plan: ArtifactBinding
     source_readiness_config: ArtifactBinding
     source_readiness_config_hash: Sha256
@@ -348,7 +377,10 @@ class PilotActivationPlan(StrictModel):
     source_sample_implementation_tree: GitCommit
     ceilings: ExecutionCeilings
     ceilings_sha256: Sha256
-    target_config_id: Literal["leanfaith_sft2a_production_defaults_pilot_v2"]
+    target_config_id: Literal[
+        "leanfaith_sft2a_production_defaults_pilot_v2",
+        "leanfaith_sft2a_production_defaults_pilot_recovery_v4",
+    ]
     target_authorization_receipt_path: NonEmpty
     target_readiness_config_path: NonEmpty
     fresh_sample_output_subdir: NonEmpty

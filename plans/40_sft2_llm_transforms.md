@@ -5,7 +5,7 @@
 > **Owner/session:** Codex `/root` — 2026-08-30 SFT2A session
 > **Last updated:** 2026-08-30
 > **Dependencies:** REPR `goal_v1.0`; shared rubric; roots may be selected independently of SFT1
-> **Next gate:** 12-root pilot completion, reproducible replay, and blinded audit
+> **Next gate:** user authorization for the corrected 12-root recovery pilot only
 > **Compute class:** external LLM/API plus CPU/RAM for Lean; large run may need explicit budget approval
 > **Lean budget:** compile each novel candidate once through cached persistent workers
 > **Local staging root:** `/storage/milikic/leanfaith/value_first/sft2_llm_transforms_v1/`
@@ -361,3 +361,20 @@ recorded budget/model decision.
   non-I/O PTY descriptor for its lifetime, writes an initial log record, and startup health requires
   the named live pane, held run lock, and matching one-worker/20-GiB resource claim rather than old
   journal-row count. The authorized sample/config/ceilings and v2 tmux name are unchanged.
+- 2026-08-30 — the authorized v2 pilot completed nine roots durably, then failed closed before any
+  Physlib provider call on `physlib:ckm_row_norm`. The frozen catalog had incorrectly qualified the
+  global Physlib declarations `CKMMatrixSetoid` and `VAbs` as members of namespace `CKMMatrix`;
+  the theorem itself is correctly named `CKMMatrix.VAbs_sum_sq_row_eq_one`. The worker recorded a
+  terminal failure, released its one-worker/20-GiB claim, and left no process or tmux session.
+  Preserved the full v2 sample, manifests, 73-call cumulative ledger, journal, log, and terminal
+  bytes. A resource-claimed one-signature oracle proved that removing only those two namespace
+  qualifiers elaborates successfully through frozen REPR.
+- 2026-08-30 — added an unauthorized recovery overlay rather than editing the frozen catalog or
+  failed v2 run. It produces corrected sample
+  `52edf04e5cfddefcd6626dfcb0ee0785f4a0f1e9dbd4cfd0851407e6134ccea4`, binds correction receipt
+  `6a562f4b9e397ede3b8096ba1ce3d59bee977ee6dd66a0dac8133ce67f3f54b6`, and seeds the recovery
+  ledger byte-for-byte from failed-run ledger
+  `b5b661ec4828f6616a9e4379d1ca7dcbd9f01100a7c7a23bb5dbd4bbff1ca8e9` so restart cannot reset
+  the 296-call or $15 ceilings. The original authorization was bound to the old sample, so recovery
+  launch remains fail-closed pending a new exact user sentence. Legacy rejudging, publication, and
+  50K remain unauthorized.
