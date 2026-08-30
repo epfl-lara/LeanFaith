@@ -540,14 +540,16 @@ and strict mypy across 237 source files are green.
 
 ## Full-skeleton nested N21/N22 smoke (`0c8919a`)
 
-The versioned v2 engine closes the measured applicability gap without modifying the frozen
-root-only engine. It strips expression metadata, traverses the complete And/Or/Iff/Not conclusion
-skeleton, deduplicates atomic propositions, caps each truth table at eight atoms / 256 valuations,
-and exhaustively evaluates every valuation before retaining a nested mutation with a separating
-root value. Each candidate binds its logical site path, full source and candidate skeletons, atom
-hashes, valuation-space size, separating valuation, and re-elaborated whole-type hash. The audit
-command independently regenerates the declaration/family/operation tuple and requires the exact
-candidate hash and separator contract.
+The versioned v2 engine closes the measured nested And/Or/Iff applicability gap without modifying
+the frozen root-only engine. It strips expression metadata, traverses the complete And/Or/Iff/Not
+post-telescope body skeleton, deduplicates atomic propositions, caps each truth table at eight
+atoms / 256 valuations, and exhaustively evaluates every valuation before retaining a nested
+mutation with a separating root value. Each candidate binds its logical site path, full source and
+candidate skeletons, atom hashes, valuation-space size, separating valuation, and re-elaborated
+whole-type hash. The audit command independently regenerates the declaration/family/operation tuple
+and requires the exact candidate hash and separator contract. The fixed-sample pilot below exposed
+that unrestricted telescope opening consumes source implication arrows; the earlier “full
+conclusion” wording is therefore narrowed here to the exact implemented post-telescope scope.
 
 The smoke reused ordinal 13 of the frozen 96-declaration selection, the public train-split theorem
 `NonUnitalStarSubalgebra.mem_prod`. Primary Lean completed in **4.745 seconds** and emitted five
@@ -579,6 +581,60 @@ selection row, all input/output hashes, exact generated drivers, primary candida
 selected nested operation, audit stream, summary, privacy boundary, and no-training decision.
 Eight new offline tests are green; the v2 Lean engine compiles directly; the 33 focused public
 repair/negative tests, collection, Ruff/format, and strict mypy across 238 source files are green.
+
+## Full-skeleton v2 fixed 96-declaration pilot (`861e010`)
+
+The v2 runner reused the exact v1 selection artifact byte-for-byte: 72 train, 12 validation, and
+12 test declarations. It kept every threshold unchanged, bound the passed nested-smoke manifest,
+and interpreted the operation cap by logical operation kind so unique nested paths could not evade
+the template-diversity gate. Primary Lean completed in **25.872 seconds**, emitted 136 typed
+candidates, and covered all 96 declarations. The frozen one-per-declaration chooser admitted 96
+rows with zero blocklist, duplicate, near-identical, or overlength exclusions. Independent Lean
+reconstruction then verified **96/96** in **9.372 seconds**; both Lean stages exited 0 with empty
+stderr under 120-second hard timeouts.
+
+The new engine fixed yield but exposed a different shortcut:
+
+- Yield passed at 72 train / 12 validation / 12 test, and independent audit passed 96/96.
+- Family and operation diversity failed: N21 `negateAtom` occupied **87/96 = 90.6%**, while N22
+  supplied only 9/96. The full emitted pool contained 116 N21 and only 20 N22 candidates, with N22
+  available for 17 declarations.
+- The full-corpus canary improved enough: baseline 0.8527/0.8410 validation/test fell to
+  0.8309/0.8164, absolute improvements of **0.0217/0.0246**.
+- The paired canary still exposed the template: **0.875 validation / 0.667 test**, so validation
+  failed the `<0.72` ceiling.
+
+The dominant root negation is explained by a concrete implementation boundary. The engine calls
+Lean's unrestricted `forallTelescope`, which opens nondependent proposition binders along with
+ordinary parameters. Consequently, source implications are removed before the Boolean parser
+runs; v2 is exhaustive over the remaining And/Or/Iff/Not body, not over implication nodes. The
+next bounded repair is implication-aware telescope handling plus multiple N22 implication
+operations, followed by a distribution-feasibility check on the same 96 names before any canary.
+
+Therefore `pilot_gate_passed=false`, `scale_authorized=false`,
+`sample_size_increase_authorized=false`, and `training_authorized=false`. No corpus rebuild,
+training, external call, or `final_test` access occurred.
+
+Frozen root:
+`/storage/milikic/leanfaith/corpus2/s1_public_negative_skeleton_pilot_v2_3d72e99_d568c8c/`.
+
+| artifact | SHA-256 |
+|---|---|
+| manifest | `4fd2c6a769d28d24322f7cedbfc5a2a01ef9edec5e2686eed74add1b914dbe44` |
+| summary | `e9fd7fc3ee11b5b23b06ddc85dea2e0f45f25ddbe4952aa965f515ef597f1727` |
+| selected candidates | `76e0271d262cf0f217bbc3e0ed63f5d8c3f0b0ba5669e780eba21ada270bdf93` |
+| trainer rows | `14790f63e753de274757fa4fe29e2fd745f1800e17b5c32e123402b8847076db` |
+| N-SEP certificates | `84571655e42989c4b1d8a8a2e309eeae6737cff62703b2dfd680bc6895eceb92` |
+| augmented canary | `d1aaa0c0a094d241b63267b12013cf1e8c6bd528a0aff6ae941c3ced48f3df26` |
+| paired canary | `a2f03d5155da89b42ee217011c5f1986e3cb3c999e192b21b6a5b4f55dd46dc6` |
+| primary process | `6b3e5ca327d209c671f19c387417f6b0ed1819ed5be47a105a96a5a18b2ad5b8` |
+| audit process | `c508c9fa161f6fb60be04af22128f6f692ddfba92650dcf329c7b05a6ea7c704` |
+
+Verification: a fresh artifact replay revalidates the v1 base runner, passed nested smoke, exact
+selection, all input/output hashes, generated drivers, 136-candidate primary stream, chooser,
+projection, 96-row audit stream, and all three canary decisions without rerunning Lean. Seven new
+offline tests plus the prior 33 focused public-repair/negative tests are green; collection,
+Ruff/format, the v2 Lean compile, and strict mypy across 239 source files are green.
 
 ## Assets produced today (all on `main` unless noted)
 
@@ -642,16 +698,22 @@ repair/negative tests, collection, Ruff/format, and strict mypy across 238 sourc
   exact frozen train theorem; the required nested N22 candidate passed exhaustive eight-valuation
   root separation and exact independent reconstruction. Only the same fixed 96-declaration rerun
   is authorized; sample-size increase, scale, and training remain unauthorized.
+- Full-skeleton v2 fixed 96-declaration rerun complete and failed closed: yield and full-canary
+  improvement pass, but 87/96 selected rows are the same N21 root-negation template and the paired
+  validation canary is 0.875. The result identifies implication-aware skeleton parsing—not a larger
+  sample—as the next bounded repair.
 
 ## Next
 
-1. Rerun the same bounded 72/12/12 pilot with the verified full-skeleton v2 engine and require
-   every frozen yield/diversity/full-canary/paired gate. Do not enlarge to 500 declarations to
-   compensate for the failed root-only engine.
-2. Rebuild a new versioned public corpus only after the small pilot passes. Require all current
+1. Add an implication-aware v3 Boolean-skeleton engine with at least two separated N22 implication
+   operations, then prove one implication declaration through generation and independent audit.
+2. On the same 72/12/12 names, require a deterministic subset satisfying all yield/family/operation
+   constraints before fitting canaries. Stop if infeasible; do not enlarge to 500 declarations.
+3. Only after feasibility passes, rerun the unchanged full-canary and paired-canary gates.
+4. Rebuild a new versioned public corpus only after the small pilot passes. Require all current
    gates and lexical-canary balanced accuracy `<0.72`; do not train the failed 7,488-row
    diagnostic or relax the gate.
-3. After that gate passes, smoke one batch/checkpoint, retrain both S1 arms, and score only golden
+5. After that gate passes, smoke one batch/checkpoint, retrain both S1 arms, and score only golden
    dev against S1v0 chunks-CPT (0.849 AUPRC / 0.684 calibrated balanced accuracy).
-4. Run Track T-B Stage A separately after its registry and gap/cloze diagnostics are frozen.
+6. Run Track T-B Stage A separately after its registry and gap/cloze diagnostics are frozen.
    Keep `final_test` sealed and unscored.
