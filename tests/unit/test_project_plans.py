@@ -28,15 +28,18 @@ def test_task_validator_rejects_missing_contract() -> None:
 
 def test_later_blockquote_does_not_override_header_metadata() -> None:
     text = (REPOSITORY_ROOT / "plans/10_cpt1.md").read_text()
+    original_task, original_errors = validate_task_text("10_cpt1.md", text)
     task, errors = validate_task_text(
         "10_cpt1.md",
         f"{text}\n\n> **Status:** surprising\n> **Owner/session:** injected\n",
     )
 
+    assert original_errors == []
+    assert original_task is not None
     assert errors == []
     assert task is not None
-    assert task.status == "not_started"
-    assert task.owner == "unassigned"
+    assert task.status == original_task.status
+    assert task.owner == original_task.owner
 
 
 def test_nonempty_hf_destination_must_be_private_lemmy00() -> None:
