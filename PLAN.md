@@ -21,7 +21,7 @@
 >   negative families demoted to silver until separator/witness-upgraded, and compute expanded to
 >   the RunAI cluster (A100/H100/H200).
 
-## Execution status ledger (2026-08-30, Queues 1–6 + S1v1 follow-up + P4 + public-repair diagnostic + N21/N22 v1/v2 pilots + implication smoke + fixed feasibility executed — read the seal erratum below)
+## Execution status ledger (2026-08-30, Queues 1–6 + S1v1 follow-up + P4 + public-repair diagnostic + N21/N22 v1/v2 pilots + implication smoke + fixed v3 pilot executed — read the seal erratum below)
 
 Full numbers: `reports/eval/refocus_day1_summary.md`. Treat this ledger plus hashed run manifests
 as current execution state; the later track prose preserves approved design and historical
@@ -212,6 +212,16 @@ starting-point context, and may describe work that the ledger has since complete
   accessed. Frozen official root:
   `/storage/milikic/leanfaith/corpus2/s1_public_negative_skeleton_feasibility_v3_4fd2c6a_d568c8c_balanced/`
   (manifest SHA-256 `e02af59acf32fa0ee011cf00edab33f08aa9af7ec3e557d2469fd32f93a8b475`).
+- **IMPLICATION-AWARE V3 FROZEN 24-ROW AUDIT/CANARY COMPLETE / GATE FAILED**: `2bb57b5`
+  reused the frozen feasible subset without regenerating the 96-name pool. Independent Lean
+  reconstruction verified 24/24 exact candidate hashes in 5.618 seconds; yield, family mix, and
+  operation cap all pass. The unchanged full canary improved by 0.0143 on validation but only
+  0.0050 on test versus the required 0.01 on each. The paired canary scored 0.875 validation /
+  0.625 test versus the `<0.72` requirement on both. Therefore `pilot_gate_passed=false` and
+  `public_rebuild_authorized=false`; sample growth, scale, and training remain unauthorized, and
+  `final_test` was not accessed. Frozen root:
+  `/storage/milikic/leanfaith/corpus2/s1_public_negative_skeleton_audit_canary_v3_e02af59_d568c8c/`
+  (manifest SHA-256 `99a729606b2c30f62a721deb2218dde6f822c7a256ce1680a51d205d310abaf4`).
 - **Backbone consultation verified, Track T-B added**: GPT Pro + Claude reports cross-checked
   against pinned configs/modeling code, live HF cards, and a fresh local operator/fertility
   audit (0 UNKs on all three tokenizers — DeBERTa fear refuted; NeoBERT disqualified;
@@ -219,16 +229,15 @@ starting-point context, and may describe work that the ledger has since complete
   `reports/model_selection/backbone_consult_verification_2026_08_28.md`.
 
 **NEXT QUEUE — repair the measured public lexical shortcut before training:**
-1. Independently reconstruct the frozen balanced 24-row subset, then rerun the unchanged yield,
-   family, operation, full-canary, and paired-canary gates. Do not regenerate the 96-name pool,
-   change the source sample, or enlarge to 500.
-2. Rebuild a new versioned public corpus only after that pilot passes. Require every existing
-   diversity/balance/seal gate and lexical-canary balanced accuracy `<0.72` on validation and
-   test. The failed 7,488-row artifact
-   remains a diagnostic and must not become a training input by relaxing the gate.
-3. Only after the canary passes, smoke one training batch/checkpoint, run the two primary S1 arms,
-   and score golden **dev** through the sanctioned split-only path against S1v0 chunks-CPT (0.849
-   AUPRC / 0.684 calibrated balanced accuracy). `final_test` remains sealed and unscored.
+1. **STOP / DECISION REQUIRED**: the fixed-sample v3 pilot failed its full-canary test-split
+   improvement and paired-validation gates. Do not rebuild, enlarge the sample, scale, or train
+   from this artifact, and do not retune candidate identities against the observed canary outcomes.
+2. If this negative-skeleton line continues, first preregister a new versioned, candidate-blind
+   repair and a fresh development-only decision procedure (for example, a same-96 maximum-yield
+   objective evaluated with nested or cross-fitted diagnostics). Preserve the current v3 artifacts
+   as failed diagnostics and keep `final_test` sealed. This requires an explicit user decision.
+3. Only after a new pilot independently passes every existing gate may a new public corpus rebuild,
+   one-batch training smoke, two S1 arms, and golden **dev** comparison be authorized.
 
 Track T-B backbone-pilot Stage A remains a separate concurrent cluster track and does not block
 this queue.

@@ -725,6 +725,51 @@ no-canary / no-training decision. Nine new offline tests are green; the 37 focus
 collection, Ruff/format, and strict mypy across 241 source files are green. Both tmux sessions are
 retained with exit status 0.
 
+## Frozen v3 24-row independent audit and canary (`2bb57b5`)
+
+This stage reused the exact feasibility selection and candidate pool; it did not regenerate the
+96-name pool. Independent Lean reconstruction verified **24/24** selected candidate hashes in
+**5.618 seconds**, exiting 0 with empty stderr under the 120-second stage timeout. All 24 frozen
+candidates again passed public screening and projected to 16/4/4 train/validation/test rows with
+15 N22, 9 N21, and a maximum operation-kind share of 37.5%. Thus yield, independent audit, family
+mix, and operation diversity all pass.
+
+The unchanged empirical gates do not both pass:
+
+| gate | validation | test | requirement | result |
+|---|---:|---:|---:|---|
+| baseline full canary balanced accuracy | 0.852659 | 0.841036 | context | — |
+| augmented full canary balanced accuracy | 0.838372 | 0.836025 | context | — |
+| absolute full-canary improvement | **0.014286** | **0.005011** | ≥0.01 each | **fail** |
+| paired balanced accuracy | **0.875** | **0.625** | <0.72 each | **fail** |
+
+The paired diagnostics contain four positive/four negative rows per diagnostic split, so their
+balanced-accuracy resolution is coarse; that does not relax the preregistered threshold. The
+full-canary test-split improvement also independently misses its floor. Therefore
+`pilot_gate_passed=false`, `public_rebuild_authorized=false`, `scale_authorized=false`, and
+`training_authorized=false`. The run made no external call and did not access `final_test`.
+
+Frozen root:
+`/storage/milikic/leanfaith/corpus2/s1_public_negative_skeleton_audit_canary_v3_e02af59_d568c8c/`.
+
+| artifact | SHA-256 |
+|---|---|
+| manifest | `99a729606b2c30f62a721deb2218dde6f822c7a256ce1680a51d205d310abaf4` |
+| summary | `96df4eb484b880171a78c323ba69e7860578894e0851ea601f8c2947fa29991a` |
+| frozen selected candidates | `0358e0297b3addf01da8a8da13f8c9c44d74858a89f10e54fb708ca0b306289f` |
+| projected trainer rows | `6d2f16df277eb09642e7334b2d6d216242f94259d38200866b3e2ba2f01ed8ab` |
+| audited N-SEP certificates | `23a7fe9949efa704c18b8e81b27133cb8c011bcd24de6604260477c82b6238d3` |
+| baseline canary | `ae937c145e2ce476789e2900b6ad78aff759085ce593baa11d02cbdc6fc945bf` |
+| augmented canary | `a05d3c11ab76a105126eee4b53176df14de4390598016f3cce067b9283bdd112` |
+| paired canary | `d21bc2326224b16b1cf562a520fe674b2c76f03f383d89e619b5d61f77516b46` |
+| audit process | `2085bfd26e0094e1e0906b101648b980d7b5b853af35f08d36dca7a6216ba7a9` |
+
+Verification: independent artifact replay revalidates the passed feasibility manifest, exact
+24-row subset membership, generated audit-only driver, 24 canonical audit rows, projections, both
+canary fits, every output hash, the privacy boundary, and the failed decision without rerunning
+Lean. Seven new offline tests and all 44 focused skeleton tests are green; collection, Ruff/format,
+and strict mypy across 242 source files are green. The tmux session is retained with exit status 0.
+
 ## Assets produced today (all on `main` unless noted)
 
 - Golden partition frozen: 910 expert `final_test` (sealed) / 821 dev / 819 golden_train
@@ -797,16 +842,16 @@ retained with exit status 0.
   distribution-feasibility precheck now recorded below.
 - Implication-aware v3 fixed-sample feasibility complete: 387 screened candidates from the same 96
   names yielded a balanced 16/4/4 exact-24 subset with 62.5% N22 and no operation above 37.5%.
-  Only independent audit of that frozen subset and the unchanged canary gates are authorized next.
+  That result authorized only the frozen audit/canary stage now recorded below.
+- Frozen v3 24-row audit/canary complete and failed closed: all 24 Lean audits and structural gates
+  pass, but full-canary test improvement is 0.0050 and paired validation balanced accuracy is 0.875.
+  No public rebuild, scale, or training is authorized.
 
 ## Next
 
-1. Independently reconstruct the frozen 24-row balanced subset, then rerun the unchanged
-   full-canary and paired-canary gates. Reuse the frozen pool; do not enlarge to 500 declarations.
-2. Rebuild a new versioned public corpus only after the small pilot passes. Require all current
-   gates and lexical-canary balanced accuracy `<0.72`; do not train the failed 7,488-row
-   diagnostic or relax the gate.
-3. After that gate passes, smoke one batch/checkpoint, retrain both S1 arms, and score only golden
-   dev against S1v0 chunks-CPT (0.849 AUPRC / 0.684 calibrated balanced accuracy).
-4. Run Track T-B Stage A separately after its registry and gap/cloze diagnostics are frozen.
-   Keep `final_test` sealed and unscored.
+1. Stop the negative-skeleton rebuild/training queue: the fixed v3 pilot failed two empirical gates.
+   Do not tune candidate identities against the observed canaries or enlarge to 500 declarations.
+2. Decide whether to close this line or preregister a new versioned, candidate-blind same-96 repair
+   with a fresh development-only decision procedure. Keep every current artifact as a failed
+   diagnostic and keep `final_test` sealed.
+3. Run Track T-B Stage A separately after its registry and gap/cloze diagnostics are frozen.
