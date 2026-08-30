@@ -1,12 +1,12 @@
 # REPR — shared `goal_v1.0` theorem representation
 
 > **Task ID:** REPR
-> **Status:** active
+> **Status:** complete
 > **Owner/session:** Codex REPR session (2026-08-30)
-> **Last updated:** 2026-08-30 (third correctness repair)
+> **Last updated:** 2026-08-30 (third reviewed freeze)
 > **Dependencies:** none
-> **Next gate:** commit the active third repair, rerun committed-tree checks, then create one coherent
-> replacement freeze commit before downstream use
+> **Next gate:** downstream manifests pin the third-replacement spec hash and the coherent freeze
+> commit containing this record; retain raw/context sidecars and report metrics by `goal_v1_source`
 > **Compute class:** CPU; bounded Lean oracle/renderer tests only
 > **Lean budget:** reuse loaded environments and candidate compilation; no corpus-wide rendering compile
 > **Local staging root:** `/storage/milikic/leanfaith/value_first/goal_v1_0/`
@@ -18,7 +18,7 @@ Own the one canonical model-facing theorem representation so SFT1, SFT2A, SFT2B,
 build incompatible renderers. Freeze `goal_v1.0`, its provenance flag, and the separate raw
 compilation context. This is an enabling task, not a corpus-generation task.
 
-## Target representation decision
+## Frozen representation decision
 
 `goal_v1.0` contains ordered local variables, hypotheses, typeclass/universe locals, and exactly
 one `⊢ target`. It removes declaration name/kind, attributes, command shell, imports, options,
@@ -250,16 +250,18 @@ historical evidence only and are not authorized for downstream use.
   runs passed. The active-state implementation and every REPR-owned path were committed before this
   freeze record was finalized.
 
-## Third replacement candidate evidence
+## Third replacement freeze record and evidence
 
-This active candidate is not yet consumable. The coherent downstream revision will be the final
-freeze commit containing the frozen config, matching frozen-state test, completed brief, and the
-committed implementation revision below.
+The active implementation parent commit
+`fc612cb0816e83a8b29625b67988d95e444a7eb2` is reproducible provenance but is not consumable alone
+because its config and test deliberately say `active`. The coherent downstream revision is the
+commit containing this record, the frozen config, matching frozen-state test, and completed brief.
 
-- **Candidate identity:** canonical spec hash
+- **Frozen identity:** canonical spec hash
   `073d92c8e1fcc5cb7a3a9bf325d047e9b2d52149504977086de46abf6f84ef52`; unchanged Lean renderer
   SHA-256 `8a2626489d65c7424f039f673fe5910adeb07d833580f5a6870cbf8e19434809`; replacement Python module
-  SHA-256 `09912e28687756a9cd203e6069a9f9c130259840d8309a3126fe1c8e1f333cbb`.
+  SHA-256 `09912e28687756a9cd203e6069a9f9c130259840d8309a3126fe1c8e1f333cbb`; active implementation
+  parent `fc612cb0816e83a8b29625b67988d95e444a7eb2`.
 - **Structural binding repair:** one balanced-context analyzer now gates trusted signatures,
   elaborated payload canonicalization, and final validation. Every visible term
   `let`/`have` requires one simple name under the path-specific policy below, same-context `:=`, nonempty value,
@@ -298,11 +300,11 @@ committed implementation revision below.
   literals agreed exactly; the bounded incomplete chain produced zero elaborated sidecars and failed
   surface validation. The separate six-source surface pilot remained 4/6 in 3 ms. Full live wall
   time was 2.04 s with 116,784 KiB peak RSS; the one-worker reservation was released.
-- **Verification state:** all 203 active-state unit cases, source/spec hash assertions, scoped
+- **Verification state:** all 203 frozen-state unit cases, source/spec hash assertions, scoped
   ruff/formatting, and strict mypy pass. No corpus was compiled, no training data was generated, and
   no durable staging output was kept.
 
-## Current risks and downstream handoff
+## Frozen risks and downstream handoff
 
 - Surface mode is safe only when the caller attests that its supplied complete name-free signature
   corresponds to nonempty raw source compiling in the stored context. A successful sidecar carries
@@ -354,8 +356,9 @@ Do not generate training data. Record the spec hash, evidence, risks, and downst
 ## Coordinator requests
 
 - Downstream SFT/evaluation serializers must remain paused until the coherent third replacement
-  freeze commit is recorded here. None of the three superseded hashes or their implementation
-  commits is consumable.
+  freeze commit containing this record is available. They may then pin that commit plus spec hash
+  `073d92c8e1fcc5cb7a3a9bf325d047e9b2d52149504977086de46abf6f84ef52`; none of the three
+  superseded hashes or their implementation commits is consumable.
 - Coordinator follow-up: mirror the scoped term-binding `have`-to-`let` exception in
   `plans/00_shared_contracts.md`. Until that coordinator-owned wording is updated, this task-owned
   spec is the explicit `goal_v1.0` normalization policy; the raw sidecar retains original notation.
@@ -451,3 +454,8 @@ Do not generate training data. Record the spec hash, evidence, risks, and downst
   pilot. All 203 owned unit cases pass after final repinning; wall time was 2.04 s with 116,784 KiB
   peak RSS. Raw compilability/correspondence remains an explicit caller attestation, no corpus or
   training data was generated, and the reservation was released.
+- 2026-08-30 — committed the third replacement implementation at
+  `fc612cb0816e83a8b29625b67988d95e444a7eb2` with the config and matching unit assertion still
+  `active`, then completed REPR in the coherent child commit containing this freeze record, frozen
+  config, and frozen-state assertion. Only that child commit is consumable downstream. The frozen
+  spec/source hashes and bounded evidence above were rechecked; unrelated work remained untouched.
