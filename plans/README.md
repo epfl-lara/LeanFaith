@@ -17,6 +17,26 @@ new worktree from this commit or any descendant that retains the plan-contract c
 5. Record progress and handoff details in the same file. Ask the coordinator/user about cross-task
    changes rather than editing another task's contract.
 
+## Long-run handoff
+
+Authorized work that will outlive the current agent turn runs in a named detached `tmux` session,
+never in the foreground of the Codex/Claude/Lemex task. Use the repository runner's durable journal,
+cache, and resume support in the style of
+`/localhome/milikic/annotate_numina/run_reasoning_direct.py`; tmux provides process survival, while
+the journal and manifests provide correctness.
+
+Before leaving it alone, the launching agent records and verifies:
+
+- committed code revision, config/run hash, resource claim, ceilings, and exact output/cache roots;
+- tmux session name, pane PID, start time, persistent log and journal, and sanitized launch/resume
+  commands;
+- a live process tree, clean startup log, and at least one advancing durable count/artifact; and
+- attach and read-only status commands for the next session.
+
+After this check, leave the tmux job running. Later sessions inspect durable state and tmux liveness
+without relaunching it. A vanished tmux session is investigated from its terminal marker/log; it is
+not automatically success or permission to start a duplicate.
+
 ## Task map
 
 | ID | Brief | Output | Dependency or stop point |
@@ -72,6 +92,7 @@ Task/status:
 Completed evidence:
 Current counts and paths:
 Lean usage: calls, cache hit rate, throughput, projected remaining cost
+Detached run: tmux session, pane PID, start time, log/journal, attach/status commands
 Decision needed:
 Next bounded action:
 ```

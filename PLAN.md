@@ -85,7 +85,8 @@ budget. Progress is recorded in that task brief, not by rewriting this coordinat
 1. Complete one-example end-to-end smokes and freeze schemas/manifests.
 2. Run bounded pilots with measured throughput and quality gates.
 3. Ask the user for compute or policy decisions where the task brief says to stop.
-4. Scale only after the pilot passes; keep every long job resumable.
+4. Scale only after the pilot passes; keep every long job resumable and run unattended work in a
+   verified named `tmux` session that survives the launching agent turn.
 5. Publish data and manifests to the named private Hugging Face repository.
 6. Run evaluation baselines on validation and test; later select models on validation only.
 

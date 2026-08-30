@@ -58,6 +58,27 @@ Repeat this decision in every implementation plan and progress handoff:
 - The SFT1 owner may audit and propose transforms but must set `waiting_user` before bulk data
   creation until the user explicitly approves the catalog.
 
+## Durable unattended runs
+
+- Any authorized job expected to outlive the current interactive turn runs in a named detached
+  `tmux` session. Do not leave a scale job attached to an agent shell, rely on the desktop task
+  remaining open, or substitute an untracked background process.
+- Launch only after the brief records the exact command/config hash, committed code revision,
+  output and cache roots, append-only journal/log paths, resource reservation, ceilings, resume
+  command, and stop conditions. Never put tokens or other secrets in the tmux command line.
+- Use a task/run-specific name such as `leanfaith-<task>-<run-id>`. Redirect stdout and stderr to a
+  persistent log, keep stdin closed for background Codex/Lemex workers, and make the runner write a
+  durable terminal status or completion marker. Cleanup must release task-owned resource claims
+  only after the real job terminates.
+- Before handing off, prove that the detached job is healthy: verify the tmux session and pane PID,
+  inspect the process tree and initial log, and observe the journal/output advancing without a
+  deterministic startup failure. Record the session name, pane PID, start time, attach command,
+  read-only status/tail command, and the first durable counts in the task brief.
+- Once the startup check passes, leave the tmux session running. A later agent monitors durable
+  artifacts and session liveness without restarting or duplicating the job. Completion still
+  requires manifests, hashes, counts, and release of reservations; a missing tmux session alone is
+  neither success nor permission to relaunch.
+
 ## Implementation and cleanup
 
 - Prefer extending existing modules over creating parallel replacements. Search the repo and the

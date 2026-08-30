@@ -142,6 +142,25 @@ Lean is the bottleneck.
 8. Every long run is resumable: stable input IDs, append-only attempt journal, terminal-state
    index, atomic shard marker, deterministic merge, and duplicate suppression.
 
+### Detached long-run contract
+
+After an authorized pilot/scale setup passes its brief and startup checks, any run expected to
+continue beyond the current agent turn must execute in a named detached `tmux` session. The job may
+not depend on an interactive Codex/Claude/Lemex session staying open.
+
+Before detaching, bind the run to committed code, a config/run hash, immutable inputs, ceilings,
+resource claims, output/cache roots, an append-only journal, a persistent combined log, a resume
+command, and explicit stop conditions. Keep credentials out of process arguments and logs; close
+stdin for background Codex/Lemex subprocesses. A wrapper or runner records terminal status and
+performs task-owned resource cleanup only when the underlying job actually exits.
+
+The launching agent must verify the tmux session, pane PID/process tree, initial log, and at least
+one advancing durable counter/artifact before handoff. The brief records the session name, start
+time, pane PID, attach/status commands, first counts, and recovery command. After that health check,
+leave the session running unattended. Monitoring is read-only and must not spawn a duplicate run.
+When the session disappears, decide success from durable completion markers, manifests, hashes,
+and counts—not from tmux state alone.
+
 On the current shared host, the coordinator permits at most two concurrent Lean workers and 40 GiB
 combined measured Lean RSS, whichever limit is reached first. The implicit allocation is zero.
 Before starting Lean, a task atomically claims its measured workers/RSS through

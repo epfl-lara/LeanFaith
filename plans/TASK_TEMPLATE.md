@@ -48,6 +48,14 @@ the persistent worker and cache design, concurrency cap, retry policy, and throu
 Never compile one process per row or default to a corpus-wide recheck.
 The implicit allocation is zero; claim Lean/GPU resources with `leanfaith-resources` before use.
 
+## Durable-run plan
+
+For any authorized job that will outlive the launching agent turn, define the task/run-specific
+tmux session name, committed revision and config hash, sanitized launch/resume commands, persistent
+log and append-only journal, output/cache roots, resource claim/cleanup, ceilings, stop conditions,
+and completion marker. The launching agent must verify the detached pane PID/process tree, clean
+startup log, and an advancing durable artifact before leaving the session running.
+
 ## Execution gates
 
 ### One-example smoke
@@ -74,8 +82,9 @@ plans/00_shared_contracts.md, and this brief completely. Inspect the worktree an
 writable paths in this brief before edits. Preserve unrelated work. Lean is the bottleneck: avoid
 it where possible; otherwise use persistent batched workers, bounded parallelism, caching, and the
 one-example/pilot gates. Do not start scale work without satisfying the brief. Update this brief's
-status and append-only log as you work. Finish with evidence, durable paths, risks, and the next
-bounded action.
+status and append-only log as you work. Run authorized unattended work in a verified named tmux
+session and leave it running after recording its health and recovery commands. Finish with evidence,
+durable paths, risks, and the next bounded action.
 ```
 
 ## Coordinator requests
