@@ -1,11 +1,11 @@
 # SFT2A — LLM-generated semantic transformations
 
 > **Task ID:** SFT2A
-> **Status:** pilot_ready
+> **Status:** active
 > **Owner/session:** Codex `/root` — 2026-08-30 SFT2A session
 > **Last updated:** 2026-08-30
 > **Dependencies:** REPR `goal_v1.0`; shared rubric; roots may be selected independently of SFT1
-> **Next gate:** user authorization for the 12-root pilot only
+> **Next gate:** 12-root pilot completion, reproducible replay, and blinded audit
 > **Compute class:** external LLM/API plus CPU/RAM for Lean; large run may need explicit budget approval
 > **Lean budget:** compile each novel candidate once through cached persistent workers
 > **Local staging root:** `/storage/milikic/leanfaith/value_first/sft2_llm_transforms_v1/`
@@ -345,3 +345,11 @@ recorded budget/model decision.
   `milikic/sft2a-production-activation` starts at `57a63e3` and cherry-picks only the SFT2A
   production-readiness commits before this activation fix. The two SFT2B setup commits are not
   ancestors of this branch and must not be silently merged as part of SFT2A integration.
+- 2026-08-30 — received the exact hash-bound authorization for only the 12-root production-default
+  pilot. While clean at activation commit `5055134`, materialized the additive v2 authorization
+  receipt `e00195d887692fe309ec024f46d52867b9ec6b2bd52488fdf4b8f465e9ea0b6c` and readiness file
+  `fefdc00a8e694974fe75a64295a78122ac5f5083d036c99d3a1fbb3d90c58473` with effective readiness
+  hash `392e220d10ecb224b9ca061a02ca838d60626ab55c389a4183af5e345c5ae8c2`. The authorized path retains
+  sample `d0568942cf276939a47b375a73715fcae489a9b9c380c9aa02bd780bd706ba75`, the 296-call/$15 Opus
+  ceilings, fresh v2 output, and versioned `tmux` session. This authorization explicitly excludes
+  the 2,233-row legacy rejudge, publication, and 50K run.

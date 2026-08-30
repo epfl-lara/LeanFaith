@@ -1,0 +1,92 @@
+schema_version: 1
+config_id: leanfaith_sft2a_production_defaults_pilot_v2
+status: authorized_pilot
+task_id: SFT2A
+base_opus_smoke_config:
+  path: configs/sft2a/production_pilot_v1.yaml
+  sha256: 8cfd63922fbeb1c166b687681e79fa1c69f078569ad1a1eae2da5bcc48a104e2
+base_opus_smoke_config_hash: 2f9aafb0f36a1cc01734a02e8197b308b940efac4f0681ba306c9dd9cb0a7877
+catalog:
+  path: configs/sft2a/pilot_root_catalog_v2.json
+  sha256: 1fe261d705f75d3a0125221403011a1a74343f6dde51e8483d81d5b832e1265a
+expected_sample_sha256: d0568942cf276939a47b375a73715fcae489a9b9c380c9aa02bd780bd706ba75
+sample_output_subdir: runs/diverse_root_production_defaults_pilot_v2
+allocations:
+- source: mathlib
+  roots: 5
+- source: physlib
+  roots: 3
+- source: cslib
+  roots: 2
+- source: compiler_data
+  roots: 2
+group_by: project_id+project_revision+compile_context_id
+persistent_lean_environment_per_group: true
+ceilings:
+  maximum_roots: 12
+  maximum_provider_calls: 296
+  maximum_proposer_calls: 144
+  maximum_opus_calls: 144
+  maximum_lemex_calls: 8
+  maximum_attempts_per_slot: 3
+  maximum_reported_opus_spend_usd: 15.0
+  codex_cost_status: unavailable
+  lemex_cost_status: unavailable
+authorization_receipt:
+  path: configs/sft2a/pilot_authorization_receipt_production_v2.json
+  sha256: e00195d887692fe309ec024f46d52867b9ec6b2bd52488fdf4b8f465e9ea0b6c
+historical_fable_seal:
+  path: configs/sft2a/historical_fable_seal_v1.json
+  sha256: d20bb53d74d65b04d5caf6f25b9aa1629338127e448e469c3c3509474023fdaf
+legacy_rejudge:
+  authorized: false
+  input_configuration: legacy_single_judge
+  output_configuration: legacy_double_judge
+  output_subdir: runs/legacy_production_defaults_rejudge_v1
+  all_admitted_positives: 233
+  minimum_stratified_negatives: 2000
+  renderable_unresolved_action: single_judge_needs_second_judge_auxiliary_no_opus_call
+  exclude_placeholders: true
+  exclude_repr_invalid: true
+  stratify_by:
+  - family
+  salt: leanfaith-sft2a-legacy-production-defaults-rejudge-v1
+  ceilings:
+    maximum_roots: 1
+    maximum_provider_calls: 2240
+    maximum_proposer_calls: 0
+    maximum_opus_calls: 2240
+    maximum_lemex_calls: 0
+    maximum_attempts_per_slot: 3
+    maximum_reported_opus_spend_usd: 250.0
+    codex_cost_status: unavailable
+    lemex_cost_status: unavailable
+labeling_defaults_policy:
+  path: policies/sft2_llm_labeling_defaults_v1.yaml
+  sha256: 4554a071b06b1af9015b253b5e64b2a0a4d013630e5224ef7729bbf65757646f
+exact_settings_smoke_receipt:
+  path: configs/sft2a/production_defaults_smoke_receipt_v1.json
+  sha256: adbe14b05e443139647dc05d483b44705452731dff3cbf384ef1f2b76a112509
+detached_launch:
+  session_name: leanfaith-sft2a-production-pilot-v2
+  resource_task: SFT2A-PILOT-PROD-V2
+  lean_workers: 1
+  lean_rss_gib: 20.0
+  run_lock_relative_path: detached/run.lock
+  combined_log_relative_path: detached/combined.log
+  journal_relative_path: detached/journal.jsonl
+  terminal_status_relative_path: detached/terminal_status.json
+  launch_receipt_relative_path: detached/launch_receipt.json
+  stdin_closed: true
+  exclusive_run_lock: true
+  duplicate_restart_forbidden: true
+activation_plan:
+  path: configs/sft2a/pilot_activation_production_v2.yaml
+  sha256: 3a0a03cec797c7c2fa77990940cf66509725412e339af302a28f5a15a8102bf3
+source_readiness_config:
+  path: configs/sft2a/pilot_readiness_production_v1.yaml
+  sha256: 0b893d7eeaa3395604ac3f4da06614e3c16bca6d073fd471ce9702800210b387
+source_readiness_config_hash: 5b26cf8cf21a4e5542b0ba7c72a1c110e4bd415681eb2ddf2d3abd14e7203a02
+source_authorization_receipt:
+  path: configs/sft2a/pilot_authorization_receipt_production_v1.json
+  sha256: 35c56eaa7bb5b68e4412fbe0464b076285f18e48c9f7c3fefd7574f024a18f6a
