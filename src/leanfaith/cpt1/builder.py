@@ -153,21 +153,15 @@ def load_config(path: Path) -> BuildConfig:
         recipe = _require_str(payload.get("recipe"), context=f"sources[{index}].recipe")
         if recipe not in {"text", "question_answer"}:
             raise Cpt1Error(f"unsupported recipe {recipe!r}")
-        revision = _require_str(
-            payload.get("revision"), context=f"sources[{index}].revision"
-        )
+        revision = _require_str(payload.get("revision"), context=f"sources[{index}].revision")
         if re.fullmatch(r"[0-9a-f]{40}", revision) is None:
             raise Cpt1Error(f"sources[{index}].revision must be a 40-character commit")
         sources.append(
             SourceSpec(
                 name=name,
-                repo_id=_require_str(
-                    payload.get("repo_id"), context=f"sources[{index}].repo_id"
-                ),
+                repo_id=_require_str(payload.get("repo_id"), context=f"sources[{index}].repo_id"),
                 revision=revision,
-                config=_require_str(
-                    payload.get("config"), context=f"sources[{index}].config"
-                ),
+                config=_require_str(payload.get("config"), context=f"sources[{index}].config"),
                 split=_require_str(payload.get("split"), context=f"sources[{index}].split"),
                 recipe=cast(Recipe, recipe),
                 native_id_column=_require_str(
@@ -185,15 +179,9 @@ def load_config(path: Path) -> BuildConfig:
         schema_version=_require_str(raw.get("schema_version"), context="schema_version"),
         output_root=Path(_require_str(raw.get("output_root"), context="output_root")),
         cache_dir=Path(_require_str(raw.get("cache_dir"), context="cache_dir")),
-        blocklist_path=Path(
-            _require_str(raw.get("blocklist_path"), context="blocklist_path")
-        ),
-        destination_repo=_require_str(
-            raw.get("destination_repo"), context="destination_repo"
-        ),
-        rows_per_shard=_require_int(
-            raw.get("rows_per_shard"), context="rows_per_shard", minimum=1
-        ),
+        blocklist_path=Path(_require_str(raw.get("blocklist_path"), context="blocklist_path")),
+        destination_repo=_require_str(raw.get("destination_repo"), context="destination_repo"),
+        rows_per_shard=_require_int(raw.get("rows_per_shard"), context="rows_per_shard", minimum=1),
         compression=_require_str(raw.get("compression"), context="compression"),
         feedback_test_excluded_rows=_require_int(
             raw.get("feedback_test_excluded_rows"),
@@ -549,8 +537,7 @@ def _iter_dataset_chunks(
             raise Cpt1Error("datasets slice did not return a column mapping")
         batch = cast(dict[str, list[object]], raw_batch)
         rows = [
-            {column: batch[column][offset] for column in columns}
-            for offset in range(end - start)
+            {column: batch[column][offset] for column in columns} for offset in range(end - start)
         ]
         yield start, rows
 
@@ -766,9 +753,7 @@ def _initial_metrics(
         "peak_rss_mib": resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024,
         "resumed_chunks": resumed_chunks,
         "rows_per_second": total_rows / elapsed_seconds if elapsed_seconds else None,
-        "source_load_seconds": {
-            runtime.spec.name: runtime.load_seconds for runtime in runtimes
-        },
+        "source_load_seconds": {runtime.spec.name: runtime.load_seconds for runtime in runtimes},
         "text_utf8_length_quantiles": _quantiles(release_root, chunks),
     }
     connection.execute(
@@ -880,9 +865,7 @@ def _write_manifest_and_checksums(
     )
     _write_readme(config, release_root)
     release_files = sorted(
-        path
-        for path in release_root.rglob("*")
-        if path.is_file() and path.name != "SHA256SUMS"
+        path for path in release_root.rglob("*") if path.is_file() and path.name != "SHA256SUMS"
     )
     checksum_lines = [
         f"{_sha256_file(path)}  {path.relative_to(release_root).as_posix()}"

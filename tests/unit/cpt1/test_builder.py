@@ -86,20 +86,14 @@ def _rows() -> dict[str, list[dict[str, object]]]:
     }
 
 
-def test_exact_recipes_dedup_blocklist_and_minimal_schema(
-    tmp_path: Path, blocklist: Path
-) -> None:
+def test_exact_recipes_dedup_blocklist_and_minimal_schema(tmp_path: Path, blocklist: Path) -> None:
     result = build_fixture(
         _config(tmp_path, blocklist),
         rows_by_source=_rows(),
         output_root=tmp_path / "build",
     )
     data_files = sorted((result.release_root / "data").glob("*.parquet"))
-    texts = [
-        row["text"]
-        for path in data_files
-        for row in pq.read_table(path).to_pylist()
-    ]
+    texts = [row["text"] for path in data_files for row in pq.read_table(path).to_pylist()]
     assert texts == ["α\n  β", "duplicate", "questionanswer", ""]
     assert pq.ParquetFile(data_files[0]).schema_arrow.names == ["text"]
     manifest = json.loads(result.manifest_path.read_text())
@@ -145,9 +139,7 @@ def test_null_source_text_is_rejected_without_completed_chunk(
     assert not list((tmp_path / "build" / "release" / "data").glob("*.parquet"))
 
 
-def test_question_answer_boundary_has_zero_inserted_bytes(
-    tmp_path: Path, blocklist: Path
-) -> None:
+def test_question_answer_boundary_has_zero_inserted_bytes(tmp_path: Path, blocklist: Path) -> None:
     rows = {
         "lean_docs": [{"id": "l0", "text": "lean"}],
         "feedback_training": [{"uuid": "f0", "question": "Q\n", "answer": " A"}],
