@@ -2,14 +2,14 @@
 
 > **Task ID:** SFT2B
 > **Status:** waiting_user
-> **Owner/session:** Codex `/root` — 2026-08-30 SFT2B session
+> **Owner/session:** Codex `/root` — 2026-08-30 8xA100 vLLM continuation
 > **Last updated:** 2026-08-30
 > **Dependencies:** REPR `goal_v1.0`; source-quality audit and frozen consistency/voting prompts
-> **Next gate:** obtain one A100-80GB or H100-80GB placement for the pinned ReForm-32B one-source
-> command, measure it, and get an explicit compute/model decision before any matched 500-source run
-> **Compute class:** model inference GPU plus Lean CPU; 32B pilot likely needs A100/H100
+> **Next gate:** ingest and verify the still-missing frozen 500-source pilot manifest, then run its
+> 2,000 ReForm-32B source/slot requests on DP=4/TP=2 under the user's explicit authorization
+> **Compute class:** eight A100-SXM4-80GB GPUs for bounded vLLM inference plus Lean CPU
 > **Lean budget:** compile each novel formalization candidate once through persistent cached workers
-> **Local staging root:** `/storage/milikic/leanfaith/value_first/sft2_autoformalizer_v1/`
+> **Local staging root:** `/scratch/milikic/data/leanfaith/value_first/sft2_autoformalizer_v1/`
 > **HF destination:** private `Lemmy00/leanfaith-sft2-autoformalizer-v1`
 
 ## Objective and scale
@@ -377,3 +377,51 @@ Do not launch 50K sources without the pilot and user compute/model approval.
   machine should fetch this branch first, then consume the private Hub subset at the exact revision
   recorded above. The Hub `repro/workspace/` snapshot is a fallback transfer artifact, not a reason
   to overwrite a newer checked-out branch blindly.
+- 2026-08-30 — resumed SFT2B on the authorized eight-A100 machine. Fetched and checked out
+  `origin/milikic/sft2b-autoformalizer-setup` exactly at
+  `b5aad18b4f818bb2a45731fdc675b3c3490d226e` with a clean worktree. Downloaded private Hub revision
+  `878b3cab22883c732f05a5c30a9119d143e62489`, verified every `release/SHA256SUMS` entry, matched
+  release-manifest SHA-256 `418d7cbad60dc1783ce1b68b91111876a7155d20f4fdae811068223d0011cef0`
+  and the frozen release ID, then loaded all 10 configurations at counts 1/2/2/4/4/9/3/1/4/1.
+  All four REPR pins and every derived live-file identity replayed before model work. The prior
+  `/storage` mount is absent; per user direction all new durable data uses `/scratch/milikic/data`.
+  The host exposes eight idle A100-SXM4-80GB GPUs with NV12 connectivity, 1.04 TB available RAM,
+  and 1.75 TB free scratch. The existing machine-wide exclusive GPU reservation is now held by
+  SFT2B at `/scratch/milikic/data/leanfaith/value_first/host_reservations/sft2b.json`; it covers all
+  eight enumerated GPUs. No model download, load, generation, Lean call, or judging call had run at
+  this boundary.
+- 2026-08-30 — completed the authorized ReForm-32B GPU gate and bounded probe, then stopped all
+  model processes and released the host reservation. The exact 65,540,277,627-byte BF16 snapshot
+  at revision `80e9d9d83998d8c118c512bd6a35d1cdf11b57c8` replayed all 26 pinned file identities and
+  snapshot binding `8dfcd12699d8a3730d1776dc6969e96ebe678d29ccaa43754e0deea3cd90773a`.
+  vLLM 0.12.0 first served DP=1/TP=2 on GPUs 0--1 with max model length 4,312 and max one sequence.
+  The one-source/slot-0 gate produced one strict-extractor candidate from 1,048 completion tokens in
+  25,447 ms (40.96 output tokens/s, 120 ms TTFT), and its immediate replay returned the identical
+  candidate and raw-response/output hashes with one cache hit and zero model calls. Gate root:
+  `/scratch/milikic/data/leanfaith/value_first/sft2_autoformalizer_v1/generation/vllm/sft2b_reform_32b_smoke_dp1_tp2_v1/sft2b_vllm_run:98a241c8b0cc244a51faec3f736e2351aaf8e2e0cc3428158420a4c1f6681736`;
+  initial-summary SHA-256 `1b6610d9f7623474aff716c45d5c7ea19d8151586e0f4519bbf54cef79813918`.
+- 2026-08-30 — the all-GPU topology was DP=4/TP=2 on GPUs 0--7, max model length 4,317,
+  `--max-num-seqs 16`, 0.9 GPU-memory utilization, and prefix caching disabled. Eight distinct
+  source/slot requests (two sources times four frozen seeds) returned 6,198 completion tokens in
+  32,503 ms: 190.69 aggregate output tokens/s, 0.246 requests/s, 147--213 ms TTFT, and
+  8,661--32,433 ms per request. Every GPU reached 97--99% utilization; peak memory was 75,318 MiB
+  on GPUs 0--1 and 74,680--74,683 MiB on GPUs 2--7. Queue depth stayed zero, minimum available host
+  RAM was 1,009,946,214,400 bytes, and no request, server, or telemetry failure occurred. The frozen
+  extractor admitted three candidates and isolated five outputs as `formalizer_output_contract`
+  invalid; no invalid output became semantic `false`. Replay produced eight cache hits, zero model
+  calls, and identical raw hashes in 108 ms. Probe root:
+  `/scratch/milikic/data/leanfaith/value_first/sft2_autoformalizer_v1/generation/vllm/sft2b_reform_32b_probe_dp4_tp2_c8_v1/sft2b_vllm_run:12983be27261ab9d403711ae13270b05b8587cd499bf38eb56bafd2f1108adca`;
+  initial-summary SHA-256 `845996c0f2829169e041c87c3f59bbeec19253a203cabbbfd7cdce5a40f08726`.
+  At the measured 774.75-token mean, a four-slot 500-source ReForm run projects to about 2.26 GPU
+  wall-clock hours (2,000 requests); this eight-request sample is too small for a cost commitment.
+  No matched 500-source run, Lean compilation, judge call, 50K generation, publication, or training
+  was launched. All GPUs were verified idle at 4--7 MiB before handoff.
+- 2026-08-30 — user explicitly authorized completing the matched 500-source ReForm-32B generation
+  before final publication/handoff. A local, private-Hub, and Git-remote search found no frozen
+  500-source input on this machine: Hub revision
+  `878b3cab22883c732f05a5c30a9119d143e62489` still contains exactly the two previously verified
+  sources, and all eight of their frozen source/slot cells are terminal. The original-machine agent
+  was therefore asked to publish an additive, checksum-bound 500-row `SourceRecord` manifest plus
+  exact per-source prompt-token counts. No model server was restarted and no decoding seed/source
+  contract was invented while that required input is absent. The vLLM implementation and bounded
+  evidence are being pushed now so the source-freeze agent can target the live interface.
