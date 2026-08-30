@@ -1,0 +1,25 @@
+schema_version: cpt1_v1.0
+output_root: /storage/milikic/leanfaith/value_first/cpt1_v1/full
+cache_dir: /storage/milikic/datasets
+blocklist_path: /localhome/milikic/LeanFaith/data/benchmarks/golden_blocklist_v1.json
+destination_repo: Lemmy00/leanfaith-cpt1-v1
+rows_per_shard: 25000
+compression: zstd
+feedback_test_excluded_rows: 623741
+sources:
+  - name: lean_docs
+    repo_id: formalmathatepfl/lean-docs
+    revision: 6a72670c529d8d10e44c1bfaa1344a554d363bdf
+    config: default
+    split: train
+    recipe: text
+    native_id_column: id
+    expected_rows: 469585
+  - name: feedback_training
+    repo_id: formalmathatepfl/feedback_data_training
+    revision: fe93f36522a470ad26ba15cb0cde396d585ac862
+    config: default
+    split: train
+    recipe: question_answer
+    native_id_column: uuid
+    expected_rows: 2763895
