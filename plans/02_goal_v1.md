@@ -1,12 +1,12 @@
 # REPR — shared `goal_v1.0` theorem representation
 
 > **Task ID:** REPR
-> **Status:** active
+> **Status:** complete
 > **Owner/session:** Codex REPR session (2026-08-30)
-> **Last updated:** 2026-08-30 (independent-review repair)
+> **Last updated:** 2026-08-30 (reviewed freeze)
 > **Dependencies:** none
-> **Next gate:** close the independent-review blockers, rerun the bounded gates, and commit every
-> REPR-owned implementation/spec/test path before freezing
+> **Next gate:** downstream manifests pin spec hash and implementation revision; retain raw/context
+> sidecars and report metrics by `goal_v1_source`
 > **Compute class:** CPU; bounded Lean oracle/renderer tests only
 > **Lean budget:** reuse loaded environments and candidate compilation; no corpus-wide rendering compile
 > **Local staging root:** `/storage/milikic/leanfaith/value_first/goal_v1_0/`
@@ -18,7 +18,7 @@ Own the one canonical model-facing theorem representation so SFT1, SFT2A, SFT2B,
 build incompatible renderers. Freeze `goal_v1.0`, its provenance flag, and the separate raw
 compilation context. This is an enabling task, not a corpus-generation task.
 
-## Target representation decision
+## Frozen representation decision
 
 `goal_v1.0` contains ordered local variables, hypotheses, typeclass/universe locals, and exactly
 one `⊢ target`. It removes declaration name/kind, attributes, command shell, imports, options,
@@ -82,7 +82,7 @@ environment; never recompile theorem proofs or run one Lean process per theorem.
 renderer during compilation already required for each candidate. Cache by raw/type hash plus
 project/toolchain/options and renderer version.
 
-## Active repair plan
+## Completed repair plan
 
 1. Finish all safe string parsing, schema validation, source filtering, hashing, and fixtures before
    invoking Lean.
@@ -164,6 +164,45 @@ post-repair spec and committed code revision.
   synchronous elaboration; the reservation was released. Raw Lean responses used pytest's isolated
   temporary directory and were not promoted as release artifacts.
 
+## Replacement freeze record and evidence
+
+- **Frozen identity:** `goal_v1.0`, renderer `goal_v1.0`, canonical spec hash
+  `2fc5b69c0534449d4ffeca0f47fddec38042fff90de374b3bda81d4f25dd23d8`. The hash independently
+  recomputes over canonical JSON for the YAML/Python-identical `spec` subtree. The reviewed
+  implementation revision is `b871900e5177bbda38471f98cc46818bb6502b0d`; the config additionally
+  pins the Lean renderer SHA-256
+  `8a2626489d65c7424f039f673fe5910adeb07d833580f5a6870cbf8e19434809` and Python module SHA-256
+  `a3ef37d6d10713abca85d61802841fd4c8026798b6ed8d0b77793eebe4c0ed90`.
+- **Semantic and width regressions:** the elaborated renderer uses `forallTelescope`, not its
+  reducing variant, and the final `Format.pretty` call has width 1,000,000. The live fixtures assert
+  exact preservation of `p : Prop\nhp : p\n⊢ ¬¬p` and assert that a local line longer than 120
+  characters remains one physical line.
+- **Applied compilation context and loaded constants:** imports, raw preamble, sorted structured
+  options, opens, scoped opens, and nested namespaces are emitted before inline candidates. The live
+  structured-context theorem depends on the namespace/open/scope contract. `lookup_only=True`
+  rendered the already-imported `lf_add_comm` without redeclaration while its exact compilable source
+  and project/import/options context remained in the sidecar. Helper payloads report `ConstantInfo`
+  kind, and Python accepts only theorem constants.
+- **One-example cross-path smoke:** surface and elaborated paths agreed exactly on
+  `x y : ℕ\nh : x < y\n⊢ x ≤ y`; cold and replay request hashes both equaled
+  `147f755a4bcb9c998ea2aa5904957f654e528f97f003ad508e3a206d81c068eb`. Cold rendering was 1,437 ms
+  and the cached replay 22 ms.
+- **Bounded pilots:** one loaded environment rendered 10/10 elaborated fixtures in 41 ms, including
+  reducible negation, long width, structured context, and imported lookup. Surface mode rendered six
+  of those ten: four exact agreements, two spelling disagreements, and four deliberate fail-closed
+  outcomes. The separate six-source surface pilot rendered 4/6 in 1 ms; Mathlib and CSLib remained
+  the two expected anonymous-instance failures. The full owned live gate used 1.92 s wall time and
+  118,740 KiB peak RSS. No corpus was compiled.
+- **Pinned ConsistencyCheck qualification:** this is a derived bounded fixture, not a copied dataset
+  goal. At revision `1c6a6cca0f87b48d4cccb49946d3b8fc57a1eef9`, the 859-row source file hashes to
+  `81cf6d9988625d84efbd8e1d6a0af4c234b2206da8350ee1d8bf547e612b1d47`; the selected row's
+  `formal_statement` hashes to `bf963db06cfe1d75498daba3defa86a95bf720d225b21f57f496b82c027c1ddc`.
+  The fixture reflows that field and adds `sorry` after its existing trailing `:= by`; its expected
+  text is LeanFaith's surface rendering, not the upstream `goal` field.
+- **Verification and cleanup:** scoped ruff, formatting, strict mypy, source-hash assertions, 22
+  owned unit tests, the one live integration gate, and the repository task-plan pre-commit hook pass.
+  No training data, external model call, durable staging artifact, or active host reservation remains.
+
 ## Frozen risks and downstream handoff
 
 - Surface mode is safe only for a trusted, complete name-free signature. Raw declaration extraction
@@ -179,10 +218,15 @@ post-repair spec and committed code revision.
 - The typed/alpha fingerprint remains an optional pass-through hook. `goal_v1.0` does not compute or
   require one, and it never alpha-normalizes the model text.
 - Downstream code imports the task-owned module directly, constructs a complete `CompileContext`,
-  batches `ElaboratedInput` values through its already-loaded backend, copies only `sidecar.core_text()`
-  into pair rows, and persists `sidecar.to_dict()` with raw compilable source. Manifests pin the spec
-  hash above. There is intentionally no goal-to-source inverse; candidate workflows retain and
-  compile their original declaration before rendering.
+  batches `ElaboratedInput` values through its already-loaded backend, and sets `lookup_only=True`
+  when the named theorem is already imported. It copies only `sidecar.core_text()` into pair rows and
+  persists `sidecar.to_dict()` with raw compilable source. Manifests pin the replacement spec hash and
+  implementation revision above. There is intentionally no goal-to-source inverse; candidate
+  workflows retain and compile their original declaration before rendering.
+- A mixed inline batch may return `LeanStatus.INVALID` after some constants rendered successfully.
+  Only payload-backed sidecars survive and carry `batch_had_lean_errors`; missing declarations are
+  explicit failures. Use batch size one for untrusted inline candidates when per-candidate status is
+  required. Infrastructure failures and disallowed `VALID_WITH_SORRY` results fail the batch.
 
 ## Session kickoff prompt
 
@@ -234,3 +278,7 @@ Do not generate training data. Record the spec hash, evidence, risks, and downst
   resource-claimed live gate passed the exact cross-path smoke, ten-row elaborated pilot, and
   six-source surface pilot in one loaded environment. The reservation was released; the task remains
   `active` until the REPR files are committed and the committed freeze record is written.
+- 2026-08-30 — committed every REPR implementation/spec/test path at
+  `b871900e5177bbda38471f98cc46818bb6502b0d`, then wrote the replacement freeze record and marked
+  REPR `complete`. No training data was generated; downstream consumers may pin the replacement spec
+  hash and reviewed implementation revision while retaining raw/context sidecars.
