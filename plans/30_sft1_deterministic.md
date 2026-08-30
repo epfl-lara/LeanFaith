@@ -2,33 +2,37 @@
 
 > **Task ID:** SFT1
 > **Status:** active
-> **Owner/session:** Codex `/root` — 2026-08-30 SFT1 Wave 1 admission/readiness session
+> **Owner/session:** Codex `/root` — 2026-08-30 SFT1 readiness revision 0.3.3 session
 > **Last updated:** 2026-08-30
-> **Active policy:** approved revision 0.3.1 at commit
-> `343ea0885e24a5ea062034559b7e4df33db408b6`, with a fail-closed task-owned Wave 1
-> admission/readiness overlay revision 0.3.2 (distinct from the frozen REPR six-goal artifact
-> `v0.3.1`)
-> **Approval recorded:** on 2026-08-30 the user explicitly adopted Section 8 of the GPT Pro review
-> for exact six-operation Wave 1 gate admission and the N31 `required_domain_guard` dimension.
-> This authorizes task-owned implementation and, only after all readiness prerequisites, the
-> two-row smoke, selected-wave conformance, and approximately-100-roots-per-operation gate.
-> Production admission, model-facing row emission, 10K, bulk generation, training, publication,
-> and all row-count commitments remain unauthorized. The current freeze permits zero production
-> negatives.
+> **Active policy:** additive task-owned effective-readiness revision 0.3.3 over frozen checkpoint
+> `dae99b3bd04d765a7a2011e10129589951dcb3c2`. Revision 0.3.2 remains an immutable, incomplete,
+> fail-closed admission/readiness snapshot; revision 0.3.3 does not rewrite it, its hashes or
+> receipts, or the complete 46-operation registry.
+> **Approval recorded:** on 2026-08-30 the user authorized preparation and commitment of revision
+> 0.3.3 only in task-owned SFT1 paths. The earlier exact Wave 1 gate admission remains recorded, but
+> this revision authorizes only Lean-free policy, loader, invariant, formatting, and plan work.
+> Lean, transform and gate execution, row generation, Wave 2 implementation or admission,
+> production admission, 10K, scale, publication, and all row-count commitments remain
+> unauthorized. The current freeze permits zero production negatives.
 > **Dependencies:** approved REPR freeze `176a783842c5a73b84413dfa8347670608b615d9`
 > and authoritative SFT1 receipt
 > `f62b68ebc946469952bdd34674c127e2bd1146b0a8febbe5d199fea54a081e78`
-> are pinned below. The additive shared-contract clarification and zero-Lean census remain global
-> prerequisites. Concrete dispatch/checker/anchor/bank/fixture resolutions and operation-specific
-> regressions are required only for operations selected into the current wave; unselected
-> operations remain fail-closed without blocking that wave.
+> are pinned below. The additive shared-contract clarification remains a coordinator prerequisite.
+> Census readiness is now tiered: an exact-root micro-census precedes the two-row smoke, a
+> selected-wave sampling-frame census precedes the approximately-100-root gate, and the complete
+> cross-source census precedes any 10K, production-count, scale, or publication decision. Concrete
+> dispatch/checker/anchor/bank/fixture resolutions and operation-specific regressions are required
+> for the five primary Wave 1 IDs. The optional N31 N-PROOF binding is required only for a
+> proof-eligible project/root cell; its absence cannot block the wave. Unselected operations remain
+> fail-closed without blocking it.
 > **REPR predecessor:** `cbc933c3623d81ba649a1f9c5107ad404389d69f` was reviewed but is
 > superseded and not consumable by SFT1
-> **Next gate:** complete the shared-contract, zero-Lean census/source-proof-availability, N31
-> closed-checker implementation, and six-operation hash-binding prerequisites; the exact admission
-> and clean-checkout replay are recorded, but do not begin Lean or transform execution before every
-> remaining readiness blocker is satisfied
-> **Compute class:** zero Lean for current policy/census work; the completed representation gate used
+> **Next gate:** none is executable in this revision. Before the future two-row smoke, complete the
+> coordinator shared-contract update, root-specific hash-bound micro-censuses for the exact P01 and
+> N31-RUBRIC smoke roots, the five primary Wave 1 implementation/binding bundles, and the closed
+> N31 rubric checker. N31 N-PROOF availability is optional per project/root and cannot block
+> N31-RUBRIC or the smoke.
+> **Compute class:** zero Lean for current policy/loader work; the completed representation gate used
 > one bounded persistent project/toolchain Meta worker at a time
 > **Lean budget:** no per-row process spawn; every retained gate row receives bounded typed Meta
 > validation and evidence replay in persistent workers; further Lean remains readiness-closed until
@@ -45,32 +49,53 @@ admission, F1 certificate, label, or row. The successful cases prove that no for
 survived those twelve rendered endpoints. They were not live adversarial rejection probes that
 injected both forbidden strings.
 
-Policy revision 0.3.1 separates five authorities that may not imply one another:
+Revision 0.3.3 preserves and makes executable in a Lean-free effective-state loader the five
+authorities that may not imply one another:
 
 | Authority/state | Exact meaning | Current state |
 | --- | --- | --- |
-| user-authorized bounded implementation scope | exact task-owned implementation of the selected operations is permitted now; this authority does not imply implementation readiness or permission to execute a gate | true for the six selected operation IDs only |
-| implementation readiness | global dependencies plus complete resolved dispatch/checker/anchor/bank/fixture bindings and regressions for every operation selected into the current wave | false/pending |
+| user-authorized bounded implementation scope | the earlier approval permits exact task-owned implementation of the selected operations in a separately authorized implementation session; it does not imply readiness or gate execution | preserved for the six selected operation IDs; this policy-only revision does not start implementation |
+| implementation readiness | global dependencies plus complete resolved dispatch/checker/anchor/bank/fixture bindings and regressions for the five primary Wave 1 IDs; an N31 N-PROOF binding is conditional on a proof-eligible project/root cell | false/pending |
 | gate admission | one explicit user decision naming the wave, operations, eligible projects, and negative family/dimension admissions that may run the bounded smoke/conformance/approximately-100-root gates after readiness | true for exactly the six selected IDs and N31 `required_domain_guard`; execution remains blocked |
 | production admission | a post-measurement user promotion of exact operations, versions, projects, caps, and negative dimensions from proof-of-concept or implementation-candidate status to production-eligible | false for every operation; zero production negatives |
 | row emission and scale authorization | separate permission to emit model-facing pilot rows and, later, to scale or publish them | false; no 10K, bulk, publication, or count commitment |
 
-Approved Wave 1 is exactly `P01_ALPHA_RENAME_SINGLE_V1`, `P15_SWAP_IFF_SIDES_V1`,
+Gate-admitted Wave 1 is exactly `P01_ALPHA_RENAME_SINGLE_V1`, `P15_SWAP_IFF_SIDES_V1`,
 `P18_SYMMETRIZE_EQUALITY_V1`, `P21_BETA_REDUCE_V1`,
 `N31_DROP_REQUIRED_GUARD_RUBRIC_V1`, and `N31_DROP_REQUIRED_GUARD_PROOF_V1`, each across its four
-registered eligible projects. Its bounded matrix is 24 operation-project combinations, 48
-success/rejection fixtures, and approximately 600 roots. Only these six operations need resolved
-execution bindings for Wave 1 readiness; the other 40 remain fail-closed and do not block it.
+registered projects. These are six exact operation IDs but only five semantic mechanisms: the
+N31 N-RUBRIC and N-PROOF IDs are two evidence lanes for the same guard-removal mutation. The five
+primary operation IDs contribute 20 operation/project combinations and 40 success/rejection fixtures.
+N31 N-PROOF adds one cell and two fixtures only for each project with a reproducible proof route,
+so the effective matrix is dynamically 20--24 combinations and 40--48 fixtures. The independent
+measurement target is approximately 500 roots across five semantic-mechanism pools; N-PROOF is an
+optional evidence pass over the parent N31 pool and adds no independent roots. The five primary
+current-wave IDs need resolved execution bindings; the optional proof binding is required only for
+proof-eligible cells. The other 40 registry entries remain fail-closed and do not block the wave.
 
 The former all-registry gate would cost 156 operation-project combinations, 312 success/rejection
 fixtures, and approximately 4,600 roots. Those numbers are an explicit cost estimate, not a gate
 requirement or row commitment. Passing the Wave 1 approximately-100-root gate permits only a
 measured report and later promotion/10K decisions; it does not authorize model-facing row emission.
 
+Revision 0.3.3 distinguishes four source-policy dimensions from execution authority. Under the
+existing owner authorization for pinned `formalmathatepfl/*` inputs and the pinned Apache-2.0
+license evidence for CSLib, Mathlib, and Physlib, all four sources are eligible for internal gates
+and an internal pilot. That source eligibility does not complete the relevant census, admit a root,
+authorize a gate, authorize 10K, or authorize publication. Redistribution review remains incomplete
+and publication eligibility remains false for every source until attribution, notice, dataset-card,
+release-manifest, and other applicable release checks are recorded.
+
+The GPT Pro Wave 2 recommendation is recorded only as `proposed_not_admitted`: P14, P16, P22, P23,
+P24, P28, P32-COMM, P33, P35, P40, P42, N25-RUBRIC/PROOF, N26-RUBRIC/PROOF, N30-RUBRIC, and
+N32-RUBRIC. These 17 exact IDs represent 15 proposed semantic mechanisms. This record grants no
+family/dimension admission, implementation, execution, production, row, 10K, scale, or publication
+authority and does not modify the 46-operation registry.
+
 ## Objective and scale contract
 
 Build a diverse SFT1 F1 corpus whose labels arise from exact row-local evidence plus admission of
-the exact registered operation. Policy revision 0.3.1 makes no row-count commitment.
+the exact registered operation. Revision 0.3.3 makes no row-count commitment.
 
 A 2–3M retained-pair range is a planning band to test against the zero-Lean census and later
 measured pilots. It is neither a minimum, a promise, nor permission to generate rows. The arithmetic
@@ -80,11 +105,15 @@ target, 10K pilot, bulk run, stretch target, or publication requires a later exp
 The older plan shorthand “5M pairs” names only that unapproved stretch scenario; it is not an
 active target or frozen row commitment in policy revision 0.3.1.
 
-Before any row commitment, perform a zero-Lean census over pinned source metadata/files and publish
-a source-eligibility matrix. It must report raw theorem/lemma counts, license/revision eligibility,
-exact and near-duplicate clusters, source/domain/signature strata, exact import-context availability,
-and the expected closed-Expr construction route. No target may be manufactured by multiplying a
-root guess by a quota.
+Before the two-row smoke, perform only a root-specific, hash-bound, zero-Lean micro-census for each
+selected smoke root. Before the approximately-100-root gate, complete the selected-wave
+sampling-frame census. Before any 10K authorization request, production row-count or multi-million
+feasibility decision, scale, or publication decision, complete the cross-source census over pinned
+source metadata/files and
+publish the full source-eligibility matrix. The complete tier reports raw theorem/lemma counts,
+license/revision and release state, exact and near-duplicate clusters, source/domain/signature
+strata, exact import-context availability, and the expected closed-Expr construction route. No
+target may be manufactured by multiplying a root guess by a quota.
 
 ## Representation and source-to-Expr contract
 
@@ -248,6 +277,17 @@ Generic `D0`, failed proof search, F2 direction, and abstract separators are non
 Every retained sidecar records candidate truth evidence as exactly `proved`, `refuted`, or
 `unknown`; that field is separate from the F1 label and cannot select a lane or create a label.
 
+N-PROOF is optional per source, project, and root. Its eligibility is exactly parent N-RUBRIC
+applicability plus an available exact source proof plus replayed exact candidate refutation.
+Missing or unknown proof evidence yields `not_in_scope_for_n_proof`; it is not a parent-operation,
+wave, or rubric failure. The proof pass uses the already-selected parent mutation root pool and may
+not create a separate sampling stratum, diversity quota, or core pair. It is a sidecar evidence
+upgrade of that pair. Every upgraded pair counts against the N-PROOF cap and against the parent
+semantic-mutation cap, whose denominator is the natural model-facing retained semantic-pair
+population after duplicate/conflict screening and before training-orientation swapping. The parent
+cap counts unique parent pair IDs including the proof-upgraded subset; parent and proof counts are
+not added together when evaluating the parent cap. Synthetic-track denominators remain separate.
+
 ### Negative-operation promotion contract
 
 The current freeze permits **zero production negatives**. An N-RUBRIC or N-PROOF operation moves
@@ -336,18 +376,19 @@ mechanism superclass; schema/lemma/procedure anchor hash; orientation; typed app
 restrictions; transparency; logic regime; allowed axiom profile; inverse token; exact cap; heartbeat,
 soft, and hard time budgets; eligible projects; success and adversarial-rejection fixtures;
 claim-erasure guards where applicable; candidate-truth default; exact-delta requirement; and an
-operation-local admission object. Gate and production admission are separate. In this checked-in
-proposal, the six proposed Wave 1 operations are `pending_gate_admission`; the other 40 are
-`not_selected` and fail-closed. Production admission, executability, and label/row emission remain
-false for all 46. This replaces the former 46 individually pending operation decisions with one
-exact Wave 1 decision.
+operation-local admission object. Gate and production admission are separate. The frozen base
+registry retains its historical six `pending_gate_admission` entries and 40 `not_selected` entries;
+revision 0.3.3's typed effective-state loader composes that immutable snapshot with the exact Wave 1
+admission receipt instead of rewriting the registry. The resulting effective state gate-admits only
+the six Wave 1 IDs. Production admission, executability, and label/row emission remain false for all
+46.
 
 Nine exact family-and-rubric-dimension records bind every N-RUBRIC operation and its N-PROOF
-sibling, including the two separate N28 synthetic dimensions. Only the N31 required-domain-guard
-record is selected for proposed Wave 1 and awaits that same Wave 1 gate-admission decision; the
-other eight are `not_selected`. All nine production admissions remain false. Neither an operation
-gate admission nor a family disposition can substitute for the matching family/dimension gate and
-later production decisions.
+sibling, including the two separate N28 synthetic dimensions. The frozen base record preserves the
+N31 required-domain-guard proposal; the additive receipt records its exact Wave 1 gate admission.
+The other eight remain `not_selected`, and all nine production admissions remain false. Neither an
+operation gate admission nor a family disposition can substitute for the matching family/dimension
+gate and later production decisions.
 
 The design-frozen
 [`starter_banks_v0_3_0.yaml`](../configs/transformations/sft1_value_first_v1/starter_banks_v0_3_0.yaml)
@@ -526,8 +567,16 @@ weakened. Attempt 008 remains preserved as superseded v0.3.0 evidence, not the a
 
 ### Zero-Lean census
 
-Before any row commitment or one-example gate, complete the census and source-eligibility matrix
-without invoking Lean. Census absence cannot be filled by a guessed target.
+Use three separate zero-Lean tiers. Before the two-row smoke, each exact root receives a
+root-specific, hash-bound micro-census covering pinned source/revision, source-policy eligibility,
+root identity, reproducible project/toolchain/import/options context, closed-Expr route, root
+blocklist, exact duplicates in the smoke pool, typed operation applicability, and the minimum stable
+eligible-root hash in that pool. Before the approximately-100-root gate, complete a selected-wave
+sampling-frame census with candidate pools, deterministic-prefix sufficiency, exact/near-duplicate
+clusters, source/domain/signature strata, proof-route coverage, and applicability denominators. The
+complete cross-source census remains mandatory before any 10K request, production-count,
+multi-million feasibility claim, scale, or publication decision, but it does not block the smoke,
+selected-wave conformance, or approximately-100-root measurement.
 
 ### One-positive/one-negative end-to-end smoke
 
@@ -540,35 +589,41 @@ row is appended. Replay 100% of both certificates in the same persistent Meta ar
 for the next gate. These are bounded gate artifacts, not authorization to emit a training split.
 
 The smoke bindings are exact: the positive uses `P01_ALPHA_RENAME_SINGLE_V1`; the negative uses
-`N31_DROP_REQUIRED_GUARD_RUBRIC_V1`. After the zero-Lean census is complete, each root is selected
-seedlessly as the minimum stable eligible-root hash for its bound smoke operation. Counts alone or a
-convenient hand-picked fixture cannot substitute for these bindings.
+`N31_DROP_REQUIRED_GUARD_RUBRIC_V1`. After each operation's root-specific micro-census is complete,
+its root is selected seedlessly as the minimum stable eligible-root hash in that hash-bound smoke
+pool. Counts alone or a convenient hand-picked fixture cannot substitute for these bindings.
 
 The REPR/six-goal dependency is satisfied, but this smoke must not start until the additive shared
-label contract is merged and pinned, the zero-Lean census completes, the selected Wave 1 bindings
-and fixtures resolve, and the closed N31 checker plus eligible source-proof routes are hash-bound.
+label contract is merged and pinned, both root-specific micro-censuses pass, the five primary Wave 1
+bindings and fixtures resolve, and the closed N31 rubric checker is hash-bound. No N31 source-proof
+route is required for the rubric smoke; proof availability cannot block it.
 
 ### Selected-wave operation conformance matrix
 
 Only after the two-example end-to-end smoke passes, require one successful candidate and one live
-adversarial rejection with the expected terminal reason for every selected operation-project
-combination. Approved Wave 1 has six operations across four registered projects: 24 combinations
-and 48 fixtures. Every dropped receipt remains subject to coherent terminal-axis validation,
-evidence-class/F1 direction, and N-PROOF proof-field discipline. Zero yield is not silently waived;
-a census-backed incompatibility requires a policy revision or removal from the wave. Unselected
-operations remain fail-closed and do not participate.
+adversarial rejection with the expected terminal reason for every primary operation-project cell.
+Wave 1 has five primary IDs across four registered projects: 20 base combinations and 40 fixtures.
+N31 N-PROOF contributes a conformance cell only in each proof-eligible project, so the exact matrix
+is 20--24 combinations and 40--48 fixtures. Missing proof coverage is reported as coverage and is
+not a failed fixture. Every dropped receipt remains subject to coherent terminal-axis validation,
+evidence-class/F1 direction, and N-PROOF proof-field discipline. Zero primary-operation yield is not
+silently waived; a census-backed incompatibility requires a policy revision or removal from the
+wave. Unselected operations remain fail-closed and do not participate.
 
 For comparison only, the former all-46 matrix would be 156 operation-project combinations and 312
 fixtures. It is not a prerequisite for Wave 1.
 
-### Approximately 100 eligible roots per selected-wave operation
+### Approximately 100 eligible roots per selected-wave semantic mechanism
 
-Only after the selected-wave conformance matrix passes, evaluate approximately 100 eligible roots
-per selected operation, again with 100% retained-row typed validation and replay. Wave 1 therefore
-plans approximately 600 roots; the all-46 design would have required approximately 4,600. Report
-applicability, pre-validation sampling, successes/rejections, terminal and representation failure
-classes, cache behavior, Lean-seconds, sidecar bytes, RSS, source/polarity yield, candidate-truth
-distribution, shortcut/residue diagnostics, and deterministic resume/replay.
+Only after the selected-wave conformance matrix and selected-wave sampling-frame census pass,
+evaluate approximately 100 eligible roots per semantic mechanism, again with 100% retained-row
+typed validation and replay. Wave 1 therefore plans approximately 500 independent roots across P01,
+P15, P18, P21 beta reduction, and N31 guard removal. N31 N-PROOF is attempted only as an optional
+evidence pass on that same N31 parent pool wherever exact proof evidence exists; it creates no sixth
+root pool. The all-46 design would have required approximately 4,600 roots. Report applicability,
+pre-validation sampling, successes/rejections, terminal and representation failure classes, cache
+behavior, Lean-seconds, sidecar bytes, RSS, source/polarity yield, proof-route coverage,
+candidate-truth distribution, shortcut/residue diagnostics, and deterministic resume/replay.
 
 ### Later 10K decision
 
@@ -596,13 +651,26 @@ The 10K pilot, any bulk scale, publication, and all row/root-count commitments a
 
 ## Acceptance criteria for this revision
 
-- Revision 0.2.0 remains unapproved, revision 0.3.0 is superseded as policy, and policy revision
-  0.3.1 is not gate- or production-approved. The bounded implementation envelope is authorized,
-  while Wave 1 gate admission remains the exact pending user decision. The completed REPR gate is
-  dependency evidence, not approval of any operation.
-- The exact 46-operation registry and 30-entry frozen design bank load through a strict typed loader,
-  reject unknown/duplicate/drifting fields and hashes, and cannot execute or emit labels. Only
-  current-wave operations block current-wave readiness; unselected operations fail closed.
+- Revision 0.3.2, every pre-existing hash and receipt, and the exact 46-operation registry remain
+  byte-for-byte frozen. Revision 0.3.3 is an additive policy/effective-state overlay only.
+- The strict Lean-free loader composes the immutable base registry, Wave 1 admission receipt, source
+  authorization, and 0.3.3 overlay; rejects unknown, duplicate, contradictory, or hash-drifting
+  state; and exposes no execution, transformation, or row-emission surface.
+- Effective Wave 1 contains six exact IDs but five semantic mechanisms. Its conformance accounting
+  is 20--24 project cells and 40--48 fixtures; its independent measurement target is approximately
+  500 roots. Optional N31 N-PROOF cells and evidence are derived only from reproducible proof routes
+  over the parent N31 root pool.
+- The root-specific micro-census precedes the two-row smoke, the selected-wave sampling-frame census
+  precedes the approximately-100-root gate, and the complete cross-source census precedes any 10K,
+  production-count or multi-million feasibility claim, scale, or publication decision.
+- Internal-gate, pilot, redistribution-review, and publication source eligibility are separate from
+  each other and from gate or scale authorization. Existing owner/Apache evidence supports the
+  first two; redistribution review and publication eligibility remain false.
+- N31 N-PROOF is optional per source/project/root, cannot block N31 N-RUBRIC, and counts as a nested
+  evidence upgrade under both its own cap and the parent semantic-mutation cap without additive
+  core-pair volume.
+- The exact 17-ID/15-mechanism GPT Pro Wave 2 list is recorded only as
+  `proposed_not_admitted`; every implementation, admission, execution, and emission flag is false.
 - The reviewed `cbc933…` predecessor is explicitly non-consumable; the approved `176a783…` freeze
   and all supplied identities are exact typed-loader dependencies. SFT1 coverage is frozen as
   `sft1_repr_six_real_goal_direct_expr_v0_3_1` / `f62b68e…`, passed 6/6 and 12/12 endpoints.
@@ -612,11 +680,12 @@ The 10K pilot, any bulk scale, publication, and all row/root-count commitments a
   N-PROOF proof-field invariants; `[anonymous]` and `⋯` map respectively to
   `anonymous_binder_name` and `forbidden_rendered_placeholder`.
 - Every P-LEMMA/P-REFLECT entry carries all claim-erasure guards.
-- The zero-Lean census, source routes, exact grammar, axiom profiles, cache keys, deterministic cap
-  order, source/polarity balancing, scale arithmetic, and gates are invariant-tested.
+- The tiered zero-Lean census, source routes, exact grammar, axiom profiles, cache keys,
+  deterministic cap order, source/polarity balancing, cap denominator, scale arithmetic, and gates
+  are invariant-tested.
 - The six-goal run used bounded persistent project environments and produced only representation
-  evidence. No registered-transform implementation, transform one-example, training-row generation,
-  10K run, scale, publication, or frozen/shared artifact mutation is authorized by its receipt.
+  evidence. This revision runs no Lean, transform, census-scale job, gate, or generation and grants
+  no production, 10K, scale, publication, or frozen/shared-artifact mutation authority.
 
 ## Writable paths and ownership
 
@@ -627,7 +696,8 @@ The 10K pilot, any bulk scale, publication, and all row/root-count commitments a
 Shared plans, REPR, existing transform/Meta engines, project/dependency config, historical outputs,
 frozen manifests, and user work are read-only. Changes there require a coordinator request.
 
-**Exact paths claimed by this session:**
+**Cumulative SFT1 task-owned and historical paths:** the list below records prior SFT1 ownership;
+it does not grant this revision permission to rewrite frozen evidence.
 
 - `plans/30_sft1_deterministic.md`
 - `configs/transformations/sft1_value_first_v1/PROPOSED_TRANSFORM_AUDIT.md`
@@ -664,10 +734,17 @@ frozen manifests, and user work are read-only. Changes there require a coordinat
 - `src/leanfaith/sft1/n31_guard_policy.py`
 - `tests/unit/sft1/test_n31_guard_policy.py`
 
-The new revision-0.3.2 paths are claimed only for the exact admission receipt, clean-checkout
-evidence, zero-Lean source census, and fail-closed N31 checker policy. They do not yet implement or
-execute a registered transform and cannot generate training rows. No shared contract, REPR file,
-shared TransformEngine, historical artifact, user-work path, or frozen track is claimed.
+**Exact paths claimed by the revision-0.3.3 session:**
+
+- `plans/30_sft1_deterministic.md`
+- `configs/transformations/sft1_value_first_v1/wave1_effective_readiness_v0_3_3.yaml`
+- `src/leanfaith/sft1/effective_readiness.py`
+- `tests/unit/sft1/test_effective_readiness.py`
+
+The revision-0.3.3 paths are claimed only for the additive readiness overlay, its strict Lean-free
+effective-state loader, and invariant tests. The revision-0.3.2 paths remain frozen evidence. No
+shared contract, REPR file, shared TransformEngine, historical artifact, user-work path, or frozen
+track is claimed, and no claimed path implements or executes a transform or generates rows.
 
 ## Coordinator requests
 
@@ -685,7 +762,7 @@ shared TransformEngine, historical artifact, user-work path, or frozen track is 
    `proved|refuted|unknown` separate from the label.
 
 Neither request authorizes this session to edit the coordinator-owned path. Policy revision 0.3.1
-leaves `plans/00_shared_contracts.md` untouched.
+and additive readiness revision 0.3.3 leave `plans/00_shared_contracts.md` untouched.
 
 ## Closed REPR dependency and remaining pre-Wave-1-smoke blockers
 
@@ -707,13 +784,14 @@ leaves `plans/00_shared_contracts.md` untouched.
   commit `343ea088…` passed 127/127 focused tests plus the Git-local attempt-009 replay and the
   dedicated no-`/storage`-read check. This resolves admission and clean-checkout evidence, not
   implementation readiness;
-- **still open before the Wave 1 smoke:** the additive shared label contract; exact Wave 1 dispatch
-  and certificate-checker bindings; concrete binder/empty-domain checker results; Wave 1 resolved
-  anchors, applicability-bank implementations, and adversarial fixtures; completion of the
-  zero-Lean census/source-eligibility matrix; per-project source-proof routes for every project
-  retaining N31 N-PROOF; and the concrete closed N31 target-head/nonredundancy checker. The current
-  census design records all four N31 source-proof routes as unknown, so all are ineligible. P23 is
-  not in Wave 1 and therefore its future regression does not block Wave 1; and
+- **still open before the Wave 1 smoke:** the additive shared label contract; exact dispatch and
+  certificate-checker bindings for the five primary Wave 1 IDs; concrete binder/empty-domain
+  checker results; their resolved anchors, applicability-bank implementations, and adversarial
+  fixtures; root-specific hash-bound micro-censuses for the exact P01 and N31-RUBRIC roots; and the
+  concrete closed N31 target-head/nonredundancy checker. The immutable 0.3.2 snapshot still records
+  all four N31 proof routes as unknown, but revision 0.3.3 interprets that only as
+  `not_in_scope_for_n_proof`: it cannot block the N31-RUBRIC smoke, its parent operation, or another
+  project. P23 is not in Wave 1 and therefore its future regression does not block Wave 1; and
 - **not acceptable as substitutes:** the passed representation receipt for any semantic certificate,
   operation admission, transform success, or production row.
 
@@ -737,14 +815,22 @@ approved wording is hash-bound in `wave1_gate_admission_v0_3_2.yaml` and reprodu
 >
 > **The N31 admissions are proof-of-concept gate admissions only. This approval does not grant production admission to any operation, model-facing row emission, a 10K pilot, bulk generation, training, publication, or any source-root or row-count commitment. Passing any bounded gate does not promote an operation or authorize rows. Any production eligibility requires a separate exact post-report user decision naming the operation versions, projects, family/dimension, lane, hashes, axiom profile, measured receipt, and cap; any 10K pilot requires another separate approval.**
 
-This records bounded Wave 1 gate admission only. It does not make implementation ready, permit
-Lean/transform execution before the named prerequisites, admit any operation to production, or
-authorize a model-facing row. No further user decision is needed now; coordinator and technical
-readiness work must finish first. After the wave gates, separately request exact
-operation-production promotions supported by the measured receipt. Only after those promotions
-are recorded may the project request exactly:
+The user subsequently authorized only preparation and commitment of additive readiness revision
+0.3.3 from checkpoint `dae99b3bd04d765a7a2011e10129589951dcb3c2`. The exact authorization is
+stored in the 0.3.3 overlay under SHA-256
+`fc0c951ebaf1c43c47c9582e0f6c8ca0769b40c1d6af0613d59556278d111e56`. It permits the Lean-free
+policy/loader/test changes described here, preserves the earlier bounded Wave 1 admission, and does
+not start implementation or execution, admit Wave 2, or grant any production or scale authority.
 
-> Approve only the measured 10K SFT1 pilot described in the completed one-positive/one-negative smoke, selected-wave conformance, and approximately-100-roots-per-operation report; do not approve bulk generation, scale, publication, or any production root or pair-count commitment.
+This remains bounded Wave 1 gate admission only. It does not make implementation ready, permit
+Lean/transform execution before the named prerequisites, admit any operation to production, or
+authorize a model-facing row. This session stops after the Lean-free revision 0.3.3 commit. A later
+instruction may resume the already bounded task-owned Wave 1 implementation scope; gate execution
+still cannot begin until readiness is true. After the wave gates, separately request exact
+operation-production promotions supported by the measured receipt. Only after those promotions and
+the complete cross-source census are recorded may the project request exactly:
+
+> Approve only the measured 10K SFT1 pilot described in the completed one-positive/one-negative smoke, selected-wave conformance, and approximately-100-roots-per-semantic-mechanism report and the completed cross-source census; do not approve bulk generation, scale, publication, or any production root or pair-count commitment.
 
 ## Session kickoff prompt
 
@@ -862,3 +948,23 @@ work. End with the exact user decision needed.
   representation, admission, census, N31, and plan tests passed; Ruff, formatting, strict Mypy,
   live loader/hash replay, and whitespace checks passed. No Lean/lake, transform execution, row
   generation, 10K, scale, training, publication, or coordinator-owned edit occurred.
+- 2026-08-30 — user authorized additive readiness revision 0.3.3 from frozen checkpoint
+  `dae99b3…`, limited to task-owned Lean-free policy, effective-loader, invariant, formatting, and
+  plan work. The revision preserves 0.3.2 and every frozen hash/receipt; records six Wave 1 IDs as
+  five semantic mechanisms; replaces the full-census smoke blocker with a hash-bound root
+  micro-census; requires the selected-wave census before approximately 100 roots and the complete
+  cross-source census before any 10K/count/scale/publication decision; makes N31 N-PROOF optional
+  and nested under its parent root pool and cap; separates internal/pilot/release/publication source
+  states; and records the 17-ID GPT Pro Wave 2 list only as `proposed_not_admitted`. No Lean,
+  transform or gate execution, census-scale processing, row generation, Wave 2 implementation,
+  production admission, 10K, scale, publication, or shared-contract edit was authorized or run.
+- 2026-08-30 — completed the additive revision-0.3.3 overlay and strict effective-state loader under
+  raw/typed-semantic hashes `5673d2ee…` / `1b323508…`. The focused new suite passed 92/92 and the
+  combined Lean-free SFT1 loader/invariant plus plan suite passed 345/345; the four plan tests,
+  Ruff check/format, strict Mypy, live loader replay, frozen-input hash checks, and whitespace checks
+  passed. The loaded state preserves exactly 46 registry entries, six Wave 1 IDs/five semantic
+  mechanisms, current dynamic accounting of 20 cells/40 fixtures/approximately 500 independent
+  roots, zero production operations or negatives, and Wave 2 `proposed_not_admitted`. Only the
+  brief and three new revision-0.3.3 paths changed. No Lean/lake, transform or gate execution,
+  census-scale processing, row generation, production admission, 10K, scale, publication, push, or
+  coordinator-owned edit occurred.
