@@ -1,12 +1,13 @@
 # SFT2B — autoformalization consistency data
 
 > **Task ID:** SFT2B
-> **Status:** active
-> **Owner/session:** Codex `/root` — 2026-08-30 matched-500 source-freeze session
+> **Status:** pilot_ready
+> **Owner/session:** Codex `/root` — 2026-08-30 matched-500 source-freeze complete
 > **Last updated:** 2026-08-30
 > **Dependencies:** REPR `goal_v1.0`; source-quality audit and frozen consistency/voting prompts
-> **Next gate:** publish and fresh-download verify the frozen matched 500-source pilot input; the
-> separate 8xA100 agent may then run the already-authorized 2,000 ReForm-32B generations
+> **Next gate:** the separate 8xA100 agent consumes Hub revision
+> `08aa352a1e6c80f7c98f63070f0351ad39f8a272` and runs the already-authorized 2,000
+> ReForm-32B generations at DP=4/TP=2
 > **Compute class:** source-freeze work is Lean/GPU-free; downstream inference uses eight
 > A100-SXM4-80GB GPUs at DP=4/TP=2
 > **Lean budget:** compile each novel formalization candidate once through persistent cached workers
@@ -463,3 +464,25 @@ Do not launch 50K sources without the pilot and user compute/model approval.
   generation session. Claimed the existing SFT2B paths only, set status `active`, and recorded the
   executable source-freeze subplan above before catalog work. This session will run no ReForm, Lean,
   judges, output publication, or training; all unrelated EVAL2 work remains untouched.
+- 2026-08-30 — completed the authorized, Lean/GPU-free matched-500 source freeze. The deterministic
+  audit examined 577 Mathlib docstring records, all 33,027 pinned Numina train rows, and all 25,214
+  pinned Lean-Workbook rows; it replayed source-use-v2, the exact 301-candidate/50-reference
+  DATA-REUSE receipt and consumed-bundle hash, source file/card/license hashes, strict contexts,
+  stable IDs, global deduplication, and canonical golden exact/near/problem screens. ConsistencyCheck
+  remained evaluation-only, ShadowBench remained reference-free/test-only, and selected overlap
+  counts were all zero. The exact mix is 175 library docstrings, 175 theorem problems, 100 broader
+  public/synthetic rows, and 50 specialist/high-difficulty rows. Exact ReForm-32B tokenization found
+  967 maximum prompt tokens, so the smallest safe `max_model_len` is 5,063 with 4,096 completion
+  tokens. Task-owned verification passed 24 unit tests, Ruff, format check, and strict mypy; no
+  ReForm, Lean, judge, generated-output publication, or training action ran.
+- 2026-08-30 — pushed the source-freeze builder on branch
+  `milikic/sft2b-autoformalizer-setup` at commit
+  `bb49f980dbe5234efc34d4aefc2b007730b6c642`, preserving the concurrently added eight-GPU vLLM
+  backend. Published exactly four additive input files under
+  `pilot_inputs/reform_matched_500_v1/` in private dataset
+  `Lemmy00/leanfaith-sft2-autoformalizer-v1` at immutable revision
+  `08aa352a1e6c80f7c98f63070f0351ad39f8a272`; the prior revision
+  `878b3cab22883c732f05a5c30a9119d143e62489` remains unchanged. A pre-upload clean-directory
+  replay and a second fresh download from the immutable Hub revision both revalidated all 500
+  SourceRecords, every prompt hash/token count, the source manifest, and all checksums. Status is
+  `pilot_ready` for the already-authorized 2,000-request DP=4/TP=2 ReForm-32B generation.
