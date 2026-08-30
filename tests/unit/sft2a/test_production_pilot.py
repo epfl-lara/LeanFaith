@@ -448,3 +448,85 @@ def test_authorization_transition_uses_fresh_root_and_stops_before_tmux(
     assert hash_file(loaded.repo_root / activation.plan.target_readiness_config_path) == (
         "fefdc00a8e694974fe75a64295a78122ac5f5083d036c99d3a1fbb3d90c58473"
     )
+
+
+def test_recovery_authorization_preserves_failed_evidence_and_stops_before_tmux(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    loaded = load_sft2a_config(Path("configs/sft2a/production_pilot_v1.yaml"))
+    activation = load_pilot_activation(
+        loaded,
+        Path("configs/sft2a/pilot_recovery_activation_production_v4.yaml"),
+    )
+    identity = {
+        "implementation_commit": "a" * 40,
+        "implementation_tree": "b" * 40,
+    }
+    artifacts = build_authorized_activation(
+        activation,
+        authorization_sentence=activation.expected_authorization_sentence,
+        implementation=identity,
+    )
+    assert artifacts.authorization_receipt["authorized"] is True
+    assert artifacts.authorization_receipt["catalog_corrections_sha256"] == (
+        "6a562f4b9e397ede3b8096ba1ce3d59bee977ee6dd66a0dac8133ce67f3f54b6"
+    )
+    assert artifacts.readiness.config_id == (
+        "leanfaith_sft2a_production_defaults_pilot_recovery_v4"
+    )
+    assert artifacts.tmux_session == "leanfaith-sft2a-production-pilot-recovery-v4"
+    authorized = LoadedPilotReadiness(
+        config=artifacts.readiness,
+        path=tmp_path / "pilot_recovery_readiness_production_v4.yaml",
+        config_hash=artifacts.readiness_hash,
+        repo_root=loaded.repo_root,
+        authorization=artifacts.authorization_receipt,
+        historical_seal=activation.source_readiness.historical_seal,
+        exact_settings_smoke=activation.source_readiness.exact_settings_smoke,
+    )
+    require_pilot_authorization(authorized)
+
+    temporary = _temporary_production(tmp_path)
+    real_failed = (
+        Path(loaded.config.staging_root)
+        / artifacts.readiness.failed_pilot_recovery_source.failed_output_subdir
+    )
+    fake_failed = (
+        Path(temporary.config.staging_root)
+        / artifacts.readiness.failed_pilot_recovery_source.failed_output_subdir
+    )
+    frozen = {}
+    for relative in (
+        "sample.jsonl",
+        "sample_manifest.json",
+        "provider_budget_journal.jsonl",
+        "detached/terminal_status.json",
+    ):
+        source = real_failed / relative
+        frozen[relative] = hash_file(source)
+        target = fake_failed / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(source.read_bytes())
+    monkeypatch.setattr("leanfaith.sft2a.detached._tmux_session_exists", lambda _name: False)
+    preflight = preflight_detached_launch(
+        temporary,
+        authorized,
+        resume=False,
+        implementation=identity,
+    )
+    output = Path(temporary.config.staging_root) / artifacts.readiness.sample_output_subdir
+    assert preflight["sample_sha256"] == (
+        "52edf04e5cfddefcd6626dfcb0ee0785f4a0f1e9dbd4cfd0851407e6134ccea4"
+    )
+    assert preflight["boundary"] == "tmux_start_not_executed"
+    assert preflight["provider_calls_executed"] == 0
+    assert preflight["lean_requests_executed"] == 0
+    assert preflight["tmux_sessions_started"] == 0
+    budget = PersistentProviderBudget(
+        output / "provider_budget_journal.jsonl",
+        artifacts.readiness.ceilings,
+    ).snapshot()
+    assert budget["unique_provider_calls"] == 73
+    assert budget["reported_opus_spend_usd"] == pytest.approx(0.754154)
+    assert {relative: hash_file(real_failed / relative) for relative in frozen} == frozen

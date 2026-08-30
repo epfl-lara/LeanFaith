@@ -229,7 +229,11 @@ def load_pilot_readiness(
             config.source_authorization_receipt.sha256,
         )
         if (
-            activation_plan.get("activation_id") != "leanfaith_sft2a_production_pilot_activation_v2"
+            activation_plan.get("activation_id")
+            not in {
+                "leanfaith_sft2a_production_pilot_activation_v2",
+                "leanfaith_sft2a_production_pilot_recovery_activation_v4",
+            }
             or activation_plan.get("pilot_launch_currently_authorized") is not False
             or config.source_readiness_config_hash
             != activation_plan.get("source_readiness_config_hash")

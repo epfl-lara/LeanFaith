@@ -360,7 +360,10 @@ class AuthorizedRecoveryProductionPilotReadinessConfig(RecoveryProductionPilotRe
 
 class PilotActivationPlan(StrictModel):
     schema_version: Literal[1]
-    activation_id: Literal["leanfaith_sft2a_production_pilot_activation_v2"]
+    activation_id: Literal[
+        "leanfaith_sft2a_production_pilot_activation_v2",
+        "leanfaith_sft2a_production_pilot_recovery_activation_v4",
+    ]
     status: Literal["awaiting_exact_authorization"]
     task_id: Literal["SFT2A"]
     production_config: ArtifactBinding

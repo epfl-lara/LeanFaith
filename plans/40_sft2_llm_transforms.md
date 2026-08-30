@@ -375,6 +375,9 @@ recorded budget/model decision.
   `6a562f4b9e397ede3b8096ba1ce3d59bee977ee6dd66a0dac8133ce67f3f54b6`, and seeds the recovery
   ledger byte-for-byte from failed-run ledger
   `b5b661ec4828f6616a9e4379d1ca7dcbd9f01100a7c7a23bb5dbd4bbff1ca8e9` so restart cannot reset
-  the 296-call or $15 ceilings. The original authorization was bound to the old sample, so recovery
-  launch remains fail-closed pending a new exact user sentence. Legacy rejudging, publication, and
-  50K remain unauthorized.
+  the 296-call or $15 ceilings. Its staged readiness sample is bound to clean implementation
+  `71319fa`; a versioned v4 activation targets fresh output
+  `runs/diverse_root_production_defaults_pilot_recovery_v4` and tmux session
+  `leanfaith-sft2a-production-pilot-recovery-v4`. The original authorization was bound to the old
+  sample, so recovery launch remains fail-closed pending a new exact user sentence. Legacy
+  rejudging, publication, and 50K remain unauthorized.
