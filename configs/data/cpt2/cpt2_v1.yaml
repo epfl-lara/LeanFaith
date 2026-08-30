@@ -1,0 +1,44 @@
+schema_version: cpt2_config_v1
+source:
+  repo_id: formalmathatepfl/compiler_data
+  contract_revision: ca37d4701b11022f183e72b7b96ff543a8a615d3
+  # Pilots and scale use the same user-confirmed immutable source commit.
+  pilot_revision_override: ca37d4701b11022f183e72b7b96ff543a8a615d3
+  parquet_path: answer_data.parquet
+  parquet_sha256: c45145de5b681efd5aa265fdc90b9dc68d542321dd931d139cdead693360a81a
+  expected_rows: 4361579
+  expected_valid_true: 2021215
+  expected_valid_false: 2340364
+splitter:
+  candidates:
+    - raw_reverse_v1
+    - masked_reverse_v1
+    - declaration_aware_v3
+  minimum_exact_boundary_agreement: 0.99
+  minimum_eligible_coverage: 0.98
+  raw_priority_if_qualified: true
+pilot:
+  cheap_sample_rows: 10000
+  source_row_groups: 8
+  oracle_rows_maximum: 500
+  oracle_milestones: [1, 100, 500]
+  lean_workers: 1
+  lean_memory_hard_limit_mb: 24576
+scale:
+  output_root: /storage/milikic/leanfaith/value_first/cpt2_v1/scale_full_v1
+  selected_method: declaration_aware_v3
+  workers: 2
+  compression: zstd
+  row_groups_per_release_shard: 8
+  validation_rows: 10000
+  validation_true: 5000
+  validation_false: 5000
+  validation_salt: cpt2-validation-v1
+  lean_rows: 0
+output:
+  core_fields: [theorem, body, label]
+  staging_root: /storage/milikic/leanfaith/value_first/cpt2_v1/
+  hf_destination: Lemmy00/leanfaith-cpt2-proof-validity-v1
+  publish_private: true
+training:
+  enabled: false
