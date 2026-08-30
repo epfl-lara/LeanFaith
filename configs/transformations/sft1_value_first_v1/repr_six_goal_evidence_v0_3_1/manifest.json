@@ -1,0 +1,82 @@
+{
+  "schema_version": 1,
+  "bundle_id": "sft1_repr_six_real_goal_direct_expr_attempt_009_v0_3_1",
+  "gate_id": "sft1_repr_six_real_goal_direct_expr_v0_3_1",
+  "source_attempt_id": "attempt_009",
+  "source_evidence_directory": "/storage/milikic/leanfaith/value_first/sft1_deterministic_v1/repr_six_goal/attempt_009/evidence",
+  "receipt_path": "configs/transformations/sft1_value_first_v1/repr_six_goal_gate_receipt_v0_3_1.json",
+  "receipt_file_sha256": "ebd400b4a7b05daa933b1abaaacc378d1a7b9ae68f9159ac03453cd6081406a8",
+  "receipt_hash": "f62b68ebc946469952bdd34674c127e2bd1146b0a8febbe5d199fea54a081e78",
+  "execution_config_file_sha256": "82f22c08082e26424e1a55627b707d341e7fa84f72348cfed0b007b0526505ff",
+  "execution_config_hash": "dfc7037ee8d5a340b82b237fa14ef1f3d9c2752bf64e91d34846d9570fac5747",
+  "helper_file_sha256": "c87b9c5065a41f51e7cbdcdcc98f14fedc6a015054c40a0cfe4367ad63330129",
+  "helper_preamble_sha256": "bd0e3ef6b5e5c50bf07b31771e2a2ca0da131323d10d8571994bdd24a922981a",
+  "successful_case_evidence_claim": "no_forbidden_rendered_residue_survived",
+  "live_adversarial_rejection_probes_per_forbidden_string": false,
+  "forbidden_rendered_substring_failure_classes": {
+    "[anonymous]": "anonymous_binder_name",
+    "⋯": "forbidden_rendered_placeholder"
+  },
+  "cases": [
+    {
+      "ordinal": 1,
+      "case_id": "mathlib_add_pow",
+      "bundle_file": "01_mathlib_add_pow.json",
+      "bundle_file_sha256": "c999fe73078a754f174f7f465d3c829f1944f3b637a31904f2c16dc0723cf4a5",
+      "canonical_evidence_sha256": "7c1e7da001d79b73513cab0dd2df5ea4787d0d40ed530b8c2be92b6cdaa18ea6",
+      "request_hash": "deaf22c5232e8795b32732b13e42b4fa5aaa25735f6a012e8249b808e1e81d3f",
+      "elapsed_ms": 4955
+    },
+    {
+      "ordinal": 2,
+      "case_id": "physlib_kinetic_energy_conserved",
+      "bundle_file": "02_physlib_kinetic_energy_conserved.json",
+      "bundle_file_sha256": "34f9edda91b1fbc27203da752daceb14d8085f289ba0aa5861f5cfbf3fe2dc28",
+      "canonical_evidence_sha256": "b87fda1aff26bbdf3f7a28119d4c92ada8dd973f2683bb6ec6225e6a3e521cad",
+      "request_hash": "c51ff8c22ebb84991a92cf91a7e93a419b7d7f5de52b26c9c65a6a8fd6c8c4e2",
+      "elapsed_ms": 8403
+    },
+    {
+      "ordinal": 3,
+      "case_id": "cslib_ret_merge",
+      "bundle_file": "03_cslib_ret_merge.json",
+      "bundle_file_sha256": "0428f61e02a4430e17099357b7e01a2d9ad3e14f6082d0344e6689595c584cec",
+      "canonical_evidence_sha256": "a56ef04bbc1449df2350376b4cadfc6395b614baf59493954370401bf1454de5",
+      "request_hash": "afdc847233eea88474e2924933ef620d036c387499d300184def14f0c1a35ac9",
+      "elapsed_ms": 2482
+    },
+    {
+      "ordinal": 4,
+      "case_id": "lean_compiler_int_lt",
+      "bundle_file": "04_lean_compiler_int_lt.json",
+      "bundle_file_sha256": "099e6a752b190150d510ef00437d5591d0078ce90d2a85f15cbca188351e1585",
+      "canonical_evidence_sha256": "5d6fa5a4dedf8a361ec30278d9dade1a8d32e94701e470da5bbc014a7336a1cc",
+      "request_hash": "612adb100406dfea520793275ae48da0d26932e4fec8bf7bb1ceb35c0e90f563",
+      "elapsed_ms": 1435
+    },
+    {
+      "ordinal": 5,
+      "case_id": "canonical_gold_aime_1983_p1",
+      "bundle_file": "05_canonical_gold_aime_1983_p1.json",
+      "bundle_file_sha256": "362702eb299e7633429ac7ae78ea940b4d84bec5f2b7dc14be06536ef7fd0469",
+      "canonical_evidence_sha256": "a909fd9a2a555aba1d59d8b8507017a509c577317a40b0b60a6747384d6ad2d3",
+      "request_hash": "a0469ef021d42e31a04a43b0dbaacf3ac24d4bb4d11463539e2a407cc0aea9e9",
+      "elapsed_ms": 4054
+    },
+    {
+      "ordinal": 6,
+      "case_id": "consistency_check_amc12a_2019_p21",
+      "bundle_file": "06_consistency_check_amc12a_2019_p21.json",
+      "bundle_file_sha256": "e6ca2c1ea398f162ce184e121f7e03af6b0366af7861f338dea6c981bb8828bd",
+      "canonical_evidence_sha256": "cd0c5a536257e9b3c3e23c5d3e0fa24d37dbd9b5b26a9deeed37c67dc1a69fd8",
+      "request_hash": "696ed2775323ce88782deda5c67ff39b83bddc3722e9f4d8fd49f01461141693",
+      "elapsed_ms": 217
+    }
+  ],
+  "totals": {
+    "case_count": 6,
+    "endpoint_count": 12,
+    "elapsed_ms": 21546,
+    "complete_sidecar_bytes": 119895
+  }
+}

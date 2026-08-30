@@ -1,0 +1,260 @@
+schema_version: 1
+gate_id: sft1_repr_six_real_goal_direct_expr_v0_3_1
+status: passed
+purpose: >-
+  Bounded pre-gate proving that six real source propositions and their
+  structurally alpha-renamed candidates serialize through the approved REPR
+  closed-Expr route without declarations, proofs, or text round trips.
+
+authorization:
+  repr_dependency_integration: true
+  six_real_goal_gate: true
+  one_example_gate: false
+  hundred_root_gate: false
+  ten_k_pilot: false
+  row_generation: false
+  bulk_scale: false
+  publication: false
+
+repr_binding:
+  implementation_commit: 93cd9cf9d4848827f2bacad57a35c3d7f01500f7
+  freeze_commit: 176a783842c5a73b84413dfa8347670608b615d9
+  spec_hash: 68d893a2c566bf3f6a82c899a32a351f9a5420f5ea98168c99b887aaa01a45a8
+  config_sha256: a65d5b29760bbc5eb89405927f946f205eb99856c0538fdf5b57d3f9eceb0db7
+  lean_renderer_sha256: 4471262f812746046570c51dde5958ee33db31a450a6974071efce584ba56bc3
+  injected_helper_sha256: a6650452eebe683db295df1dfe925d3db8b03fc24e55cbc6793e838b5fe2f272
+  python_sha256: 496237e190c394e9bd3c3036e2bc01c635905116c5084787a42e6cb569f45517
+  implementation_set_hash: 9a9252fff5ffc69cb65e71120fedffa83ed47271aecadbecf0ceb890feea65ff
+  renderer_semantic_hash: 0bec5429cc0e539841208be53cd52189a7b80cbdb4649ee2d45b84bd8a5ef1fd
+  renderer_api_hash: c695ad868c98f27218e82184559d90624491df25c7805bf29861dd891787261d
+  universe_profile_id: goal_v1_first_occurrence_u_i_v1
+  universe_profile_hash: d9e729134fcd6a086a58191810a9227062c66496ebe76b8da3c458a58b31cb61
+  render_context_id: goal_v1_render_context_v1
+  render_context_hash: 5f44b6970f0902c968fc98a2659b26c1c9d0bcaef2960cd3ea73808f203f8f62
+  route_id: closed_expr_in_session
+  python_entrypoint: render_closed_expr_in_session
+  endpoint_emitter: LeanFaith.GoalV1.emitClosedProp
+  model_facing_projection: sidecar.core_text()
+
+fixed_preamble:
+  source_path: LeanFaith/Meta/SFT1/RepresentationGate.lean
+  file_sha256: c87b9c5065a41f51e7cbdcdcc98f14fedc6a015054c40a0cfe4367ad63330129
+  injected_preamble_sha256: bd0e3ef6b5e5c50bf07b31771e2a2ca0da131323d10d8571994bdd24a922981a
+  import_strip_policy: remove_lines_whose_first_token_is_import_v1
+  review_status: reviewed_for_bounded_six_goal_gate
+  review_checks:
+    - no_endpoint_declaration
+    - no_candidate_proof
+    - no_renderer_copy
+    - reference_term_elaboration_isolated_in_fixed_helper
+    - candidate_is_structural_single_binder_alpha_rename
+    - candidate_defeq_and_closed_prop_checked
+    - p23_name_mksimple_collision_regression
+
+execution_contract:
+  one_persistent_backend_per_backend_id: true
+  one_run_meta_per_pair: true
+  reference_and_candidate_alive_in_same_request: true
+  explicitly_unrolled_endpoints: true
+  emitter_calls_per_endpoint: 1
+  endpoint_count_per_pair: 2
+  endpoint_declarations_allowed: false
+  candidate_proofs_allowed: false
+  surface_candidate_rendering_allowed: false
+  candidate_text_reelaboration_allowed: false
+  goal_v1_compilation_allowed: false
+  complete_sidecars_persisted: true
+  exact_turnstile_count: 1
+  reference_candidate_render_must_differ: true
+  forbidden_render_substrings:
+    - "[anonymous]"
+    - "⋯"
+  stop_on_first_failure: true
+  cslib_time_m_scope_must_remain_closed: true
+
+receipt_binding:
+  receipt_path: configs/transformations/sft1_value_first_v1/repr_six_goal_gate_receipt_v0_3_1.json
+  receipt_file_sha256: ebd400b4a7b05daa933b1abaaacc378d1a7b9ae68f9159ac03453cd6081406a8
+  regression_id: sft1_repr_six_real_goal_direct_expr_v0_3_1
+  receipt_hash: f62b68ebc946469952bdd34674c127e2bd1146b0a8febbe5d199fea54a081e78
+  execution_config_file_sha256: 82f22c08082e26424e1a55627b707d341e7fa84f72348cfed0b007b0526505ff
+  execution_config_hash: dfc7037ee8d5a340b82b237fa14ef1f3d9c2752bf64e91d34846d9570fac5747
+  passed: true
+  repr_consistency_check_receipt_is_substitutable: false
+
+cases:
+  - case_id: mathlib_add_pow
+    ordinal: 1
+    family_id: P01
+    operation_id: P01_ALPHA_RENAME_SINGLE_V1
+    polarity: positive
+    production_admission: false
+    source_family: Mathlib
+    source_revision: d568c8c09630de097a046763c17b9ea99f95f950
+    source_path: Mathlib/Data/Nat/Choose/Sum.lean
+    backend_id: mathlib_bigoperators
+    compile_project_id: mathlib
+    compile_project_revision: d568c8c09630de097a046763c17b9ea99f95f950
+    lean_version: v4.31.0-rc1
+    import_header: import Mathlib
+    namespace_context: []
+    open_context: []
+    scoped_context: [BigOperators]
+    options: {Elab.async: false, autoImplicit: false}
+    reference:
+      mode: imported_constant
+      constant_name: add_pow
+      proposition_text: null
+      raw_statement: |-
+        theorem add_pow [CommSemiring R] (x y : R) (n : ℕ) :
+            (x + y) ^ n = ∑ m ∈ range (n + 1), x ^ m * y ^ (n - m) * n.choose m :=
+          (Commute.all x y).add_pow n
+
+  - case_id: physlib_kinetic_energy_conserved
+    ordinal: 2
+    family_id: P01
+    operation_id: P01_ALPHA_RENAME_SINGLE_V1
+    polarity: positive
+    production_admission: false
+    source_family: Physlib
+    source_revision: f5242c99d796b59a390d26cd7d1a8057e04c46b5
+    source_path: Physlib/ClassicalMechanics/FreeParticle/Basic.lean
+    backend_id: physlib_default
+    compile_project_id: physlib
+    compile_project_revision: f5242c99d796b59a390d26cd7d1a8057e04c46b5
+    lean_version: v4.30.0
+    import_header: import Physlib.ClassicalMechanics.FreeParticle.Basic
+    namespace_context: []
+    open_context: []
+    scoped_context: []
+    options: {Elab.async: false, autoImplicit: false}
+    reference:
+      mode: imported_constant
+      constant_name: ClassicalMechanics.FreeParticle.kineticEnergy_conserved
+      proposition_text: null
+      raw_statement: |-
+        @[sorryful]
+        theorem kineticEnergy_conserved (s : FreeParticle) (q : Trajectory)
+            (h : ∀ t, s.NewtonsSecondLaw q t) (hcont : ContDiff ℝ 1 q) :
+            ∃ E, ∀ t, s.kineticEnergy q t = E := by
+          sorry
+
+  - case_id: cslib_ret_merge
+    ordinal: 3
+    family_id: P01
+    operation_id: P01_ALPHA_RENAME_SINGLE_V1
+    polarity: positive
+    production_admission: false
+    source_family: CSLib
+    source_revision: 2f677bfc8ef76fa7a27feafc597c1e4a7eda3e42
+    source_path: Cslib/Algorithms/Lean/MergeSort/MergeSort.lean
+    backend_id: cslib_default
+    compile_project_id: cslib
+    compile_project_revision: 2f677bfc8ef76fa7a27feafc597c1e4a7eda3e42
+    lean_version: v4.31.0-rc1
+    import_header: import Cslib.Algorithms.Lean.MergeSort.MergeSort
+    namespace_context: []
+    open_context: []
+    scoped_context: []
+    options: {Elab.async: false, autoImplicit: false}
+    reference:
+      mode: imported_constant
+      constant_name: Cslib.Algorithms.Lean.TimeM.ret_merge
+      proposition_text: null
+      raw_statement: |-
+        @[simp, grind =]
+        theorem ret_merge (xs ys : List α) : ⟪merge xs ys⟫ = xs.merge ys := by
+          fun_induction merge with grind [nil_merge, merge_right, cons_merge_cons]
+
+  - case_id: lean_compiler_int_lt
+    ordinal: 4
+    family_id: P01
+    operation_id: P01_ALPHA_RENAME_SINGLE_V1
+    polarity: positive
+    production_admission: false
+    source_family: Lean compiler
+    source_revision: v4.31.0-rc1
+    source_path: Init/Sym/Lemmas.lean
+    backend_id: lean_compiler_default
+    compile_project_id: mathlib
+    compile_project_revision: d568c8c09630de097a046763c17b9ea99f95f950
+    lean_version: v4.31.0-rc1
+    import_header: import Init.Sym.Lemmas
+    namespace_context: []
+    open_context: []
+    scoped_context: []
+    options: {Elab.async: false, autoImplicit: false}
+    reference:
+      mode: imported_constant
+      constant_name: Lean.Sym.Int.lt_eq_true
+      proposition_text: null
+      raw_statement: |-
+        theorem Int.lt_eq_true (a b : Int) (h : decide (a < b) = true) : (a < b) = True := by
+          simp_all
+
+  - case_id: canonical_gold_aime_1983_p1
+    ordinal: 5
+    family_id: P01
+    operation_id: P01_ALPHA_RENAME_SINGLE_V1
+    polarity: positive
+    production_admission: false
+    source_family: canonical gold
+    source_revision: golden_pairs_unpartitioned_v1
+    source_path: /storage/milikic/leanfaith/golden/canonical/golden_pairs_unpartitioned_v1.jsonl
+    source_record: minif2f::aime_1983_p1/reference
+    source_file_sha256: a0c4d102a0ea4d2923cca85129c6cda054a11b1854462eed3d7e71e555b703ea
+    source_formal_statement_sha256: 8b0061199a23b47539e6f30df775109d5c6776ea1c2206f452d5a9d48240aa7e
+    backend_id: mathlib_default
+    compile_project_id: mathlib
+    compile_project_revision: d568c8c09630de097a046763c17b9ea99f95f950
+    lean_version: v4.31.0-rc1
+    import_header: import Mathlib
+    namespace_context: []
+    open_context: []
+    scoped_context: []
+    options: {Elab.async: false, autoImplicit: false}
+    reference:
+      mode: extracted_signature
+      constant_name: null
+      proposition_text: >-
+        ∀ (x y z w : ℕ) (ht : 1 < x ∧ 1 < y ∧ 1 < z) (hw : 0 ≤ w)
+        (h0 : Real.log w / Real.log x = 24)
+        (h1 : Real.log w / Real.log y = 40)
+        (h2 : Real.log w / Real.log (x * y * z) = 12),
+        Real.log w / Real.log z = 60
+      raw_statement: null
+
+  - case_id: consistency_check_amc12a_2019_p21
+    ordinal: 6
+    family_id: P01
+    operation_id: P01_ALPHA_RENAME_SINGLE_V1
+    polarity: positive
+    production_admission: false
+    source_family: ConsistencyCheck
+    source_revision: 1c6a6cca0f87b48d4cccb49946d3b8fc57a1eef9
+    source_path: GuoxinChen/ConsistencyCheck/consistency_check.jsonl
+    source_record: amc12a_2019_p21
+    source_file_sha256: 81cf6d9988625d84efbd8e1d6a0af4c234b2206da8350ee1d8bf547e612b1d47
+    source_formal_statement_sha256: bf963db06cfe1d75498daba3defa86a95bf720d225b21f57f496b82c027c1ddc
+    source_syntax_normalization_id: consistencycheck_typed_finset_sum_syntax_v1
+    source_syntax_normalization_rule: replace_legacy_typed_finset_sum_in_binder_with_membership_binder_and_typed_lower_bound_v1
+    normalized_proposition_sha256: 039397842c7fa4d5f749d424126e153230f3a24ea3113dae02c33b6354a18f0a
+    backend_id: mathlib_bigoperators
+    compile_project_id: mathlib
+    compile_project_revision: d568c8c09630de097a046763c17b9ea99f95f950
+    lean_version: v4.31.0-rc1
+    import_header: import Mathlib
+    namespace_context: []
+    open_context: []
+    scoped_context: [BigOperators]
+    options: {Elab.async: false, autoImplicit: false}
+    reference:
+      mode: extracted_signature
+      constant_name: null
+      proposition_text: >-
+        ∀ (z : ℂ) (h₀ : z = (1 + Complex.I) / Real.sqrt 2),
+        ((∑ k ∈ Finset.Icc (1 : ℤ) 12, z ^ k ^ 2) *
+        (∑ k ∈ Finset.Icc (1 : ℤ) 12, 1 / z ^ k ^ 2)) = 36
+      raw_statement: null
+
+

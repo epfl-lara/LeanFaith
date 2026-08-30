@@ -1,0 +1,54 @@
+{
+  "cases": [
+    {
+      "case_id": "mathlib_add_pow",
+      "elapsed_ms": 2775,
+      "evidence_path": "/storage/milikic/leanfaith/value_first/sft1_deterministic_v1/repr_six_goal/attempt_008/evidence/01_mathlib_add_pow.json",
+      "evidence_sha256": "be09e17b00a83c8210c2f04ed8f05d08f48b32b9106b992caf331373d82763ce",
+      "request_hash": "03f3152910bb9ef2201be9cc7999da19a223ec54d1117607b0c6858d920a6f62"
+    },
+    {
+      "case_id": "physlib_kinetic_energy_conserved",
+      "elapsed_ms": 2772,
+      "evidence_path": "/storage/milikic/leanfaith/value_first/sft1_deterministic_v1/repr_six_goal/attempt_008/evidence/02_physlib_kinetic_energy_conserved.json",
+      "evidence_sha256": "1615cc9b5d1ec05535e5d6fbb482330ba3ed00bf11cb92ac4ad6cefce1f70d16",
+      "request_hash": "c51ff8c22ebb84991a92cf91a7e93a419b7d7f5de52b26c9c65a6a8fd6c8c4e2"
+    },
+    {
+      "case_id": "cslib_ret_merge",
+      "elapsed_ms": 2015,
+      "evidence_path": "/storage/milikic/leanfaith/value_first/sft1_deterministic_v1/repr_six_goal/attempt_008/evidence/03_cslib_ret_merge.json",
+      "evidence_sha256": "e630a9918775a17154ccfcec9e5bdd03c07c31529445ea7dd3cd02e4cbcec709",
+      "request_hash": "afdc847233eea88474e2924933ef620d036c387499d300184def14f0c1a35ac9"
+    },
+    {
+      "case_id": "lean_compiler_int_lt",
+      "elapsed_ms": 137,
+      "evidence_path": "/storage/milikic/leanfaith/value_first/sft1_deterministic_v1/repr_six_goal/attempt_008/evidence/04_lean_compiler_int_lt.json",
+      "evidence_sha256": "c28199001dfef643d7bad84b31fb6083b5979fcd17a94c138b8dd52ec79c6b78",
+      "request_hash": "d49ea04699a0a61d4f7b20a531f28a6ed8ef277a32e3bc487d2a89fe2d5008aa"
+    },
+    {
+      "case_id": "canonical_gold_aime_1983_p1",
+      "elapsed_ms": 209,
+      "evidence_path": "/storage/milikic/leanfaith/value_first/sft1_deterministic_v1/repr_six_goal/attempt_008/evidence/05_canonical_gold_aime_1983_p1.json",
+      "evidence_sha256": "8b82dc70e300df71eb1d284a203b763c2d6df0576f12603fc830afd4e85b6bca",
+      "request_hash": "9d63543aefcec5cda6ea7e0618be6653d6099d6e565ed83f81fc343ae6e5c19d"
+    },
+    {
+      "case_id": "consistency_check_amc12a_2019_p21",
+      "elapsed_ms": 210,
+      "evidence_path": "/storage/milikic/leanfaith/value_first/sft1_deterministic_v1/repr_six_goal/attempt_008/evidence/06_consistency_check_amc12a_2019_p21.json",
+      "evidence_sha256": "85a01e28f897ba13133d3057f84cd3918ad6cd2106024b0fff8182886a6816c6",
+      "request_hash": "44b117351647bc219f304c6c2548ec9800a8a1076590e2c0533056b6870f7774"
+    }
+  ],
+  "gate_config_file_sha256": "761b50b8d4213d297b236502d3360d6db1f2023817b5eef18da7dd11885cd9e3",
+  "gate_config_hash": "233f64b76a24c722d79d9cd8d4df89086138e756712d5fe7e830d346cde4e33a",
+  "helper_file_sha256": "c87b9c5065a41f51e7cbdcdcc98f14fedc6a015054c40a0cfe4367ad63330129",
+  "helper_preamble_sha256": "bd0e3ef6b5e5c50bf07b31771e2a2ca0da131323d10d8571994bdd24a922981a",
+  "passed": true,
+  "receipt_hash": "7546ff3b5c0a0c2134c2581607662462ea3c19df412b61623033ac89f33544c5",
+  "regression_id": "sft1_repr_six_real_goal_direct_expr_v0_3_0",
+  "schema_version": 1
+}

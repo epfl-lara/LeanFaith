@@ -1,20 +1,74 @@
 schema_version: 1
 policy_id: sft1_value_first_composition_proposal
-policy_version: 0.3.0
-status: awaiting_user_approval
+policy_version: 0.3.1
+status: awaiting_wave_1_gate_admission
 approval_recorded: false
 
 authorization:
   policy_loader_and_invariant_tests: true
-  transform_implementation: false
-  lean_execution: false
-  one_example_gate: false
-  hundred_root_gate: false
-  ten_k_pilot: false
-  row_generation: false
-  bulk_scale: false
-  publication: false
-  row_count_commitment: false
+  repr_dependency_integration: true
+  repr_six_real_goal_gate: true
+  bounded_implementation_scope:
+    user_authorized: true
+    scope_id: sft1_selected_wave_bounded_gates_v1
+    covers_transform_implementation_after_gate_admission_and_readiness: true
+    covers_one_positive_one_negative_end_to_end_smoke: true
+    covers_selected_wave_conformance_matrix: true
+    covers_approximately_hundred_roots_per_selected_operation: true
+    current_instruction_prohibits_lean_transform_execution_and_row_generation: true
+    work_may_start_before_current_wave_gate_admission: false
+  implementation_readiness:
+    status: not_ready_fail_closed
+    ready: false
+    unresolved_prerequisite_ids:
+      - current_wave_gate_admission
+      - shared_contract_update
+      - zero_lean_root_census_and_source_eligibility
+      - selected_wave_execution_bindings
+    unselected_operations_are_readiness_blockers: false
+  gate_admission:
+    wave_id: sft1_wave_1_proposal_v1
+    status: awaiting_exact_user_gate_admission
+    proposed_operation_ids:
+      - P01_ALPHA_RENAME_SINGLE_V1
+      - P15_SWAP_IFF_SIDES_V1
+      - P18_SYMMETRIZE_EQUALITY_V1
+      - P21_BETA_REDUCE_V1
+      - N31_DROP_REQUIRED_GUARD_RUBRIC_V1
+      - N31_DROP_REQUIRED_GUARD_PROOF_V1
+    proposed_negative_family_dimension_admission_ids:
+      - n31_required_domain_guard_natural_v1
+    gate_admitted: false
+    gate_admitted_operation_ids: []
+    user_decision_record: null
+    exact_remaining_user_decision: >-
+      Approve SFT1 Wave 1 gate admission for P01_ALPHA_RENAME_SINGLE_V1,
+      P15_SWAP_IFF_SIDES_V1, P18_SYMMETRIZE_EQUALITY_V1, P21_BETA_REDUCE_V1,
+      N31_DROP_REQUIRED_GUARD_RUBRIC_V1, and N31_DROP_REQUIRED_GUARD_PROOF_V1
+      across their registered eligible projects, including gate admission of the N31
+      required_domain_guard family/dimension for those two negative operations, solely for
+      bounded implementation, the
+      one-positive/one-negative end-to-end smoke, the selected-wave conformance matrix,
+      and the approximately-100-roots-per-operation gate; do not grant production
+      admission, row emission, a 10K pilot, scale, publication, or any row-count commitment.
+    proposed_operation_project_combinations: 24
+    proposed_fixture_count: 48
+    proposed_approximate_root_count: 600
+    grants_production_admission: false
+    grants_row_emission_or_scale: false
+  production_admission:
+    status: none_admitted
+    admitted_operation_ids: []
+    admitted_negative_operation_ids: []
+    current_freeze_production_negative_count: 0
+    bounded_gate_pass_auto_grants_production_admission: false
+    exact_post_gate_user_decision_required: true
+  row_emission_and_scale:
+    row_emission: false
+    ten_k_pilot: false
+    bulk_scale: false
+    publication: false
+    row_count_commitment: false
 
 dependencies:
   repr_reviewed_predecessor:
@@ -31,19 +85,23 @@ dependencies:
     python_renderer_path: src/leanfaith/representations/goal_v1.py
     python_renderer_sha256: 09912e28687756a9cd203e6069a9f9c130259840d8309a3126fe1c8e1f333cbb
   expr_renderer_api:
-    status: coordinator_request_open
+    status: approved_freeze_sft1_six_goal_passed
     required_signature: "renderClosedProp (e : Expr) : MetaM String"
     required_namespace: LeanFaith.GoalV1
     replacement_must_be_new_coherent_freeze: true
-    replacement_commit: null
-    replacement_spec_hash: null
-    replacement_config_path: null
-    replacement_config_file_sha256: null
-    replacement_lean_renderer_path: null
-    replacement_lean_renderer_sha256: null
-    replacement_python_renderer_path: null
-    replacement_python_renderer_sha256: null
-    renderer_api_hash: null
+    implementation_commit: 93cd9cf9d4848827f2bacad57a35c3d7f01500f7
+    replacement_commit: 176a783842c5a73b84413dfa8347670608b615d9
+    replacement_spec_hash: 68d893a2c566bf3f6a82c899a32a351f9a5420f5ea98168c99b887aaa01a45a8
+    replacement_config_path: configs/representations/goal_v1_v1.yaml
+    replacement_config_file_sha256: a65d5b29760bbc5eb89405927f946f205eb99856c0538fdf5b57d3f9eceb0db7
+    replacement_lean_renderer_path: LeanFaith/Meta/GoalV1.lean
+    replacement_lean_renderer_sha256: 4471262f812746046570c51dde5958ee33db31a450a6974071efce584ba56bc3
+    replacement_injected_helper_sha256: a6650452eebe683db295df1dfe925d3db8b03fc24e55cbc6793e838b5fe2f272
+    replacement_python_renderer_path: src/leanfaith/representations/goal_v1.py
+    replacement_python_renderer_sha256: 496237e190c394e9bd3c3036e2bc01c635905116c5084787a42e6cb569f45517
+    implementation_set_hash: 9a9252fff5ffc69cb65e71120fedffa83ed47271aecadbecf0ceb890feea65ff
+    renderer_semantic_hash: 0bec5429cc0e539841208be53cd52189a7b80cbdb4649ee2d45b84bd8a5ef1fd
+    renderer_api_hash: c695ad868c98f27218e82184559d90624491df25c7805bf29861dd891787261d
     renderer_api_hash_basis: sha256_canonical_renderer_api_binding_v1
     renderer_api_hash_payload_fields:
       - replacement_commit
@@ -52,14 +110,20 @@ dependencies:
       - required_namespace
       - required_signature
     populated_renderer_api_hash_must_replay_from_payload: true
-    canonical_universe_profile_id: null
-    canonical_universe_profile_hash: null
+    route_id: closed_expr_in_session
+    python_entrypoint: render_closed_expr_in_session
+    endpoint_emitter: LeanFaith.GoalV1.emitClosedProp
+    emitter_calls_per_unrolled_endpoint: 1
+    persist_complete_sidecars: true
+    model_facing_projection: sidecar.core_text()
+    canonical_universe_profile_id: goal_v1_first_occurrence_u_i_v1
+    canonical_universe_profile_hash: d9e729134fcd6a086a58191810a9227062c66496ebe76b8da3c458a58b31cb61
     canonical_universe_profile_must_define_level_instantiation_and_naming: true
-    render_context_id: null
-    render_context_hash: null
-    real_goal_coverage_regression_id: null
-    real_goal_coverage_regression_hash: null
-    real_goal_coverage_regression_passed: false
+    render_context_id: goal_v1_render_context_v1
+    render_context_hash: 5f44b6970f0902c968fc98a2659b26c1c9d0bcaef2960cd3ea73808f203f8f62
+    real_goal_coverage_regression_id: sft1_repr_six_real_goal_direct_expr_v0_3_1
+    real_goal_coverage_regression_hash: f62b68ebc946469952bdd34674c127e2bd1146b0a8febbe5d199fea54a081e78
+    real_goal_coverage_regression_passed: true
     real_goal_coverage_uses_closed_expr_api: true
     all_required_real_goals_must_render_successfully: true
     required_real_goal_case_ids:
@@ -74,9 +138,10 @@ dependencies:
     free_variables_allowed: false
     loose_bound_variables_allowed: false
     anonymous_telescope_binder_names_allowed: false
-    anonymous_binder_rejection_scope: rendered_outer_pi_telescope
+    anonymous_binder_rejection_scope: unsupported_anonymous_outer_pi_locals
     type_inference_must_succeed_before_render: true
-    api_rejects_anonymous_telescope_binder: true
+    api_rejects_unsupported_anonymous_telescope_binder: true
+    preserves_nondependent_explicit_structural_arrows: true
     api_rejects_ill_typed_expr: true
     non_prop_allowed: false
   shared_contract_update:
@@ -88,8 +153,13 @@ representation_contract:
   reference_input: canonical_closed_expr
   candidate_input: canonical_closed_expr
   same_renderer_for_both_sides: true
-  direct_renderer_call_for_both_sides: true
+  sft1_calls_endpoint_emitter_directly_for_both_sides: true
+  sft1_calls_render_closed_prop_directly: false
+  endpoint_emitter_uses_frozen_renderer: true
   same_persistent_meta_request: true
+  meta_request_command: run_meta do
+  endpoints_explicitly_unrolled: true
+  reference_and_candidate_exprs_alive_in_request: true
   renderer_signature: "renderClosedProp (e : Expr) : MetaM String"
   candidate_theorem_declaration_allowed: false
   candidate_axiom_declaration_allowed: false
@@ -130,6 +200,51 @@ label_contract:
     inherits_parent_exact_delta_evidence: true
     inherits_parent_anti_degeneracy_checks: true
     aggregate_retained_share_maximum: 0.10
+  negative_operation_promotion:
+    applies_to_evidence_classes: [N-RUBRIC, N-PROOF]
+    initial_operation_status: proof_of_concept
+    bounded_gate_admission_requires_current_wave_user_decision: true
+    required_gate_sequence:
+      - one_positive_one_negative_end_to_end_smoke
+      - selected_wave_operation_conformance_matrix
+      - approximately_100_roots_per_selected_operation
+      - exact_post_report_production_user_decision
+    production_supporting_measured_gate: approximately_100_roots_per_selected_operation_after_smoke_and_conformance
+    required_measured_report_fields:
+      - typed_applicability_yield_and_exact_failure_classes
+      - certificate_replay_pass_rate
+      - anti_degeneracy_rejection_rate
+      - candidate_truth_proved_refuted_unknown_distribution
+      - duplicate_conflict_and_blocklist_drop_rates
+      - lean_seconds_and_sidecar_bytes_per_retained_pair
+      - source_project_family_mechanism_template_and_polarity_strata
+      - surface_residue_and_held_out_balanced_accuracy_with_confidence_bounds
+    measured_gate_pass_auto_promotes_operation: false
+    production_transition: proof_of_concept_to_implementation_candidate_plus_exact_production_admission
+    exact_production_user_decision_record_fields:
+      - operation_id
+      - operation_version
+      - eligible_project_ids
+      - family_id
+      - rubric_dimension
+      - label_lane
+      - track
+      - operation_registry_entry_hash
+      - resolved_implementation_file_sha256
+      - dispatch_symbol
+      - certificate_checker_id
+      - certificate_checker_file_sha256
+      - resolved_anchor_hash
+      - bank_or_template_resolved_hash
+      - fixture_bundle_hash_set
+      - logic_regime
+      - allowed_axiom_profile
+      - exact_cap
+      - hundred_root_gate_receipt_hash
+    n_proof_requires_parent_n_rubric_production_admission: true
+    n_proof_cap_may_not_exceed_parent_cap: true
+    current_production_eligible_negative_operation_ids: []
+    current_freeze_permits_production_negative_count: 0
   candidate_truth_evidence_values: [proved, refuted, unknown]
   candidate_truth_evidence_required_in_sidecar: true
   operation_candidate_truth_default_may_fill_missing_sidecar: false
@@ -138,70 +253,197 @@ label_contract:
   proof_success_or_failure_may_select_label_lane: false
   candidate_provability_may_create_label: false
 
+row_evidence_contract:
+  ordered_axes:
+    - reference_closed_prop_validation
+    - candidate_closed_prop_validation
+    - f0_definitional_relation
+    - f1_claim_relation_certificate
+    - candidate_truth_evidence
+    - optional_f2_direction_evidence
+    - final_retain_or_drop_disposition
+  label_derivation_axis: f1_claim_relation_certificate
+  retained_requires_reference_and_candidate_closed_prop_validation: true
+  retained_requires_f1_certificate: true
+  f0_may_create_or_override_f1_label: false
+  candidate_truth_may_create_or_override_f1_label: false
+  optional_f2_may_create_or_override_f1_label: false
+  n_rubric_candidate_truth_values: [proved, refuted, unknown]
+  n_rubric_requires_f2_direction_evidence: false
+  n_rubric_logical_nonequivalence_or_refutation_required: false
+  n_proof_requires_source_proof_and_candidate_refutation: true
+  unknown_or_uncertified_rows_enter_labeled_training_view: false
+  complete_receipt_persisted_in_sidecar: true
+
+certificate_class_contract:
+  exact_partition_of_registered_operations: true
+  operation_may_have_multiple_certificate_classes: false
+  unresolved_checker_binding_blocks_execution: true
+  bindings:
+    - evidence_class: P-DEF
+      certificate_class_id: p_def_defeq_certificate_v1
+      operation_ids:
+        - P01_ALPHA_RENAME_SINGLE_V1
+        - P02_REGROUP_BINDERS_V1
+        - P20_FOLD_SET_NONEMPTY_V1
+        - P20_UNFOLD_SET_NONEMPTY_V1
+        - P21_BETA_INTRO_V1
+        - P21_BETA_REDUCE_V1
+        - P21_ZETA_INTRO_V1
+        - P21_ZETA_REDUCE_V1
+        - P22_ETA_REDUCE_EXPLICIT_FUN_V1
+      checker_binding_required_for_gate_admitted_operation_before_one_example_gate: true
+      certificate_payload_hash_required: true
+      persistent_meta_replay_required_for_retained_row: true
+      establishes_f1_relation: true
+      candidate_truth_axis_is_separate_from_f1_label: true
+      requires_source_proof_and_candidate_refutation: false
+    - evidence_class: P-SCHEMA
+      certificate_class_id: p_schema_typed_equivalence_certificate_v1
+      operation_ids:
+        - P11_BOUNDED_FORALL_EXPAND_V1
+        - P14_SWAP_INDEPENDENT_DATA_BINDERS_V1
+        - P15_SWAP_IFF_SIDES_V1
+        - P16_REASSOC_AND_LEFT_V1
+        - P18_SYMMETRIZE_EQUALITY_V1
+        - P23_CURRY_PROP_PAIR_V1
+        - P24_SWAP_INDEPENDENT_PROP_BINDERS_V1
+        - P28_DECOMPOSE_IFF_V1
+        - P35_SET_INTER_MEMBERSHIP_V1
+        - P38_EXISTS_SUBTYPE_NONEMPTY_V1
+        - P40_EXISTS_UNIQUE_EXPAND_V1
+      checker_binding_required_for_gate_admitted_operation_before_one_example_gate: true
+      certificate_payload_hash_required: true
+      persistent_meta_replay_required_for_retained_row: true
+      establishes_f1_relation: true
+      candidate_truth_axis_is_separate_from_f1_label: true
+      requires_source_proof_and_candidate_refutation: false
+    - evidence_class: P-LEMMA
+      certificate_class_id: p_lemma_bidirectional_certificate_v1
+      operation_ids:
+        - P32_ADD_ASSOC_LOCAL_V1
+        - P32_ADD_COMM_LOCAL_V1
+        - P33_EQ_HYP_SUBSTITUTE_NONDEPENDENT_V1
+        - P34_NAT_SUCC_ADD_ONE_LOCAL_V1
+        - P36_SET_EXTENTIONALITY_V1
+        - P39_HYP_SET_INTER_REWRITE_V1
+        - P41_SUBTYPE_FORALL_GUARD_V1
+      checker_binding_required_for_gate_admitted_operation_before_one_example_gate: true
+      certificate_payload_hash_required: true
+      persistent_meta_replay_required_for_retained_row: true
+      establishes_f1_relation: true
+      candidate_truth_axis_is_separate_from_f1_label: true
+      requires_source_proof_and_candidate_refutation: false
+    - evidence_class: P-REFLECT
+      certificate_class_id: p_reflect_replay_certificate_v1
+      operation_ids: [P42_RING_POLYNOMIAL_LOCAL_V1]
+      checker_binding_required_for_gate_admitted_operation_before_one_example_gate: true
+      certificate_payload_hash_required: true
+      persistent_meta_replay_required_for_retained_row: true
+      establishes_f1_relation: true
+      candidate_truth_axis_is_separate_from_f1_label: true
+      requires_source_proof_and_candidate_refutation: false
+    - evidence_class: N-RUBRIC
+      certificate_class_id: n_rubric_exact_protected_delta_certificate_v1
+      operation_ids:
+        - N19_NEGATE_CLOSED_CLAIM_RUBRIC_V1
+        - N25_TOGGLE_EQ_NE_RUBRIC_V1
+        - N26_INCREMENT_BOUND_RUBRIC_V1
+        - N29_SWAP_WITNESS_DEPENDENCY_RUBRIC_V1
+        - N30_ADD_UNJUSTIFIED_UNIQUENESS_RUBRIC_V1
+        - N31_DROP_REQUIRED_GUARD_RUBRIC_V1
+        - N32_SWAP_ROLE_ORDER_RUBRIC_V1
+        - N28_FINITE_ARITHMETIC_RUBRIC_V1
+        - N28_FINITE_SET_RUBRIC_V1
+      checker_binding_required_for_gate_admitted_operation_before_one_example_gate: true
+      certificate_payload_hash_required: true
+      persistent_meta_replay_required_for_retained_row: true
+      establishes_f1_relation: true
+      candidate_truth_axis_is_separate_from_f1_label: true
+      requires_source_proof_and_candidate_refutation: false
+    - evidence_class: N-PROOF
+      certificate_class_id: n_proof_source_proof_candidate_refutation_certificate_v1
+      operation_ids:
+        - N19_NEGATE_CLOSED_CLAIM_PROOF_V1
+        - N25_TOGGLE_EQ_NE_PROOF_V1
+        - N26_INCREMENT_BOUND_PROOF_V1
+        - N29_SWAP_WITNESS_DEPENDENCY_PROOF_V1
+        - N30_ADD_UNJUSTIFIED_UNIQUENESS_PROOF_V1
+        - N31_DROP_REQUIRED_GUARD_PROOF_V1
+        - N32_SWAP_ROLE_ORDER_PROOF_V1
+        - N28_FINITE_ARITHMETIC_PROOF_V1
+        - N28_FINITE_SET_PROOF_V1
+      checker_binding_required_for_gate_admitted_operation_before_one_example_gate: true
+      certificate_payload_hash_required: true
+      persistent_meta_replay_required_for_retained_row: true
+      establishes_f1_relation: true
+      candidate_truth_axis_is_separate_from_f1_label: true
+      requires_source_proof_and_candidate_refutation: true
+
 negative_family_dimension_admissions:
   - admission_id: n19_negation_mistakes_natural_v1
     family_id: N19
     rubric_dimension: negation_mistakes
     track: natural
     operation_ids: [N19_NEGATE_CLOSED_CLAIM_RUBRIC_V1, N19_NEGATE_CLOSED_CLAIM_PROOF_V1]
-    status: pending_user_decision
-    approved: false
+    gate_admitted: false
+    production_admitted: false
   - admission_id: n25_negation_mistakes_natural_v1
     family_id: N25
     rubric_dimension: negation_mistakes
     track: natural
     operation_ids: [N25_TOGGLE_EQ_NE_RUBRIC_V1, N25_TOGGLE_EQ_NE_PROOF_V1]
-    status: pending_user_decision
-    approved: false
+    gate_admitted: false
+    production_admitted: false
   - admission_id: n26_edge_cases_natural_v1
     family_id: N26
     rubric_dimension: edge_cases
     track: natural
     operation_ids: [N26_INCREMENT_BOUND_RUBRIC_V1, N26_INCREMENT_BOUND_PROOF_V1]
-    status: pending_user_decision
-    approved: false
+    gate_admitted: false
+    production_admitted: false
   - admission_id: n29_witness_dependency_natural_v1
     family_id: N29
     rubric_dimension: witness_dependency
     track: natural
     operation_ids: [N29_SWAP_WITNESS_DEPENDENCY_RUBRIC_V1, N29_SWAP_WITNESS_DEPENDENCY_PROOF_V1]
-    status: pending_user_decision
-    approved: false
+    gate_admitted: false
+    production_admitted: false
   - admission_id: n30_existence_uniqueness_natural_v1
     family_id: N30
     rubric_dimension: existence_uniqueness
     track: natural
     operation_ids: [N30_ADD_UNJUSTIFIED_UNIQUENESS_RUBRIC_V1, N30_ADD_UNJUSTIFIED_UNIQUENESS_PROOF_V1]
-    status: pending_user_decision
-    approved: false
+    gate_admitted: false
+    production_admitted: false
   - admission_id: n31_required_domain_guard_natural_v1
     family_id: N31
     rubric_dimension: required_domain_guard
     track: natural
     operation_ids: [N31_DROP_REQUIRED_GUARD_RUBRIC_V1, N31_DROP_REQUIRED_GUARD_PROOF_V1]
-    status: pending_user_decision
-    approved: false
+    gate_admitted: false
+    production_admitted: false
   - admission_id: n32_converse_mistakes_natural_v1
     family_id: N32
     rubric_dimension: converse_mistakes
     track: natural
     operation_ids: [N32_SWAP_ROLE_ORDER_RUBRIC_V1, N32_SWAP_ROLE_ORDER_PROOF_V1]
-    status: pending_user_decision
-    approved: false
+    gate_admitted: false
+    production_admitted: false
   - admission_id: n28_edge_cases_synthetic_v1
     family_id: N28
     rubric_dimension: edge_cases
     track: synthetic_separate
     operation_ids: [N28_FINITE_ARITHMETIC_RUBRIC_V1, N28_FINITE_ARITHMETIC_PROOF_V1]
-    status: pending_user_decision
-    approved: false
+    gate_admitted: false
+    production_admitted: false
   - admission_id: n28_negation_mistakes_synthetic_v1
     family_id: N28
     rubric_dimension: negation_mistakes
     track: synthetic_separate
     operation_ids: [N28_FINITE_SET_RUBRIC_V1, N28_FINITE_SET_PROOF_V1]
-    status: pending_user_decision
-    approved: false
+    gate_admitted: false
+    production_admitted: false
 
 claim_erasure_guard_contract:
   required_for_evidence_classes: [P-LEMMA, P-REFLECT]
@@ -232,16 +474,375 @@ starter_banks:
 inline_anchor_resolution:
   status: pending
   design_reference_hashes_are_executable_hashes: false
-  resolved_schema_lemma_procedure_hashes_required_before_one_example_gate: true
+  resolved_hashes_required_only_for_gate_admitted_current_wave_operations: true
   resolved_manifest_hash: null
 
 adversarial_fixture_freeze:
   status: pending
   operation_fixture_ids_are_design_ids_only: true
-  per_operation_and_eligible_project_specs_required: true
+  per_gate_admitted_operation_and_eligible_project_specs_required: true
   success_and_expected_rejection_code_required: true
-  fixture_bundle_hash_required_before_one_example_gate: true
+  selected_wave_fixture_bundle_hash_required_before_conformance_gate: true
   fixture_bundle_hash: null
+
+operation_execution_bindings:
+  status: current_wave_not_admitted_fail_closed
+  current_wave_id: sft1_wave_1_proposal_v1
+  binding_requirement_scope: gate_admitted_current_wave_operations_only
+  proposed_current_wave_operation_ids:
+    - P01_ALPHA_RENAME_SINGLE_V1
+    - P15_SWAP_IFF_SIDES_V1
+    - P18_SYMMETRIZE_EQUALITY_V1
+    - P21_BETA_REDUCE_V1
+    - N31_DROP_REQUIRED_GUARD_RUBRIC_V1
+    - N31_DROP_REQUIRED_GUARD_PROOF_V1
+  gate_admitted_operation_ids: []
+  unresolved_gate_admitted_operation_ids: []
+  unselected_or_unadmitted_operation_ids:
+    - P01_ALPHA_RENAME_SINGLE_V1
+    - P02_REGROUP_BINDERS_V1
+    - P11_BOUNDED_FORALL_EXPAND_V1
+    - P14_SWAP_INDEPENDENT_DATA_BINDERS_V1
+    - P15_SWAP_IFF_SIDES_V1
+    - P16_REASSOC_AND_LEFT_V1
+    - P18_SYMMETRIZE_EQUALITY_V1
+    - P20_FOLD_SET_NONEMPTY_V1
+    - P20_UNFOLD_SET_NONEMPTY_V1
+    - P21_BETA_INTRO_V1
+    - P21_BETA_REDUCE_V1
+    - P21_ZETA_INTRO_V1
+    - P21_ZETA_REDUCE_V1
+    - P22_ETA_REDUCE_EXPLICIT_FUN_V1
+    - P23_CURRY_PROP_PAIR_V1
+    - P24_SWAP_INDEPENDENT_PROP_BINDERS_V1
+    - P28_DECOMPOSE_IFF_V1
+    - P32_ADD_ASSOC_LOCAL_V1
+    - P32_ADD_COMM_LOCAL_V1
+    - P33_EQ_HYP_SUBSTITUTE_NONDEPENDENT_V1
+    - P34_NAT_SUCC_ADD_ONE_LOCAL_V1
+    - P35_SET_INTER_MEMBERSHIP_V1
+    - P36_SET_EXTENTIONALITY_V1
+    - P38_EXISTS_SUBTYPE_NONEMPTY_V1
+    - P39_HYP_SET_INTER_REWRITE_V1
+    - P40_EXISTS_UNIQUE_EXPAND_V1
+    - P41_SUBTYPE_FORALL_GUARD_V1
+    - P42_RING_POLYNOMIAL_LOCAL_V1
+    - N19_NEGATE_CLOSED_CLAIM_RUBRIC_V1
+    - N19_NEGATE_CLOSED_CLAIM_PROOF_V1
+    - N25_TOGGLE_EQ_NE_RUBRIC_V1
+    - N25_TOGGLE_EQ_NE_PROOF_V1
+    - N26_INCREMENT_BOUND_RUBRIC_V1
+    - N26_INCREMENT_BOUND_PROOF_V1
+    - N29_SWAP_WITNESS_DEPENDENCY_RUBRIC_V1
+    - N29_SWAP_WITNESS_DEPENDENCY_PROOF_V1
+    - N30_ADD_UNJUSTIFIED_UNIQUENESS_RUBRIC_V1
+    - N30_ADD_UNJUSTIFIED_UNIQUENESS_PROOF_V1
+    - N31_DROP_REQUIRED_GUARD_RUBRIC_V1
+    - N31_DROP_REQUIRED_GUARD_PROOF_V1
+    - N32_SWAP_ROLE_ORDER_RUBRIC_V1
+    - N32_SWAP_ROLE_ORDER_PROOF_V1
+    - N28_FINITE_ARITHMETIC_RUBRIC_V1
+    - N28_FINITE_ARITHMETIC_PROOF_V1
+    - N28_FINITE_SET_RUBRIC_V1
+    - N28_FINITE_SET_PROOF_V1
+  resolved_bindings: []
+  admitted_operation_requires_exact_dispatch_and_file_hash: true
+  admitted_operation_requires_resolved_anchor_and_checker_hash: true
+  admitted_operation_requires_bank_or_template_hash: true
+  admitted_operation_every_eligible_project_requires_fixture_hashes: true
+  unselected_operations_remain_fail_closed: true
+  unselected_operations_block_current_wave_readiness: false
+  execution_prerequisites_satisfied: false
+
+binder_elaboration_profile:
+  profile_id: all_operations_full_binder_elaboration_v1
+  operation_ids:
+    - P01_ALPHA_RENAME_SINGLE_V1
+    - P02_REGROUP_BINDERS_V1
+    - P11_BOUNDED_FORALL_EXPAND_V1
+    - P14_SWAP_INDEPENDENT_DATA_BINDERS_V1
+    - P15_SWAP_IFF_SIDES_V1
+    - P16_REASSOC_AND_LEFT_V1
+    - P18_SYMMETRIZE_EQUALITY_V1
+    - P20_FOLD_SET_NONEMPTY_V1
+    - P20_UNFOLD_SET_NONEMPTY_V1
+    - P21_BETA_INTRO_V1
+    - P21_BETA_REDUCE_V1
+    - P21_ZETA_INTRO_V1
+    - P21_ZETA_REDUCE_V1
+    - P22_ETA_REDUCE_EXPLICIT_FUN_V1
+    - P23_CURRY_PROP_PAIR_V1
+    - P24_SWAP_INDEPENDENT_PROP_BINDERS_V1
+    - P28_DECOMPOSE_IFF_V1
+    - P32_ADD_ASSOC_LOCAL_V1
+    - P32_ADD_COMM_LOCAL_V1
+    - P33_EQ_HYP_SUBSTITUTE_NONDEPENDENT_V1
+    - P34_NAT_SUCC_ADD_ONE_LOCAL_V1
+    - P35_SET_INTER_MEMBERSHIP_V1
+    - P36_SET_EXTENTIONALITY_V1
+    - P38_EXISTS_SUBTYPE_NONEMPTY_V1
+    - P39_HYP_SET_INTER_REWRITE_V1
+    - P40_EXISTS_UNIQUE_EXPAND_V1
+    - P41_SUBTYPE_FORALL_GUARD_V1
+    - P42_RING_POLYNOMIAL_LOCAL_V1
+    - N19_NEGATE_CLOSED_CLAIM_RUBRIC_V1
+    - N19_NEGATE_CLOSED_CLAIM_PROOF_V1
+    - N25_TOGGLE_EQ_NE_RUBRIC_V1
+    - N25_TOGGLE_EQ_NE_PROOF_V1
+    - N26_INCREMENT_BOUND_RUBRIC_V1
+    - N26_INCREMENT_BOUND_PROOF_V1
+    - N29_SWAP_WITNESS_DEPENDENCY_RUBRIC_V1
+    - N29_SWAP_WITNESS_DEPENDENCY_PROOF_V1
+    - N30_ADD_UNJUSTIFIED_UNIQUENESS_RUBRIC_V1
+    - N30_ADD_UNJUSTIFIED_UNIQUENESS_PROOF_V1
+    - N31_DROP_REQUIRED_GUARD_RUBRIC_V1
+    - N31_DROP_REQUIRED_GUARD_PROOF_V1
+    - N32_SWAP_ROLE_ORDER_RUBRIC_V1
+    - N32_SWAP_ROLE_ORDER_PROOF_V1
+    - N28_FINITE_ARITHMETIC_RUBRIC_V1
+    - N28_FINITE_ARITHMETIC_PROOF_V1
+    - N28_FINITE_SET_RUBRIC_V1
+    - N28_FINITE_SET_PROOF_V1
+  required_checks:
+    - complete_telescope_dependency_graph
+    - free_and_bound_variable_identity
+    - capture_and_shadowing
+    - binder_info_preservation
+    - dependent_binder_types_and_continuation
+    - de_bruijn_reindexing
+    - generated_name_hygiene
+    - implicit_arguments
+    - coercions_and_casts
+    - typeclass_instances
+    - universe_levels_and_constraints
+    - constructive_or_classical_logic_regime
+    - transparency_and_normalization_environment
+  per_operation_check_result_domain: [passed, typed_not_applicable]
+  typed_not_applicable_requires_reason_code: true
+  any_failed_or_unrecorded_check_blocks_candidate: true
+  complete_profile_receipt_required_before_retention: true
+
+empty_domain_contract:
+  exact_partition_of_registered_operations: true
+  empty_domain_status_recorded_per_candidate: true
+  unclassified_operation_blocks_execution: true
+  profiles:
+    - disposition: requires_checked_nonempty_domain
+      operation_ids:
+        - N26_INCREMENT_BOUND_RUBRIC_V1
+        - N26_INCREMENT_BOUND_PROOF_V1
+        - N29_SWAP_WITNESS_DEPENDENCY_RUBRIC_V1
+        - N29_SWAP_WITNESS_DEPENDENCY_PROOF_V1
+        - N28_FINITE_ARITHMETIC_RUBRIC_V1
+        - N28_FINITE_ARITHMETIC_PROOF_V1
+        - N28_FINITE_SET_RUBRIC_V1
+        - N28_FINITE_SET_PROOF_V1
+      exact_domain_evidence_required_when_applicable: true
+    - disposition: reject_empty_or_unreachable_domain
+      operation_ids:
+        - N30_ADD_UNJUSTIFIED_UNIQUENESS_RUBRIC_V1
+        - N30_ADD_UNJUSTIFIED_UNIQUENESS_PROOF_V1
+        - N31_DROP_REQUIRED_GUARD_RUBRIC_V1
+        - N31_DROP_REQUIRED_GUARD_PROOF_V1
+      exact_domain_evidence_required_when_applicable: true
+    - disposition: equivalence_valid_without_nonempty_assumption
+      operation_ids:
+        - P11_BOUNDED_FORALL_EXPAND_V1
+        - P14_SWAP_INDEPENDENT_DATA_BINDERS_V1
+        - P23_CURRY_PROP_PAIR_V1
+        - P24_SWAP_INDEPENDENT_PROP_BINDERS_V1
+        - P38_EXISTS_SUBTYPE_NONEMPTY_V1
+        - P40_EXISTS_UNIQUE_EXPAND_V1
+        - P41_SUBTYPE_FORALL_GUARD_V1
+      exact_domain_evidence_required_when_applicable: true
+    - disposition: empty_domain_not_applicable
+      operation_ids:
+        - P01_ALPHA_RENAME_SINGLE_V1
+        - P02_REGROUP_BINDERS_V1
+        - P15_SWAP_IFF_SIDES_V1
+        - P16_REASSOC_AND_LEFT_V1
+        - P18_SYMMETRIZE_EQUALITY_V1
+        - P20_FOLD_SET_NONEMPTY_V1
+        - P20_UNFOLD_SET_NONEMPTY_V1
+        - P21_BETA_INTRO_V1
+        - P21_BETA_REDUCE_V1
+        - P21_ZETA_INTRO_V1
+        - P21_ZETA_REDUCE_V1
+        - P22_ETA_REDUCE_EXPLICIT_FUN_V1
+        - P28_DECOMPOSE_IFF_V1
+        - P32_ADD_ASSOC_LOCAL_V1
+        - P32_ADD_COMM_LOCAL_V1
+        - P33_EQ_HYP_SUBSTITUTE_NONDEPENDENT_V1
+        - P34_NAT_SUCC_ADD_ONE_LOCAL_V1
+        - P35_SET_INTER_MEMBERSHIP_V1
+        - P36_SET_EXTENTIONALITY_V1
+        - P39_HYP_SET_INTER_REWRITE_V1
+        - P42_RING_POLYNOMIAL_LOCAL_V1
+        - N19_NEGATE_CLOSED_CLAIM_RUBRIC_V1
+        - N19_NEGATE_CLOSED_CLAIM_PROOF_V1
+        - N25_TOGGLE_EQ_NE_RUBRIC_V1
+        - N25_TOGGLE_EQ_NE_PROOF_V1
+        - N32_SWAP_ROLE_ORDER_RUBRIC_V1
+        - N32_SWAP_ROLE_ORDER_PROOF_V1
+      exact_domain_evidence_required_when_applicable: true
+
+negative_applicability_banks:
+  exact_operation_bank_binding_required: true
+  generic_pattern_fallback_allowed: false
+  bank_resolution_required_for_selected_negative_before_one_example_gate: true
+  banks:
+    - bank_id: n26_bounded_domain_strengthening_v1
+      operation_ids: [N26_INCREMENT_BOUND_RUBRIC_V1, N26_INCREMENT_BOUND_PROOF_V1]
+      status: closed_design_implementation_unresolved
+      admitted_typed_shapes:
+        - forall_fin_index_lt_bound_v1
+        - forall_finset_range_upper_bound_v1
+      required_guards:
+        - unique_protected_bound_occurrence
+        - increment_strengthens_required_coverage
+        - nonempty_domain_certificate
+        - unchanged_telescope_and_expected_type
+      excluded_shapes:
+        - generic_exponent_increment
+        - generic_index_increment
+        - generic_upper_bound_weakening
+        - unbounded_numeric_literal
+      implementation_resolved: false
+      bank_hash_basis: sha256_canonical_closed_applicability_bank_v1
+      bank_hash: 54d09d1c85f658a5b90c88b4a940f2565318f718459fd6a7f518f56324073e08
+    - bank_id: n31_required_guard_heads_v1
+      operation_ids: [N31_DROP_REQUIRED_GUARD_RUBRIC_V1, N31_DROP_REQUIRED_GUARD_PROOF_V1]
+      status: closed_design_implementation_unresolved
+      admitted_typed_shapes:
+        - ne_zero_guard_v1
+        - positive_guard_v1
+        - nonnegative_guard_v1
+        - membership_guard_v1
+        - index_lt_guard_v1
+      required_guards:
+        - guard_occurs_in_selected_body_dependency
+        - guard_not_definitionally_true
+        - domain_reachable
+        - exact_bvar_reindex_receipt
+      excluded_shapes:
+        - arbitrary_prop_hypothesis
+        - unused_guard
+        - true_guard
+        - empty_or_unreachable_domain
+      implementation_resolved: false
+      bank_hash_basis: sha256_canonical_closed_applicability_bank_v1
+      bank_hash: d90900d0a5010115d2e9f4ece603a6f0ad7770e334c1dcf207f68882f3debc07
+    - bank_id: n32_ordered_relation_heads_v1
+      operation_ids: [N32_SWAP_ROLE_ORDER_RUBRIC_V1, N32_SWAP_ROLE_ORDER_PROOF_V1]
+      status: closed_design_implementation_unresolved
+      admitted_typed_shapes:
+        - nat_lt_relation_v1
+        - nat_le_relation_v1
+        - int_lt_relation_v1
+        - int_le_relation_v1
+      required_guards:
+        - identical_relation_head
+        - distinct_same_typed_roles
+        - reversed_arguments_only
+        - relation_head_nonsymmetric
+      excluded_shapes:
+        - equality_relation
+        - iff_relation
+        - arbitrary_relation
+        - failed_symmetry_search
+        - function_composition_reordering
+      implementation_resolved: false
+      bank_hash_basis: sha256_canonical_closed_applicability_bank_v1
+      bank_hash: 9f43387e6c073f39427235bae2c637eaaa16741dcbcf8d48e92e336fccc8a79c
+
+operation_accounting_contract:
+  correlation_group_key_fields:
+    - source_id
+    - project_id
+    - correlation_group_id
+  effective_diversity_key_fields:
+    - source_id
+    - project_id
+    - effective_diversity_group_id
+  keys_derived_only_from_frozen_registry_and_receipt: true
+  exact_operation_id_always_retained_as_accounting_dimension: true
+  correlation_groups:
+    - {group_id: corr_p01_alpha, operation_ids: [P01_ALPHA_RENAME_SINGLE_V1]}
+    - {group_id: corr_p02_binder_regroup, operation_ids: [P02_REGROUP_BINDERS_V1]}
+    - {group_id: corr_p11_bounded_forall, operation_ids: [P11_BOUNDED_FORALL_EXPAND_V1]}
+    - {group_id: corr_p14_data_binder_swap, operation_ids: [P14_SWAP_INDEPENDENT_DATA_BINDERS_V1]}
+    - {group_id: corr_p15_iff_symmetry, operation_ids: [P15_SWAP_IFF_SIDES_V1]}
+    - {group_id: corr_p16_and_association, operation_ids: [P16_REASSOC_AND_LEFT_V1]}
+    - {group_id: corr_p18_equality_symmetry, operation_ids: [P18_SYMMETRIZE_EQUALITY_V1]}
+    - {group_id: corr_p20_set_nonempty_definition, operation_ids: [P20_FOLD_SET_NONEMPTY_V1, P20_UNFOLD_SET_NONEMPTY_V1]}
+    - {group_id: corr_p21_beta, operation_ids: [P21_BETA_INTRO_V1, P21_BETA_REDUCE_V1]}
+    - {group_id: corr_p21_zeta, operation_ids: [P21_ZETA_INTRO_V1, P21_ZETA_REDUCE_V1]}
+    - {group_id: corr_p22_eta, operation_ids: [P22_ETA_REDUCE_EXPLICIT_FUN_V1]}
+    - {group_id: corr_p23_prop_pair, operation_ids: [P23_CURRY_PROP_PAIR_V1]}
+    - {group_id: corr_p24_prop_binder_swap, operation_ids: [P24_SWAP_INDEPENDENT_PROP_BINDERS_V1]}
+    - {group_id: corr_p28_iff_decomposition, operation_ids: [P28_DECOMPOSE_IFF_V1]}
+    - {group_id: corr_p32_add_ac, operation_ids: [P32_ADD_ASSOC_LOCAL_V1, P32_ADD_COMM_LOCAL_V1]}
+    - {group_id: corr_p33_eq_hyp_transport, operation_ids: [P33_EQ_HYP_SUBSTITUTE_NONDEPENDENT_V1]}
+    - {group_id: corr_p34_nat_succ, operation_ids: [P34_NAT_SUCC_ADD_ONE_LOCAL_V1]}
+    - {group_id: corr_p35_set_inter_membership, operation_ids: [P35_SET_INTER_MEMBERSHIP_V1]}
+    - {group_id: corr_p36_set_extensionality, operation_ids: [P36_SET_EXTENTIONALITY_V1]}
+    - {group_id: corr_p38_subtype_nonempty, operation_ids: [P38_EXISTS_SUBTYPE_NONEMPTY_V1]}
+    - {group_id: corr_p39_hyp_set_inter, operation_ids: [P39_HYP_SET_INTER_REWRITE_V1]}
+    - {group_id: corr_p40_exists_unique, operation_ids: [P40_EXISTS_UNIQUE_EXPAND_V1]}
+    - {group_id: corr_p41_subtype_guard, operation_ids: [P41_SUBTYPE_FORALL_GUARD_V1]}
+    - {group_id: corr_p42_ring_reflection, operation_ids: [P42_RING_POLYNOMIAL_LOCAL_V1]}
+    - {group_id: corr_n19_negation, operation_ids: [N19_NEGATE_CLOSED_CLAIM_RUBRIC_V1, N19_NEGATE_CLOSED_CLAIM_PROOF_V1]}
+    - {group_id: corr_n25_relation_polarity, operation_ids: [N25_TOGGLE_EQ_NE_RUBRIC_V1, N25_TOGGLE_EQ_NE_PROOF_V1]}
+    - {group_id: corr_n26_bound_strengthening, operation_ids: [N26_INCREMENT_BOUND_RUBRIC_V1, N26_INCREMENT_BOUND_PROOF_V1]}
+    - {group_id: corr_n29_witness_dependency, operation_ids: [N29_SWAP_WITNESS_DEPENDENCY_RUBRIC_V1, N29_SWAP_WITNESS_DEPENDENCY_PROOF_V1]}
+    - {group_id: corr_n30_uniqueness, operation_ids: [N30_ADD_UNJUSTIFIED_UNIQUENESS_RUBRIC_V1, N30_ADD_UNJUSTIFIED_UNIQUENESS_PROOF_V1]}
+    - {group_id: corr_n31_guard_drop, operation_ids: [N31_DROP_REQUIRED_GUARD_RUBRIC_V1, N31_DROP_REQUIRED_GUARD_PROOF_V1]}
+    - {group_id: corr_n32_role_order, operation_ids: [N32_SWAP_ROLE_ORDER_RUBRIC_V1, N32_SWAP_ROLE_ORDER_PROOF_V1]}
+    - {group_id: corr_n28_finite_arithmetic, operation_ids: [N28_FINITE_ARITHMETIC_RUBRIC_V1, N28_FINITE_ARITHMETIC_PROOF_V1]}
+    - {group_id: corr_n28_finite_set, operation_ids: [N28_FINITE_SET_RUBRIC_V1, N28_FINITE_SET_PROOF_V1]}
+  effective_diversity_groups:
+    - {group_id: corr_p01_alpha, operation_ids: [P01_ALPHA_RENAME_SINGLE_V1]}
+    - {group_id: corr_p02_binder_regroup, operation_ids: [P02_REGROUP_BINDERS_V1]}
+    - {group_id: corr_p11_bounded_forall, operation_ids: [P11_BOUNDED_FORALL_EXPAND_V1]}
+    - {group_id: corr_p14_data_binder_swap, operation_ids: [P14_SWAP_INDEPENDENT_DATA_BINDERS_V1]}
+    - {group_id: corr_p15_iff_symmetry, operation_ids: [P15_SWAP_IFF_SIDES_V1]}
+    - {group_id: corr_p16_and_association, operation_ids: [P16_REASSOC_AND_LEFT_V1]}
+    - {group_id: corr_p18_equality_symmetry, operation_ids: [P18_SYMMETRIZE_EQUALITY_V1]}
+    - {group_id: corr_p20_set_nonempty_definition, operation_ids: [P20_FOLD_SET_NONEMPTY_V1, P20_UNFOLD_SET_NONEMPTY_V1]}
+    - {group_id: effective_p21_beta_zeta, operation_ids: [P21_BETA_INTRO_V1, P21_BETA_REDUCE_V1, P21_ZETA_INTRO_V1, P21_ZETA_REDUCE_V1]}
+    - {group_id: corr_p22_eta, operation_ids: [P22_ETA_REDUCE_EXPLICIT_FUN_V1]}
+    - {group_id: corr_p23_prop_pair, operation_ids: [P23_CURRY_PROP_PAIR_V1]}
+    - {group_id: corr_p24_prop_binder_swap, operation_ids: [P24_SWAP_INDEPENDENT_PROP_BINDERS_V1]}
+    - {group_id: corr_p28_iff_decomposition, operation_ids: [P28_DECOMPOSE_IFF_V1]}
+    - {group_id: corr_p32_add_ac, operation_ids: [P32_ADD_ASSOC_LOCAL_V1, P32_ADD_COMM_LOCAL_V1]}
+    - {group_id: corr_p33_eq_hyp_transport, operation_ids: [P33_EQ_HYP_SUBSTITUTE_NONDEPENDENT_V1]}
+    - {group_id: corr_p34_nat_succ, operation_ids: [P34_NAT_SUCC_ADD_ONE_LOCAL_V1]}
+    - {group_id: corr_p35_set_inter_membership, operation_ids: [P35_SET_INTER_MEMBERSHIP_V1]}
+    - {group_id: corr_p36_set_extensionality, operation_ids: [P36_SET_EXTENTIONALITY_V1]}
+    - {group_id: corr_p38_subtype_nonempty, operation_ids: [P38_EXISTS_SUBTYPE_NONEMPTY_V1]}
+    - {group_id: corr_p39_hyp_set_inter, operation_ids: [P39_HYP_SET_INTER_REWRITE_V1]}
+    - {group_id: corr_p40_exists_unique, operation_ids: [P40_EXISTS_UNIQUE_EXPAND_V1]}
+    - {group_id: corr_p41_subtype_guard, operation_ids: [P41_SUBTYPE_FORALL_GUARD_V1]}
+    - {group_id: corr_p42_ring_reflection, operation_ids: [P42_RING_POLYNOMIAL_LOCAL_V1]}
+    - {group_id: corr_n19_negation, operation_ids: [N19_NEGATE_CLOSED_CLAIM_RUBRIC_V1, N19_NEGATE_CLOSED_CLAIM_PROOF_V1]}
+    - {group_id: corr_n25_relation_polarity, operation_ids: [N25_TOGGLE_EQ_NE_RUBRIC_V1, N25_TOGGLE_EQ_NE_PROOF_V1]}
+    - {group_id: corr_n26_bound_strengthening, operation_ids: [N26_INCREMENT_BOUND_RUBRIC_V1, N26_INCREMENT_BOUND_PROOF_V1]}
+    - {group_id: corr_n29_witness_dependency, operation_ids: [N29_SWAP_WITNESS_DEPENDENCY_RUBRIC_V1, N29_SWAP_WITNESS_DEPENDENCY_PROOF_V1]}
+    - {group_id: corr_n30_uniqueness, operation_ids: [N30_ADD_UNJUSTIFIED_UNIQUENESS_RUBRIC_V1, N30_ADD_UNJUSTIFIED_UNIQUENESS_PROOF_V1]}
+    - {group_id: corr_n31_guard_drop, operation_ids: [N31_DROP_REQUIRED_GUARD_RUBRIC_V1, N31_DROP_REQUIRED_GUARD_PROOF_V1]}
+    - {group_id: corr_n32_role_order, operation_ids: [N32_SWAP_ROLE_ORDER_RUBRIC_V1, N32_SWAP_ROLE_ORDER_PROOF_V1]}
+    - {group_id: corr_n28_finite_arithmetic, operation_ids: [N28_FINITE_ARITHMETIC_RUBRIC_V1, N28_FINITE_ARITHMETIC_PROOF_V1]}
+    - {group_id: corr_n28_finite_set, operation_ids: [N28_FINITE_SET_RUBRIC_V1, N28_FINITE_SET_PROOF_V1]}
+  gate_eligible_statuses_after_prerequisites:
+    - implementation_candidate
+    - diagnostic
+    - proof_of_concept
+  production_eligible_statuses_after_admission: [implementation_candidate]
+  diagnostic_counted_in_production_volume_or_diversity: false
+  proof_of_concept_counted_in_production_volume_or_diversity: false
+  synthetic_track_counted_with_natural_production: false
+  unresolved_operations_gate_eligible_now: false
+  unresolved_operations_production_eligible_now: false
 
 p23_binder_hygiene_contract:
   status: design_frozen_implementation_pending
@@ -286,8 +887,26 @@ p23_binder_hygiene_contract:
   regressions_passed: false
 
 representation_pre_gate_acceptance:
-  status: blocked_on_repr_replacement
+  status: passed
   required_before_one_example_gate: true
+  fixed_engine_reference_elaboration_source_path: LeanFaith/Meta/SFT1/RepresentationGate.lean
+  fixed_engine_reference_elaboration_source_file_sha256: c87b9c5065a41f51e7cbdcdcc98f14fedc6a015054c40a0cfe4367ad63330129
+  fixed_engine_reference_elaboration_preamble_hash: bd0e3ef6b5e5c50bf07b31771e2a2ca0da131323d10d8571994bdd24a922981a
+  fixed_engine_reference_elaboration_import_strip_policy: remove_lines_whose_first_token_is_import_v1
+  fixed_engine_reference_elaboration_preamble_reviewed: true
+  fixed_engine_reference_elaboration_preamble_review_status: reviewed_for_bounded_six_goal_gate
+  fixed_engine_reference_elaboration_preamble_required_before_six_goal_gate: true
+  six_goal_gate_id: sft1_repr_six_real_goal_direct_expr_v0_3_1
+  six_goal_gate_status: passed
+  six_goal_gate_config_path: configs/transformations/sft1_value_first_v1/repr_six_goal_gate_v0_3_1.yaml
+  six_goal_gate_config_file_sha256: 5126eb8fb314218017fc930a79ab82cb810ff929e1794ce4617551f6c70ced91
+  six_goal_gate_effective_config_hash: 7404e31935ab35b9c3270bf46654936121944a7e8f55fb91da4f1e047f59c0ad
+  six_goal_execution_config_path: configs/transformations/sft1_value_first_v1/repr_six_goal_gate_execution_v0_3_1.yaml
+  six_goal_execution_config_file_sha256: 82f22c08082e26424e1a55627b707d341e7fa84f72348cfed0b007b0526505ff
+  six_goal_execution_config_hash: dfc7037ee8d5a340b82b237fa14ef1f3d9c2752bf64e91d34846d9570fac5747
+  six_goal_receipt_path: configs/transformations/sft1_value_first_v1/repr_six_goal_gate_receipt_v0_3_1.json
+  six_goal_receipt_file_sha256: ebd400b4a7b05daa933b1abaaacc378d1a7b9ae68f9159ac03453cd6081406a8
+  six_goal_receipt_hash: f62b68ebc946469952bdd34674c127e2bd1146b0a8febbe5d199fea54a081e78
   reference_render_succeeds_through_shared_api: true
   candidate_render_succeeds_through_shared_api: true
   required_distinct_render_is_distinct: true
@@ -297,7 +916,12 @@ representation_pre_gate_acceptance:
   free_variables_allowed: false
   loose_bound_variables_allowed: false
   anonymous_binder_names_allowed: false
-  anonymous_binder_rejection_scope: rendered_outer_pi_telescope
+  anonymous_binder_rejection_scope: unsupported_anonymous_outer_pi_locals
+  preserves_nondependent_explicit_structural_arrows: true
+  forbidden_render_substrings: ["[anonymous]", "⋯"]
+  forbidden_render_failure_mappings:
+    - {substring: "[anonymous]", exact_failure_class: anonymous_binder_name}
+    - {substring: "⋯", exact_failure_class: forbidden_rendered_placeholder}
   type_inference_must_succeed_before_render: true
   repr_real_goal_coverage_regression_must_pass: true
   failure_reporting_dimensions: [source, family, operation, polarity, exact_failure_class]
@@ -309,6 +933,7 @@ representation_pre_gate_acceptance:
     - free_variable
     - loose_bound_variable
     - anonymous_binder_name
+    - forbidden_rendered_placeholder
     - ill_typed
     - non_prop
     - wrong_turnstile_count
@@ -379,7 +1004,7 @@ operations:
     exact_delta_evidence_required: false
     executable: false
     label_emission_authorized: false
-    admission: {status: pending_user_decision, approved: false}
+    admission: {gate_admitted: false, production_admitted: false}
   - operation_id: P02_REGROUP_BINDERS_V1
     family_id: P02
     track: diagnostic
@@ -408,7 +1033,7 @@ operations:
     exact_delta_evidence_required: false
     executable: false
     label_emission_authorized: false
-    admission: {status: pending_user_decision, approved: false}
+    admission: {gate_admitted: false, production_admitted: false}
   - operation_id: P11_BOUNDED_FORALL_EXPAND_V1
     family_id: P11
     track: diagnostic
@@ -437,7 +1062,7 @@ operations:
     exact_delta_evidence_required: false
     executable: false
     label_emission_authorized: false
-    admission: {status: pending_user_decision, approved: false}
+    admission: {gate_admitted: false, production_admitted: false}
   - operation_id: P14_SWAP_INDEPENDENT_DATA_BINDERS_V1
     family_id: P14
     track: natural
@@ -466,7 +1091,7 @@ operations:
     exact_delta_evidence_required: false
     executable: false
     label_emission_authorized: false
-    admission: {status: pending_user_decision, approved: false}
+    admission: {gate_admitted: false, production_admitted: false}
   - operation_id: P15_SWAP_IFF_SIDES_V1
     family_id: P15
     track: natural
@@ -495,7 +1120,7 @@ operations:
     exact_delta_evidence_required: false
     executable: false
     label_emission_authorized: false
-    admission: {status: pending_user_decision, approved: false}
+    admission: {gate_admitted: false, production_admitted: false}
   - operation_id: P16_REASSOC_AND_LEFT_V1
     family_id: P16
     track: natural
@@ -524,7 +1149,7 @@ operations:
     exact_delta_evidence_required: false
     executable: false
     label_emission_authorized: false
-    admission: {status: pending_user_decision, approved: false}
+    admission: {gate_admitted: false, production_admitted: false}
   - operation_id: P18_SYMMETRIZE_EQUALITY_V1
     family_id: P18
     track: natural
@@ -553,7 +1178,7 @@ operations:
     exact_delta_evidence_required: false
     executable: false
     label_emission_authorized: false
-    admission: {status: pending_user_decision, approved: false}
+    admission: {gate_admitted: false, production_admitted: false}
   - operation_id: P20_FOLD_SET_NONEMPTY_V1
     family_id: P20
     track: natural
@@ -582,7 +1207,7 @@ operations:
     exact_delta_evidence_required: false
     executable: false
     label_emission_authorized: false
-    admission: {status: pending_user_decision, approved: false}
+    admission: {gate_admitted: false, production_admitted: false}
   - operation_id: P20_UNFOLD_SET_NONEMPTY_V1
     family_id: P20
     track: natural
@@ -611,7 +1236,7 @@ operations:
     exact_delta_evidence_required: false
     executable: false
     label_emission_authorized: false
-    admission: {status: pending_user_decision, approved: false}
+    admission: {gate_admitted: false, production_admitted: false}
 
   - operation_id: P21_BETA_INTRO_V1
     family_id: P21
@@ -641,7 +1266,7 @@ operations:
     exact_delta_evidence_required: false
     executable: false
     label_emission_authorized: false
-    admission: {status: pending_user_decision, approved: false}
+    admission: {gate_admitted: false, production_admitted: false}
   - operation_id: P21_BETA_REDUCE_V1
     family_id: P21
     track: natural
@@ -670,7 +1295,7 @@ operations:
     exact_delta_evidence_required: false
     executable: false
     label_emission_authorized: false
-    admission: {status: pending_user_decision, approved: false}
+    admission: {gate_admitted: false, production_admitted: false}
   - operation_id: P21_ZETA_INTRO_V1
     family_id: P21
     track: diagnostic
@@ -699,7 +1324,7 @@ operations:
     exact_delta_evidence_required: false
     executable: false
     label_emission_authorized: false
-    admission: {status: pending_user_decision, approved: false}
+    admission: {gate_admitted: false, production_admitted: false}
   - operation_id: P21_ZETA_REDUCE_V1
     family_id: P21
     track: natural
@@ -728,7 +1353,7 @@ operations:
     exact_delta_evidence_required: false
     executable: false
     label_emission_authorized: false
-    admission: {status: pending_user_decision, approved: false}
+    admission: {gate_admitted: false, production_admitted: false}
   - operation_id: P22_ETA_REDUCE_EXPLICIT_FUN_V1
     family_id: P22
     track: natural
@@ -757,7 +1382,7 @@ operations:
     exact_delta_evidence_required: false
     executable: false
     label_emission_authorized: false
-    admission: {status: pending_user_decision, approved: false}
+    admission: {gate_admitted: false, production_admitted: false}
   - operation_id: P23_CURRY_PROP_PAIR_V1
     family_id: P23
     track: natural
@@ -786,7 +1411,7 @@ operations:
     exact_delta_evidence_required: false
     executable: false
     label_emission_authorized: false
-    admission: {status: pending_user_decision, approved: false}
+    admission: {gate_admitted: false, production_admitted: false}
   - operation_id: P24_SWAP_INDEPENDENT_PROP_BINDERS_V1
     family_id: P24
     track: natural
@@ -815,7 +1440,7 @@ operations:
     exact_delta_evidence_required: false
     executable: false
     label_emission_authorized: false
-    admission: {status: pending_user_decision, approved: false}
+    admission: {gate_admitted: false, production_admitted: false}
   - operation_id: P28_DECOMPOSE_IFF_V1
     family_id: P28
     track: natural
@@ -844,7 +1469,7 @@ operations:
     exact_delta_evidence_required: false
     executable: false
     label_emission_authorized: false
-    admission: {status: pending_user_decision, approved: false}
+    admission: {gate_admitted: false, production_admitted: false}
   - operation_id: P32_ADD_ASSOC_LOCAL_V1
     family_id: P32
     track: natural
@@ -873,7 +1498,7 @@ operations:
     exact_delta_evidence_required: false
     executable: false
     label_emission_authorized: false
-    admission: {status: pending_user_decision, approved: false}
+    admission: {gate_admitted: false, production_admitted: false}
   - operation_id: P32_ADD_COMM_LOCAL_V1
     family_id: P32
     track: natural
@@ -902,7 +1527,7 @@ operations:
     exact_delta_evidence_required: false
     executable: false
     label_emission_authorized: false
-    admission: {status: pending_user_decision, approved: false}
+    admission: {gate_admitted: false, production_admitted: false}
   - operation_id: P33_EQ_HYP_SUBSTITUTE_NONDEPENDENT_V1
     family_id: P33
     track: natural
@@ -931,7 +1556,7 @@ operations:
     exact_delta_evidence_required: false
     executable: false
     label_emission_authorized: false
-    admission: {status: pending_user_decision, approved: false}
+    admission: {gate_admitted: false, production_admitted: false}
   - operation_id: P34_NAT_SUCC_ADD_ONE_LOCAL_V1
     family_id: P34
     track: natural
@@ -960,7 +1585,7 @@ operations:
     exact_delta_evidence_required: false
     executable: false
     label_emission_authorized: false
-    admission: {status: pending_user_decision, approved: false}
+    admission: {gate_admitted: false, production_admitted: false}
   - operation_id: P35_SET_INTER_MEMBERSHIP_V1
     family_id: P35
     track: natural
@@ -989,7 +1614,7 @@ operations:
     exact_delta_evidence_required: false
     executable: false
     label_emission_authorized: false
-    admission: {status: pending_user_decision, approved: false}
+    admission: {gate_admitted: false, production_admitted: false}
   - operation_id: P36_SET_EXTENTIONALITY_V1
     family_id: P36
     track: natural
@@ -1018,7 +1643,7 @@ operations:
     exact_delta_evidence_required: false
     executable: false
     label_emission_authorized: false
-    admission: {status: pending_user_decision, approved: false}
+    admission: {gate_admitted: false, production_admitted: false}
   - operation_id: P38_EXISTS_SUBTYPE_NONEMPTY_V1
     family_id: P38
     track: natural
@@ -1047,7 +1672,7 @@ operations:
     exact_delta_evidence_required: false
     executable: false
     label_emission_authorized: false
-    admission: {status: pending_user_decision, approved: false}
+    admission: {gate_admitted: false, production_admitted: false}
   - operation_id: P39_HYP_SET_INTER_REWRITE_V1
     family_id: P39
     track: natural
@@ -1076,7 +1701,7 @@ operations:
     exact_delta_evidence_required: false
     executable: false
     label_emission_authorized: false
-    admission: {status: pending_user_decision, approved: false}
+    admission: {gate_admitted: false, production_admitted: false}
   - operation_id: P40_EXISTS_UNIQUE_EXPAND_V1
     family_id: P40
     track: natural
@@ -1105,7 +1730,7 @@ operations:
     exact_delta_evidence_required: false
     executable: false
     label_emission_authorized: false
-    admission: {status: pending_user_decision, approved: false}
+    admission: {gate_admitted: false, production_admitted: false}
   - operation_id: P41_SUBTYPE_FORALL_GUARD_V1
     family_id: P41
     track: natural
@@ -1134,7 +1759,7 @@ operations:
     exact_delta_evidence_required: false
     executable: false
     label_emission_authorized: false
-    admission: {status: pending_user_decision, approved: false}
+    admission: {gate_admitted: false, production_admitted: false}
   - operation_id: P42_RING_POLYNOMIAL_LOCAL_V1
     family_id: P42
     track: natural
@@ -1163,7 +1788,7 @@ operations:
     exact_delta_evidence_required: false
     executable: false
     label_emission_authorized: false
-    admission: {status: pending_user_decision, approved: false}
+    admission: {gate_admitted: false, production_admitted: false}
 
   - operation_id: N19_NEGATE_CLOSED_CLAIM_RUBRIC_V1
     family_id: N19
@@ -1193,7 +1818,7 @@ operations:
     exact_delta_evidence_required: true
     executable: false
     label_emission_authorized: false
-    admission: {status: pending_user_decision, approved: false}
+    admission: {gate_admitted: false, production_admitted: false}
   - operation_id: N19_NEGATE_CLOSED_CLAIM_PROOF_V1
     family_id: N19
     track: natural
@@ -1222,7 +1847,7 @@ operations:
     exact_delta_evidence_required: true
     executable: false
     label_emission_authorized: false
-    admission: {status: pending_user_decision, approved: false}
+    admission: {gate_admitted: false, production_admitted: false}
   - operation_id: N25_TOGGLE_EQ_NE_RUBRIC_V1
     family_id: N25
     track: natural
@@ -1251,7 +1876,7 @@ operations:
     exact_delta_evidence_required: true
     executable: false
     label_emission_authorized: false
-    admission: {status: pending_user_decision, approved: false}
+    admission: {gate_admitted: false, production_admitted: false}
   - operation_id: N25_TOGGLE_EQ_NE_PROOF_V1
     family_id: N25
     track: natural
@@ -1280,7 +1905,7 @@ operations:
     exact_delta_evidence_required: true
     executable: false
     label_emission_authorized: false
-    admission: {status: pending_user_decision, approved: false}
+    admission: {gate_admitted: false, production_admitted: false}
   - operation_id: N26_INCREMENT_BOUND_RUBRIC_V1
     family_id: N26
     track: natural
@@ -1291,8 +1916,8 @@ operations:
     mechanism_superclass: numeric_bound_mutation
     anchor: {kind: rubric, ref: shared_consistency_rubric.edge_cases, hash_basis: bank_anchor_spec_sha256, schema_lemma_procedure_hash: 22b676d83f4f7df5a0440074b0dac95be2031970447149954f38788c3304eec0, bank_id: negative_rubric_models_v1, bank_entry_id: rubric_numeric_bound}
     orientation: mutate
-    typed_applicability: one protected normalized numeric bound exponent or index with a unique operation-specific increment and unchanged expected type
-    context_restrictions: final operation only; bounded allowlisted numeral types and ranges; no F2 claim
+    typed_applicability: one protected bounded-domain coverage limit matching the closed N26 applicability bank with a unique strengthening increment and unchanged telescope and expected type
+    context_restrictions: final operation only; checked nonempty Fin or Finset.range bounded universal contexts; reject generic exponent, generic index, upper-bound weakening, and unbounded literal mutations; no F2 claim
     transparency: reducible
     logic_regime: constructive
     allowed_axiom_profile: constructive_kernel
@@ -1309,7 +1934,7 @@ operations:
     exact_delta_evidence_required: true
     executable: false
     label_emission_authorized: false
-    admission: {status: pending_user_decision, approved: false}
+    admission: {gate_admitted: false, production_admitted: false}
   - operation_id: N26_INCREMENT_BOUND_PROOF_V1
     family_id: N26
     track: natural
@@ -1320,8 +1945,8 @@ operations:
     mechanism_superclass: numeric_bound_mutation
     anchor: {kind: schema, ref: sft1.nproof.numeric_boundary.v1, hash_basis: bank_anchor_spec_sha256, schema_lemma_procedure_hash: 358900c175f79d52630c6c5e6a4de3f070394416153f1e3a9e5c070c7de5d20f, bank_id: negative_proof_templates_v1, bank_entry_id: proof_numeric_boundary}
     orientation: prove_source_refute_candidate
-    typed_applicability: admitted N26 rubric mutation plus one complete boundary witness proving the source and refuting the exact candidate
-    context_restrictions: final operation only; stronger capped subtype; pinned proof procedure only and no search-failure label
+    typed_applicability: admitted closed-bank N26 bounded-domain strengthening plus one complete boundary witness proving the source and refuting the exact candidate
+    context_restrictions: final operation only; checked nonempty Fin or Finset.range bounded universal contexts; stronger capped subtype; pinned proof procedure only and no search-failure label
     transparency: reducible
     logic_regime: constructive
     allowed_axiom_profile: constructive_kernel
@@ -1338,7 +1963,7 @@ operations:
     exact_delta_evidence_required: true
     executable: false
     label_emission_authorized: false
-    admission: {status: pending_user_decision, approved: false}
+    admission: {gate_admitted: false, production_admitted: false}
   - operation_id: N29_SWAP_WITNESS_DEPENDENCY_RUBRIC_V1
     family_id: N29
     track: natural
@@ -1367,7 +1992,7 @@ operations:
     exact_delta_evidence_required: true
     executable: false
     label_emission_authorized: false
-    admission: {status: pending_user_decision, approved: false}
+    admission: {gate_admitted: false, production_admitted: false}
   - operation_id: N29_SWAP_WITNESS_DEPENDENCY_PROOF_V1
     family_id: N29
     track: natural
@@ -1396,7 +2021,7 @@ operations:
     exact_delta_evidence_required: true
     executable: false
     label_emission_authorized: false
-    admission: {status: pending_user_decision, approved: false}
+    admission: {gate_admitted: false, production_admitted: false}
   - operation_id: N30_ADD_UNJUSTIFIED_UNIQUENESS_RUBRIC_V1
     family_id: N30
     track: natural
@@ -1425,7 +2050,7 @@ operations:
     exact_delta_evidence_required: true
     executable: false
     label_emission_authorized: false
-    admission: {status: pending_user_decision, approved: false}
+    admission: {gate_admitted: false, production_admitted: false}
   - operation_id: N30_ADD_UNJUSTIFIED_UNIQUENESS_PROOF_V1
     family_id: N30
     track: natural
@@ -1454,7 +2079,7 @@ operations:
     exact_delta_evidence_required: true
     executable: false
     label_emission_authorized: false
-    admission: {status: pending_user_decision, approved: false}
+    admission: {gate_admitted: false, production_admitted: false}
   - operation_id: N31_DROP_REQUIRED_GUARD_RUBRIC_V1
     family_id: N31
     track: natural
@@ -1483,7 +2108,7 @@ operations:
     exact_delta_evidence_required: true
     executable: false
     label_emission_authorized: false
-    admission: {status: pending_user_decision, approved: false}
+    admission: {gate_admitted: false, production_admitted: false}
   - operation_id: N31_DROP_REQUIRED_GUARD_PROOF_V1
     family_id: N31
     track: natural
@@ -1512,7 +2137,7 @@ operations:
     exact_delta_evidence_required: true
     executable: false
     label_emission_authorized: false
-    admission: {status: pending_user_decision, approved: false}
+    admission: {gate_admitted: false, production_admitted: false}
   - operation_id: N32_SWAP_ROLE_ORDER_RUBRIC_V1
     family_id: N32
     track: natural
@@ -1541,7 +2166,7 @@ operations:
     exact_delta_evidence_required: true
     executable: false
     label_emission_authorized: false
-    admission: {status: pending_user_decision, approved: false}
+    admission: {gate_admitted: false, production_admitted: false}
   - operation_id: N32_SWAP_ROLE_ORDER_PROOF_V1
     family_id: N32
     track: natural
@@ -1570,7 +2195,7 @@ operations:
     exact_delta_evidence_required: true
     executable: false
     label_emission_authorized: false
-    admission: {status: pending_user_decision, approved: false}
+    admission: {gate_admitted: false, production_admitted: false}
 
 synthetic_track:
   track_id: sft1_n28_synthetic_v0_3_0
@@ -1607,7 +2232,7 @@ synthetic_track:
       exact_delta_evidence_required: true
       executable: false
       label_emission_authorized: false
-      admission: {status: pending_user_decision, approved: false}
+      admission: {gate_admitted: false, production_admitted: false}
     - operation_id: N28_FINITE_ARITHMETIC_PROOF_V1
       family_id: N28
       track: synthetic_separate
@@ -1636,7 +2261,7 @@ synthetic_track:
       exact_delta_evidence_required: true
       executable: false
       label_emission_authorized: false
-      admission: {status: pending_user_decision, approved: false}
+      admission: {gate_admitted: false, production_admitted: false}
     - operation_id: N28_FINITE_SET_RUBRIC_V1
       family_id: N28
       track: synthetic_separate
@@ -1665,7 +2290,7 @@ synthetic_track:
       exact_delta_evidence_required: true
       executable: false
       label_emission_authorized: false
-      admission: {status: pending_user_decision, approved: false}
+      admission: {gate_admitted: false, production_admitted: false}
     - operation_id: N28_FINITE_SET_PROOF_V1
       family_id: N28
       track: synthetic_separate
@@ -1694,7 +2319,7 @@ synthetic_track:
       exact_delta_evidence_required: true
       executable: false
       label_emission_authorized: false
-      admission: {status: pending_user_decision, approved: false}
+      admission: {gate_admitted: false, production_admitted: false}
 
 composition_grammar:
   maximum_total_operations: 3
@@ -1801,6 +2426,28 @@ execution_contract:
   per_root_durable_journal_required: true
   measure_lean_seconds_per_retained_pair: true
   measure_sidecar_bytes_per_retained_pair: true
+  required_environment_fingerprint_fields:
+    - lean_version
+    - project_id
+    - project_revision
+    - toolchain_revision
+    - imports_hash
+    - options_hash
+    - synthesized_instance_hashes
+    - transparency
+    - allowed_axiom_profile
+    - operation_registry_entry_hash
+    - resolved_anchor_hash
+    - certificate_checker_hash
+    - repr_replacement_commit
+    - renderer_api_hash
+    - repr_spec_hash
+    - canonical_universe_profile_hash
+    - render_context_hash
+  environment_fingerprint_hash_basis: sha256_canonical_persistent_meta_environment_v1
+  environment_fingerprint_required_per_persistent_request: true
+  environment_fingerprint_persisted_in_every_candidate_sidecar: true
+  environment_fingerprint_in_cache_key: true
   retry_only_infrastructure_failures: true
   machine_wide_worker_limit: 2
   machine_wide_lean_rss_gib_limit: 40
@@ -1835,6 +2482,7 @@ cache_contract:
     - render_context_hash
     - renderer_api_hash
     - repr_spec_hash
+    - environment_fingerprint_hash
     - policy_config_hash
   cache_successes: true
   cache_deterministic_terminal_failures: true
@@ -1929,26 +2577,127 @@ deterministic_cap_order:
   - post_orientation_global_model_facing_duplicate_conflict_assertion
 
 gates:
+  exact_progression:
+    - one_positive_one_negative_end_to_end_smoke
+    - selected_wave_operation_conformance_matrix
+    - approximately_100_roots_per_selected_operation
+    - request_separate_10k_authorization
   one_example:
-    authorized: false
-    requires_user_approval: true
+    user_scope_authorized: true
+    requires_current_wave_gate_admission: true
+    current_wave_gate_admitted: false
+    execution_ready: false
+    execution_started: false
     requires_repr_expr_renderer_dependency: true
     requires_shared_contract_update: true
     requires_representation_pre_gate_acceptance: true
-    requires_p23_binder_hygiene_regression: true
-    requires_inline_anchor_and_fixture_freezes: true
+    requires_zero_lean_census_and_source_eligibility: true
+    requires_selected_operation_execution_binding: true
+    requires_selected_operation_specific_regressions: true
+    actual_serialized_positive_example_count: 1
+    actual_serialized_negative_example_count: 1
+    positive_operation_id: P01_ALPHA_RENAME_SINGLE_V1
+    negative_operation_id: N31_DROP_REQUIRED_GUARD_RUBRIC_V1
+    roots_chosen_from_completed_census: true
+    deterministic_root_selection_rule: minimum_stable_eligible_root_hash_per_bound_smoke_operation
+    complete_sidecar_required: true
+    manifest_link_required: true
+    cache_replay_required: true
+    duplicate_suppression_replay_required: true
+    end_to_end_model_facing_projection_required: true
+    gate_artifacts_are_production_rows: false
+    retained_certificate_replay_fraction: 1.0
+  selected_wave_operation_conformance:
+    user_scope_authorized: true
+    requires_current_wave_gate_admission: true
+    current_wave_gate_admitted: false
+    execution_ready: false
+    execution_started: false
+    requires_one_example_gate_pass: true
+    scope: gate_admitted_current_wave_operations_and_registered_eligible_projects
     success_per_operation_and_eligible_project: 1
     adversarial_rejection_per_operation_and_eligible_project: 1
     zero_yield_waiver_allowed: false
     census_backed_inapplicable_project_requires_policy_revision: true
-    retained_certificate_replay_fraction: 1.0
+    full_46_operation_matrix_required: false
   hundred_root:
-    authorized: false
-    requires_one_example_gate_pass: true
+    user_scope_authorized: true
+    requires_current_wave_gate_admission: true
+    current_wave_gate_admitted: false
+    execution_ready: false
+    execution_started: false
+    requires_selected_wave_conformance_gate_pass: true
+    scope: gate_admitted_current_wave_operations
     eligible_roots_per_operation_approximately: 100
     retained_certificate_replay_fraction: 1.0
     persistent_meta_required: true
     every_retained_row_typed_meta_validated_and_replayed: true
+    exact_counter_fields:
+      - roots_attempted
+      - roots_ineligible
+      - roots_eligible
+      - roots_inapplicable
+      - roots_applicable
+      - candidates_generated
+      - source_closed_prop_invalid
+      - source_closed_prop_valid
+      - candidate_closed_prop_invalid
+      - candidate_closed_prop_valid
+      - f0_relation_checked
+      - f1_relation_certified
+      - f1_relation_uncertified
+      - f1_not_run_due_prior_terminal_drop
+      - candidate_truth_proved
+      - candidate_truth_refuted
+      - candidate_truth_unknown
+      - negative_witness_passed
+      - vacuity_rejected
+      - empty_domain_rejected
+      - no_op_dropped
+      - cancellation_dropped
+      - within_root_duplicate_dropped
+      - cross_root_duplicate_dropped
+      - split_cluster_collision_dropped
+      - blocklist_dropped
+      - positive_retained
+      - n_rubric_retained
+      - n_proof_retained
+      - retained
+    exact_counter_dimensions:
+      - source
+      - project
+      - family
+      - operation
+      - mechanism_superclass
+      - template_or_bank_entry
+      - polarity
+      - exact_failure_class
+    counters_derived_from_durable_receipts: true
+    per_dimension_totals_must_equal_global_totals: true
+    candidate_terminal_disposition_counter_fields:
+      - candidate_closed_prop_invalid
+      - no_op_dropped
+      - cancellation_dropped
+      - blocklist_dropped
+      - f1_relation_uncertified
+      - vacuity_rejected
+      - empty_domain_rejected
+      - within_root_duplicate_dropped
+      - cross_root_duplicate_dropped
+      - split_cluster_collision_dropped
+      - retained
+    exactly_one_terminal_disposition_per_generated_candidate: true
+    terminal_disposition_counters_mutually_exclusive: true
+    conservation_equations:
+      - roots_attempted = roots_ineligible + roots_eligible
+      - roots_eligible = roots_inapplicable + roots_applicable
+      - roots_applicable = source_closed_prop_invalid + source_closed_prop_valid
+      - candidates_generated = candidate_closed_prop_invalid + candidate_closed_prop_valid
+      - candidate_closed_prop_valid = f1_relation_certified + f1_relation_uncertified + f1_not_run_due_prior_terminal_drop
+      - f1_relation_certified = candidate_truth_proved + candidate_truth_refuted + candidate_truth_unknown
+      - retained = positive_retained + n_rubric_retained + n_proof_retained
+      - candidates_generated = candidate_closed_prop_invalid + no_op_dropped + cancellation_dropped + blocklist_dropped + f1_relation_uncertified + vacuity_rejected + empty_domain_rejected + within_root_duplicate_dropped + cross_root_duplicate_dropped + split_cluster_collision_dropped + retained
+    conservation_equations_must_hold_before_receipt_freeze: true
   ten_k_pilot:
     authorized: false
     requires_separate_user_approval_after_hundred_root_report: true
@@ -1957,6 +2706,34 @@ gates:
     authorized: false
   publication:
     authorized: false
+  full_matrix_cost_reference:
+    registered_operation_count: 46
+    operation_project_combinations: 156
+    success_and_adversarial_fixture_count: 312
+    approximate_root_count_at_hundred_per_operation: 4600
+    required_before_selected_wave_progression: false
+  current_wave_cost_reference:
+    proposed_operation_count: 6
+    operation_project_combinations: 24
+    success_and_adversarial_fixture_count: 48
+    approximate_root_count_at_hundred_per_operation: 600
+
+hundred_root_surface_diagnostics:
+  scope: model_facing_reference_and_candidate_core_text_only
+  sidecar_or_certificate_fields_visible_to_diagnostic: false
+  forbidden_feature_names:
+    - operation_id
+    - family_id
+    - mechanism_superclass
+    - template_or_bank_entry
+    - certificate_payload
+    - provenance_sidecar
+  explicit_transform_marker_rate_maximum: 0.0
+  explicit_transform_marker_violation_blocks_gate: true
+  shallow_operation_recoverability_reported: true
+  shallow_family_recoverability_reported: true
+  recoverability_is_label_evidence: false
+  recoverability_threshold_is_blocking: false
 
 scale_contract:
   illustrative_root_count_for_cap_arithmetic: 500000
