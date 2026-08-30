@@ -1,0 +1,23 @@
+policy_version: source_use_v2
+approved_by: repository_owner
+approved_at: "2026-08-30"
+scope:
+  namespace: formalmathatepfl/*
+  purpose: LeanFaith research data preparation, model-assisted annotation, evaluation, and training
+access_basis: owner_confirmed_ownership
+research_use: true
+external_model_processing: true
+private_first_hub_publication:
+  owner: Lemmy00
+  required: true
+redistribution_review:
+  required_before_public_release: true
+secrets:
+  hf_token_from_environment_only: true
+  never_log_or_commit: true
+supersedes_for_active_value_first_tasks:
+  - policies/private_source_use.yaml
+notes:
+  - The v1 private-source policy remains immutable historical provenance for runs made under it.
+  - Each active task still pins exact source revisions and records provenance and output visibility.
+  - This policy does not authorize gold evaluation rows for training.

@@ -8,12 +8,18 @@ theorem statement faithfully expresses the same mathematical claim as a
 natural-language statement or a trusted reference formalization — a stricter target
 than truth-level logical equivalence.
 
-[PLAN.md](PLAN.md) is the living plan (refocus v3, approved 2026-08-28): tracks A (evaluation),
-B (repo surgery), D (data engine), T (staged S0–S3 training), with
-[TRANSFORM_CATALOG_V2.md](TRANSFORM_CATALOG_V2.md) as the deterministic-transform design of
-record. Read PLAN.md before contributing.
+[PLAN.md](PLAN.md) is the approved value-first data plan. Work is split into independent session
+briefs in [plans/README.md](plans/README.md), with shared schemas, semantic labels, Lean budgets,
+caching, and publication rules in
+[plans/00_shared_contracts.md](plans/00_shared_contracts.md). Every contributor or agent must read
+[AGENTS.md](AGENTS.md) and claim exactly one task brief before changing code.
 
-Historical note: the pre-refocus 4,578-line plan lives at
+The current priority is dataset preparation and evaluation, not full training. CPT1, CPT2, SFT1,
+and SFT2 are separately versioned ablations; evaluation is mandatory. SFT1 bulk generation is
+paused until the user reviews and approves the preserving/breaking transform catalog.
+
+Historical note: the immediately preceding refocus execution ledger lives at
+`docs/archive/PLAN-2026-08-30-refocus-v3.md`. The earlier 4,578-line implementation plan lives at
 `docs/archive/PLAN-2026-08-frozen.md`, its 660-line status log at
 `docs/archive/README-status-2026-08.md`, and the shelved human-annotation campaign under
 `docs/archive/annotation/`. The `reports/` tree predating the refocus is likewise historical —
@@ -24,9 +30,12 @@ kept for provenance, not a guide to current work.
 Requirements: Python 3.12 and [uv](https://docs.astral.sh/uv/).
 
 ```bash
-uv sync                    # create .venv and install pinned dependencies
+uv sync --group dev --group local-inference  # preserve shared training/inference dependencies
 uv run leanfaith --help
 ```
+
+Do not run plain `uv sync` in a shared checkout: its exact synchronization can remove the optional
+Torch/Transformers group required by SFT2/TRAIN sessions.
 
 Install the git hooks once per clone:
 
@@ -41,13 +50,15 @@ uv run ruff check .
 uv run ruff format --check .
 uv run mypy
 uv run pytest
+uv run leanfaith-plans
 ```
 
-All four must pass in a clean checkout.
+All five must pass in a clean checkout.
 
 ## Secrets
 
-Copy `.env.example` names into your environment or secret manager; never commit
-values. `HF_TOKEN` is required for the private `formalmathatepfl/sft_classic`
-dataset (internal-research-only: its content must never be sent to external LLM
-APIs; deterministic transforms on it are allowed).
+Copy `.env.example` names into your environment or secret manager; never commit values or print
+them in logs. `HF_TOKEN` is required for private Hugging Face inputs and private-first outputs under
+`Lemmy00`. The owner's 2026-08-30 authorization for `formalmathatepfl/*` research use is recorded
+in `policies/source_use_v2.yaml`; task-specific source and external-model rules still apply.
+See [policies/README.md](policies/README.md) for active-versus-historical policy authority.

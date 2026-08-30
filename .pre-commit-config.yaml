@@ -25,3 +25,11 @@ repos:
       - id: ruff-check
         args: [--fix]
       - id: ruff-format
+  - repo: local
+    hooks:
+      - id: leanfaith-plan-contract
+        name: LeanFaith task-plan contract
+        entry: uv run leanfaith-plans
+        language: system
+        pass_filenames: false
+        files: ^(PLAN\.md|AGENTS\.md|CLAUDE\.md|README\.md|plans/.*\.md)$

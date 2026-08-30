@@ -1,10 +1,16 @@
 # Deterministic Transform Catalog v2 — expansion design
 
+> **Active-plan status (2026-08-30): provisional input, not bulk-generation approval.** The SFT1
+> owner must audit this catalog, propose changes, review the preserving/breaking set with the user,
+> and record explicit approval in `plans/30_sft1_deterministic.md` before generating the new large
+> dataset. Historical family IDs and evidence remain useful; the active task contract supersedes
+> this document's former “design of record” wording.
+>
 > Provenance: produced 2026-08-28 by codex exec (gpt-5.6-sol, high reasoning) as a consultation
 > for the refocus plan's Track D, at the owner's request ("be more ambitious with deterministic
-> data; expand the set of transforms; look at the literature"). Companion to `PLAN.md`.
-> This is the design of record for the deterministic data engine; implementation tickets should
-> reference family IDs from here.
+> data; expand the set of transforms; look at the literature"). Companion to the archived refocus
+> plan at `docs/archive/PLAN-2026-08-30-refocus-v3.md`. New implementation tickets may reference
+> family IDs from here but must follow the active SFT1 brief.
 
 ## Executive recommendation
 

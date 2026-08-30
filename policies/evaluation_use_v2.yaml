@@ -1,0 +1,18 @@
+policy_version: evaluation_use_v2
+approved_by: repository_owner
+approved_at: "2026-08-30"
+scope:
+  artifact: /storage/milikic/leanfaith/golden/canonical/golden_pairs_v1.jsonl
+  rows: 5111
+  purpose: Lean-to-Lean validation/test baselines and final selected-model comparison
+evaluation_only: true
+training_use: false
+external_judges:
+  codex: true
+  claude: true
+  lemex: true
+private_first_results_repository: Lemmy00/leanfaith-eval-results-v2
+requirements:
+  - Pin model, prompt, effort, threshold source, and row-level predictions.
+  - Never log credentials or transmit unrelated private source material.
+  - Model and threshold selection use validation only; test labels do not tune decisions.
