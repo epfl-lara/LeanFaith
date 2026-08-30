@@ -1,11 +1,12 @@
 # REPR — shared `goal_v1.0` theorem representation
 
 > **Task ID:** REPR
-> **Status:** not_started
-> **Owner/session:** unassigned
-> **Last updated:** 2026-08-30
+> **Status:** active
+> **Owner/session:** Codex REPR session (2026-08-30)
+> **Last updated:** 2026-08-30 (independent-review repair)
 > **Dependencies:** none
-> **Next gate:** freeze examples and round-trip/compile-context contract before downstream serializers
+> **Next gate:** close the independent-review blockers, rerun the bounded gates, and commit every
+> REPR-owned implementation/spec/test path before freezing
 > **Compute class:** CPU; bounded Lean oracle/renderer tests only
 > **Lean budget:** reuse loaded environments and candidate compilation; no corpus-wide rendering compile
 > **Local staging root:** `/storage/milikic/leanfaith/value_first/goal_v1_0/`
@@ -17,7 +18,7 @@ Own the one canonical model-facing theorem representation so SFT1, SFT2A, SFT2B,
 build incompatible renderers. Freeze `goal_v1.0`, its provenance flag, and the separate raw
 compilation context. This is an enabling task, not a corpus-generation task.
 
-## Frozen representation decision
+## Target representation decision
 
 `goal_v1.0` contains ordered local variables, hypotheses, typeclass/universe locals, and exactly
 one `⊢ target`. It removes declaration name/kind, attributes, command shell, imports, options,
@@ -81,6 +82,20 @@ environment; never recompile theorem proofs or run one Lean process per theorem.
 renderer during compilation already required for each candidate. Cache by raw/type hash plus
 project/toolchain/options and renderer version.
 
+## Active repair plan
+
+1. Finish all safe string parsing, schema validation, source filtering, hashing, and fixtures before
+   invoking Lean.
+2. Freeze the tagged surface fallback and sidecar/compile-context contract with unit tests, including
+   theorem/lemma filtering and fail-closed ambiguity handling.
+3. Add one elaborated renderer behind the existing central Lean protocol boundary, reuse one loaded
+   environment for bounded fixtures, and never invoke one Lean process per declaration.
+4. Run one complete cross-path example first, then only the bounded multi-source pilot; record
+   agreement, failures, cache behavior, throughput, leakage checks, hashes, risks, and handoff.
+
+Lean is the bottleneck: this session will not compile a corpus. It will establish the small Lean
+oracle, measure the cheap renderer against it, and compile only the bounded audit required here.
+
 ## Execution gates
 
 ### One-example smoke
@@ -112,6 +127,63 @@ v1.0.
 - Tests cover difficult binders, environments, multiline output, determinism, and theorem-only
   filtering.
 
+## Superseded candidate freeze record and evidence
+
+The record below describes the rejected pre-review candidate and is retained as historical evidence.
+It is not an active freeze or a downstream authorization. The replacement freeze record must use the
+post-repair spec and committed code revision.
+
+- **Frozen version:** `goal_v1.0`; renderer version `goal_v1.0`; canonical spec hash
+  `690d57348e2098dd7aeda10eede6cec9182aa002eb69ec910ef3d47269ea160c`. The hash is
+  SHA-256 over the canonical JSON form of the config's `spec` subtree and is asserted against the
+  Python constant.
+- **Canonical paths:** `src/leanfaith/representations/goal_v1.py` (forward API and tagged surface
+  fallback), `LeanFaith/Meta/GoalV1.lean` (the sole elaborated renderer), and
+  `configs/representations/goal_v1_v1.yaml` (frozen grammar, sidecar schema, smoke, and pinned pilot
+  fixtures). No training rows or Hugging Face artifacts were created.
+- **One-example cross-path smoke:** the same theorem rendered exactly as
+  `x y : ℕ\nh : x < y\n⊢ x ≤ y` through both paths. Cold request was 1,424 ms; replay was 9 ms;
+  both used request hash
+  `810b6efe2509d601b899b903b5c4bf09d571e87cb00b790818efedf37a52d124`. Raw source and
+  compile context remained joinable in both sidecars, with zero shell/name/proof leakage.
+- **Bounded loaded-environment pilot:** six elaborated fixtures in one request covered universes,
+  a generated instance name, dependent and shadowed binders, coercions, helper declarations,
+  anonymous arrow premises, multiline goals, and a proof-body sentinel. All 6/6 rendered in 21 ms
+  (about 286 rows/s after startup), with exactly one turnstile each and zero raw/proof leakage.
+  Surface comparison had one exact agreement among two renderable rows, four deliberate fail-closed
+  rows, and one notation/coercion spelling difference; mode-specific metrics therefore remain
+  mandatory.
+- **Bounded multi-source surface pilot:** six pinned fixtures spanned Mathlib, Physlib, CSLib, Lean
+  compiler source, canonical gold, and ConsistencyCheck. Four rendered in 1 ms total; Mathlib and
+  CSLib failed closed as specified because their cheap signatures contained anonymous instance
+  binders. No source corpus was compiled.
+- **Verification:** `ruff check` passed; strict `mypy` passed for the implementation and owned tests;
+  `pytest tests/unit/representations/test_goal_v1.py -q` passed 14/14; and
+  `pytest tests/integration/leaninteract/test_goal_v1_live.py -q -s` passed 1/1. The measured live
+  verification used 1.83 s wall time and 122,972 KiB peak RSS. Lean ran with one reserved worker and
+  synchronous elaboration; the reservation was released. Raw Lean responses used pytest's isolated
+  temporary directory and were not promoted as release artifacts.
+
+## Frozen risks and downstream handoff
+
+- Surface mode is safe only for a trusted, complete name-free signature. Raw declaration extraction
+  is explicitly tagged `raw_signature_extraction_self_contained_only`; parsed signatures are tagged
+  `trusted_complete_parsed_signature`. Section/autobound locals, anonymous instance binders,
+  anonymous top-level arrows, shadowed names, and ambiguous multi-declaration inputs must go through
+  the elaborated path or fail closed. Downstream reports coverage and model metrics separately by
+  `goal_v1_source`.
+- Surface and elaborated text are not guaranteed byte-identical outside the cross-path-safe subset:
+  elaboration may canonicalize `Nat` to `ℕ`, insert coercions, parenthesize binders, or sanitize local
+  names. The source tag is part of the record and representation identity; consumers must not erase
+  it during analysis.
+- The typed/alpha fingerprint remains an optional pass-through hook. `goal_v1.0` does not compute or
+  require one, and it never alpha-normalizes the model text.
+- Downstream code imports the task-owned module directly, constructs a complete `CompileContext`,
+  batches `ElaboratedInput` values through its already-loaded backend, copies only `sidecar.core_text()`
+  into pair rows, and persists `sidecar.to_dict()` with raw compilable source. Manifests pin the spec
+  hash above. There is intentionally no goal-to-source inverse; candidate workflows retain and
+  compile their original declaration before rendering.
+
 ## Session kickoff prompt
 
 ```text
@@ -126,8 +198,39 @@ Do not generate training data. Record the spec hash, evidence, risks, and downst
 
 ## Coordinator requests
 
-- None yet. Downstream SFT/evaluation serializers wait for the frozen `goal_v1.0` hash.
+- None. Downstream SFT/evaluation serializers may proceed using the frozen hash and handoff above.
 
 ## Progress log (append-only)
 
 - 2026-08-30 — task created with the hybrid elaborated/surface decision; no renderer implemented.
+- 2026-08-30 — claimed by Codex REPR session. Writable scope is limited to this brief,
+  `src/leanfaith/representations/goal_v1.py`, `LeanFaith/Meta/GoalV1.lean`,
+  `configs/representations/goal_v1_v1.yaml`, `tests/unit/representations/`, and
+  `tests/integration/leaninteract/test_goal_v1_live.py`. Plan: finish cheap parsing/schema/provenance
+  work before Lean; reuse a loaded environment for the one-example smoke and bounded pilot; never
+  compile a corpus or generate training data.
+- 2026-08-30 — pure implementation and schema gate passed: frozen compile-context/sidecar records,
+  deterministic theorem/lemma surface parser, explicit fail-closed outcomes, spec/config hash check,
+  proof-leak checks, and six-source fixtures; 14/14 owned unit tests passed before Lean.
+- 2026-08-30 — one-example elaborated/surface smoke passed exactly, including raw/context join and
+  identical replay request hash. The same one-worker loaded fixture environment then passed the
+  bounded six-row elaborated pilot and six-source surface pilot. No corpus compile or training-data
+  generation occurred.
+- 2026-08-30 — froze `goal_v1.0` at spec hash
+  `690d57348e2098dd7aeda10eede6cec9182aa002eb69ec910ef3d47269ea160c`; targeted formatting,
+  strict typing, 14 unit tests, and one live integration gate all passed. Recorded risks and
+  downstream handoff above, released the REPR host reservation, and marked the task complete.
+- 2026-08-30 — independent Claude/user review rejected the candidate freeze and reopened REPR as
+  `active`. Acceptance blockers: preserve reducible conclusions during telescope introduction;
+  apply the declared render width; apply structured compilation context; provide a true lookup-only
+  path for already-loaded theorem constants; qualify the ConsistencyCheck fixture as derived; add
+  regression fixtures; recompute the spec hash; rerun the cross-path smoke and bounded pilot; and
+  commit all REPR-owned files. No corpus compilation or training-data generation is authorized.
+- 2026-08-30 — closed the technical review blockers at replacement spec hash
+  `2fc5b69c0534449d4ffeca0f47fddec38042fff90de374b3bda81d4f25dd23d8`: the Lean renderer now
+  preserves reducible conclusions and renders at width 1,000,000; structured context is applied;
+  imported theorem constants have a lookup-only path with retained raw sidecars; helper payloads
+  enforce theorem kind; surface equation proofs fail closed; and sorry policy is enforced. The
+  resource-claimed live gate passed the exact cross-path smoke, ten-row elaborated pilot, and
+  six-source surface pilot in one loaded environment. The reservation was released; the task remains
+  `active` until the REPR files are committed and the committed freeze record is written.

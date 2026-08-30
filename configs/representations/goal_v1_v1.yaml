@@ -1,0 +1,217 @@
+schema_version: 1
+status: active
+spec_hash_algorithm: sha256_canonical_json
+spec_hash: 2fc5b69c0534449d4ffeca0f47fddec38042fff90de374b3bda81d4f25dd23d8
+implementation_sources:
+  lean_renderer:
+    path: LeanFaith/Meta/GoalV1.lean
+    sha256: 8a2626489d65c7424f039f673fe5910adeb07d833580f5a6870cbf8e19434809
+  python_module:
+    path: src/leanfaith/representations/goal_v1.py
+    sha256: a3ef37d6d10713abca85d61802841fd4c8026798b6ed8d0b77793eebe4c0ed90
+
+# This subtree is byte-for-byte equivalent after YAML parsing to SPEC_PAYLOAD
+# in src/leanfaith/representations/goal_v1.py. Tests enforce the equality.
+spec:
+  representation_id: goal_v1.0
+  renderer_version: goal_v1.0
+  declaration_kinds: [lemma, theorem]
+  grammar:
+    local_line: "<one-or-more local names> : <Lean type>"
+    target_line: "⊢ <Lean proposition>"
+    turnstile_count: 1
+    line_policy: "adjacent equal-type locals group; target is final"
+  preserve:
+    - local_order
+    - local_names
+    - dependent_types
+    - generated_instance_names_when_elaborated
+    - coercions
+    - notation
+    - universes_in_types
+  remove:
+    - attributes
+    - declaration_keyword
+    - declaration_name
+    - command_shell
+    - imports
+    - options
+    - comments
+    - proof_delimiter
+    - proof_body
+  sources: [elaborated, surface]
+  surface_fail_closed:
+    - anonymous_instance_binder
+    - anonymous_top_level_arrow
+    - duplicate_or_shadowed_local_name
+    - implicit_or_untyped_binder
+    - ambiguous_declaration_or_proof_boundary
+    - unsupported_declaration_kind
+  compile_context_fields:
+    - project_id
+    - project_revision
+    - lean_version
+    - import_header
+    - command_preamble
+    - namespace_context
+    - open_context
+    - scoped_context
+    - options
+  compile_context_application_order:
+    - import_header
+    - command_preamble
+    - options
+    - open_context
+    - scoped_context
+    - namespace_context
+  elaborated_input_modes: [inline_candidate, loaded_constant_lookup]
+  inverse: forbidden
+  elaborated_option_profile:
+    base: Options.empty
+    pp.universes: false
+    pp.coercions: true
+    pp.notation: true
+    pp.mvars: false
+    pp.inaccessibleNames: true
+    pp.implementationDetailHyps: true
+    render_width: 1000000
+
+sidecar_contract:
+  record_fields:
+    - representation_id
+    - goal_v1
+    - goal_v1_source
+    - renderer_version
+    - spec_hash
+    - raw_statement_hash
+    - declaration_kind
+    - compile_context_id
+    - typed_alpha_fingerprint
+    - warnings
+  raw_fields: [raw_statement, compile_context]
+  model_facing_fields: [goal_v1]
+
+one_example_smoke:
+  case_id: cross_path_nat_lt
+  raw_statement: >-
+    theorem goalV1Smoke (x y : ℕ) (h : x < y) : x ≤ y := Nat.le_of_lt h
+  parsed_signature: "(x y : ℕ) (h : x < y) : x ≤ y"
+  expected_goal_v1: |-
+    x y : ℕ
+    h : x < y
+    ⊢ x ≤ y
+
+# Six bounded provenance fixtures. These are tests/spec evidence, not training
+# rows. Surface ambiguity is an expected measured outcome, not silently fixed.
+pilot:
+  cases:
+    - case_id: mathlib_add_pow
+      source_family: Mathlib
+      source_revision: d568c8c09630de097a046763c17b9ea99f95f950
+      source_path: Mathlib/Data/Nat/Choose/Sum.lean
+      raw_statement: |-
+        theorem add_pow [CommSemiring R] (x y : R) (n : ℕ) :
+            (x + y) ^ n = ∑ m ∈ range (n + 1), x ^ m * y ^ (n - m) * n.choose m :=
+          (Commute.all x y).add_pow n
+      parsed_signature: >-
+        [CommSemiring R] (x y : R) (n : ℕ) :
+        (x + y) ^ n = ∑ m ∈ range (n + 1), x ^ m * y ^ (n - m) * n.choose m
+      expected_failure: anonymous_instance_binder
+
+    - case_id: physlib_kinetic_energy_conserved
+      source_family: Physlib
+      source_revision: f5242c99d796b59a390d26cd7d1a8057e04c46b5
+      source_path: Physlib/ClassicalMechanics/FreeParticle/Basic.lean
+      raw_statement: |-
+        @[sorryful]
+        theorem kineticEnergy_conserved (s : FreeParticle) (q : Trajectory)
+            (h : ∀ t, s.NewtonsSecondLaw q t) (hcont : ContDiff ℝ 1 q) :
+            ∃ E, ∀ t, s.kineticEnergy q t = E := by
+          sorry
+      parsed_signature: >-
+        (s : FreeParticle) (q : Trajectory) (h : ∀ t, s.NewtonsSecondLaw q t)
+        (hcont : ContDiff ℝ 1 q) : ∃ E, ∀ t, s.kineticEnergy q t = E
+      expected_goal_v1: |-
+        s : FreeParticle
+        q : Trajectory
+        h : ∀ t, s.NewtonsSecondLaw q t
+        hcont : ContDiff ℝ 1 q
+        ⊢ ∃ E, ∀ t, s.kineticEnergy q t = E
+
+    - case_id: cslib_ret_merge
+      source_family: CSLib
+      source_revision: 2f677bfc8ef76fa7a27feafc597c1e4a7eda3e42
+      source_path: Cslib/Algorithms/Lean/MergeSort/MergeSort.lean
+      raw_statement: |-
+        @[simp, grind =]
+        theorem ret_merge (xs ys : List α) : ⟪merge xs ys⟫ = xs.merge ys := by
+          fun_induction merge with grind [nil_merge, merge_right, cons_merge_cons]
+      parsed_signature: >-
+        {α : Type} [LinearOrder α] (xs ys : List α) : ⟪merge xs ys⟫ = xs.merge ys
+      expected_failure: anonymous_instance_binder
+
+    - case_id: lean_compiler_int_lt
+      source_family: Lean compiler
+      source_revision: v4.31.0-rc1
+      source_path: Lean/Meta/Sym/Simp/EvalGround.lean
+      raw_statement: |-
+        theorem Int.lt_eq_true (a b : Int) (h : decide (a < b) = true) : (a < b) = True :=
+          of_decide_eq_true h
+      parsed_signature: >-
+        (a b : Int) (h : decide (a < b) = true) : (a < b) = True
+      expected_goal_v1: |-
+        a b : Int
+        h : decide (a < b) = true
+        ⊢ (a < b) = True
+
+    - case_id: canonical_gold_aime_1983_p1
+      source_family: canonical gold
+      source_revision: golden_pairs_unpartitioned_v1
+      source_path: /storage/milikic/leanfaith/golden/canonical/golden_pairs_unpartitioned_v1.jsonl
+      source_record: "minif2f::aime_1983_p1/reference"
+      raw_statement: |-
+        theorem aime_1983_p1 (x y z w : ℕ) (ht : 1 < x ∧ 1 < y ∧ 1 < z) (hw : 0 ≤ w)
+            (h0 : Real.log w / Real.log x = 24) (h1 : Real.log w / Real.log y = 40)
+            (h2 : Real.log w / Real.log (x * y * z) = 12) :
+            Real.log w / Real.log z = 60 := by sorry
+      parsed_signature: >-
+        (x y z w : ℕ) (ht : 1 < x ∧ 1 < y ∧ 1 < z) (hw : 0 ≤ w)
+        (h0 : Real.log w / Real.log x = 24) (h1 : Real.log w / Real.log y = 40)
+        (h2 : Real.log w / Real.log (x * y * z) = 12) :
+        Real.log w / Real.log z = 60
+      expected_goal_v1: |-
+        x y z w : ℕ
+        ht : 1 < x ∧ 1 < y ∧ 1 < z
+        hw : 0 ≤ w
+        h0 : Real.log w / Real.log x = 24
+        h1 : Real.log w / Real.log y = 40
+        h2 : Real.log w / Real.log (x * y * z) = 12
+        ⊢ Real.log w / Real.log z = 60
+
+    - case_id: consistency_check_amc12a_2019_p21
+      source_family: ConsistencyCheck
+      source_revision: 1c6a6cca0f87b48d4cccb49946d3b8fc57a1eef9
+      source_path: GuoxinChen/ConsistencyCheck/consistency_check.jsonl
+      source_file_sha256: 81cf6d9988625d84efbd8e1d6a0af4c234b2206da8350ee1d8bf547e612b1d47
+      source_record: amc12a_2019_p21
+      fixture_kind: derived_from_upstream_formal_statement
+      upstream_field: formal_statement
+      upstream_formal_statement_sha256: bf963db06cfe1d75498daba3defa86a95bf720d225b21f57f496b82c027c1ddc
+      upstream_goal_sha256: 1b04a53200851b24a7d89474957231af6ad25e51d6a895f84d54ab1bcfee292b
+      derivation_note: >-
+        Reflowed the pinned formal_statement and completed its trailing `:= by` with `sorry` only
+        to make this bounded fixture self-contained. expected_goal_v1 is LeanFaith's tagged surface
+        rendering, not a copy of the upstream goal field.
+      raw_statement: |-
+        theorem amc12a_2019_p21 (z : ℂ) (h₀ : z = (1 + Complex.I) / Real.sqrt 2) :
+          ((∑ k : ℤ in Finset.Icc 1 12, z ^ k ^ 2) *
+            (∑ k : ℤ in Finset.Icc 1 12, 1 / z ^ k ^ 2)) = 36 := by
+          sorry
+      parsed_signature: >-
+        (z : ℂ) (h₀ : z = (1 + Complex.I) / Real.sqrt 2) :
+        ((∑ k : ℤ in Finset.Icc 1 12, z ^ k ^ 2) *
+        (∑ k : ℤ in Finset.Icc 1 12, 1 / z ^ k ^ 2)) = 36
+      expected_goal_v1: |-
+        z : ℂ
+        h₀ : z = (1 + Complex.I) / Real.sqrt 2
+        ⊢ ((∑ k : ℤ in Finset.Icc 1 12, z ^ k ^ 2) * (∑ k : ℤ in Finset.Icc 1 12, 1 / z ^ k ^ 2)) = 36

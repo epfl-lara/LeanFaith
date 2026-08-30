@@ -1,0 +1,285 @@
+"""One loaded Lean environment: cross-path smoke, then bounded REPR pilot."""
+
+from __future__ import annotations
+
+import json
+import shutil
+import time
+from pathlib import Path
+from typing import cast
+
+import pytest
+import yaml
+
+from leanfaith.config.paths import find_repo_root
+from leanfaith.lean.leaninteract_backend import BackendSettings, LeanInteractBackend
+from leanfaith.representations.goal_v1 import (
+    CompileContext,
+    ElaboratedInput,
+    SurfaceRenderError,
+    render_elaborated_batch,
+    render_surface,
+)
+
+pytestmark = [
+    pytest.mark.lean,
+    pytest.mark.skipif(shutil.which("lake") is None, reason="Lean toolchain unavailable"),
+]
+
+_REPO_ROOT = find_repo_root(Path(__file__).parent)
+_FIXTURES = _REPO_ROOT / "tests" / "lean_fixtures"
+_CONFIG = _REPO_ROOT / "configs" / "representations" / "goal_v1_v1.yaml"
+
+
+def _compile_context() -> CompileContext:
+    return CompileContext(
+        project_id="fixtures",
+        project_revision="workspace",
+        lean_version="v4.31.0-rc1",
+        import_header="import LeanFaithFixtures",
+        command_preamble="""namespace GoalV1ContextOpen
+def ContextNat : Type := Nat
+theorem contextRefl (n : ContextNat) : n = n := rfl
+end GoalV1ContextOpen
+namespace GoalV1ContextScope
+scoped notation "GoalV1ContextNat" => GoalV1ContextOpen.ContextNat
+end GoalV1ContextScope
+universe u""",
+        namespace_context=("GoalV1Structured",),
+        open_context=("GoalV1ContextOpen",),
+        scoped_context=("GoalV1ContextScope",),
+        options={"Elab.async": False, "autoImplicit": False},
+    )
+
+
+def _qualified(name: str) -> str:
+    return f"GoalV1Structured.{name}"
+
+
+def _multi_source_surface_pilot() -> tuple[int, int, int]:
+    config = yaml.safe_load(_CONFIG.read_text(encoding="utf-8"))
+    cases = cast(list[dict[str, str]], config["pilot"]["cases"])
+    successes = 0
+    expected_failures = 0
+    start = time.perf_counter()
+    for case in cases:
+        context = CompileContext(
+            project_id=case["source_family"],
+            project_revision=case["source_revision"],
+            lean_version="recorded_by_source",
+            import_header="import Lean",
+        )
+        try:
+            sidecar = render_surface(
+                raw_statement=case["raw_statement"],
+                declaration_kind="theorem",
+                compile_context=context,
+                parsed_signature=case["parsed_signature"],
+            )
+        except SurfaceRenderError as exc:
+            assert exc.code.value == case["expected_failure"]
+            expected_failures += 1
+            continue
+        assert sidecar.core_text() == case["expected_goal_v1"]
+        assert sidecar.raw_statement == case["raw_statement"]
+        assert sidecar.record.goal_v1_source == "surface"
+        successes += 1
+    elapsed_ms = round((time.perf_counter() - start) * 1000)
+    return successes, expected_failures, elapsed_ms
+
+
+def test_goal_v1_cross_path_smoke_then_bounded_pilot(
+    tmp_path: Path,
+) -> None:
+    """The smoke assertion occurs before any pilot work in this test."""
+
+    context = _compile_context()
+    backend = LeanInteractBackend(
+        BackendSettings(
+            project_dir=_FIXTURES,
+            context_fingerprint=context.fingerprint,
+            environment_schema_version=1,
+            raw_response_dir=tmp_path / "raw",
+            workers=1,
+            enable_parallel_elaboration=False,
+        )
+    )
+    try:
+        # Gate 1: one complete theorem through both paths, including a cache replay.
+        smoke_raw = "theorem goalV1Smoke (x y : ℕ) (h : x < y) : x ≤ y := Nat.le_of_lt h"
+        surface_smoke = render_surface(
+            raw_statement=smoke_raw,
+            declaration_kind="theorem",
+            compile_context=context,
+        )
+        smoke_input = ElaboratedInput(_qualified("goalV1Smoke"), "theorem", smoke_raw)
+        elaborated_smoke = render_elaborated_batch(
+            backend,
+            declarations=(smoke_input,),
+            compile_context=context,
+            request_id="goal-v1-smoke",
+        )
+        assert not elaborated_smoke.failures
+        assert len(elaborated_smoke.sidecars) == 1
+        assert elaborated_smoke.sidecars[0].core_text() == surface_smoke.core_text()
+        assert elaborated_smoke.sidecars[0].core_text() == ("x y : ℕ\nh : x < y\n⊢ x ≤ y")
+        assert elaborated_smoke.sidecars[0].raw_statement == smoke_raw
+        assert surface_smoke.raw_statement == smoke_raw
+        assert ":=" not in elaborated_smoke.sidecars[0].core_text()
+        assert "goalV1Smoke" not in elaborated_smoke.sidecars[0].core_text()
+
+        replay = render_elaborated_batch(
+            backend,
+            declarations=(smoke_input,),
+            compile_context=context,
+            request_id="goal-v1-smoke-replay",
+        )
+        assert not replay.failures
+        assert replay.request_hash == elaborated_smoke.request_hash
+        assert replay.sidecars == elaborated_smoke.sidecars
+
+        # Gate 2a: one bounded elaborated request covering difficult syntax.
+        long_conjunction = " ∧ ".join(["True"] * 24)
+        pilot_inputs = (
+            ElaboratedInput(
+                _qualified("goalV1PilotDependent"),
+                "theorem",
+                """theorem goalV1PilotDependent {α : Type u} [Inhabited α] (x : α)
+                  (h : ∀ y : α, y = y) : ((fun z => z) x = x) ∧ x = x := by
+                  exact ⟨rfl, h x⟩""",
+            ),
+            ElaboratedInput(
+                _qualified("goalV1PilotCoercion"),
+                "theorem",
+                "theorem goalV1PilotCoercion (x : Nat) : ((x : Int) = x) := rfl",
+            ),
+            ElaboratedInput(
+                _qualified("goalV1PilotHelper"),
+                "theorem",
+                """def goalV1PilotHelperFn (x : Nat) : Nat := x
+                theorem goalV1PilotHelper (x : Nat) : goalV1PilotHelperFn x = x := rfl""",
+            ),
+            ElaboratedInput(
+                _qualified("goalV1PilotProofLeak"),
+                "theorem",
+                """theorem goalV1PilotProofLeak : True := by
+                  have proofOnlySentinel : String := "LEANFAITH_GOAL_V1_PROOF_SENTINEL"
+                  exact True.intro""",
+            ),
+            ElaboratedInput(
+                _qualified("goalV1PilotArrow"),
+                "theorem",
+                "theorem goalV1PilotArrow : True → True := fun h => h",
+            ),
+            ElaboratedInput(
+                _qualified("goalV1PilotShadow"),
+                "theorem",
+                """theorem goalV1PilotShadow (x : Nat) (x : Fin (x + 1)) : True := by
+                  exact True.intro""",
+            ),
+            ElaboratedInput(
+                _qualified("goalV1PilotNot"),
+                "theorem",
+                "theorem goalV1PilotNot (p : Prop) (hp : p) : ¬¬p := fun h => h hp",
+            ),
+            ElaboratedInput(
+                _qualified("goalV1PilotLong"),
+                "theorem",
+                f"theorem goalV1PilotLong (h : {long_conjunction}) : True := True.intro",
+            ),
+            ElaboratedInput(
+                _qualified("goalV1PilotStructuredContext"),
+                "theorem",
+                """theorem goalV1PilotStructuredContext (n : GoalV1ContextNat) :
+                  n = n := contextRefl n""",
+            ),
+            ElaboratedInput(
+                "lf_add_comm",
+                "theorem",
+                "theorem lf_add_comm (x y : Nat) : x + y = y + x := Nat.add_comm x y",
+                lookup_only=True,
+            ),
+        )
+        pilot = render_elaborated_batch(
+            backend,
+            declarations=pilot_inputs,
+            compile_context=context,
+            request_id="goal-v1-live-pilot",
+        )
+        assert not pilot.failures
+        assert len(pilot.sidecars) == len(pilot_inputs)
+        assert all(sidecar.record.goal_v1_source == "elaborated" for sidecar in pilot.sidecars)
+        assert all(sidecar.core_text().count("⊢") == 1 for sidecar in pilot.sidecars)
+        assert all(":=" not in sidecar.core_text() for sidecar in pilot.sidecars)
+        assert all(
+            "LEANFAITH_GOAL_V1_PROOF_SENTINEL" not in sidecar.core_text()
+            for sidecar in pilot.sidecars
+        )
+        by_name = {
+            item.declaration_name: sidecar.core_text()
+            for item, sidecar in zip(pilot_inputs, pilot.sidecars, strict=True)
+        }
+        assert "inst✝ : Inhabited α" in by_name[_qualified("goalV1PilotDependent")]
+        assert "α : Type u" in by_name[_qualified("goalV1PilotDependent")]
+        assert by_name[_qualified("goalV1PilotShadow")] == ("x✝ : ℕ\nx : Fin (x✝ + 1)\n⊢ True")
+        assert by_name[_qualified("goalV1PilotNot")] == "p : Prop\nhp : p\n⊢ ¬¬p"
+        long_goal = by_name[_qualified("goalV1PilotLong")]
+        assert len(long_goal.splitlines()) == 2
+        assert len(long_goal.splitlines()[0]) > 120
+        assert by_name[_qualified("goalV1PilotStructuredContext")].endswith("⊢ n = n")
+        loaded_sidecar = next(
+            sidecar
+            for item, sidecar in zip(pilot_inputs, pilot.sidecars, strict=True)
+            if item.declaration_name == "lf_add_comm"
+        )
+        assert loaded_sidecar.record.warnings == ("already_loaded_constant_lookup",)
+        assert loaded_sidecar.raw_statement == pilot_inputs[-1].raw_statement
+
+        surface_agreements = 0
+        surface_failures = 0
+        for item, elaborated_sidecar in zip(pilot_inputs, pilot.sidecars, strict=True):
+            try:
+                surface_sidecar = render_surface(
+                    raw_statement=item.raw_statement,
+                    declaration_kind=item.declaration_kind,
+                    compile_context=context,
+                )
+            except SurfaceRenderError:
+                surface_failures += 1
+                continue
+            surface_agreements += surface_sidecar.core_text() == elaborated_sidecar.core_text()
+
+        assert len(pilot_inputs) == 10
+        assert surface_failures == 4
+        assert surface_agreements == 4
+
+        # Gate 2b: the six pinned source-family fixtures stay purely surface-side.
+        source_successes, source_expected_failures, source_elapsed_ms = (
+            _multi_source_surface_pilot()
+        )
+        assert source_successes == 4
+        assert source_expected_failures == 2
+        metrics = {
+            "smoke": {
+                "agreement": True,
+                "request_hash": elaborated_smoke.request_hash,
+                "replay_request_hash": replay.request_hash,
+                "first_elapsed_ms": elaborated_smoke.elapsed_ms,
+                "replay_elapsed_ms": replay.elapsed_ms,
+            },
+            "elaborated_pilot": {
+                "rows": len(pilot_inputs),
+                "elapsed_ms": pilot.elapsed_ms,
+                "surface_agreements": surface_agreements,
+                "surface_failures": surface_failures,
+            },
+            "multi_source_surface_pilot": {
+                "rows": source_successes + source_expected_failures,
+                "successes": source_successes,
+                "expected_failures": source_expected_failures,
+                "elapsed_ms": source_elapsed_ms,
+            },
+        }
+        print("GOAL_V1_PILOT_METRICS " + json.dumps(metrics, sort_keys=True))
+    finally:
+        backend.close()
