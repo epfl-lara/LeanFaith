@@ -447,6 +447,44 @@ strict mypy is green across 240 source files. Independent artifact replay verifi
 trainer/provenance joins, public policy, D-3 retention, ancestry/statement split isolation, all
 stored cap memberships, and `final_test_accessed=false`.
 
+## S1 public N19 one-declaration certificate pilot (`117add3`)
+
+The next queue was deliberately reduced to one theorem before any new scale run. The pilot reused
+the exact public source row from the positive repair smoke,
+`MeasureTheory.IsFundamentalDomain.measure_ne_zero`, retained its mathlib-declaration ancestry
+group, and emitted the whole-claim negation as one label-false N19 / `N-PROOF` row. A bounded Lean
+driver then proved the source claim from the pinned mathlib theorem and proved the negated
+candidate false by applying it to that source certificate.
+
+Lean compiled exactly one driver in **2.632 seconds** with a 120-second hard timeout. Yield was
+1/1, exit status was 0, stderr was empty, and both axiom reports contained only `propext`,
+`Classical.choice`, and `Quot.sound`; no `sorry`, `admit`, `native_decide`, or non-kernel external
+evidence was admitted. The run made no external calls and did not access `final_test`. Its tmux
+pane remains preserved as `lf_n19_pilot` with exit status 0.
+
+This result validates only the certificate and trainer-projection pathway. One pair cannot
+estimate a corpus-level canary effect, and whole-claim negation is itself an easy lexical
+template. The manifest therefore freezes `canary_effect=not_estimable_from_one_pair`,
+`scale_authorized=false`, and `training_authorized=false`. The next evidence-bearing decision is
+a small multi-declaration pilot, with N19 capped and less trivial source-matched `N-SEP`/`N-PROOF`
+families prioritized; another 500-declaration run remains unauthorized.
+
+Frozen root:
+`/storage/milikic/leanfaith/corpus2/s1_public_negative_n19_smoke_v1_32f825b_d568c8c/`.
+
+| artifact | SHA-256 |
+|---|---|
+| manifest | `8e1f39d795f3479a09c5d0e440f1be0c38d0978a5f6c2cb1cdf2f2dd27c5dd27` |
+| trainer row | `69fa2f9289c40182fe0f5eb2878aad8f0e333a7a0279e42730116e1d90c6106a` |
+| N-PROOF certificate | `fc779cb643695db655b67a9a2ceb688b810f88333424610706bfa0ffd47d1b6e` |
+| Lean stdout / axiom audit | `fa1be7006ae086ea1ab9e3a49642588fe4f10c8c130daf3086f6c5abc9aa98f3` |
+| process record | `1a9b434e3e977a99dcd38f36f153f55df954b296d444e228398df4a149fc2ead` |
+
+Verification: independent artifact replay is green; seven new unit tests cover deterministic
+projection, golden blocking, atomic/idempotent materialization, compiler failure, forbidden axiom
+evidence, and mutation detection. The 32 focused repair/builder tests, collection, Ruff/format,
+and strict mypy across 236 source files are green.
+
 ## Assets produced today (all on `main` unless noted)
 
 - Golden partition frozen: 910 expert `final_test` (sealed) / 821 dev / 819 golden_train
@@ -499,14 +537,19 @@ stored cap memberships, and `final_test_accessed=false`.
   pool bound; one audited candidate projected without rerunning Lean or touching `final_test`.
 - Full 7,488-row public-repair diagnostic materialized and replay-verified; structural gates pass,
   but its 0.853/0.841 lexical canary fails the `<0.72` training gate, so no retrain was launched.
+- One-declaration public N19 / `N-PROOF` pilot complete: 1/1 kernel-certified in 2.632 seconds on
+  the exact positive-smoke mathlib source; it validates the certificate path but explicitly does
+  not authorize scale or training because one pair has no measurable canary effect.
 
 ## Next
 
-1. Build a one-declaration pilot of source-matched public `N-SEP`/`N-PROOF` negatives on the same
-   mathlib distribution as the Meta positives. Freeze its certificate/audit join and measure its
-   canary effect before any new 500-declaration run.
-2. Rebuild a new versioned public corpus and require all current gates plus lexical-canary
-   balanced accuracy `<0.72`; do not train the failed 7,488-row diagnostic or relax the gate.
+1. Run a small, preregistered multi-declaration source-matched negative pilot on the Meta-positive
+   distribution. The one-row certificate path is complete; now measure incremental canary effect,
+   cap trivial N19 negation, and prioritize less obvious `N-SEP`/`N-PROOF` families. Do not start
+   500 declarations unless this smaller gate passes.
+2. Rebuild a new versioned public corpus only after the small pilot passes. Require all current
+   gates and lexical-canary balanced accuracy `<0.72`; do not train the failed 7,488-row
+   diagnostic or relax the gate.
 3. After that gate passes, smoke one batch/checkpoint, retrain both S1 arms, and score only golden
    dev against S1v0 chunks-CPT (0.849 AUPRC / 0.684 calibrated balanced accuracy).
 4. Run Track T-B Stage A separately after its registry and gap/cloze diagnostics are frozen.

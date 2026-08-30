@@ -133,6 +133,17 @@ starting-point context, and may describe work that the ledger has since complete
   `training_gate_passed=false`. Frozen diagnostic root:
   `/storage/milikic/leanfaith/corpus2/s1_public_repair_v1_22386b7_9e2425f/` (manifest SHA-256
   `3d72e9923f08242b44d3e4f012d6e8c6aec8cf12783ef67becaf8bddb1b01a85`).
+- **ONE-DECLARATION PUBLIC N-PROOF PATH VERIFIED**: `117add3` negated the exact public mathlib
+  claim used by the positive repair smoke and compiled one bounded Lean driver under the pinned
+  mathlib revision. Lean checked both the source theorem and a refutation of the negated N19
+  candidate in 2.632 seconds; yield was 1/1, the process exited 0, and the axiom audit contained
+  only the standard mathlib axioms `propext`, `Classical.choice`, and `Quot.sound` (no `sorry`,
+  `admit`, or `native_decide`). This proves the certificate/audit projection path, **not** a
+  corpus-level shortcut improvement: the frozen manifest records
+  `canary_effect=not_estimable_from_one_pair`, `scale_authorized=false`, and
+  `training_authorized=false`. No 500-declaration compile was launched. Frozen smoke:
+  `/storage/milikic/leanfaith/corpus2/s1_public_negative_n19_smoke_v1_32f825b_d568c8c/`
+  (manifest SHA-256 `8e1f39d795f3479a09c5d0e440f1be0c38d0978a5f6c2cb1cdf2f2dd27c5dd27`).
 - **Backbone consultation verified, Track T-B added**: GPT Pro + Claude reports cross-checked
   against pinned configs/modeling code, live HF cards, and a fresh local operator/fertility
   audit (0 UNKs on all three tokenizers — DeBERTa fear refuted; NeoBERT disqualified;
@@ -140,12 +151,15 @@ starting-point context, and may describe work that the ledger has since complete
   `reports/model_selection/backbone_consult_verification_2026_08_28.md`.
 
 **NEXT QUEUE — repair the measured public lexical shortcut before training:**
-1. Add source-matched, certificate-bearing public negatives (`N-SEP`/`N-PROOF`) on the same
-   mathlib declaration distribution as the admitted Meta positives. Prove one declaration end to
-   end first; do not launch another 500-declaration run until that pilot and its yield/canary
-   effect pass.
-2. Rebuild the versioned public corpus and require every existing diversity/balance/seal gate plus
-   lexical-canary balanced accuracy `<0.72` on validation and test. The failed 7,488-row artifact
+1. Run a small, preregistered multi-declaration pilot of source-matched public negatives on the
+   admitted Meta-positive distribution and measure its incremental lexical-canary effect. The
+   one-row N19 smoke has already proved the kernel-certificate pathway, but whole-claim negation
+   is an obvious lexical template and must be capped; prioritize less trivial `N-SEP`/`N-PROOF`
+   families. Do not launch a 500-declaration run unless the small pilot has acceptable yield and
+   lowers the canary without introducing a new family/template shortcut.
+2. Rebuild a new versioned public corpus only after that pilot passes. Require every existing
+   diversity/balance/seal gate and lexical-canary balanced accuracy `<0.72` on validation and
+   test. The failed 7,488-row artifact
    remains a diagnostic and must not become a training input by relaxing the gate.
 3. Only after the canary passes, smoke one training batch/checkpoint, run the two primary S1 arms,
    and score golden **dev** through the sanctioned split-only path against S1v0 chunks-CPT (0.849
