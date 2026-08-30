@@ -1,0 +1,115 @@
+{
+  "receipt_version": "0.3.2",
+  "receipt_id": "sft1_policy_clean_checkout_343ea08_v1",
+  "status": "passed",
+  "completed_utc": "2026-08-30T21:25:26Z",
+  "approved_review_commit": "343ea0885e24a5ea062034559b7e4df33db408b6",
+  "checkout": {
+    "mode": "detached_exact_commit",
+    "path_provenance_only": "/localhome/milikic/LeanFaith-sft1-clean-343ea08",
+    "git_clean_before": true,
+    "git_clean_after": true,
+    "replay_dependencies": "git_relative_only"
+  },
+  "environment": {
+    "system_python": "3.13.9",
+    "uv_python": "CPython 3.12.3",
+    "uv": "0.11.28",
+    "pytest": "9.1.1",
+    "ruff": "0.15.21",
+    "mypy": "2.2.0",
+    "platform": "Linux 6.8.0-111-generic x86_64, glibc 2.39"
+  },
+  "checks": [
+    {
+      "check_id": "focused_tests",
+      "command": "uv run pytest -q tests/unit/sft1/test_composition_policy.py tests/unit/sft1/test_repr_six_goal_gate.py tests/unit/test_project_plans.py",
+      "exit_code": 0,
+      "elapsed_seconds": 18.12,
+      "passed": 127,
+      "breakdown": {
+        "composition_policy": 100,
+        "repr_six_goal_gate": 23,
+        "project_plans": 4
+      }
+    },
+    {
+      "check_id": "ruff_check",
+      "command": "uv run ruff check src/leanfaith/sft1/composition_policy.py src/leanfaith/sft1/repr_six_goal_gate.py tests/unit/sft1/test_composition_policy.py tests/unit/sft1/test_repr_six_goal_gate.py",
+      "exit_code": 0,
+      "elapsed_seconds": 0.03,
+      "passed": null,
+      "breakdown": null
+    },
+    {
+      "check_id": "ruff_format_check",
+      "command": "uv run ruff format --check src/leanfaith/sft1/composition_policy.py src/leanfaith/sft1/repr_six_goal_gate.py tests/unit/sft1/test_composition_policy.py tests/unit/sft1/test_repr_six_goal_gate.py",
+      "exit_code": 0,
+      "elapsed_seconds": 0.04,
+      "passed": 4,
+      "breakdown": null
+    },
+    {
+      "check_id": "strict_mypy",
+      "command": "uv run mypy --strict src/leanfaith/sft1/composition_policy.py src/leanfaith/sft1/repr_six_goal_gate.py",
+      "exit_code": 0,
+      "elapsed_seconds": 2.15,
+      "passed": 2,
+      "breakdown": null
+    },
+    {
+      "check_id": "typed_policy_and_git_evidence_replay",
+      "command": "load_sft1_composition_policy(Path.cwd()); load_six_goal_gate()",
+      "exit_code": 0,
+      "elapsed_seconds": 0.45,
+      "passed": 2,
+      "breakdown": null
+    },
+    {
+      "check_id": "no_storage_read_behavior",
+      "command": "uv run pytest -q tests/unit/sft1/test_repr_six_goal_gate.py::test_checked_in_gate_replay_never_reads_the_storage_evidence",
+      "exit_code": 0,
+      "elapsed_seconds": 0.41,
+      "passed": 1,
+      "breakdown": null
+    }
+  ],
+  "loaded_state": {
+    "operation_count": 46,
+    "starter_bank_count": 10,
+    "starter_bank_entry_count": 30,
+    "repr_gate_status": "passed",
+    "gate_admitted_operation_count": 0,
+    "production_admitted_operation_count": 0,
+    "production_negative_count": 0,
+    "row_emission_authorized": false,
+    "ten_k_pilot_authorized": false
+  },
+  "hashes": {
+    "policy_file_sha256": "a052ecec4cc8f61db7438dd5acbc39373a624b155f8c0305bb75b7ae15d7195d",
+    "policy_semantic_hash": "08a6d1b2ea03f3674d06cdac44478377084af24ba5cd4af7cab57303f4e7a917",
+    "operation_registry_hash": "d56fca674f7b58d92dca09f0b76a702c54d1df2e5b68dcbe94225cad7e5cd95f",
+    "starter_bank_file_sha256": "70b605dcdcd8a1d061cb1c4706c1fdd4867e327db00ccd738419727764736189",
+    "starter_bank_semantic_hash": "ea533da7cf2b475a71dfa30735205f8d99b9a309ac68de4e696c54d67cfd8732",
+    "repr_gate_file_sha256": "5126eb8fb314218017fc930a79ab82cb810ff929e1794ce4617551f6c70ced91",
+    "repr_gate_semantic_hash": "7404e31935ab35b9c3270bf46654936121944a7e8f55fb91da4f1e047f59c0ad",
+    "attempt_009_evidence_manifest_sha256": "aeb44673d45ce3bb31923fec7ab402c40aefdefa108302deed0b9f0fe0246d46",
+    "attempt_009_receipt_file_sha256": "ebd400b4a7b05daa933b1abaaacc378d1a7b9ae68f9159ac03453cd6081406a8",
+    "attempt_009_receipt_semantic_hash": "f62b68ebc946469952bdd34674c127e2bd1146b0a8febbe5d199fea54a081e78"
+  },
+  "attempt_009": {
+    "case_count": 6,
+    "endpoint_count": 12,
+    "recorded_lean_elapsed_ms": 21546,
+    "complete_sidecar_bytes": 119895,
+    "successful_claim": "no_forbidden_rendered_residue_survived",
+    "live_forbidden_string_probes": false
+  },
+  "scope_confirmation": {
+    "lean_or_lake_invoked": false,
+    "transforms_executed": false,
+    "rows_generated": false,
+    "repository_files_edited_by_replay": false,
+    "storage_path_read": false
+  }
+}

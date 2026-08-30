@@ -2,14 +2,19 @@
 
 > **Task ID:** SFT1
 > **Status:** active
-> **Owner/session:** Codex `/root` — 2026-08-30 SFT1 policy-revision-0.3.1 session
+> **Owner/session:** Codex `/root` — 2026-08-30 SFT1 Wave 1 admission/readiness session
 > **Last updated:** 2026-08-30
-> **Active proposal:** policy revision 0.3.1 (distinct from the already-frozen REPR six-goal
-> artifact `v0.3.1`)
-> **Approval recorded:** the bounded SFT1 implementation envelope is user-authorized, but no
-> current-wave gate admission, production admission, row-emission authorization, or scale
-> authorization is recorded. Proposed Wave 1 remains pending one exact user decision below. The
-> current freeze permits zero production negatives.
+> **Active policy:** approved revision 0.3.1 at commit
+> `343ea0885e24a5ea062034559b7e4df33db408b6`, with a fail-closed task-owned Wave 1
+> admission/readiness overlay revision 0.3.2 (distinct from the frozen REPR six-goal artifact
+> `v0.3.1`)
+> **Approval recorded:** on 2026-08-30 the user explicitly adopted Section 8 of the GPT Pro review
+> for exact six-operation Wave 1 gate admission and the N31 `required_domain_guard` dimension.
+> This authorizes task-owned implementation and, only after all readiness prerequisites, the
+> two-row smoke, selected-wave conformance, and approximately-100-roots-per-operation gate.
+> Production admission, model-facing row emission, 10K, bulk generation, training, publication,
+> and all row-count commitments remain unauthorized. The current freeze permits zero production
+> negatives.
 > **Dependencies:** approved REPR freeze `176a783842c5a73b84413dfa8347670608b615d9`
 > and authoritative SFT1 receipt
 > `f62b68ebc946469952bdd34674c127e2bd1146b0a8febbe5d199fea54a081e78`
@@ -19,9 +24,10 @@
 > operations remain fail-closed without blocking that wave.
 > **REPR predecessor:** `cbc933c3623d81ba649a1f9c5107ad404389d69f` was reviewed but is
 > superseded and not consumable by SFT1
-> **Next gate:** finish and review the Lean-free Wave 1 policy/readiness packet, then obtain the
-> exact Wave 1 gate-admission decision stated below; do not begin Lean or transform execution in
-> this policy revision
+> **Next gate:** complete the shared-contract, zero-Lean census/source-proof-availability, N31
+> closed-checker implementation, and six-operation hash-binding prerequisites; the exact admission
+> and clean-checkout replay are recorded, but do not begin Lean or transform execution before every
+> remaining readiness blocker is satisfied
 > **Compute class:** zero Lean for current policy/census work; the completed representation gate used
 > one bounded persistent project/toolchain Meta worker at a time
 > **Lean budget:** no per-row process spawn; every retained gate row receives bounded typed Meta
@@ -43,13 +49,13 @@ Policy revision 0.3.1 separates five authorities that may not imply one another:
 
 | Authority/state | Exact meaning | Current state |
 | --- | --- | --- |
-| user-authorized bounded implementation scope | the maximum task-owned implementation/gate envelope that may become actionable only after gate admission and readiness; it does not permit work to start early, and the current direction forbids Lean, transform execution, or row generation | authorized scope ceiling, not actionable |
+| user-authorized bounded implementation scope | exact task-owned implementation of the selected operations is permitted now; this authority does not imply implementation readiness or permission to execute a gate | true for the six selected operation IDs only |
 | implementation readiness | global dependencies plus complete resolved dispatch/checker/anchor/bank/fixture bindings and regressions for every operation selected into the current wave | false/pending |
-| gate admission | one explicit user decision naming the wave, operations, eligible projects, and negative family/dimension admissions that may run the bounded smoke/conformance/approximately-100-root gates | false/pending for proposed Wave 1 |
+| gate admission | one explicit user decision naming the wave, operations, eligible projects, and negative family/dimension admissions that may run the bounded smoke/conformance/approximately-100-root gates after readiness | true for exactly the six selected IDs and N31 `required_domain_guard`; execution remains blocked |
 | production admission | a post-measurement user promotion of exact operations, versions, projects, caps, and negative dimensions from proof-of-concept or implementation-candidate status to production-eligible | false for every operation; zero production negatives |
 | row emission and scale authorization | separate permission to emit model-facing pilot rows and, later, to scale or publish them | false; no 10K, bulk, publication, or count commitment |
 
-Proposed Wave 1 is exactly `P01_ALPHA_RENAME_SINGLE_V1`, `P15_SWAP_IFF_SIDES_V1`,
+Approved Wave 1 is exactly `P01_ALPHA_RENAME_SINGLE_V1`, `P15_SWAP_IFF_SIDES_V1`,
 `P18_SYMMETRIZE_EQUALITY_V1`, `P21_BETA_REDUCE_V1`,
 `N31_DROP_REQUIRED_GUARD_RUBRIC_V1`, and `N31_DROP_REQUIRED_GUARD_PROOF_V1`, each across its four
 registered eligible projects. Its bounded matrix is 24 operation-project combinations, 48
@@ -525,7 +531,7 @@ without invoking Lean. Census absence cannot be filled by a guessed target.
 
 ### One-positive/one-negative end-to-end smoke
 
-After the exact Wave 1 gate-admission decision and Wave 1 implementation-readiness checks pass,
+After the already-recorded Wave 1 gate admission and all implementation-readiness checks pass,
 serialize one actual positive and one actual negative example end to end. Each must include the
 final core-row projection, complete sidecar, content-hash manifest link, stable ancestry and
 operation-chain IDs, durable journal record, measured Lean/cache accounting, successful replay
@@ -540,13 +546,13 @@ convenient hand-picked fixture cannot substitute for these bindings.
 
 The REPR/six-goal dependency is satisfied, but this smoke must not start until the additive shared
 label contract is merged and pinned, the zero-Lean census completes, the selected Wave 1 bindings
-and fixtures resolve, and the exact Wave 1 gate admission is recorded.
+and fixtures resolve, and the closed N31 checker plus eligible source-proof routes are hash-bound.
 
 ### Selected-wave operation conformance matrix
 
 Only after the two-example end-to-end smoke passes, require one successful candidate and one live
 adversarial rejection with the expected terminal reason for every selected operation-project
-combination. Proposed Wave 1 has six operations across four registered projects: 24 combinations
+combination. Approved Wave 1 has six operations across four registered projects: 24 combinations
 and 48 fixtures. Every dropped receipt remains subject to coherent terminal-axis validation,
 evidence-class/F1 direction, and N-PROOF proof-field discipline. Zero yield is not silently waived;
 a census-backed incompatibility requires a policy revision or removal from the wave. Unselected
@@ -646,11 +652,22 @@ frozen manifests, and user work are read-only. Changes there require a coordinat
 - `tests/unit/sft1/__init__.py`
 - `tests/unit/sft1/test_composition_policy.py`
 - `tests/unit/sft1/test_repr_six_goal_gate.py`
+- `configs/transformations/sft1_value_first_v1/wave1_gate_admission_v0_3_2.yaml`
+- `configs/transformations/sft1_value_first_v1/clean_checkout_receipt_v0_3_2.json`
+- `src/leanfaith/sft1/admission_readiness.py`
+- `tests/unit/sft1/test_admission_readiness.py`
+- `configs/transformations/sft1_value_first_v1/wave1_source_census_v0_3_2.yaml`
+- `configs/transformations/sft1_value_first_v1/wave1_source_census_receipt_v0_3_2.json`
+- `src/leanfaith/sft1/source_census.py`
+- `tests/unit/sft1/test_source_census.py`
+- `configs/transformations/sft1_value_first_v1/wave1_n31_guard_bank_v0_3_2.yaml`
+- `src/leanfaith/sft1/n31_guard_policy.py`
+- `tests/unit/sft1/test_n31_guard_policy.py`
 
-The new module/runner/config/test/receipt paths are claimed only for the bounded six-real-goal
-integration. They do not implement a registered transform or generate training rows. No shared
-contract, REPR file, shared TransformEngine, historical artifact, user-work path, or frozen track is
-claimed.
+The new revision-0.3.2 paths are claimed only for the exact admission receipt, clean-checkout
+evidence, zero-Lean source census, and fail-closed N31 checker policy. They do not yet implement or
+execute a registered transform and cannot generate training rows. No shared contract, REPR file,
+shared TransformEngine, historical artifact, user-work path, or frozen track is claimed.
 
 ## Coordinator requests
 
@@ -685,11 +702,18 @@ leaves `plans/00_shared_contracts.md` untouched.
   all-operation binder and empty-domain profiles, environment fingerprint, closed N26/N31/N32
   design banks, correlation/effective-diversity groups, exact counters, surface-residue rules, and
   wave-local readiness;
+- **admission and independent replay recorded:** the exact six operations and N31 dimension are
+  gate-admitted by the user's adoption of Section 8. The clean detached checkout at approved
+  commit `343ea088…` passed 127/127 focused tests plus the Git-local attempt-009 replay and the
+  dedicated no-`/storage`-read check. This resolves admission and clean-checkout evidence, not
+  implementation readiness;
 - **still open before the Wave 1 smoke:** the additive shared label contract; exact Wave 1 dispatch
   and certificate-checker bindings; concrete binder/empty-domain checker results; Wave 1 resolved
-  anchors, applicability-bank implementations, and adversarial fixtures; the exact Wave 1
-  operation/N31-dimension gate admission; and the zero-Lean census and source-eligibility matrix;
-  P23 is not in Wave 1 and therefore its future regression does not block Wave 1; and
+  anchors, applicability-bank implementations, and adversarial fixtures; completion of the
+  zero-Lean census/source-eligibility matrix; per-project source-proof routes for every project
+  retaining N31 N-PROOF; and the concrete closed N31 target-head/nonredundancy checker. The current
+  census design records all four N31 source-proof routes as unknown, so all are ineligible. P23 is
+  not in Wave 1 and therefore its future regression does not block Wave 1; and
 - **not acceptable as substitutes:** the passed representation receipt for any semantic certificate,
   operation admission, transform success, or production row.
 
@@ -698,17 +722,27 @@ that exact evidence plus the required production family/dimension and exact-oper
 and row-emission authorization—not polarity multiplication—creates an SFT1 model-facing label;
 gate admission creates bounded evidence only.
 
-## Next exact user decision
+## Recorded Wave 1 decision and next decision boundary
 
-The bounded implementation envelope is already authorized as a scope ceiling, but it is not
-actionable before readiness and Wave 1 gate admission. The
-one exact remaining current decision is:
+The user explicitly adopted the GPT Pro review's Section 8 wording on 2026-08-30. The exact
+approved wording is hash-bound in `wave1_gate_admission_v0_3_2.yaml` and reproduced here:
 
-> Approve SFT1 Wave 1 gate admission for P01_ALPHA_RENAME_SINGLE_V1, P15_SWAP_IFF_SIDES_V1, P18_SYMMETRIZE_EQUALITY_V1, P21_BETA_REDUCE_V1, N31_DROP_REQUIRED_GUARD_RUBRIC_V1, and N31_DROP_REQUIRED_GUARD_PROOF_V1 across their registered eligible projects, including gate admission of the N31 required_domain_guard family/dimension for those two negative operations, solely for bounded implementation, the one-positive/one-negative end-to-end smoke, the selected-wave conformance matrix, and the approximately-100-roots-per-operation gate; do not grant production admission, row emission, a 10K pilot, scale, publication, or any row-count commitment.
+> **Approve SFT1 policy revision 0.3.1 at commit `343ea0885e24a5ea062034559b7e4df33db408b6` for Wave 1 gate admission of exactly `P01_ALPHA_RENAME_SINGLE_V1`, `P15_SWAP_IFF_SIDES_V1`, `P18_SYMMETRIZE_EQUALITY_V1`, `P21_BETA_REDUCE_V1`, `N31_DROP_REQUIRED_GUARD_RUBRIC_V1`, and `N31_DROP_REQUIRED_GUARD_PROOF_V1` across their registered eligible projects. Also approve gate admission of the N31 `required_domain_guard` family/dimension for those two N31 operations.**
+>
+> **This approval authorizes only task-owned implementation and, after the strict loader confirms all readiness prerequisites—including the coordinator-owned shared-label-contract update, the zero-Lean census and source-eligibility matrix, a clean-checkout policy/evidence replay, and complete hash-bound implementation, dispatch, certificate-checker, anchor, applicability-bank, fixture, and regression bindings for all six selected operations—the following bounded gates:**
+>
+> 1. **one actual serialized positive row and one actual serialized negative row end to end;**
+> 2. **the selected-wave operation/project conformance matrix with one success and one expected adversarial rejection per registered combination; and**
+> 3. **approximately 100 eligible roots per selected operation with 100% retained-certificate replay and the frozen counter/conservation report.**
+>
+> **The N31 admissions are proof-of-concept gate admissions only. This approval does not grant production admission to any operation, model-facing row emission, a 10K pilot, bulk generation, training, publication, or any source-root or row-count commitment. Passing any bounded gate does not promote an operation or authorize rows. Any production eligibility requires a separate exact post-report user decision naming the operation versions, projects, family/dimension, lane, hashes, axiom profile, measured receipt, and cap; any 10K pilot requires another separate approval.**
 
-That decision must be explicit; neither this proposal nor the older GPT Pro snapshot records it.
-After the wave gates, separately request exact operation-production promotions supported by the
-measured receipt. Only after those promotions are recorded may the project request exactly:
+This records bounded Wave 1 gate admission only. It does not make implementation ready, permit
+Lean/transform execution before the named prerequisites, admit any operation to production, or
+authorize a model-facing row. No further user decision is needed now; coordinator and technical
+readiness work must finish first. After the wave gates, separately request exact
+operation-production promotions supported by the measured receipt. Only after those promotions
+are recorded may the project request exactly:
 
 > Approve only the measured 10K SFT1 pilot described in the completed one-positive/one-negative smoke, selected-wave conformance, and approximately-100-roots-per-operation report; do not approve bulk generation, scale, publication, or any production root or pair-count commitment.
 
@@ -809,3 +843,22 @@ work. End with the exact user decision needed.
   authorization. `plans/00_shared_contracts.md` remains untouched and its additive label rule is
   still a coordinator request. No Lean, transform execution, row generation, scale, or publication
   occurred.
+- 2026-08-30 — the user explicitly adopted Section 8 of the GPT Pro review for approved commit
+  `343ea0885e24a5ea062034559b7e4df33db408b6`. This records gate admission of exactly P01/P15/P18/
+  P21-beta-reduce and the N31 rubric/proof operations plus the N31 `required_domain_guard`
+  dimension, limited to task-owned implementation and the bounded smoke/conformance/~100-root
+  gates after all readiness prerequisites. Production, model-facing rows, 10K, bulk, training,
+  publication, and count commitments remain closed. Began only a clean-checkout Lean-free receipt
+  and fail-closed admission/readiness revision; no Lean or transform execution was started.
+- 2026-08-30 — froze the additive Wave 1 admission/readiness overlay under raw/semantic hashes
+  `c1cf0771…` / `8f50f382…`. The exact six operations and N31 dimension are gate-admitted, while
+  gate execution remains false behind four blockers: the coordinator shared-label contract,
+  completed source census/proof eligibility, the implemented closed N31 checker/target-head bank,
+  and six complete execution-binding bundles. The detached approved-commit replay passed 127/127.
+  The initial zero-Lean census contract remains explicitly incomplete and records every N31
+  N-PROOF project route as unknown/ineligible. The five-shape N31 design now fail-closes unknown
+  nonredundancy/reachability, separates live conformance from shape-regression coverage, and binds
+  contradiction checks to exact roles, types, and instances. All 253 combined focused policy,
+  representation, admission, census, N31, and plan tests passed; Ruff, formatting, strict Mypy,
+  live loader/hash replay, and whitespace checks passed. No Lean/lake, transform execution, row
+  generation, 10K, scale, training, publication, or coordinator-owned edit occurred.
