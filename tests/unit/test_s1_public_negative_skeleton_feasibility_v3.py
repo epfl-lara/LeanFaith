@@ -243,6 +243,15 @@ def test_solver_finds_deterministic_exact_24_subset() -> None:
     assert first.selected == second.selected
     assert len(first.selected) == 24
     assert sum(candidate.family == "N22" for candidate in first.selected) == 15
+    selected_splits = {
+        split: sum(
+            next(source for source in sources if source.declaration == candidate.declaration).split
+            == split
+            for candidate in first.selected
+        )
+        for split in ("train", "validation", "test")
+    }
+    assert selected_splits == {"train": 16, "validation": 4, "test": 4}
     operations = {
         operation: sum(candidate.operation_kind == operation for candidate in first.selected)
         for operation in {candidate.operation_kind for candidate in first.selected}

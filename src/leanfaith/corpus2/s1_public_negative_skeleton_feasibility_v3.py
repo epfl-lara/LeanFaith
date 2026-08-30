@@ -642,6 +642,21 @@ def solve_feasible_subset(
             return None
 
         source = ordered_sources[index]
+        prefer_skip = (
+            source.split == "validation" and validation_count >= MIN_DIAGNOSTIC_YIELD
+        ) or (source.split == "test" and test_count >= MIN_DIAGNOSTIC_YIELD)
+        if prefer_skip:
+            result = search(
+                index + 1,
+                selected,
+                validation_count,
+                test_count,
+                n22_count,
+                operation_counts,
+                used_pair_ids,
+            )
+            if result is not None:
+                return result
         ordered_options = sorted(
             option_groups[index],
             key=lambda candidate: (
@@ -674,17 +689,18 @@ def solve_feasible_subset(
             )
             if result is not None:
                 return result
-        result = search(
-            index + 1,
-            selected,
-            validation_count,
-            test_count,
-            n22_count,
-            operation_counts,
-            used_pair_ids,
-        )
-        if result is not None:
-            return result
+        if not prefer_skip:
+            result = search(
+                index + 1,
+                selected,
+                validation_count,
+                test_count,
+                n22_count,
+                operation_counts,
+                used_pair_ids,
+            )
+            if result is not None:
+                return result
         failed_states.add(state)
         return None
 
