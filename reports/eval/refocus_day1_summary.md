@@ -538,6 +538,48 @@ recomputes all three canary decisions without rerunning Lean. Six new offline te
 32 focused repair tests are green; the Lean engine compiles directly; collection, Ruff/format,
 and strict mypy across 237 source files are green.
 
+## Full-skeleton nested N21/N22 smoke (`0c8919a`)
+
+The versioned v2 engine closes the measured applicability gap without modifying the frozen
+root-only engine. It strips expression metadata, traverses the complete And/Or/Iff/Not conclusion
+skeleton, deduplicates atomic propositions, caps each truth table at eight atoms / 256 valuations,
+and exhaustively evaluates every valuation before retaining a nested mutation with a separating
+root value. Each candidate binds its logical site path, full source and candidate skeletons, atom
+hashes, valuation-space size, separating valuation, and re-elaborated whole-type hash. The audit
+command independently regenerates the declaration/family/operation tuple and requires the exact
+candidate hash and separator contract.
+
+The smoke reused ordinal 13 of the frozen 96-declaration selection, the public train-split theorem
+`NonUnitalStarSubalgebra.mem_prod`. Primary Lean completed in **4.745 seconds** and emitted five
+typed candidates. The preregistered target was the nested N22 operation
+`andToOr:/root-body/right`, changing the full skeleton from `(A0 ↔ (A1 ∧ A2))` to
+`(A0 ↔ (A1 ∨ A2))` over all eight valuations. It re-elaborated with candidate SHA-256
+`70896b1701362535e27f29a064a8afcf015cb4fe00206ef9c9db3c59dac07bd1`.
+Independent Lean reconstruction completed in **3.851 seconds** and reproduced that exact hash.
+Both stages exited 0 with empty stderr under 120-second hard timeouts.
+
+All smoke gates pass, but the decision is deliberately narrow:
+`same_fixed_96_pilot_rerun_authorized=true`, while `sample_size_increase_authorized=false`,
+`scale_authorized=false`, and `training_authorized=false`. The run used only the selected public
+train declaration, made no external call, and did not access `final_test`.
+
+Frozen root:
+`/storage/milikic/leanfaith/corpus2/s1_public_negative_skeleton_nested_smoke_v1_7805448_d568c8c_exhaustive/`.
+
+| artifact | SHA-256 |
+|---|---|
+| manifest | `fd86cc34789944ef285d8877ade408b326b9ecdf82a449a858122172004a549b` |
+| summary | `1144de6c266ff325c5bc81fb4ed2a74ad74c53b288bb76f4fd5d7532200daf1f` |
+| selected candidate | `adccadbe0d601081a62941ace1e9b0edd4bcc222a89ccba7c57e9a4541672292` |
+| primary process | `cc9bf699bd2b2cab785cbfd2178d8d13ae560457c847098e072cfe19445b9676` |
+| audit process | `761da0271743052bdbbd04b4b2a1aa42a2d5885ad2a8b591e80a416dfc617ede` |
+
+Verification: independent artifact replay revalidates the frozen root-pilot manifest and
+selection row, all input/output hashes, exact generated drivers, primary candidate inventory,
+selected nested operation, audit stream, summary, privacy boundary, and no-training decision.
+Eight new offline tests are green; the v2 Lean engine compiles directly; the 33 focused public
+repair/negative tests, collection, Ruff/format, and strict mypy across 238 source files are green.
+
 ## Assets produced today (all on `main` unless noted)
 
 - Golden partition frozen: 910 expert `final_test` (sealed) / 821 dev / 819 golden_train
@@ -596,17 +638,20 @@ and strict mypy across 237 source files are green.
 - Typed N21/N22 96-declaration pilot complete and failed closed: 13/13 selected candidates passed
   independent Lean audit, but yield, operation diversity, validation improvement, and paired-canary
   coverage failed. Scale and training remain unauthorized.
+- Full-skeleton N21/N22 one-declaration smoke complete: five typed candidates generated on the
+  exact frozen train theorem; the required nested N22 candidate passed exhaustive eight-valuation
+  root separation and exact independent reconstruction. Only the same fixed 96-declaration rerun
+  is authorized; sample-size increase, scale, and training remain unauthorized.
 
 ## Next
 
-1. Add a versioned full-conclusion Boolean-skeleton N21/N22 engine with exact nested-site root
-   influence, then prove one nested declaration through generation and independent reconstruction.
-2. Rerun the same bounded 72/12/12 pilot and require every frozen yield/diversity/full-canary/paired
-   gate. Do not enlarge to 500 declarations to compensate for the failed root-only engine.
-3. Rebuild a new versioned public corpus only after the small pilot passes. Require all current
+1. Rerun the same bounded 72/12/12 pilot with the verified full-skeleton v2 engine and require
+   every frozen yield/diversity/full-canary/paired gate. Do not enlarge to 500 declarations to
+   compensate for the failed root-only engine.
+2. Rebuild a new versioned public corpus only after the small pilot passes. Require all current
    gates and lexical-canary balanced accuracy `<0.72`; do not train the failed 7,488-row
    diagnostic or relax the gate.
-4. After that gate passes, smoke one batch/checkpoint, retrain both S1 arms, and score only golden
+3. After that gate passes, smoke one batch/checkpoint, retrain both S1 arms, and score only golden
    dev against S1v0 chunks-CPT (0.849 AUPRC / 0.684 calibrated balanced accuracy).
-5. Run Track T-B Stage A separately after its registry and gap/cloze diagnostics are frozen.
+4. Run Track T-B Stage A separately after its registry and gap/cloze diagnostics are frozen.
    Keep `final_test` sealed and unscored.

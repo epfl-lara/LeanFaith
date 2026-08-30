@@ -21,7 +21,7 @@
 >   negative families demoted to silver until separator/witness-upgraded, and compute expanded to
 >   the RunAI cluster (A100/H100/H200).
 
-## Execution status ledger (2026-08-30, Queues 1–6 + S1v1 follow-up + P4 + public-repair diagnostic executed — read the seal erratum below)
+## Execution status ledger (2026-08-30, Queues 1–6 + S1v1 follow-up + P4 + public-repair diagnostic + nested N21/N22 smoke executed — read the seal erratum below)
 
 Full numbers: `reports/eval/refocus_day1_summary.md`. Treat this ledger plus hashed run manifests
 as current execution state; the later track prose preserves approved design and historical
@@ -157,6 +157,21 @@ starting-point context, and may describe work that the ledger has since complete
   same root-only engine is not authorized. Frozen root:
   `/storage/milikic/leanfaith/corpus2/s1_public_negative_skeleton_pilot_v1_3d72e99_d568c8c/`
   (manifest SHA-256 `78054484ddabdf0da24988dc8651c4d194b52b66f792d3f788b39cb2a75bfa4a`).
+- **FULL-SKELETON N21/N22 ONE-DECLARATION SMOKE COMPLETE / PASSED**: `0c8919a` added an
+  additive v2 engine without changing the frozen root-only implementation. It strips expression
+  metadata, traverses the complete And/Or/Iff/Not conclusion skeleton, deduplicates up to eight
+  atomic propositions, and exhaustively evaluates all `2^n` Boolean valuations before retaining
+  a root-separating N21/N22 mutation. On the exact train-split declaration
+  `NonUnitalStarSubalgebra.mem_prod` from ordinal 13 of the frozen 96-declaration sample, primary
+  Lean emitted five candidates in 4.745 seconds. The required nested N22 mutation changed
+  `(A0 ↔ (A1 ∧ A2))` to `(A0 ↔ (A1 ∨ A2))` at `/root-body/right`; independent Lean
+  reconstruction reproduced candidate hash
+  `70896b1701362535e27f29a064a8afcf015cb4fe00206ef9c9db3c59dac07bd1` in 3.851 seconds.
+  Both stages exited 0 under 120-second hard timeouts with empty stderr. This authorizes only the
+  same fixed 72/12/12 pilot rerun: sample-size increase, scale, and training remain unauthorized,
+  and `final_test` was not accessed. Frozen smoke:
+  `/storage/milikic/leanfaith/corpus2/s1_public_negative_skeleton_nested_smoke_v1_7805448_d568c8c_exhaustive/`
+  (manifest SHA-256 `fd86cc34789944ef285d8877ade408b326b9ecdf82a449a858122172004a549b`).
 - **Backbone consultation verified, Track T-B added**: GPT Pro + Claude reports cross-checked
   against pinned configs/modeling code, live HF cards, and a fresh local operator/fertility
   audit (0 UNKs on all three tokenizers — DeBERTa fear refuted; NeoBERT disqualified;
@@ -164,12 +179,10 @@ starting-point context, and may describe work that the ledger has since complete
   `reports/model_selection/backbone_consult_verification_2026_08_28.md`.
 
 **NEXT QUEUE — repair the measured public lexical shortcut before training:**
-1. Add a versioned typed N21/N22 engine that traverses the full propositional conclusion skeleton,
-   not only a root And/Or/Iff. Require an exact full-skeleton truth-table separator and root
-   influence for every nested mutation. Prove one nested declaration through generation and
-   independent reconstruction before rerunning the same bounded 72/12/12 pilot contract. Do not
-   increase the sample size to compensate for the failed root-only applicability.
-2. Rerun the bounded pilot and require all frozen yield, family, operation, full-canary, and paired
+1. Rerun the same frozen 72/12/12 declaration sample with the verified full-skeleton v2 engine.
+   Keep the source selection and every existing threshold unchanged; do not increase the sample
+   size to compensate for the failed root-only applicability.
+2. Require all frozen yield, family, operation, full-canary, and paired
    canary gates. No 500-declaration run is authorized unless that version passes without a new
    shortcut.
 3. Rebuild a new versioned public corpus only after that pilot passes. Require every existing
