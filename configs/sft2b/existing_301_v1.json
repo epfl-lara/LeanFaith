@@ -1,0 +1,62 @@
+{
+  "schema_version": "sft2b_existing_301_recipe_v1",
+  "data_reuse_artifact_id": "sft2b_compiled_unresolved_301_v1",
+  "data_reuse_tree_sha256": "0e53c7934fa816e09ef47516b0505fba19e7159441218770595d3a1c1383aa41",
+  "data_reuse_bundle": {
+    "/storage/milikic/leanfaith/value_first/reuse_inventory_v1/manifest.json": "40d0d270d3e0c9f3f1bccf01cbb5aa7b2a0d60bf19b12c733701f1e8afd1e200",
+    "/storage/milikic/leanfaith/value_first/reuse_inventory_v1/evidence_v1.json": "4e22b1d27b042418eb2809c8c0386097129d90a6832de811468fe4adba1b8d87",
+    "/storage/milikic/leanfaith/value_first/reuse_inventory_v1/inventory_v1.jsonl": "7c387ecfdd66a3365cde00ad8f46b9dc01be49d68d74db3ce7a605317033f52f",
+    "/storage/milikic/leanfaith/value_first/reuse_inventory_v1/adapter_previews_v1.jsonl": "9b1b4c2706d815c3d0efd1c3dc884500ae7a4dec31de52c407659e7a88e12283"
+  },
+  "canonical_roots": [
+    "data/raw/real_outputs/public_research_v1",
+    "data/raw/real_outputs/gate3_docstrings_operational_v1",
+    "data/raw/real_outputs/cross_domain_docstrings_operational_v1"
+  ],
+  "public_research_postprocess": "postprocess_v2",
+  "required_invocation_files": [
+    "unresolved_pairs.jsonl",
+    "unresolved_nl_lean.json",
+    "admitted_representation.json",
+    "parsed_candidate.json",
+    "admitted_variant.json",
+    "admitted_theorem.json"
+  ],
+  "reference_catalogs": {
+    "public_research": {
+      "path": "data/parsed/real_outputs/public_research_v1/reference_representations.jsonl",
+      "sha256": "6d58d11cc707bb64a3e8e2718e26330a601a2e077d56b88f501ce7222deb4819",
+      "rows": 3
+    },
+    "algebra": {
+      "path": "/storage/milikic/leanfaith/gate3/run_repr_v3_df7baa3/run_a/records/gate3.jsonl",
+      "sha256": "cd0a706448a1df2effab245ca175aa918c34f28f3f840ed666361f84397602ae",
+      "rows": 10000
+    },
+    "cross_domain": {
+      "path": "data/parsed/real_outputs/cross_domain_docstrings_operational_v1/reference_representations.jsonl",
+      "sha256": "072c341f52339edc56fa90f548470d22aeea3a3fcb0936ac1a1e3af3255ee39b",
+      "rows": 20
+    }
+  },
+  "source_contexts": {
+    "ctx:45a3a59bdf49fbdfb280f0a6508b4c03ba51b3a8189b211f87db8e0f6d60aaa8": {
+      "path": "data/parsed/real_outputs/public_research_v1/context.json",
+      "sha256": "26495faf51a57e6d81eb54d8caf32304c32676bddcf98a0024f3bdcdc8760244"
+    },
+    "ctx:0cd06826b8767b3bc951c0eb00c802424af95785b558f9f8a61f18694a86c4ce": {
+      "path": "configs/models/tokenizer_context_mathlib_v1.json",
+      "sha256": "d08d78779f9a3ea7c9c1779c982cc8359a309c94de2ea0b4c2c5a3df85ff51fc"
+    }
+  },
+  "expected_manifest_count": 17,
+  "expected_candidate_count": 301,
+  "expected_unique_reference_count": 50,
+  "expected_family_counts": {
+    "public_research": 3,
+    "algebra": 195,
+    "cross_domain": 103
+  },
+  "expected_consumed_file_count": 1828,
+  "expected_consumed_bundle_sha256": "42c2501bc17daed82594e4be84150e3b27011204b2aff7ad56d130812d97c2dc"
+}

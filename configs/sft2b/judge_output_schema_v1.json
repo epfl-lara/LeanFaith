@@ -1,0 +1,26 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "decision": {
+      "type": "string",
+      "enum": ["equivalent", "non_equivalent", "unknown"]
+    },
+    "probability_equivalent": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "rationale": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 800
+    },
+    "relation_class": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 120
+    }
+  },
+  "required": ["decision", "probability_equivalent", "rationale", "relation_class"]
+}

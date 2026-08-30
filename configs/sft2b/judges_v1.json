@@ -1,0 +1,46 @@
+{
+  "schema_version": "sft2b_judges_v1",
+  "rubric_version": "intended_claim_consistency_v1",
+  "output_schema_path": "configs/sft2b/judge_output_schema_v1.json",
+  "output_schema_sha256": "bd0c13465a8ee7855c68bce0ac35a8c86bd2e68c4afb8449789158e318742e5f",
+  "blinded_to_expected_label": true,
+  "blinded_to_other_votes": true,
+  "providers": [
+    {
+      "judge": "codex",
+      "provider": "openai_codex_exec",
+      "binary_path": "/localhome/milikic/.codex/packages/standalone/releases/0.149.1-x86_64-unknown-linux-musl/bin/codex",
+      "binary_sha256": "73dc5888888f411c1f0fa7b81d866e721dcc86b527ce8e3b2cf4708661e823ba",
+      "cli_version": "codex-cli 0.149.1",
+      "model_id": "gpt-5.6-sol",
+      "effort": "xhigh",
+      "prompt_path": "prompts/sft2b/codex_judge_v1.md",
+      "prompt_sha256": "be8ce9931fe414bdec3d4710328c96ac5b407ce6d6acb69066fcef0c8fdd7602",
+      "timeout_seconds": 300
+    },
+    {
+      "judge": "lemex",
+      "provider": "lemex_exec",
+      "binary_path": "/localhome/milikic/lemex-fork/codex-rs/target/release/lemex",
+      "binary_sha256": "51dda654cec7f0833c5146708d7322be46cddc14ae51ae987146d5e26807accb",
+      "cli_version": "lemex 0.0.0",
+      "model_id": "moonshotai/Kimi-K2.7-Code",
+      "effort": "medium",
+      "prompt_path": "prompts/sft2b/lemex_judge_v1.md",
+      "prompt_sha256": "ae83e09f7bbd22fd8de915f83e82a61222e2112cf11952719772310337b7e95f",
+      "timeout_seconds": 300
+    },
+    {
+      "judge": "claude",
+      "provider": "anthropic_claude_cli",
+      "binary_path": "/localhome/milikic/.local/share/claude/versions/2.1.251",
+      "binary_sha256": "fd5f10ff0eb58daec04900466b143ea98aab50abf208a422bc008eaec13f61f7",
+      "cli_version": "2.1.251 (Claude Code)",
+      "model_id": "claude-fable-5",
+      "effort": "xhigh",
+      "prompt_path": "prompts/sft2b/claude_judge_v1.md",
+      "prompt_sha256": "fd69591b498a3d5fcff024e7ee6b0bf91df554cb6d0ee539707d811ad0de8708",
+      "timeout_seconds": 300
+    }
+  ]
+}

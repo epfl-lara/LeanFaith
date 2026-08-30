@@ -1,0 +1,49 @@
+{
+  "schema_version": "sft2b_numina_source_smoke_v1",
+  "policy_version": "source_use_v2",
+  "external_transmission": true,
+  "selection_scope": "one manually audited operational smoke row only; no default eligibility for the remaining dataset",
+  "policy": {
+    "path": "policies/source_use_v2.yaml",
+    "sha256": "62a4daca09ca669aef0133cd4d0b0913e1d7795558560f3aac4b289efc75e95c"
+  },
+  "dataset": {
+    "dataset_id": "formalmathatepfl/sft_classic_numina",
+    "revision": "b3e537486452a88406507c4c2d6f347d46077f61",
+    "snapshot_path": "/storage/milikic/models/hub/datasets--formalmathatepfl--sft_classic_numina/snapshots/b3e537486452a88406507c4c2d6f347d46077f61",
+    "readme_path": "README.md",
+    "readme_sha256": "c64300072788dc4a3ba92d6062cb598dbc60f737cfd4febb5235d7f73d3cc992",
+    "split": "train",
+    "train_path": "data/train-00000-of-00001.parquet",
+    "train_sha256": "99aca3cb596e8de32274f611db72835b7222ba4d15ffbbcb32cafde66e4e5e80"
+  },
+  "row_uuid": "5e9411f4-450c-5cf1-a3d8-d3a87a4aaa6a",
+  "row_sha256": "d447de6f827d29fe8cb265c616c87cfadb7bda133281dd69575b3e60bb32e866",
+  "question_sha256": "fae398346d9e13e7b72ef9b1fb562fc6d540ab74823f80bc017f8f77b8263900",
+  "lean_code_sha256": "074acd7ec68eb433d3cf3c4dcbda03347fc731af42dbf3a18dd12d8ff590fc06",
+  "data_source": "AI-MO/NuminaMath-LEAN",
+  "problem_identity": "AI-MO/NuminaMath-LEAN::algebra_20786",
+  "declaration_name": "algebra_20786",
+  "nl_statement": "How many positive multiples of 7 are less than 150?",
+  "reference_proposition": "Set.ncard {n : ℕ | 0 < n ∧ 7 ∣ n ∧ n < 150} = 21",
+  "source_url": "https://huggingface.co/datasets/formalmathatepfl/sft_classic_numina/blob/b3e537486452a88406507c4c2d6f347d46077f61/data/train-00000-of-00001.parquet",
+  "redistribution_note": "owner-authorized external model processing; private-first output; public release still requires redistribution review",
+  "golden_blocklist": {
+    "path": "data/benchmarks/golden_blocklist_v1.json",
+    "sha256": "8e4af6a9e47fb06d281169cdaddb01c5c66c1b0d150f2df9c9283ecb587117f7"
+  },
+  "reference_near_dup_hash": "530ad396f5dedbe1ce65927066f1199eec193a00d001f2cc6f14fead8ed8a144",
+  "required_audit": {
+    "row_valid": true,
+    "not_proof_repair": true,
+    "data_source_matches": true,
+    "one_nl_comment": true,
+    "question_reference_matches": true,
+    "lean_reference_matches": true,
+    "standalone_nl": true
+  },
+  "source_context_id": "ctx:0cd06826b8767b3bc951c0eb00c802424af95785b558f9f8a61f18694a86c4ce",
+  "context_path": "configs/models/tokenizer_context_mathlib_v1.json",
+  "context_sha256": "d08d78779f9a3ea7c9c1779c982cc8359a309c94de2ea0b4c2c5a3df85ff51fc",
+  "existing_301_recipe_path": "configs/sft2b/existing_301_v1.json"
+}

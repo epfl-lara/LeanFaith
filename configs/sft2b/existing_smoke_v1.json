@@ -1,0 +1,13 @@
+{
+  "schema_version": "sft2b_existing_smoke_v1",
+  "pair_id": "pair:e899befb44b83b09dd0f82777d48ea44ec3efac642b85650e0040a4f0e2fcf29",
+  "selection_reason": "simple public Mathlib real-analysis proposition with a valid binder-presentation variant",
+  "existing_recipe_path": "configs/sft2b/existing_301_v1.json",
+  "runtime_config_path": "configs/sft2b/runtime_v1.json",
+  "judges_config_path": "configs/sft2b/judges_v1.json",
+  "helper_path": "src/leanfaith/sft2b/lean_helper.lean",
+  "staging_root": "/storage/milikic/leanfaith/value_first/sft2_autoformalizer_v1",
+  "mathlib_project_path": "/storage/milikic/leanfaith/mathlib4",
+  "lean_timeout_seconds": 300,
+  "owner_session": "Codex /root SFT2B 2026-08-30"
+}
