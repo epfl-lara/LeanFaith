@@ -194,6 +194,11 @@ def test_goal_v1_cross_path_smoke_then_bounded_pilot(
                   n = n := contextRefl n""",
             ),
             ElaboratedInput(
+                _qualified("goalV1PilotLet"),
+                "theorem",
+                "theorem goalV1PilotLet : let x := 1; x = 1 := by rfl",
+            ),
+            ElaboratedInput(
                 "lf_add_comm",
                 "theorem",
                 "theorem lf_add_comm (x y : Nat) : x + y = y + x := Nat.add_comm x y",
@@ -210,7 +215,6 @@ def test_goal_v1_cross_path_smoke_then_bounded_pilot(
         assert len(pilot.sidecars) == len(pilot_inputs)
         assert all(sidecar.record.goal_v1_source == "elaborated" for sidecar in pilot.sidecars)
         assert all(sidecar.core_text().count("⊢") == 1 for sidecar in pilot.sidecars)
-        assert all(":=" not in sidecar.core_text() for sidecar in pilot.sidecars)
         assert all(
             "LEANFAITH_GOAL_V1_PROOF_SENTINEL" not in sidecar.core_text()
             for sidecar in pilot.sidecars
@@ -227,6 +231,12 @@ def test_goal_v1_cross_path_smoke_then_bounded_pilot(
         assert len(long_goal.splitlines()) == 2
         assert len(long_goal.splitlines()[0]) > 120
         assert by_name[_qualified("goalV1PilotStructuredContext")].endswith("⊢ n = n")
+        assert by_name[_qualified("goalV1PilotLet")] == "⊢ let x := 1; x = 1"
+        assert all(
+            ":=" not in goal
+            for name, goal in by_name.items()
+            if name != _qualified("goalV1PilotLet")
+        )
         loaded_sidecar = next(
             sidecar
             for item, sidecar in zip(pilot_inputs, pilot.sidecars, strict=True)
@@ -249,11 +259,36 @@ def test_goal_v1_cross_path_smoke_then_bounded_pilot(
                 continue
             surface_agreements += surface_sidecar.core_text() == elaborated_sidecar.core_text()
 
-        assert len(pilot_inputs) == 10
+        assert len(pilot_inputs) == 11
         assert surface_failures == 4
-        assert surface_agreements == 4
+        assert surface_agreements == 5
 
-        # Gate 2b: the six pinned source-family fixtures stay purely surface-side.
+        # Gate 2b: any Lean-reported sorry fails closed, even when another
+        # declaration makes the overall batch INVALID.
+        rejected_sorry_inputs = (
+            ElaboratedInput(
+                _qualified("goalV1PilotRejectedSorry"),
+                "theorem",
+                "theorem goalV1PilotRejectedSorry : True := by sorry",
+            ),
+            ElaboratedInput(
+                _qualified("goalV1PilotBroken"),
+                "theorem",
+                "theorem goalV1PilotBroken : MissingType := by exact missing",
+            ),
+        )
+        rejected_sorry = render_elaborated_batch(
+            backend,
+            declarations=rejected_sorry_inputs,
+            compile_context=context,
+            request_id="goal-v1-invalid-sorry-regression",
+        )
+        assert not rejected_sorry.sidecars
+        assert [failure.declaration_name for failure in rejected_sorry.failures] == [
+            item.declaration_name for item in rejected_sorry_inputs
+        ]
+
+        # Gate 2c: the six pinned source-family fixtures stay purely surface-side.
         source_successes, source_expected_failures, source_elapsed_ms = (
             _multi_source_surface_pilot()
         )
@@ -272,6 +307,10 @@ def test_goal_v1_cross_path_smoke_then_bounded_pilot(
                 "elapsed_ms": pilot.elapsed_ms,
                 "surface_agreements": surface_agreements,
                 "surface_failures": surface_failures,
+            },
+            "mixed_invalid_sorry": {
+                "sidecars": len(rejected_sorry.sidecars),
+                "failures": len(rejected_sorry.failures),
             },
             "multi_source_surface_pilot": {
                 "rows": source_successes + source_expected_failures,

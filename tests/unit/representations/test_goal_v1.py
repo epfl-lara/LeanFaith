@@ -179,6 +179,34 @@ def test_equation_style_proof_without_colon_equals_fails_closed() -> None:
     assert raised.value.code.value == "ambiguous_proof_boundary"
 
 
+def test_semicolon_delimited_let_proposition_is_preserved_by_surface_path() -> None:
+    raw = "theorem letClaim : let x := 1; x = 1 := by rfl"
+
+    sidecar = render_surface(
+        raw_statement=raw,
+        declaration_kind="theorem",
+        compile_context=_context(),
+    )
+
+    assert sidecar.core_text() == "⊢ let x := 1; x = 1"
+
+
+def test_layout_only_let_proposition_fails_closed_in_surface_path() -> None:
+    raw = """theorem letClaim :
+      let x := 1
+      x = 1 := by rfl
+    """
+
+    with pytest.raises(SurfaceRenderError) as raised:
+        render_surface(
+            raw_statement=raw,
+            declaration_kind="theorem",
+            compile_context=_context(),
+        )
+
+    assert raised.value.code.value == "ambiguous_proof_boundary"
+
+
 @pytest.mark.parametrize(
     ("raw", "kind", "expected_code"),
     [
@@ -322,10 +350,12 @@ class _StaticBackend(_OneRequestBackend):
         *,
         status: LeanStatus,
         messages: tuple[dict[str, object], ...],
+        sorries: tuple[dict[str, object], ...] = (),
     ) -> None:
         super().__init__(context)
         self.status = status
         self.messages = messages
+        self.sorries = sorries
 
     def run(self, request: LeanRequest) -> LeanResult:
         self.requests.append(request)
@@ -336,6 +366,7 @@ class _StaticBackend(_OneRequestBackend):
             context_fingerprint=self.context.fingerprint,
             status=self.status,
             messages=self.messages,
+            sorries=self.sorries,
             elapsed_ms=5,
         )
 
@@ -497,6 +528,72 @@ def test_elaborated_sorry_policy_is_enforced() -> None:
     assert len(rejected.failures) == 1
     assert not accepted.failures
     assert accepted.sidecars[0].record.warnings[-1] == "compiled_with_sorry"
+
+
+def test_mixed_invalid_batch_with_reported_sorry_fails_closed() -> None:
+    context = _context()
+    messages: tuple[dict[str, object], ...] = (
+        {
+            "data": GOAL_MARKER
+            + json.dumps(
+                {
+                    "name": "withSorry",
+                    "constant_kind": "theorem",
+                    "goal_v1": "⊢ True",
+                }
+            )
+        },
+        {"severity": "error", "data": "broken declaration failed"},
+    )
+    declarations = (
+        ElaboratedInput("withSorry", "theorem", "theorem withSorry : True := by sorry"),
+        ElaboratedInput("broken", "theorem", "theorem broken : Missing := by exact missing"),
+    )
+
+    result = render_elaborated_batch(
+        _StaticBackend(
+            context,
+            status=LeanStatus.INVALID,
+            messages=messages,
+            sorries=({"declaration": "withSorry"},),
+        ),
+        declarations=declarations,
+        compile_context=context,
+        request_id="goal-v1-invalid-sorry",
+    )
+
+    assert not result.sidecars
+    assert [failure.declaration_name for failure in result.failures] == [
+        "withSorry",
+        "broken",
+    ]
+
+
+def test_elaborated_multiline_let_goal_is_canonicalized() -> None:
+    context = _context()
+    messages: tuple[dict[str, object], ...] = (
+        {
+            "data": GOAL_MARKER
+            + json.dumps(
+                {
+                    "name": "letClaim",
+                    "constant_kind": "theorem",
+                    "goal_v1": "⊢ have x := 1;\n  x = 1",
+                }
+            )
+        },
+    )
+    raw = "theorem letClaim : let x := 1; x = 1 := by rfl"
+
+    result = render_elaborated_batch(
+        _StaticBackend(context, status=LeanStatus.VALID, messages=messages),
+        declarations=(ElaboratedInput("letClaim", "theorem", raw),),
+        compile_context=context,
+        request_id="goal-v1-let",
+    )
+
+    assert not result.failures
+    assert result.sidecars[0].core_text() == "⊢ let x := 1; x = 1"
 
 
 def test_invalid_batch_preserves_payloads_that_were_rendered() -> None:

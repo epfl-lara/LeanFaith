@@ -42,6 +42,9 @@ SPEC_PAYLOAD: dict[str, object] = {
         "target_line": "⊢ <Lean proposition>",
         "turnstile_count": 1,
         "line_policy": "adjacent equal-type locals group; target is final",
+        "let_target_policy": (
+            "top-level let layout is serialized on the final target line with semicolon separators"
+        ),
     },
     "preserve": [
         "local_order",
@@ -92,6 +95,7 @@ SPEC_PAYLOAD: dict[str, object] = {
         "namespace_context",
     ],
     "elaborated_input_modes": ["inline_candidate", "loaded_constant_lookup"],
+    "sorry_policy": "any backend-reported sorry fails the batch unless allow_sorry is true",
     "inverse": "forbidden",
     "elaborated_option_profile": {
         "base": "Options.empty",
@@ -106,7 +110,7 @@ SPEC_PAYLOAD: dict[str, object] = {
 }
 
 # Filled once from hash_canonical(SPEC_PAYLOAD), then protected by tests.
-SPEC_HASH = "2fc5b69c0534449d4ffeca0f47fddec38042fff90de374b3bda81d4f25dd23d8"
+SPEC_HASH = "7ec7b82923b4eb78a737f47653dfc7d7b5eb619373159ec1cf5ed0d794759ae9"
 
 CompileOptionValue = str | int | float | bool
 GoalV1Source = Literal["elaborated", "surface"]
@@ -572,10 +576,27 @@ def _extract_signature(raw_statement: str, declaration_kind: str) -> str:
             SurfaceFailureCode.AMBIGUOUS_PROOF_BOUNDARY,
             "equation-style declaration has no unambiguous ':=' proof boundary",
         )
-    signature_end = (
-        signature_start + proof_delimiters[0] if proof_delimiters else len(masked_source.masked)
-    )
-    signature = masked_source.masked[signature_start:signature_end].strip()
+    if proof_delimiters:
+        for proof_delimiter in proof_delimiters:
+            signature_end = signature_start + proof_delimiter
+            signature = masked_source.masked[signature_start:signature_end].strip()
+            if not signature:
+                continue
+            target_split = _split_top_level_once(signature, ":")
+            if target_split is None:
+                continue
+            target = collapse_lean_whitespace(target_split[1])
+            if target.startswith("let "):
+                if not _is_canonical_let_target(target):
+                    continue
+            elif ":=" in target:
+                continue
+            return signature
+        raise SurfaceRenderError(
+            SurfaceFailureCode.AMBIGUOUS_PROOF_BOUNDARY,
+            "no top-level ':=' delimiter leaves a valid supported theorem signature",
+        )
+    signature = masked_source.masked[signature_start:].strip()
     if not signature:
         raise SurfaceRenderError(
             SurfaceFailureCode.MISSING_TARGET_SEPARATOR,
@@ -692,6 +713,60 @@ def _group_binders(binders: Sequence[_Binder]) -> list[str]:
     return [f"{' '.join(binder.names)} : {binder.type_text}" for binder in grouped]
 
 
+def _is_canonical_let_target(target: str) -> bool:
+    stripped = target.strip()
+    if not stripped.startswith("let "):
+        return False
+    assignments = _top_level_positions(stripped, ":=")
+    separators = _top_level_positions(stripped, ";")
+    return bool(assignments and separators and separators[-1] > assignments[-1])
+
+
+def _canonicalize_surface_target(target: str) -> str:
+    collapsed = collapse_lean_whitespace(target)
+    if not collapsed:
+        raise SurfaceRenderError(SurfaceFailureCode.EMPTY_TARGET, "target is empty")
+    if collapsed.startswith("let "):
+        if _is_canonical_let_target(collapsed):
+            return collapsed
+        raise SurfaceRenderError(
+            SurfaceFailureCode.AMBIGUOUS_PROOF_BOUNDARY,
+            "surface top-level let target must retain an assignment and body separator",
+        )
+    if ":=" in collapsed:
+        raise SurfaceRenderError(
+            SurfaceFailureCode.AMBIGUOUS_PROOF_BOUNDARY,
+            "surface target contains ':=' outside a semicolon-delimited top-level let",
+        )
+    return collapsed
+
+
+def _canonicalize_elaborated_goal(goal: str) -> str:
+    lines = [line.rstrip() for line in goal.splitlines()]
+    target_indices = [index for index, line in enumerate(lines) if line.startswith("⊢ ")]
+    if len(target_indices) != 1:
+        return goal
+    target_index = target_indices[0]
+    if target_index == len(lines) - 1:
+        return "\n".join(lines)
+    segments = [lines[target_index][2:].strip()]
+    segments.extend(line.strip() for line in lines[target_index + 1 :])
+    if any(not segment or segment.startswith("|") for segment in segments):
+        raise GoalV1Error("unsupported multiline target layout")
+    if any(
+        not (segment.startswith("let ") or segment.startswith("have ")) for segment in segments[:-1]
+    ):
+        raise GoalV1Error("unsupported multiline target layout")
+    canonical_segments = [
+        ("let " + segment[5:] if segment.startswith("have ") else segment).removesuffix(";")
+        for segment in segments
+    ]
+    canonical_target = "; ".join(canonical_segments)
+    if not _is_canonical_let_target(canonical_target):
+        raise GoalV1Error("malformed top-level let target layout")
+    return "\n".join([*lines[:target_index], f"⊢ {canonical_target}"])
+
+
 def validate_goal_v1(goal: str) -> None:
     lines = goal.splitlines()
     if not lines or any(not line.strip() for line in lines):
@@ -702,8 +777,11 @@ def validate_goal_v1(goal: str) -> None:
         raise GoalV1Error("goal_v1 local lines must not contain a turnstile")
     if any(" : " not in line for line in lines[:-1]):
         raise GoalV1Error("every goal_v1 local line must contain ' : '")
-    if ":=" in goal:
-        raise GoalV1Error("goal_v1 must not contain a proof/value delimiter")
+    if any(":=" in line for line in lines[:-1]):
+        raise GoalV1Error("goal_v1 local lines must not contain a proof/value delimiter")
+    target = lines[-1][2:]
+    if ":=" in target and not _is_canonical_let_target(target):
+        raise GoalV1Error("goal_v1 target contains an unsupported proof/value delimiter")
 
 
 def signature_to_goal_v1(signature: str) -> str:
@@ -725,14 +803,7 @@ def signature_to_goal_v1(signature: str) -> str:
         )
     forall_binders, target = _peel_forall_binders(target)
     binders.extend(forall_binders)
-    target = collapse_lean_whitespace(target)
-    if not target:
-        raise SurfaceRenderError(SurfaceFailureCode.EMPTY_TARGET, "target is empty")
-    if ":=" in target:
-        raise SurfaceRenderError(
-            SurfaceFailureCode.AMBIGUOUS_PROOF_BOUNDARY,
-            "target contains ':='; use the elaborated path or a parsed signature",
-        )
+    target = _canonicalize_surface_target(target)
     if _has_top_level_arrow(target):
         raise SurfaceRenderError(
             SurfaceFailureCode.ANONYMOUS_TOP_LEVEL_ARROW,
@@ -961,7 +1032,8 @@ def render_elaborated_batch(
     result_detail = result.infrastructure_error or "; ".join(
         str(message.get("data", "")) for message in result.messages
     )
-    if result.status == LeanStatus.VALID_WITH_SORRY and not allow_sorry:
+    reported_sorry = result.status == LeanStatus.VALID_WITH_SORRY or bool(result.sorries)
+    if reported_sorry and not allow_sorry:
         detail = result_detail or "Lean reported sorry but allow_sorry is false"
         failures = tuple(ElaboratedFailure(name, detail) for name in names)
         return ElaboratedBatchResult(
@@ -1011,6 +1083,11 @@ def render_elaborated_batch(
                 )
             )
             continue
+        try:
+            goal = _canonicalize_elaborated_goal(goal)
+        except GoalV1Error as exc:
+            failures_list.append(ElaboratedFailure(item.declaration_name, str(exc)))
+            continue
         if constant_kind != "theorem":
             failures_list.append(
                 ElaboratedFailure(
@@ -1026,7 +1103,7 @@ def render_elaborated_batch(
         ]
         if result.status == LeanStatus.INVALID:
             warnings.append("batch_had_lean_errors")
-        elif result.status == LeanStatus.VALID_WITH_SORRY:
+        if reported_sorry:
             warnings.append("compiled_with_sorry")
         try:
             sidecar = _build_sidecar(

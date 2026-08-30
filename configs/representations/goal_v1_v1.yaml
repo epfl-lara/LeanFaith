@@ -1,14 +1,14 @@
 schema_version: 1
-status: frozen
+status: active
 spec_hash_algorithm: sha256_canonical_json
-spec_hash: 2fc5b69c0534449d4ffeca0f47fddec38042fff90de374b3bda81d4f25dd23d8
+spec_hash: 7ec7b82923b4eb78a737f47653dfc7d7b5eb619373159ec1cf5ed0d794759ae9
 implementation_sources:
   lean_renderer:
     path: LeanFaith/Meta/GoalV1.lean
     sha256: 8a2626489d65c7424f039f673fe5910adeb07d833580f5a6870cbf8e19434809
   python_module:
     path: src/leanfaith/representations/goal_v1.py
-    sha256: a3ef37d6d10713abca85d61802841fd4c8026798b6ed8d0b77793eebe4c0ed90
+    sha256: d2c0f0121f7085468f442eeb32bc3deac067f2746cf081c983a3b5fb262d81e0
 
 # This subtree is byte-for-byte equivalent after YAML parsing to SPEC_PAYLOAD
 # in src/leanfaith/representations/goal_v1.py. Tests enforce the equality.
@@ -21,6 +21,8 @@ spec:
     target_line: "⊢ <Lean proposition>"
     turnstile_count: 1
     line_policy: "adjacent equal-type locals group; target is final"
+    let_target_policy: >-
+      top-level let layout is serialized on the final target line with semicolon separators
   preserve:
     - local_order
     - local_names
@@ -65,6 +67,7 @@ spec:
     - scoped_context
     - namespace_context
   elaborated_input_modes: [inline_candidate, loaded_constant_lookup]
+  sorry_policy: any backend-reported sorry fails the batch unless allow_sorry is true
   inverse: forbidden
   elaborated_option_profile:
     base: Options.empty

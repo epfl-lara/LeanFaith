@@ -1,12 +1,12 @@
 # REPR — shared `goal_v1.0` theorem representation
 
 > **Task ID:** REPR
-> **Status:** complete
+> **Status:** active
 > **Owner/session:** Codex REPR session (2026-08-30)
-> **Last updated:** 2026-08-30 (reviewed freeze)
+> **Last updated:** 2026-08-30 (second correctness repair)
 > **Dependencies:** none
-> **Next gate:** downstream manifests pin spec hash and implementation revision; retain raw/context
-> sidecars and report metrics by `goal_v1_source`
+> **Next gate:** fix mixed-invalid sorry enforcement and valid `let` propositions, rerun the bounded
+> live gate, and create replacement implementation/freeze commits before downstream use
 > **Compute class:** CPU; bounded Lean oracle/renderer tests only
 > **Lean budget:** reuse loaded environments and candidate compilation; no corpus-wide rendering compile
 > **Local staging root:** `/storage/milikic/leanfaith/value_first/goal_v1_0/`
@@ -18,7 +18,7 @@ Own the one canonical model-facing theorem representation so SFT1, SFT2A, SFT2B,
 build incompatible renderers. Freeze `goal_v1.0`, its provenance flag, and the separate raw
 compilation context. This is an enabling task, not a corpus-generation task.
 
-## Frozen representation decision
+## Target representation decision
 
 `goal_v1.0` contains ordered local variables, hypotheses, typeclass/universe locals, and exactly
 one `⊢ target`. It removes declaration name/kind, attributes, command shell, imports, options,
@@ -82,7 +82,7 @@ environment; never recompile theorem proofs or run one Lean process per theorem.
 renderer during compilation already required for each candidate. Cache by raw/type hash plus
 project/toolchain/options and renderer version.
 
-## Completed repair plan
+## Repair plan
 
 1. Finish all safe string parsing, schema validation, source filtering, hashing, and fixtures before
    invoking Lean.
@@ -92,6 +92,10 @@ project/toolchain/options and renderer version.
    environment for bounded fixtures, and never invoke one Lean process per declaration.
 4. Run one complete cross-path example first, then only the bounded multi-source pilot; record
    agreement, failures, cache behavior, throughput, leakage checks, hashes, risks, and handoff.
+5. Fail the whole elaborated batch when Lean reports any sorry and `allow_sorry=False`, including
+   mixed `INVALID` batches; retain partial payload-backed successes only when no sorry was reported.
+6. Canonicalize supported semicolon-delimited top-level `let` propositions to one target line on
+   both paths; fail closed on ambiguous surface layout and unsupported elaborated multiline layout.
 
 Lean is the bottleneck: this session will not compile a corpus. It will establish the small Lean
 oracle, measure the cheap renderer against it, and compile only the bounded audit required here.
@@ -164,7 +168,10 @@ post-repair spec and committed code revision.
   synchronous elaboration; the reservation was released. Raw Lean responses used pytest's isolated
   temporary directory and were not promoted as release artifacts.
 
-## Replacement freeze record and evidence
+## Superseded first replacement freeze record and evidence
+
+This record was superseded by the second correctness review. Its hashes and measurements remain
+historical evidence only and are not authorized for downstream use.
 
 - **Frozen identity:** `goal_v1.0`, renderer `goal_v1.0`, canonical spec hash
   `2fc5b69c0534449d4ffeca0f47fddec38042fff90de374b3bda81d4f25dd23d8`. The hash independently
@@ -203,7 +210,29 @@ post-repair spec and committed code revision.
   owned unit tests, the one live integration gate, and the repository task-plan pre-commit hook pass.
   No training data, external model call, durable staging artifact, or active host reservation remains.
 
-## Frozen risks and downstream handoff
+## Second repair candidate evidence
+
+- **Candidate identity:** canonical spec hash
+  `7ec7b82923b4eb78a737f47653dfc7d7b5eb619373159ec1cf5ed0d794759ae9`; unchanged Lean renderer
+  SHA-256 `8a2626489d65c7424f039f673fe5910adeb07d833580f5a6870cbf8e19434809`; replacement Python module
+  SHA-256 `d2c0f0121f7085468f442eeb32bc3deac067f2746cf081c983a3b5fb262d81e0`.
+- **Sorry regression:** the live mixed batch compiled one `by sorry` theorem and failed a second
+  declaration. With `allow_sorry=False`, the API returned zero sidecars and two explicit failures.
+  Any nonempty backend `sorries` payload now triggers the same fail-closed policy as
+  `VALID_WITH_SORRY`; `allow_sorry=True` remains an explicit opt-in.
+- **`let` regression:** surface extraction tests candidate proof delimiters in order, so the binding
+  assignment is retained and the later theorem proof delimiter is removed. Lean's multiline
+  `⊢ have x := 1;` goal layout is recognized as a top-level let binding and canonicalized to exactly
+  `⊢ let x := 1; x = 1`; the surface and elaborated live results agree. Layout-only surface input and
+  unsupported multiline elaborated shapes fail closed instead of being flattened speculatively.
+- **Bounded gate:** the unchanged cross-path smoke retained request hash
+  `147f755a4bcb9c998ea2aa5904957f654e528f97f003ad508e3a206d81c068eb` (1,571 ms cold, 22 ms replay).
+  The loaded environment rendered 11/11 elaborated pilot rows in 43 ms; surface mode had five exact
+  agreements, two spelling differences, and four deliberate failures. The six-source pilot remained
+  4/6 in 1 ms. Full live wall time was 2.09 s with 116,696 KiB peak RSS. No corpus was compiled, no
+  training data was generated, and the host reservation was released.
+
+## Current risks and downstream handoff
 
 - Surface mode is safe only for a trusted, complete name-free signature. Raw declaration extraction
   is explicitly tagged `raw_signature_extraction_self_contained_only`; parsed signatures are tagged
@@ -226,7 +255,12 @@ post-repair spec and committed code revision.
 - A mixed inline batch may return `LeanStatus.INVALID` after some constants rendered successfully.
   Only payload-backed sidecars survive and carry `batch_had_lean_errors`; missing declarations are
   explicit failures. Use batch size one for untrusted inline candidates when per-candidate status is
-  required. Infrastructure failures and disallowed `VALID_WITH_SORRY` results fail the batch.
+  required. Infrastructure failures and any backend-reported sorry fail the batch unless
+  `allow_sorry=True`.
+- Surface mode supports top-level `let` propositions only when their assignment/body boundary is
+  explicit with `;`. Layout-only surface text fails closed. The elaborated path canonicalizes Lean's
+  recognized multiline `have` presentation for top-level let chains; other forced multiline target
+  layouts remain explicit failures for a future representation version.
 
 ## Session kickoff prompt
 
@@ -242,7 +276,8 @@ Do not generate training data. Record the spec hash, evidence, risks, and downst
 
 ## Coordinator requests
 
-- None. Downstream SFT/evaluation serializers may proceed using the frozen hash and handoff above.
+- Downstream SFT/evaluation serializers must wait for the second replacement freeze commit and pin
+  its spec hash and implementation revision rather than either superseded record.
 
 ## Progress log (append-only)
 
@@ -282,3 +317,15 @@ Do not generate training data. Record the spec hash, evidence, risks, and downst
   `b871900e5177bbda38471f98cc46818bb6502b0d`, then wrote the replacement freeze record and marked
   REPR `complete`. No training data was generated; downstream consumers may pin the replacement spec
   hash and reviewed implementation revision while retaining raw/context sidecars.
+- 2026-08-30 — user/live review reopened REPR before downstream use. A mixed `INVALID` batch could
+  retain a sorry-backed sidecar despite `allow_sorry=False`, and a valid top-level `let` proposition
+  was silently truncated by surface extraction while elaborated multiline output failed validation.
+  The prior freeze is superseded; no corpus rebuild is authorized. REPR remains `active` until both
+  cases have unit/live regressions, updated hashes, bounded verification, and replacement commits.
+- 2026-08-30 — second repair candidate passed: a live mixed-invalid/sorry batch returned 0 sidecars
+  and 2 failures with sorry disallowed; a valid top-level let theorem rendered exactly as
+  `⊢ let x := 1; x = 1` on both paths. The loaded-environment pilot passed 11/11 plus the safety
+  request, the six-source pilot remained 4/6, 25 active-state unit cases passed, and scoped
+  formatting, ruff, strict mypy, and plan validation were clean. The reservation was released; REPR
+  stays `active` until the replacement implementation is committed and the final freeze record is
+  committed afterward.
