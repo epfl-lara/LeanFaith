@@ -15,7 +15,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from leanfaith.config.hashing import canonical_json_bytes, hash_canonical, hash_file
-from leanfaith.host_resources import claim_resources, release_resources
+from leanfaith.host_resources import claim_resources, list_reservations, release_resources
 from leanfaith.sft2a.config import LoadedSFT2AConfig
 from leanfaith.sft2a.legacy import _atomic_exact
 from leanfaith.sft2a.models import (
@@ -181,19 +181,42 @@ def pilot_health(
         if paths["terminal"].is_file()
         else None
     )
+    reservation = next(
+        (item for item in list_reservations() if item.task == policy.resource_task),
+        None,
+    )
+    resource_claim = (
+        None
+        if reservation is None
+        else {
+            "task": reservation.task,
+            "pid": reservation.pid,
+            "lean_workers": reservation.lean_workers,
+            "lean_rss_gib": reservation.lean_rss_gib,
+            "owner_session": reservation.owner_session,
+        }
+    )
+    run_lock_held = not _lock_is_free(paths["run_lock"])
     return {
         "session_name": policy.session_name,
         "session_live": session_live,
         "pane_pid": pane_pid,
         "process_tree": process,
-        "run_lock_held": not _lock_is_free(paths["run_lock"]),
+        "run_lock_held": run_lock_held,
+        "resource_claim": resource_claim,
         "journal_path": str(paths["journal"]),
         "journal_rows": journal_rows,
         "latest_event": latest_event,
         "combined_log_path": str(paths["log"]),
         "combined_log_bytes": paths["log"].stat().st_size if paths["log"].is_file() else 0,
         "terminal_status": terminal,
-        "healthy_start": session_live and pane_pid is not None and journal_rows >= 2,
+        "healthy_start": (
+            session_live
+            and pane_pid is not None
+            and run_lock_held
+            and reservation is not None
+            and reservation.pid == pane_pid
+        ),
         "attach_command": f"tmux attach -t {policy.session_name}",
         "status_command": (
             "uv run python -m leanfaith.sft2a "
@@ -343,6 +366,10 @@ def run_detached_worker(
     paths["log"].parent.mkdir(parents=True, exist_ok=True)
     log_descriptor = os.open(paths["log"], os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o600)
     null_descriptor = os.open(os.devnull, os.O_RDONLY)
+    # Keep one non-I/O reference to the tmux PTY. Redirecting every descriptor away from the PTY
+    # makes tmux observe EOF and deliver SIGHUP before the worker can claim its Lean resource.
+    tty_keepalive_descriptor = os.dup(sys.stdout.fileno())
+    os.set_inheritable(tty_keepalive_descriptor, False)
     try:
         os.dup2(log_descriptor, sys.stdout.fileno())
         os.dup2(log_descriptor, sys.stderr.fileno())
@@ -350,6 +377,17 @@ def run_detached_worker(
     finally:
         os.close(log_descriptor)
         os.close(null_descriptor)
+    print(
+        json.dumps(
+            {
+                "event": "worker_stdio_ready",
+                "pid": os.getpid(),
+                "session_name": policy.session_name,
+            },
+            sort_keys=True,
+        ),
+        flush=True,
+    )
     started_at = _utc_now()
     with _exclusive_lock(paths["run_lock"], label="pilot run lock"):
         if paths["terminal"].is_file():
@@ -376,6 +414,7 @@ def run_detached_worker(
                 {
                     "event": "resource_claimed",
                     "at": _utc_now(),
+                    "pid": os.getpid(),
                     "task": reservation.task,
                     "lean_workers": reservation.lean_workers,
                     "lean_rss_gib": reservation.lean_rss_gib,

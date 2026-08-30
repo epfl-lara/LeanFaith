@@ -353,3 +353,11 @@ recorded budget/model decision.
   sample `d0568942cf276939a47b375a73715fcae489a9b9c380c9aa02bd780bd706ba75`, the 296-call/$15 Opus
   ceilings, fresh v2 output, and versioned `tmux` session. This authorization explicitly excludes
   the 2,233-row legacy rejudge, publication, and 50K run.
+- 2026-08-30 — the first authorized detached startups reached `worker_started` but received tmux
+  `SIGHUP` before the resource claim because redirecting stdin/stdout/stderr removed every open
+  reference to the pane PTY. They executed zero provider and Lean calls and held no reservation.
+  Preserved their sample, launch requests, and journal under additive evidence root
+  `runs/diverse_root_production_defaults_pilot_v2_failed_startup_15d6a26`. The worker now retains one
+  non-I/O PTY descriptor for its lifetime, writes an initial log record, and startup health requires
+  the named live pane, held run lock, and matching one-worker/20-GiB resource claim rather than old
+  journal-row count. The authorized sample/config/ceilings and v2 tmux name are unchanged.

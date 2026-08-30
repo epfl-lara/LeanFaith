@@ -386,5 +386,9 @@ def test_authorization_transition_uses_fresh_root_and_stops_before_tmux(
     assert preflight["lean_requests_executed"] == 0
     assert preflight["tmux_sessions_started"] == 0
     assert (hash_file(old_sample), hash_file(old_manifest)) == old_hashes
-    assert not (loaded.repo_root / activation.plan.target_authorization_receipt_path).exists()
-    assert not (loaded.repo_root / activation.plan.target_readiness_config_path).exists()
+    assert hash_file(loaded.repo_root / activation.plan.target_authorization_receipt_path) == (
+        "e00195d887692fe309ec024f46d52867b9ec6b2bd52488fdf4b8f465e9ea0b6c"
+    )
+    assert hash_file(loaded.repo_root / activation.plan.target_readiness_config_path) == (
+        "fefdc00a8e694974fe75a64295a78122ac5f5083d036c99d3a1fbb3d90c58473"
+    )
