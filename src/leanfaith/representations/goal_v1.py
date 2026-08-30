@@ -1,4 +1,4 @@
-"""Frozen ``goal_v1.0`` theorem representation.
+"""Versioned ``goal_v1.0`` theorem representation.
 
 The model view is deliberately not a Lean source language.  This module keeps
 raw compilable source and its exact compilation context in a separate sidecar,
@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import json
 import re
+import unicodedata
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from enum import StrEnum
@@ -24,10 +25,10 @@ from typing import Literal
 from leanfaith.config.hashing import hash_canonical, sha256_hex
 from leanfaith.config.paths import find_repo_root
 from leanfaith.lean.protocol import LeanBackend, LeanRequest, LeanStatus
-from leanfaith.representations.views import collapse_lean_whitespace
 
 RENDERER_VERSION = "goal_v1.0"
 GOAL_MARKER = "LFGOALV1JSON "
+SURFACE_PROVENANCE_TAG = "trusted_complete_parsed_signature"
 SUPPORTED_DECLARATION_KINDS = frozenset({"theorem", "lemma"})
 
 # The YAML freeze duplicates this JSON-native payload byte-for-byte.  The
@@ -42,8 +43,64 @@ SPEC_PAYLOAD: dict[str, object] = {
         "target_line": "⊢ <Lean proposition>",
         "turnstile_count": 1,
         "line_policy": "adjacent equal-type locals group; target is final",
-        "let_target_policy": (
-            "top-level let layout is serialized on the final target line with semicolon separators"
+        "term_binding_policy": (
+            "complete semicolon-delimited term let/have bindings in local types or the target at "
+            "any delimiter depth are serialized on one logical line; ambiguous or layout-only "
+            "bindings fail closed"
+        ),
+        "binding_keyword_policy": (
+            "surface let/have and elaborated have bindings canonicalize to let; raw source keeps "
+            "its original spelling"
+        ),
+        "binding_head_policy": (
+            "surface binding heads require one original-token plain or guillemet explicit "
+            "non-pattern name; elaborated and final validation additionally admit Lean's printed "
+            "inaccessible-name suffix; an optional type annotation is nonempty with no second "
+            "top-level colon, and reserved/literal/composite or incomplete heads fail closed"
+        ),
+        "local_name_policy": (
+            "surface binders require original-token plain or guillemet explicit names; elaborated "
+            "and final local lines additionally admit Lean's printed inaccessible-name suffix; "
+            "reserved/literal/composite names fail closed"
+        ),
+        "forall_binder_type_policy": (
+            "a bare top-level forall binder is accepted only when its comma boundary is unique; "
+            "otherwise the binder must be parenthesized so nested quantifier and target commas "
+            "cannot be mistaken for the binder boundary"
+        ),
+        "fragment_completion_policy": (
+            "the containing expression plus each binding type, value, and body rejects dangling "
+            "commas/operators and incomplete if/fun/quantifier/show introducers at every balanced "
+            "delimiter depth; by/do/calc/match fragments fail closed"
+        ),
+        "literal_policy": (
+            "strings, raw strings, guillemets, and Char tokens in types/values/bodies are "
+            "opaque to delimiter analysis and preserved byte-for-byte during layout whitespace "
+            "normalization; "
+            "binding heads retain original token kind so literals cannot masquerade as names"
+        ),
+        "delimiter_policy": (
+            "parentheses, braces, brackets, and constructor angles are balanced structurally; "
+            "binding := and ; cannot belong to compound delimiter/operator runs; dangling "
+            "operators fail closed while supported atomic symbol terms remain values"
+        ),
+        "named_argument_policy": (
+            "outside a claimed let/have binding, := is accepted only as a complete simple "
+            "parenthesized named argument (name := value); every other nested assignment "
+            "fails closed"
+        ),
+        "surface_input_policy": (
+            "surface rendering requires nonempty raw_statement plus caller-supplied "
+            "parsed_signature; supplying it attests that the signature is complete, corresponds "
+            "to compilable raw source in the stored context, and is safe for the bounded grammar; "
+            "raw_statement is never parsed to guess a signature or proof boundary because loaded "
+            "syntax makes top-level := ambiguous"
+        ),
+        "surface_provenance_tag": SURFACE_PROVENANCE_TAG,
+        "surface_provenance_policy": (
+            "each successful surface sidecar stores surface_provenance_tag in record.warnings as "
+            "a caller-attestation marker that does not verify the attested claims; failures "
+            "produce no sidecar or provenance tag"
         ),
     },
     "preserve": [
@@ -52,7 +109,7 @@ SPEC_PAYLOAD: dict[str, object] = {
         "dependent_types",
         "generated_instance_names_when_elaborated",
         "coercions",
-        "notation",
+        "notation_except_term_binding_have_canonicalized_to_let",
         "universes_in_types",
     ],
     "remove": [
@@ -67,15 +124,21 @@ SPEC_PAYLOAD: dict[str, object] = {
         "proof_body",
     ],
     "sources": ["elaborated", "surface"],
-    "surface_fail_closed": [
+    "surface_fail_closed_classes": [
         "anonymous_instance_binder",
         "anonymous_top_level_arrow",
         "duplicate_or_shadowed_local_name",
         "implicit_or_untyped_binder",
         "ambiguous_declaration_or_proof_boundary",
+        "incomplete_or_ambiguous_term_binding",
+        "assignment_syntax_outside_bounded_term_bindings",
+        "missing_trusted_complete_parsed_signature",
+        "raw_declaration_boundary_inference_forbidden",
+        "syntax_quotation",
         "unsupported_declaration_kind",
     ],
     "compile_context_fields": [
+        "schema_version",
         "project_id",
         "project_revision",
         "lean_version",
@@ -95,7 +158,11 @@ SPEC_PAYLOAD: dict[str, object] = {
         "namespace_context",
     ],
     "elaborated_input_modes": ["inline_candidate", "loaded_constant_lookup"],
-    "sorry_policy": "any backend-reported sorry fails the batch unless allow_sorry is true",
+    "sorry_policy": (
+        "VALID_WITH_SORRY, a nonempty sorries payload, or a warning/error containing "
+        '"declaration uses `sorry`" or "declaration uses \'sorry\'" fails the batch unless '
+        "allow_sorry is true"
+    ),
     "inverse": "forbidden",
     "elaborated_option_profile": {
         "base": "Options.empty",
@@ -110,7 +177,7 @@ SPEC_PAYLOAD: dict[str, object] = {
 }
 
 # Filled once from hash_canonical(SPEC_PAYLOAD), then protected by tests.
-SPEC_HASH = "7ec7b82923b4eb78a737f47653dfc7d7b5eb619373159ec1cf5ed0d794759ae9"
+SPEC_HASH = "073d92c8e1fcc5cb7a3a9bf325d047e9b2d52149504977086de46abf6f84ef52"
 
 CompileOptionValue = str | int | float | bool
 GoalV1Source = Literal["elaborated", "surface"]
@@ -134,6 +201,7 @@ class SurfaceFailureCode(StrEnum):
     ANONYMOUS_INSTANCE_BINDER = "anonymous_instance_binder"
     DUPLICATE_LOCAL_NAME = "duplicate_or_shadowed_local_name"
     ANONYMOUS_TOP_LEVEL_ARROW = "anonymous_top_level_arrow"
+    SYNTAX_QUOTATION = "syntax_quotation"
     INVALID_GOAL = "invalid_goal"
 
 
@@ -299,9 +367,216 @@ class _MaskedSource:
     masked: str
 
 
-_DECLARATION_KEYWORD = re.compile(r"\b(theorem|lemma|def)\b")
-_IDENTIFIER = re.compile(r"[^\s(){}\[\]:=,]+")
+@dataclass(frozen=True, slots=True)
+class _BindingToken:
+    keyword: str
+    start: int
+    end: int
+    context: tuple[int, ...]
+
+
 _FORALL = re.compile(r"^(?:∀|forall)\s+")
+_BINDING_KEYWORD = re.compile(r"(?<![\w'.])\b(let|have)\b(?![\w'])")
+_UNSUPPORTED_BINDING_RHS = re.compile(r"^(?:by|do|match|calc)\b")
+_SYNTAX_QUOTATION = re.compile(r"`")
+_SORRY_DIAGNOSTICS = ("declaration uses `sorry`", "declaration uses 'sorry'")
+_ASCII_OPERATOR_CHARS = frozenset("!#$%&*+-./:;<=>?@\\^|~")
+_ATOMIC_SYMBOL_TERMS = frozenset({"\u22a4", "\u22a5", "\u2205", "\u221e"})
+_RESERVED_BINDING_NAMES = frozenset(
+    {
+        "abbrev",
+        "axiom",
+        "by",
+        "calc",
+        "class",
+        "def",
+        "deriving",
+        "do",
+        "else",
+        "end",
+        "example",
+        "export",
+        "extends",
+        "for",
+        "forall",
+        "from",
+        "fun",
+        "have",
+        "if",
+        "import",
+        "in",
+        "include",
+        "inductive",
+        "infix",
+        "infixl",
+        "infixr",
+        "instance",
+        "let",
+        "macro",
+        "match",
+        "mut",
+        "mutual",
+        "namespace",
+        "notation",
+        "opaque",
+        "open",
+        "partial",
+        "private",
+        "protected",
+        "public",
+        "rec",
+        "return",
+        "section",
+        "set_option",
+        "show",
+        "structure",
+        "syntax",
+        "termination_by",
+        "theorem",
+        "then",
+        "universe",
+        "variable",
+        "where",
+        "with",
+    }
+)
+_GENERATED_NAME_SUFFIX = re.compile(r"(?:✝[⁰¹²³⁴⁵⁶⁷⁸⁹]*)+")
+_QUANTIFIER_TOKEN = re.compile(r"(?<![\w'.])(?:∃|Σ|∀|forall\b)")
+_CONDITIONAL_TOKEN = re.compile(r"(?<![\w'.])\b(if|then|else)\b(?![\w'])")
+_FUN_TOKEN = re.compile(r"(?<![\w'.])\bfun\b(?![\w'])")
+_SHOW_FROM_TOKEN = re.compile(r"(?<![\w'.])\b(show|from)\b(?![\w'])")
+_UNSUPPORTED_LAYOUT_TOKEN = re.compile(r"(?<![\w'.])\b(by|calc|do|match)\b(?![\w'])")
+_BARE_INCOMPLETE_TERMS = frozenset(
+    {
+        "by",
+        "calc",
+        "do",
+        "else",
+        "forall",
+        "from",
+        "fun",
+        "have",
+        "if",
+        "in",
+        "let",
+        "match",
+        "return",
+        "show",
+        "then",
+        "where",
+        "with",
+    }
+)
+
+
+def _single_quoted_literal_end(text: str, start: int) -> int | None:
+    """Return the end of a conservative Lean character literal, if present."""
+
+    if text[start] != "'":
+        return None
+    if start > 0 and (text[start - 1].isalnum() or text[start - 1] in "_'"):
+        return None
+    cursor = start + 1
+    escaped = False
+    while cursor < len(text) and text[cursor] != "\n":
+        char = text[cursor]
+        if escaped:
+            escaped = False
+        elif char == "\\":
+            escaped = True
+        elif char == "'":
+            body = text[start + 1 : cursor]
+            if len(body) == 1 or body.startswith("\\"):
+                return cursor
+            return None
+        cursor += 1
+    return None
+
+
+def _raw_string_literal_end(text: str, start: int) -> int | None:
+    """Return the end of a Lean ``r#\"...\"#`` literal, or ``None`` when absent."""
+
+    if text[start] != "r":
+        return None
+    if start > 0 and (text[start - 1].isalnum() or text[start - 1] in "_'"):
+        return None
+    opening_quote = start + 1
+    while opening_quote < len(text) and text[opening_quote] == "#":
+        opening_quote += 1
+    hash_count = opening_quote - start - 1
+    if opening_quote >= len(text) or text[opening_quote] != '"':
+        return None
+    closing = '"' + "#" * hash_count
+    closing_start = text.find(closing, opening_quote + 1)
+    if closing_start < 0:
+        raise SurfaceRenderError(
+            SurfaceFailureCode.UNBALANCED_DELIMITER,
+            "unterminated raw string literal",
+        )
+    return closing_start + len(closing) - 1
+
+
+def _is_operator_symbol(char: str) -> bool:
+    return char in _ASCII_OPERATOR_CHARS or unicodedata.category(char).startswith("S")
+
+
+def _is_standalone_delimiter(text: str, start: int, token: str) -> bool:
+    before = text[start - 1] if start else ""
+    after_index = start + len(token)
+    after = text[after_index] if after_index < len(text) else ""
+    before_is_compound = bool(before and _is_operator_symbol(before))
+    if token == ";" and before and before not in _ASCII_OPERATOR_CHARS:
+        # A single nullary symbolic atom may be a complete value right
+        # against the binding separator. Fragment validation below still
+        # rejects a dangling Unicode infix such as ``x ∧;``.
+        before_is_compound = False
+    return not before_is_compound and not (after and _is_operator_symbol(after))
+
+
+def _collapse_layout_whitespace(text: str) -> str:
+    """Collapse layout while preserving strings, guillemets, and Char tokens byte-for-byte."""
+
+    output: list[str] = []
+    pending_space = False
+    in_string = False
+    in_guillemet = False
+    escaped = False
+    opaque_literal_finish = -1
+    source = text.strip()
+    for index, char in enumerate(source):
+        if index <= opaque_literal_finish:
+            output.append(char)
+            continue
+        if in_string:
+            output.append(char)
+            if escaped:
+                escaped = False
+            elif char == "\\":
+                escaped = True
+            elif char == '"':
+                in_string = False
+            continue
+        if in_guillemet:
+            output.append(char)
+            if char == "»":
+                in_guillemet = False
+            continue
+        if char.isspace():
+            pending_space = True
+            continue
+        if pending_space and output:
+            output.append(" ")
+        pending_space = False
+        output.append(char)
+        if char == "r" and (finish := _raw_string_literal_end(source, index)) is not None:
+            opaque_literal_finish = finish
+        elif char == '"':
+            in_string = True
+        elif char == "«":
+            in_guillemet = True
+        elif char == "'" and (finish := _single_quoted_literal_end(source, index)) is not None:
+            opaque_literal_finish = finish
+    return "".join(output)
 
 
 def _validate_kind(kind: str) -> None:
@@ -360,6 +635,12 @@ def _mask_comments(source: str) -> _MaskedSource:
                 in_guillemet = False
             index += 1
             continue
+        if char == "r" and (finish := _raw_string_literal_end(source, index)) is not None:
+            index = finish + 1
+            continue
+        if char == "'" and (finish := _single_quoted_literal_end(source, index)) is not None:
+            index = finish + 1
+            continue
         if next_two == "--":
             out[index] = out[index + 1] = " "
             in_line_comment = True
@@ -388,36 +669,49 @@ def _mask_comments(source: str) -> _MaskedSource:
     return _MaskedSource(source, "".join(out))
 
 
-def _mask_literals_for_declaration_search(masked: str) -> str:
-    """Hide strings and guillemet names while retaining declaration offsets."""
+def _mask_literals_for_target(masked: str) -> str:
+    """Hide quoted syntax tokens but retain one non-space value sentinel."""
 
     out = list(masked)
-    in_string = False
-    in_guillemet = False
-    escaped = False
-    for index, char in enumerate(masked):
-        if in_string:
-            if char != "\n":
-                out[index] = " "
-            if escaped:
-                escaped = False
-            elif char == "\\":
-                escaped = True
-            elif char == '"':
-                in_string = False
-            continue
-        if in_guillemet:
-            if char != "\n":
-                out[index] = " "
-            if char == "»":
-                in_guillemet = False
-            continue
-        if char == '"':
-            out[index] = " "
-            in_string = True
+    index = 0
+    while index < len(masked):
+        char = masked[index]
+        if char == "r" and (raw_finish := _raw_string_literal_end(masked, index)) is not None:
+            finish = raw_finish
+        elif char == '"':
+            finish = index + 1
+            escaped = False
+            while finish < len(masked):
+                current = masked[finish]
+                if escaped:
+                    escaped = False
+                elif current == "\\":
+                    escaped = True
+                elif current == '"':
+                    break
+                finish += 1
+            if finish >= len(masked):
+                raise GoalV1Error("unterminated string literal in target")
         elif char == "«":
-            out[index] = " "
-            in_guillemet = True
+            finish = masked.find("»", index + 1)
+            if finish < 0:
+                raise GoalV1Error("unterminated guillemet identifier in target")
+        elif char == "'":
+            literal_end = _single_quoted_literal_end(masked, index)
+            if literal_end is None:
+                if index == 0 or not (masked[index - 1].isalnum() or masked[index - 1] in "_'"):
+                    raise GoalV1Error("unsupported or unterminated single-quoted target syntax")
+                index += 1
+                continue
+            finish = literal_end
+        else:
+            index += 1
+            continue
+        out[index] = "x"
+        for literal_index in range(index + 1, finish + 1):
+            if out[literal_index] != "\n":
+                out[literal_index] = " "
+        index = finish + 1
     return "".join(out)
 
 
@@ -427,40 +721,19 @@ def _skip_space(text: str, index: int) -> int:
     return index
 
 
-def _consume_name(masked: str, index: int) -> int:
-    index = _skip_space(masked, index)
-    if index >= len(masked):
-        raise SurfaceRenderError(
-            SurfaceFailureCode.MISSING_DECLARATION_NAME,
-            "declaration keyword has no name",
-        )
-    if masked[index] == "«":
-        finish = masked.find("»", index + 1)
-        if finish < 0:
-            raise SurfaceRenderError(
-                SurfaceFailureCode.UNBALANCED_DELIMITER,
-                "unterminated guillemet declaration name",
-            )
-        return finish + 1
-    match = _IDENTIFIER.match(masked, index)
-    if match is None:
-        raise SurfaceRenderError(
-            SurfaceFailureCode.MISSING_DECLARATION_NAME,
-            f"cannot parse declaration name at offset {index}",
-        )
-    return match.end()
-
-
 def _matching_delimiter(masked: str, start: int) -> int:
-    pairs = {"(": ")", "{": "}", "[": "]"}
+    pairs = {"(": ")", "{": "}", "[": "]", "⟨": "⟩"}
     opening = masked[start]
     expected = pairs[opening]
     stack = [expected]
     in_string = False
     in_guillemet = False
     escaped = False
+    opaque_literal_finish = -1
     for index in range(start + 1, len(masked)):
         char = masked[index]
+        if index <= opaque_literal_finish:
+            continue
         if in_string:
             if escaped:
                 escaped = False
@@ -473,15 +746,21 @@ def _matching_delimiter(masked: str, start: int) -> int:
             if char == "»":
                 in_guillemet = False
             continue
+        if char == "r" and (finish := _raw_string_literal_end(masked, index)) is not None:
+            opaque_literal_finish = finish
+            continue
         if char == '"':
             in_string = True
             continue
         if char == "«":
             in_guillemet = True
             continue
+        if char == "'" and (finish := _single_quoted_literal_end(masked, index)) is not None:
+            opaque_literal_finish = finish
+            continue
         if char in pairs:
             stack.append(pairs[char])
-        elif char in ")}]":
+        elif char in ")}]⟩":
             if not stack or char != stack[-1]:
                 raise SurfaceRenderError(
                     SurfaceFailureCode.UNBALANCED_DELIMITER,
@@ -499,7 +778,7 @@ def _matching_delimiter(masked: str, start: int) -> int:
 def _top_level_positions(text: str, token: str) -> list[int]:
     positions: list[int] = []
     stack: list[str] = []
-    pairs = {"(": ")", "{": "}", "[": "]"}
+    pairs = {"(": ")", "{": "}", "[": "]", "⟨": "⟩"}
     in_string = False
     in_guillemet = False
     escaped = False
@@ -520,19 +799,28 @@ def _top_level_positions(text: str, token: str) -> list[int]:
                 in_guillemet = False
             index += 1
             continue
+        if char == "r" and (finish := _raw_string_literal_end(text, index)) is not None:
+            index = finish + 1
+            continue
+        if char == "'" and (finish := _single_quoted_literal_end(text, index)) is not None:
+            index = finish + 1
+            continue
         if char == '"':
             in_string = True
         elif char == "«":
             in_guillemet = True
         elif char in pairs:
             stack.append(pairs[char])
-        elif char in ")}]":
+        elif char in ")}]⟩":
             if not stack or stack.pop() != char:
                 raise SurfaceRenderError(
                     SurfaceFailureCode.UNBALANCED_DELIMITER,
                     f"unexpected {char!r} at offset {index}",
                 )
         elif not stack and text.startswith(token, index):
+            if token in {":=", ";"} and not _is_standalone_delimiter(text, index, token):
+                index += 1
+                continue
             positions.append(index)
             index += len(token)
             continue
@@ -545,66 +833,6 @@ def _top_level_positions(text: str, token: str) -> list[int]:
     return positions
 
 
-def _extract_signature(raw_statement: str, declaration_kind: str) -> str:
-    masked_source = _mask_comments(raw_statement)
-    declaration_search = _mask_literals_for_declaration_search(masked_source.masked)
-    declarations = list(_DECLARATION_KEYWORD.finditer(declaration_search))
-    if not declarations:
-        raise SurfaceRenderError(
-            SurfaceFailureCode.DECLARATION_NOT_FOUND,
-            "no theorem/lemma declaration found",
-        )
-    if len(declarations) != 1:
-        raise SurfaceRenderError(
-            SurfaceFailureCode.AMBIGUOUS_DECLARATION,
-            f"expected one declaration, found {len(declarations)}",
-        )
-    declaration = declarations[0]
-    observed_kind = declaration.group(1)
-    if observed_kind != declaration_kind:
-        raise SurfaceRenderError(
-            SurfaceFailureCode.DECLARATION_KIND_MISMATCH,
-            f"metadata says {declaration_kind!r}, source says {observed_kind!r}",
-        )
-    signature_start = _consume_name(masked_source.masked, declaration.end())
-    suffix_masked = masked_source.masked[signature_start:]
-    proof_delimiters = _top_level_positions(suffix_masked, ":=")
-    equation_delimiters = _top_level_positions(suffix_masked, "=>")
-    pattern_equations = any(line.lstrip().startswith("|") for line in suffix_masked.splitlines())
-    if not proof_delimiters and (equation_delimiters or pattern_equations):
-        raise SurfaceRenderError(
-            SurfaceFailureCode.AMBIGUOUS_PROOF_BOUNDARY,
-            "equation-style declaration has no unambiguous ':=' proof boundary",
-        )
-    if proof_delimiters:
-        for proof_delimiter in proof_delimiters:
-            signature_end = signature_start + proof_delimiter
-            signature = masked_source.masked[signature_start:signature_end].strip()
-            if not signature:
-                continue
-            target_split = _split_top_level_once(signature, ":")
-            if target_split is None:
-                continue
-            target = collapse_lean_whitespace(target_split[1])
-            if target.startswith("let "):
-                if not _is_canonical_let_target(target):
-                    continue
-            elif ":=" in target:
-                continue
-            return signature
-        raise SurfaceRenderError(
-            SurfaceFailureCode.AMBIGUOUS_PROOF_BOUNDARY,
-            "no top-level ':=' delimiter leaves a valid supported theorem signature",
-        )
-    signature = masked_source.masked[signature_start:].strip()
-    if not signature:
-        raise SurfaceRenderError(
-            SurfaceFailureCode.MISSING_TARGET_SEPARATOR,
-            "declaration signature is empty",
-        )
-    return signature
-
-
 def _split_top_level_once(text: str, token: str) -> tuple[str, str] | None:
     positions = _top_level_positions(text, token)
     if not positions:
@@ -613,14 +841,74 @@ def _split_top_level_once(text: str, token: str) -> tuple[str, str] | None:
     return text[:index], text[index + len(token) :]
 
 
-def _parse_names(text: str) -> tuple[str, ...]:
-    names = tuple(text.split())
+def _is_guillemet_name(name: str) -> bool:
+    return re.fullmatch(r"«[^«»\n]+»", name) is not None
+
+
+def _plain_name_prefix_end(name: str) -> int:
+    if not name or not (name[0].isalpha() or name[0] == "_"):
+        return 0
+    index = 1
+    while index < len(name) and (name[index].isalnum() or name[index] in "_'"):
+        index += 1
+    return index
+
+
+def _is_supported_local_name(name: str, *, allow_generated: bool) -> bool:
+    """Recognize one original-token name, plus Lean's printed inaccessible suffix."""
+
+    if _is_guillemet_name(name):
+        return True
+    prefix_end = _plain_name_prefix_end(name)
+    if not prefix_end:
+        return False
+    plain = name[:prefix_end]
+    if plain == "_" or plain in _RESERVED_BINDING_NAMES:
+        return False
+    suffix = name[prefix_end:]
+    return not suffix or (allow_generated and _GENERATED_NAME_SUFFIX.fullmatch(suffix) is not None)
+
+
+def _name_identity(name: str) -> str:
+    """Compare escaped and unescaped spellings as the same Lean name."""
+
+    return name[1:-1] if _is_guillemet_name(name) else name
+
+
+def _parse_names(text: str, *, allow_generated: bool = False) -> tuple[str, ...]:
+    names_list: list[str] = []
+    index = 0
+    while index < len(text):
+        index = _skip_space(text, index)
+        if index >= len(text):
+            break
+        if text[index] == "«":
+            finish = text.find("»", index + 1)
+            if finish < 0:
+                raise SurfaceRenderError(
+                    SurfaceFailureCode.UNTYPED_BINDER,
+                    f"unterminated guillemet binder name: {text!r}",
+                )
+            names_list.append(text[index : finish + 1])
+            index = finish + 1
+            if index < len(text) and not text[index].isspace():
+                raise SurfaceRenderError(
+                    SurfaceFailureCode.UNTYPED_BINDER,
+                    f"guillemet binder name is not token-delimited: {text!r}",
+                )
+            continue
+        finish = index
+        while finish < len(text) and not text[finish].isspace():
+            finish += 1
+        names_list.append(text[index:finish])
+        index = finish
+    names = tuple(names_list)
     if not names or any(name in {"_", "·"} for name in names):
         raise SurfaceRenderError(
             SurfaceFailureCode.UNTYPED_BINDER,
             f"binder has no stable explicit name: {text!r}",
         )
-    if any(any(char in name for char in "(){}[],:=") for name in names):
+    if any(not _is_supported_local_name(name, allow_generated=allow_generated) for name in names):
         raise SurfaceRenderError(
             SurfaceFailureCode.UNTYPED_BINDER,
             f"unsupported binder name syntax: {text!r}",
@@ -642,12 +930,19 @@ def _parse_binder_content(content: str, opening: str) -> _Binder:
         )
     raw_names, raw_type = split
     names = _parse_names(raw_names.strip())
-    type_text = collapse_lean_whitespace(raw_type)
+    type_text = _collapse_layout_whitespace(raw_type)
     if not type_text:
         raise SurfaceRenderError(
             SurfaceFailureCode.UNTYPED_BINDER,
             f"binder has an empty type: {content!r}",
         )
+    try:
+        type_text = _canonicalize_binding_expression(type_text)
+    except GoalV1Error as exc:
+        raise SurfaceRenderError(
+            SurfaceFailureCode.INVALID_GOAL,
+            f"binder type is outside the bounded binding grammar: {exc}",
+        ) from exc
     return _Binder(names, type_text)
 
 
@@ -682,6 +977,12 @@ def _peel_forall_binders(target: str) -> tuple[list[_Binder], str]:
                 )
             binders.extend(clause_binders)
         else:
+            if len(comma_positions) != 1:
+                raise SurfaceRenderError(
+                    SurfaceFailureCode.UNTYPED_BINDER,
+                    "unparenthesized top-level forall has multiple possible comma boundaries; "
+                    "parenthesize the binder",
+                )
             binders.append(_parse_binder_content(clause, "("))
         remaining = body[comma_positions[0] + 1 :].strip()
     return binders, remaining
@@ -713,32 +1014,574 @@ def _group_binders(binders: Sequence[_Binder]) -> list[str]:
     return [f"{' '.join(binder.names)} : {binder.type_text}" for binder in grouped]
 
 
-def _is_canonical_let_target(target: str) -> bool:
-    stripped = target.strip()
-    if not stripped.startswith("let "):
+def _lexical_contexts(text: str) -> tuple[str, tuple[tuple[int, ...], ...], dict[int, int]]:
+    """Return literal-masked text, delimiter context at each offset, and scope ends."""
+
+    masked = _mask_literals_for_target(_mask_comments(text).masked)
+    contexts: list[tuple[int, ...]] = []
+    stack: list[tuple[str, int]] = []
+    scope_ends: dict[int, int] = {}
+    pairs = {"(": ")", "{": "}", "[": "]", "⟨": "⟩"}
+    for index, char in enumerate(masked):
+        contexts.append(tuple(opening_index for _, opening_index in stack))
+        if char in pairs:
+            stack.append((pairs[char], index))
+            continue
+        if char != ")" and char != "}" and char != "]" and char != "⟩":
+            continue
+        if not stack or stack[-1][0] != char:
+            raise GoalV1Error(f"unbalanced target delimiter {char!r} at offset {index}")
+        _, opening_index = stack.pop()
+        scope_ends[opening_index] = index
+    if stack:
+        closing, _ = stack[-1]
+        raise GoalV1Error(f"unbalanced target delimiter; missing {closing!r}")
+    contexts.append(())
+    return masked, tuple(contexts), scope_ends
+
+
+def _positions_at_all_depths(
+    masked: str,
+    contexts: Sequence[tuple[int, ...]],
+    token: str,
+) -> list[tuple[int, tuple[int, ...]]]:
+    positions: list[tuple[int, tuple[int, ...]]] = []
+    index = 0
+    while index < len(masked):
+        if masked.startswith(token, index):
+            if not _is_standalone_delimiter(masked, index, token):
+                raise GoalV1Error(
+                    f"ambiguous compound operator containing {token!r} at offset {index}"
+                )
+            positions.append((index, contexts[index]))
+            index += len(token)
+            continue
+        index += 1
+    return positions
+
+
+def _scope_end_for_context(
+    context: tuple[int, ...],
+    *,
+    text_length: int,
+    scope_ends: Mapping[int, int],
+) -> int:
+    return scope_ends[context[-1]] if context else text_length
+
+
+def _validate_structured_introducers(fragment: str, *, label: str) -> None:
+    """Reject incomplete structured terms at every balanced delimiter depth."""
+
+    masked, contexts, scope_ends = _lexical_contexts(fragment)
+    layout_match = _UNSUPPORTED_LAYOUT_TOKEN.search(masked)
+    if layout_match is not None:
+        raise GoalV1Error(
+            f"{label} uses unsupported layout/macro introducer {layout_match.group(1)!r}"
+        )
+
+    quantifier_events: dict[tuple[int, ...], list[tuple[int, int, str]]] = {}
+    for match in _QUANTIFIER_TOKEN.finditer(masked):
+        quantifier_events.setdefault(contexts[match.start()], []).append(
+            (match.start(), match.end(), "quantifier")
+        )
+    for position, char in enumerate(masked):
+        if char == ",":
+            quantifier_events.setdefault(contexts[position], []).append(
+                (position, position + 1, "comma")
+            )
+    for context, events in quantifier_events.items():
+        if not any(kind == "quantifier" for _, _, kind in events):
+            continue
+        quantifier_stack: list[tuple[int, int]] = []
+        context_end = _scope_end_for_context(
+            context,
+            text_length=len(masked),
+            scope_ends=scope_ends,
+        )
+        for start, end, kind in sorted(events):
+            if kind == "quantifier":
+                quantifier_stack.append((start, end))
+                continue
+            if not quantifier_stack:
+                raise GoalV1Error(f"{label} has an ambiguous comma in quantified syntax")
+            _quantifier_start, quantifier_end = quantifier_stack.pop()
+            _validate_fragment_edge(
+                masked[quantifier_end:start].strip(),
+                label=f"{label} quantifier binder",
+                allow_empty=False,
+            )
+            _validate_fragment_edge(
+                masked[end:context_end].strip(),
+                label=f"{label} quantifier body",
+                allow_empty=False,
+            )
+        if quantifier_stack:
+            raise GoalV1Error(f"{label} has an incomplete comma-binding quantifier")
+
+    conditional_events: dict[tuple[int, ...], list[tuple[int, int, str]]] = {}
+    for match in _CONDITIONAL_TOKEN.finditer(masked):
+        conditional_events.setdefault(contexts[match.start()], []).append(
+            (match.start(), match.end(), match.group(1))
+        )
+    for context, events in conditional_events.items():
+        conditional_stack: list[tuple[str, int, int]] = []
+        context_end = _scope_end_for_context(
+            context,
+            text_length=len(masked),
+            scope_ends=scope_ends,
+        )
+        for start, end, keyword in events:
+            if keyword == "if":
+                conditional_stack.append(("if", start, end))
+            elif keyword == "then":
+                if not conditional_stack or conditional_stack[-1][0] != "if":
+                    raise GoalV1Error(f"{label} has an unmatched 'then'")
+                _, if_start, if_end = conditional_stack[-1]
+                _validate_fragment_edge(
+                    masked[if_end:start].strip(),
+                    label=f"{label} if condition",
+                    allow_empty=False,
+                )
+                conditional_stack[-1] = ("then", if_start, end)
+            else:
+                if not conditional_stack or conditional_stack[-1][0] != "then":
+                    raise GoalV1Error(f"{label} has an unmatched 'else'")
+                _, _if_start, then_end = conditional_stack.pop()
+                _validate_fragment_edge(
+                    masked[then_end:start].strip(),
+                    label=f"{label} then branch",
+                    allow_empty=False,
+                )
+                _validate_fragment_edge(
+                    masked[end:context_end].strip(),
+                    label=f"{label} else branch",
+                    allow_empty=False,
+                )
+        if conditional_stack:
+            raise GoalV1Error(f"{label} has an incomplete if/then/else term")
+
+    fun_events: dict[tuple[int, ...], list[tuple[int, int, str]]] = {}
+    for match in _FUN_TOKEN.finditer(masked):
+        fun_events.setdefault(contexts[match.start()], []).append(
+            (match.start(), match.end(), "fun")
+        )
+    index = 0
+    while index < len(masked):
+        token = "=>" if masked.startswith("=>", index) else "↦" if masked[index] == "↦" else ""
+        if token:
+            fun_events.setdefault(contexts[index], []).append((index, index + len(token), "arrow"))
+            index += len(token)
+        else:
+            index += 1
+    for context, events in fun_events.items():
+        fun_stack: list[tuple[int, int]] = []
+        context_end = _scope_end_for_context(
+            context,
+            text_length=len(masked),
+            scope_ends=scope_ends,
+        )
+        for start, end, kind in sorted(events):
+            if kind == "fun":
+                fun_stack.append((start, end))
+                continue
+            if not fun_stack:
+                raise GoalV1Error(f"{label} has an unmatched function arrow")
+            _fun_start, fun_end = fun_stack.pop()
+            _validate_fragment_edge(
+                masked[fun_end:start].strip(),
+                label=f"{label} fun binder",
+                allow_empty=False,
+            )
+            _validate_fragment_edge(
+                masked[end:context_end].strip(),
+                label=f"{label} fun body",
+                allow_empty=False,
+            )
+        if fun_stack:
+            raise GoalV1Error(f"{label} has an incomplete fun term")
+
+    show_events: dict[tuple[int, ...], list[tuple[int, int, str]]] = {}
+    for match in _SHOW_FROM_TOKEN.finditer(masked):
+        show_events.setdefault(contexts[match.start()], []).append(
+            (match.start(), match.end(), match.group(1))
+        )
+    for context, events in show_events.items():
+        show_stack: list[tuple[int, int]] = []
+        context_end = _scope_end_for_context(
+            context,
+            text_length=len(masked),
+            scope_ends=scope_ends,
+        )
+        for start, end, keyword in events:
+            if keyword == "show":
+                show_stack.append((start, end))
+                continue
+            if not show_stack:
+                raise GoalV1Error(f"{label} has an unmatched 'from'")
+            _show_start, show_end = show_stack.pop()
+            _validate_fragment_edge(
+                masked[show_end:start].strip(),
+                label=f"{label} show type",
+                allow_empty=False,
+            )
+            _validate_fragment_edge(
+                masked[end:context_end].strip(),
+                label=f"{label} show body",
+                allow_empty=False,
+            )
+        if show_stack:
+            raise GoalV1Error(f"{label} has an incomplete show/from term")
+
+
+def _validate_complete_fragment(fragment: str, *, label: str) -> None:
+    """Reject obvious incomplete syntax in the bounded term grammar."""
+
+    masked, _contexts, scope_ends = _lexical_contexts(fragment)
+    stripped = masked.strip()
+    _validate_fragment_edge(stripped, label=label, allow_empty=False)
+    for opening, closing in scope_ends.items():
+        _validate_fragment_edge(
+            masked[opening + 1 : closing].strip(),
+            label=f"{label} delimiter content",
+            allow_empty=True,
+        )
+    unwrapped = _strip_balanced_outer_parentheses(stripped)
+    if unwrapped in _BARE_INCOMPLETE_TERMS or re.search(
+        r"(?:^|[^\w'])(?:by|calc|do|else|forall|from|fun|have|if|in|let|match|return|show|then|where|with)\s*$",
+        stripped,
+    ):
+        raise GoalV1Error(f"{label} is a bare incomplete term introducer")
+    if re.search(
+        r"\(\s*(?:by|calc|do|else|forall|from|fun|have|if|in|let|match|return|show|then|where|with)\s*\)\s*$",
+        stripped,
+    ):
+        raise GoalV1Error(f"{label} ends in a parenthesized incomplete term introducer")
+
+
+def _validate_fragment_edge(text: str, *, label: str, allow_empty: bool) -> None:
+    """Reject incomplete syntax at one expression or balanced-delimiter edge."""
+
+    if not text:
+        if allow_empty:
+            return
+        raise GoalV1Error(f"{label} is empty")
+    if text.startswith(",") or text.endswith(","):
+        raise GoalV1Error(f"{label} has a dangling comma")
+    trailing_unicode_operator = (
+        unicodedata.category(text[-1]).startswith("S") and text[-1] not in _ATOMIC_SYMBOL_TERMS
+    )
+    if text.endswith((":", ";")) or text[-1] in _ASCII_OPERATOR_CHARS or trailing_unicode_operator:
+        raise GoalV1Error(f"{label} ends with an incomplete operator or delimiter")
+
+
+def _validate_term_introducer(fragment: str, *, label: str) -> None:
+    """Validate a few complete term introducers without pretending to parse Lean."""
+
+    stripped = _strip_balanced_outer_parentheses(fragment)
+    if re.search(r"\bif\s+then\b|\bthen\s+else\b|\bshow\s+from\b|(?:∀|\bforall)\s*,", stripped):
+        raise GoalV1Error(f"{label} has an empty structured-term segment")
+    if re.match(r"^(?:by|do|calc|match)\b", stripped):
+        raise GoalV1Error(f"{label} uses an unsupported layout/macro introducer")
+    if re.match(r"^if\b", stripped):
+        then_matches = list(re.finditer(r"\bthen\b", stripped))
+        else_matches = list(re.finditer(r"\belse\b", stripped))
+        if not then_matches or not else_matches:
+            raise GoalV1Error(f"{label} has an incomplete if/then/else term")
+        then_match = then_matches[0]
+        else_match = next(
+            (match for match in else_matches if match.start() >= then_match.end()),
+            None,
+        )
+        if (
+            else_match is None
+            or not stripped[2 : then_match.start()].strip()
+            or not stripped[then_match.end() : else_match.start()].strip()
+            or not stripped[else_match.end() :].strip()
+        ):
+            raise GoalV1Error(f"{label} has an incomplete if/then/else term")
+    if re.match(r"^fun\b", stripped):
+        arrows = _top_level_positions(stripped, "=>") + _top_level_positions(stripped, "↦")
+        if not arrows:
+            raise GoalV1Error(f"{label} has an incomplete fun term")
+        arrow = min(arrows)
+        token_length = 2 if stripped.startswith("=>", arrow) else 1
+        if not stripped[3:arrow].strip() or not stripped[arrow + token_length :].strip():
+            raise GoalV1Error(f"{label} has an incomplete fun term")
+    if re.match(r"^(?:∀\s*|forall\b)", stripped):
+        commas = _top_level_positions(stripped, ",")
+        keyword_end = 1 if stripped.startswith("∀") else len("forall")
+        if (
+            not commas
+            or not stripped[keyword_end : commas[0]].strip()
+            or not stripped[commas[0] + 1 :].strip()
+        ):
+            raise GoalV1Error(f"{label} has an incomplete forall term")
+    if re.match(r"^show\b", stripped):
+        from_match = re.search(r"\bfrom\b", stripped)
+        if (
+            from_match is None
+            or not stripped[len("show") : from_match.start()].strip()
+            or not stripped[from_match.end() :].strip()
+        ):
+            raise GoalV1Error(f"{label} has an incomplete show/from term")
+    _validate_structured_introducers(fragment, label=label)
+
+
+def _validate_binding_head(
+    head: str,
+    *,
+    keyword: str,
+    offset: int,
+    allow_generated_names: bool,
+) -> None:
+    """Validate the deliberately small named binding-head grammar."""
+
+    comment_masked_head = _mask_comments(head).masked.strip()
+    split = _split_top_level_once(comment_masked_head, ":")
+    raw_name, annotation = split if split is not None else (comment_masked_head, None)
+    name = raw_name.strip()
+    if not _is_supported_local_name(name, allow_generated=allow_generated_names):
+        raise GoalV1Error(f"unsupported {keyword} binding head at offset {offset}")
+    if annotation is not None:
+        try:
+            masked_annotation = _mask_literals_for_target(_mask_comments(annotation).masked)
+            if _top_level_positions(masked_annotation, ":"):
+                raise GoalV1Error("binding type has a second top-level ':'")
+            _validate_complete_fragment(masked_annotation, label=f"{keyword} binding type")
+            _validate_term_introducer(masked_annotation, label=f"{keyword} binding type")
+        except GoalV1Error as exc:
+            raise GoalV1Error(
+                f"unsupported {keyword} binding head at offset {offset}: {exc}"
+            ) from exc
+
+
+def _is_supported_named_argument_assignment(
+    masked: str,
+    *,
+    expression: str,
+    position: int,
+    context: tuple[int, ...],
+    scope_ends: Mapping[int, int],
+) -> bool:
+    """Allow only the explicit parenthesized ``(name := value)`` exception."""
+
+    if not context:
         return False
-    assignments = _top_level_positions(stripped, ":=")
-    separators = _top_level_positions(stripped, ";")
-    return bool(assignments and separators and separators[-1] > assignments[-1])
+    opening = context[-1]
+    if masked[opening] != "(" or opening not in scope_ends:
+        return False
+    closing = scope_ends[opening]
+    name = _mask_comments(expression[opening + 1 : position]).masked.strip()
+    value = masked[position + 2 : closing].strip()
+    if _top_level_positions(masked[opening + 1 : closing], ","):
+        return False
+    if not _is_supported_local_name(name, allow_generated=False) or not value:
+        return False
+    try:
+        _validate_complete_fragment(value, label="named argument value")
+        _validate_term_introducer(value, label="named argument value")
+    except GoalV1Error:
+        return False
+    return True
+
+
+def _canonicalize_binding_expression(
+    expression: str,
+    *,
+    allow_generated_names: bool = False,
+) -> str:
+    """Validate the bounded term-binding grammar and canonicalize ``have`` to ``let``.
+
+    This is deliberately a structural, fail-closed mini-parser, not a Lean
+    parser. Every visible term-level binding must be a complete, simple,
+    semicolon-delimited binding in one balanced delimiter context. Opaque
+    values may contain balanced subterms; layout/macro values and ambiguous
+    same-context nested bindings are outside v1.0.
+    """
+
+    if not expression.strip():
+        raise GoalV1Error("expression is empty")
+    masked, contexts, scope_ends = _lexical_contexts(expression)
+    if _SYNTAX_QUOTATION.search(masked):
+        raise GoalV1Error("surface/elaborated syntax quotations are unsupported in goal_v1.0")
+    _validate_complete_fragment(masked, label="expression")
+    _validate_term_introducer(masked, label="expression")
+    bindings = tuple(
+        _BindingToken(match.group(1), match.start(), match.end(), contexts[match.start()])
+        for match in _BINDING_KEYWORD.finditer(masked)
+        if not masked[: match.start()].rstrip().endswith(".")
+    )
+    assignments = _positions_at_all_depths(masked, contexts, ":=")
+    separators = _positions_at_all_depths(masked, contexts, ";")
+    claimed_assignments: set[int] = set()
+    claimed_separators: set[int] = set()
+
+    for binding in bindings:
+        context_end = scope_ends[binding.context[-1]] if binding.context else len(masked)
+        same_context_assignments = [
+            position
+            for position, context in assignments
+            if context == binding.context and binding.end <= position < context_end
+        ]
+        same_context_separators_before_assignment = [
+            position
+            for position, context in separators
+            if context == binding.context and binding.end <= position < context_end
+        ]
+        if not same_context_assignments or (
+            same_context_separators_before_assignment
+            and same_context_separators_before_assignment[0] < same_context_assignments[0]
+        ):
+            raise GoalV1Error(
+                f"incomplete {binding.keyword} binding at offset {binding.start}: missing ':='"
+            )
+        assignment = same_context_assignments[0]
+        if any(
+            other.context == binding.context and binding.end <= other.start < assignment
+            for other in bindings
+            if other is not binding
+        ):
+            raise GoalV1Error(
+                f"incomplete {binding.keyword} binding at offset {binding.start}: ambiguous head"
+            )
+        head = expression[binding.end : assignment].strip()
+        _validate_binding_head(
+            head,
+            keyword=binding.keyword,
+            offset=binding.start,
+            allow_generated_names=allow_generated_names,
+        )
+
+        same_context_separators = [
+            position
+            for position, context in separators
+            if context == binding.context and assignment + 2 <= position < context_end
+        ]
+        if not same_context_separators:
+            raise GoalV1Error(
+                f"incomplete {binding.keyword} binding at offset {binding.start}: "
+                "missing ';' body separator"
+            )
+        separator = same_context_separators[0]
+        value = masked[assignment + 2 : separator].strip()
+        if not value or value.startswith(","):
+            raise GoalV1Error(
+                f"incomplete {binding.keyword} binding at offset {binding.start}: "
+                "empty or comma-led value"
+            )
+        _validate_complete_fragment(value, label=f"{binding.keyword} binding value")
+        _validate_term_introducer(value, label=f"{binding.keyword} binding value")
+        if _UNSUPPORTED_BINDING_RHS.match(value):
+            raise GoalV1Error(
+                f"unsupported layout/macro value in {binding.keyword} binding "
+                f"at offset {binding.start}"
+            )
+        if any(
+            other.context == binding.context and assignment + 2 <= other.start < separator
+            for other in bindings
+            if other is not binding
+        ):
+            raise GoalV1Error(f"ambiguous same-context binding value at offset {binding.start}")
+        body = masked[separator + 1 : context_end].strip()
+        if not body or body.startswith(","):
+            raise GoalV1Error(
+                f"incomplete {binding.keyword} binding at offset {binding.start}: "
+                "empty or comma-led body"
+            )
+        _validate_complete_fragment(body, label=f"{binding.keyword} binding body")
+        _validate_term_introducer(body, label=f"{binding.keyword} binding body")
+        if assignment in claimed_assignments or separator in claimed_separators:
+            raise GoalV1Error(
+                f"overlapping term bindings at offset {binding.start} are unsupported"
+            )
+        claimed_assignments.add(assignment)
+        claimed_separators.add(separator)
+
+    unclaimed_assignments = [
+        position
+        for position, context in assignments
+        if position not in claimed_assignments
+        and not _is_supported_named_argument_assignment(
+            masked,
+            expression=expression,
+            position=position,
+            context=context,
+            scope_ends=scope_ends,
+        )
+    ]
+    if unclaimed_assignments:
+        raise GoalV1Error(f"target contains an unclaimed ':=' at offset {unclaimed_assignments[0]}")
+    unclaimed_separators = [
+        position for position, _context in separators if position not in claimed_separators
+    ]
+    if unclaimed_separators:
+        raise GoalV1Error(f"target contains an unclaimed ';' at offset {unclaimed_separators[0]}")
+
+    pieces: list[str] = []
+    cursor = 0
+    for binding in bindings:
+        pieces.append(expression[cursor : binding.start])
+        pieces.append("let" if binding.keyword == "have" else binding.keyword)
+        cursor = binding.end
+    pieces.append(expression[cursor:])
+    return "".join(pieces)
 
 
 def _canonicalize_surface_target(target: str) -> str:
-    collapsed = collapse_lean_whitespace(target)
+    collapsed = _collapse_layout_whitespace(target)
     if not collapsed:
         raise SurfaceRenderError(SurfaceFailureCode.EMPTY_TARGET, "target is empty")
-    if collapsed.startswith("let "):
-        if _is_canonical_let_target(collapsed):
-            return collapsed
+    try:
+        return _canonicalize_binding_expression(collapsed)
+    except GoalV1Error as exc:
         raise SurfaceRenderError(
             SurfaceFailureCode.AMBIGUOUS_PROOF_BOUNDARY,
-            "surface top-level let target must retain an assignment and body separator",
+            f"surface target is outside the bounded binding grammar: {exc}",
+        ) from exc
+
+
+def _is_elaborated_local_header(line: str) -> bool:
+    """Recognize Lean local headers, including a colon-only multiline header."""
+
+    if not line or line[0].isspace():
+        return False
+    for position in _top_level_positions(line, ":"):
+        before, after = line[:position], line[position + 1 :]
+        if before.strip() and (not after or after[0].isspace()):
+            return True
+    return False
+
+
+def _canonicalize_elaborated_locals(lines: Sequence[str]) -> list[str]:
+    logical_lines: list[str] = []
+    current: list[str] = []
+    for line in lines:
+        starts_local = _is_elaborated_local_header(line)
+        if starts_local:
+            if current:
+                logical_lines.append(" ".join(current))
+            current = [line]
+            continue
+        if not current or not line.strip():
+            raise GoalV1Error("unsupported multiline local-context layout")
+        current.append(line.strip())
+    if current:
+        logical_lines.append(" ".join(current))
+
+    canonical_lines: list[str] = []
+    for line in logical_lines:
+        local_split = _split_top_level_once(line, " : ")
+        if local_split is None or not local_split[0].strip():
+            raise GoalV1Error("elaborated local line has no structural name/type separator")
+        names, type_text = local_split
+        canonical_names = " ".join(_parse_names(names, allow_generated=True))
+        collapsed_type = _collapse_layout_whitespace(type_text)
+        canonical_type = _canonicalize_binding_expression(
+            collapsed_type,
+            allow_generated_names=True,
         )
-    if ":=" in collapsed:
-        raise SurfaceRenderError(
-            SurfaceFailureCode.AMBIGUOUS_PROOF_BOUNDARY,
-            "surface target contains ':=' outside a semicolon-delimited top-level let",
-        )
-    return collapsed
+        canonical_lines.append(f"{canonical_names} : {canonical_type}")
+    return canonical_lines
 
 
 def _canonicalize_elaborated_goal(goal: str) -> str:
@@ -747,47 +1590,58 @@ def _canonicalize_elaborated_goal(goal: str) -> str:
     if len(target_indices) != 1:
         return goal
     target_index = target_indices[0]
-    if target_index == len(lines) - 1:
-        return "\n".join(lines)
+    canonical_locals = _canonicalize_elaborated_locals(lines[:target_index])
     segments = [lines[target_index][2:].strip()]
     segments.extend(line.strip() for line in lines[target_index + 1 :])
     if any(not segment or segment.startswith("|") for segment in segments):
         raise GoalV1Error("unsupported multiline target layout")
-    if any(
-        not (segment.startswith("let ") or segment.startswith("have ")) for segment in segments[:-1]
-    ):
-        raise GoalV1Error("unsupported multiline target layout")
-    canonical_segments = [
-        ("let " + segment[5:] if segment.startswith("have ") else segment).removesuffix(";")
-        for segment in segments
-    ]
-    canonical_target = "; ".join(canonical_segments)
-    if not _is_canonical_let_target(canonical_target):
-        raise GoalV1Error("malformed top-level let target layout")
-    return "\n".join([*lines[:target_index], f"⊢ {canonical_target}"])
+    collapsed_target = _collapse_layout_whitespace(" ".join(segments))
+    canonical_target = _canonicalize_binding_expression(
+        collapsed_target,
+        allow_generated_names=True,
+    )
+    return "\n".join([*canonical_locals, f"⊢ {canonical_target}"])
 
 
 def validate_goal_v1(goal: str) -> None:
     lines = goal.splitlines()
     if not lines or any(not line.strip() for line in lines):
         raise GoalV1Error("goal_v1 must contain nonempty physical lines")
-    if goal.count("⊢") != 1 or not lines[-1].startswith("⊢ "):
+    masked_goal = _mask_literals_for_target(_mask_comments(goal).masked)
+    masked_lines = masked_goal.splitlines()
+    if masked_goal.count("⊢") != 1 or not masked_lines[-1].startswith("⊢ "):
         raise GoalV1Error("goal_v1 must contain exactly one final turnstile target")
-    if any("⊢" in line for line in lines[:-1]):
+    if any("⊢" in line for line in masked_lines[:-1]):
         raise GoalV1Error("goal_v1 local lines must not contain a turnstile")
-    if any(" : " not in line for line in lines[:-1]):
-        raise GoalV1Error("every goal_v1 local line must contain ' : '")
-    if any(":=" in line for line in lines[:-1]):
-        raise GoalV1Error("goal_v1 local lines must not contain a proof/value delimiter")
+    local_identities: list[str] = []
+    for line in lines[:-1]:
+        local_split = _split_top_level_once(line, " : ")
+        if local_split is None or not local_split[0].strip():
+            raise GoalV1Error("every goal_v1 local line must contain a structural ' : '")
+        names, type_text = local_split
+        local_identities.extend(
+            _name_identity(name) for name in _parse_names(names, allow_generated=True)
+        )
+        canonical_type = _canonicalize_binding_expression(type_text, allow_generated_names=True)
+        if canonical_type != type_text:
+            raise GoalV1Error("goal_v1 local type uses noncanonical 'have'; use 'let'")
+    if len(local_identities) != len(set(local_identities)):
+        raise GoalV1Error("goal_v1 local names must be unique after Lean-name normalization")
     target = lines[-1][2:]
-    if ":=" in target and not _is_canonical_let_target(target):
-        raise GoalV1Error("goal_v1 target contains an unsupported proof/value delimiter")
+    canonical_target = _canonicalize_binding_expression(target, allow_generated_names=True)
+    if canonical_target != target:
+        raise GoalV1Error("goal_v1 target uses noncanonical 'have'; use 'let'")
 
 
 def signature_to_goal_v1(signature: str) -> str:
     """Render a trusted name-free theorem signature without invoking Lean."""
 
     masked_signature = _mask_comments(signature).masked.strip()
+    if _SYNTAX_QUOTATION.search(_mask_literals_for_target(masked_signature)):
+        raise SurfaceRenderError(
+            SurfaceFailureCode.SYNTAX_QUOTATION,
+            "Lean name/syntax quotations are outside the bounded surface grammar",
+        )
     binders, after_binders = _parse_leading_binders(masked_signature)
     target_split = _split_top_level_once(after_binders, ":")
     if target_split is None:
@@ -809,7 +1663,7 @@ def signature_to_goal_v1(signature: str) -> str:
             SurfaceFailureCode.ANONYMOUS_TOP_LEVEL_ARROW,
             "surface mode cannot recover Lean's generated name for an arrow premise",
         )
-    names = [name for binder in binders for name in binder.names]
+    names = [_name_identity(name) for binder in binders for name in binder.names]
     if len(names) != len(set(names)):
         raise SurfaceRenderError(
             SurfaceFailureCode.DUPLICATE_LOCAL_NAME,
@@ -871,27 +1725,25 @@ def render_surface(
     compile_context: CompileContext,
     parsed_signature: str | None = None,
 ) -> GoalV1Sidecar:
-    """Render the tagged surface fallback, failing closed on ambiguous syntax."""
+    """Render a caller-supplied trusted signature while retaining raw source."""
 
     _validate_kind(declaration_kind)
-    signature = (
-        parsed_signature
-        if parsed_signature is not None
-        else _extract_signature(raw_statement, declaration_kind)
-    )
-    goal = signature_to_goal_v1(signature)
-    warnings = (
-        ("trusted_complete_parsed_signature",)
-        if parsed_signature is not None
-        else ("raw_signature_extraction_self_contained_only",)
-    )
+    if not raw_statement.strip():
+        raise ValueError("surface raw_statement must be nonempty")
+    if parsed_signature is None:
+        raise SurfaceRenderError(
+            SurfaceFailureCode.AMBIGUOUS_PROOF_BOUNDARY,
+            "goal_v1.0 never infers a signature/proof boundary from raw source; "
+            "provide a trusted complete parsed_signature",
+        )
+    goal = signature_to_goal_v1(parsed_signature)
     return _build_sidecar(
         goal_v1=goal,
         source="surface",
         raw_statement=raw_statement,
         declaration_kind=declaration_kind,
         compile_context=compile_context,
-        warnings=warnings,
+        warnings=(SURFACE_PROVENANCE_TAG,),
     )
 
 
@@ -993,6 +1845,14 @@ def _parse_goal_payloads(
     return selected
 
 
+def _messages_report_sorry(messages: Sequence[dict[str, object]]) -> bool:
+    return any(
+        str(message.get("severity", "")).lower() in {"warning", "error"}
+        and any(marker in str(message.get("data", "")) for marker in _SORRY_DIAGNOSTICS)
+        for message in messages
+    )
+
+
 def render_elaborated_batch(
     backend: LeanBackend,
     *,
@@ -1032,7 +1892,11 @@ def render_elaborated_batch(
     result_detail = result.infrastructure_error or "; ".join(
         str(message.get("data", "")) for message in result.messages
     )
-    reported_sorry = result.status == LeanStatus.VALID_WITH_SORRY or bool(result.sorries)
+    reported_sorry = (
+        result.status == LeanStatus.VALID_WITH_SORRY
+        or bool(result.sorries)
+        or _messages_report_sorry(result.messages)
+    )
     if reported_sorry and not allow_sorry:
         detail = result_detail or "Lean reported sorry but allow_sorry is false"
         failures = tuple(ElaboratedFailure(name, detail) for name in names)

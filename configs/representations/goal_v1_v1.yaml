@@ -1,14 +1,14 @@
 schema_version: 1
-status: frozen
+status: active
 spec_hash_algorithm: sha256_canonical_json
-spec_hash: 7ec7b82923b4eb78a737f47653dfc7d7b5eb619373159ec1cf5ed0d794759ae9
+spec_hash: 073d92c8e1fcc5cb7a3a9bf325d047e9b2d52149504977086de46abf6f84ef52
 implementation_sources:
   lean_renderer:
     path: LeanFaith/Meta/GoalV1.lean
     sha256: 8a2626489d65c7424f039f673fe5910adeb07d833580f5a6870cbf8e19434809
   python_module:
     path: src/leanfaith/representations/goal_v1.py
-    sha256: d2c0f0121f7085468f442eeb32bc3deac067f2746cf081c983a3b5fb262d81e0
+    sha256: 09912e28687756a9cd203e6069a9f9c130259840d8309a3126fe1c8e1f333cbb
 
 # This subtree is byte-for-byte equivalent after YAML parsing to SPEC_PAYLOAD
 # in src/leanfaith/representations/goal_v1.py. Tests enforce the equality.
@@ -21,15 +21,58 @@ spec:
     target_line: "⊢ <Lean proposition>"
     turnstile_count: 1
     line_policy: "adjacent equal-type locals group; target is final"
-    let_target_policy: >-
-      top-level let layout is serialized on the final target line with semicolon separators
+    term_binding_policy: >-
+      complete semicolon-delimited term let/have bindings in local types or the target at any
+      delimiter depth are serialized on one logical line; ambiguous or layout-only bindings fail
+      closed
+    binding_keyword_policy: >-
+      surface let/have and elaborated have bindings canonicalize to let; raw source keeps its
+      original spelling
+    binding_head_policy: >-
+      surface binding heads require one original-token plain or guillemet explicit non-pattern name;
+      elaborated and final validation additionally admit Lean's printed inaccessible-name suffix; an
+      optional type annotation is nonempty with no second top-level colon, and
+      reserved/literal/composite or incomplete heads fail closed
+    local_name_policy: >-
+      surface binders require original-token plain or guillemet explicit names; elaborated and final
+      local lines additionally admit Lean's printed inaccessible-name suffix;
+      reserved/literal/composite names fail closed
+    forall_binder_type_policy: >-
+      a bare top-level forall binder is accepted only when its comma boundary is unique; otherwise
+      the binder must be parenthesized so nested quantifier and target commas cannot be mistaken for
+      the binder boundary
+    fragment_completion_policy: >-
+      the containing expression plus each binding type, value, and body rejects dangling
+      commas/operators and incomplete if/fun/quantifier/show introducers at every balanced delimiter
+      depth; by/do/calc/match fragments fail closed
+    literal_policy: >-
+      strings, raw strings, guillemets, and Char tokens in types/values/bodies are opaque to
+      delimiter analysis and preserved byte-for-byte during layout whitespace normalization;
+      binding heads retain original token kind so literals cannot masquerade as names
+    delimiter_policy: >-
+      parentheses, braces, brackets, and constructor angles are balanced structurally; binding :=
+      and ; cannot belong to compound delimiter/operator runs; dangling operators fail closed while
+      supported atomic symbol terms remain values
+    named_argument_policy: >-
+      outside a claimed let/have binding, := is accepted only as a complete simple parenthesized
+      named argument (name := value); every other nested assignment fails closed
+    surface_input_policy: >-
+      surface rendering requires nonempty raw_statement plus caller-supplied parsed_signature;
+      supplying it attests that the signature is complete, corresponds to compilable raw source in
+      the stored context, and is safe for the bounded grammar; raw_statement is never parsed to guess
+      a signature or proof boundary because loaded syntax makes top-level := ambiguous
+    surface_provenance_tag: trusted_complete_parsed_signature
+    surface_provenance_policy: >-
+      each successful surface sidecar stores surface_provenance_tag in record.warnings as a
+      caller-attestation marker that does not verify the attested claims; failures produce no
+      sidecar or provenance tag
   preserve:
     - local_order
     - local_names
     - dependent_types
     - generated_instance_names_when_elaborated
     - coercions
-    - notation
+    - notation_except_term_binding_have_canonicalized_to_let
     - universes_in_types
   remove:
     - attributes
@@ -42,14 +85,21 @@ spec:
     - proof_delimiter
     - proof_body
   sources: [elaborated, surface]
-  surface_fail_closed:
+  # Descriptive classes, not a one-to-one list of SurfaceFailureCode enum values.
+  surface_fail_closed_classes:
     - anonymous_instance_binder
     - anonymous_top_level_arrow
     - duplicate_or_shadowed_local_name
     - implicit_or_untyped_binder
     - ambiguous_declaration_or_proof_boundary
+    - incomplete_or_ambiguous_term_binding
+    - assignment_syntax_outside_bounded_term_bindings
+    - missing_trusted_complete_parsed_signature
+    - raw_declaration_boundary_inference_forbidden
+    - syntax_quotation
     - unsupported_declaration_kind
   compile_context_fields:
+    - schema_version
     - project_id
     - project_revision
     - lean_version
@@ -67,7 +117,9 @@ spec:
     - scoped_context
     - namespace_context
   elaborated_input_modes: [inline_candidate, loaded_constant_lookup]
-  sorry_policy: any backend-reported sorry fails the batch unless allow_sorry is true
+  sorry_policy: >-
+    VALID_WITH_SORRY, a nonempty sorries payload, or a warning/error containing "declaration uses
+    `sorry`" or "declaration uses 'sorry'" fails the batch unless allow_sorry is true
   inverse: forbidden
   elaborated_option_profile:
     base: Options.empty

@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 import shutil
 import time
+from collections.abc import Sequence
+from dataclasses import replace
 from pathlib import Path
 from typing import cast
 
@@ -13,6 +15,7 @@ import yaml
 
 from leanfaith.config.paths import find_repo_root
 from leanfaith.lean.leaninteract_backend import BackendSettings, LeanInteractBackend
+from leanfaith.lean.protocol import LeanRequest, LeanResult, LeanStatus
 from leanfaith.representations.goal_v1 import (
     CompileContext,
     ElaboratedInput,
@@ -54,6 +57,30 @@ universe u""",
 
 def _qualified(name: str) -> str:
     return f"GoalV1Structured.{name}"
+
+
+class _DiagnosticOnlySorryBackend:
+    """Expose a real INVALID response after dropping only its structured sorry payload."""
+
+    def __init__(self, delegate: LeanInteractBackend) -> None:
+        self.delegate = delegate
+
+    def run(self, request: LeanRequest) -> LeanResult:
+        result = self.delegate.run(request)
+        assert result.status == LeanStatus.INVALID
+        assert result.sorries
+        assert any(
+            message.get("severity") in {"warning", "error"}
+            and "declaration uses `sorry`" in str(message.get("data", ""))
+            for message in result.messages
+        )
+        return replace(result, sorries=())
+
+    def run_batch(self, requests: Sequence[LeanRequest]) -> list[LeanResult]:
+        return [self.run(request) for request in requests]
+
+    def close(self) -> None:
+        return None
 
 
 def _multi_source_surface_pilot() -> tuple[int, int, int]:
@@ -111,6 +138,7 @@ def test_goal_v1_cross_path_smoke_then_bounded_pilot(
             raw_statement=smoke_raw,
             declaration_kind="theorem",
             compile_context=context,
+            parsed_signature="(x y : ℕ) (h : x < y) : x ≤ y",
         )
         smoke_input = ElaboratedInput(_qualified("goalV1Smoke"), "theorem", smoke_raw)
         elaborated_smoke = render_elaborated_batch(
@@ -199,12 +227,83 @@ def test_goal_v1_cross_path_smoke_then_bounded_pilot(
                 "theorem goalV1PilotLet : let x := 1; x = 1 := by rfl",
             ),
             ElaboratedInput(
+                _qualified("goalV1PilotLetChain"),
+                "theorem",
+                "theorem goalV1PilotLetChain : let x := 1; let y := x; y = 1 := by rfl",
+            ),
+            ElaboratedInput(
+                _qualified("goalV1PilotHaveChain"),
+                "theorem",
+                "theorem goalV1PilotHaveChain : have x := 1; have y := x; y = 1 := by rfl",
+            ),
+            ElaboratedInput(
+                _qualified("goalV1PilotEmptyStringBinding"),
+                "theorem",
+                'theorem goalV1PilotEmptyStringBinding : let s := ""; s = "" := by rfl',
+            ),
+            ElaboratedInput(
+                _qualified("goalV1PilotCharBinding"),
+                "theorem",
+                "theorem goalV1PilotCharBinding : let c := ';'; c = ';' := by rfl",
+            ),
+            ElaboratedInput(
+                _qualified("goalV1PilotLocalLetChain"),
+                "theorem",
+                "theorem goalV1PilotLocalLetChain "
+                "(h : let x := 1; let y := x; y = 1) : True := True.intro",
+            ),
+            ElaboratedInput(
+                _qualified("goalV1PilotExistsLetChain"),
+                "theorem",
+                "theorem goalV1PilotExistsLetChain : "
+                "∃ n, let x := n; let y := x; y = 1 := by exact ⟨1, rfl⟩",
+            ),
+            ElaboratedInput(
+                _qualified("goalV1PilotForallLetChain"),
+                "theorem",
+                "theorem goalV1PilotForallLetChain : "
+                "∀ n : ℕ, let x := n; let y := x; y = n := by intro n; rfl",
+            ),
+            ElaboratedInput(
+                _qualified("goalV1PilotConjunctionLetChain"),
+                "theorem",
+                "theorem goalV1PilotConjunctionLetChain : "
+                "True ∧ let x := 1; let y := x; y = 1 := by simp",
+            ),
+            ElaboratedInput(
                 "lf_add_comm",
                 "theorem",
                 "theorem lf_add_comm (x y : Nat) : x + y = y + x := Nat.add_comm x y",
                 lookup_only=True,
             ),
         )
+        surface_signatures = {
+            _qualified("goalV1PilotDependent"): (
+                "{α : Type u} [Inhabited α] (x : α) (h : ∀ y : α, y = y) : "
+                "((fun z => z) x = x) ∧ x = x"
+            ),
+            _qualified("goalV1PilotCoercion"): "(x : Nat) : ((x : Int) = x)",
+            _qualified("goalV1PilotHelper"): "(x : Nat) : goalV1PilotHelperFn x = x",
+            _qualified("goalV1PilotProofLeak"): ": True",
+            _qualified("goalV1PilotArrow"): ": True → True",
+            _qualified("goalV1PilotShadow"): "(x : Nat) (x : Fin (x + 1)) : True",
+            _qualified("goalV1PilotNot"): "(p : Prop) (hp : p) : ¬¬p",
+            _qualified("goalV1PilotLong"): f"(h : {long_conjunction}) : True",
+            _qualified("goalV1PilotStructuredContext"): "(n : GoalV1ContextNat) : n = n",
+            _qualified("goalV1PilotLet"): ": let x := 1; x = 1",
+            _qualified("goalV1PilotLetChain"): ": let x := 1; let y := x; y = 1",
+            _qualified("goalV1PilotHaveChain"): ": have x := 1; have y := x; y = 1",
+            _qualified("goalV1PilotEmptyStringBinding"): ': let s := ""; s = ""',
+            _qualified("goalV1PilotCharBinding"): ": let c := ';'; c = ';'",
+            _qualified("goalV1PilotLocalLetChain"): ("(h : let x := 1; let y := x; y = 1) : True"),
+            _qualified("goalV1PilotExistsLetChain"): (": ∃ n, let x := n; let y := x; y = 1"),
+            _qualified("goalV1PilotForallLetChain"): (": ∀ n : ℕ, let x := n; let y := x; y = n"),
+            _qualified("goalV1PilotConjunctionLetChain"): (
+                ": True ∧ let x := 1; let y := x; y = 1"
+            ),
+            "lf_add_comm": "(x y : Nat) : x + y = y + x",
+        }
+        assert len(surface_signatures) == len(pilot_inputs)
         pilot = render_elaborated_batch(
             backend,
             declarations=pilot_inputs,
@@ -232,11 +331,22 @@ def test_goal_v1_cross_path_smoke_then_bounded_pilot(
         assert len(long_goal.splitlines()[0]) > 120
         assert by_name[_qualified("goalV1PilotStructuredContext")].endswith("⊢ n = n")
         assert by_name[_qualified("goalV1PilotLet")] == "⊢ let x := 1; x = 1"
-        assert all(
-            ":=" not in goal
-            for name, goal in by_name.items()
-            if name != _qualified("goalV1PilotLet")
-        )
+        binding_expectations = {
+            _qualified("goalV1PilotLetChain"): "⊢ let x := 1; let y := x; y = 1",
+            _qualified("goalV1PilotHaveChain"): "⊢ let x := 1; let y := x; y = 1",
+            _qualified("goalV1PilotEmptyStringBinding"): '⊢ let s := ""; s = ""',
+            _qualified("goalV1PilotCharBinding"): "⊢ let c := ';'; c = ';'",
+            _qualified("goalV1PilotLocalLetChain"): ("h : let x := 1; let y := x; y = 1\n⊢ True"),
+            _qualified("goalV1PilotExistsLetChain"): "⊢ ∃ n, let x := n; let y := x; y = 1",
+            _qualified("goalV1PilotForallLetChain"): ("n : ℕ\n⊢ let x := n; let y := x; y = n"),
+            _qualified("goalV1PilotConjunctionLetChain"): (
+                "⊢ True ∧ let x := 1; let y := x; y = 1"
+            ),
+        }
+        for declaration_name, expected in binding_expectations.items():
+            assert by_name[declaration_name] == expected
+        binding_names = {_qualified("goalV1PilotLet"), *binding_expectations}
+        assert all(":=" not in goal for name, goal in by_name.items() if name not in binding_names)
         loaded_sidecar = next(
             sidecar
             for item, sidecar in zip(pilot_inputs, pilot.sidecars, strict=True)
@@ -253,15 +363,18 @@ def test_goal_v1_cross_path_smoke_then_bounded_pilot(
                     raw_statement=item.raw_statement,
                     declaration_kind=item.declaration_kind,
                     compile_context=context,
+                    parsed_signature=surface_signatures[item.declaration_name],
                 )
             except SurfaceRenderError:
                 surface_failures += 1
                 continue
+            if item.declaration_name in binding_expectations:
+                assert surface_sidecar.core_text() == elaborated_sidecar.core_text()
             surface_agreements += surface_sidecar.core_text() == elaborated_sidecar.core_text()
 
-        assert len(pilot_inputs) == 11
-        assert surface_failures == 4
-        assert surface_agreements == 5
+        assert len(pilot_inputs) == 19
+        assert surface_failures == 3
+        assert surface_agreements == 13
 
         # Gate 2b: any Lean-reported sorry fails closed, even when another
         # declaration makes the overall batch INVALID.
@@ -288,7 +401,43 @@ def test_goal_v1_cross_path_smoke_then_bounded_pilot(
             item.declaration_name for item in rejected_sorry_inputs
         ]
 
-        # Gate 2c: the six pinned source-family fixtures stay purely surface-side.
+        diagnostic_only_sorry = render_elaborated_batch(
+            _DiagnosticOnlySorryBackend(backend),
+            declarations=rejected_sorry_inputs,
+            compile_context=context,
+            request_id="goal-v1-invalid-diagnostic-only-sorry-regression",
+        )
+        assert not diagnostic_only_sorry.sidecars
+        assert [failure.declaration_name for failure in diagnostic_only_sorry.failures] == [
+            item.declaration_name for item in rejected_sorry_inputs
+        ]
+
+        # Gate 2c: incomplete binding syntax fails on both paths. This is one
+        # bounded invalid fixture, not a corpus audit.
+        incomplete_raw = "theorem goalV1PilotIncompleteLetChain : let x := 1; let y := x := by rfl"
+        with pytest.raises(SurfaceRenderError, match="ambiguous_proof_boundary"):
+            render_surface(
+                raw_statement=incomplete_raw,
+                declaration_kind="theorem",
+                compile_context=context,
+                parsed_signature=": let x := 1; let y := x",
+            )
+        incomplete = render_elaborated_batch(
+            backend,
+            declarations=(
+                ElaboratedInput(
+                    _qualified("goalV1PilotIncompleteLetChain"),
+                    "theorem",
+                    incomplete_raw,
+                ),
+            ),
+            compile_context=context,
+            request_id="goal-v1-incomplete-let-chain",
+        )
+        assert not incomplete.sidecars
+        assert len(incomplete.failures) == 1
+
+        # Gate 2d: the six pinned source-family fixtures stay purely surface-side.
         source_successes, source_expected_failures, source_elapsed_ms = (
             _multi_source_surface_pilot()
         )
@@ -311,6 +460,13 @@ def test_goal_v1_cross_path_smoke_then_bounded_pilot(
             "mixed_invalid_sorry": {
                 "sidecars": len(rejected_sorry.sidecars),
                 "failures": len(rejected_sorry.failures),
+                "diagnostic_only_sidecars": len(diagnostic_only_sorry.sidecars),
+                "diagnostic_only_failures": len(diagnostic_only_sorry.failures),
+            },
+            "incomplete_binding": {
+                "elaborated_sidecars": len(incomplete.sidecars),
+                "elaborated_failures": len(incomplete.failures),
+                "surface_failed_closed": True,
             },
             "multi_source_surface_pilot": {
                 "rows": source_successes + source_expected_failures,

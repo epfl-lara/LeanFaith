@@ -1,12 +1,12 @@
 # REPR — shared `goal_v1.0` theorem representation
 
 > **Task ID:** REPR
-> **Status:** complete
+> **Status:** active
 > **Owner/session:** Codex REPR session (2026-08-30)
-> **Last updated:** 2026-08-30 (second reviewed freeze)
+> **Last updated:** 2026-08-30 (third correctness repair)
 > **Dependencies:** none
-> **Next gate:** downstream manifests pin the second replacement spec hash and implementation
-> revision; retain raw/context sidecars and report metrics by `goal_v1_source`
+> **Next gate:** commit the active third repair, rerun committed-tree checks, then create one coherent
+> replacement freeze commit before downstream use
 > **Compute class:** CPU; bounded Lean oracle/renderer tests only
 > **Lean budget:** reuse loaded environments and candidate compilation; no corpus-wide rendering compile
 > **Local staging root:** `/storage/milikic/leanfaith/value_first/goal_v1_0/`
@@ -18,12 +18,16 @@ Own the one canonical model-facing theorem representation so SFT1, SFT2A, SFT2B,
 build incompatible renderers. Freeze `goal_v1.0`, its provenance flag, and the separate raw
 compilation context. This is an enabling task, not a corpus-generation task.
 
-## Frozen representation decision
+## Target representation decision
 
 `goal_v1.0` contains ordered local variables, hypotheses, typeclass/universe locals, and exactly
 one `⊢ target`. It removes declaration name/kind, attributes, command shell, imports, options,
-comments, `:=`, `by`, `sorry`, and proof body. Preserve local names/order, dependent types,
-generated instance names, coercions, notation, universes, and meaningful line boundaries.
+comments, the declaration's proof delimiter/body (`:=`, `by`, `sorry`), and proof-only text. Term
+bindings and the bounded parenthesized named-argument form retain their meaningful `:=`. Preserve local names/order, dependent types,
+generated instance names, coercions, universes, and meaningful line boundaries. Preserve notation
+except for the explicit term-binding normalization below: supported surface `let`/`have` and Lean's
+elaborated `have` presentation all serialize with the canonical keyword `let`; the raw sidecar keeps
+the original spelling.
 
 Use the best cheap source available:
 
@@ -37,8 +41,9 @@ mix them without the sidecar flag; report coverage and model metrics by source m
 surface rows fail closed or retain the raw representation outside the core view.
 
 `goal_v1` is model-facing, not a compilable source language. Every source/candidate sidecar retains
-`raw_statement` or `raw_source`, `project_id`, project/toolchain revision, import header,
-namespaces/scopes/options, and renderer version as `compile_context`. SFT2 proposers/formalizers
+the exact nonempty `raw_statement`, `project_id`, project/toolchain revision, import header,
+and namespaces/scopes/options in `compile_context`; `renderer_version` stays in the sidecar record.
+SFT2 proposers/formalizers
 must return a compilable declaration/signature; compilation never tries to reconstruct source from
 goal text. This avoids an under-specified inverse transformation.
 
@@ -62,11 +67,13 @@ cannot be achieved additively.
 
 ## Input and output contract
 
-Renderer input includes declaration kind, signature/type or elaborated `Expr`, and optional compile
-context. Output sidecar record:
+Both renderers require declaration kind, nonempty `raw_statement`, and `CompileContext`. Surface mode
+also requires the caller-attested `parsed_signature`; elaborated mode requires a declaration name or
+loaded-constant lookup. The serialized wrapper is `{record, raw_statement, compile_context}`. Its
+record contains:
 
 ```text
-representation_id, goal_v1, goal_v1_source, renderer_version,
+representation_id, goal_v1, goal_v1_source, renderer_version, spec_hash,
 raw_statement_hash, declaration_kind, compile_context_id,
 typed_alpha_fingerprint?, warnings[]
 ```
@@ -94,8 +101,11 @@ project/toolchain/options and renderer version.
    agreement, failures, cache behavior, throughput, leakage checks, hashes, risks, and handoff.
 5. Fail the whole elaborated batch when Lean reports any sorry and `allow_sorry=False`, including
    mixed `INVALID` batches; retain partial payload-backed successes only when no sorry was reported.
-6. Canonicalize supported semicolon-delimited top-level `let` propositions to one target line on
-   both paths; fail closed on ambiguous surface layout and unsupported elaborated multiline layout.
+6. Use one structural analyzer on extraction, surface rendering, elaborated rendering, and final
+   validation of trusted signatures. Canonicalize complete semicolon-delimited term `let`/`have`
+   chains at any balanced delimiter depth to `let`; fail closed on incomplete chains, layout-only or
+   macro bindings, and ambiguous same-context values. Never infer a signature or proof boundary from
+   raw declarations under potentially loaded syntax.
 
 Lean is the bottleneck: this session will not compile a corpus. It will establish the small Lean
 oracle, measure the cheap renderer against it, and compile only the bounded audit required here.
@@ -210,7 +220,10 @@ historical evidence only and are not authorized for downstream use.
   owned unit tests, the one live integration gate, and the repository task-plan pre-commit hook pass.
   No training data, external model call, durable staging artifact, or active host reservation remains.
 
-## Second replacement freeze record and evidence
+## Superseded second replacement freeze record and evidence
+
+This record was rejected by the third correctness review. Its hashes, commits, and measurements are
+historical evidence only and are not authorized for downstream use.
 
 - **Frozen identity:** canonical spec hash
   `7ec7b82923b4eb78a737f47653dfc7d7b5eb619373159ec1cf5ed0d794759ae9`; unchanged Lean renderer
@@ -237,35 +250,94 @@ historical evidence only and are not authorized for downstream use.
   runs passed. The active-state implementation and every REPR-owned path were committed before this
   freeze record was finalized.
 
-## Frozen risks and downstream handoff
+## Third replacement candidate evidence
 
-- Surface mode is safe only for a trusted, complete name-free signature. Raw declaration extraction
-  is explicitly tagged `raw_signature_extraction_self_contained_only`; parsed signatures are tagged
-  `trusted_complete_parsed_signature`. Section/autobound locals, anonymous instance binders,
-  anonymous top-level arrows, shadowed names, and ambiguous multi-declaration inputs must go through
-  the elaborated path or fail closed. Downstream reports coverage and model metrics separately by
-  `goal_v1_source`.
+This active candidate is not yet consumable. The coherent downstream revision will be the final
+freeze commit containing the frozen config, matching frozen-state test, completed brief, and the
+committed implementation revision below.
+
+- **Candidate identity:** canonical spec hash
+  `073d92c8e1fcc5cb7a3a9bf325d047e9b2d52149504977086de46abf6f84ef52`; unchanged Lean renderer
+  SHA-256 `8a2626489d65c7424f039f673fe5910adeb07d833580f5a6870cbf8e19434809`; replacement Python module
+  SHA-256 `09912e28687756a9cd203e6069a9f9c130259840d8309a3126fe1c8e1f333cbb`.
+- **Structural binding repair:** one balanced-context analyzer now gates trusted signatures,
+  elaborated payload canonicalization, and final validation. Every visible term
+  `let`/`have` requires one simple name under the path-specific policy below, same-context `:=`, nonempty value,
+  same-context `;`, and a structurally complete body. Sequential, nested, local-type, literal, and
+  colon-only multiline-local cases are validated independently; ambiguous/layout/macro forms,
+  composite heads, dangling operators, and incomplete term introducers fail closed. Supported
+  `have` is explicitly canonicalized to `let` on both paths while raw source remains unchanged.
+- **Binder and structured-term safety:** surface binder and binding heads retain their original token
+  class, so literals, operators, reserved words, dotted/composite spellings, and escaped/unescaped
+  duplicate names fail closed. Elaborated output additionally admits Lean's printed inaccessible-name
+  suffix. Bare top-level `∀` binders require one unique comma boundary; parenthesized binders preserve
+  nested `∃`/`Σ`/`∀` commas. Incomplete quantifier, conditional, lambda, and `show` fragments are
+  rejected at every balanced delimiter depth.
+- **Surface boundary repair:** `render_surface` accepts a nonempty raw statement plus a caller-supplied
+  `parsed_signature`; supplying it is the caller's attestation that the signature is complete and
+  corresponds to compilable raw source in the stored context. It never guesses a declaration
+  signature or proof boundary from `raw_statement`, because imported/built-in assignment syntax
+  makes `:=` structurally ambiguous without Lean parsing. A successful sidecar records
+  `trusted_complete_parsed_signature` in `record.warnings`; failures have no sidecar or tag. Missing signatures and unsupported
+  built-in `let_fun`/`let_expr`/`let_λ`/`haveI` or generic assignment forms fail closed rather than
+  truncate. The renderer intentionally does not inspect raw declarations for completeness.
+- **Sorry repair:** `allow_sorry=False` now rejects a batch on `VALID_WITH_SORRY`, any nonempty
+  `sorries` payload, or either canonical warning/error diagnostic spelling. The live regression
+  removed the real backend's populated `sorries` tuple from an `INVALID` mixed result and still
+  returned zero sidecars and two failures from the retained diagnostic alone.
+- **Literal safety:** quoted literals are masked structurally with a non-whitespace sentinel, so
+  delimiters inside string, guillemet, and character literals cannot masquerade as binding syntax,
+  while even `""` remains a nonempty value. Surface, final-validation, static elaborated, and live
+  regressions cover empty strings, delimiter-bearing strings/chars, and an incomplete char-backed
+  binding that previously could appear complete.
+- **Bounded loaded-environment gate:** the unchanged one-example smoke agreed exactly and retained
+  request hash `147f755a4bcb9c998ea2aa5904957f654e528f97f003ad508e3a206d81c068eb`
+  (1,504 ms cold, 22 ms replay). One loaded environment rendered 19/19 elaborated pilot fixtures in
+  56 ms. Trusted surface signatures produced 13 exact cross-path agreements, three deliberate
+  fail-closed outcomes, and three notation/name differences. Chained/nested/local bindings and
+  literals agreed exactly; the bounded incomplete chain produced zero elaborated sidecars and failed
+  surface validation. The separate six-source surface pilot remained 4/6 in 3 ms. Full live wall
+  time was 2.04 s with 116,784 KiB peak RSS; the one-worker reservation was released.
+- **Verification state:** all 203 active-state unit cases, source/spec hash assertions, scoped
+  ruff/formatting, and strict mypy pass. No corpus was compiled, no training data was generated, and
+  no durable staging output was kept.
+
+## Current risks and downstream handoff
+
+- Surface mode is safe only when the caller attests that its supplied complete name-free signature
+  corresponds to nonempty raw source compiling in the stored context. A successful sidecar carries
+  `trusted_complete_parsed_signature` in `record.warnings`; the renderer does not validate this
+  attestation or parse `raw_statement` to guess a signature/proof boundary. Section/autobound locals, anonymous instance binders, anonymous top-level arrows,
+  shadowed names, and any source without a trusted signature must go through the elaborated path or
+  fail closed. Downstream reports coverage and model metrics separately by `goal_v1_source`.
 - Surface and elaborated text are not guaranteed byte-identical outside the cross-path-safe subset:
   elaboration may canonicalize `Nat` to `ℕ`, insert coercions, parenthesize binders, or sanitize local
-  names. The source tag is part of the record and representation identity; consumers must not erase
+  names. The `goal_v1_source` tag is part of the record and representation identity; consumers must not erase
   it during analysis.
 - The typed/alpha fingerprint remains an optional pass-through hook. `goal_v1.0` does not compute or
   require one, and it never alpha-normalizes the model text.
-- Downstream code imports the task-owned module directly, constructs a complete `CompileContext`,
+- After the coherent third freeze, downstream code imports the task-owned module directly,
+  constructs a complete `CompileContext`,
   batches `ElaboratedInput` values through its already-loaded backend, and sets `lookup_only=True`
   when the named theorem is already imported. It copies only `sidecar.core_text()` into pair rows and
-  persists `sidecar.to_dict()` with raw compilable source. Manifests pin the replacement spec hash and
-  implementation revision above. There is intentionally no goal-to-source inverse; candidate
+  persists `sidecar.to_dict()` with raw compilable source. Manifests pin the final third-replacement
+  spec hash and coherent freeze revision. There is intentionally no goal-to-source inverse; candidate
   workflows retain and compile their original declaration before rendering.
 - A mixed inline batch may return `LeanStatus.INVALID` after some constants rendered successfully.
   Only payload-backed sidecars survive and carry `batch_had_lean_errors`; missing declarations are
   explicit failures. Use batch size one for untrusted inline candidates when per-candidate status is
   required. Infrastructure failures and any backend-reported sorry fail the batch unless
   `allow_sorry=True`.
-- Surface mode supports top-level `let` propositions only when their assignment/body boundary is
-  explicit with `;`. Layout-only surface text fails closed. The elaborated path canonicalizes Lean's
-  recognized multiline `have` presentation for top-level let chains; other forced multiline target
-  layouts remain explicit failures for a future representation version.
+- Surface mode supports complete, simple term `let`/`have` chains at balanced delimiter depths only
+  when every assignment/body boundary is explicit with `;`. It canonicalizes the supported binding
+  keyword to `let`. Layout-only bindings, same-context nested values, `let rec`, pattern/monadic
+  bindings, a second top-level colon in a binding annotation, and unparenthesized
+  `by`/`do`/`match`/`calc` fragments fail closed. Bare top-level `∀` binders with multiple possible
+  comma boundaries also fail closed and must be written with parenthesized binders. Balanced
+  parenthesized values, complete bounded `if`/`fun`/quantifier/`show` forms, common atomic symbolic
+  terms, and simple parenthesized named arguments remain supported; nested structure is still
+  validated. The
+  raw source sidecar is always authoritative for compilation.
 
 ## Session kickoff prompt
 
@@ -281,8 +353,12 @@ Do not generate training data. Record the spec hash, evidence, risks, and downst
 
 ## Coordinator requests
 
-- Downstream SFT/evaluation serializers may proceed only with the second replacement spec hash and
-  implementation revision, never either superseded record.
+- Downstream SFT/evaluation serializers must remain paused until the coherent third replacement
+  freeze commit is recorded here. None of the three superseded hashes or their implementation
+  commits is consumable.
+- Coordinator follow-up: mirror the scoped term-binding `have`-to-`let` exception in
+  `plans/00_shared_contracts.md`. Until that coordinator-owned wording is updated, this task-owned
+  spec is the explicit `goal_v1.0` normalization policy; the raw sidecar retains original notation.
 
 ## Progress log (append-only)
 
@@ -340,3 +416,38 @@ Do not generate training data. Record the spec hash, evidence, risks, and downst
   The final record includes the canonical let policy, batch-wide reported-sorry policy, 26/26 unit
   tests, the bounded live evidence, source hashes, risks, and downstream handoff. No training data or
   corpus build occurred.
+- 2026-08-30 — user and Claude Fable-5 independently rejected the second freeze. Surface extraction
+  can truncate chained/nested `let` or `have` targets at an internal `:=` and then accept the
+  incomplete goal; the canonical diagnostic that a declaration uses `sorry` can bypass the batch
+  policy when `result.sorries` is empty. The third repair must structurally validate complete binding
+  chains, cover chained/nested/incomplete cases on both paths, freeze the elaborated `have`-to-`let`
+  policy, recognize canonical sorry diagnostics, and produce a single coherent consumable freeze
+  revision. REPR is `active`; no downstream use, corpus build, or training-data generation is
+  authorized.
+- 2026-08-30 — third repair candidate passed the resource-claimed loaded-environment gate. The
+  unchanged smoke agreed exactly with identical request hashes; 18/18 elaborated pilot fixtures
+  passed, including exact cross-path chained `let`/`have` and nested existential, universal, and
+  conjunction cases plus empty-string and delimiter-bearing character bindings. The incomplete-chain
+  fixture failed closed on both paths, character-literal separators fail closed, and a real mixed
+  `INVALID` result with its structured sorry payload removed still returned zero sidecars from the
+  canonical diagnostic alone. The six-source pilot remained 4/6. No corpus or training data was
+  produced, and the reservation was released; REPR stays `active` through the coherent commits.
+- 2026-08-30 — final adversarial repair removed raw declaration boundary inference from the public
+  surface contract. Surface mode now requires a tagged trusted complete parsed signature and retains
+  raw compilable source only in its sidecar, so loaded/custom assignment syntax cannot masquerade as
+  the theorem proof boundary. Original-token heads, structured fragments, common atomic symbols,
+  colon-only elaborated locals, diagnostic-only sorry results, and malformed/incomplete inputs have
+  bounded regressions. The final loaded-environment gate passed the unchanged smoke and 19/19 pilot
+  in one request (13 surface agreements, three tagged failures), while the six-source pilot remained
+  4/6. No corpus or training data was produced, and the reservation was released.
+- 2026-08-30 — correction and final adversarial gate: surface input is a caller-attested
+  `parsed_signature`, not a tagged input; only successful sidecars append
+  `trusted_complete_parsed_signature` to `record.warnings`, so the three pilot failures have no tag.
+  The structural validator now rejects malformed binder tokens, ambiguous bare-`∀` comma boundaries,
+  dangling operators/commas inside balanced delimiters and structured-term segments, incomplete
+  quantifier/conditional/lambda/`show` forms, and non-single named-argument parentheses. The final
+  resource-claimed gate passed the unchanged smoke hash, 19/19 elaborated fixtures in one loaded
+  request (13 exact surface agreements and three fail-closed outcomes), and the 4/6 six-source
+  pilot. All 203 owned unit cases pass after final repinning; wall time was 2.04 s with 116,784 KiB
+  peak RSS. Raw compilability/correspondence remains an explicit caller attestation, no corpus or
+  training data was generated, and the reservation was released.
