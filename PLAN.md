@@ -144,6 +144,19 @@ starting-point context, and may describe work that the ledger has since complete
   `training_authorized=false`. No 500-declaration compile was launched. Frozen smoke:
   `/storage/milikic/leanfaith/corpus2/s1_public_negative_n19_smoke_v1_32f825b_d568c8c/`
   (manifest SHA-256 `8e1f39d795f3479a09c5d0e440f1be0c38d0978a5f6c2cb1cdf2f2dd27c5dd27`).
+- **96-DECLARATION TYPED N21/N22 PILOT COMPLETE / GATE FAILED**: `99c4431` froze a
+  split-stratified 72/12/12 sample from the exact admitted Meta-positive declaration
+  distribution and ran a versioned root-body Boolean-skeleton engine. Primary Lean completed in
+  13.127 seconds and emitted 39 typed candidates; the frozen one-per-declaration chooser admitted
+  13 (N21 5 / N22 8), and independent Lean reconstruction verified 13/13 in 3.655 seconds. This
+  slice is too sparse: yield was 11 train / 0 validation / 2 test versus required 24 total and
+  4/4 diagnostics; `iffToImp` occupied 53.8% versus the 40% operation cap; and the full canary
+  improved by only 0.0082 validation / 0.0104 test, failing the 0.01-both-splits gate. The paired
+  canary could not be estimated without validation rows. Therefore `pilot_gate_passed=false`,
+  `scale_authorized=false`, and `training_authorized=false`; increasing the sample size with the
+  same root-only engine is not authorized. Frozen root:
+  `/storage/milikic/leanfaith/corpus2/s1_public_negative_skeleton_pilot_v1_3d72e99_d568c8c/`
+  (manifest SHA-256 `78054484ddabdf0da24988dc8651c4d194b52b66f792d3f788b39cb2a75bfa4a`).
 - **Backbone consultation verified, Track T-B added**: GPT Pro + Claude reports cross-checked
   against pinned configs/modeling code, live HF cards, and a fresh local operator/fertility
   audit (0 UNKs on all three tokenizers — DeBERTa fear refuted; NeoBERT disqualified;
@@ -151,17 +164,19 @@ starting-point context, and may describe work that the ledger has since complete
   `reports/model_selection/backbone_consult_verification_2026_08_28.md`.
 
 **NEXT QUEUE — repair the measured public lexical shortcut before training:**
-1. Run a small, preregistered multi-declaration pilot of source-matched public negatives on the
-   admitted Meta-positive distribution and measure its incremental lexical-canary effect. The
-   one-row N19 smoke has already proved the kernel-certificate pathway, but whole-claim negation
-   is an obvious lexical template and must be capped; prioritize less trivial `N-SEP`/`N-PROOF`
-   families. Do not launch a 500-declaration run unless the small pilot has acceptable yield and
-   lowers the canary without introducing a new family/template shortcut.
-2. Rebuild a new versioned public corpus only after that pilot passes. Require every existing
+1. Add a versioned typed N21/N22 engine that traverses the full propositional conclusion skeleton,
+   not only a root And/Or/Iff. Require an exact full-skeleton truth-table separator and root
+   influence for every nested mutation. Prove one nested declaration through generation and
+   independent reconstruction before rerunning the same bounded 72/12/12 pilot contract. Do not
+   increase the sample size to compensate for the failed root-only applicability.
+2. Rerun the bounded pilot and require all frozen yield, family, operation, full-canary, and paired
+   canary gates. No 500-declaration run is authorized unless that version passes without a new
+   shortcut.
+3. Rebuild a new versioned public corpus only after that pilot passes. Require every existing
    diversity/balance/seal gate and lexical-canary balanced accuracy `<0.72` on validation and
    test. The failed 7,488-row artifact
    remains a diagnostic and must not become a training input by relaxing the gate.
-3. Only after the canary passes, smoke one training batch/checkpoint, run the two primary S1 arms,
+4. Only after the canary passes, smoke one training batch/checkpoint, run the two primary S1 arms,
    and score golden **dev** through the sanctioned split-only path against S1v0 chunks-CPT (0.849
    AUPRC / 0.684 calibrated balanced accuracy). `final_test` remains sealed and unscored.
 

@@ -485,6 +485,59 @@ projection, golden blocking, atomic/idempotent materialization, compiler failure
 evidence, and mutation detection. The 32 focused repair/builder tests, collection, Ruff/format,
 and strict mypy across 236 source files are green.
 
+## Typed N21/N22 96-declaration separator pilot (`99c4431`)
+
+The official small negative pilot froze **96** already-admitted Meta-positive mathlib declaration
+groups before execution: 72 train, 12 validation, and 12 test. Its versioned Lean engine admitted
+only typed root-body And/Or/Iff mutations, attached an exact two-atom truth-table separator under
+the declared abstract-schema contract, retained at most one mutation per declaration, and required
+independent reconstruction of every selected candidate. The preregistered gates required at least
+24 total certified rows, at least four validation and four test rows, N22 ≥60%, N21 ≤40%, no
+operation above 40%, at least 0.01 absolute full-canary improvement on both splits, and a paired
+shortcut canary below 0.72.
+
+Primary Lean completed in **13.127 seconds** and emitted 39 candidates. The deterministic family
+and operation chooser admitted 13 rows—5 N21 and 8 N22—with no blocklist, duplicate, or overlength
+exclusions. Independent Lean reconstruction then verified **13/13** in **3.655 seconds**. Both Lean
+processes exited 0 with empty stderr under the pinned mathlib revision and 120-second per-stage
+timeouts; no external call or `final_test` access occurred.
+
+The pilot correctly failed its advancement gate:
+
+- Yield was 11 train / **0 validation** / 2 test, below 24 total and 4/4 diagnostics.
+- Family mix passed (N22 61.5%, N21 38.5%), but `iffToImp` occupied 7/13 = **53.8%**, above the
+  40% operation cap.
+- The augmented full canary was 0.8445 validation / 0.8307 test versus 0.8527 / 0.8410 baseline:
+  improvements of **0.0082 / 0.0104**, so validation missed the required 0.01.
+- The paired shortcut canary was not estimable because no validation mutation yielded.
+
+Therefore `pilot_gate_passed=false`, `scale_authorized=false`, and
+`training_authorized=false`. Increasing the sample size with the same root-only generator is not
+an acceptable repair: it would preserve the measured applicability and template-concentration
+failure. The next bounded implementation target is a new version that traverses the full
+propositional conclusion skeleton, proves nested-site root influence by an exact full-skeleton
+truth table, and first passes one nested-declaration generation/reconstruction smoke.
+
+Frozen root:
+`/storage/milikic/leanfaith/corpus2/s1_public_negative_skeleton_pilot_v1_3d72e99_d568c8c/`.
+
+| artifact | SHA-256 |
+|---|---|
+| manifest | `78054484ddabdf0da24988dc8651c4d194b52b66f792d3f788b39cb2a75bfa4a` |
+| summary | `487b1038f5e5f0e389831f5720bde68f3dcb7cdae908de698f4c2cd183e6f19d` |
+| selected candidates | `2fdd8430fa071b43b58828ca08e3fe338e96e148dd08ffdfd6319eaa17ff7718` |
+| trainer rows | `ed3de29d24296eeb8958637130438663b16a2e496c2a90d1e7ecb1ee654e24f5` |
+| N-SEP certificates | `936252c3432d0990d567bff2634ca23065126a85935229e736f4f79518299ab2` |
+| augmented canary | `61ebd18c09ae75e3782ac6b28724bc281c74b799917148196656648ec1962f73` |
+| primary process | `93bafee797ba4a4e0d8713a5a707517f56f9577c20d831652d6579f9766bb3bd` |
+| audit process | `4e5f61ae261b2083c98297d3d2a611a687a945ac72e599fd85d309d85878b5c0` |
+
+Verification: independent artifact replay reselects the 96 source groups, revalidates all input and
+output hashes, reparses the primary and audit streams, reconstructs trainer/certificate rows, and
+recomputes all three canary decisions without rerunning Lean. Six new offline tests plus the prior
+32 focused repair tests are green; the Lean engine compiles directly; collection, Ruff/format,
+and strict mypy across 237 source files are green.
+
 ## Assets produced today (all on `main` unless noted)
 
 - Golden partition frozen: 910 expert `final_test` (sealed) / 821 dev / 819 golden_train
@@ -540,17 +593,20 @@ and strict mypy across 236 source files are green.
 - One-declaration public N19 / `N-PROOF` pilot complete: 1/1 kernel-certified in 2.632 seconds on
   the exact positive-smoke mathlib source; it validates the certificate path but explicitly does
   not authorize scale or training because one pair has no measurable canary effect.
+- Typed N21/N22 96-declaration pilot complete and failed closed: 13/13 selected candidates passed
+  independent Lean audit, but yield, operation diversity, validation improvement, and paired-canary
+  coverage failed. Scale and training remain unauthorized.
 
 ## Next
 
-1. Run a small, preregistered multi-declaration source-matched negative pilot on the Meta-positive
-   distribution. The one-row certificate path is complete; now measure incremental canary effect,
-   cap trivial N19 negation, and prioritize less obvious `N-SEP`/`N-PROOF` families. Do not start
-   500 declarations unless this smaller gate passes.
-2. Rebuild a new versioned public corpus only after the small pilot passes. Require all current
+1. Add a versioned full-conclusion Boolean-skeleton N21/N22 engine with exact nested-site root
+   influence, then prove one nested declaration through generation and independent reconstruction.
+2. Rerun the same bounded 72/12/12 pilot and require every frozen yield/diversity/full-canary/paired
+   gate. Do not enlarge to 500 declarations to compensate for the failed root-only engine.
+3. Rebuild a new versioned public corpus only after the small pilot passes. Require all current
    gates and lexical-canary balanced accuracy `<0.72`; do not train the failed 7,488-row
    diagnostic or relax the gate.
-3. After that gate passes, smoke one batch/checkpoint, retrain both S1 arms, and score only golden
+4. After that gate passes, smoke one batch/checkpoint, retrain both S1 arms, and score only golden
    dev against S1v0 chunks-CPT (0.849 AUPRC / 0.684 calibrated balanced accuracy).
-4. Run Track T-B Stage A separately after its registry and gap/cloze diagnostics are frozen.
+5. Run Track T-B Stage A separately after its registry and gap/cloze diagnostics are frozen.
    Keep `final_test` sealed and unscored.
