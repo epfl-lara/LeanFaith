@@ -2,10 +2,12 @@
 
 The model view is deliberately not a Lean source language.  This module keeps
 raw compilable source and its exact compilation context in a separate sidecar,
-and exposes only two forward renderers:
+and exposes three forward routes through one Lean text renderer:
 
 * an elaborated renderer that asks one already-loaded Lean backend to inspect a
   batch of ``ConstantInfo.type`` values; and
+* a closed-Expr route that renders already-certified reference/candidate Exprs
+  together in their existing Meta request; and
 * a deterministic surface fallback for trusted theorem/lemma signatures.
 
 There is intentionally no goal-to-declaration inverse.
@@ -19,6 +21,8 @@ import unicodedata
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from enum import StrEnum
+from functools import cache
+from itertools import pairwise
 from pathlib import Path
 from typing import Literal
 
@@ -28,8 +32,131 @@ from leanfaith.lean.protocol import LeanBackend, LeanRequest, LeanStatus
 
 RENDERER_VERSION = "goal_v1.0"
 GOAL_MARKER = "LFGOALV1JSON "
+CLOSED_EXPR_MARKER = "LFGOALV1EXPRJSON "
 SURFACE_PROVENANCE_TAG = "trusted_complete_parsed_signature"
 SUPPORTED_DECLARATION_KINDS = frozenset({"theorem", "lemma"})
+PINNED_LEAN_RENDERER_SHA256 = "4471262f812746046570c51dde5958ee33db31a450a6974071efce584ba56bc3"
+PINNED_INJECTED_HELPER_SHA256 = "a6650452eebe683db295df1dfe925d3db8b03fc24e55cbc6793e838b5fe2f272"
+CANONICAL_UNIVERSE_PROFILE: dict[str, object] = {
+    "profile_id": "goal_v1_first_occurrence_u_i_v1",
+    "route_scope": "closed_prop_expr_elaborated_named_and_supported_surface",
+    "expr_input_stage": "after_instantiate_mvars_and_closed_prop_validation",
+    "parameter_order": "Lean.collectLevelParams structural first occurrence",
+    "expr_instantiation": "replace every used Level.param in collected order on every Expr render",
+    "surface_policy": (
+        "rewrite explicit simple Type/Sort level names by textual first occurrence; reject star, "
+        "inferred, and compound surface level syntax"
+    ),
+    "canonical_name_template": "u_<zero_based_index>",
+    "unused_declaration_parameters": "omitted",
+}
+CANONICAL_UNIVERSE_PROFILE_ID = str(CANONICAL_UNIVERSE_PROFILE["profile_id"])
+CANONICAL_UNIVERSE_PROFILE_HASH = hash_canonical(CANONICAL_UNIVERSE_PROFILE)
+RENDERER_SEMANTIC_PAYLOAD: dict[str, object] = {
+    "hash_basis": "sha256_canonical_renderer_semantics_v1",
+    "namespace": "LeanFaith.GoalV1",
+    "signature": "renderClosedProp (e : Expr) : MetaM String",
+    "named_delegate": ("renderConstantType (ci : ConstantInfo) := renderClosedProp ci.type"),
+    "closed_expr_route": "closed_expr_in_session",
+    "single_text_renderer": True,
+    "state_policy": "withoutModifyingMCtx",
+    "ambient_context_policy": "clear_local_context_and_local_instances_before_render",
+    "transparency_policy": "Meta.TransparencyMode.default",
+    "preparation_policy": "one instantiate_check_isProp_normalize pass per render or payload",
+    "metadata_policy": "recursively_erase_before_check_hash_and_render",
+    "exception_policy": "interrupt_and_runtime_exceptions_are_rethrown",
+    "anonymous_binder_policy": (
+        "open user-named outer Pis as locals; retain nondependent explicit anonymous or "
+        "macro-scoped generated Pis as target arrows; reject dependent or nonexplicit truly "
+        "anonymous outer Pis"
+    ),
+    "failure_codes": [
+        "goal_v1_unresolved_expr_mvar",
+        "goal_v1_unresolved_universe_mvar",
+        "goal_v1_free_variable",
+        "goal_v1_loose_bound_variable",
+        "goal_v1_sorry_expr",
+        "goal_v1_malformed_expr",
+        "goal_v1_not_prop",
+        "goal_v1_unsupported_anonymous_telescope_binder",
+    ],
+}
+RENDERER_SEMANTIC_HASH = hash_canonical(RENDERER_SEMANTIC_PAYLOAD)
+RENDER_CONTEXT_PAYLOAD: dict[str, object] = {
+    "context_id": "goal_v1_render_context_v1",
+    "renderer_semantic_hash": RENDERER_SEMANTIC_HASH,
+    "universe_profile_id": CANONICAL_UNIVERSE_PROFILE_ID,
+    "universe_profile_hash": CANONICAL_UNIVERSE_PROFILE_HASH,
+    "telescope": "LeanFaith.GoalV1.withSupportedTelescope_nonreducing_v1",
+    "anonymous_arrow_handling": "stop_named_telescope_and_preserve_target_arrow",
+    "goal_printer": "Lean.Meta.ppGoal",
+    "presentation_goal_kind": "syntheticOpaque_in_withoutModifyingMCtx",
+    "ambient_local_context": "cleared_before_closed_expr_validation_and_rendering",
+    "transparency": "Meta.TransparencyMode.default",
+    "options": {
+        "base": "Options.empty",
+        "pp.universes": False,
+        "pp.coercions": True,
+        "pp.notation": True,
+        "pp.mvars": False,
+        "pp.inaccessibleNames": True,
+        "pp.implementationDetailHyps": True,
+    },
+    "render_width": 1_000_000,
+    "post_validator": "goal_v1_targeted_structural_v2",
+}
+RENDER_CONTEXT_ID = str(RENDER_CONTEXT_PAYLOAD["context_id"])
+RENDER_CONTEXT_HASH = hash_canonical(RENDER_CONTEXT_PAYLOAD)
+CLOSED_EXPR_HASH_ALGORITHM = "sha256_canonical_closed_expr_alpha_tree_v1"
+CLOSED_EXPR_ROUTE_ID = "closed_expr_in_session"
+CONSISTENCY_COVERAGE_RECEIPT: dict[str, object] = {
+    "regression_id": "consistency_check_goal_field_1c6a6cca_goal_v1_v1",
+    "dataset": "GuoxinChen/ConsistencyCheck",
+    "revision": "1c6a6cca0f87b48d4cccb49946d3b8fc57a1eef9",
+    "source_path": "consistency_check.jsonl",
+    "source_file_sha256": "81cf6d9988625d84efbd8e1d6a0af4c234b2206da8350ee1d8bf547e612b1d47",
+    "fixture_kind": "derived_goal_only_test_fixture",
+    "upstream_field": "goal",
+    "ordered_projection_fields": ["row_index", "name", "goal"],
+    "fixture_encoding": "base64_of_gzip_mtime_zero_canonical_json",
+    "fixture_file_sha256": "8fe6d82e11e3db07c9b6e9eee3c1983e034d50c4c0e4e3a56f90366ebe6b6149",
+    "fixture_uncompressed_sha256": (
+        "a0cf4ff5f74760712f7f526b87ee290781da036f97e22c3d122f8c4d9a2adf1f"
+    ),
+    "row_count": 859,
+    "baseline_successes": 804,
+    "baseline_failures": 55,
+    "final_successes": 859,
+    "final_failures": 0,
+    "intended_layout_collapses": 9,
+    "layout_collapse_names": [
+        "imo_2006_p3",
+        "exercise_2_13",
+        "exercise_2_29",
+        "exercise_4_15a",
+        "exercise_13_4b1",
+        "exercise_13_4b2",
+        "exercise_13_6",
+        "exercise_16_6",
+        "exercise_28_5",
+    ],
+    "layout_collapse_names_hash": (
+        "9fbdaba24144e28543bb08e548244bcb460bc67069bd3d8c8e4a9f2a3449b6af"
+    ),
+    "remaining_failure_classes": [],
+    "targeted_syntax_families": [
+        "absolute_and_cardinality_bars",
+        "target_leading_absolute_bars",
+        "factorial_postfix",
+        "positive_nat_and_postfix_floor",
+        "set_image_and_big_operator_primes",
+        "quantified_big_operators",
+        "inner_product_and_floor_delimiters",
+        "generated_name_suffixes_and_proof_placeholders",
+        "structure_literals",
+    ],
+}
+CONSISTENCY_COVERAGE_RECEIPT_HASH = hash_canonical(CONSISTENCY_COVERAGE_RECEIPT)
 
 # The YAML freeze duplicates this JSON-native payload byte-for-byte.  The
 # literal SPEC_HASH is checked against it so downstream manifests have one
@@ -51,6 +178,11 @@ SPEC_PAYLOAD: dict[str, object] = {
         "binding_keyword_policy": (
             "surface let/have and elaborated have bindings canonicalize to let; raw source keeps "
             "its original spelling"
+        ),
+        "anonymous_arrow_policy": (
+            "a nondependent explicit anonymous/macro-scoped generated Pi remains arrow notation in "
+            "the target; surface arrow syntax is preserved, while truly anonymous "
+            "implicit/instance or dependent Expr binders fail closed"
         ),
         "binding_head_policy": (
             "surface binding heads require one original-token plain or guillemet explicit "
@@ -86,8 +218,17 @@ SPEC_PAYLOAD: dict[str, object] = {
         ),
         "named_argument_policy": (
             "outside a claimed let/have binding, := is accepted only as a complete simple "
-            "parenthesized named argument (name := value); every other nested assignment "
-            "fails closed"
+            "parenthesized named argument (name := value) or as one field of a complete "
+            "comma-delimited structure literal; every other nested assignment fails closed"
+        ),
+        "targeted_token_policy": (
+            "paired bars have nonempty unpadded interiors, brace-local set builders have exactly "
+            "one unambiguous separator, compound bar operators are unsupported and fail closed, "
+            "set image '' "
+            "is whitespace-delimited with complete operands, factorial/positive-Nat/floor "
+            "postfixes are "
+            "narrowly recognized, floor/ceiling interiors are nonempty, and ⟪u,v⟫ has exactly "
+            "two nonempty top-level operands"
         ),
         "surface_input_policy": (
             "surface rendering requires nonempty raw_statement plus caller-supplied "
@@ -123,10 +264,9 @@ SPEC_PAYLOAD: dict[str, object] = {
         "proof_delimiter",
         "proof_body",
     ],
-    "sources": ["elaborated", "surface"],
+    "sources": ["closed_prop_expr", "elaborated", "surface"],
     "surface_fail_closed_classes": [
         "anonymous_instance_binder",
-        "anonymous_top_level_arrow",
         "duplicate_or_shadowed_local_name",
         "implicit_or_untyped_binder",
         "ambiguous_declaration_or_proof_boundary",
@@ -158,6 +298,84 @@ SPEC_PAYLOAD: dict[str, object] = {
         "namespace_context",
     ],
     "elaborated_input_modes": ["inline_candidate", "loaded_constant_lookup"],
+    "closed_expr_route": {
+        "route_id": CLOSED_EXPR_ROUTE_ID,
+        "input_mode": "closed_prop_expr",
+        "expr_origin_modes": [
+            "loaded_constant_type",
+            "term_elaborated_proposition",
+            "sft1_transformed_expr",
+        ],
+        "origin_source_material": {
+            "loaded_constant_type": "raw_statement",
+            "term_elaborated_proposition": "proposition_text",
+            "sft1_transformed_expr": "constructed_expr_no_source_text",
+        },
+        "same_meta_request": True,
+        "text_renderer": "LeanFaith.GoalV1.renderClosedProp",
+        "declaration_or_proof_creation": "forbidden",
+        "meta_action_command_policy": (
+            "begin with the sole run_meta command and contain no declaration command; static "
+            "project or helper setup belongs only in the hash-bound compile context"
+        ),
+        "compile_context_proof_declarations": "forbidden",
+        "kernel_preparation_passes_per_endpoint": 1,
+        "surface_or_text_reelaboration": "forbidden",
+        "python_expr_transport": "forbidden",
+    },
+    "closed_expr_rejection_classes": [
+        "unresolved_expr_mvar",
+        "unresolved_universe_mvar",
+        "free_variable",
+        "loose_bound_variable",
+        "sorry_expr",
+        "malformed_expr",
+        "non_prop",
+        "unsupported_anonymous_telescope_binder",
+    ],
+    "closed_expr_hash": {
+        "algorithm": CLOSED_EXPR_HASH_ALGORITHM,
+        "preimage": "canonical JSON of the validated universe-normalized alpha Expr tree",
+        "binder_names": "excluded",
+        "binder_info": "retained",
+        "mdata": "transparent",
+        "rendered_goal_hash": "recorded separately to bind presentation names",
+    },
+    "canonical_universe_profile": CANONICAL_UNIVERSE_PROFILE,
+    "canonical_universe_profile_hash": CANONICAL_UNIVERSE_PROFILE_HASH,
+    "renderer_semantic_contract": RENDERER_SEMANTIC_PAYLOAD,
+    "renderer_semantic_hash": RENDERER_SEMANTIC_HASH,
+    "render_context": RENDER_CONTEXT_PAYLOAD,
+    "render_context_hash": RENDER_CONTEXT_HASH,
+    "closed_expr_source_material": {
+        "raw_statement": "exact declaration bytes when a declaration exists",
+        "proposition_text": (
+            "exact caller-retained proposition text when no declaration exists; audit-only and "
+            "never used for rendering or elaboration"
+        ),
+        "constructed_expr_no_source_text": (
+            "both text fields absent with an explicit reason for structurally constructed Exprs"
+        ),
+        "inverse_from_goal_text": "forbidden",
+    },
+    "implementation_identity_fields": [
+        "renderer_semantic_hash",
+        "lean_renderer_sha256",
+        "injected_helper_sha256",
+        "python_module_sha256",
+        "config_file_sha256",
+        "implementation_set_hash",
+    ],
+    "lean_emitted_post_validation": {
+        "routes": ["closed_prop_expr", "elaborated"],
+        "pipeline": ["_canonicalize_elaborated_goal", "validate_goal_v1"],
+        "bypass": "forbidden",
+        "closed_expr_pair_failure": "atomic",
+    },
+    "elaborated_post_validator_coverage": {
+        **CONSISTENCY_COVERAGE_RECEIPT,
+        "receipt_hash": CONSISTENCY_COVERAGE_RECEIPT_HASH,
+    },
     "sorry_policy": (
         "VALID_WITH_SORRY, a nonempty sorries payload, or a warning/error containing "
         '"declaration uses `sorry`" or "declaration uses \'sorry\'" fails the batch unless '
@@ -177,10 +395,21 @@ SPEC_PAYLOAD: dict[str, object] = {
 }
 
 # Filled once from hash_canonical(SPEC_PAYLOAD), then protected by tests.
-SPEC_HASH = "073d92c8e1fcc5cb7a3a9bf325d047e9b2d52149504977086de46abf6f84ef52"
+SPEC_HASH = "68d893a2c566bf3f6a82c899a32a351f9a5420f5ea98168c99b887aaa01a45a8"
 
 CompileOptionValue = str | int | float | bool
-GoalV1Source = Literal["elaborated", "surface"]
+GoalV1Source = Literal["closed_prop_expr", "elaborated", "surface"]
+ClosedExprOrigin = Literal[
+    "loaded_constant_type",
+    "term_elaborated_proposition",
+    "sft1_transformed_expr",
+]
+ClosedExprEndpointRole = Literal["reference", "candidate"]
+ClosedExprSourceMaterialKind = Literal[
+    "raw_statement",
+    "proposition_text",
+    "constructed_expr_no_source_text",
+]
 
 
 class GoalV1Error(ValueError):
@@ -276,6 +505,26 @@ class CompileContext:
 
 
 @dataclass(frozen=True, slots=True)
+class RendererImplementationIdentity:
+    renderer_semantic_hash: str
+    lean_renderer_sha256: str
+    injected_helper_sha256: str
+    python_module_sha256: str
+    config_file_sha256: str
+    implementation_set_hash: str
+
+    def to_dict(self) -> dict[str, str]:
+        return {
+            "renderer_semantic_hash": self.renderer_semantic_hash,
+            "lean_renderer_sha256": self.lean_renderer_sha256,
+            "injected_helper_sha256": self.injected_helper_sha256,
+            "python_module_sha256": self.python_module_sha256,
+            "config_file_sha256": self.config_file_sha256,
+            "implementation_set_hash": self.implementation_set_hash,
+        }
+
+
+@dataclass(frozen=True, slots=True)
 class GoalV1Record:
     representation_id: str
     goal_v1: str
@@ -285,6 +534,7 @@ class GoalV1Record:
     raw_statement_hash: str
     declaration_kind: str
     compile_context_id: str
+    implementation_identity: RendererImplementationIdentity
     typed_alpha_fingerprint: str | None = None
     warnings: tuple[str, ...] = ()
 
@@ -298,6 +548,7 @@ class GoalV1Record:
             "raw_statement_hash": self.raw_statement_hash,
             "declaration_kind": self.declaration_kind,
             "compile_context_id": self.compile_context_id,
+            "implementation_identity": self.implementation_identity.to_dict(),
             "typed_alpha_fingerprint": self.typed_alpha_fingerprint,
             "warnings": list(self.warnings),
         }
@@ -353,6 +604,175 @@ class ElaboratedBatchResult:
     request_hash: str
     elapsed_ms: int
     raw_response_path: str | None
+
+
+@dataclass(frozen=True, slots=True)
+class ClosedExprSourceMaterial:
+    kind: ClosedExprSourceMaterialKind
+    raw_statement: str | None = None
+    proposition_text: str | None = None
+    absence_reason: str | None = None
+
+    def __post_init__(self) -> None:
+        values = {
+            "raw_statement": self.raw_statement,
+            "proposition_text": self.proposition_text,
+            "absence_reason": self.absence_reason,
+        }
+        expected = {
+            "raw_statement": "raw_statement",
+            "proposition_text": "proposition_text",
+            "constructed_expr_no_source_text": "absence_reason",
+        }[self.kind]
+        expected_value = values[expected]
+        if (
+            not isinstance(expected_value, str)
+            or not expected_value.strip()
+            or any(value is not None for name, value in values.items() if name != expected)
+        ):
+            raise ValueError(
+                f"closed Expr source material {self.kind!r} requires only nonempty {expected}"
+            )
+
+    def to_dict(self) -> dict[str, str | None]:
+        return {
+            "kind": self.kind,
+            "raw_statement": self.raw_statement,
+            "proposition_text": self.proposition_text,
+            "absence_reason": self.absence_reason,
+        }
+
+    @property
+    def material_hash(self) -> str:
+        return hash_canonical(self.to_dict())
+
+
+@dataclass(frozen=True, slots=True)
+class ClosedExprInput:
+    endpoint_id: str
+    endpoint_role: ClosedExprEndpointRole
+    expr_origin: ClosedExprOrigin
+    source_material: ClosedExprSourceMaterial
+    typed_alpha_fingerprint: str | None = None
+
+    def __post_init__(self) -> None:
+        if not self.endpoint_id.strip():
+            raise ValueError("closed Expr endpoint_id must be nonempty")
+        allowed_material = {
+            "loaded_constant_type": {"raw_statement"},
+            "term_elaborated_proposition": {"proposition_text"},
+            "sft1_transformed_expr": {"constructed_expr_no_source_text"},
+        }[self.expr_origin]
+        if self.source_material.kind not in allowed_material:
+            raise ValueError(
+                f"closed Expr origin {self.expr_origin!r} cannot use source material "
+                f"{self.source_material.kind!r}"
+            )
+
+
+@dataclass(frozen=True, slots=True)
+class ClosedExprProvenance:
+    expr_hash: str
+    expr_hash_algorithm: str
+    input_level_params: tuple[str, ...]
+    canonical_level_params: tuple[str, ...]
+    universe_profile_id: str
+    universe_profile_hash: str
+    render_scope_id: str
+    render_context_id: str
+    render_context_hash: str
+    route_id: str
+    expr_origin: ClosedExprOrigin
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "expr_hash": self.expr_hash,
+            "expr_hash_algorithm": self.expr_hash_algorithm,
+            "input_level_params": list(self.input_level_params),
+            "canonical_level_params": list(self.canonical_level_params),
+            "universe_profile_id": self.universe_profile_id,
+            "universe_profile_hash": self.universe_profile_hash,
+            "render_scope_id": self.render_scope_id,
+            "render_context_id": self.render_context_id,
+            "render_context_hash": self.render_context_hash,
+            "route_id": self.route_id,
+            "expr_origin": self.expr_origin,
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class ClosedExprRecord:
+    representation_id: str
+    goal_v1: str
+    goal_v1_source: Literal["closed_prop_expr"]
+    renderer_version: str
+    spec_hash: str
+    compile_context_id: str
+    endpoint_id: str
+    endpoint_role: ClosedExprEndpointRole
+    source_material_hash: str
+    rendered_goal_hash: str
+    provenance: ClosedExprProvenance
+    implementation_identity: RendererImplementationIdentity
+    typed_alpha_fingerprint: str | None = None
+    warnings: tuple[str, ...] = ()
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "representation_id": self.representation_id,
+            "goal_v1": self.goal_v1,
+            "goal_v1_source": self.goal_v1_source,
+            "renderer_version": self.renderer_version,
+            "spec_hash": self.spec_hash,
+            "compile_context_id": self.compile_context_id,
+            "endpoint_id": self.endpoint_id,
+            "endpoint_role": self.endpoint_role,
+            "source_material_hash": self.source_material_hash,
+            "rendered_goal_hash": self.rendered_goal_hash,
+            "provenance": self.provenance.to_dict(),
+            "implementation_identity": self.implementation_identity.to_dict(),
+            "typed_alpha_fingerprint": self.typed_alpha_fingerprint,
+            "warnings": list(self.warnings),
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class ClosedExprSidecar:
+    record: ClosedExprRecord
+    source_material: ClosedExprSourceMaterial
+    compile_context: CompileContext
+
+    def __post_init__(self) -> None:
+        if self.source_material.material_hash != self.record.source_material_hash:
+            raise ValueError("closed Expr source material does not match its hash")
+        if self.compile_context.compile_context_id != self.record.compile_context_id:
+            raise ValueError("closed Expr compile context does not match its ID")
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "record": self.record.to_dict(),
+            "source_material": self.source_material.to_dict(),
+            "compile_context": self.compile_context.canonical_payload(),
+        }
+
+    def core_text(self) -> str:
+        return self.record.goal_v1
+
+
+@dataclass(frozen=True, slots=True)
+class ClosedExprFailure:
+    endpoint_id: str
+    detail: str
+
+
+@dataclass(frozen=True, slots=True)
+class ClosedExprBatchResult:
+    sidecars: tuple[ClosedExprSidecar, ...]
+    failures: tuple[ClosedExprFailure, ...]
+    request_hash: str
+    elapsed_ms: int
+    raw_response_path: str | None
+    render_scope_id: str
 
 
 @dataclass(frozen=True, slots=True)
@@ -441,7 +861,9 @@ _RESERVED_BINDING_NAMES = frozenset(
     }
 )
 _GENERATED_NAME_SUFFIX = re.compile(r"(?:✝[⁰¹²³⁴⁵⁶⁷⁸⁹]*)+")
-_QUANTIFIER_TOKEN = re.compile(r"(?<![\w'.])(?:∃|Σ|∀|forall\b)")
+_QUANTIFIER_TOKEN = re.compile(
+    r"(?<![\w'.])(?:∃|Σ|∀|forall\b|∑'(?![\w'])|∏'(?![\w'])|∑|∏|\u22c3(?=\s)|\u22c2(?=\s))"
+)
 _CONDITIONAL_TOKEN = re.compile(r"(?<![\w'.])\b(if|then|else)\b(?![\w'])")
 _FUN_TOKEN = re.compile(r"(?<![\w'.])\bfun\b(?![\w'])")
 _SHOW_FROM_TOKEN = re.compile(r"(?<![\w'.])\b(show|from)\b(?![\w'])")
@@ -467,6 +889,17 @@ _BARE_INCOMPLETE_TERMS = frozenset(
         "with",
     }
 )
+
+_DELIMITER_PAIRS = {
+    "(": ")",
+    "{": "}",
+    "[": "]",
+    "⟨": "⟩",
+    "⟪": "⟫",
+    "⌊": "⌋",
+    "⌈": "⌉",
+}
+_CLOSING_DELIMITERS = frozenset(_DELIMITER_PAIRS.values())
 
 
 def _single_quoted_literal_end(text: str, start: int) -> int | None:
@@ -696,10 +1129,20 @@ def _mask_literals_for_target(masked: str) -> str:
             finish = masked.find("»", index + 1)
             if finish < 0:
                 raise GoalV1Error("unterminated guillemet identifier in target")
+        elif (
+            char == "'"
+            and masked.startswith("''", index)
+            and index > 0
+            and masked[index - 1].isspace()
+            and index + 2 < len(masked)
+            and masked[index + 2].isspace()
+        ):
+            index += 2
+            continue
         elif char == "'":
             literal_end = _single_quoted_literal_end(masked, index)
             if literal_end is None:
-                if index == 0 or not (masked[index - 1].isalnum() or masked[index - 1] in "_'"):
+                if index == 0 or not (masked[index - 1].isalnum() or masked[index - 1] in "_'∑∏"):
                     raise GoalV1Error("unsupported or unterminated single-quoted target syntax")
                 index += 1
                 continue
@@ -722,9 +1165,8 @@ def _skip_space(text: str, index: int) -> int:
 
 
 def _matching_delimiter(masked: str, start: int) -> int:
-    pairs = {"(": ")", "{": "}", "[": "]", "⟨": "⟩"}
     opening = masked[start]
-    expected = pairs[opening]
+    expected = _DELIMITER_PAIRS[opening]
     stack = [expected]
     in_string = False
     in_guillemet = False
@@ -758,9 +1200,9 @@ def _matching_delimiter(masked: str, start: int) -> int:
         if char == "'" and (finish := _single_quoted_literal_end(masked, index)) is not None:
             opaque_literal_finish = finish
             continue
-        if char in pairs:
-            stack.append(pairs[char])
-        elif char in ")}]⟩":
+        if char in _DELIMITER_PAIRS:
+            stack.append(_DELIMITER_PAIRS[char])
+        elif char in _CLOSING_DELIMITERS:
             if not stack or char != stack[-1]:
                 raise SurfaceRenderError(
                     SurfaceFailureCode.UNBALANCED_DELIMITER,
@@ -778,7 +1220,6 @@ def _matching_delimiter(masked: str, start: int) -> int:
 def _top_level_positions(text: str, token: str) -> list[int]:
     positions: list[int] = []
     stack: list[str] = []
-    pairs = {"(": ")", "{": "}", "[": "]", "⟨": "⟩"}
     in_string = False
     in_guillemet = False
     escaped = False
@@ -809,9 +1250,9 @@ def _top_level_positions(text: str, token: str) -> list[int]:
             in_string = True
         elif char == "«":
             in_guillemet = True
-        elif char in pairs:
-            stack.append(pairs[char])
-        elif char in ")}]⟩":
+        elif char in _DELIMITER_PAIRS:
+            stack.append(_DELIMITER_PAIRS[char])
+        elif char in _CLOSING_DELIMITERS:
             if not stack or stack.pop() != char:
                 raise SurfaceRenderError(
                     SurfaceFailureCode.UNBALANCED_DELIMITER,
@@ -998,11 +1439,6 @@ def _strip_balanced_outer_parentheses(text: str) -> str:
     return stripped
 
 
-def _has_top_level_arrow(text: str) -> bool:
-    unwrapped = _strip_balanced_outer_parentheses(text)
-    return bool(_top_level_positions(unwrapped, "→") or _top_level_positions(unwrapped, "->"))
-
-
 def _group_binders(binders: Sequence[_Binder]) -> list[str]:
     grouped: list[_Binder] = []
     for binder in binders:
@@ -1014,6 +1450,69 @@ def _group_binders(binders: Sequence[_Binder]) -> list[str]:
     return [f"{' '.join(binder.names)} : {binder.type_text}" for binder in grouped]
 
 
+def _canonicalize_surface_universe_names(signature: str) -> str:
+    """Apply the shared first-occurrence ``u_i`` profile to bounded surface levels."""
+
+    masked = _mask_literals_for_target(signature)
+    keyword = r"(?<![\w'.])(?:Type|Sort)(?![\w'])"
+    if re.search(rf"{keyword}\s*(?:\*|\(|[0-9])", masked) or re.search(r"\.\{", masked):
+        raise SurfaceRenderError(
+            SurfaceFailureCode.INVALID_GOAL,
+            "surface universe syntax must use an explicit simple level name",
+        )
+    mapping: dict[str, str] = {}
+    pattern = re.compile(r"(?<![\w'.])(Type|Sort)\s+([A-Za-z_][A-Za-z0-9_']*)(?![\w'.])")
+    matches = list(pattern.finditer(masked))
+    matched_keywords = {match.start() for match in matches}
+    for keyword_match in re.finditer(keyword, masked):
+        if keyword_match.start() in matched_keywords:
+            continue
+        suffix = masked[keyword_match.end() :]
+        if not suffix:
+            continue
+        immediate = suffix[0]
+        following = suffix.lstrip()
+        if immediate.isspace() and following:
+            first = following[0]
+            if first in {"*", "?", "(", "_"} or first.isdigit() or first.isidentifier():
+                raise SurfaceRenderError(
+                    SurfaceFailureCode.INVALID_GOAL,
+                    "surface universe syntax must use one explicit simple level name",
+                )
+        elif immediate in {"*", "?", "("} or immediate.isdigit():
+            raise SurfaceRenderError(
+                SurfaceFailureCode.INVALID_GOAL,
+                "surface universe syntax must use one explicit simple level name",
+            )
+    pieces: list[str] = []
+    cursor = 0
+    for match in matches:
+        sort, name = match.groups()
+        if signature[match.start(2) : match.end(2)] != name:
+            raise SurfaceRenderError(
+                SurfaceFailureCode.INVALID_GOAL,
+                "surface universe syntax must use one explicit simple level name",
+            )
+        if name in {"_", "max", "imax"}:
+            raise SurfaceRenderError(
+                SurfaceFailureCode.INVALID_GOAL,
+                f"unsupported compound or inferred surface universe level {name!r}",
+            )
+        suffix = masked[match.end() :]
+        next_nonspace = suffix.lstrip()[:1]
+        if next_nonspace and (next_nonspace.isalnum() or next_nonspace in {"_", ".", "+"}):
+            raise SurfaceRenderError(
+                SurfaceFailureCode.INVALID_GOAL,
+                "surface universe syntax must use one simple level name",
+            )
+        canonical = mapping.setdefault(name, f"u_{len(mapping)}")
+        pieces.append(signature[cursor : match.start()])
+        pieces.append(f"{sort} {canonical}")
+        cursor = match.end()
+    pieces.append(signature[cursor:])
+    return "".join(pieces)
+
+
 def _lexical_contexts(text: str) -> tuple[str, tuple[tuple[int, ...], ...], dict[int, int]]:
     """Return literal-masked text, delimiter context at each offset, and scope ends."""
 
@@ -1021,13 +1520,12 @@ def _lexical_contexts(text: str) -> tuple[str, tuple[tuple[int, ...], ...], dict
     contexts: list[tuple[int, ...]] = []
     stack: list[tuple[str, int]] = []
     scope_ends: dict[int, int] = {}
-    pairs = {"(": ")", "{": "}", "[": "]", "⟨": "⟩"}
     for index, char in enumerate(masked):
         contexts.append(tuple(opening_index for _, opening_index in stack))
-        if char in pairs:
-            stack.append((pairs[char], index))
+        if char in _DELIMITER_PAIRS:
+            stack.append((_DELIMITER_PAIRS[char], index))
             continue
-        if char != ")" and char != "}" and char != "]" and char != "⟩":
+        if char not in _CLOSING_DELIMITERS:
             continue
         if not stack or stack[-1][0] != char:
             raise GoalV1Error(f"unbalanced target delimiter {char!r} at offset {index}")
@@ -1049,7 +1547,7 @@ def _positions_at_all_depths(
     index = 0
     while index < len(masked):
         if masked.startswith(token, index):
-            if not _is_standalone_delimiter(masked, index, token):
+            if token in {":=", ";"} and not _is_standalone_delimiter(masked, index, token):
                 raise GoalV1Error(
                     f"ambiguous compound operator containing {token!r} at offset {index}"
                 )
@@ -1069,10 +1567,191 @@ def _scope_end_for_context(
     return scope_ends[context[-1]] if context else text_length
 
 
+def _single_bar_positions(masked: str) -> tuple[int, ...]:
+    """Return bars that are not part of a known multi-character operator."""
+
+    positions: list[int] = []
+    for index, char in enumerate(masked):
+        if char != "|":
+            continue
+        before = masked[index - 1] if index else ""
+        after = masked[index + 1] if index + 1 < len(masked) else ""
+        if (before and before in "|<") or (after and after in "|>"):
+            continue
+        positions.append(index)
+    return tuple(positions)
+
+
+def _validate_balanced_bars(
+    masked: str,
+    contexts: Sequence[tuple[int, ...]],
+    scope_ends: Mapping[int, int],
+    *,
+    label: str,
+) -> frozenset[int]:
+    """Validate absolute-value bars and one brace-local set-builder separator."""
+
+    if any(token in masked for token in ("||", "<|", "|>")):
+        raise GoalV1Error(f"{label} uses an unsupported compound bar operator")
+
+    grouped: dict[tuple[int, ...], list[int]] = {}
+    for position in _single_bar_positions(masked):
+        grouped.setdefault(contexts[position], []).append(position)
+
+    closing_bars: set[int] = set()
+    for context, positions in grouped.items():
+        remaining = list(positions)
+        brace_opening = context[-1] if context and masked[context[-1]] == "{" else None
+        if brace_opening is not None:
+            brace_closing = scope_ends[brace_opening]
+            separator_candidates = [
+                position
+                for position in positions
+                if masked[brace_opening + 1 : position].strip()
+                and masked[position + 1 : brace_closing].strip()
+                and position > brace_opening + 1
+                and position + 1 < brace_closing
+                and masked[position - 1].isspace()
+                and masked[position + 1].isspace()
+            ]
+            if len(positions) % 2:
+                if len(separator_candidates) != 1:
+                    raise GoalV1Error(f"{label} has an ambiguous set-builder or unmatched bar")
+                remaining.remove(separator_candidates[0])
+            elif separator_candidates:
+                raise GoalV1Error(f"{label} has an ambiguous even-count set-builder bar")
+        if len(remaining) % 2:
+            raise GoalV1Error(f"{label} has unmatched absolute-value/cardinality bar")
+        for opening, closing in zip(remaining[::2], remaining[1::2], strict=True):
+            content = masked[opening + 1 : closing]
+            if not content.strip() or content[:1].isspace() or content[-1:].isspace():
+                raise GoalV1Error(f"{label} has an empty or whitespace-padded paired bar")
+            closing_bars.add(closing)
+    return frozenset(closing_bars)
+
+
+def _slice_ends_at_validated_bar(
+    masked: str,
+    start: int,
+    end: int,
+    closing_bars: frozenset[int],
+) -> bool:
+    final = end - 1
+    while final >= start and masked[final].isspace():
+        final -= 1
+    return final in closing_bars
+
+
+def _has_supported_postfix_edge(text: str, *, allow_trailing_bar: bool) -> bool:
+    """Recognize only the frozen postfix/atomic notations accepted at an edge."""
+
+    if re.search(r"(?<![\w'])\u2115\+$", text):
+        return True
+    if re.search(r"[⌋⌉]₊$", text):
+        return True
+    if allow_trailing_bar and text.endswith("|"):
+        return True
+    if not text.endswith("!"):
+        return False
+    prefix = text[:-1].rstrip()
+    if not prefix:
+        return False
+    tail = prefix[-1]
+    return tail.isalnum() or tail in _CLOSING_DELIMITERS or tail in "_'✝₊"
+
+
+def _validate_set_image_operators(
+    masked: str,
+    contexts: Sequence[tuple[int, ...]],
+    scope_ends: Mapping[int, int],
+    closing_bars: frozenset[int],
+    *,
+    label: str,
+) -> None:
+    """Validate only the whitespace-delimited set-image token ``''``."""
+
+    positions = [match.start() for match in re.finditer(r"(?<=\s)''(?=\s)", masked)]
+    for position in positions:
+        context = contexts[position]
+        scope_start = context[-1] + 1 if context else 0
+        scope_end = _scope_end_for_context(
+            context,
+            text_length=len(masked),
+            scope_ends=scope_ends,
+        )
+        lhs = masked[scope_start:position]
+        _validate_fragment_edge(
+            lhs.strip(),
+            label=f"{label} set-image left operand",
+            allow_empty=False,
+            allow_trailing_bar=_slice_ends_at_validated_bar(
+                masked, scope_start, position, closing_bars
+            ),
+        )
+        rhs_start = _skip_space(masked, position + 2)
+        if rhs_start >= scope_end or masked.startswith("''", rhs_start):
+            raise GoalV1Error(f"{label} has a missing or repeated set-image right operand")
+        first = masked[rhs_start]
+        allowed_unary_prefixes = frozenset({"↑", "⇑", "√", "¬"})
+        if (
+            first in _CLOSING_DELIMITERS
+            or first in ",;:"
+            or first in _ASCII_OPERATOR_CHARS
+            or (
+                unicodedata.category(first).startswith("S")
+                and first not in allowed_unary_prefixes
+                and first not in _DELIMITER_PAIRS
+            )
+        ):
+            raise GoalV1Error(f"{label} has an incomplete set-image right operand")
+
+
+def _validate_special_delimiter_content(
+    masked: str,
+    opening: int,
+    closing: int,
+    closing_bars: frozenset[int],
+    *,
+    label: str,
+) -> None:
+    opening_char = masked[opening]
+    content_start = opening + 1
+    content = masked[content_start:closing]
+    requires_content = opening_char in {"⌊", "⌈", "⟪"}
+    _validate_fragment_edge(
+        content.strip(),
+        label=f"{label} delimiter content",
+        allow_empty=not requires_content,
+        allow_trailing_bar=_slice_ends_at_validated_bar(
+            masked, content_start, closing, closing_bars
+        ),
+    )
+    if opening_char != "⟪":
+        return
+    commas = _top_level_positions(content, ",")
+    if len(commas) != 1:
+        raise GoalV1Error(f"{label} inner-product delimiter requires exactly one comma")
+    comma = commas[0]
+    _validate_fragment_edge(
+        content[:comma].strip(),
+        label=f"{label} inner-product left operand",
+        allow_empty=False,
+    )
+    _validate_fragment_edge(
+        content[comma + 1 :].strip(),
+        label=f"{label} inner-product right operand",
+        allow_empty=False,
+        allow_trailing_bar=_slice_ends_at_validated_bar(
+            masked, content_start + comma + 1, closing, closing_bars
+        ),
+    )
+
+
 def _validate_structured_introducers(fragment: str, *, label: str) -> None:
     """Reject incomplete structured terms at every balanced delimiter depth."""
 
     masked, contexts, scope_ends = _lexical_contexts(fragment)
+    closing_bars = _validate_balanced_bars(masked, contexts, scope_ends, label=label)
     layout_match = _UNSUPPORTED_LAYOUT_TOKEN.search(masked)
     if layout_match is not None:
         raise GoalV1Error(
@@ -1109,11 +1788,17 @@ def _validate_structured_introducers(fragment: str, *, label: str) -> None:
                 masked[quantifier_end:start].strip(),
                 label=f"{label} quantifier binder",
                 allow_empty=False,
+                allow_trailing_bar=_slice_ends_at_validated_bar(
+                    masked, quantifier_end, start, closing_bars
+                ),
             )
             _validate_fragment_edge(
                 masked[end:context_end].strip(),
                 label=f"{label} quantifier body",
                 allow_empty=False,
+                allow_trailing_bar=_slice_ends_at_validated_bar(
+                    masked, end, context_end, closing_bars
+                ),
             )
         if quantifier_stack:
             raise GoalV1Error(f"{label} has an incomplete comma-binding quantifier")
@@ -1141,6 +1826,9 @@ def _validate_structured_introducers(fragment: str, *, label: str) -> None:
                     masked[if_end:start].strip(),
                     label=f"{label} if condition",
                     allow_empty=False,
+                    allow_trailing_bar=_slice_ends_at_validated_bar(
+                        masked, if_end, start, closing_bars
+                    ),
                 )
                 conditional_stack[-1] = ("then", if_start, end)
             else:
@@ -1151,11 +1839,17 @@ def _validate_structured_introducers(fragment: str, *, label: str) -> None:
                     masked[then_end:start].strip(),
                     label=f"{label} then branch",
                     allow_empty=False,
+                    allow_trailing_bar=_slice_ends_at_validated_bar(
+                        masked, then_end, start, closing_bars
+                    ),
                 )
                 _validate_fragment_edge(
                     masked[end:context_end].strip(),
                     label=f"{label} else branch",
                     allow_empty=False,
+                    allow_trailing_bar=_slice_ends_at_validated_bar(
+                        masked, end, context_end, closing_bars
+                    ),
                 )
         if conditional_stack:
             raise GoalV1Error(f"{label} has an incomplete if/then/else term")
@@ -1191,11 +1885,17 @@ def _validate_structured_introducers(fragment: str, *, label: str) -> None:
                 masked[fun_end:start].strip(),
                 label=f"{label} fun binder",
                 allow_empty=False,
+                allow_trailing_bar=_slice_ends_at_validated_bar(
+                    masked, fun_end, start, closing_bars
+                ),
             )
             _validate_fragment_edge(
                 masked[end:context_end].strip(),
                 label=f"{label} fun body",
                 allow_empty=False,
+                allow_trailing_bar=_slice_ends_at_validated_bar(
+                    masked, end, context_end, closing_bars
+                ),
             )
         if fun_stack:
             raise GoalV1Error(f"{label} has an incomplete fun term")
@@ -1223,11 +1923,17 @@ def _validate_structured_introducers(fragment: str, *, label: str) -> None:
                 masked[show_end:start].strip(),
                 label=f"{label} show type",
                 allow_empty=False,
+                allow_trailing_bar=_slice_ends_at_validated_bar(
+                    masked, show_end, start, closing_bars
+                ),
             )
             _validate_fragment_edge(
                 masked[end:context_end].strip(),
                 label=f"{label} show body",
                 allow_empty=False,
+                allow_trailing_bar=_slice_ends_at_validated_bar(
+                    masked, end, context_end, closing_bars
+                ),
             )
         if show_stack:
             raise GoalV1Error(f"{label} has an incomplete show/from term")
@@ -1236,14 +1942,29 @@ def _validate_structured_introducers(fragment: str, *, label: str) -> None:
 def _validate_complete_fragment(fragment: str, *, label: str) -> None:
     """Reject obvious incomplete syntax in the bounded term grammar."""
 
-    masked, _contexts, scope_ends = _lexical_contexts(fragment)
+    masked, contexts, scope_ends = _lexical_contexts(fragment)
+    closing_bars = _validate_balanced_bars(masked, contexts, scope_ends, label=label)
+    _validate_set_image_operators(
+        masked,
+        contexts,
+        scope_ends,
+        closing_bars,
+        label=label,
+    )
     stripped = masked.strip()
-    _validate_fragment_edge(stripped, label=label, allow_empty=False)
+    _validate_fragment_edge(
+        stripped,
+        label=label,
+        allow_empty=False,
+        allow_trailing_bar=_slice_ends_at_validated_bar(masked, 0, len(masked), closing_bars),
+    )
     for opening, closing in scope_ends.items():
-        _validate_fragment_edge(
-            masked[opening + 1 : closing].strip(),
-            label=f"{label} delimiter content",
-            allow_empty=True,
+        _validate_special_delimiter_content(
+            masked,
+            opening,
+            closing,
+            closing_bars,
+            label=label,
         )
     unwrapped = _strip_balanced_outer_parentheses(stripped)
     if unwrapped in _BARE_INCOMPLETE_TERMS or re.search(
@@ -1258,7 +1979,13 @@ def _validate_complete_fragment(fragment: str, *, label: str) -> None:
         raise GoalV1Error(f"{label} ends in a parenthesized incomplete term introducer")
 
 
-def _validate_fragment_edge(text: str, *, label: str, allow_empty: bool) -> None:
+def _validate_fragment_edge(
+    text: str,
+    *,
+    label: str,
+    allow_empty: bool,
+    allow_trailing_bar: bool = False,
+) -> None:
     """Reject incomplete syntax at one expression or balanced-delimiter edge."""
 
     if not text:
@@ -1267,10 +1994,18 @@ def _validate_fragment_edge(text: str, *, label: str, allow_empty: bool) -> None
         raise GoalV1Error(f"{label} is empty")
     if text.startswith(",") or text.endswith(","):
         raise GoalV1Error(f"{label} has a dangling comma")
+    if text.startswith(("||", "<|", "|>")) or text.endswith(("||", "<|", "|>")):
+        raise GoalV1Error(f"{label} has a dangling compound bar operator")
     trailing_unicode_operator = (
         unicodedata.category(text[-1]).startswith("S") and text[-1] not in _ATOMIC_SYMBOL_TERMS
     )
-    if text.endswith((":", ";")) or text[-1] in _ASCII_OPERATOR_CHARS or trailing_unicode_operator:
+    incomplete_edge = (
+        text.endswith((":", ";")) or text[-1] in _ASCII_OPERATOR_CHARS or trailing_unicode_operator
+    )
+    if incomplete_edge and not _has_supported_postfix_edge(
+        text,
+        allow_trailing_bar=allow_trailing_bar,
+    ):
         raise GoalV1Error(f"{label} ends with an incomplete operator or delimiter")
 
 
@@ -1385,6 +2120,63 @@ def _is_supported_named_argument_assignment(
     return True
 
 
+def _supported_structure_literal_assignments(
+    masked: str,
+    *,
+    expression: str,
+    assignments: Sequence[tuple[int, tuple[int, ...]]],
+    contexts: Sequence[tuple[int, ...]],
+    scope_ends: Mapping[int, int],
+) -> set[int]:
+    """Accept complete simple ``{ field := value, ... }`` literals as a unit."""
+
+    by_context: dict[tuple[int, ...], list[int]] = {}
+    for position, context in assignments:
+        if context and masked[context[-1]] == "{":
+            by_context.setdefault(context, []).append(position)
+
+    supported: set[int] = set()
+    comma_positions = _positions_at_all_depths(masked, contexts, ",")
+    for context, context_assignments in by_context.items():
+        opening = context[-1]
+        closing = scope_ends[opening]
+        commas = [
+            position
+            for position, comma_context in comma_positions
+            if comma_context == context and opening < position < closing
+        ]
+        boundaries = [opening, *commas, closing]
+        valid = True
+        field_names: set[str] = set()
+        for left, right in pairwise(boundaries):
+            segment_assignments = [
+                position for position in context_assignments if left < position < right
+            ]
+            if len(segment_assignments) != 1:
+                valid = False
+                break
+            assignment = segment_assignments[0]
+            field_name = _mask_comments(expression[left + 1 : assignment]).masked.strip()
+            value = masked[assignment + 2 : right].strip()
+            if (
+                not _is_supported_local_name(field_name, allow_generated=False)
+                or field_name in field_names
+                or not value
+            ):
+                valid = False
+                break
+            field_names.add(field_name)
+            try:
+                _validate_complete_fragment(value, label="structure field value")
+                _validate_term_introducer(value, label="structure field value")
+            except GoalV1Error:
+                valid = False
+                break
+        if valid:
+            supported.update(context_assignments)
+    return supported
+
+
 def _canonicalize_binding_expression(
     expression: str,
     *,
@@ -1497,10 +2289,18 @@ def _canonicalize_binding_expression(
         claimed_assignments.add(assignment)
         claimed_separators.add(separator)
 
+    structure_assignments = _supported_structure_literal_assignments(
+        masked,
+        expression=expression,
+        assignments=assignments,
+        contexts=contexts,
+        scope_ends=scope_ends,
+    )
     unclaimed_assignments = [
         position
         for position, context in assignments
         if position not in claimed_assignments
+        and position not in structure_assignments
         and not _is_supported_named_argument_assignment(
             masked,
             expression=expression,
@@ -1593,7 +2393,9 @@ def _canonicalize_elaborated_goal(goal: str) -> str:
     canonical_locals = _canonicalize_elaborated_locals(lines[:target_index])
     segments = [lines[target_index][2:].strip()]
     segments.extend(line.strip() for line in lines[target_index + 1 :])
-    if any(not segment or segment.startswith("|") for segment in segments):
+    if any(not segment for segment in segments) or any(
+        segment.startswith("|") for segment in segments[1:]
+    ):
         raise GoalV1Error("unsupported multiline target layout")
     collapsed_target = _collapse_layout_whitespace(" ".join(segments))
     canonical_target = _canonicalize_binding_expression(
@@ -1636,7 +2438,9 @@ def validate_goal_v1(goal: str) -> None:
 def signature_to_goal_v1(signature: str) -> str:
     """Render a trusted name-free theorem signature without invoking Lean."""
 
-    masked_signature = _mask_comments(signature).masked.strip()
+    masked_signature = _canonicalize_surface_universe_names(
+        _mask_comments(signature).masked.strip()
+    )
     if _SYNTAX_QUOTATION.search(_mask_literals_for_target(masked_signature)):
         raise SurfaceRenderError(
             SurfaceFailureCode.SYNTAX_QUOTATION,
@@ -1658,11 +2462,6 @@ def signature_to_goal_v1(signature: str) -> str:
     forall_binders, target = _peel_forall_binders(target)
     binders.extend(forall_binders)
     target = _canonicalize_surface_target(target)
-    if _has_top_level_arrow(target):
-        raise SurfaceRenderError(
-            SurfaceFailureCode.ANONYMOUS_TOP_LEVEL_ARROW,
-            "surface mode cannot recover Lean's generated name for an arrow premise",
-        )
     names = [_name_identity(name) for binder in binders for name in binder.names]
     if len(names) != len(set(names)):
         raise SurfaceRenderError(
@@ -1677,6 +2476,57 @@ def signature_to_goal_v1(signature: str) -> str:
     return goal
 
 
+def _strip_helper_imports(source: str) -> str:
+    return "\n".join(line for line in source.splitlines() if not line.startswith("import "))
+
+
+@cache
+def _helper_body() -> str:
+    helper_path = find_repo_root(Path(__file__).parent) / "LeanFaith" / "Meta" / "GoalV1.lean"
+    helper_bytes = helper_path.read_bytes()
+    helper_hash = sha256_hex(helper_bytes)
+    if helper_hash != PINNED_LEAN_RENDERER_SHA256:
+        raise RuntimeError(
+            "refusing to inject unpinned GoalV1.lean: "
+            f"expected {PINNED_LEAN_RENDERER_SHA256}, got {helper_hash}"
+        )
+    try:
+        helper_source = helper_bytes.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise RuntimeError("GoalV1.lean is not valid UTF-8") from exc
+    body = _strip_helper_imports(helper_source)
+    body_hash = sha256_hex(body.encode("utf-8"))
+    if body_hash != PINNED_INJECTED_HELPER_SHA256:
+        raise RuntimeError(
+            "refusing to inject a helper body that does not match its pin: "
+            f"expected {PINNED_INJECTED_HELPER_SHA256}, got {body_hash}"
+        )
+    return body
+
+
+@cache
+def _implementation_identity() -> RendererImplementationIdentity:
+    repo_root = find_repo_root(Path(__file__).parent)
+    _helper_body()
+    payload = {
+        "renderer_semantic_hash": RENDERER_SEMANTIC_HASH,
+        "lean_renderer_sha256": PINNED_LEAN_RENDERER_SHA256,
+        "injected_helper_sha256": PINNED_INJECTED_HELPER_SHA256,
+        "python_module_sha256": sha256_hex(Path(__file__).read_bytes()),
+        "config_file_sha256": sha256_hex(
+            (repo_root / "configs" / "representations" / "goal_v1_v1.yaml").read_bytes()
+        ),
+    }
+    return RendererImplementationIdentity(
+        renderer_semantic_hash=RENDERER_SEMANTIC_HASH,
+        lean_renderer_sha256=PINNED_LEAN_RENDERER_SHA256,
+        injected_helper_sha256=PINNED_INJECTED_HELPER_SHA256,
+        python_module_sha256=str(payload["python_module_sha256"]),
+        config_file_sha256=str(payload["config_file_sha256"]),
+        implementation_set_hash=hash_canonical(payload),
+    )
+
+
 def _build_sidecar(
     *,
     goal_v1: str,
@@ -1688,6 +2538,7 @@ def _build_sidecar(
     warnings: tuple[str, ...] = (),
 ) -> GoalV1Sidecar:
     validate_goal_v1(goal_v1)
+    implementation_identity = _implementation_identity()
     raw_hash = sha256_hex(raw_statement.encode("utf-8"))
     representation_id = "repr:" + hash_canonical(
         {
@@ -1698,6 +2549,7 @@ def _build_sidecar(
             "raw_statement_hash": raw_hash,
             "declaration_kind": declaration_kind,
             "compile_context_id": compile_context.compile_context_id,
+            "implementation_identity": implementation_identity.to_dict(),
         }
     )
     return GoalV1Sidecar(
@@ -1710,6 +2562,7 @@ def _build_sidecar(
             raw_statement_hash=raw_hash,
             declaration_kind=declaration_kind,
             compile_context_id=compile_context.compile_context_id,
+            implementation_identity=implementation_identity,
             typed_alpha_fingerprint=typed_alpha_fingerprint,
             warnings=warnings,
         ),
@@ -1745,12 +2598,6 @@ def render_surface(
         compile_context=compile_context,
         warnings=(SURFACE_PROVENANCE_TAG,),
     )
-
-
-def _helper_body() -> str:
-    helper_path = find_repo_root(Path(__file__).parent) / "LeanFaith" / "Meta" / "GoalV1.lean"
-    lines = helper_path.read_text(encoding="utf-8").splitlines()
-    return "\n".join(line for line in lines if not line.startswith("import "))
 
 
 def _lean_option_value(value: CompileOptionValue) -> str:
@@ -1850,6 +2697,525 @@ def _messages_report_sorry(messages: Sequence[dict[str, object]]) -> bool:
         str(message.get("severity", "")).lower() in {"warning", "error"}
         and any(marker in str(message.get("data", "")) for marker in _SORRY_DIAGNOSTICS)
         for message in messages
+    )
+
+
+_FORBIDDEN_CLOSED_EXPR_SESSION = re.compile(
+    r"(?m)^\s*(?:(?:private|protected|public|noncomputable|unsafe)\s+)*"
+    r"(?:theorem|lemma|axiom|opaque|example)\b|"
+    r":=\s*by\b|\bsorry\b|sorryAx|mkSorry|addDecl|addAndCompile|ppGoal"
+)
+_FORBIDDEN_CLOSED_EXPR_ACTION_DECLARATION = re.compile(
+    r"(?m)^\s*(?:(?:private|protected|public|noncomputable|unsafe)\s+)*"
+    r"(?:abbrev|axiom|class|def|elab|example|inductive|instance|lemma|macro|opaque|"
+    r"structure|syntax|theorem)\b"
+)
+_FORBIDDEN_CLOSED_EXPR_RUNTIME = re.compile(
+    r"Term\.elabTerm|Parser\.runParserCategory|lfTextElaboratesAs|"
+    r"lfCandidateEmission\?|lfTransformPp|\bppExpr\b|addDecl|addAndCompile|mkSorry|sorryAx|"
+    r"IO\.(?:print|println|eprint|eprintln|getStdout|getStderr)|\bputStr(?:Ln)?\b|"
+    r"log(?:Info|Warning|Error)(?:At)?|logMessage|modifyMessageLog|\btrace\b"
+)
+_CLOSED_EXPR_EMITTER_CALL = re.compile(r"(?<![\w'.])LeanFaith\.GoalV1\.emitClosedProp(?![\w'])")
+_RUN_META_COMMAND = re.compile(r"(?m)^\s*run_meta\s+do\b")
+
+
+def _closed_expr_command(compile_context: CompileContext, session_body: str) -> str:
+    import_lines = [
+        line.strip() for line in compile_context.import_header.splitlines() if line.strip()
+    ]
+    imports = "\n".join(["import Lean", *(line for line in import_lines if line != "import Lean")])
+    lines = [imports, _helper_body()]
+    if compile_context.command_preamble.strip():
+        lines.append(compile_context.command_preamble.rstrip())
+    lines.extend(
+        f"set_option {option_name} {_lean_option_value(value)}"
+        for option_name, value in sorted(compile_context.options.items())
+    )
+    if compile_context.open_context:
+        lines.append("open " + " ".join(compile_context.open_context))
+    if compile_context.scoped_context:
+        lines.append("open scoped " + " ".join(compile_context.scoped_context))
+    lines.extend(f"namespace {name}" for name in compile_context.namespace_context)
+    lines.append(session_body.rstrip())
+    lines.extend(f"end {name}" for name in reversed(compile_context.namespace_context))
+    return "\n".join(line for line in lines if line.strip())
+
+
+def _parse_closed_expr_payloads(
+    messages: Sequence[dict[str, object]],
+    expected_endpoint_ids: set[str],
+) -> tuple[dict[str, dict[str, object]], tuple[str, ...]]:
+    selected: dict[str, dict[str, object]] = {}
+    issues: list[str] = []
+    for message in messages:
+        for line in str(message.get("data", "")).splitlines():
+            marker = line.find(CLOSED_EXPR_MARKER)
+            if marker < 0:
+                continue
+            try:
+                payload = json.loads(line[marker + len(CLOSED_EXPR_MARKER) :])
+            except json.JSONDecodeError:
+                issues.append("malformed LFGOALV1EXPRJSON payload")
+                continue
+            if not isinstance(payload, dict):
+                issues.append("non-object LFGOALV1EXPRJSON payload")
+                continue
+            endpoint_id = payload.get("endpoint_id")
+            if not isinstance(endpoint_id, str) or endpoint_id not in expected_endpoint_ids:
+                issues.append("unexpected LFGOALV1EXPRJSON endpoint")
+                continue
+            if endpoint_id in selected:
+                issues.append(f"duplicate LFGOALV1EXPRJSON endpoint {endpoint_id!r}")
+                continue
+            selected[endpoint_id] = payload
+    return selected, tuple(issues)
+
+
+def _string_tuple(value: object, *, field_name: str) -> tuple[str, ...]:
+    if not isinstance(value, list) or any(not isinstance(item, str) or not item for item in value):
+        raise GoalV1Error(f"closed Expr payload {field_name} must be a string array")
+    return tuple(value)
+
+
+def _require_exact_json_keys(
+    value: Mapping[str, object],
+    expected: set[str],
+    *,
+    label: str,
+) -> None:
+    actual = set(value)
+    if actual != expected:
+        raise GoalV1Error(
+            f"closed Expr {label} keys mismatch: "
+            f"missing={sorted(expected - actual)!r}, extra={sorted(actual - expected)!r}"
+        )
+
+
+def _validate_closed_level_tree(
+    value: object,
+    *,
+    level_params: list[str],
+) -> None:
+    if not isinstance(value, dict):
+        raise GoalV1Error("closed Expr level node must be a JSON object")
+    kind = value.get("k")
+    if kind == "zero":
+        _require_exact_json_keys(value, {"k"}, label="zero-level node")
+    elif kind == "succ":
+        _require_exact_json_keys(value, {"k", "level"}, label="succ-level node")
+        _validate_closed_level_tree(value["level"], level_params=level_params)
+    elif kind in {"max", "imax"}:
+        _require_exact_json_keys(value, {"k", "left", "right"}, label=f"{kind}-level node")
+        _validate_closed_level_tree(value["left"], level_params=level_params)
+        _validate_closed_level_tree(value["right"], level_params=level_params)
+    elif kind == "param":
+        _require_exact_json_keys(value, {"k", "name"}, label="level-param node")
+        name = value["name"]
+        if not isinstance(name, str) or not name:
+            raise GoalV1Error("closed Expr level parameter name must be nonempty")
+        if name not in level_params:
+            level_params.append(name)
+    elif kind == "mvar":
+        raise GoalV1Error("closed Expr tree contains an unresolved universe metavariable")
+    else:
+        raise GoalV1Error(f"closed Expr level node has unsupported kind {kind!r}")
+
+
+def _validate_closed_expr_tree_node(
+    value: object,
+    *,
+    binder_depth: int,
+    level_params: list[str],
+) -> None:
+    if not isinstance(value, dict):
+        raise GoalV1Error("closed Expr node must be a JSON object")
+    kind = value.get("k")
+    if kind in {"forall", "lambda"}:
+        _require_exact_json_keys(
+            value,
+            {"k", "binder_info", "domain", "body"},
+            label=f"{kind} node",
+        )
+        if value["binder_info"] not in {
+            "default",
+            "implicit",
+            "strictImplicit",
+            "instImplicit",
+        }:
+            raise GoalV1Error(f"closed Expr {kind} node has unsupported binder_info")
+        _validate_closed_expr_tree_node(
+            value["domain"],
+            binder_depth=binder_depth,
+            level_params=level_params,
+        )
+        _validate_closed_expr_tree_node(
+            value["body"],
+            binder_depth=binder_depth + 1,
+            level_params=level_params,
+        )
+    elif kind == "app":
+        _require_exact_json_keys(value, {"k", "fn", "arg"}, label="app node")
+        _validate_closed_expr_tree_node(
+            value["fn"], binder_depth=binder_depth, level_params=level_params
+        )
+        _validate_closed_expr_tree_node(
+            value["arg"], binder_depth=binder_depth, level_params=level_params
+        )
+    elif kind == "const":
+        _require_exact_json_keys(value, {"k", "name", "levels"}, label="const node")
+        name = value["name"]
+        levels = value["levels"]
+        if not isinstance(name, str) or not name:
+            raise GoalV1Error("closed Expr constant name must be nonempty")
+        if name in {"sorryAx", "Lean.sorryAx"}:
+            raise GoalV1Error("closed Expr tree contains sorryAx")
+        if not isinstance(levels, list):
+            raise GoalV1Error("closed Expr constant levels must be a JSON array")
+        for level in levels:
+            _validate_closed_level_tree(level, level_params=level_params)
+    elif kind == "bvar":
+        _require_exact_json_keys(value, {"k", "index"}, label="bvar node")
+        index = value["index"]
+        if type(index) is not int or not 0 <= index < binder_depth:
+            raise GoalV1Error("closed Expr tree contains a loose or malformed bound variable")
+    elif kind == "sort":
+        _require_exact_json_keys(value, {"k", "level"}, label="sort node")
+        _validate_closed_level_tree(value["level"], level_params=level_params)
+    elif kind == "literal":
+        if set(value) == {"k", "nat"}:
+            nat = value["nat"]
+            if not isinstance(nat, str) or re.fullmatch(r"0|[1-9][0-9]*", nat) is None:
+                raise GoalV1Error("closed Expr natural literal is not canonical decimal text")
+        elif set(value) == {"k", "string"}:
+            if not isinstance(value["string"], str):
+                raise GoalV1Error("closed Expr string literal must be text")
+        else:
+            raise GoalV1Error("closed Expr literal node has unknown or extra fields")
+    elif kind == "projection":
+        _require_exact_json_keys(
+            value,
+            {"k", "type_name", "index", "base"},
+            label="projection node",
+        )
+        type_name = value["type_name"]
+        index = value["index"]
+        if not isinstance(type_name, str) or not type_name:
+            raise GoalV1Error("closed Expr projection type name must be nonempty")
+        if type(index) is not int or index < 0:
+            raise GoalV1Error("closed Expr projection index must be a nonnegative integer")
+        _validate_closed_expr_tree_node(
+            value["base"], binder_depth=binder_depth, level_params=level_params
+        )
+    elif kind == "let":
+        _require_exact_json_keys(
+            value,
+            {"k", "type", "value", "body", "nondependent"},
+            label="let node",
+        )
+        if type(value["nondependent"]) is not bool:
+            raise GoalV1Error("closed Expr let nondependent flag must be boolean")
+        _validate_closed_expr_tree_node(
+            value["type"], binder_depth=binder_depth, level_params=level_params
+        )
+        _validate_closed_expr_tree_node(
+            value["value"], binder_depth=binder_depth, level_params=level_params
+        )
+        _validate_closed_expr_tree_node(
+            value["body"],
+            binder_depth=binder_depth + 1,
+            level_params=level_params,
+        )
+    elif kind in {"fvar", "mvar"}:
+        raise GoalV1Error(f"closed Expr tree contains forbidden {kind} node")
+    else:
+        raise GoalV1Error(f"closed Expr node has unsupported kind {kind!r}")
+
+
+def _validate_closed_expr_tree(
+    value: object,
+    *,
+    canonical_level_params: tuple[str, ...],
+) -> dict[str, object]:
+    level_params: list[str] = []
+    _validate_closed_expr_tree_node(value, binder_depth=0, level_params=level_params)
+    if tuple(level_params) != canonical_level_params:
+        raise GoalV1Error(
+            "closed Expr tree level parameters do not match the frozen first-occurrence profile"
+        )
+    assert isinstance(value, dict)
+    return value
+
+
+def _closed_expr_sidecar_from_payload(
+    *,
+    payload: Mapping[str, object],
+    item: ClosedExprInput,
+    compile_context: CompileContext,
+    render_scope_id: str,
+    implementation_identity: RendererImplementationIdentity,
+) -> ClosedExprSidecar:
+    required_fields = {
+        "schema_version",
+        "endpoint_id",
+        "goal_v1",
+        "goal_v1_source",
+        "route_id",
+        "expr_origin",
+        "expr_hash_algorithm",
+        "expr_tree",
+        "input_level_params",
+        "canonical_level_params",
+        "render_scope_id",
+        "universe_profile_id",
+        "universe_profile_hash",
+        "renderer_semantic_hash",
+        "render_context_id",
+        "render_context_hash",
+    }
+    _require_exact_json_keys(payload, required_fields, label="payload")
+    exact_fields = {
+        "schema_version": 1,
+        "endpoint_id": item.endpoint_id,
+        "goal_v1_source": "closed_prop_expr",
+        "route_id": CLOSED_EXPR_ROUTE_ID,
+        "expr_origin": item.expr_origin,
+        "expr_hash_algorithm": CLOSED_EXPR_HASH_ALGORITHM,
+        "render_scope_id": render_scope_id,
+        "universe_profile_id": CANONICAL_UNIVERSE_PROFILE_ID,
+        "universe_profile_hash": CANONICAL_UNIVERSE_PROFILE_HASH,
+        "renderer_semantic_hash": RENDERER_SEMANTIC_HASH,
+        "render_context_id": RENDER_CONTEXT_ID,
+        "render_context_hash": RENDER_CONTEXT_HASH,
+    }
+    if type(payload.get("schema_version")) is not int:
+        raise GoalV1Error("closed Expr payload schema_version must be the integer 1")
+    for field_name, expected in exact_fields.items():
+        if payload.get(field_name) != expected:
+            raise GoalV1Error(
+                f"closed Expr payload {field_name} mismatch: "
+                f"expected {expected!r}, got {payload.get(field_name)!r}"
+            )
+    goal = payload.get("goal_v1")
+    if not isinstance(goal, str):
+        raise GoalV1Error("closed Expr payload goal_v1 must be a string")
+    goal = _canonicalize_elaborated_goal(goal)
+    validate_goal_v1(goal)
+    input_level_params = _string_tuple(
+        payload.get("input_level_params"), field_name="input_level_params"
+    )
+    canonical_level_params = _string_tuple(
+        payload.get("canonical_level_params"), field_name="canonical_level_params"
+    )
+    if len(input_level_params) != len(set(input_level_params)):
+        raise GoalV1Error("closed Expr input level parameters must be unique")
+    expected_canonical = tuple(f"u_{index}" for index in range(len(input_level_params)))
+    if canonical_level_params != expected_canonical:
+        raise GoalV1Error(
+            "closed Expr canonical level parameters do not follow the frozen u_i profile"
+        )
+    expr_tree = _validate_closed_expr_tree(
+        payload.get("expr_tree"),
+        canonical_level_params=canonical_level_params,
+    )
+    expr_hash = hash_canonical(expr_tree)
+    rendered_goal_hash = sha256_hex(goal.encode("utf-8"))
+    provenance = ClosedExprProvenance(
+        expr_hash=expr_hash,
+        expr_hash_algorithm=CLOSED_EXPR_HASH_ALGORITHM,
+        input_level_params=input_level_params,
+        canonical_level_params=canonical_level_params,
+        universe_profile_id=CANONICAL_UNIVERSE_PROFILE_ID,
+        universe_profile_hash=CANONICAL_UNIVERSE_PROFILE_HASH,
+        render_scope_id=render_scope_id,
+        render_context_id=RENDER_CONTEXT_ID,
+        render_context_hash=RENDER_CONTEXT_HASH,
+        route_id=CLOSED_EXPR_ROUTE_ID,
+        expr_origin=item.expr_origin,
+    )
+    identity_payload = {
+        "renderer_version": RENDERER_VERSION,
+        "spec_hash": SPEC_HASH,
+        "goal_v1_source": "closed_prop_expr",
+        "goal_v1": goal,
+        "rendered_goal_hash": rendered_goal_hash,
+        "endpoint_id": item.endpoint_id,
+        "endpoint_role": item.endpoint_role,
+        "source_material_hash": item.source_material.material_hash,
+        "compile_context_id": compile_context.compile_context_id,
+        "provenance": provenance.to_dict(),
+        "implementation_identity": implementation_identity.to_dict(),
+    }
+    return ClosedExprSidecar(
+        record=ClosedExprRecord(
+            representation_id="repr:" + hash_canonical(identity_payload),
+            goal_v1=goal,
+            goal_v1_source="closed_prop_expr",
+            renderer_version=RENDERER_VERSION,
+            spec_hash=SPEC_HASH,
+            compile_context_id=compile_context.compile_context_id,
+            endpoint_id=item.endpoint_id,
+            endpoint_role=item.endpoint_role,
+            source_material_hash=item.source_material.material_hash,
+            rendered_goal_hash=rendered_goal_hash,
+            provenance=provenance,
+            implementation_identity=implementation_identity,
+            typed_alpha_fingerprint=item.typed_alpha_fingerprint,
+        ),
+        source_material=item.source_material,
+        compile_context=compile_context,
+    )
+
+
+def render_closed_expr_in_session(
+    backend: LeanBackend,
+    *,
+    inputs: Sequence[ClosedExprInput],
+    compile_context: CompileContext,
+    render_scope_id: str,
+    session_body: str,
+    request_id: str,
+    timeout_seconds: float = 300.0,
+) -> ClosedExprBatchResult:
+    """Render live reference/candidate Exprs in one existing-style Meta request.
+
+    ``session_body`` constructs or retrieves the certified Exprs and calls
+    ``LeanFaith.GoalV1.emitClosedProp`` while they are still in memory. Python
+    never transports an Expr, inserts retained source text, or re-elaborates a
+    printed candidate.
+    """
+
+    if len(inputs) < 2:
+        raise ValueError("closed Expr session requires at least reference and candidate inputs")
+    if not render_scope_id.strip():
+        raise ValueError("closed Expr render_scope_id must be nonempty")
+    if not session_body.strip():
+        raise ValueError("closed Expr session_body must be nonempty")
+    endpoint_ids = [item.endpoint_id for item in inputs]
+    if len(endpoint_ids) != len(set(endpoint_ids)):
+        raise ValueError("closed Expr endpoint IDs must be unique within a session")
+    roles = {item.endpoint_role for item in inputs}
+    if roles != {"reference", "candidate"}:
+        raise ValueError("closed Expr session requires reference and candidate endpoint roles")
+    executable_session = _mask_literals_for_target(_mask_comments(session_body).masked)
+    executable_preamble = _mask_literals_for_target(
+        _mask_comments(compile_context.command_preamble).masked
+    )
+    forbidden = _FORBIDDEN_CLOSED_EXPR_SESSION.search(
+        executable_preamble + "\n" + executable_session
+    )
+    if forbidden is not None:
+        raise ValueError(
+            "closed Expr session contains forbidden declaration/proof/copied-renderer token "
+            f"{forbidden.group(0)!r}"
+        )
+    run_meta_matches = tuple(_RUN_META_COMMAND.finditer(executable_session))
+    if len(run_meta_matches) != 1:
+        raise ValueError("closed Expr session must contain exactly one executable run_meta command")
+    if executable_session[: run_meta_matches[0].start()].strip():
+        raise ValueError(
+            "closed Expr session must begin with its sole run_meta command; static project/helper "
+            "setup belongs in the hash-bound compile context"
+        )
+    forbidden_action_declaration = _FORBIDDEN_CLOSED_EXPR_ACTION_DECLARATION.search(
+        executable_session
+    )
+    if forbidden_action_declaration is not None:
+        raise ValueError(
+            "closed Expr Meta action may not contain a declaration command: "
+            f"{forbidden_action_declaration.group(0)!r}"
+        )
+    runtime_suffix = executable_session[run_meta_matches[0].start() :]
+    forbidden_runtime = _FORBIDDEN_CLOSED_EXPR_RUNTIME.search(runtime_suffix)
+    if forbidden_runtime is not None:
+        raise ValueError(
+            "closed Expr Meta action contains a forbidden text round-trip or declaration API "
+            f"{forbidden_runtime.group(0)!r}"
+        )
+    emitter_count = len(_CLOSED_EXPR_EMITTER_CALL.findall(runtime_suffix))
+    if emitter_count != len(inputs):
+        raise ValueError(
+            "closed Expr Meta action must call the shared emitter exactly once per endpoint: "
+            f"expected {len(inputs)}, found {emitter_count}"
+        )
+    if CLOSED_EXPR_MARKER.strip() in session_body:
+        raise ValueError("closed Expr session may not print the payload marker directly")
+
+    request = LeanRequest(
+        request_id=request_id,
+        context_id=compile_context.compile_context_id,
+        code=_closed_expr_command(compile_context, session_body),
+        allow_sorry=False,
+        timeout_seconds=timeout_seconds,
+        metadata={"goal_v1_route": CLOSED_EXPR_ROUTE_ID, "render_scope_id": render_scope_id},
+    )
+    result = backend.run(request)
+    result_detail = result.infrastructure_error or "; ".join(
+        str(message.get("data", "")) for message in result.messages
+    )
+    if (
+        result.status != LeanStatus.VALID
+        or result.sorries
+        or _messages_report_sorry(result.messages)
+    ):
+        detail = result_detail or f"closed Expr session failed with status {result.status.value}"
+        return ClosedExprBatchResult(
+            sidecars=(),
+            failures=tuple(ClosedExprFailure(endpoint_id, detail) for endpoint_id in endpoint_ids),
+            request_hash=result.request_hash,
+            elapsed_ms=result.elapsed_ms,
+            raw_response_path=result.raw_response_path,
+            render_scope_id=render_scope_id,
+        )
+
+    parsed, parse_issues = _parse_closed_expr_payloads(result.messages, set(endpoint_ids))
+    if parse_issues:
+        detail = "; ".join(parse_issues)
+        return ClosedExprBatchResult(
+            sidecars=(),
+            failures=tuple(ClosedExprFailure(endpoint_id, detail) for endpoint_id in endpoint_ids),
+            request_hash=result.request_hash,
+            elapsed_ms=result.elapsed_ms,
+            raw_response_path=result.raw_response_path,
+            render_scope_id=render_scope_id,
+        )
+    implementation_identity = _implementation_identity()
+    sidecars: list[ClosedExprSidecar] = []
+    failures: list[ClosedExprFailure] = []
+    for item in inputs:
+        payload = parsed.get(item.endpoint_id)
+        if payload is None:
+            failures.append(
+                ClosedExprFailure(item.endpoint_id, "missing or malformed LFGOALV1EXPRJSON payload")
+            )
+            continue
+        try:
+            sidecars.append(
+                _closed_expr_sidecar_from_payload(
+                    payload=payload,
+                    item=item,
+                    compile_context=compile_context,
+                    render_scope_id=render_scope_id,
+                    implementation_identity=implementation_identity,
+                )
+            )
+        except (GoalV1Error, ValueError) as exc:
+            failures.append(ClosedExprFailure(item.endpoint_id, str(exc)))
+    if failures:
+        failed_ids = {failure.endpoint_id for failure in failures}
+        failures.extend(
+            ClosedExprFailure(item.endpoint_id, "closed Expr session failed atomically")
+            for item in inputs
+            if item.endpoint_id not in failed_ids
+        )
+        sidecars = []
+    return ClosedExprBatchResult(
+        sidecars=tuple(sidecars),
+        failures=tuple(failures),
+        request_hash=result.request_hash,
+        elapsed_ms=result.elapsed_ms,
+        raw_response_path=result.raw_response_path,
+        render_scope_id=render_scope_id,
     )
 
 

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import base64
+import gzip
 import json
 from collections.abc import Sequence
 from pathlib import Path
@@ -10,19 +12,36 @@ from typing import cast
 import pytest
 import yaml
 
+import leanfaith.representations.goal_v1 as goal_v1_module
 from leanfaith.config.hashing import hash_canonical, sha256_hex
 from leanfaith.config.paths import find_repo_root
 from leanfaith.lean.protocol import LeanRequest, LeanResult, LeanStatus
 from leanfaith.representations.goal_v1 import (
+    CANONICAL_UNIVERSE_PROFILE_HASH,
+    CANONICAL_UNIVERSE_PROFILE_ID,
+    CLOSED_EXPR_HASH_ALGORITHM,
+    CLOSED_EXPR_MARKER,
+    CONSISTENCY_COVERAGE_RECEIPT,
+    CONSISTENCY_COVERAGE_RECEIPT_HASH,
     GOAL_MARKER,
+    PINNED_INJECTED_HELPER_SHA256,
+    PINNED_LEAN_RENDERER_SHA256,
+    RENDER_CONTEXT_HASH,
+    RENDER_CONTEXT_ID,
+    RENDERER_SEMANTIC_HASH,
+    RENDERER_SEMANTIC_PAYLOAD,
     RENDERER_VERSION,
     SPEC_HASH,
     SPEC_PAYLOAD,
     SURFACE_PROVENANCE_TAG,
+    ClosedExprInput,
+    ClosedExprSourceMaterial,
     CompileContext,
     ElaboratedInput,
     GoalV1Error,
     SurfaceRenderError,
+    _canonicalize_elaborated_goal,
+    render_closed_expr_in_session,
     render_elaborated_batch,
     render_surface,
     signature_to_goal_v1,
@@ -31,6 +50,9 @@ from leanfaith.representations.goal_v1 import (
 
 _REPO_ROOT = find_repo_root(Path(__file__).parent)
 _CONFIG = _REPO_ROOT / "configs" / "representations" / "goal_v1_v1.yaml"
+_CONSISTENCY_FIXTURE = (
+    Path(__file__).parent / "fixtures" / "consistency_check_1c6a6cca_goals_v1.json.gz.b64"
+)
 
 
 def _context(**overrides: object) -> CompileContext:
@@ -55,11 +77,11 @@ def _load_config() -> dict[str, object]:
     return cast(dict[str, object], loaded)
 
 
-def test_spec_hash_and_yaml_frozen_contract_match() -> None:
+def test_spec_hash_and_yaml_active_contract_match() -> None:
     config = _load_config()
 
     assert hash_canonical(SPEC_PAYLOAD) == SPEC_HASH
-    assert config["status"] == "frozen"
+    assert config["status"] == "active"
     assert config["spec"] == SPEC_PAYLOAD
     assert config["spec_hash"] == SPEC_HASH
     assert RENDERER_VERSION == "goal_v1.0"
@@ -72,6 +94,22 @@ def test_config_pins_the_exact_renderer_and_python_sources() -> None:
     for source in sources.values():
         source_path = _REPO_ROOT / source["path"]
         assert sha256_hex(source_path.read_bytes()) == source["sha256"]
+    assert sources["lean_renderer"]["sha256"] == PINNED_LEAN_RENDERER_SHA256
+    assert sources["lean_renderer"]["injected_helper_sha256"] == PINNED_INJECTED_HELPER_SHA256
+
+
+def test_lean_source_exposes_one_closed_prop_renderer_and_literal_delegate() -> None:
+    source = (_REPO_ROOT / "LeanFaith" / "Meta" / "GoalV1.lean").read_text(encoding="utf-8")
+    assert "def renderClosedProp (e : Expr) : MetaM String" in source
+    assert (
+        "def renderConstantType (ci : ConstantInfo) : MetaM String :=\n  renderClosedProp ci.type"
+    ) in source
+    assert source.count("ppGoal") == 1
+    assert "forallTelescopeReducing" not in source
+    assert "withoutModifyingMCtx do" in source
+    assert "def emitClosedProp" in source
+    for failure_code in cast(list[str], RENDERER_SEMANTIC_PAYLOAD["failure_codes"]):
+        assert failure_code in source
 
 
 def test_one_example_surface_smoke_is_joinable_without_an_inverse() -> None:
@@ -136,8 +174,42 @@ theorem complex {α : Type u} [inst : Inhabited α] (x : α)
     )
 
     assert sidecar.core_text() == (
-        "α : Type u\ninst : Inhabited α\nx : α\nh : ∀ y : α, y = y\n⊢ ((fun z => z) x = x) ∧ x = x"
+        "α : Type u_0\ninst : Inhabited α\nx : α\nh : ∀ y : α, y = y\n"
+        "⊢ ((fun z => z) x = x) ∧ x = x"
     )
+
+
+def test_surface_universes_follow_the_shared_first_occurrence_profile() -> None:
+    assert signature_to_goal_v1("{α : Type v} {β : Type u} : True") == (
+        "α : Type u_0\nβ : Type u_1\n⊢ True"
+    )
+    with pytest.raises(SurfaceRenderError, match="explicit simple level name"):
+        signature_to_goal_v1("{α : Type*} : True")
+
+
+@pytest.mark.parametrize(
+    "signature",
+    [
+        "{α : Type u.succ} : True",
+        "{α : Type u + 1} : True",
+        "{α : Type (max u v)} : True",
+        "{α : Type 𝓤} : True",
+        "{α : Type ?u} : True",
+        "{α : Type u.1} : True",
+        "{α : Type «foo-bar»} : True",
+        "{α : List.{u} Type} : True",
+    ],
+)
+def test_surface_compound_or_inferred_universes_fail_closed(signature: str) -> None:
+    with pytest.raises(SurfaceRenderError, match="universe"):
+        signature_to_goal_v1(signature)
+
+
+def test_surface_universe_profile_does_not_rewrite_opaque_or_qualified_text() -> None:
+    assert signature_to_goal_v1(': "Type u" = "Type u"') == '⊢ "Type u" = "Type u"'
+    assert signature_to_goal_v1(': r#"Type u"# = r#"Type u"#') == ('⊢ r#"Type u"# = r#"Type u"#')
+    assert signature_to_goal_v1("(x : «Type u») : True") == "x : «Type u»\n⊢ True"
+    assert signature_to_goal_v1("(u : Nat) : Foo.Type u") == "u : Nat\n⊢ Foo.Type u"
 
 
 def test_top_level_named_forall_moves_into_local_context() -> None:
@@ -151,6 +223,16 @@ def test_constructor_commas_do_not_split_forall_binders() -> None:
     )
 
 
+def test_surface_structural_arrow_remains_in_the_target() -> None:
+    sidecar = render_surface(
+        raw_statement="theorem arrow : True → True := fun h => h",
+        declaration_kind="theorem",
+        compile_context=_context(),
+        parsed_signature=": True → True",
+    )
+    assert sidecar.core_text() == "⊢ True → True"
+
+
 @pytest.mark.parametrize(
     "signature",
     [
@@ -162,7 +244,6 @@ def test_constructor_commas_do_not_split_forall_binders() -> None:
         ": ∀ h : Nat × Σ x : Nat, Fin x, True",
         ": ∀ h : P ∨ ∀ x : Nat, Q x, True",
         ": ∀ h : Foo x, y, True",
-        ": ∀ h : ⟪1, 2⟫ = x, True",
     ],
 )
 def test_unparenthesized_comma_binding_forall_types_fail_closed(signature: str) -> None:
@@ -179,6 +260,134 @@ def test_parenthesized_comma_binding_forall_types_preserve_meaning() -> None:
     )
     assert signature_to_goal_v1(": ∀ (h : Nat), ∃ x : Nat, x = x") == (
         "h : Nat\n⊢ ∃ x : Nat, x = x"
+    )
+
+
+def test_inner_product_delimiters_keep_commas_nested() -> None:
+    assert signature_to_goal_v1(": ∀ h : ⟪1, 2⟫ = x, True") == ("h : ⟪1, 2⟫ = x\n⊢ True")
+
+
+@pytest.mark.parametrize(
+    "goal",
+    [
+        "x : ℝ\n⊢ 0 ≤ |x|",
+        "x : ℝ\n⊢ |x| = 0",
+        "n : ℕ\n⊢ n ! = n !",
+        "x : ℕ+\n⊢ True",
+        "p : ℝ\n⊢ ∀ k ≤ ⌊p⌋₊, True",
+        "f : α → β\ns : Set α\n⊢ f '' s = f '' s",
+        "f : ℕ → ℝ\n⊢ ∑' n, f n = 0",
+        "u : ℕ → ℕ\n⊢ ∀ n, ∑ k ∈ Finset.range n, u k = 0",
+        "u v : V\n⊢ ∀ a, ⟪u, a⟫_ℂ = 0",
+        "⊢ { re := 1, im := 1 } = { re := 1, im := 1 }",
+    ],
+)
+def test_targeted_elaborated_notation_families_validate(goal: str) -> None:
+    canonical = _canonicalize_elaborated_goal(goal)
+    validate_goal_v1(canonical)
+    assert canonical == goal
+
+
+@pytest.mark.parametrize(
+    "goal",
+    [
+        "x : ℝ\n⊢ |x",
+        "x : ℝ\n⊢ x|",
+        "⊢ !",
+        "⊢ x + !",
+        "⊢ Nat +",
+        "⊢ ₊",
+        "⊢ f ''",
+        "⊢ '' s",
+        "⊢ ∑'",
+        "⊢ ∑' n,",
+        "u v : V\n⊢ ⟪u, v = 0",
+        "⊢ { re := }",
+        "⊢ { := 1 }",
+        "⊢ { re := 1, im }",
+        "⊢ { re := 1 im := 2 }",
+        "⊢ x | y |",
+        "⊢ { x | p | }",
+        "⊢ ||",
+        "⊢ x ||",
+        "⊢ <|",
+        "⊢ x <|",
+        "⊢ | |",
+        "⊢ |x||y|",
+        "⊢ x '' + y",
+        "⊢ x '' '' y",
+        "⊢ x '' , y",
+        "⊢ ⌊⌋₊",
+        "⊢ ⌈⌉₊",
+        "⊢ ⌊⌋",
+        "⊢ ⟪⟫",
+        "⊢ ⟪u⟫",
+        "⊢ ⟪,v⟫",
+        "⊢ ⟪u,⟫",
+        "⊢ { re := 1 ||, im := 2 }",
+        "⊢ x || + y",
+        "⊢ x || || y",
+        "⊢ x <| + y",
+        "⊢ + |> y",
+        "⊢ x |> y",
+        "⊢ { re := 1 '' + 2, im := 2 }",
+        "⊢ { re := 1, re := 2 }",
+    ],
+)
+def test_targeted_notation_rules_remain_fail_closed(goal: str) -> None:
+    with pytest.raises(GoalV1Error):
+        validate_goal_v1(_canonicalize_elaborated_goal(goal))
+
+
+def test_pinned_consistency_check_all_859_goals_pass_post_validation() -> None:
+    encoded = _CONSISTENCY_FIXTURE.read_bytes()
+    assert sha256_hex(encoded) == "8fe6d82e11e3db07c9b6e9eee3c1983e034d50c4c0e4e3a56f90366ebe6b6149"
+    raw = gzip.decompress(base64.b64decode(encoded))
+    assert sha256_hex(raw) == "a0cf4ff5f74760712f7f526b87ee290781da036f97e22c3d122f8c4d9a2adf1f"
+    fixture = json.loads(raw)
+    coverage = cast(dict[str, object], _load_config()["consistency_check_coverage_regression"])
+    assert coverage["fixture_file_sha256"] == sha256_hex(encoded)
+    assert coverage["fixture_uncompressed_sha256"] == sha256_hex(raw)
+    assert coverage["baseline_successes"] == 804
+    assert coverage["final_successes"] == 859
+    assert coverage["remaining_failure_classes"] == []
+    assert coverage["receipt_hash"] == CONSISTENCY_COVERAGE_RECEIPT_HASH
+    assert hash_canonical(CONSISTENCY_COVERAGE_RECEIPT) == CONSISTENCY_COVERAGE_RECEIPT_HASH
+    assert fixture["dataset"] == "GuoxinChen/ConsistencyCheck"
+    assert fixture["revision"] == "1c6a6cca0f87b48d4cccb49946d3b8fc57a1eef9"
+    assert fixture["source_file_sha256"] == (
+        "81cf6d9988625d84efbd8e1d6a0af4c234b2206da8350ee1d8bf547e612b1d47"
+    )
+    assert fixture["row_count"] == 859
+    assert len(fixture["rows"]) == 859
+
+    failures: list[tuple[int, str, str]] = []
+    changed: list[str] = []
+    for expected_index, row in enumerate(fixture["rows"]):
+        assert row["row_index"] == expected_index
+        try:
+            canonical = _canonicalize_elaborated_goal(row["goal"])
+            validate_goal_v1(canonical)
+        except GoalV1Error as exc:
+            failures.append((expected_index, row["name"], str(exc)))
+            continue
+        if canonical != row["goal"]:
+            changed.append(row["name"])
+    assert not failures
+    expected_changed = [
+        "imo_2006_p3",
+        "exercise_2_13",
+        "exercise_2_29",
+        "exercise_4_15a",
+        "exercise_13_4b1",
+        "exercise_13_4b2",
+        "exercise_13_6",
+        "exercise_16_6",
+        "exercise_28_5",
+    ]
+    assert changed == expected_changed
+    assert hash_canonical(changed) == (
+        "9fbdaba24144e28543bb08e548244bcb460bc67069bd3d8c8e4a9f2a3449b6af"
     )
 
 
@@ -747,12 +956,6 @@ def test_layout_only_let_proposition_fails_closed_in_surface_path() -> None:
             "anonymous_instance_binder",
         ),
         (
-            "theorem arrow : True → True := fun h => h",
-            ": True → True",
-            "theorem",
-            "anonymous_top_level_arrow",
-        ),
-        (
             "theorem shadow (x : Nat) (x : Nat) : True := by trivial",
             "(x : Nat) (x : Nat) : True",
             "theorem",
@@ -827,6 +1030,444 @@ def test_bounded_multi_source_surface_pilot_matches_declared_outcomes() -> None:
     assert len(cases) == 6
     assert successes == 4
     assert expected_failures == 2
+
+
+def _closed_expr_payload(
+    endpoint_id: str,
+    *,
+    goal: str,
+    origin: str,
+    scope: str = "scope:pair-1",
+) -> dict[str, object]:
+    constant_name = goal.removeprefix("⊢ ")
+    return {
+        "schema_version": 1,
+        "endpoint_id": endpoint_id,
+        "goal_v1": goal,
+        "goal_v1_source": "closed_prop_expr",
+        "route_id": "closed_expr_in_session",
+        "expr_origin": origin,
+        "expr_hash_algorithm": CLOSED_EXPR_HASH_ALGORITHM,
+        "expr_tree": {"k": "const", "name": constant_name, "levels": []},
+        "input_level_params": [],
+        "canonical_level_params": [],
+        "render_scope_id": scope,
+        "universe_profile_id": CANONICAL_UNIVERSE_PROFILE_ID,
+        "universe_profile_hash": CANONICAL_UNIVERSE_PROFILE_HASH,
+        "renderer_semantic_hash": RENDERER_SEMANTIC_HASH,
+        "render_context_id": RENDER_CONTEXT_ID,
+        "render_context_hash": RENDER_CONTEXT_HASH,
+    }
+
+
+class _ClosedExprBackend:
+    def __init__(
+        self,
+        context: CompileContext,
+        *,
+        payloads: Sequence[dict[str, object]] | None = None,
+    ) -> None:
+        self.context = context
+        self.requests: list[LeanRequest] = []
+        self.payloads = tuple(
+            payloads
+            or (
+                _closed_expr_payload(
+                    "reference",
+                    goal="⊢ True",
+                    origin="loaded_constant_type",
+                ),
+                _closed_expr_payload(
+                    "candidate",
+                    goal="⊢ False",
+                    origin="sft1_transformed_expr",
+                ),
+            )
+        )
+
+    def run(self, request: LeanRequest) -> LeanResult:
+        self.requests.append(request)
+        assert request.code is not None
+        assert request.code.count("run_meta do") == 1
+        assert "LeanFaith.GoalV1.emitClosedProp" in request.code
+        assert "theorem retainedReference" not in request.code
+        assert "candidate proposition audit text" not in request.code
+        messages = tuple(
+            {
+                "severity": "info",
+                "data": CLOSED_EXPR_MARKER
+                + json.dumps(payload, ensure_ascii=False, sort_keys=True),
+            }
+            for payload in self.payloads
+        )
+        return LeanResult(
+            request_id=request.request_id,
+            request_hash="c" * 64,
+            context_id=request.context_id,
+            context_fingerprint=self.context.fingerprint,
+            status=LeanStatus.VALID,
+            messages=messages,
+            elapsed_ms=3,
+            raw_response_path="closed-expr.json",
+        )
+
+    def run_batch(self, requests: Sequence[LeanRequest]) -> list[LeanResult]:
+        raise AssertionError(f"closed Expr route must use one request, got {len(requests)}")
+
+    def close(self) -> None:
+        return None
+
+
+def _closed_expr_inputs() -> tuple[ClosedExprInput, ClosedExprInput]:
+    return (
+        ClosedExprInput(
+            endpoint_id="reference",
+            endpoint_role="reference",
+            expr_origin="loaded_constant_type",
+            source_material=ClosedExprSourceMaterial(
+                kind="raw_statement",
+                raw_statement="theorem retainedReference : True := True.intro",
+            ),
+        ),
+        ClosedExprInput(
+            endpoint_id="candidate",
+            endpoint_role="candidate",
+            expr_origin="sft1_transformed_expr",
+            source_material=ClosedExprSourceMaterial(
+                kind="constructed_expr_no_source_text",
+                absence_reason="candidate was built structurally by the SFT1 engine",
+            ),
+        ),
+    )
+
+
+def _closed_expr_session_body() -> str:
+    return """run_meta do
+  let sourceExpr := mkConst ``True
+  let candidateExpr := mkConst ``False
+  LeanFaith.GoalV1.emitClosedProp
+    "reference" "scope:pair-1" "loaded_constant_type" sourceExpr
+  LeanFaith.GoalV1.emitClosedProp
+    "candidate" "scope:pair-1" "sft1_transformed_expr" candidateExpr"""
+
+
+def test_closed_expr_source_material_union_is_explicit() -> None:
+    proposition = ClosedExprSourceMaterial(
+        kind="proposition_text",
+        proposition_text="∀ n : Nat, n = n",
+    )
+    assert proposition.to_dict()["raw_statement"] is None
+    assert proposition.material_hash == hash_canonical(proposition.to_dict())
+    with pytest.raises(ValueError, match="requires only"):
+        ClosedExprSourceMaterial(
+            kind="constructed_expr_no_source_text",
+            proposition_text="must not be synthesized from goal_v1",
+            absence_reason="conflicting fields",
+        )
+    with pytest.raises(ValueError, match="requires only"):
+        ClosedExprSourceMaterial(
+            kind="raw_statement",
+            raw_statement="theorem t : True := True.intro",
+            proposition_text="",
+        )
+    with pytest.raises(ValueError, match="cannot use source material"):
+        ClosedExprInput(
+            endpoint_id="candidate",
+            endpoint_role="candidate",
+            expr_origin="sft1_transformed_expr",
+            source_material=ClosedExprSourceMaterial(
+                kind="raw_statement",
+                raw_statement="the reference declaration is not candidate source",
+            ),
+        )
+    with pytest.raises(ValueError, match="cannot use source material"):
+        ClosedExprInput(
+            endpoint_id="reference",
+            endpoint_role="reference",
+            expr_origin="loaded_constant_type",
+            source_material=ClosedExprSourceMaterial(
+                kind="proposition_text",
+                proposition_text="True",
+            ),
+        )
+
+
+def test_closed_expr_route_renders_reference_and_candidate_in_one_request() -> None:
+    context = _context()
+    backend = _ClosedExprBackend(context)
+    result = render_closed_expr_in_session(
+        backend,
+        inputs=_closed_expr_inputs(),
+        compile_context=context,
+        render_scope_id="scope:pair-1",
+        session_body=_closed_expr_session_body(),
+        request_id="closed-expr-pair",
+    )
+
+    assert len(backend.requests) == 1
+    assert not result.failures
+    assert [sidecar.core_text() for sidecar in result.sidecars] == ["⊢ True", "⊢ False"]
+    assert {sidecar.record.endpoint_role for sidecar in result.sidecars} == {
+        "reference",
+        "candidate",
+    }
+    assert all(
+        sidecar.record.provenance.render_scope_id == "scope:pair-1" for sidecar in result.sidecars
+    )
+    assert all(
+        sidecar.record.provenance.render_context_hash == RENDER_CONTEXT_HASH
+        for sidecar in result.sidecars
+    )
+    assert result.sidecars[1].source_material.kind == "constructed_expr_no_source_text"
+    serialized_record = cast(dict[str, object], result.sidecars[0].to_dict()["record"])
+    serialized_identity = cast(dict[str, str], serialized_record["implementation_identity"])
+    assert serialized_identity["renderer_semantic_hash"] == RENDERER_SEMANTIC_HASH
+    assert serialized_identity["lean_renderer_sha256"] == sha256_hex(
+        (_REPO_ROOT / "LeanFaith" / "Meta" / "GoalV1.lean").read_bytes()
+    )
+    assert serialized_identity["injected_helper_sha256"] == PINNED_INJECTED_HELPER_SHA256
+    assert serialized_identity["python_module_sha256"] == sha256_hex(
+        (_REPO_ROOT / "src" / "leanfaith" / "representations" / "goal_v1.py").read_bytes()
+    )
+    assert serialized_identity["config_file_sha256"] == sha256_hex(_CONFIG.read_bytes())
+    assert serialized_identity["implementation_set_hash"] == hash_canonical(
+        {
+            key: value
+            for key, value in serialized_identity.items()
+            if key != "implementation_set_hash"
+        }
+    )
+    request_code = backend.requests[0].code
+    assert request_code is not None
+    session_suffix = request_code[request_code.index("run_meta do") :]
+    for forbidden in ("theorem ", "lemma ", "axiom ", "sorry", "ppGoal", "addDecl"):
+        assert forbidden not in session_suffix
+
+
+def test_closed_expr_payload_scope_mismatch_fails_the_pair_atomically() -> None:
+    context = _context()
+    payloads = (
+        _closed_expr_payload("reference", goal="⊢ True", origin="loaded_constant_type"),
+        _closed_expr_payload(
+            "candidate",
+            goal="⊢ False",
+            origin="sft1_transformed_expr",
+            scope="scope:wrong",
+        ),
+    )
+    result = render_closed_expr_in_session(
+        _ClosedExprBackend(context, payloads=payloads),
+        inputs=_closed_expr_inputs(),
+        compile_context=context,
+        render_scope_id="scope:pair-1",
+        session_body=_closed_expr_session_body(),
+        request_id="closed-expr-wrong-scope",
+    )
+    assert not result.sidecars
+    assert {failure.endpoint_id for failure in result.failures} == {"reference", "candidate"}
+
+
+def test_closed_expr_payload_invalid_goal_fails_post_validation_atomically() -> None:
+    context = _context()
+    result = render_closed_expr_in_session(
+        _ClosedExprBackend(
+            context,
+            payloads=(
+                _closed_expr_payload("reference", goal="⊢ True", origin="loaded_constant_type"),
+                _closed_expr_payload("candidate", goal="⊢ x || y", origin="sft1_transformed_expr"),
+            ),
+        ),
+        inputs=_closed_expr_inputs(),
+        compile_context=context,
+        render_scope_id="scope:pair-1",
+        session_body=_closed_expr_session_body(),
+        request_id="closed-expr-invalid-goal",
+    )
+    assert not result.sidecars
+    assert {failure.endpoint_id for failure in result.failures} == {"reference", "candidate"}
+    assert any("compound bar" in failure.detail for failure in result.failures)
+
+
+@pytest.mark.parametrize(
+    "expr_tree",
+    [
+        {},
+        {"k": "mvar"},
+        {"k": "fvar"},
+        {"k": "bvar", "index": 0},
+        {"k": "bvar", "index": True},
+        {"k": "const", "name": "True", "levels": [], "extra": 1},
+        {"k": "const", "name": "True", "levels": [{"k": "mvar"}]},
+        {"k": "literal", "nat": "01"},
+        {
+            "k": "let",
+            "type": {"k": "const", "name": "Nat", "levels": []},
+            "value": {"k": "literal", "nat": "1"},
+            "body": {"k": "const", "name": "True", "levels": []},
+            "nondependent": 1,
+        },
+        {"k": "sort", "level": {"k": "param", "name": "u_1"}},
+    ],
+)
+def test_closed_expr_tree_schema_fails_closed_atomically(expr_tree: object) -> None:
+    context = _context()
+    candidate = _closed_expr_payload(
+        "candidate",
+        goal="⊢ False",
+        origin="sft1_transformed_expr",
+    )
+    candidate["expr_tree"] = expr_tree
+    result = render_closed_expr_in_session(
+        _ClosedExprBackend(
+            context,
+            payloads=(
+                _closed_expr_payload("reference", goal="⊢ True", origin="loaded_constant_type"),
+                candidate,
+            ),
+        ),
+        inputs=_closed_expr_inputs(),
+        compile_context=context,
+        render_scope_id="scope:pair-1",
+        session_body=_closed_expr_session_body(),
+        request_id="closed-expr-bad-tree",
+    )
+    assert not result.sidecars
+    assert {failure.endpoint_id for failure in result.failures} == {"reference", "candidate"}
+
+
+def test_closed_expr_payload_unknown_field_and_duplicate_endpoint_fail_closed() -> None:
+    context = _context()
+    reference = _closed_expr_payload("reference", goal="⊢ True", origin="loaded_constant_type")
+    reference["unknown"] = "must fail"
+    malformed = render_closed_expr_in_session(
+        _ClosedExprBackend(
+            context,
+            payloads=(
+                reference,
+                _closed_expr_payload("candidate", goal="⊢ False", origin="sft1_transformed_expr"),
+            ),
+        ),
+        inputs=_closed_expr_inputs(),
+        compile_context=context,
+        render_scope_id="scope:pair-1",
+        session_body=_closed_expr_session_body(),
+        request_id="closed-expr-extra-field",
+    )
+    assert not malformed.sidecars
+
+    duplicate_reference = _closed_expr_payload(
+        "reference", goal="⊢ True", origin="loaded_constant_type"
+    )
+    duplicated = render_closed_expr_in_session(
+        _ClosedExprBackend(
+            context,
+            payloads=(
+                duplicate_reference,
+                duplicate_reference,
+                _closed_expr_payload("candidate", goal="⊢ False", origin="sft1_transformed_expr"),
+            ),
+        ),
+        inputs=_closed_expr_inputs(),
+        compile_context=context,
+        render_scope_id="scope:pair-1",
+        session_body=_closed_expr_session_body(),
+        request_id="closed-expr-duplicate-endpoint",
+    )
+    assert not duplicated.sidecars
+    assert all("duplicate" in failure.detail for failure in duplicated.failures)
+
+
+def test_closed_expr_payload_boolean_schema_version_fails_closed_atomically() -> None:
+    context = _context()
+    reference = _closed_expr_payload("reference", goal="⊢ True", origin="loaded_constant_type")
+    reference["schema_version"] = True
+    result = render_closed_expr_in_session(
+        _ClosedExprBackend(
+            context,
+            payloads=(
+                reference,
+                _closed_expr_payload("candidate", goal="⊢ False", origin="sft1_transformed_expr"),
+            ),
+        ),
+        inputs=_closed_expr_inputs(),
+        compile_context=context,
+        render_scope_id="scope:pair-1",
+        session_body=_closed_expr_session_body(),
+        request_id="closed-expr-bool-schema",
+    )
+    assert not result.sidecars
+    assert {failure.endpoint_id for failure in result.failures} == {"reference", "candidate"}
+    assert any("integer 1" in failure.detail for failure in result.failures)
+
+
+@pytest.mark.parametrize(
+    "session_body",
+    [
+        """-- LeanFaith.GoalV1.emitClosedProp twice
+run_meta do
+  pure ()""",
+        """run_meta do
+  let note := "LeanFaith.GoalV1.emitClosedProp LeanFaith.GoalV1.emitClosedProp"
+  pure ()""",
+        """private theorem temporaryEndpoint : True := True.intro
+run_meta do
+  LeanFaith.GoalV1.emitClosedProp "reference" "scope:pair-1" "loaded_constant_type" (mkConst ``True)
+  LeanFaith.GoalV1.emitClosedProp "candidate" "scope:pair-1" "sft1_transformed_expr" (mkConst ``False)""",
+        """def temporaryCandidate : Prop := False
+run_meta do
+  LeanFaith.GoalV1.emitClosedProp "reference" "scope:pair-1" "loaded_constant_type" (mkConst ``True)
+  LeanFaith.GoalV1.emitClosedProp "candidate" "scope:pair-1" "sft1_transformed_expr" (mkConst ``temporaryCandidate)""",
+        """run_meta do
+  let _ ← Parser.runParserCategory (← getEnv) `term "True"
+  LeanFaith.GoalV1.emitClosedProp "reference" "scope:pair-1" "loaded_constant_type" (mkConst ``True)
+  LeanFaith.GoalV1.emitClosedProp "candidate" "scope:pair-1" "sft1_transformed_expr" (mkConst ``False)""",
+        """run_meta do
+  if False then
+    LeanFaith.GoalV1.emitClosedProp "reference" "scope:pair-1" "loaded_constant_type" (mkConst ``True)
+    LeanFaith.GoalV1.emitClosedProp "candidate" "scope:pair-1" "sft1_transformed_expr" (mkConst ``False)
+  let marker := "LFGOALV1" ++ "EXPRJSON "
+  IO.println marker""",
+        """run_meta do
+  if False then
+    LeanFaith.GoalV1.emitClosedProp "reference" "scope:pair-1" "loaded_constant_type" (mkConst ``True)
+    LeanFaith.GoalV1.emitClosedProp "candidate" "scope:pair-1" "sft1_transformed_expr" (mkConst ``False)
+  let marker := "LFGOALV1" ++ "EXPRJSON "
+  (← IO.getStdout).putStrLn marker""",
+        """run_meta do
+  if False then
+    LeanFaith.GoalV1.emitClosedProp "reference" "scope:pair-1" "loaded_constant_type" (mkConst ``True)
+    LeanFaith.GoalV1.emitClosedProp "candidate" "scope:pair-1" "sft1_transformed_expr" (mkConst ``False)
+  let marker := "LFGOALV1" ++ "EXPRJSON "
+  logMessage { severity := .information, data := m!"{marker}" }""",
+    ],
+)
+def test_closed_expr_session_admission_requires_real_shared_calls(session_body: str) -> None:
+    context = _context()
+    backend = _ClosedExprBackend(context)
+    with pytest.raises(ValueError):
+        render_closed_expr_in_session(
+            backend,
+            inputs=_closed_expr_inputs(),
+            compile_context=context,
+            render_scope_id="scope:pair-1",
+            session_body=session_body,
+            request_id="closed-expr-session-admission",
+        )
+    assert not backend.requests
+
+
+def test_runtime_helper_hash_guard_rejects_a_wrong_pin(monkeypatch: pytest.MonkeyPatch) -> None:
+    goal_v1_module._helper_body.cache_clear()
+    goal_v1_module._implementation_identity.cache_clear()
+    monkeypatch.setattr(goal_v1_module, "PINNED_LEAN_RENDERER_SHA256", "0" * 64)
+    with pytest.raises(RuntimeError, match="refusing to inject unpinned"):
+        goal_v1_module._helper_body()
+    monkeypatch.undo()
+    goal_v1_module._helper_body.cache_clear()
+    goal_v1_module._implementation_identity.cache_clear()
+    assert sha256_hex(goal_v1_module._helper_body().encode("utf-8")) == (
+        PINNED_INJECTED_HELPER_SHA256
+    )
 
 
 class _OneRequestBackend:

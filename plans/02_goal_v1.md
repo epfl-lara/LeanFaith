@@ -1,14 +1,14 @@
 # REPR — shared `goal_v1.0` theorem representation
 
 > **Task ID:** REPR
-> **Status:** complete
+> **Status:** active
 > **Owner/session:** Codex REPR session (2026-08-30)
-> **Last updated:** 2026-08-30 (third reviewed freeze)
+> **Last updated:** 2026-08-30 (fourth repair: shared closed-Expr route and validator coverage)
 > **Dependencies:** none
-> **Next gate:** downstream manifests pin the third-replacement spec hash and the coherent freeze
-> commit containing this record; retain raw/context sidecars and report metrics by `goal_v1_source`
+> **Next gate:** finish Lean-free API/schema/859-row validator work, run one bounded shared-session
+> live gate, then commit an active implementation and one coherent replacement freeze
 > **Compute class:** CPU; bounded Lean oracle/renderer tests only
-> **Lean budget:** reuse loaded environments and candidate compilation; no corpus-wide rendering compile
+> **Lean budget:** reuse one loaded environment and already-certified Exprs; no corpus-wide compile
 > **Local staging root:** `/storage/milikic/leanfaith/value_first/goal_v1_0/`
 > **HF destination:** none; the serializer version is embedded in downstream manifests
 
@@ -29,35 +29,46 @@ except for the explicit term-binding normalization below: supported surface `let
 elaborated `have` presentation all serialize with the canonical keyword `let`; the raw sidecar keeps
 the original spelling.
 
-Use the best cheap source available:
+Use the best cheap source available, with one shared Lean text implementation:
 
-1. `elaborated`: render the theorem type from an environment that is already loaded or from the
-   candidate compilation already required by SFT2. Do not recompile proofs.
-2. `surface`: deterministic Lean-aware extraction from a trusted headless/signature string when
+1. `closed_prop_expr`: SFT1 supplies the already-certified reference and candidate `Expr`s while
+   both remain live in one `MetaM` request. `LeanFaith.GoalV1.renderClosedProp` renders both directly;
+   this route creates no theorem/axiom, proof, or `sorry`, never calls surface mode, and never
+   pretty-prints then re-elaborates a candidate.
+2. `elaborated`: render a named theorem's `ConstantInfo.type` from an environment that is already
+   loaded or from candidate compilation already required elsewhere. `renderConstantType` delegates
+   literally to `renderClosedProp ci.type`; it has no second renderer and does not recompile proofs.
+3. `surface`: deterministic Lean-aware extraction from a trusted headless/signature string when
    elaboration is unavailable or would trigger bulk compilation.
 
-Both yield the same textual grammar and store `goal_v1_source: elaborated|surface`. Never silently
-mix them without the sidecar flag; report coverage and model metrics by source mode. Ambiguous
-surface rows fail closed or retain the raw representation outside the core view.
+All three yield the same textual grammar and store
+`goal_v1_source: closed_prop_expr|elaborated|surface`. Never silently mix them without the sidecar
+flag; report coverage and model metrics by source mode. Ambiguous surface rows fail closed or retain
+the raw representation outside the core view. Every route uses the frozen first-occurrence universe
+profile `u_0`, `u_1`, ...; supported surface signatures canonicalize explicit simple `Type`/`Sort`
+level names and fail closed on inferred, star, or compound surface level syntax.
 
-`goal_v1` is model-facing, not a compilable source language. Every source/candidate sidecar retains
-the exact nonempty `raw_statement`, `project_id`, project/toolchain revision, import header,
-and namespaces/scopes/options in `compile_context`; `renderer_version` stays in the sidecar record.
-SFT2 proposers/formalizers
-must return a compilable declaration/signature; compilation never tries to reconstruct source from
-goal text. This avoids an under-specified inverse transformation.
+`goal_v1` is model-facing, not a compilable source language. Declaration-backed routes retain the
+exact nonempty `raw_statement`. A direct Expr with no declaration retains either the exact original
+`proposition_text` or the explicit `constructed_expr_no_source_text` absence reason; missing text is
+never filled from rendered goal text. Every sidecar retains `project_id`, project/toolchain revision,
+import header, namespaces/scopes/options in `compile_context`, renderer/spec hashes, implementation
+hashes, and route-specific provenance. SFT2 proposers/formalizers must return a compilable
+declaration/signature; compilation never tries to reconstruct source from goal text. This avoids an
+under-specified inverse transformation.
 
 Do not alpha-normalize model text. A typed/alpha-normalized fingerprint may be a separate dedup key.
 Filter theorem/lemma declarations before serialization because declaration kind is absent afterward.
 
 ## Scope and ownership
 
-**In scope:** versioned spec/examples, surface parser/serializer, Lean-side elaborated renderer,
-provenance and compile-context schema, normalization/fingerprint hooks, fixtures/tests, and a small
-cross-source oracle.
+**In scope:** versioned spec/examples, surface parser/serializer, the sole Lean-side closed-Prop
+renderer for named and direct Expr routes, provenance and compile-context schema,
+normalization/fingerprint hooks, fixtures/tests, and a small cross-source oracle.
 
 **Out of scope:** bulk corpus rendering, semantic labels, theorem transformations, proof
-compilation, LLM calls, replacing raw source fields, or supporting `def` declarations in v1.0.
+compilation, LLM calls, replacing raw source fields, generating training data, or supporting `def`
+declarations as named v1.0 inputs.
 
 **Writable paths:** this brief; `src/leanfaith/representations/goal_v1.py`;
 `LeanFaith/Meta/GoalV1.lean`; `configs/representations/goal_v1_v1.yaml`;
@@ -67,27 +78,44 @@ cannot be achieved additively.
 
 ## Input and output contract
 
-Both renderers require declaration kind, nonempty `raw_statement`, and `CompileContext`. Surface mode
-also requires the caller-attested `parsed_signature`; elaborated mode requires a declaration name or
-loaded-constant lookup. The serialized wrapper is `{record, raw_statement, compile_context}`. Its
-record contains:
+Surface and named elaborated routes require declaration kind, exact nonempty `raw_statement`, and
+`CompileContext`. Surface additionally requires the caller-attested `parsed_signature`; elaborated
+mode requires a declaration name or loaded-constant lookup. Their serialized wrapper is
+`{record, raw_statement, compile_context}`. Its record contains:
 
 ```text
 representation_id, goal_v1, goal_v1_source, renderer_version, spec_hash,
 raw_statement_hash, declaration_kind, compile_context_id,
-typed_alpha_fingerprint?, warnings[]
+implementation_identity, typed_alpha_fingerprint?, warnings[]
 ```
 
+The additive direct-Expr wrapper is `{record, source_material, compile_context}`. The reference and
+all candidates are emitted atomically from one `closed_expr_in_session` request. Its record binds:
+
+```text
+representation_id, goal_v1, goal_v1_source=closed_prop_expr, renderer_version, spec_hash,
+compile_context_id, endpoint_id, endpoint_role, source_material_hash, rendered_goal_hash,
+provenance, implementation_identity, typed_alpha_fingerprint?, warnings[]
+```
+
+`provenance` contains the SHA-256 of the validated canonical structural Expr tree, original and
+canonical used level parameters, universe-profile ID/hash, render-scope ID, render-context ID/hash,
+route ID, and Expr origin. `implementation_identity` contains the semantic renderer API hash plus
+the exact checked-in Lean, injected-helper, Python, and config hashes and their aggregate hash.
+
 Downstream core rows include only the `goal_v1` text in `reference`/`candidate`; downstream
-manifests and keyed sidecars retain this record and the raw compilable material.
+manifests and keyed sidecars retain the full record, source-material union, compilation context,
+implementation identity, and Expr hashes.
 
 ## Lean-efficiency plan
 
-Lean is the bottleneck. Build/test surface serialization without Lean. For elaborated fixtures,
-load each pinned project once and render many `ConstantInfo.type` values from the existing
-environment; never recompile theorem proofs or run one Lean process per theorem. SFT2 reuses the
-renderer during compilation already required for each candidate. Cache by raw/type hash plus
-project/toolchain/options and renderer version.
+Lean is the bottleneck. Build/test parsing, schemas, payload validation, hashing, and the 859-row
+post-validator fixture without Lean. For live fixtures, load one pinned project once and render
+`ConstantInfo.type` plus live certified Expr values from the existing environment; never recompile
+theorem proofs or run one Lean process per theorem/candidate. SFT1 invokes the shared API in its
+existing Meta request; SFT2 reuses it during compilation already required for each candidate. Cache
+by structural Expr/raw hash plus project/toolchain/options, render-context hash, and renderer
+implementation hashes.
 
 ## Repair plan
 
@@ -106,6 +134,16 @@ project/toolchain/options and renderer version.
    chains at any balanced delimiter depth to `let`; fail closed on incomplete chains, layout-only or
    macro bindings, and ambiguous same-context values. Never infer a signature or proof boundary from
    raw declarations under potentially loaded syntax.
+7. Expose `renderClosedProp (e : Expr) : MetaM String`, instantiate assigned metavariables, and fail
+   closed on unresolved expression/universe metavariables, free or loose variables, malformed or
+   non-Prop expressions, `sorry`, and anonymous outer telescope binders. Make metadata-transparent
+   anonymous-binder inspection explicit.
+8. Validate every direct payload's exact JSON schema and closed structural Expr tree before hashing;
+   reject duplicate/spoof-shaped endpoints atomically. Pin both the full Lean helper and exact
+   import-stripped injected body at runtime.
+9. Keep the 859-row ConsistencyCheck projection as a derived goal-only test fixture, add narrow bar,
+   postfix, set-image, big-operator, delimiter, generated-name, and structure rules, and retain
+   fail-closed malformed near-neighbor tests.
 
 Lean is the bottleneck: this session will not compile a corpus. It will establish the small Lean
 oracle, measure the cheap renderer against it, and compile only the bounded audit required here.
@@ -134,12 +172,16 @@ v1.0.
 
 ## Acceptance criteria
 
-- One owner and one versioned serializer serve every SFT/evaluation task.
+- One owner and one `renderClosedProp` text implementation serve named constants, direct SFT1 Exprs,
+  and every SFT/evaluation task.
 - The output has ordered locals plus exactly one turnstile and no shell/name/proof leakage.
-- Elaborated and surface modes are explicit, measured, and never require mass Lean compilation.
-- Raw compilable source/context is retained separately; no inverse from goal text is assumed.
+- Direct Expr, elaborated, and surface modes are explicit, measured, and never require mass Lean
+  compilation.
+- Exact raw/proposition source or an explicit no-text reason plus compile context is retained
+  separately; no inverse from goal text is assumed.
 - Tests cover difficult binders, environments, multiline output, determinism, and theorem-only
-  filtering.
+  filtering; direct-Expr tests cover the shared request, closedness failures, structural hashes, and
+  no declaration/proof/sorry/text-round-trip behavior.
 
 ## Superseded candidate freeze record and evidence
 
@@ -250,7 +292,12 @@ historical evidence only and are not authorized for downstream use.
   runs passed. The active-state implementation and every REPR-owned path were committed before this
   freeze record was finalized.
 
-## Third replacement freeze record and evidence
+## Superseded third replacement freeze record and evidence
+
+The coherent freeze commit `cbc933c3623d81ba649a1f9c5107ad404389d69f` is mechanically valid
+for named theorem constants and caller-attested surface signatures, but it has no supported direct
+closed-`Expr` route for SFT1 and is superseded for all new downstream pinning. Its evidence remains
+historical only.
 
 The active implementation parent commit
 `fc612cb0816e83a8b29625b67988d95e444a7eb2` is reproducible provenance but is not consumable alone
@@ -304,7 +351,7 @@ commit containing this record, the frozen config, matching frozen-state test, an
   ruff/formatting, and strict mypy pass. No corpus was compiled, no training data was generated, and
   no durable staging output was kept.
 
-## Frozen risks and downstream handoff
+## Superseded third-freeze risks and downstream handoff
 
 - Surface mode is safe only when the caller attests that its supplied complete name-free signature
   corresponds to nonempty raw source compiling in the stored context. A successful sidecar carries
@@ -355,10 +402,10 @@ Do not generate training data. Record the spec hash, evidence, risks, and downst
 
 ## Coordinator requests
 
-- Downstream SFT/evaluation serializers must remain paused until the coherent third replacement
-  freeze commit containing this record is available. They may then pin that commit plus spec hash
-  `073d92c8e1fcc5cb7a3a9bf325d047e9b2d52149504977086de46abf6f84ef52`; none of the three
-  superseded hashes or their implementation commits is consumable.
+- Downstream SFT/evaluation serializers must remain paused until the coherent fourth replacement
+  freeze is available. Commit `cbc933c3623d81ba649a1f9c5107ad404389d69f`, spec hash
+  `073d92c8e1fcc5cb7a3a9bf325d047e9b2d52149504977086de46abf6f84ef52`, and every earlier freeze
+  are superseded for new pinning.
 - Coordinator follow-up: mirror the scoped term-binding `have`-to-`let` exception in
   `plans/00_shared_contracts.md`. Until that coordinator-owned wording is updated, this task-owned
   spec is the explicit `goal_v1.0` normalization policy; the raw sidecar retains original notation.
@@ -459,3 +506,21 @@ Do not generate training data. Record the spec hash, evidence, risks, and downst
   `active`, then completed REPR in the coherent child commit containing this freeze record, frozen
   config, and frozen-state assertion. Only that child commit is consumable downstream. The frozen
   spec/source hashes and bounded evidence above were rechecked; unrelated work remained untouched.
+- 2026-08-30 — user reopened REPR because coherent freeze
+  `cbc933c3623d81ba649a1f9c5107ad404389d69f` supports named constants and caller-attested surface
+  signatures but is not consumable by SFT1's already-certified direct `Expr` candidates. The fourth
+  repair must expose one public `renderClosedProp`, delegate named constants to it, batch reference
+  and candidate Expr rendering in one Meta request without declarations/proofs/re-elaboration,
+  freeze Expr provenance and one universe profile, add a runtime Lean-helper hash assertion, and
+  raise the pinned 859-row ConsistencyCheck elaborated-goal coverage with targeted rules. Lean is
+  the bottleneck: all safe API/schema/validator work and the 859-row Lean-free audit precede one
+  bounded shared-environment live gate; no corpus compile or training-data generation is authorized.
+- 2026-08-30 — completed the fourth repair's Lean-free gate before invoking Lean. The shared
+  `renderClosedProp` API, literal named delegate, exact direct-Expr/source-material sidecars,
+  recursive Expr/level validation, runtime helper pin, one first-occurrence `u_i` profile, atomic
+  post-validation, and declaration-free Meta-action admission are implemented. The targeted
+  structural validator now accepts all 859/859 pinned ConsistencyCheck `goal` strings (up from
+  804/859) while malformed bar, postfix, image, delimiter, universe, structure, and binding
+  near-neighbors fail closed. All 291 owned unit cases, scoped ruff/formatting, strict mypy, and the
+  plan validator pass. No Lean, corpus compilation, or data generation occurred during this gate;
+  the next action is the one-worker shared-environment live oracle.

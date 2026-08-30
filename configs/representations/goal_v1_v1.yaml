@@ -1,14 +1,15 @@
 schema_version: 1
-status: frozen
+status: active
 spec_hash_algorithm: sha256_canonical_json
-spec_hash: 073d92c8e1fcc5cb7a3a9bf325d047e9b2d52149504977086de46abf6f84ef52
+spec_hash: 68d893a2c566bf3f6a82c899a32a351f9a5420f5ea98168c99b887aaa01a45a8
 implementation_sources:
   lean_renderer:
     path: LeanFaith/Meta/GoalV1.lean
-    sha256: 8a2626489d65c7424f039f673fe5910adeb07d833580f5a6870cbf8e19434809
+    sha256: 4471262f812746046570c51dde5958ee33db31a450a6974071efce584ba56bc3
+    injected_helper_sha256: a6650452eebe683db295df1dfe925d3db8b03fc24e55cbc6793e838b5fe2f272
   python_module:
     path: src/leanfaith/representations/goal_v1.py
-    sha256: 09912e28687756a9cd203e6069a9f9c130259840d8309a3126fe1c8e1f333cbb
+    sha256: 496237e190c394e9bd3c3036e2bc01c635905116c5084787a42e6cb569f45517
 
 # This subtree is byte-for-byte equivalent after YAML parsing to SPEC_PAYLOAD
 # in src/leanfaith/representations/goal_v1.py. Tests enforce the equality.
@@ -28,6 +29,10 @@ spec:
     binding_keyword_policy: >-
       surface let/have and elaborated have bindings canonicalize to let; raw source keeps its
       original spelling
+    anonymous_arrow_policy: >-
+      a nondependent explicit anonymous/macro-scoped generated Pi remains arrow notation in the target;
+      surface arrow syntax is preserved, while truly anonymous implicit/instance or dependent Expr
+      binders fail closed
     binding_head_policy: >-
       surface binding heads require one original-token plain or guillemet explicit non-pattern name;
       elaborated and final validation additionally admit Lean's printed inaccessible-name suffix; an
@@ -55,7 +60,14 @@ spec:
       supported atomic symbol terms remain values
     named_argument_policy: >-
       outside a claimed let/have binding, := is accepted only as a complete simple parenthesized
-      named argument (name := value); every other nested assignment fails closed
+      named argument (name := value) or as one field of a complete comma-delimited structure
+      literal; every other nested assignment fails closed
+    targeted_token_policy: >-
+      paired bars have nonempty unpadded interiors, brace-local set builders have exactly one
+      unambiguous separator, compound bar operators are unsupported and fail closed, set image '' is
+      whitespace-delimited with complete operands, factorial/positive-Nat/floor postfixes are
+      narrowly recognized, floor/ceiling interiors are nonempty, and ⟪u,v⟫ has exactly two
+      nonempty top-level operands
     surface_input_policy: >-
       surface rendering requires nonempty raw_statement plus caller-supplied parsed_signature;
       supplying it attests that the signature is complete, corresponds to compilable raw source in
@@ -84,11 +96,10 @@ spec:
     - comments
     - proof_delimiter
     - proof_body
-  sources: [elaborated, surface]
+  sources: [closed_prop_expr, elaborated, surface]
   # Descriptive classes, not a one-to-one list of SurfaceFailureCode enum values.
   surface_fail_closed_classes:
     - anonymous_instance_binder
-    - anonymous_top_level_arrow
     - duplicate_or_shadowed_local_name
     - implicit_or_untyped_binder
     - ambiguous_declaration_or_proof_boundary
@@ -117,6 +128,164 @@ spec:
     - scoped_context
     - namespace_context
   elaborated_input_modes: [inline_candidate, loaded_constant_lookup]
+  closed_expr_route:
+    route_id: closed_expr_in_session
+    input_mode: closed_prop_expr
+    expr_origin_modes:
+      - loaded_constant_type
+      - term_elaborated_proposition
+      - sft1_transformed_expr
+    origin_source_material:
+      loaded_constant_type: raw_statement
+      term_elaborated_proposition: proposition_text
+      sft1_transformed_expr: constructed_expr_no_source_text
+    same_meta_request: true
+    text_renderer: LeanFaith.GoalV1.renderClosedProp
+    declaration_or_proof_creation: forbidden
+    meta_action_command_policy: >-
+      begin with the sole run_meta command and contain no declaration command; static project or
+      helper setup belongs only in the hash-bound compile context
+    compile_context_proof_declarations: forbidden
+    kernel_preparation_passes_per_endpoint: 1
+    surface_or_text_reelaboration: forbidden
+    python_expr_transport: forbidden
+  closed_expr_rejection_classes:
+    - unresolved_expr_mvar
+    - unresolved_universe_mvar
+    - free_variable
+    - loose_bound_variable
+    - sorry_expr
+    - malformed_expr
+    - non_prop
+    - unsupported_anonymous_telescope_binder
+  closed_expr_hash:
+    algorithm: sha256_canonical_closed_expr_alpha_tree_v1
+    preimage: canonical JSON of the validated universe-normalized alpha Expr tree
+    binder_names: excluded
+    binder_info: retained
+    mdata: transparent
+    rendered_goal_hash: recorded separately to bind presentation names
+  canonical_universe_profile:
+    profile_id: goal_v1_first_occurrence_u_i_v1
+    route_scope: closed_prop_expr_elaborated_named_and_supported_surface
+    expr_input_stage: after_instantiate_mvars_and_closed_prop_validation
+    parameter_order: Lean.collectLevelParams structural first occurrence
+    expr_instantiation: replace every used Level.param in collected order on every Expr render
+    surface_policy: >-
+      rewrite explicit simple Type/Sort level names by textual first occurrence; reject star,
+      inferred, and compound surface level syntax
+    canonical_name_template: u_<zero_based_index>
+    unused_declaration_parameters: omitted
+  canonical_universe_profile_hash: d9e729134fcd6a086a58191810a9227062c66496ebe76b8da3c458a58b31cb61
+  renderer_semantic_contract:
+    hash_basis: sha256_canonical_renderer_semantics_v1
+    namespace: LeanFaith.GoalV1
+    signature: "renderClosedProp (e : Expr) : MetaM String"
+    named_delegate: "renderConstantType (ci : ConstantInfo) := renderClosedProp ci.type"
+    closed_expr_route: closed_expr_in_session
+    single_text_renderer: true
+    state_policy: withoutModifyingMCtx
+    ambient_context_policy: clear_local_context_and_local_instances_before_render
+    transparency_policy: Meta.TransparencyMode.default
+    preparation_policy: one instantiate_check_isProp_normalize pass per render or payload
+    metadata_policy: recursively_erase_before_check_hash_and_render
+    exception_policy: interrupt_and_runtime_exceptions_are_rethrown
+    anonymous_binder_policy: >-
+      open user-named outer Pis as locals; retain nondependent explicit anonymous or macro-scoped
+      generated Pis as target arrows; reject dependent or nonexplicit truly anonymous outer Pis
+    failure_codes:
+      - goal_v1_unresolved_expr_mvar
+      - goal_v1_unresolved_universe_mvar
+      - goal_v1_free_variable
+      - goal_v1_loose_bound_variable
+      - goal_v1_sorry_expr
+      - goal_v1_malformed_expr
+      - goal_v1_not_prop
+      - goal_v1_unsupported_anonymous_telescope_binder
+  renderer_semantic_hash: 0bec5429cc0e539841208be53cd52189a7b80cbdb4649ee2d45b84bd8a5ef1fd
+  render_context:
+    context_id: goal_v1_render_context_v1
+    renderer_semantic_hash: 0bec5429cc0e539841208be53cd52189a7b80cbdb4649ee2d45b84bd8a5ef1fd
+    universe_profile_id: goal_v1_first_occurrence_u_i_v1
+    universe_profile_hash: d9e729134fcd6a086a58191810a9227062c66496ebe76b8da3c458a58b31cb61
+    telescope: LeanFaith.GoalV1.withSupportedTelescope_nonreducing_v1
+    anonymous_arrow_handling: stop_named_telescope_and_preserve_target_arrow
+    goal_printer: Lean.Meta.ppGoal
+    presentation_goal_kind: syntheticOpaque_in_withoutModifyingMCtx
+    ambient_local_context: cleared_before_closed_expr_validation_and_rendering
+    transparency: Meta.TransparencyMode.default
+    options:
+      base: Options.empty
+      pp.universes: false
+      pp.coercions: true
+      pp.notation: true
+      pp.mvars: false
+      pp.inaccessibleNames: true
+      pp.implementationDetailHyps: true
+    render_width: 1000000
+    post_validator: goal_v1_targeted_structural_v2
+  render_context_hash: 5f44b6970f0902c968fc98a2659b26c1c9d0bcaef2960cd3ea73808f203f8f62
+  closed_expr_source_material:
+    raw_statement: exact declaration bytes when a declaration exists
+    proposition_text: >-
+      exact caller-retained proposition text when no declaration exists; audit-only and never used
+      for rendering or elaboration
+    constructed_expr_no_source_text: >-
+      both text fields absent with an explicit reason for structurally constructed Exprs
+    inverse_from_goal_text: forbidden
+  implementation_identity_fields:
+    - renderer_semantic_hash
+    - lean_renderer_sha256
+    - injected_helper_sha256
+    - python_module_sha256
+    - config_file_sha256
+    - implementation_set_hash
+  lean_emitted_post_validation:
+    routes: [closed_prop_expr, elaborated]
+    pipeline: [_canonicalize_elaborated_goal, validate_goal_v1]
+    bypass: forbidden
+    closed_expr_pair_failure: atomic
+  elaborated_post_validator_coverage:
+    regression_id: consistency_check_goal_field_1c6a6cca_goal_v1_v1
+    dataset: GuoxinChen/ConsistencyCheck
+    revision: 1c6a6cca0f87b48d4cccb49946d3b8fc57a1eef9
+    source_path: consistency_check.jsonl
+    source_file_sha256: 81cf6d9988625d84efbd8e1d6a0af4c234b2206da8350ee1d8bf547e612b1d47
+    fixture_kind: derived_goal_only_test_fixture
+    upstream_field: goal
+    ordered_projection_fields: [row_index, name, goal]
+    fixture_encoding: base64_of_gzip_mtime_zero_canonical_json
+    fixture_file_sha256: 8fe6d82e11e3db07c9b6e9eee3c1983e034d50c4c0e4e3a56f90366ebe6b6149
+    fixture_uncompressed_sha256: a0cf4ff5f74760712f7f526b87ee290781da036f97e22c3d122f8c4d9a2adf1f
+    row_count: 859
+    baseline_successes: 804
+    baseline_failures: 55
+    final_successes: 859
+    final_failures: 0
+    intended_layout_collapses: 9
+    layout_collapse_names:
+      - imo_2006_p3
+      - exercise_2_13
+      - exercise_2_29
+      - exercise_4_15a
+      - exercise_13_4b1
+      - exercise_13_4b2
+      - exercise_13_6
+      - exercise_16_6
+      - exercise_28_5
+    layout_collapse_names_hash: 9fbdaba24144e28543bb08e548244bcb460bc67069bd3d8c8e4a9f2a3449b6af
+    remaining_failure_classes: []
+    targeted_syntax_families:
+      - absolute_and_cardinality_bars
+      - target_leading_absolute_bars
+      - factorial_postfix
+      - positive_nat_and_postfix_floor
+      - set_image_and_big_operator_primes
+      - quantified_big_operators
+      - inner_product_and_floor_delimiters
+      - generated_name_suffixes_and_proof_placeholders
+      - structure_literals
+    receipt_hash: 094550140da0a000388f9f1a588da798ed431ad6615280b99212035aa51c82b8
   sorry_policy: >-
     VALID_WITH_SORRY, a nonempty sorries payload, or a warning/error containing "declaration uses
     `sorry`" or "declaration uses 'sorry'" fails the batch unless allow_sorry is true
@@ -141,10 +310,66 @@ sidecar_contract:
     - raw_statement_hash
     - declaration_kind
     - compile_context_id
+    - implementation_identity
     - typed_alpha_fingerprint
     - warnings
   raw_fields: [raw_statement, compile_context]
   model_facing_fields: [goal_v1]
+
+closed_expr_sidecar_contract:
+  route_id: closed_expr_in_session
+  record_fields:
+    - representation_id
+    - goal_v1
+    - goal_v1_source
+    - renderer_version
+    - spec_hash
+    - compile_context_id
+    - endpoint_id
+    - endpoint_role
+    - source_material_hash
+    - rendered_goal_hash
+    - provenance
+    - implementation_identity
+    - typed_alpha_fingerprint
+    - warnings
+  provenance_fields:
+    - expr_hash
+    - expr_hash_algorithm
+    - input_level_params
+    - canonical_level_params
+    - universe_profile_id
+    - universe_profile_hash
+    - render_scope_id
+    - render_context_id
+    - render_context_hash
+    - route_id
+    - expr_origin
+  source_material_kinds:
+    - raw_statement
+    - proposition_text
+    - constructed_expr_no_source_text
+  model_facing_fields: [goal_v1]
+
+consistency_check_coverage_regression:
+  regression_id: consistency_check_goal_field_1c6a6cca_goal_v1_v1
+  receipt_hash: 094550140da0a000388f9f1a588da798ed431ad6615280b99212035aa51c82b8
+  fixture_kind: derived_goal_only_test_fixture
+  upstream_field: goal
+  ordered_projection_fields: [row_index, name, goal]
+  fixture_path: >-
+    tests/unit/representations/fixtures/consistency_check_1c6a6cca_goals_v1.json.gz.b64
+  fixture_encoding: base64_of_gzip_mtime_zero_canonical_json
+  fixture_file_sha256: 8fe6d82e11e3db07c9b6e9eee3c1983e034d50c4c0e4e3a56f90366ebe6b6149
+  fixture_uncompressed_sha256: a0cf4ff5f74760712f7f526b87ee290781da036f97e22c3d122f8c4d9a2adf1f
+  upstream_rows: 859
+  baseline_successes: 804
+  baseline_failures: 55
+  final_successes: 859
+  final_failures: 0
+  intended_layout_collapses: 9
+  layout_collapse_names_hash: 9fbdaba24144e28543bb08e548244bcb460bc67069bd3d8c8e4a9f2a3449b6af
+  remaining_failure_classes: []
 
 one_example_smoke:
   case_id: cross_path_nat_lt

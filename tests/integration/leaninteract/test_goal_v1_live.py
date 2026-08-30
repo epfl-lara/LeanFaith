@@ -17,9 +17,12 @@ from leanfaith.config.paths import find_repo_root
 from leanfaith.lean.leaninteract_backend import BackendSettings, LeanInteractBackend
 from leanfaith.lean.protocol import LeanRequest, LeanResult, LeanStatus
 from leanfaith.representations.goal_v1 import (
+    ClosedExprInput,
+    ClosedExprSourceMaterial,
     CompileContext,
     ElaboratedInput,
     SurfaceRenderError,
+    render_closed_expr_in_session,
     render_elaborated_batch,
     render_surface,
 )
@@ -32,9 +35,11 @@ pytestmark = [
 _REPO_ROOT = find_repo_root(Path(__file__).parent)
 _FIXTURES = _REPO_ROOT / "tests" / "lean_fixtures"
 _CONFIG = _REPO_ROOT / "configs" / "representations" / "goal_v1_v1.yaml"
+_TRANSFORM_ENGINE = _REPO_ROOT / "LeanFaith" / "Meta" / "TransformEngine.lean"
 
 
 def _compile_context() -> CompileContext:
+    transform_engine = _import_stripped_transform_engine()
     return CompileContext(
         project_id="fixtures",
         project_revision="workspace",
@@ -42,14 +47,15 @@ def _compile_context() -> CompileContext:
         import_header="import LeanFaithFixtures",
         command_preamble="""namespace GoalV1ContextOpen
 def ContextNat : Type := Nat
-theorem contextRefl (n : ContextNat) : n = n := rfl
 end GoalV1ContextOpen
 namespace GoalV1ContextScope
 scoped notation "GoalV1ContextNat" => GoalV1ContextOpen.ContextNat
 end GoalV1ContextScope
-universe u""",
+universe u
+"""
+        + transform_engine,
         namespace_context=("GoalV1Structured",),
-        open_context=("GoalV1ContextOpen",),
+        open_context=("Lean", "Lean.Meta", "GoalV1ContextOpen"),
         scoped_context=("GoalV1ContextScope",),
         options={"Elab.async": False, "autoImplicit": False},
     )
@@ -81,6 +87,131 @@ class _DiagnosticOnlySorryBackend:
 
     def close(self) -> None:
         return None
+
+
+class _CapturingBackend:
+    """Capture the one direct-Expr request while reusing the live backend."""
+
+    def __init__(self, delegate: LeanInteractBackend) -> None:
+        self.delegate = delegate
+        self.requests: list[LeanRequest] = []
+        self.results: list[LeanResult] = []
+
+    def run(self, request: LeanRequest) -> LeanResult:
+        self.requests.append(request)
+        result = self.delegate.run(request)
+        self.results.append(result)
+        return result
+
+    def run_batch(self, requests: Sequence[LeanRequest]) -> list[LeanResult]:
+        raise AssertionError(f"direct Expr route must use one request, got {len(requests)}")
+
+    def close(self) -> None:
+        return None
+
+
+def _import_stripped_transform_engine() -> str:
+    source = _TRANSFORM_ENGINE.read_text(encoding="utf-8")
+    return "\n".join(line for line in source.splitlines() if not line.startswith("import "))
+
+
+def _closed_expr_live_body() -> str:
+    return '''run_meta do
+  let expectFailure
+      (caseId expectedCode : String) (action : MetaM String) : MetaM Unit := do
+    let observed? ←
+      try
+        let _ ← action
+        pure (none : Option String)
+      catch ex =>
+        if ex.isInterrupt then throw ex
+        pure (some (← ex.toMessageData.toString))
+    match observed? with
+    | none => throwError m!"{caseId}: expected {expectedCode}, but rendering succeeded"
+    | some observed =>
+        unless observed.contains expectedCode do
+          throwError m!"{caseId}: expected {expectedCode}, got {observed}"
+
+  let env ← getEnv
+  let constantCountBefore := env.constants.toList.length
+  let some namedCi := (← getEnv).find? ``LeanFaithPrivateFixture.publicComplex
+    | throwError "goal_v1_live_named_constant_missing"
+  let namedGoal ← LeanFaith.GoalV1.renderConstantType namedCi
+  let directGoal ← LeanFaith.GoalV1.renderClosedProp namedCi.type
+  unless namedGoal == directGoal do
+    throwError "goal_v1_live_named_direct_mismatch"
+  let annotatedGoal ← LeanFaith.GoalV1.renderClosedProp (.mdata {} namedCi.type)
+  unless annotatedGoal == directGoal do
+    throwError "goal_v1_live_metadata_changed_telescope_rendering"
+
+  let some sourceCi := (← getEnv).find? `lf_trivial
+    | throwError "goal_v1_live_source_constant_missing"
+  let sourceExpr := LeanFaith.Meta.TransformEngineHelper.lfTransformCanonicalType sourceCi
+  let candidates ← LeanFaith.Meta.TransformEngineHelper.lfWholeCandidates sourceExpr
+  let candidate? := candidates.find? fun candidate =>
+    candidate.family == "P21" && candidate.operation == "zetaIntroduce" &&
+      candidate.sitePath == "/"
+  let some candidate := candidate?
+    | throwError "goal_v1_live_structural_candidate_missing"
+  unless ← LeanFaith.Meta.TransformEngineHelper.lfCheckedProp candidate.candidate do
+    throwError "goal_v1_live_candidate_not_prop"
+  unless ← LeanFaith.Meta.TransformEngineHelper.lfWholeDefEq sourceExpr candidate.candidate do
+    throwError "goal_v1_live_candidate_not_whole_defeq"
+
+  let assigned ← mkFreshExprMVar (mkSort Level.zero)
+  assigned.mvarId!.assign (mkConst ``True)
+  let assignedText ← LeanFaith.GoalV1.renderClosedProp assigned
+  unless assignedText == "⊢ True" do
+    throwError "goal_v1_live_assigned_expr_mvar_not_instantiated"
+  withLocalDeclD `ambient (mkSort Level.zero) fun _ => do
+    let isolatedText ← LeanFaith.GoalV1.renderClosedProp (mkConst ``True)
+    unless isolatedText == "⊢ True" do
+      throwError "goal_v1_live_ambient_local_context_leaked"
+
+  expectFailure "expr_mvar" "goal_v1_unresolved_expr_mvar" do
+    let e ← mkFreshExprMVar (mkSort Level.zero)
+    LeanFaith.GoalV1.renderClosedProp e
+  expectFailure "universe_mvar" "goal_v1_unresolved_universe_mvar" do
+    let u ← mkFreshLevelMVar
+    let e : Expr := .forallE `α (.sort u) (mkConst ``True) .default
+    LeanFaith.GoalV1.renderClosedProp e
+  withLocalDeclD `p (mkSort Level.zero) fun p =>
+    expectFailure "free_variable" "goal_v1_free_variable" <|
+      LeanFaith.GoalV1.renderClosedProp p
+  expectFailure "loose_bvar" "goal_v1_loose_bound_variable" <|
+    LeanFaith.GoalV1.renderClosedProp (.bvar 0)
+  expectFailure "non_prop" "goal_v1_not_prop" <|
+    LeanFaith.GoalV1.renderClosedProp (mkConst ``Nat)
+  let structuralArrow : Expr :=
+    .forallE Name.anonymous (mkConst ``True) (mkConst ``True) .default
+  let arrowText ← LeanFaith.GoalV1.renderClosedProp structuralArrow
+  unless arrowText == "⊢ True → True" do
+    throwError "goal_v1_live_structural_arrow_not_preserved"
+  let generatedArrow ← mkArrow (mkConst ``True) (mkConst ``True)
+  let generatedArrowText ← LeanFaith.GoalV1.renderClosedProp generatedArrow
+  unless generatedArrowText == "⊢ True → True" do
+    throwError "goal_v1_live_generated_arrow_not_preserved"
+  let anonymousImplicit : Expr :=
+    .forallE Name.anonymous (mkSort Level.zero) (mkConst ``True) .implicit
+  expectFailure "anonymous_implicit_binder" "goal_v1_unsupported_anonymous_telescope_binder" <|
+    LeanFaith.GoalV1.renderClosedProp anonymousImplicit
+  let dependentAnonymous : Expr :=
+    .forallE Name.anonymous (mkConst ``Nat)
+      (mkApp3 (mkConst ``Eq [Level.succ Level.zero])
+        (mkConst ``Nat) (.bvar 0) (.bvar 0)) .default
+  expectFailure "dependent_anonymous_binder" "goal_v1_unsupported_anonymous_telescope_binder" <|
+    LeanFaith.GoalV1.renderClosedProp dependentAnonymous
+  expectFailure
+      "annotated_anonymous_binder" "goal_v1_unsupported_anonymous_telescope_binder" <|
+    LeanFaith.GoalV1.renderClosedProp (.mdata {} dependentAnonymous)
+
+  LeanFaith.GoalV1.emitClosedProp
+    "reference" "scope:goal-v1-live-pair" "loaded_constant_type" sourceExpr
+  LeanFaith.GoalV1.emitClosedProp
+    "candidate" "scope:goal-v1-live-pair" "sft1_transformed_expr" candidate.candidate
+  let constantCountAfter := (← getEnv).constants.toList.length
+  unless constantCountAfter == constantCountBefore do
+    throwError "goal_v1_live_closed_expr_route_modified_environment"'''
 
 
 def _multi_source_surface_pilot() -> tuple[int, int, int]:
@@ -166,7 +297,79 @@ def test_goal_v1_cross_path_smoke_then_bounded_pilot(
         assert replay.request_hash == elaborated_smoke.request_hash
         assert replay.sidecars == elaborated_smoke.sidecars
 
-        # Gate 2a: one bounded elaborated request covering difficult syntax.
+        # Gate 2: one Meta request renders a loaded ConstantInfo and an actual
+        # SFT1-engine Expr candidate through the shared API, then proves the
+        # direct API fails closed for every unsupported expression shape.
+        direct_inputs = (
+            ClosedExprInput(
+                endpoint_id="reference",
+                endpoint_role="reference",
+                expr_origin="loaded_constant_type",
+                source_material=ClosedExprSourceMaterial(
+                    kind="raw_statement",
+                    raw_statement="theorem lf_trivial : True := trivial",
+                ),
+            ),
+            ClosedExprInput(
+                endpoint_id="candidate",
+                endpoint_role="candidate",
+                expr_origin="sft1_transformed_expr",
+                source_material=ClosedExprSourceMaterial(
+                    kind="constructed_expr_no_source_text",
+                    absence_reason="P21 candidate constructed structurally by TransformEngine",
+                ),
+            ),
+        )
+        capturing_backend = _CapturingBackend(backend)
+        direct_pair = render_closed_expr_in_session(
+            capturing_backend,
+            inputs=direct_inputs,
+            compile_context=context,
+            render_scope_id="scope:goal-v1-live-pair",
+            session_body=_closed_expr_live_body(),
+            request_id="goal-v1-closed-expr-live-gate",
+        )
+        assert not direct_pair.failures
+        assert len(direct_pair.sidecars) == 2
+        assert len(capturing_backend.requests) == 1
+        assert len(capturing_backend.results) == 1
+        assert all(
+            sidecar.record.provenance.render_scope_id == "scope:goal-v1-live-pair"
+            for sidecar in direct_pair.sidecars
+        )
+        assert direct_pair.sidecars[0].core_text() != direct_pair.sidecars[1].core_text()
+        direct_request_code = capturing_backend.requests[0].code
+        assert direct_request_code is not None
+        assert direct_request_code.count("run_meta do") == 1
+        runtime_suffix = direct_request_code[direct_request_code.index("run_meta do") :]
+        for forbidden_call in (
+            "Term.elabTerm",
+            "lfTextElaboratesAs",
+            "lfCandidateEmission?",
+            "lfTransformPp",
+            "addDecl",
+            "addAndCompile",
+            "mkSorry",
+            "sorryAx",
+        ):
+            assert forbidden_call not in runtime_suffix
+        assert not any(
+            token in runtime_suffix
+            for token in ("theorem ", "lemma ", "axiom ", "opaque ", " := by")
+        )
+        for label in (
+            "expr_mvar",
+            "universe_mvar",
+            "free_variable",
+            "loose_bvar",
+            "non_prop",
+            "anonymous_implicit_binder",
+            "dependent_anonymous_binder",
+            "annotated_anonymous_binder",
+        ):
+            assert f'"{label}"' in runtime_suffix
+
+        # Gate 3a: one bounded elaborated request covering difficult syntax.
         long_conjunction = " ∧ ".join(["True"] * 24)
         pilot_inputs = (
             ElaboratedInput(
@@ -219,7 +422,7 @@ def test_goal_v1_cross_path_smoke_then_bounded_pilot(
                 _qualified("goalV1PilotStructuredContext"),
                 "theorem",
                 """theorem goalV1PilotStructuredContext (n : GoalV1ContextNat) :
-                  n = n := contextRefl n""",
+                  n = n := rfl""",
             ),
             ElaboratedInput(
                 _qualified("goalV1PilotLet"),
@@ -323,7 +526,7 @@ def test_goal_v1_cross_path_smoke_then_bounded_pilot(
             for item, sidecar in zip(pilot_inputs, pilot.sidecars, strict=True)
         }
         assert "inst✝ : Inhabited α" in by_name[_qualified("goalV1PilotDependent")]
-        assert "α : Type u" in by_name[_qualified("goalV1PilotDependent")]
+        assert "α : Type u_0" in by_name[_qualified("goalV1PilotDependent")]
         assert by_name[_qualified("goalV1PilotShadow")] == ("x✝ : ℕ\nx : Fin (x✝ + 1)\n⊢ True")
         assert by_name[_qualified("goalV1PilotNot")] == "p : Prop\nhp : p\n⊢ ¬¬p"
         long_goal = by_name[_qualified("goalV1PilotLong")]
@@ -373,10 +576,10 @@ def test_goal_v1_cross_path_smoke_then_bounded_pilot(
             surface_agreements += surface_sidecar.core_text() == elaborated_sidecar.core_text()
 
         assert len(pilot_inputs) == 19
-        assert surface_failures == 3
-        assert surface_agreements == 13
+        assert surface_failures == 2
+        assert surface_agreements == 14
 
-        # Gate 2b: any Lean-reported sorry fails closed, even when another
+        # Gate 3b: any Lean-reported sorry fails closed, even when another
         # declaration makes the overall batch INVALID.
         rejected_sorry_inputs = (
             ElaboratedInput(
@@ -412,7 +615,7 @@ def test_goal_v1_cross_path_smoke_then_bounded_pilot(
             item.declaration_name for item in rejected_sorry_inputs
         ]
 
-        # Gate 2c: incomplete binding syntax fails on both paths. This is one
+        # Gate 3c: incomplete binding syntax fails on both paths. This is one
         # bounded invalid fixture, not a corpus audit.
         incomplete_raw = "theorem goalV1PilotIncompleteLetChain : let x := 1; let y := x := by rfl"
         with pytest.raises(SurfaceRenderError, match="ambiguous_proof_boundary"):
@@ -437,7 +640,7 @@ def test_goal_v1_cross_path_smoke_then_bounded_pilot(
         assert not incomplete.sidecars
         assert len(incomplete.failures) == 1
 
-        # Gate 2d: the six pinned source-family fixtures stay purely surface-side.
+        # Gate 3d: the six pinned source-family fixtures stay purely surface-side.
         source_successes, source_expected_failures, source_elapsed_ms = (
             _multi_source_surface_pilot()
         )
@@ -450,6 +653,13 @@ def test_goal_v1_cross_path_smoke_then_bounded_pilot(
                 "replay_request_hash": replay.request_hash,
                 "first_elapsed_ms": elaborated_smoke.elapsed_ms,
                 "replay_elapsed_ms": replay.elapsed_ms,
+            },
+            "closed_expr_shared_request": {
+                "rows": len(direct_pair.sidecars),
+                "fail_closed_cases": 8,
+                "request_count": len(capturing_backend.requests),
+                "request_hash": direct_pair.request_hash,
+                "elapsed_ms": direct_pair.elapsed_ms,
             },
             "elaborated_pilot": {
                 "rows": len(pilot_inputs),
