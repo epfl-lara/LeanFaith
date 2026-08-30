@@ -33,6 +33,9 @@ read-only. Preserve untracked user work.
 
 1. **SFT1 bootstrap — 17,181 pairs**
    `/storage/milikic/leanfaith/experimental_mixed_supervision/firsthop_kimi_qwen1125_composition_f7b398af_v1`
+   The checked-in `src/leanfaith/corpus2/from_mixed_v0.py` is the reproducibility adapter that
+   projected this legacy source into the frozen corpus-v0 trainer files. It is not the builder for
+   the new value-first SFT1 release.
 2. **SFT1 depth-three — 4,031 pairs**
    `/storage/milikic/leanfaith/deterministic_v2/composition_third_hop_audits/frontier_084859ee_five_families_v2`
 3. **SFT1 provisional unary pool — 27,327 pairs** at
