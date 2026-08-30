@@ -9,10 +9,14 @@ from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 
 from leanfaith.config.hashing import hash_canonical, hash_file
-from leanfaith.config.loading import LoadedConfig, load_config
+from leanfaith.config.loading import LoadedConfig, load_config, load_yaml_mapping
 from leanfaith.config.paths import find_repo_root
 from leanfaith.sft2a.config import LoadedSFT2AConfig
-from leanfaith.sft2a.models import PilotReadinessConfig
+from leanfaith.sft2a.models import (
+    PilotReadinessConfig,
+    ProductionPilotReadinessConfig,
+    SFT2AProductionConfig,
+)
 
 DEFAULT_PILOT_READINESS_PATH = Path("configs/sft2a/pilot_readiness_v2.yaml")
 
@@ -31,12 +35,13 @@ class PilotReadinessError(RuntimeError):
 
 @dataclass(frozen=True, slots=True)
 class LoadedPilotReadiness:
-    config: PilotReadinessConfig
+    config: PilotReadinessConfig | ProductionPilotReadinessConfig
     path: Path
     config_hash: str
     repo_root: Path
     authorization: dict[str, object]
     historical_seal: dict[str, object]
+    exact_settings_smoke: dict[str, object] | None
 
 
 def _repo_file(repo_root: Path, relative: str, expected_sha256: str) -> Path:
@@ -99,7 +104,15 @@ def load_pilot_readiness(
     config_path = path or repo_root / DEFAULT_PILOT_READINESS_PATH
     if not config_path.is_absolute():
         config_path = repo_root / config_path
-    loaded: LoadedConfig[PilotReadinessConfig] = load_config(config_path, PilotReadinessConfig)
+    raw = load_yaml_mapping(config_path)
+    if raw.get("config_id") == "leanfaith_sft2a_diverse_root_opus5_pilot_v2":
+        loaded: LoadedConfig[PilotReadinessConfig | ProductionPilotReadinessConfig] = load_config(
+            config_path, PilotReadinessConfig
+        )
+    elif raw.get("config_id") == "leanfaith_sft2a_production_defaults_pilot_v1":
+        loaded = load_config(config_path, ProductionPilotReadinessConfig)
+    else:
+        raise PilotReadinessError("unsupported pilot readiness config ID")
     config = loaded.config
     base_path = _repo_file(
         repo_root,
@@ -134,6 +147,38 @@ def load_pilot_readiness(
         )
     )
     verify_historical_fable_seal(historical)
+    exact_settings_smoke: dict[str, object] | None = None
+    if isinstance(config, ProductionPilotReadinessConfig):
+        if not isinstance(base.config, SFT2AProductionConfig):
+            raise PilotReadinessError("production readiness requires the production config")
+        policy_binding = config.labeling_defaults_policy
+        smoke_binding = config.exact_settings_smoke_receipt
+        _repo_file(repo_root, policy_binding.path, policy_binding.sha256)
+        if policy_binding != base.config.labeling_defaults_policy:
+            raise PilotReadinessError("readiness policy differs from the production config")
+        exact_settings_smoke = _object(
+            _repo_file(repo_root, smoke_binding.path, smoke_binding.sha256)
+        )
+        run_root = Path(base.config.staging_root) / base.config.run_layout.run_output_subdir
+        expected_smoke = {
+            "production_config_sha256": hash_file(base.path),
+            "production_config_hash": base.config_hash,
+            "labeling_defaults_policy_sha256": policy_binding.sha256,
+            "one_root_manifest_sha256": hash_file(run_root / "manifest.json"),
+            "one_root_replay_receipt_sha256": hash_file(run_root / "reproducibility_receipt.json"),
+            "one_root_audit_manifest_sha256": hash_file(run_root / "audit_lemex_v1/manifest.json"),
+            "successful": True,
+        }
+        if any(exact_settings_smoke.get(key) != value for key, value in expected_smoke.items()):
+            raise PilotReadinessError("exact-settings smoke receipt or durable output differs")
+        providers = exact_settings_smoke.get("providers")
+        expected_providers = {
+            "proposer": base.config.proposer.model_dump(mode="json"),
+            "claude_judge": base.config.claude_judge.model_dump(mode="json"),
+            "lemex_auditor": base.config.lemex_auditor.model_dump(mode="json"),
+        }
+        if providers != expected_providers:
+            raise PilotReadinessError("exact-settings smoke provider pins differ")
     return LoadedPilotReadiness(
         config=config,
         path=config_path,
@@ -141,6 +186,7 @@ def load_pilot_readiness(
         repo_root=repo_root,
         authorization=authorization,
         historical_seal=historical,
+        exact_settings_smoke=exact_settings_smoke,
     )
 
 

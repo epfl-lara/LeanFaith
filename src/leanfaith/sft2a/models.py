@@ -256,6 +256,28 @@ class LegacyRejudgeV2Policy(StrictModel):
     ceilings: ExecutionCeilings
 
 
+class DetachedLaunchPolicy(StrictModel):
+    session_name: NonEmpty
+    resource_task: NonEmpty
+    lean_workers: Literal[1]
+    lean_rss_gib: Annotated[float, Field(strict=True)]
+    run_lock_relative_path: NonEmpty
+    combined_log_relative_path: NonEmpty
+    journal_relative_path: NonEmpty
+    terminal_status_relative_path: NonEmpty
+    launch_receipt_relative_path: NonEmpty
+    stdin_closed: Literal[True]
+    exclusive_run_lock: Literal[True]
+    duplicate_restart_forbidden: Literal[True]
+
+    @field_validator("lean_rss_gib")
+    @classmethod
+    def _exact_lean_rss(cls, value: float) -> float:
+        if value != 20.0:
+            raise ValueError("SFT2A detached pilot requires the measured 20 GiB claim")
+        return value
+
+
 class PilotReadinessConfig(StrictModel):
     schema_version: Literal[1]
     config_id: Literal["leanfaith_sft2a_diverse_root_opus5_pilot_v2"]
@@ -285,6 +307,15 @@ class PilotReadinessConfig(StrictModel):
         if self.status == "ready_not_authorized" and self.legacy_rejudge.authorized:
             raise ValueError("readiness config cannot authorize legacy rejudging")
         return self
+
+
+class ProductionPilotReadinessConfig(PilotReadinessConfig):
+    config_id: Literal[  # type: ignore[assignment]
+        "leanfaith_sft2a_production_defaults_pilot_v1"
+    ]
+    labeling_defaults_policy: ArtifactBinding
+    exact_settings_smoke_receipt: ArtifactBinding
+    detached_launch: DetachedLaunchPolicy
 
 
 class SFT2AConfig(StrictModel):
@@ -326,6 +357,14 @@ class SFT2AOpusConfig(SFT2AConfig):
     smoke_ceilings: ExecutionCeilings
     pilot: PilotPlan
     legacy_rejudge: LegacyRejudgePolicy
+
+
+class SFT2AProductionConfig(SFT2AOpusConfig):
+    """Additive active-default smoke and production-pilot contract."""
+
+    config_id: Literal["leanfaith_sft2a_production_pilot_v1"]  # type: ignore[assignment]
+    status: Literal["production_defaults_smoke_only"]  # type: ignore[assignment]
+    labeling_defaults_policy: ArtifactBinding
 
 
 class ProposerOutput(StrictModel):

@@ -11,11 +11,21 @@ from pathlib import Path, PurePosixPath
 from leanfaith.config.hashing import hash_file, sha256_hex
 from leanfaith.config.loading import LoadedConfig, load_config, load_yaml_mapping
 from leanfaith.config.paths import find_repo_root
-from leanfaith.sft2a.models import ArtifactBinding, ProviderPin, SFT2AConfig, SFT2AOpusConfig
+from leanfaith.sft2a.models import (
+    ArtifactBinding,
+    ProviderPin,
+    SFT2AConfig,
+    SFT2AOpusConfig,
+    SFT2AProductionConfig,
+)
 
 DEFAULT_CONFIG_PATH = Path("configs/sft2a/one_root_v1.yaml")
 OPUS_CONFIG_PATH = Path("configs/sft2a/one_root_opus5_v1.yaml")
-SFT2AAnyConfig = SFT2AConfig | SFT2AOpusConfig
+SFT2AAnyConfig = SFT2AConfig | SFT2AOpusConfig | SFT2AProductionConfig
+
+_EXPECTED_LABELING_DEFAULTS_SHA256 = (
+    "4554a071b06b1af9015b253b5e64b2a0a4d013630e5224ef7729bbf65757646f"
+)
 
 _EXPECTED_REPR = {
     "freeze_commit": "176a783842c5a73b84413dfa8347670608b615d9",
@@ -150,6 +160,42 @@ def _verify_repr(config: SFT2AAnyConfig, repo_root: Path) -> None:
             )
 
 
+def _verify_labeling_defaults(config: SFT2AProductionConfig, repo_root: Path) -> None:
+    binding = config.labeling_defaults_policy
+    if binding.sha256 != _EXPECTED_LABELING_DEFAULTS_SHA256:
+        raise SFT2AConfigError("production config is not bound to the active SFT2 defaults")
+    path = _repo_artifact(repo_root, binding)
+    policy = load_yaml_mapping(path)
+    if policy.get("status") != "active_default":
+        raise SFT2AConfigError("bound SFT2 labeling policy is not active")
+    providers = policy.get("providers")
+    if not isinstance(providers, dict):
+        raise SFT2AConfigError("bound SFT2 labeling policy lacks providers")
+    expected = {
+        "claude": config.claude_judge,
+        "codex": config.proposer,
+        "lemex": config.lemex_auditor,
+    }
+    for name, pin in expected.items():
+        provider = providers.get(name)
+        if not isinstance(provider, dict):
+            raise SFT2AConfigError(f"bound SFT2 labeling policy lacks {name}")
+        observed = {
+            "cli": provider.get("cli"),
+            "model": provider.get("model"),
+            "effort": provider.get("effort"),
+            "server_revision_status": provider.get("server_revision_status"),
+        }
+        frozen = {
+            "cli": pin.cli,
+            "model": pin.model,
+            "effort": pin.effort,
+            "server_revision_status": pin.server_revision_status,
+        }
+        if observed != frozen:
+            raise SFT2AConfigError(f"production {name} pin differs from active defaults")
+
+
 def verify_provider_binary(pin: ProviderPin) -> None:
     configured = Path(pin.binary_path).resolve(strict=True)
     discovered_text = shutil.which(pin.cli)
@@ -185,10 +231,14 @@ def load_sft2a_config(
         loaded: LoadedConfig[SFT2AAnyConfig] = load_config(config_path, SFT2AConfig)
     elif config_id == "leanfaith_sft2a_one_root_opus5_v1":
         loaded = load_config(config_path, SFT2AOpusConfig)
+    elif config_id == "leanfaith_sft2a_production_pilot_v1":
+        loaded = load_config(config_path, SFT2AProductionConfig)
     else:
         raise SFT2AConfigError(f"unsupported SFT2A config_id: {config_id!r}")
     config = loaded.config
     _verify_repr(config, repo_root)
+    if isinstance(config, SFT2AProductionConfig):
+        _verify_labeling_defaults(config, repo_root)
     proposer_prompt_path = _repo_artifact(repo_root, config.prompts.codex_proposer)
     judge_prompt_path = _repo_artifact(repo_root, config.prompts.blinded_claude_judge)
     proposer_schema_path = _repo_artifact(repo_root, config.schemas.codex_proposer_output)

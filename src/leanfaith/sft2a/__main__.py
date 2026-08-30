@@ -7,13 +7,19 @@ import json
 from pathlib import Path
 
 from leanfaith.sft2a.config import load_sft2a_config
+from leanfaith.sft2a.detached import (
+    launch_detached_pilot,
+    pilot_health,
+    run_detached_worker,
+)
 from leanfaith.sft2a.layout import run_paths
 from leanfaith.sft2a.legacy import adapt_legacy
 from leanfaith.sft2a.legacy_rejudge import (
     prepare_legacy_opus_sample,
     run_legacy_opus_rejudge,
 )
-from leanfaith.sft2a.pilot import prepare_pilot_sample, run_multi_root_pilot
+from leanfaith.sft2a.pilot import PilotError, prepare_pilot_sample, verify_pilot_replay
+from leanfaith.sft2a.pilot_audit import run_pilot_lemex_audit
 from leanfaith.sft2a.pipeline import run_lemex_audit, run_one_root, verify_one_root_replay
 from leanfaith.sft2a.readiness import load_pilot_readiness
 from leanfaith.sft2a.release import compare_fable_and_opus, materialize_post_audit_core
@@ -33,6 +39,12 @@ def main() -> int:
     subcommands.add_parser("compare-fable-opus")
     subcommands.add_parser("prepare-diverse-pilot")
     subcommands.add_parser("run-diverse-pilot")
+    subcommands.add_parser("verify-pilot-replay")
+    subcommands.add_parser("run-pilot-lemex-audit")
+    subcommands.add_parser("launch-authorized-pilot")
+    subcommands.add_parser("resume-authorized-pilot")
+    subcommands.add_parser("pilot-health")
+    subcommands.add_parser("detached-pilot-worker")
     subcommands.add_parser("prepare-legacy-opus-sample")
     subcommands.add_parser("run-legacy-opus-rejudge")
     subcommands.add_parser("materialize-fable-post-audit-core")
@@ -43,12 +55,19 @@ def main() -> int:
         in {
             "run-one-root",
             "run-lemex-audit",
+            "detached-pilot-worker",
         },
     )
     readiness_commands = {
         "verify-pilot-readiness",
         "prepare-diverse-pilot",
         "run-diverse-pilot",
+        "verify-pilot-replay",
+        "run-pilot-lemex-audit",
+        "launch-authorized-pilot",
+        "resume-authorized-pilot",
+        "pilot-health",
+        "detached-pilot-worker",
         "prepare-legacy-opus-sample",
         "run-legacy-opus-rejudge",
     }
@@ -106,8 +125,27 @@ def main() -> int:
         assert readiness is not None
         result = prepare_pilot_sample(loaded, readiness)
     elif arguments.command == "run-diverse-pilot":
+        raise PilotError(
+            "the production pilot may run only through launch-authorized-pilot under tmux"
+        )
+    elif arguments.command == "verify-pilot-replay":
         assert readiness is not None
-        result = run_multi_root_pilot(loaded, readiness)
+        result = verify_pilot_replay(loaded, readiness)
+    elif arguments.command == "run-pilot-lemex-audit":
+        assert readiness is not None
+        result = run_pilot_lemex_audit(loaded, readiness)
+    elif arguments.command == "launch-authorized-pilot":
+        assert readiness is not None
+        result = launch_detached_pilot(loaded, readiness, resume=False)
+    elif arguments.command == "resume-authorized-pilot":
+        assert readiness is not None
+        result = launch_detached_pilot(loaded, readiness, resume=True)
+    elif arguments.command == "pilot-health":
+        assert readiness is not None
+        result = pilot_health(loaded, readiness)
+    elif arguments.command == "detached-pilot-worker":
+        assert readiness is not None
+        result = run_detached_worker(loaded, readiness)
     elif arguments.command == "prepare-legacy-opus-sample":
         assert readiness is not None
         result = prepare_legacy_opus_sample(loaded, readiness)

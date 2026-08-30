@@ -27,6 +27,7 @@ from leanfaith.sft2a.models import (
     JudgeOutput,
     ProposerOutput,
     SFT2AOpusConfig,
+    SFT2AProductionConfig,
     SlotConfig,
 )
 from leanfaith.sft2a.prompts import (
@@ -670,6 +671,10 @@ def run_one_root(
 
     if isinstance(loaded.config, SFT2AOpusConfig) and enforce_smoke_ceilings:
         ceiling = loaded.config.smoke_ceilings
+        if isinstance(loaded.config, SFT2AProductionConfig) and any(
+            call.cost_usd is None for call in claude_calls
+        ):
+            raise OneRootPipelineError("production smoke Opus call lacks reported cost")
         opus_spend = sum(call.cost_usd or 0.0 for call in claude_calls if not call.cache_hit)
         if len(all_provider_calls) > ceiling.maximum_provider_calls:
             raise OneRootPipelineError("one-root provider-call ceiling exceeded")
@@ -679,7 +684,7 @@ def run_one_root(
             raise OneRootPipelineError("one-root Opus-call ceiling exceeded")
         if opus_spend > ceiling.maximum_reported_opus_spend_usd:
             raise OneRootPipelineError("one-root reported Opus spend ceiling exceeded")
-        if not retry_slots:
+        if not retry_slots and not isinstance(loaded.config, SFT2AProductionConfig):
             if any(not call.cache_hit for call in proposer_calls):
                 raise OneRootPipelineError("Opus smoke unexpectedly executed a proposer call")
             if any(not result.cache_hit for result in all_lean_results):
@@ -687,9 +692,13 @@ def run_one_root(
 
     final_manifest: dict[str, object] = {
         "version": (
-            "leanfaith_sft2a_one_root_opus5_manifest_v1"
-            if isinstance(loaded.config, SFT2AOpusConfig)
-            else "leanfaith_sft2a_one_root_manifest_v1"
+            "leanfaith_sft2a_one_root_production_defaults_manifest_v1"
+            if isinstance(loaded.config, SFT2AProductionConfig)
+            else (
+                "leanfaith_sft2a_one_root_opus5_manifest_v1"
+                if isinstance(loaded.config, SFT2AOpusConfig)
+                else "leanfaith_sft2a_one_root_manifest_v1"
+            )
         ),
         "config_hash": loaded.config_hash,
         "config_file_sha256": hash_file(loaded.path),

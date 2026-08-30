@@ -7,6 +7,7 @@ from collections import Counter, defaultdict
 from collections.abc import Mapping, Sequence
 from dataclasses import replace
 from pathlib import Path, PurePosixPath
+from typing import Literal
 
 from leanfaith.config.hashing import canonical_json_bytes, hash_canonical, hash_file
 from leanfaith.representations.views import signature_near_dup_hash
@@ -14,11 +15,15 @@ from leanfaith.sft2a.budget import BudgetedProvider, PersistentProviderBudget
 from leanfaith.sft2a.config import LoadedSFT2AConfig
 from leanfaith.sft2a.dedup import PersistentCandidateRegistry
 from leanfaith.sft2a.layout import run_paths
-from leanfaith.sft2a.lean_oracle import SignatureOracle
+from leanfaith.sft2a.lean_oracle import SignatureOracle, SignatureOracleResult
 from leanfaith.sft2a.legacy import _atomic_exact, _blocklist
 from leanfaith.sft2a.models import CompileContextConfig, OneRootConfig, SFT2AOpusConfig
 from leanfaith.sft2a.pipeline import StructuredProvider, run_one_root
-from leanfaith.sft2a.providers import claude_judge_provider, proposer_provider
+from leanfaith.sft2a.providers import (
+    ProviderCallResult,
+    claude_judge_provider,
+    proposer_provider,
+)
 from leanfaith.sft2a.readiness import (
     LoadedPilotReadiness,
     implementation_identity,
@@ -241,6 +246,8 @@ def consolidate_pilot_quality(
     implementation: Mapping[str, str],
     budget_snapshot: Mapping[str, object],
     dedup_snapshot: Mapping[str, object],
+    audit_manifest: Mapping[str, object] | None = None,
+    artifact_stem: str = "pilot_quality",
 ) -> dict[str, object]:
     """Write one quality/cost/throughput view across all completed pilot roots."""
 
@@ -295,7 +302,11 @@ def consolidate_pilot_quality(
     projected_scale = 50_000
     projected_factor = 0.0 if roots == 0 else projected_scale / roots
     quality: dict[str, object] = {
-        "version": "leanfaith_sft2a_pilot_quality_manifest_v1",
+        "version": (
+            "leanfaith_sft2a_pilot_quality_manifest_v1"
+            if audit_manifest is not None
+            else "leanfaith_sft2a_pilot_pre_audit_quality_manifest_v1"
+        ),
         "sample_sha256": sample_manifest.get("sample_sha256"),
         "sample_manifest_sha256": hash_file(output / "sample_manifest.json"),
         "root_count": roots,
@@ -332,6 +343,19 @@ def consolidate_pilot_quality(
         "publication_allowed": False,
         "scale_50k_started": False,
     }
+    if audit_manifest is not None:
+        disagreements = int(_number(audit_manifest, "disagreements"))
+        quality["audit"] = {
+            "manifest_sha256": hash_file(output / "audit_lemex_v1/manifest.json"),
+            "pilot_replay_receipt_sha256": audit_manifest.get("pilot_replay_receipt_sha256"),
+            "population_rows": audit_manifest.get("population_rows"),
+            "selected_rows": audit_manifest.get("selected_rows"),
+            "agreements": audit_manifest.get("agreements"),
+            "disagreements": disagreements,
+            "artifacts": audit_manifest.get("artifacts"),
+        }
+        quality["systematic_disagreement_blocks_scale"] = disagreements > 0
+        quality["scale_gate"] = "blocked_disagreement" if disagreements else "audit_passed"
     report_lines = [
         "# SFT2A bounded pilot quality report",
         "",
@@ -351,12 +375,27 @@ def consolidate_pilot_quality(
             f"${_number(budget_snapshot, 'reported_opus_spend_usd'):.6f}."
         ),
         "- The 50K figures are linear projections only; they do not authorize scaling.",
-        "",
     ]
-    report_path = output / "pilot_quality_report.md"
+    if audit_manifest is not None:
+        report_lines.extend(
+            [
+                (
+                    f"- Lemex audit: {audit_manifest.get('agreements')} agreements and "
+                    f"{audit_manifest.get('disagreements')} disagreements over "
+                    f"{audit_manifest.get('selected_rows')} selected rows."
+                ),
+                (
+                    "- Scale gate: blocked by systematic disagreement."
+                    if bool(audit_manifest.get("systematic_disagreement_blocks_scale"))
+                    else "- Scale gate: audit has no systematic disagreement."
+                ),
+            ]
+        )
+    report_lines.append("")
+    report_path = output / f"{artifact_stem}_report.md"
     _atomic_exact(report_path, "\n".join(report_lines).encode())
     quality["report_sha256"] = hash_file(report_path)
-    _atomic_exact(output / "pilot_quality_manifest.json", canonical_json_bytes(quality) + b"\n")
+    _atomic_exact(output / f"{artifact_stem}_manifest.json", canonical_json_bytes(quality) + b"\n")
     return quality
 
 
@@ -435,6 +474,7 @@ def run_multi_root_pilot(
                 root_manifests.append(
                     {
                         "root_id": root_model.root_id,
+                        "manifest_path": str(root_manifest_path.relative_to(output)),
                         "manifest_sha256": hash_file(root_manifest_path),
                         "replayed": result.replayed,
                     }
@@ -450,9 +490,11 @@ def run_multi_root_pilot(
         implementation=identity,
         budget_snapshot=budget_snapshot,
         dedup_snapshot=dedup_snapshot,
+        artifact_stem="pilot_quality_pre_audit",
     )
     manifest = {
         "version": "leanfaith_sft2a_diverse_root_pilot_v2",
+        "config_hash": loaded.config_hash,
         "readiness_config_hash": readiness.config_hash,
         "authorization_receipt_sha256": readiness.config.authorization_receipt.sha256,
         "sample_manifest_sha256": hash_file(output / "sample_manifest.json"),
@@ -462,14 +504,175 @@ def run_multi_root_pilot(
         "cross_root_candidate_registry": dedup_snapshot,
         "ceilings": readiness.config.ceilings.model_dump(mode="json"),
         "root_manifests": root_manifests,
-        "pilot_quality_manifest_sha256": hash_file(output / "pilot_quality_manifest.json"),
-        "pilot_quality_report_sha256": quality["report_sha256"],
+        "pre_audit_quality_manifest_sha256": hash_file(
+            output / "pilot_quality_pre_audit_manifest.json"
+        ),
+        "pre_audit_quality_report_sha256": quality["report_sha256"],
         "implementation": identity,
         "published": False,
         "scale_50k_started": False,
+        "pilot_completed": True,
     }
     _atomic_exact(output / "manifest.json", canonical_json_bytes(manifest) + b"\n")
     return manifest
+
+
+def _tree_snapshot(root: Path, *, excluded_prefixes: tuple[str, ...] = ()) -> dict[str, str]:
+    if not root.exists():
+        return {}
+    result: dict[str, str] = {}
+    for path in sorted(root.rglob("*")):
+        if not path.is_file() or path.is_symlink():
+            continue
+        relative = path.relative_to(root).as_posix()
+        if any(
+            relative == prefix or relative.startswith(prefix + "/") for prefix in excluded_prefixes
+        ):
+            continue
+        result[relative] = hash_file(path)
+    return result
+
+
+class _ForbiddenProvider:
+    def call(self, *, prompt: str, input_ids: Sequence[str]) -> ProviderCallResult:
+        del prompt, input_ids
+        raise PilotError("pilot replay attempted a provider call")
+
+
+class _ForbiddenOracle:
+    def elaborate(
+        self,
+        signature: str,
+        *,
+        endpoint_role: Literal["reference", "candidate"],
+    ) -> SignatureOracleResult:
+        del signature, endpoint_role
+        raise PilotError("pilot replay attempted a Lean request")
+
+    def close(self) -> None:
+        return None
+
+
+def _replay_snapshot(
+    loaded: LoadedSFT2AConfig,
+    output: Path,
+) -> dict[str, object]:
+    return {
+        "pilot": _tree_snapshot(
+            output,
+            excluded_prefixes=(
+                "pilot_reproducibility_receipt.json",
+                "audit_lemex_v1",
+                "pilot_quality_manifest.json",
+                "pilot_quality_report.md",
+                "detached",
+            ),
+        ),
+        "providers": {
+            pin.provider_id: _tree_snapshot(
+                Path(loaded.config.staging_root) / "provider_calls" / pin.provider_id
+            )
+            for pin in (
+                loaded.config.proposer,
+                loaded.config.claude_judge,
+                loaded.config.lemex_auditor,
+            )
+        },
+        "lean_cache": _tree_snapshot(Path(loaded.config.staging_root) / "lean_cache"),
+        "lean_raw_responses": _tree_snapshot(
+            Path(loaded.config.staging_root) / "lean_raw_responses"
+        ),
+    }
+
+
+def verify_pilot_replay(
+    loaded: LoadedSFT2AConfig,
+    readiness: LoadedPilotReadiness,
+) -> dict[str, object]:
+    """Replay every completed root with forbidden execution and seal durable hashes."""
+
+    output = _pilot_output(loaded, readiness)
+    manifest_path = output / "manifest.json"
+    if not manifest_path.is_file():
+        raise PilotError("pilot replay requires a completed pilot manifest")
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    if not isinstance(manifest, dict) or manifest.get("pilot_completed") is not True:
+        raise PilotError("pilot manifest is not successfully complete")
+    if (
+        manifest.get("config_hash") != loaded.config_hash
+        or manifest.get("readiness_config_hash") != readiness.config_hash
+    ):
+        raise PilotError("pilot replay config lineage differs")
+    sample_rows = [json.loads(line) for line in (output / "sample.jsonl").read_text().splitlines()]
+    if len(sample_rows) != readiness.config.ceilings.maximum_roots:
+        raise PilotError("pilot replay root population differs from its ceiling")
+    manifest_refs = manifest.get("root_manifests")
+    if not isinstance(manifest_refs, list):
+        raise PilotError("pilot manifest lacks root receipts")
+    refs = {str(item.get("root_id")): item for item in manifest_refs if isinstance(item, dict)}
+    if len(refs) != len(sample_rows):
+        raise PilotError("pilot root receipt population differs")
+    before = _replay_snapshot(loaded, output)
+    forbidden_provider = _ForbiddenProvider()
+    forbidden_oracle = _ForbiddenOracle()
+    replayed_roots: list[str] = []
+    for row in sample_rows:
+        root_model = OneRootConfig.model_validate(row["root"])
+        root_config = loaded.config.model_copy(update={"root": root_model})
+        root_loaded = replace(
+            loaded,
+            config=root_config,
+            config_hash=hash_canonical(root_config.model_dump(mode="json")),
+        )
+        context = cast_mapping(cast_mapping(row["root"]).get("compile_context"))
+        root_output = (
+            output
+            / "roots"
+            / str(context.get("project_id"))
+            / hash_canonical(root_model.root_id)[:16]
+        )
+        reference = refs.get(root_model.root_id)
+        if (
+            reference is None
+            or reference.get("manifest_path")
+            != str((root_output / "manifest.json").relative_to(output))
+            or reference.get("manifest_sha256") != hash_file(root_output / "manifest.json")
+        ):
+            raise PilotError("pilot replay root manifest receipt differs")
+        result = run_one_root(
+            root_loaded,
+            proposer=forbidden_provider,
+            claude_judge=forbidden_provider,
+            oracle=forbidden_oracle,
+            output_root=root_output,
+            enforce_expected_reference_goal=False,
+            enforce_smoke_ceilings=False,
+        )
+        if not result.replayed:
+            raise PilotError("pilot root did not take the immutable replay path")
+        replayed_roots.append(root_model.root_id)
+    after = _replay_snapshot(loaded, output)
+    if before != after:
+        raise PilotError("pilot replay changed a durable artifact")
+    receipt = {
+        "version": "leanfaith_sft2a_pilot_replay_receipt_v1",
+        "config_hash": loaded.config_hash,
+        "readiness_config_hash": readiness.config_hash,
+        "pilot_manifest_sha256": hash_file(manifest_path),
+        "root_count": len(replayed_roots),
+        "replayed_roots": replayed_roots,
+        "durable_snapshot_hash": hash_canonical(before),
+        "durable_artifact_hashes": before,
+        "provider_calls_executed": 0,
+        "lean_requests_executed": 0,
+        "durable_artifacts_changed": 0,
+        "reproducible": True,
+    }
+    _atomic_exact(
+        output / "pilot_reproducibility_receipt.json",
+        canonical_json_bytes(receipt) + b"\n",
+    )
+    return receipt
 
 
 __all__ = [
@@ -477,4 +680,5 @@ __all__ = [
     "consolidate_pilot_quality",
     "prepare_pilot_sample",
     "run_multi_root_pilot",
+    "verify_pilot_replay",
 ]
