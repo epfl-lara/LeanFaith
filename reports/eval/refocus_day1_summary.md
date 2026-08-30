@@ -678,6 +678,53 @@ Seven new offline tests are green; the combined v2+v3 Lean driver compiles in th
 environment; the 47 focused public-repair/negative tests, collection, Ruff/format, and strict mypy
 across 240 source files are green.
 
+## Implication-aware v3 fixed-sample feasibility (`c9f4c46`, `3582e28`)
+
+The bounded precheck reused the exact frozen 72/12/12 declaration names and compiled them once with
+the implication-aware v3 engine. Primary Lean exited 0 in **78.684 seconds** under the 120-second
+stage timeout with empty stderr and a clean pinned mathlib worktree. It emitted **387** typed,
+truth-table-separated candidates from 95/96 declarations. All 387 passed the unchanged public-only
+golden-blocklist, near-duplicate, and 1,024-token screens, so there were zero exclusions. The pool
+contains 212 N22 and 175 N21 candidates:
+
+- `impConverse`: 66; `impToAnd`: 66; `impToIff`: 66
+- `negateAtom`: 175; `iffToImp`: 10; `andToOr`: 3; `orToAnd`: 1
+
+The deterministic, one-per-declaration, duplicate-pair-safe solver found an exact 24-row feasible
+subset after 66 states. It has the intended **16 train / 4 validation / 4 test** shape, **15 N22 /
+9 N21** family mix, and operation counts `negateAtom=9`, `iffToImp=5`, `impConverse=3`,
+`impToAnd=3`, `impToIff=2`, `andToOr=1`, and `orToAnd=1`. The largest operation-kind share is
+therefore 9/24 = 37.5%, below the 40% cap; N22 is 62.5%, above the 60% floor.
+
+The feasibility gate passes. Its authorization is intentionally narrow:
+`fixed_subset_audit_and_canary_authorized=true`, while `sample_size_increase_authorized=false`,
+`scale_authorized=false`, and `training_authorized=false`. This precheck launched no audit or
+canary, made no external call, and did not access `final_test`.
+
+The first technical artifact at the same root name without the `_balanced` suffix also met the
+formal minimums, but its select-first tie-break produced a poor 1/11/12 train/validation/test
+shape. It is retained as superseded provenance and authorizes nothing. The official balanced
+artifact below freezes the corrected chooser before audit or canary fitting.
+
+Frozen official root:
+`/storage/milikic/leanfaith/corpus2/s1_public_negative_skeleton_feasibility_v3_4fd2c6a_d568c8c_balanced/`.
+
+| artifact | SHA-256 |
+|---|---|
+| manifest | `e02af59acf32fa0ee011cf00edab33f08aa9af7ec3e557d2469fd32f93a8b475` |
+| summary | `ff3e89339172062a22557541d3620c15e888af9ace922e62f4eeeb8757a965e2` |
+| feasible selection | `0358e0297b3addf01da8a8da13f8c9c44d74858a89f10e54fb708ca0b306289f` |
+| candidate pool | `916da404e2d57d3d4b85e49574a2e82e35f5e227983ffeb2fdd6484d3c09f430` |
+| screened candidate pool | `916da404e2d57d3d4b85e49574a2e82e35f5e227983ffeb2fdd6484d3c09f430` |
+| primary process | `88a2d262ebedbe370e860188ec2b726ae1423ae6e913d74658ea7047e99cedcf` |
+
+Verification: independent artifact replay revalidates the exact v2 selection, implication-smoke
+authorization, both engine hashes, generated 96-name driver, all 387 canonical candidate rows,
+screening, the bounded deterministic solution, output hashes, privacy boundary, and no-audit /
+no-canary / no-training decision. Nine new offline tests are green; the 37 focused skeleton tests,
+collection, Ruff/format, and strict mypy across 241 source files are green. Both tmux sessions are
+retained with exit status 0.
+
 ## Assets produced today (all on `main` unless noted)
 
 - Golden partition frozen: 910 expert `final_test` (sealed) / 821 dev / 819 golden_train
@@ -746,18 +793,20 @@ across 240 source files are green.
   sample—as the next bounded repair.
 - Implication-aware v3 one-declaration smoke complete: nine typed candidates generated on the exact
   frozen train theorem; the required root `impToIff` candidate passed exhaustive eight-valuation
-  separation and exact independent reconstruction. Only a fixed-sample distribution-feasibility
-  precheck is authorized next.
+  separation and exact independent reconstruction. That smoke authorized only the fixed-sample
+  distribution-feasibility precheck now recorded below.
+- Implication-aware v3 fixed-sample feasibility complete: 387 screened candidates from the same 96
+  names yielded a balanced 16/4/4 exact-24 subset with 62.5% N22 and no operation above 37.5%.
+  Only independent audit of that frozen subset and the unchanged canary gates are authorized next.
 
 ## Next
 
-1. On the same 72/12/12 names, require a deterministic subset satisfying all yield/family/operation
-   constraints before fitting canaries. Stop if infeasible; do not enlarge to 500 declarations.
-2. Only after feasibility passes, rerun the unchanged full-canary and paired-canary gates.
-3. Rebuild a new versioned public corpus only after the small pilot passes. Require all current
+1. Independently reconstruct the frozen 24-row balanced subset, then rerun the unchanged
+   full-canary and paired-canary gates. Reuse the frozen pool; do not enlarge to 500 declarations.
+2. Rebuild a new versioned public corpus only after the small pilot passes. Require all current
    gates and lexical-canary balanced accuracy `<0.72`; do not train the failed 7,488-row
    diagnostic or relax the gate.
-4. After that gate passes, smoke one batch/checkpoint, retrain both S1 arms, and score only golden
+3. After that gate passes, smoke one batch/checkpoint, retrain both S1 arms, and score only golden
    dev against S1v0 chunks-CPT (0.849 AUPRC / 0.684 calibrated balanced accuracy).
-5. Run Track T-B Stage A separately after its registry and gap/cloze diagnostics are frozen.
+4. Run Track T-B Stage A separately after its registry and gap/cloze diagnostics are frozen.
    Keep `final_test` sealed and unscored.

@@ -21,7 +21,7 @@
 >   negative families demoted to silver until separator/witness-upgraded, and compute expanded to
 >   the RunAI cluster (A100/H100/H200).
 
-## Execution status ledger (2026-08-30, Queues 1–6 + S1v1 follow-up + P4 + public-repair diagnostic + N21/N22 v1/v2 pilots + implication smoke executed — read the seal erratum below)
+## Execution status ledger (2026-08-30, Queues 1–6 + S1v1 follow-up + P4 + public-repair diagnostic + N21/N22 v1/v2 pilots + implication smoke + fixed feasibility executed — read the seal erratum below)
 
 Full numbers: `reports/eval/refocus_day1_summary.md`. Treat this ledger plus hashed run manifests
 as current execution state; the later track prose preserves approved design and historical
@@ -200,6 +200,18 @@ starting-point context, and may describe work that the ledger has since complete
   remain unauthorized, and `final_test` was not accessed. Frozen smoke:
   `/storage/milikic/leanfaith/corpus2/s1_public_negative_skeleton_implication_smoke_v1_4fd2c6a_d568c8c/`
   (manifest SHA-256 `6d1de2b05fa7c8ab3e3f4fe043ad3d9a684c07fd53c3b78d14b1dcb25aa55200`).
+- **IMPLICATION-AWARE V3 FIXED-SAMPLE FEASIBILITY COMPLETE / PASSED**: `c9f4c46` adds a
+  replayable, state-bounded precheck and `3582e28` freezes the balanced chooser preference. On the
+  exact same 72/12/12 names, one 78.684-second Lean pass emitted 387 typed candidates from 95
+  declarations: 212 N22 and 175 N21, with zero screening exclusions. The deterministic solver
+  found the intended exact 24-row subset in 66 states: 16/4/4 train/validation/test, 15 N22 versus
+  9 N21, and operation-kind counts `9/5/3/3/2/1/1`, so the largest share is 9/24 = 37.5%.
+  The feasibility gate passes and authorizes only independent reconstruction of those 24 frozen
+  candidates followed by the unchanged full and paired canaries. This run launched neither audit
+  nor canary, and sample growth, scale, and training remain unauthorized; `final_test` was not
+  accessed. Frozen official root:
+  `/storage/milikic/leanfaith/corpus2/s1_public_negative_skeleton_feasibility_v3_4fd2c6a_d568c8c_balanced/`
+  (manifest SHA-256 `e02af59acf32fa0ee011cf00edab33f08aa9af7ec3e557d2469fd32f93a8b475`).
 - **Backbone consultation verified, Track T-B added**: GPT Pro + Claude reports cross-checked
   against pinned configs/modeling code, live HF cards, and a fresh local operator/fertility
   audit (0 UNKs on all three tokenizers — DeBERTa fear refuted; NeoBERT disqualified;
@@ -207,17 +219,14 @@ starting-point context, and may describe work that the ledger has since complete
   `reports/model_selection/backbone_consult_verification_2026_08_28.md`.
 
 **NEXT QUEUE — repair the measured public lexical shortcut before training:**
-1. On the same frozen 72/12/12 sample, run a candidate-distribution feasibility precheck before
-   canaries: require that some deterministic one-per-declaration subset can simultaneously reach
-   24 total, 4/4 validation/test, N22 ≥60%, N21 ≤40%, and every operation kind ≤40%. Stop before
-   canary fitting if that is impossible. Do not change the source sample or enlarge to 500.
-2. Only if the feasibility precheck passes, freeze the deterministic chooser and rerun the same
-   yield, family, operation, full-canary, and paired-canary gates.
-3. Rebuild a new versioned public corpus only after that pilot passes. Require every existing
+1. Independently reconstruct the frozen balanced 24-row subset, then rerun the unchanged yield,
+   family, operation, full-canary, and paired-canary gates. Do not regenerate the 96-name pool,
+   change the source sample, or enlarge to 500.
+2. Rebuild a new versioned public corpus only after that pilot passes. Require every existing
    diversity/balance/seal gate and lexical-canary balanced accuracy `<0.72` on validation and
    test. The failed 7,488-row artifact
    remains a diagnostic and must not become a training input by relaxing the gate.
-4. Only after the canary passes, smoke one training batch/checkpoint, run the two primary S1 arms,
+3. Only after the canary passes, smoke one training batch/checkpoint, run the two primary S1 arms,
    and score golden **dev** through the sanctioned split-only path against S1v0 chunks-CPT (0.849
    AUPRC / 0.684 calibrated balanced accuracy). `final_test` remains sealed and unscored.
 
