@@ -4,7 +4,7 @@
 > **Status:** not_started
 > **Owner/session:** unassigned
 > **Last updated:** 2026-08-30
-> **Dependencies:** canonical 5,111 rows; REPR `goal_v1.0` for model-facing serialization
+> **Dependencies:** canonical 5,111 rows; REPR only for the additive `goal_v1.0` view/publication
 > **Next gate:** freeze and verify the exact 2,555 validation / 2,556 test assignment
 > **Compute class:** CPU plus external/local models; cached Lean checks; larger LLM jobs may need GPU/API approval
 > **Lean budget:** typecheck/DefEq each necessary pair once and share cached results across baselines
@@ -30,6 +30,10 @@ Produce exactly:
 - `validation`: 2,555 rows
 - `test`: 2,556 rows
 - total: 5,111 rows
+
+The split assignment and its hash operate only on immutable raw canonical IDs/groups/labels and do
+not depend on REPR. Freeze them immediately. After REPR freezes, add the `goal_v1.0` fields as a
+derived configuration pinned to the representation hash; do not change split membership.
 
 Use a fixed seed and group-aware, label/source/provenance-stratified assignment so ancestry and
 duplicates do not cross splits. Use deterministic group-level subset selection (for example dynamic
@@ -71,6 +75,8 @@ model/prompt revision, threshold/calibration source, and per-row raw prediction.
 unknown/error to semantic false. Review the ReForm paper and the user-referenced gold source
 (`arXiv:2510.24592v1`) from primary materials when implementing, and document whether it adds rows
 or only comparison context before changing the 5,111-row contract.
+Every baseline config records the consumed representation (`raw_headless`, `goal_v1.0`, or another
+explicit view) so pre-REPR raw baselines remain comparable and honest.
 
 ## Metrics and reporting
 
@@ -111,8 +117,9 @@ run a bounded measured job. Coordinate the machine-wide worker budget and never 
 
 Trace one old train, dev, test, auto-typecheck, and conflict row into v2. Verify total/unique IDs,
 group-disjointness, exact split counts, label/source/provenance balance, deterministic rebuild hash,
-no training export, unchanged raw canonical text, derived `goal_v1.0`, and representation provenance.
-Independently recompute the assignment once.
+no training export, and unchanged raw canonical text. Independently recompute the assignment once.
+When REPR is available, separately verify the derived `goal_v1.0` view/provenance without touching
+the frozen split/hash.
 
 ### Baseline smoke
 
@@ -144,7 +151,8 @@ additive `eval2` path and do not use `--unseal-final-test` to mutate/relabel v1 
 Own only EVAL in /localhome/milikic/LeanFaith. Read AGENTS.md, PLAN.md,
 plans/00_shared_contracts.md, and plans/60_eval_baselines.md completely. Update this brief and claim
 exact paths. First build and independently verify an evaluation-only 2,555 validation / 2,556 test
-split from all 5,111 canonical pairs; never export gold for training. The old sealed workflow is
+split from raw IDs/groups for all 5,111 canonical pairs; it does not wait for REPR and never exports
+gold for training. Pin any later goal_v1.0 view to the same split. The old sealed workflow is
 historical. Then run/store baselines on both splits with pinned predictions and honest coverage.
 Lean is the bottleneck: deduplicate and cache shared typecheck/DefEq work in persistent pools. Do
 not tune thresholds on test. Keep ConsistencyCheck as representation inspiration, not the canonical

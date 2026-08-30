@@ -47,7 +47,7 @@ Repeat this decision in every implementation plan and progress handoff:
 ## Task ownership and progress
 
 - A task session edits only its own brief plus paths declared in its `Writable paths` section.
-- Update `Status`, `Owner/session`, `Last updated`, `Next action`, and the append-only progress log
+- Update `Status`, `Owner/session`, `Last updated`, `Next gate`, and the append-only progress log
   at meaningful boundaries.
 - Allowed statuses are: `not_started`, `active`, `waiting_user`, `blocked`, `pilot_ready`,
   `pilot_passed`, `scale_authorized`, `scaling`, `complete`, and `deferred`.
@@ -66,6 +66,8 @@ Repeat this decision in every implementation plan and progress handoff:
   existing `src/leanfaith/generation/` and `collect2/`, `pyproject.toml`, `uv.lock`,
   `.pre-commit-config.yaml`, `configs/projects/`, root policies, and shared plans are coordinator
   owned. Request changes in the task's `Coordinator requests` section.
+- Every new task-owned test directory contains an `__init__.py`. The repository also uses pytest's
+  importlib mode so identical test basenames in different task directories do not collide.
 - Delete or archive code only after proving it is superseded, finding all references, and running
   the relevant tests. Never delete frozen evidence or unrelated user work.
 - Keep release code deterministic, restartable, and configuration-driven. Long jobs require an
@@ -111,3 +113,7 @@ complete based only on a progress bar or process exit; verify durable rows, mani
   the two-worker/40-GiB measured-RSS host cap.
 - Historical `leanfaith-eval` v1 enforces the old final-test seal. EVAL v2 owns an additive path
   implementing the approved both-splits-now policy; do not bypass or mutate frozen v1 artifacts.
+- The implicit host allocation is zero. Before Lean or local-GPU work, claim shared resources with
+  `uv run leanfaith-resources claim <TASK> ...`; inspect/release with the same CLI. The atomic state
+  is outside git at `/storage/milikic/leanfaith/value_first/host_reservations/`, so all worktrees
+  share the two-worker/40-GiB/one-GPU cap.

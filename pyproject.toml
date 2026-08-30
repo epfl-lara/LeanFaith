@@ -19,6 +19,7 @@ dependencies = [
 leanfaith = "leanfaith.cli.app:main"
 leanfaith-eval = "leanfaith.eval.cli:main"
 leanfaith-plans = "leanfaith.project_plans:main"
+leanfaith-resources = "leanfaith.host_resources:main"
 
 [dependency-groups]
 dev = [
@@ -63,7 +64,7 @@ packages = ["leanfaith"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-q"
+addopts = "-q --import-mode=importlib"
 markers = [
     "lean: requires the Lean toolchain and the built fixture REPL (PR-Lean CI tier)",
     "slow: long-running local test excluded from quick task checks",

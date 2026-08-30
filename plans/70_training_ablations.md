@@ -9,7 +9,7 @@
 > **Compute class:** local RTX 4090 for smokes/10K throughput; A100/H100 for full training
 > **Lean budget:** zero
 > **Local staging root:** `/storage/milikic/leanfaith/value_first/training_v1/`
-> **HF destination:** model destinations are chosen per ablation after dataset freezes
+> **HF destination:** none for setup; later checkpoints are private-first under `Lemmy00`
 
 ## Objective
 

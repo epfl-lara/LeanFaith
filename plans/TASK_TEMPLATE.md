@@ -29,6 +29,7 @@ State the concrete deliverable and why it has value.
 
 - This task brief.
 - Exact code/config/test/output paths claimed by the session before editing.
+- Each new task-owned Python test directory includes `__init__.py`.
 
 ## Inputs and outputs
 
@@ -45,6 +46,7 @@ rows live. Never leave this implicit.
 Lean is the bottleneck. State which work uses no Lean, the smallest oracle/audit requiring Lean,
 the persistent worker and cache design, concurrency cap, retry policy, and throughput/compute gate.
 Never compile one process per row or default to a corpus-wide recheck.
+The implicit allocation is zero; claim Lean/GPU resources with `leanfaith-resources` before use.
 
 ## Execution gates
 

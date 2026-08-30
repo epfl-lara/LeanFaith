@@ -89,7 +89,8 @@ blocklist remains applicable because EVAL v2 repartitions the same 5,111 canonic
 - **SFT2A:** Codex proposes two preserving and two breaking candidates per root. Each candidate is
   compiled, then Claude independently judges intended-claim consistency. Retain every accepted
   candidate independently; a failed sibling does not discard it. Retry a failed slot at most three
-  times. Double agreement supplies the core label.
+  times. The core basis is precisely `proposer_intent+single_judge`, with the blinded second-judge
+  audit defined in the SFT2A brief; do not describe it as two independent semantic judgments.
 - **SFT2B:** an autoformalizer proposes four Lean candidates from an NL source with a trusted Lean
   reference. Compile each candidate. Codex, Lemex, and Claude vote under the shared rubric: at least
   two equivalent votes gives `1`, at least two non-equivalent votes gives `0`, otherwise unknown.
@@ -142,9 +143,12 @@ Lean is the bottleneck.
    index, atomic shard marker, deterministic merge, and duplicate suppression.
 
 On the current shared host, the coordinator permits at most two concurrent Lean workers and 40 GiB
-combined measured Lean RSS, whichever limit is reached first. Each task begins with one worker and
-requests a reservation before increasing it. The local 24 GiB RTX 4090 runs at most one model job
-at a time. GPU capacity does not accelerate Lean elaboration.
+combined measured Lean RSS, whichever limit is reached first. The implicit allocation is zero.
+Before starting Lean, a task atomically claims its measured workers/RSS through
+`leanfaith-resources`; before local model work it claims the one 24 GiB RTX 4090. Claims live at the
+shared out-of-repo root `/storage/milikic/leanfaith/value_first/host_reservations/`, so separate
+worktrees observe the same totals. Release claims after the job; GPU capacity does not accelerate
+Lean elaboration.
 
 Use `/localhome/milikic/rl_theorem_provers/src/data/solve_new_problems/evaluate_lean.py` as a
 reference for pooled verification and the repository's `src/leanfaith/lean/` modules for cache,

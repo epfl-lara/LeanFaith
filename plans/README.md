@@ -6,10 +6,13 @@ direction is in [`../PLAN.md`](../PLAN.md); shared schemas and cost rules are in
 
 ## How to start a task session
 
+**Coordinator setup baseline:** `3557009` (`Set up value-first parallel task handoffs`). Start a
+new worktree from this commit or any descendant that retains the plan-contract check.
+
 1. Choose one task below and open its brief.
 2. Copy the `Session kickoff prompt` from that file into a new Codex/Claude/Lemex session.
 3. The new session updates only its own task header before implementation: owner, status, time,
-   writable paths, next action, and Lean budget.
+   writable paths, next gate, and Lean budget.
 4. Run the one-example smoke. Do not scale until the documented pilot gate passes.
 5. Record progress and handoff details in the same file. Ask the coordinator/user about cross-task
    changes rather than editing another task's contract.
@@ -41,9 +44,20 @@ direction is in [`../PLAN.md`](../PLAN.md); shared schemas and cost rules are in
 ## Shared host reservations
 
 The initial machine-wide limit is two Lean workers and 40 GiB combined measured Lean RSS,
-whichever is reached first. Every task starts with one worker. The local 24 GiB RTX 4090 permits
-one GPU job at a time. Task agents request reservations in their own `Coordinator requests`
-section; only the coordinator edits this table.
+whichever is reached first. The implicit allocation is zero: a task must claim resources before it
+starts Lean or uses the local 24 GiB RTX 4090. Claims live outside worktrees at
+`/storage/milikic/leanfaith/value_first/host_reservations/` and are atomically checked by the shared
+CLI, so separate branches see the same state:
+
+```bash
+uv run leanfaith-resources list
+uv run leanfaith-resources claim CPT2 --workers 1 --lean-rss-gib 20
+uv run leanfaith-resources release CPT2
+```
+
+Record the claim in the task log and release it after the job. The local host permits one GPU claim
+at a time (`--gpu`). Task agents request increases or stale-claim cleanup in their own `Coordinator
+requests` section; only the coordinator edits the summary table.
 
 | Task | Lean workers | Lean RSS | GPU | Reservation state |
 | --- | ---: | ---: | --- | --- |
@@ -75,3 +89,9 @@ Why the local host is insufficient:
 
 Use [`TASK_TEMPLATE.md`](TASK_TEMPLATE.md) when adding a future workstream. Do not copy an archived
 plan forward wholesale.
+
+## Independent readiness review
+
+Claude Fable 5 reviewed the full setup twice at maximum reasoning. Its initial blockers and all
+resolutions, followed by the clean-baseline **READY** verdict, are recorded in
+[`reviews/2026-08-30-claude-fable5-setup-review.md`](reviews/2026-08-30-claude-fable5-setup-review.md).

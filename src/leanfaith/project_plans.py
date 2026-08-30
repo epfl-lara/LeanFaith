@@ -42,6 +42,7 @@ TASK_INVARIANTS: dict[str, tuple[str, ...]] = {
         "no per-pair Lean compilation",
         "0.70",
         "golden_blocklist_v1.json",
+        "Lemmy00/leanfaith-sft1-deterministic-v1",
     ),
     "40_sft2_llm_transforms.md": (
         "proposer_intent+single_judge",
@@ -62,6 +63,8 @@ TASK_INVARIANTS: dict[str, tuple[str, ...]] = {
         "expert_human",
         "auto_typecheck_fail",
         "no training split",
+        "Lemmy00/leanfaith-eval-v2",
+        "Lemmy00/leanfaith-eval-results-v2",
     ),
     "70_training_ablations.md": (
         "Ettin",
@@ -196,8 +199,12 @@ def validate_task_text(filename: str, text: str) -> tuple[ParsedTaskPlan | None,
             errors.append(f"{filename}: scale/complete status requires recorded transform approval")
 
     hf_destination = metadata.get(hf_key, "")
-    if "Lemmy00/" in hf_destination and "private" not in hf_destination.lower():
-        errors.append(f"{filename}: Lemmy00 destination must be explicitly private-first")
+    has_no_destination = hf_destination.lower().startswith("none")
+    if not has_no_destination:
+        if "Lemmy00/" not in hf_destination:
+            errors.append(f"{filename}: HF destination must use the Lemmy00 namespace")
+        if "private" not in hf_destination.lower():
+            errors.append(f"{filename}: HF destination must be explicitly private-first")
 
     if not task_id or not status or hf_key not in metadata:
         return None, errors

@@ -5,7 +5,7 @@
 > **Effort:** `max`
 > **Mode:** read-only (`plan` permission mode; no edits, network jobs, Lean, models, or pipelines)
 > **Initial verdict:** NOT READY
-> **Final re-review:** pending after coordinator fixes and setup commit
+> **Final re-review verdict:** READY at baseline commit `3557009`; no P0/P1 findings remain
 
 ## Scope
 
@@ -26,7 +26,7 @@ resumability, and validator strength.
 | 4 | P1 | The proposed semantic headline would mix 2,501 expert labels with 2,610 auto-typecheck-failure labels. | Accepted. All 5,111 rows remain in the exact half/half dataset, but the 2,454 expert-human/non-conflict rows define the semantic headline; auto rows are an auxiliary-validity diagnostic. Provenance is stratified and retained. |
 | 5 | P1 | No gold-contamination rule covered new CPT/SFT releases. | Accepted. Shared contracts require the existing blocklist; SFT checks exact/near-duplicate signatures, CPT records cheap exact hits, and each task documents exclusion/reporting. |
 | 6 | P1 | Concurrent briefs claimed overlapping `train2`, `generation`, `collect2`, `eval`, configs, and tests. | Accepted. Every task now owns a disjoint package/config/prompt/test directory. Shared backend/provider/dependency/project surfaces are coordinator-owned and changed only through a coordinator request. |
-| 7 | P1 | There was no numeric machine-wide Lean/RAM/GPU reservation. | Accepted. Default is one worker per task, at most two concurrent Lean workers and 40 GiB combined measured Lean RSS, plus one local GPU job. The coordinator owns a reservation table. |
+| 7 | P1 | There was no numeric machine-wide Lean/RAM/GPU reservation. | Accepted. The implicit allocation is zero; atomically shared out-of-repo claims enforce at most two Lean workers, 40 GiB combined measured Lean RSS, and one local GPU job across worktrees. |
 | 8 | P1 | Historical v1 fail-closed source configs contradicted the new owner authorization. | Accepted. Added active v2 source/evaluation policies, a policy authority index, historical banner on v1, and explicit v2 authorization/additive-config rules in SFT2/EVAL briefs. V1 configs remain immutable. |
 | 9 | P1 | SFT1 gates measured validity but not shortcut leakage or semantic transform error. | Accepted with a bounded audit. Added numeric source/family/template caps, a family-heldout lexical/length canary below 0.70, and a blinded per-family/polarity QA sample. QA never replaces automatic labels or becomes per-row labeling. |
 | 10 | P1 | CPT2 row-level validation would leak repeated theorem prefixes across train/validation. | Accepted. Split by exact theorem-string hash, select whole groups, balance as group constraints allow, and report prefix/body length quantiles. |
@@ -66,5 +66,27 @@ resumability, and validator strength.
 
 ## Final re-review
 
-Pending a clean committed coordinator baseline. The final Fable verdict and any remaining findings
-will be appended here without rewriting the initial review.
+Claude Fable 5 re-reviewed clean commit `3557009` at maximum effort and returned **READY**, with no
+remaining P0/P1 findings. It independently confirmed that the only worktree change was the unrelated
+untracked `src/leanfaith/corpus2/from_mixed_v0.py`, reran the nine-brief validator and focused tests,
+recomputed the 2,501/2,610/47 evaluation provenance counts, and checked all 18 initial resolutions.
+It explicitly said fresh sessions may start from the committed baseline under the dependencies in
+`plans/README.md`.
+
+The re-review left six P2 polish items, all accepted after the READY verdict:
+
+1. **Cross-worktree host enforcement:** implicit allocation changed from one to zero; added the
+   atomic `leanfaith-resources` claim/list/release CLI using the shared out-of-repo reservation root.
+2. **Test basename safety:** pytest now uses importlib mode, and task-owned test directories require
+   `__init__.py`.
+3. **HF validator gap:** non-`none` destinations must contain both `Lemmy00/` and `private`; SFT1 and
+   both EVAL repositories are frozen validator anchors.
+4. **Baseline traceability:** `plans/README.md` records commit `3557009` as the setup baseline.
+5. **EVAL/REPR ordering:** raw group/ID split freeze is explicitly independent of REPR; the later
+   `goal_v1.0` view pins the same split/hash, and each baseline records its consumed representation.
+6. **Wording drift:** task headers use `Next gate`, and SFT2A's shared label basis is precisely
+   `proposer_intent+single_judge` plus its blinded audit.
+
+Post-review verification covers the resource CLI's atomic cap/release tests, stronger destination
+validator tests, plan contract, formatting/static checks, and the repository suite. No data
+pipeline, external model workload, Hugging Face upload, training run, or bulk Lean job was started.

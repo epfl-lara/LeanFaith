@@ -37,3 +37,19 @@ def test_later_blockquote_does_not_override_header_metadata() -> None:
     assert task is not None
     assert task.status == "not_started"
     assert task.owner == "unassigned"
+
+
+def test_nonempty_hf_destination_must_be_private_lemmy00() -> None:
+    text = (
+        (REPOSITORY_ROOT / "plans/10_cpt1.md")
+        .read_text()
+        .replace(
+            "private `Lemmy00/leanfaith-cpt1-v1`",
+            "public `someone-else/leanfaith-cpt1-v1`",
+        )
+    )
+    task, errors = validate_task_text("10_cpt1.md", text)
+
+    assert task is not None
+    assert any("Lemmy00 namespace" in error for error in errors)
+    assert any("private-first" in error for error in errors)
