@@ -1,13 +1,14 @@
 # SFT2B — autoformalization consistency data
 
 > **Task ID:** SFT2B
-> **Status:** waiting_user
-> **Owner/session:** Codex `/root` — 2026-08-30 8xA100 vLLM continuation
+> **Status:** active
+> **Owner/session:** Codex `/root` — 2026-08-30 matched-500 source-freeze session
 > **Last updated:** 2026-08-30
 > **Dependencies:** REPR `goal_v1.0`; source-quality audit and frozen consistency/voting prompts
-> **Next gate:** ingest and verify the still-missing frozen 500-source pilot manifest, then run its
-> 2,000 ReForm-32B source/slot requests on DP=4/TP=2 under the user's explicit authorization
-> **Compute class:** eight A100-SXM4-80GB GPUs for bounded vLLM inference plus Lean CPU
+> **Next gate:** publish and fresh-download verify the frozen matched 500-source pilot input; the
+> separate 8xA100 agent may then run the already-authorized 2,000 ReForm-32B generations
+> **Compute class:** source-freeze work is Lean/GPU-free; downstream inference uses eight
+> A100-SXM4-80GB GPUs at DP=4/TP=2
 > **Lean budget:** compile each novel formalization candidate once through persistent cached workers
 > **Local staging root:** `/scratch/milikic/data/leanfaith/value_first/sft2_autoformalizer_v1/`
 > **HF destination:** private `Lemmy00/leanfaith-sft2-autoformalizer-v1`
@@ -154,6 +155,38 @@ copied partial hash list is not accepted.
    measured/projected hardware, duration, storage, judge calls and cost, journals, checkpoint/resume
    procedure, and the source-quality audit plan. Do not launch the comparison, 50K generation,
    publication, or training without user compute/model approval.
+
+### Authorized matched-500 input-freeze subplan
+
+This session owns only source-freeze preparation and additive private publication. It does not run
+ReForm-8B/32B, Lean, any judge, output publication, or training.
+
+1. Replay the frozen source-use policy, DATA-REUSE evidence, source catalogs, exact and signature-
+   near golden blocklists, stable-ID rules, and ShadowBench exclusion without invoking Lean.
+2. Audit and deterministically select exactly 500 standalone-NL/trusted-reference `SourceRecord`
+   rows at the already-proposed 175 library-docstring / 175 theorem-problem / 100 broader-public /
+   50 specialist mix. Preserve exact project, toolchain, imports, namespaces/scopes/options, source
+   revisions, licenses/policies, trusted-reference basis, and selection/exclusion evidence.
+3. Reuse the four frozen candidate slots and seeds from `reform_32b_placement_v1.json`. Render the
+   exact pinned ReForm input template for every row, tokenize it with the exact pinned ReForm
+   tokenizer revision, record each prompt-token count, and freeze the smallest safe model context as
+   `max(prompt_tokens) + 4096`.
+4. Deterministically emit `sources.jsonl`, `prompt_token_counts.json`, `source_manifest.json`, and
+   `SHA256SUMS` under the task staging root. Validate strict schemas, stable-ID uniqueness, source
+   counts/mix, provenance, authorization, deduplication, contamination, context completeness, prompt
+   hashes, tokenizer hashes, placement-config hash, REPR pins, and byte checksums.
+5. Copy/download into a fresh directory, rerun every validation from those bytes, then upload only
+   `pilot_inputs/reform_matched_500_v1/` additively to private dataset
+   `Lemmy00/leanfaith-sft2-autoformalizer-v1`. Verify the immutable Hub revision by a second fresh
+   download and checksum comparison. Do not overwrite or rewrite revision
+   `878b3cab22883c732f05a5c30a9119d143e62489` or any existing remote path.
+6. Commit and push only this brief plus task-owned source-freeze code/config/tests. Hand off exact
+   Git/HF revisions, four remote paths and hashes, source mix, token maximum and required
+   `max_model_len`, slot IDs/seeds, REPR/tokenizer/prompt/config hashes, and fresh-download result.
+
+Lean is the bottleneck: all work in this source-freeze session is deliberately Lean-free. Existing
+trusted compilation evidence and exact contexts are replayed; no corpus compile or per-row process
+is started.
 
 Lean is the bottleneck throughout this plan: all safe string parsing, source filtering, schemas,
 provenance, joins, deduplication, prompt validation, hashing, and restart logic precede Lean. The
@@ -425,3 +458,8 @@ Do not launch 50K sources without the pilot and user compute/model approval.
   exact per-source prompt-token counts. No model server was restarted and no decoding seed/source
   contract was invented while that required input is absent. The vLLM implementation and bounded
   evidence are being pushed now so the source-freeze agent can target the live interface.
+- 2026-08-30 — user authorized preparation and additive private publication of the frozen matched
+  500-source pilot input because the transferred two-source smoke release blocked the 8xA100
+  generation session. Claimed the existing SFT2B paths only, set status `active`, and recorded the
+  executable source-freeze subplan above before catalog work. This session will run no ReForm, Lean,
+  judges, output publication, or training; all unrelated EVAL2 work remains untouched.
