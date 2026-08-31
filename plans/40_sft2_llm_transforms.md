@@ -432,3 +432,11 @@ recorded budget/model decision.
   additive `configs/sft2a/rehearsal_authorization_v5.json`; the historical readiness-only receipt,
   v5 smoke, and recovery-v4 evidence remain unchanged. This authorization still excludes the
   approximately-10K gate, 50K run, legacy rejudge, publication, and every other run.
+- 2026-08-31 — the first v5 detached launch created the requested tmux session but the session
+  exited before the worker entered, exactly matching the prior all-descriptors-left-the-PTY startup
+  failure. It executed zero provider calls and zero Lean requests and claimed no resource. Preserved
+  its two empty artifacts plus manifest under `detached/failed_startup_v1/`. Applied the previously
+  proven non-I/O PTY keepalive pattern to the v5 worker at implementation `d0ca454`, added a launch
+  journal event, and created additive recovery authorization
+  `configs/sft2a/rehearsal_authorization_v5_recovery_v2.json` bound to the same user sentence,
+  sample, config, ceilings, and failed-startup seal. No scope was expanded.
