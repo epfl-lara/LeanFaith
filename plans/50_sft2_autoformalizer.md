@@ -1,13 +1,14 @@
 # SFT2B — autoformalization consistency data
 
 > **Task ID:** SFT2B
-> **Status:** waiting_user
-> **Owner/session:** Codex `/root` — 2026-08-31 source correction v2 and extension audit
+> **Status:** active
+> **Owner/session:** Codex `/root` — 2026-08-31 additive source correction v3 and consumer hardening
 > **Last updated:** 2026-08-31
 > **Dependencies:** REPR `goal_v1.0`; source-quality audit and frozen consistency/voting prompts
-> **Next gate:** obtain the matched-500 runtime/quality receipt, review it with the user, and record
-> a separate explicit scale decision before authorizing either corrected-core or legacy-tail
-> generation; the pinned full-source consumer remains fail-closed until then
+> **Next gate:** finish the local v3 filter/conservation and consumer-verifier work, satisfy the
+> explicit row-level human-review contract without model substitution, publish and force-reverify
+> the additive v3 source bundle, then consume the independently frozen matched-500 receipt as pilot
+> evidence only; do not request or record scale authorization in this session
 > **Compute class:** source-freeze work is Lean/GPU-free; downstream inference uses eight
 > A100-SXM4-80GB GPUs at DP=4/TP=2
 > **Lean budget:** compile each novel formalization candidate once through persistent cached workers
@@ -310,6 +311,55 @@ that run's runtime and quality report is available.
 Lean remains the bottleneck for downstream candidate validation. This correction does all parsing,
 auditing, joins, deduplication, evidence replay, prompt counting, caching, and consumer dry runs
 before Lean; it invokes no corpus compilation and never starts one Lean process per row.
+
+### Authorized additive source-correction v3 and consumer-hardening subplan
+
+This session keeps v2 and every matched-500 input/output byte immutable. Monitoring of the
+independently frozen A100 run is read-only: never signal, stop, restart, alter, or duplicate it, and
+use any eventual receipt only as pilot evidence. Neither corrected-core nor legacy-tail scale
+authorization is requested or inferred here.
+
+1. Freeze the exact 326-row v2 impact set (262 matched-core IDs and 64 tail IDs) and add fail-closed,
+   versioned detection for explicit translation requests, retain-format instructions, direct-output
+   commands, and related meta-instruction language. Preserve matched-v2 membership in the impact
+   fixture and quarantine every confirmed hit outside the v3 source pool; no such row is relabeled
+   as a semantic example.
+2. Replace the v2 automatically generated “audit” terminology with an explicit deterministic-rule
+   disposition record. Define a separate strict row-level review record containing reviewer
+   identity/kind, method, timestamp, verdict, rationale, source hash, and reviewed fields. Require
+   authentic completed review for all 293 Workbook heuristic hits and the deterministic
+   100-per-release-class sample. Do not claim Codex-generated records are human review and do not
+   substitute Opus/Terra unless the user explicitly changes the review contract.
+3. Derive new deterministic quarantine rules only from confirmed review findings. Quarantine
+   solution/proof fragments and incomplete or non-standalone library descriptions while retaining
+   a keyed reason/evidence view. Fail closed if required review rows, hashes, reviewer fields, or
+   rationales are absent or inconsistent.
+4. Rebuild the full source pool, deterministic 50K matched core, and ordered tail from frozen v2
+   inputs plus additive v3 rules. Emit a per-source v2-to-v3 conservation receipt that accounts for
+   every retained row, removal, addition, dedup displacement, and core/tail movement and proves the
+   partitions conserve the source universe. Publish only under a new additive v3 prefix after all
+   review and verification gates pass; force-download the immutable revision and replay everything.
+5. Replace the self-attested matched-pilot gate with an artifact verifier that opens and hashes the
+   runtime, quality, output manifest, checksum ledger, journals, and terminal/shutdown/resource
+   evidence. Bind exact frozen pilot inputs, model/prompt/tokenizer/placement/config identities,
+   every 500-by-four request key, metrics, failure taxonomy, deterministic replay, clean shutdown,
+   and released resource claim before the receipt can pass.
+6. Integrate the actual resumable generation executor behind the task-owned full-source consumer.
+   Reconcile provider attempts and terminal cells after crash/restart without duplicate calls,
+   require durable journal and output advancement in detached health checks, and test complete
+   Cartesian compaction. Keep core and tail authorization as independent fields with the invariant
+   that tail remains false when core becomes true.
+7. Add a pinned eight-A100 host profile rooted at `/scratch`, but keep both authorizations false and
+   defer final run-ID computation until authorization state and the verified pilot receipt are
+   frozen. Run no model server, provider, Lean, judge, training, or detached scale job in this work.
+8. Commit and push only SFT2B-owned code/config/tests and this brief. Record exact local checks,
+   unresolved human-review inputs, additive release evidence if publication becomes admissible, and
+   the next non-scale gate.
+
+Lean is the bottleneck. Complete all text filtering, schemas, source joins, review validation,
+deduplication, conservation accounting, artifact hashing, journal reconciliation, and restart tests
+without Lean. This subplan authorizes no corpus compilation and never starts one Lean process per
+row.
 
 Lean is the bottleneck throughout this plan: all safe string parsing, source filtering, schemas,
 provenance, joins, deduplication, prompt validation, hashing, and restart logic precede Lean. The
@@ -733,3 +783,13 @@ Do not launch 50K sources without the pilot and user compute/model approval.
   explicit benchmark normalization, exact source/context recovery, multi-claim projection, and
   bounded kernel axiom checks remain family-specific gates; ProofNet/ShadowBench and by-sorry-only
   references stay excluded.
+- 2026-08-31 — claimed the additive source-correction v3 and full-consumer hardening on branch
+  `milikic/sft2b-source-correction-v2`, preserving all v1/v2 and independently frozen matched-500
+  artifacts byte-for-byte. Status is `active`. The executable v3 subplan above was recorded before
+  implementation: first freeze the exact 326 meta-instruction impact rows, then separate automatic
+  rule dispositions from authentic row-level review, require review before v3 publication, emit a
+  complete v2-to-v3 conservation receipt, verify real pilot artifacts rather than self-attestation,
+  integrate and crash-test the resumable executor, require actual durable advancement, and keep core
+  and tail authorization independently false. Lean is the bottleneck; no Lean, model, provider,
+  judge, detached scale job, generated-output publication, training, or scale-authorization request
+  is permitted in this session.
