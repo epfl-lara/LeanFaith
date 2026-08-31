@@ -1,0 +1,285 @@
+schema_version: 1
+policy_id: sft1_p01_identity_policy_v0_3_5
+policy_version: "0.3.5"
+status: approved_additive_policy_only_no_execution
+
+parent_freeze:
+  commit: 5ddda95d05fe4c0fcd755e042174ca50453ebd03
+  tree: 0ba6c5d2f5b3cf2a921e92e607eb89e2cbf8e0f0
+  parent_readiness_version: "0.3.4"
+  parent_readiness_semantic_hash: cdf5ad5572c3887213017fe6d7c17987fedbe0eadecb47e87b41a8111911e25a
+  parent_operation_bank_semantic_hash: 99440883e2ae37b7ee95ca3332273107665277cb9597586c6de427b36e9ce8da
+  parent_fixture_semantic_hash: 6d8dbc0d7da271f880223ec519afabbe030dd0d480ba7d0731707d5b66f46e51
+  parent_source_import_stripped_sha256: 0b905f3d1d045694b3dcc1174fb069ca82f76d345b0f439936e7e61af3868009
+  base_policy_file_sha256: a052ecec4cc8f61db7438dd5acbc39373a624b155f8c0305bb75b7ae15d7195d
+  base_policy_semantic_hash: 08a6d1b2ea03f3674d06cdac44478377084af24ba5cd4af7cab57303f4e7a917
+  complete_operation_registry_hash: d56fca674f7b58d92dca09f0b76a702c54d1df2e5b68dcbe94225cad7e5cd95f
+  frozen_artifacts:
+    - artifact_id: wave1_lean_source_v0_3_4
+      path: LeanFaith/Meta/SFT1/Wave1.lean
+      file_sha256: 7d4c27e1fd631cc1ba2f8de7cacec1eca618280c12c8ac351d9544a06e94ba4d
+    - artifact_id: wave1_implementation_readiness_v0_3_4
+      path: configs/transformations/sft1_value_first_v1/wave1_implementation_readiness_v0_3_4.yaml
+      file_sha256: 87197cef05d4e755a0d92745b2b3846787b5e1159edac29dfdd967ba81aed614
+    - artifact_id: wave1_operation_banks_v0_3_4
+      path: configs/transformations/sft1_value_first_v1/wave1_operation_banks_v0_3_4.yaml
+      file_sha256: 282836a539d055e227ccfba12dd612522654f036d6705aec07a551a217c82a34
+    - artifact_id: wave1_fixture_matrix_v0_3_4
+      path: tests/fixtures/sft1/wave1_v0_3_4.yaml
+      file_sha256: 0856c6cfa1536bd935d4606ec2d09a34c72ef5c2ddf92d2f15b67867ac6dd6ea
+    - artifact_id: wave1_readiness_loader_v0_3_4
+      path: src/leanfaith/sft1/wave1_readiness.py
+      file_sha256: f59c9304f153532e96b8ef99626c77ad01bff56640d071316f9c78094c0dc56a
+    - artifact_id: wave1_readiness_tests_v0_3_4
+      path: tests/unit/sft1/test_wave1_readiness.py
+      file_sha256: 3a766c6a6e5e5e7d291e2796d0d8bcb0f74a0a41ed35b048f19bc0935aa07835
+  every_revision_0_3_4_artifact_remains_unmodified: true
+  complete_46_operation_registry_remains_unmodified: true
+
+user_authorization:
+  exact_user_text: |-
+    I approve an additive SFT1 P01 identity-policy revision derived from commit `5ddda95d05fe4c0fcd755e042174ca50453ebd03`.
+
+    Allow exactly one `P01_ALPHA_RENAME_SINGLE_V1` hop per chain, subject to the existing maximum of one retained P01 pair per root and 0.5% retained-share cap, to repeat only the immediately preceding alpha-invariant canonical closed-Expr hash when:
+
+    - reference and candidate render hashes and model-facing texts differ;
+    - the selected binder site is uniquely rediscovered;
+    - the binder-aware exact name-only delta certificate binds the site, old and new names, and `BinderInfo`;
+    - certificate replay proves that every non-name part of the Expr is unchanged; and
+    - the candidate is the exact deterministic replay result.
+
+    All other text, render, selected-site-lineage, operation, mechanism, inverse-token, duplicate, conflict, and cycle rules remain unchanged. Canonical unordered-pair deduplication and post-orientation global duplicate/conflict rejection remain mandatory.
+
+    Implement this only through a new additive policy/loader/test overlay; do not modify frozen revision 0.3.4 artifacts. This approval may clear only the P01 identity blocker. Overall implementation readiness and gate execution must remain false because Lean compilation, live fixtures, certificate replay, the persistent Meta/REPR adapter, cache integration, N31 resolution, the shared-label contract, and smoke-root micro-censuses remain incomplete.
+
+    This approval does not authorize Lean, transformation or gate execution, model-facing rows, production admission, Wave 2, 10K, scale, training, or publication.
+  exact_user_text_sha256: ee6440aa41d56b0a7dbc15d15f89ef75c629bd6361685c2b70a65d0e49e59514
+  recorded_date: "2026-08-31"
+  interpretation: additive_p01_identity_policy_only_no_execution
+
+authorized_scope:
+  exact_new_paths:
+    - configs/transformations/sft1_value_first_v1/p01_identity_policy_v0_3_5.yaml
+    - src/leanfaith/sft1/p01_identity_policy.py
+    - tests/unit/sft1/test_p01_identity_policy.py
+  brief_update_path: plans/30_sft1_deterministic.md
+  may_clear_blocker_ids:
+    - p01_alpha_closed_expr_hash_collision
+  may_clear_any_other_blocker: false
+  may_modify_parent_artifacts: false
+  lean_allowed: false
+  transformation_execution_allowed: false
+  gate_execution_allowed: false
+  model_facing_rows_allowed: false
+  production_admission_allowed: false
+  wave2_allowed: false
+  ten_k_allowed: false
+  scale_allowed: false
+  training_allowed: false
+  publication_allowed: false
+
+p01_operation_binding:
+  operation_id: P01_ALPHA_RENAME_SINGLE_V1
+  family_id: P01
+  mechanism_superclass: presentation_alpha
+  evidence_class: P-DEF
+  inverse_token: P01_ALPHA_RENAME
+  anchor_ref: sft1.meta.p01_alpha_rename_single.v1
+  anchor_hash: ca485f300ecc818057f10877f0eec5c6b4b963fec2e0a574a6895f9d83357095
+  registry_entry_hash: 36b680c6c3407d0761de8af1b0c5e685ce0bc89fefed720bc46255c9bc218844
+  operation_bank_entry_hash: da08e62d1dd1839da683bcdb8d4a73e40fd627498ffed78a20fed146e1088c39
+  operation_bank_entry_payload_hash: 0168354da4823bd21663999f35c5c35fa9b01011a500b2c4dac0923b0fb48fe1
+  fixture_aggregate_hash: 8fad8342d8925bf3018778aa8ae800c98303a6cecec7ae1f7610ed053d436454
+  authored_bundle_hash: 121a01a046095784e02c9b0dc0356110523bb785adb09fb6d962e00424c84ce8
+  transparency: none
+  allowed_axiom_profile: constructive_kernel
+  maximum_uses_per_chain: 1
+  maximum_retained_pairs_per_root: 1
+  maximum_retained_share: 0.005
+
+frozen_parent_contract_hashes:
+  p01_operation_spec_hash: 36b680c6c3407d0761de8af1b0c5e685ce0bc89fefed720bc46255c9bc218844
+  p01_operation_bank_entry_hash: da08e62d1dd1839da683bcdb8d4a73e40fd627498ffed78a20fed146e1088c39
+  p01_operation_bank_entry_payload_hash: 0168354da4823bd21663999f35c5c35fa9b01011a500b2c4dac0923b0fb48fe1
+  composition_grammar_hash: ce458fc92ffc4b4706ed33708a875183dc1274b798a1d7de9b9698e44d624e89
+  sampling_and_quality_hash: 65d6e549e40e52b2d514f0074526416d81366d7905d33ba5deed7af85c2b24e5
+  cap_contract_hash: 24f05e2dd40af6a0fad9beb216d635cd50247343253bab2d7e8a58a04af7c9a5
+  deterministic_cap_order_hash: 0e45f5c268d41db8446ed0610ba880a9969fb038cd2defab5ce22aea83928d02
+  readiness_p01_blocker_hash: 4804d77704cd3bace68d922b086d7c3a51452139747f0d42fac29d9d2af84d9e
+  operation_bank_p01_blocker_hash: ebd1f7ba3b940c2f18d928bb43f166a01e654d5cd4c49ac7e4faa3ebb5b66fe5
+  verification_state_hash: 1468475527736b1fa9f09b80c45ff10d5489dda1c35c7300ac390825818a2f96
+  prohibitions_hash: 12b762608cbf30c10aba82ef4cec547b741f900ccc62aae95dc68908d0c2d1d1
+  authorization_scope_hash: 099d0d52edb4036675798983dd085ca65502eb4dd1b96c38374901e1d9b1fba0
+
+repr_identity_binding:
+  closed_expr_hash_algorithm: sha256_canonical_closed_expr_alpha_tree_v1
+  repr_freeze_commit: 176a783842c5a73b84413dfa8347670608b615d9
+  repr_spec_hash: 68d893a2c566bf3f6a82c899a32a351f9a5420f5ea98168c99b887aaa01a45a8
+  renderer_api_hash: c695ad868c98f27218e82184559d90624491df25c7805bf29861dd891787261d
+  universe_profile_id: goal_v1_first_occurrence_u_i_v1
+  universe_profile_hash: d9e729134fcd6a086a58191810a9227062c66496ebe76b8da3c458a58b31cb61
+  render_context_id: goal_v1_render_context_v1
+  render_context_hash: 5f44b6970f0902c968fc98a2659b26c1c9d0bcaef2960cd3ea73808f203f8f62
+  route: closed_expr_in_session
+  emitter: LeanFaith.GoalV1.emitClosedProp
+  parent_bindings_remain_unmodified: true
+
+frozen_collision_evidence:
+  case_id: mathlib_add_pow
+  path: configs/transformations/sft1_value_first_v1/repr_six_goal_evidence_v0_3_1/01_mathlib_add_pow.json
+  file_sha256: c999fe73078a754f174f7f465d3c829f1944f3b637a31904f2c16dc0723cf4a5
+  canonical_hash: 7c1e7da001d79b73513cab0dd2df5ea4787d0d40ed530b8c2be92b6cdaa18ea6
+  reference_closed_expr_hash: c792a901d406878bca34269e580b34cb068515694fb6c80e5bebefb9b18f9c83
+  candidate_closed_expr_hash: c792a901d406878bca34269e580b34cb068515694fb6c80e5bebefb9b18f9c83
+  reference_render_hash: 5ed5c331ab8fcd2b5d3c2a9ab185215e39e629d9d3819232614a7fa7b442bd1d
+  candidate_render_hash: a1a393c575b364a86a3aafe0464c55f57d4a5dfc7971a4a49c37a4ae6deac1ed
+  render_hashes_distinct: true
+  representation_evidence_only: true
+  live_transform_or_certificate_evidence: false
+  production_admission: false
+
+identity_exception:
+  exception_id: p01_immediate_alpha_invariant_closed_expr_repeat_v0_3_5
+  operation_id: P01_ALPHA_RENAME_SINGLE_V1
+  repeatable_hash_kind: alpha_invariant_canonical_closed_expr_hash
+  repeated_hash_must_equal_immediately_preceding_endpoint: true
+  may_match_any_non_immediately_preceding_endpoint: false
+  endpoint_trace_validation_required: true
+  permitted_repeated_hash_class_cardinality: 2
+  permitted_repeated_hash_endpoints_must_be_adjacent: true
+  edge_between_permitted_repeated_endpoints_must_be_the_sole_p01_hop: true
+  third_or_nonadjacent_occurrence_disposition: cycle_rejected
+  exception_applies_only_to_the_single_p01_hop: true
+  maximum_uses_per_chain: 1
+  zero_p01_hops_remain_allowed: true
+  maximum_retained_pairs_per_root: 1
+  maximum_retained_share: 0.005
+  every_composed_pair_containing_p01_counts_toward_p01_caps_across_polarities: true
+  cap_denominator_unchanged: true
+  cap_is_maximum_not_quota: true
+
+qualification_contract:
+  reference_candidate_alpha_invariant_closed_expr_hash_equal: true
+  candidate_hash_equals_immediately_preceding_reference_hash: true
+  alpha_hash_equality_is_not_certificate_evidence: true
+  alpha_hash_algorithm_and_repr_context_remain_parent_pinned: true
+  reference_candidate_render_hashes_distinct: true
+  render_hash_kind: frozen_repr_rendered_goal_hash
+  reference_candidate_model_facing_texts_distinct: true
+  model_facing_text_comparison: exact_sidecar_core_text_utf8_bytes
+  reference_and_candidate_share_renderer_spec_universe_and_render_context: true
+  reference_and_candidate_remain_in_same_persistent_meta_request: true
+  distinctness_checks_apply_to_immediate_p01_step_not_only_final_pair: true
+  selected_binder_site_rediscovered_in_current_typed_expr: true
+  selected_binder_site_match_count: 1
+  other_eligible_binder_sites_may_exist: true
+  stale_missing_or_ambiguous_site_disposition: typed_not_applicable
+  typed_p01_certificate_field_order:
+    - binder_ordinal
+    - binder_site
+    - source_name
+    - candidate_name
+    - binder_info
+  binder_aware_sidecar_delta_field_order:
+    - selected_site_path
+    - old_binder_name
+    - new_binder_name
+    - binder_info
+    - binder_aware_source_fingerprint
+    - binder_aware_candidate_fingerprint
+  certificate_binds_selected_site_exactly: true
+  certificate_binder_ordinal_path_and_chain_lineage_must_agree: true
+  certificate_binds_old_and_new_names_exactly: true
+  certificate_binds_binder_info_exactly: true
+  old_and_new_names_must_differ: true
+  selected_binder_must_remain_named_explicit_outer_forall: true
+  deterministic_candidate_name_must_use_name_mk_simple_without_macro_scopes: true
+  deterministic_candidate_name_must_be_capture_free_and_collision_free: true
+  certificate_replay_proves_every_non_name_expr_part_unchanged: true
+  unchanged_non_name_parts_include_domain_body_bvars_universes_metadata_other_binders_and_binder_info: true
+  expr_equal_replay_and_exact_certificate_equality_required: true
+  definitional_equality_or_hash_equality_alone_is_insufficient: true
+  candidate_must_equal_exact_deterministic_replay_expr: true
+  deterministic_replay_mismatch_disposition: certificate_replay_failed
+  typed_certificate_replay_required_before_exception_applies: true
+  current_live_certificate_replay_complete: false
+  attempt_009_is_collision_and_render_evidence_not_live_transform_or_certificate_evidence: true
+
+unchanged_rule_contract:
+  maximum_total_operations_per_chain: 3
+  composition_productions_unchanged: true
+  all_sites_pairwise_disjoint_after_typed_rediscovery: true
+  repeated_text_hashes_rejected: true
+  repeated_render_hashes_rejected: true
+  repeated_selected_site_lineage_rejected: true
+  repeated_operation_ids_rejected: true
+  one_operation_per_mechanism_superclass: true
+  repeated_inverse_tokens_rejected: true
+  all_nonexception_closed_expr_hash_repeats_rejected: true
+  all_non_immediately_preceding_closed_expr_hash_repeats_rejected: true
+  all_other_path_fingerprints_rejected: true
+  all_other_cycle_rules_unchanged: true
+  inherited_lemma_or_procedure_share_maximum: 0.0025
+  inherited_lemma_or_procedure_cap_remains_additionally_applicable: true
+  every_other_cap_and_deterministic_cap_order_unchanged: true
+  p01_operation_orientation_transparency_logic_axioms_projects_and_budgets_unchanged: true
+  canonical_unordered_pair_hash_basis: sha256_sorted_reference_candidate_render_hashes_v1
+  canonical_unordered_pair_deduplication_required: true
+  same_label_duplicate_survivor_rule: minimum_stable_row_hash
+  conflicting_label_class_action: reject_entire_canonical_unordered_pair_class
+  duplicate_conflict_screen_before_caps_checks_both_orientations: true
+  deterministic_training_orientation_swap_after_caps: true
+  post_orientation_global_duplicate_conflict_rejection_required: true
+  post_orientation_failure_action: fail_shard_without_commit_or_refill
+
+effective_state_transition:
+  base_blocker_id: p01_alpha_closed_expr_hash_collision
+  base_blocker_status: open_fail_closed
+  cleared_blocker_ids:
+    - p01_alpha_closed_expr_hash_collision
+  effective_p01_identity_policy_status: approved_exception_policy_only
+  p01_identity_blocker_cleared: true
+  p01_operation_implementation_ready: false
+  overall_implementation_ready: false
+  gate_execution_may_start: false
+  remaining_implementation_blockers:
+    - n31_guard_target_and_contradiction_bank_live_resolution
+    - n31_runtime_bank_identity_admission_requires_separate_user_authorization
+    - n31_in_process_exact_full_typed_bank_hash_verifier_binding
+    - lean_source_compile_and_symbol_resolution
+    - live_success_and_adversarial_fixture_replay
+    - certificate_checker_live_replay
+    - persistent_meta_request_and_same_request_repr_adapter
+    - central_persistent_cache_adapter_binding_and_replay
+  remaining_pre_smoke_nonimplementation_blockers:
+    - coordinator_shared_label_contract_update
+    - positive_smoke_root_specific_micro_census
+    - n31_rubric_smoke_root_specific_micro_census
+  parent_p01_blocker_object_remains_unmodified: true
+  parent_verification_state_remains_unmodified: true
+  parent_prohibitions_remain_unmodified: true
+
+incomplete_prerequisites:
+  lean_compilation_complete: false
+  live_fixtures_complete: false
+  certificate_replay_complete: false
+  persistent_meta_repr_adapter_complete: false
+  central_cache_integration_complete: false
+  n31_resolution_complete: false
+  shared_label_contract_complete: false
+  positive_smoke_root_micro_census_complete: false
+  n31_rubric_smoke_root_micro_census_complete: false
+  future_cache_policy_config_hash_must_bind_this_overlay_semantic_hash: true
+
+prohibitions:
+  lean_project_compilation_or_meta_execution_started: false
+  transformation_execution_started: false
+  gate_execution_started: false
+  model_facing_rows_generated_or_emitted: false
+  production_admitted_operation_count: 0
+  wave2_implementation_started: false
+  ten_k_authorized: false
+  scale_authorized: false
+  training_started: false
+  publication_authorized: false
+  shared_contract_modified: false

@@ -2,20 +2,17 @@
 
 > **Task ID:** SFT1
 > **Status:** active
-> **Owner/session:** Codex `/root` — 2026-08-30 SFT1 Wave 1 implementation-readiness revision 0.3.4 session
-> **Last updated:** 2026-08-30
-> **Active policy:** additive task-owned implementation-readiness revision 0.3.4 over frozen
-> checkpoint `18618ca6ff8383c5254bfacbfed2f4747daebbb7`. That checkpoint, revision 0.3.3,
-> revision 0.3.2, every existing hash and receipt, and the complete 46-operation registry remain
-> immutable.
-> **Approval recorded:** on 2026-08-30 the user authorized only task-owned Wave 1
-> implementation-readiness work for the five primary semantic mechanisms. This permits additive
-> source, dispatch/checker contract, applicability-bank, fixture-specification, cache-contract,
-> strict-loader, invariant, formatting, and plan work. It does not authorize running Lean,
-> executing a transform or gate, generating or emitting rows, implementing Wave 2, production
-> admission, a 10K pilot, scale, publication, or any row-count commitment. N31 N-PROOF remains an
-> optional evidence adapter and cannot block N31 N-RUBRIC. The current freeze permits zero
-> production negatives.
+> **Owner/session:** Codex `/root` — 2026-08-31 SFT1 P01 identity-policy revision 0.3.5 session
+> **Last updated:** 2026-08-31
+> **Active policy:** additive task-owned P01 identity-policy revision 0.3.5 over frozen checkpoint
+> `5ddda95d05fe4c0fcd755e042174ca50453ebd03`. Revision 0.3.4, all earlier revisions, every
+> existing hash and receipt, and the complete 46-operation registry remain immutable.
+> **Approval recorded:** on 2026-08-31 the user authorized only a new additive policy/loader/test
+> overlay clearing the P01 alpha-invariant closed-Expr identity blocker under exact one-hop,
+> one-pair-per-root, 0.5%-share, distinct-render/text, unique-site, binder-aware exact-delta, and
+> deterministic-replay conditions. This does not authorize Lean, transformation or gate execution,
+> model-facing rows, production admission, Wave 2, 10K, scale, training, or publication. Overall
+> implementation readiness and gate execution remain false.
 > **Dependencies:** approved REPR freeze `176a783842c5a73b84413dfa8347670608b615d9`
 > and authoritative SFT1 receipt
 > `f62b68ebc946469952bdd34674c127e2bd1146b0a8febbe5d199fea54a081e78`
@@ -162,6 +159,42 @@ in the machine-readable revision-0.3.4 incident record. The command exited witho
 importing, or compiling this project; it did not start Meta, a transformation, a gate, a census, or
 row work and produced no file or artifact. No project Lean compilation or Meta validation was run,
 and this incident is not evidence for any readiness or gate state.
+
+### Additive revision 0.3.5 P01 identity-policy overlay
+
+Revision 0.3.5 resolves only the policy contradiction described in the frozen revision-0.3.4
+section above. It does not edit or reinterpret any revision-0.3.4 artifact in place. The strict
+overlay first replays the complete frozen revision-0.3.4 loader closure, then removes exactly
+`p01_alpha_closed_expr_hash_collision` from the composed effective blocker list.
+
+For a chain endpoint trace, the only newly permitted canonical closed-Expr hash repetition is one
+adjacent equality across the chain's sole `P01_ALPHA_RENAME_SINGLE_V1` edge. The repeated hash class
+must have cardinality two; no third or nonadjacent occurrence is allowed. The immediate P01
+reference and candidate must have distinct frozen-REPR render hashes and distinct exact
+`sidecar.core_text()` UTF-8 bytes. The certificate-selected current typed binder site must resolve
+exactly once; other eligible binder sites may exist. The exact binder-aware name-only certificate
+binds the site, ordinal, chain lineage, old and new names, and `BinderInfo`. Replay must reproduce
+the candidate exactly and establish that domains, bodies, bound-variable indices, universes,
+metadata, other binders, and `BinderInfo` are unchanged. Alpha equivalence, definitional equality,
+equal semantic hashes, or different text alone is insufficient.
+
+At most one P01 hop may occur when P01 is present; zero remains allowed. Every retained final pair
+whose chain contains P01, across either polarity and with or without other operations, counts toward
+the unchanged one-pair-per-root and 0.5%-share maxima. The separately applicable 0.25%
+lemma/procedure cap remains in force. All text, render, selected-site-lineage, operation,
+mechanism-superclass, inverse-token, nonexception hash, duplicate, conflict, cap-order,
+orientation, and cycle rules remain unchanged. Canonical unordered-pair deduplication still uses
+the sorted reference/candidate render hashes, and the post-orientation global duplicate/conflict
+assertion still fails a shard without commit or refill.
+
+The Git-local attempt-009 case is only frozen evidence that equal alpha-invariant closed-Expr hashes
+can coexist with distinct render hashes and model-facing texts. It is not live transform,
+certificate-replay, fixture, implementation-readiness, gate, or production evidence. P01
+implementation readiness and overall implementation readiness remain false behind project Lean
+compilation, live success/adversarial fixtures, live certificate replay, the persistent Meta/REPR
+adapter, and central cache integration. N31 resolution, the coordinator-owned shared-label
+contract, and the two smoke-root micro-censuses also remain open. No execution or row authority is
+created by this overlay.
 
 ## Objective and scale contract
 
@@ -473,8 +506,11 @@ remain unresolved and fail-closed without creating an all-46 barrier.
 The exact registry dispositions are:
 
 - P02 and P11 are diagnostic and cannot emit rows.
-- P01 has one narrow exception allowing its single hop to repeat an alpha fingerprint once; it may
-  not repeat a text, closed-Expr, render, operation, or inverse token.
+- The frozen P01 registry has one narrow exception allowing its single hop to repeat an alpha
+  fingerprint once and still forbids text, closed-Expr, render, operation, and inverse-token
+  repeats. Revision 0.3.5 does not modify that object; its additive effective overlay separately
+  permits only the certificate-qualified adjacent closed-Expr equality defined above. Text,
+  render, operation, and inverse-token repeats remain forbidden.
 - P21 beta/zeta introductions are diagnostic at a 0.1% cap; reductions remain implementation
   candidates.
 - P39, P41, P42, and both lanes of N29–N32 remain proof-of-concept; N31 has the highest negative
@@ -512,8 +548,10 @@ gate-admitted operations without granting production or row-emission status. A p
 zero negative operations; a negative row has exactly one, last and unique. Each hop rediscovers a
 unique typed site in the current Expr. Sites are pairwise
 disjoint, mechanism superclasses do not repeat, inverse tokens do not repeat, and
-text/Expr/render/site-lineage cycles reject the chain. The sole P01 exception is the one
-alpha-fingerprint condition stated above.
+text/render/site-lineage cycles reject the chain. Closed-Expr cycles also reject except for the
+single certificate-qualified adjacent equality across the sole P01 hop in revision 0.3.5; the
+frozen one-hop alpha-fingerprint exception remains unchanged. No other repetition or cycle escape
+is permitted.
 
 The seven exact P20 fold/unfold, P21 beta/zeta introduction/reduction, and P22 eta-reduction
 operations form one explicit mutual-exclusion group: at most one of them may appear in a chain.
@@ -722,11 +760,16 @@ The 10K pilot, any bulk scale, publication, and all row/root-count commitments a
 
 ## Acceptance criteria for this revision
 
-- Revision 0.3.2, every pre-existing hash and receipt, and the exact 46-operation registry remain
-  byte-for-byte frozen. Revision 0.3.3 is an additive policy/effective-state overlay only.
-- The strict Lean-free loader composes the immutable base registry, Wave 1 admission receipt, source
-  authorization, and 0.3.3 overlay; rejects unknown, duplicate, contradictory, or hash-drifting
-  state; and exposes no execution, transformation, or row-emission surface.
+- Revision 0.3.4, every earlier revision, every pre-existing hash and receipt, and the exact
+  46-operation registry remain byte-for-byte frozen. Revision 0.3.5 is an additive P01
+  policy/effective-state overlay only.
+- The strict Lean-free loader composes and replays the immutable revision-0.3.4 closure; binds the
+  exact parent commit/tree, P01 operation/bank/bundle, REPR identities, collision evidence, and
+  unchanged grammar/dedup/cap contracts; rejects unknown, duplicate, contradictory, alternate-path,
+  or hash-drifting state; and exposes no execution, transformation, or row-emission surface.
+- The only permitted closed-Expr repetition is the qualified adjacent P01 equality above. Only its
+  named policy blocker is removed. P01 implementation readiness, overall readiness, and every gate,
+  execution, row, production, Wave 2, 10K, scale, training, and publication state remain false.
 - Effective Wave 1 contains six exact IDs but five semantic mechanisms. Its conformance accounting
   is 20--24 project cells and 40--48 fixtures; its independent measurement target is approximately
   500 roots. Optional N31 N-PROOF cells and evidence are derived only from reproducible proof routes
@@ -835,6 +878,25 @@ promotion, label, or row. `N31_DROP_REQUIRED_GUARD_PROOF_V1` may be described on
 sidecar-evidence adapter; it is not a sixth implementation-readiness blocker. All earlier claimed
 paths other than this brief are frozen for this revision.
 
+**Exact paths claimed by the revision-0.3.5 session:**
+
+- `plans/30_sft1_deterministic.md`
+- `configs/transformations/sft1_value_first_v1/p01_identity_policy_v0_3_5.yaml`
+- `src/leanfaith/sft1/p01_identity_policy.py`
+- `tests/unit/sft1/test_p01_identity_policy.py`
+
+These are additive task-owned policy/loader/test paths only. Every revision-0.3.4 source, policy,
+bank, fixture, loader, and test artifact is frozen. Revision 0.3.5 may clear only the named P01
+identity blocker in its composed effective state; implementation readiness, gate execution, Lean,
+transformation, row, production, Wave 2, 10K, scale, training, and publication states remain false.
+
+The checked-in overlay is pinned at raw/typed-semantic hashes
+`ee43bbbe00dc7f1063cb9dec334bfb204bcedb3bae255841e3b70c85470c2bf3` /
+`a4aa3ddc383fdbc5fd1e161b5955f403ac17afa98f9d24defab4c2741846b4fd`. The strict loader and its
+focused invariant suite have raw hashes
+`8c6eff74bb2e0b590dad07cffea4542ecf21df997ce1588eb97087c3bb7b3e24` and
+`0dbe59fdef816c9e995e48587f144013c98b0ff21f1bd3ccb79a2e02a8f1d14e`, respectively.
+
 ## Coordinator requests
 
 1. **REPR and SFT1 representation receipt resolved:** coherent freeze
@@ -849,15 +911,14 @@ paths other than this brief are frozen for this revision.
    generic D0, F2 direction, failed search, and candidate provability alone never create a label.
    Record N-RUBRIC and capped N-PROOF lanes and keep candidate truth evidence
    `proved|refuted|unknown` separate from the label.
-3. **P01 identity/dedup request is open:** reconcile the frozen P01 alpha-cycle exception with
-   REPR's intentionally alpha-invariant closed-Expr hash. The exact existing evidence has equal
-   reference/candidate closed-Expr hashes but distinct render hashes. Decide additively whether one
-   P01 hop may bind a distinct render hash plus binder-aware exact-delta hash while repeating only
-   the alpha-invariant semantic hash, or remove P01 from an executable wave. Revision 0.3.4 does not
-   override the existing repeated-closed-Expr-hash rejection.
+3. **P01 identity/dedup request resolved at policy level:** the user's exact revision-0.3.5
+   approval permits only the qualified adjacent P01 closed-Expr-hash equality defined above. The
+   frozen revision-0.3.4 rule and blocker objects remain byte-identical; only the additive composed
+   state clears that blocker. This does not resolve live certificate replay or implementation
+   readiness and grants no execution or row authority.
 
 No coordinator request authorizes this session to edit a coordinator-owned path. Policy revision 0.3.1
-and additive readiness revisions 0.3.3/0.3.4 leave `plans/00_shared_contracts.md` untouched.
+and additive revisions 0.3.3/0.3.4/0.3.5 leave `plans/00_shared_contracts.md` untouched.
 
 ## Closed REPR dependency and remaining pre-Wave-1-smoke blockers
 
@@ -922,10 +983,16 @@ additive revision 0.3.4 to prepare task-owned static implementation-readiness co
 five primary mechanisms only. N31 N-PROOF remains optional and unimplemented. Revision 0.3.4 does
 not inherit permission to run Lean or any gate from the older admission wording.
 
+The user subsequently approved only the additive revision-0.3.5 P01 identity policy derived from
+`5ddda95d05fe4c0fcd755e042174ca50453ebd03`. That decision clears the one P01 policy blocker under
+the exact certificate-gated adjacent-hash exception above. It does not authorize Lean,
+transformation or gate execution, model-facing rows, production admission, Wave 2, 10K, scale,
+training, or publication.
+
 This remains bounded Wave 1 gate admission only. It does not make implementation ready, permit
 Lean/transform execution before the named prerequisites, admit any operation to production, or
-authorize a model-facing row. This session stops after the static revision 0.3.4 commit. A later
-instruction must separately authorize any project Lean compilation or Meta validation; gate
+authorize a model-facing row. This session stops after the additive policy-only revision 0.3.5
+commit. A later instruction must separately authorize any project Lean compilation or Meta validation; gate
 execution still cannot begin until readiness is true. After the wave gates, separately request exact
 operation-production promotions supported by the measured receipt. Only after those promotions and
 the complete cross-source census are recorded may the project request exactly:
@@ -1090,3 +1157,24 @@ work. End with the exact user decision needed.
   produced no artifact; no project Lean compilation, Meta validation, transform, gate, census,
   row, Wave 2, production, 10K, scale, or publication work occurred. P01's repeated alpha-invariant
   closed-Expr hash and N31's zero admitted resolved bank identities remain fail-closed blockers.
+- 2026-08-31 — user approved an additive revision-0.3.5 P01 identity-policy overlay derived from
+  frozen commit `5ddda95d05fe4c0fcd755e042174ca50453ebd03`. Claimed only the brief and three
+  new task-owned policy/loader/test paths above. The approval can clear only the P01 identity
+  blocker under the exact one-hop, cap, distinctness, rediscovery, certificate, unchanged-Expr, and
+  deterministic-replay conditions; every other blocker and authorization boundary remains closed.
+  Lean remains the bottleneck: this session performs only schema, hashing, provenance, loader, and
+  invariant work before any later bounded persistent Meta validation. No Lean, transform, gate,
+  census, row, production, Wave 2, 10K, scale, training, or publication work was started.
+- 2026-08-31 — completed the additive revision-0.3.5 P01 identity-policy overlay without Lean or
+  execution. The strict loader replays every frozen revision-0.3.4 dependency, binds the exact P01
+  operation/bank/bundle and Git-local collision evidence, permits only the certificate-qualified
+  adjacent closed-Expr equality, and removes exactly one blocker from the composed effective state.
+  It also rejects bool/integer literal aliases so `true`, `1`, `false`, and `0` cannot cross typed
+  policy axes. The focused suite passed 68/68 and the combined Lean-free SFT1 loader/invariant plus
+  project-plan suite passed 574/574; Ruff check/format, strict Mypy, live loader/hash replay, frozen
+  dependency replay, and whitespace checks passed. Policy raw/semantic hashes are `ee43bbbe…` /
+  `a4aa3ddc…`; loader/test raw hashes are `8c6eff74…` / `0dbe59fd…`. Independent adversarial review
+  reported no remaining findings. P01 implementation readiness, overall readiness, and gate
+  execution remain false; N31, shared-label, cache/adapter, live fixture/replay, and smoke-census
+  blockers remain open. No Lean, transformation or gate execution, census, model-facing row,
+  production admission, Wave 2, 10K, scale, training, publication, or shared-contract edit occurred.
