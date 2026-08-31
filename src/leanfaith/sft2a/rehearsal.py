@@ -56,12 +56,45 @@ _V5_AUTHORIZATION_SENTENCE = (
     "legacy rejudge, publication, and all other runs remain unauthorized."
 )
 
+_V5_1_AUTHORIZATION_SENTENCE = (
+    "I authorize SFT2A to launch only the corrected 100-root/400-slot closure-aware v5.1 "
+    "rehearsal bound to sample "
+    "480a586ea99c26f41c6dfba47fb345507f25bd9bc778c03b13cc22108abd87f5 and config "
+    "add8445af25fddc99f3381dbf23d30121847f90c3ef0ddbbba4b09ee8e632f51 under ceilings "
+    "2,480 total provider calls, 1,200 Terra calls, 1,200 Opus calls, 80 Kimi calls, three "
+    "candidate attempts per slot, and $160 reported Opus spend; the approximately-10K gate, "
+    "50K run, legacy rejudge, publication, and all other runs remain unauthorized."
+)
+
+
+@dataclass(frozen=True, slots=True)
+class _AuthorizationProfile:
+    scope: str
+    sentence: str
+    readiness_path: str
+
 
 @dataclass(frozen=True, slots=True)
 class LoadedRehearsalAuthorization:
     path: Path
     document: dict[str, object]
     sha256: str
+
+
+def _authorization_profile(config: SFT2AV5Config) -> _AuthorizationProfile:
+    if config.rehearsal.output_subdir == "runs/rehearsal_closure_aware_v5":
+        return _AuthorizationProfile(
+            scope="sft2a_v5_100_roots_400_slots_only",
+            sentence=_V5_AUTHORIZATION_SENTENCE,
+            readiness_path="configs/sft2a/rehearsal_readiness_v5.json",
+        )
+    if config.rehearsal.output_subdir == "runs/rehearsal_closure_aware_v5_1":
+        return _AuthorizationProfile(
+            scope="sft2a_v5_1_100_roots_400_slots_only",
+            sentence=_V5_1_AUTHORIZATION_SENTENCE,
+            readiness_path="configs/sft2a/rehearsal_readiness_v5_1.json",
+        )
+    raise RehearsalError("unrecognized v5 rehearsal authorization profile")
 
 
 def _now() -> str:
@@ -130,8 +163,10 @@ def load_rehearsal_authorization(
         raise RehearsalError("rehearsal authorization receipt is missing or unsafe")
     document = _object(resolved)
     sample = prepare_rehearsal_sample(loaded)
+    profile = _authorization_profile(config)
     expected = {
         "version": "leanfaith_sft2a_rehearsal_authorization_v5",
+        "authorization_scope": profile.scope,
         "config_hash": loaded.config_hash,
         "config_file_sha256": hash_file(loaded.path),
         "sample_sha256": sample["sample_sha256"],
@@ -168,7 +203,7 @@ def load_rehearsal_authorization(
     if authorized:
         readiness_path_value = document.get("readiness_receipt_path")
         readiness_sha256 = document.get("readiness_receipt_sha256")
-        if readiness_path_value != "configs/sft2a/rehearsal_readiness_v5.json":
+        if readiness_path_value != profile.readiness_path:
             raise RehearsalError("authorized rehearsal readiness path differs")
         readiness_path = loaded.repo_root / str(readiness_path_value)
         if (
@@ -178,9 +213,9 @@ def load_rehearsal_authorization(
             or hash_file(readiness_path) != readiness_sha256
         ):
             raise RehearsalError("authorized rehearsal readiness receipt differs")
-        if document.get("authorization_text") != _V5_AUTHORIZATION_SENTENCE or document.get(
+        if document.get("authorization_text") != profile.sentence or document.get(
             "authorization_text_sha256"
-        ) != sha256_hex(_V5_AUTHORIZATION_SENTENCE.encode()):
+        ) != sha256_hex(profile.sentence.encode()):
             raise RehearsalError("authorized rehearsal sentence differs")
     implementation_commit = document.get("implementation_commit")
     implementation_tree = document.get("implementation_tree")
@@ -226,7 +261,10 @@ def load_rehearsal_authorization(
 def require_rehearsal_authorization(receipt: LoadedRehearsalAuthorization) -> None:
     if receipt.document.get("authorized") is not True:
         raise RehearsalError("100-root/400-slot rehearsal is not authorized")
-    if receipt.document.get("authorization_scope") != "sft2a_v5_100_roots_400_slots_only":
+    if receipt.document.get("authorization_scope") not in {
+        "sft2a_v5_100_roots_400_slots_only",
+        "sft2a_v5_1_100_roots_400_slots_only",
+    }:
         raise RehearsalError("rehearsal authorization scope differs")
 
 

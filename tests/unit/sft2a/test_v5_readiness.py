@@ -14,6 +14,7 @@ from leanfaith.config.hashing import canonical_json_bytes, hash_canonical, hash_
 from leanfaith.sft2a.canaries import load_closure_canaries
 from leanfaith.sft2a.census import (
     _contexts_at_offsets,
+    _has_slot_mechanism_coverage,
     prepare_rehearsal_sample,
     run_zero_lean_census,
 )
@@ -24,6 +25,7 @@ from leanfaith.sft2a.layout import run_paths
 from leanfaith.sft2a.lean_oracle import SignatureOracleResult
 from leanfaith.sft2a.mechanisms import (
     MechanismAssignment,
+    applicable_mechanisms,
     plan_mechanism_rotation,
     shortcut_violation,
 )
@@ -32,9 +34,11 @@ from leanfaith.sft2a.pipeline import run_one_root
 from leanfaith.sft2a.providers import ProviderCallResult, _codex_transport_schema
 from leanfaith.sft2a.readiness import implementation_identity
 from leanfaith.sft2a.rehearsal import (
+    _V5_1_AUTHORIZATION_SENTENCE,
     _V5_AUTHORIZATION_SENTENCE,
     LoadedRehearsalAuthorization,
     RehearsalError,
+    _authorization_profile,
     exclude_audit_unknowns,
     launch_detached_rehearsal,
     load_rehearsal_authorization,
@@ -44,6 +48,7 @@ from leanfaith.sft2a.rehearsal import (
 )
 
 _CONFIG = Path("configs/sft2a/closure_aware_v5.yaml")
+_CORRECTED_CONFIG = Path("configs/sft2a/closure_aware_v5_1.yaml")
 
 
 def _loaded() -> LoadedSFT2AConfig:
@@ -411,6 +416,29 @@ theorem safe (n : Nat) : n = n := rfl
     assert unsafe == (("Example",), ("Classical",), (), True)
     assert safe == ((), ("Classical",), (), False)
     assert "in" not in unsafe[1]
+
+
+def test_rehearsal_root_has_two_applicable_mechanisms_per_slot_polarity() -> None:
+    signature = "∀ {α : Type} [Preorder α] {a b c : α}, a ≤ b → b ≤ c → a ≤ c"
+
+    assert not _has_slot_mechanism_coverage("P")
+    assert _has_slot_mechanism_coverage(signature)
+    assert len(applicable_mechanisms(signature, "preserving")) >= 2
+    assert len(applicable_mechanisms(signature, "breaking")) >= 2
+
+
+def test_corrected_rehearsal_has_distinct_fail_closed_authorization_profile() -> None:
+    loaded = load_sft2a_config(_CORRECTED_CONFIG)
+    assert isinstance(loaded.config, SFT2AV5Config)
+    profile = _authorization_profile(loaded.config)
+
+    assert loaded.config_hash == "add8445af25fddc99f3381dbf23d30121847f90c3ef0ddbbba4b09ee8e632f51"
+    assert profile.scope == "sft2a_v5_1_100_roots_400_slots_only"
+    assert profile.readiness_path == "configs/sft2a/rehearsal_readiness_v5_1.json"
+    assert profile.sentence == _V5_1_AUTHORIZATION_SENTENCE
+    assert sha256_hex(profile.sentence.encode()) == (
+        "00a61d1f7c4c9e32069d5d980b2115834fd7baaacd037c9c769dc66abf4cb105"
+    )
 
 
 def _authorization_document(loaded: LoadedSFT2AConfig, *, authorized: bool) -> dict[str, object]:

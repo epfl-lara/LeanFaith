@@ -512,6 +512,13 @@ def _stratified_select(
     return selected
 
 
+def _has_slot_mechanism_coverage(signature: str) -> bool:
+    return (
+        len(applicable_mechanisms(signature, "preserving")) >= 2
+        and len(applicable_mechanisms(signature, "breaking")) >= 2
+    )
+
+
 def prepare_rehearsal_sample(
     loaded: LoadedSFT2AConfig,
     *,
@@ -544,9 +551,7 @@ def prepare_rehearsal_sample(
     for row in rows:
         if isinstance(row, dict):
             signature = str(row["reference_signature"])
-            if applicable_mechanisms(signature, "preserving") and applicable_mechanisms(
-                signature, "breaking"
-            ):
+            if _has_slot_mechanism_coverage(signature):
                 by_source[str(row["source"])].append(row)
     selected: list[dict[str, object]] = []
     for allocation in loaded.config.rehearsal.allocations:
@@ -641,6 +646,7 @@ def prepare_rehearsal_sample(
         "census_inventory_sha256": census_manifest["eligible_roots_sha256"],
         "sampler_version": loaded.config.rehearsal.sampler_version,
         "salt": loaded.config.rehearsal.salt,
+        "minimum_applicable_mechanisms_per_polarity": 2,
         "root_count": len(sample_rows),
         "slot_count": len(sample_rows) * 4,
         "source_mix": dict(sorted(source_counts.items())),
