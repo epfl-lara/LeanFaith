@@ -720,10 +720,16 @@ def verify_reference_replay(loaded: LoadedSFT2AConfig) -> dict[str, object]:
     output = _output(loaded)
     manifest = _json_object(output / "certification_manifest.json")
     rows = _jsonl(output / "certified_sample.jsonl")
+    derived_receipts = {
+        "reference_replay_receipt.json",
+        "global_100_preflight_receipt.json",
+    }
     durable_before = {
         str(path.relative_to(output)): hash_file(path)
         for path in sorted(output.rglob("*"))
-        if path.is_file() and "detached/" not in str(path.relative_to(output))
+        if path.is_file()
+        and "detached/" not in str(path.relative_to(output))
+        and str(path.relative_to(output)) not in derived_receipts
     }
     hits = 0
     for row in rows:
@@ -754,7 +760,9 @@ def verify_reference_replay(loaded: LoadedSFT2AConfig) -> dict[str, object]:
     durable_after = {
         str(path.relative_to(output)): hash_file(path)
         for path in sorted(output.rglob("*"))
-        if path.is_file() and "detached/" not in str(path.relative_to(output))
+        if path.is_file()
+        and "detached/" not in str(path.relative_to(output))
+        and str(path.relative_to(output)) not in derived_receipts
     }
     if durable_before != durable_after:
         raise ReferenceCertificationPhaseError("reference replay changed durable artifact hashes")

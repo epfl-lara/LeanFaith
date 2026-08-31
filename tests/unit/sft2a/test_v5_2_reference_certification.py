@@ -18,7 +18,7 @@ from leanfaith.sft2a.parallel_rehearsal import (
     ParallelRootJournal,
     deterministic_parallel_compaction,
 )
-from leanfaith.sft2a.reference_certification import prepare_reference_pool
+from leanfaith.sft2a.reference_certification import prepare_reference_pool, verify_reference_replay
 from leanfaith.sft2a.reference_certifier import (
     _compile_context,
     constant_lookup_command,
@@ -27,6 +27,7 @@ from leanfaith.sft2a.reference_certifier import (
 
 _CONFIG = Path("configs/sft2a/closure_aware_v5_2.yaml")
 _RECOVERY_CONFIG = Path("configs/sft2a/closure_aware_v5_2_recovery_v2.yaml")
+_REPLAY_RECOVERY_CONFIG = Path("configs/sft2a/closure_aware_v5_2_recovery_v3.yaml")
 
 
 def _loaded() -> LoadedSFT2AConfig:
@@ -146,6 +147,23 @@ def test_recovery_uses_one_canonical_lookup_context_per_project() -> None:
     assert canonical.namespace_context == ()
     assert canonical.open_context == ()
     assert canonical.scoped_context == ()
+
+
+def test_completed_replay_receipt_is_idempotent_and_call_free() -> None:
+    loaded = load_sft2a_config(_RECOVERY_CONFIG)
+    assert isinstance(loaded.config, SFT2AV52Config)
+    output = Path(loaded.config.staging_root) / loaded.config.reference_certification.output_subdir
+    receipt_path = output / "reference_replay_receipt.json"
+    before = hash_file(receipt_path)
+    first = verify_reference_replay(loaded)
+    second = verify_reference_replay(loaded)
+    assert first == second
+    assert first["cache_hits"] == 100
+    assert first["lean_requests_executed"] == 0
+    assert first["provider_calls_executed"] == 0
+    assert hash_file(receipt_path) == before
+    recovered = load_sft2a_config(_REPLAY_RECOVERY_CONFIG)
+    assert isinstance(recovered.config, SFT2AV52Config)
 
 
 def test_atomic_provider_budget_survives_restart_and_requires_opus_cost(tmp_path: Path) -> None:

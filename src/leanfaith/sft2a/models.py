@@ -618,6 +618,13 @@ class SFT2AV52RecoveryConfig(SFT2AV52Config):
     failed_v5_2_seal: ArtifactBinding
 
 
+class SFT2AV52RecoveryV3Config(SFT2AV52RecoveryConfig):
+    """Fresh-output replay-receipt recovery using the shared certified-reference cache."""
+
+    config_id: Literal["leanfaith_sft2a_closure_aware_v5_2_recovery_v3"]  # type: ignore[assignment]
+    failed_v5_2_recovery_v2_seal: ArtifactBinding
+
+
 class ProposerOutput(StrictModel):
     schema_version: Literal[1]
     requested_polarity: Polarity

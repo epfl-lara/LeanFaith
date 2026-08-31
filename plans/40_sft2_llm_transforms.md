@@ -518,3 +518,11 @@ recorded budget/model decision.
   pool `8ec78fd1823b17565c80ec0ffbf483e1d6907382a30d0500843237d640fdfd9b`, fresh output
   `runs/reference_certification_v5_2_recovery_v2`, and session
   `leanfaith-sft2a-v5-reference-certification-v2`. No authorization scope changed.
+- 2026-08-31 — recovery-v2 certified all 300 initial roots with no extension and froze an exact
+  42/25/17/16 sample, then completed a 100/100 zero-Lean cache replay. Its final global preflight
+  failed only because the second replay's durable-tree calculation included the first replay
+  receipt, creating an immutable self-reference conflict. Preserved all 327 recovery-v2 files at
+  combined-tree hash `f4e90fafd7925887c2ac30fb2ee4def7afa4252470e2875b149fffba28d83958`.
+  The recovery-v3 fix excludes derived replay/preflight receipts from their own durable tree and
+  has a regression requiring two identical, zero-call replay results. All 300 terminal reference
+  cache entries remain reusable; no provider call was made.
