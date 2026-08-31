@@ -271,7 +271,7 @@ def authorization_sentence_v52(loaded: LoadedProviderRehearsalV52, readiness_sha
         "I authorize SFT2A to launch only the corrected 100-root/400-slot closure-aware v5.2 "
         f"provider rehearsal bound to sample {loaded.document['corrected_sample_sha256']}, config "
         f"{loaded.sha256}, readiness {readiness_sha256}, implementation "
-        f"{readiness['implementation_commit']} "
+        f"commit {readiness['implementation_commit']} and tree {readiness['implementation_tree']} "
         "under ceilings 2,480 total provider calls, 1,200 Terra calls, 1,200 Opus calls, 80 Kimi "
         "calls, three candidate attempts per slot, and $160 reported Opus spend with at most two "
         "Lean/root workers and 40 GiB measured RSS; the approximately-10K gate, 50K run, legacy "
