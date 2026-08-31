@@ -1,0 +1,81 @@
+{
+  "receipt_id": "leanfaith_sft2a_closure_aware_v5_smoke_receipt",
+  "status": "passed",
+  "completed_at_utc": "2026-08-31T16:07:00Z",
+  "config": {
+    "path": "configs/sft2a/closure_aware_v5.yaml",
+    "config_hash": "ba77a49dd162b88e59bdf1fe5cd04687eeaa2affda314dc3b3b0e5cfa2cc16da",
+    "file_sha256": "94ed76b005a21237dbd2422a01c3e4511bc5c9e2ddd21b5ea77c4fee833f690e"
+  },
+  "labeling_defaults_policy": {
+    "path": "policies/sft2_llm_labeling_defaults_v1.yaml",
+    "sha256": "4554a071b06b1af9015b253b5e64b2a0a4d013630e5224ef7729bbf65757646f"
+  },
+  "implementation_commit": "92ddfb4bf49c6982ae9eb1aa3de90449e497f666",
+  "implementation_tree": "15c0425cd95fda7441960df33d0722afe684d169",
+  "recovery_v4_historical_seal": {
+    "receipt_sha256": "89e2532b2e0f8a5f3d5ec79147a88afa98dbd51d4dbedbe76f164cb694507c60",
+    "files": 137,
+    "combined_tree_sha256": "3ea4a72280c696b1811995b51403373384ae8269ee05accc351f9527d82dd06a"
+  },
+  "closure_canaries": {
+    "manifest_path": "/storage/milikic/leanfaith/value_first/sft2_llm_transforms_v1/runs/one_root_closure_aware_v5/closure_canaries_v5/manifest.json",
+    "manifest_sha256": "bbf42c0bb71b51d806822be059b49fd61602224471a292cc7499ff58bb6c1323",
+    "rows_sha256": "19ad7dd16234ed05c5e8615b4e8c89b81e47819837b6e2414fe8c2200c3adb56",
+    "passed": 3,
+    "total": 3,
+    "malformed_attempts": 0,
+    "opus_calls": 3,
+    "reported_opus_spend_usd": 0.097468,
+    "provider_latency_seconds": 26.03,
+    "lean_requests": 0
+  },
+  "one_root": {
+    "root_id": "mathlib:le_trans:sft2a_closure_aware_v5_smoke",
+    "manifest_path": "/storage/milikic/leanfaith/value_first/sft2_llm_transforms_v1/runs/one_root_closure_aware_v5/manifest.json",
+    "manifest_sha256": "8fc2d0aad73cba8d167b94802e0af28422e1f844ad7b1a2f1b5cfb29e100e8b2",
+    "core_sha256": "2401d202908b2bc979a4235262293eda3e174d5764741f85288b972e5f2c2447",
+    "sidecar_sha256": "fc9fde84befcf1fed554892abdd898a922aedea89e338fcb0cdda86392db2513",
+    "accepted": 4,
+    "accepted_preserving": 2,
+    "accepted_breaking": 2,
+    "candidate_attempts": 4,
+    "candidate_retries": 0,
+    "self_pairs": 0,
+    "duplicates": 0,
+    "contamination": 0,
+    "invalid": 0,
+    "unknown": 0,
+    "judge_disagreements": 0,
+    "judge_malformed_attempts": 0,
+    "proposer_calls": 4,
+    "opus_calls": 4,
+    "reported_opus_spend_usd": 0.13346,
+    "provider_latency_seconds": 113.10502,
+    "lean_requests": 4,
+    "lean_cache_hits": 0,
+    "lean_elapsed_seconds": 8.424,
+    "lean_rows_per_second": 0.47483380816714155
+  },
+  "combined_semantic_provider_calls": 11,
+  "combined_proposer_calls": 4,
+  "combined_opus_calls": 7,
+  "combined_reported_opus_spend_usd": 0.230928,
+  "provider_infrastructure_attempts": {
+    "failed_before_model_output": 1,
+    "detail": "The first Terra transport was rejected by the endpoint because the valid frozen JSON Schema used const without redundant type annotations. The same call key then succeeded through the recorded non-semantic Codex transport-schema annotation transform; it did not consume a candidate attempt."
+  },
+  "replay": {
+    "receipt_path": "/storage/milikic/leanfaith/value_first/sft2_llm_transforms_v1/runs/one_root_closure_aware_v5/reproducibility_receipt.json",
+    "receipt_sha256": "f795d36db6feaa79bdb4b3a9cfc2fbdf6d58945ca8d22a01fb73dce8112ba133",
+    "artifact_snapshot_hash": "40deefb9fc1fa4070a3eeae3b649f3b2fb5c227807e5855fc0573ba999195780",
+    "provider_calls_executed": 0,
+    "lean_requests_executed": 0,
+    "reproducible": true
+  },
+  "rehearsal_started": false,
+  "scale_10k_authorized": false,
+  "scale_50k_authorized": false,
+  "legacy_rejudge_authorized": false,
+  "publication_authorized": false
+}

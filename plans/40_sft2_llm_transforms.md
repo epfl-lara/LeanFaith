@@ -1,11 +1,11 @@
 # SFT2A — LLM-generated semantic transformations
 
 > **Task ID:** SFT2A
-> **Status:** active
+> **Status:** pilot_ready
 > **Owner/session:** Codex `/root` — 2026-08-31 SFT2A v5 session
 > **Last updated:** 2026-08-31
 > **Dependencies:** REPR `goal_v1.0`; shared rubric; roots may be selected independently of SFT1
-> **Next gate:** closure-aware v5 one-root smoke, then user authorization for only the 100-root/400-slot rehearsal
+> **Next gate:** user authorization for only the 100-root/400-slot rehearsal
 > **Compute class:** external LLM/API plus CPU/RAM for Lean; large run may need explicit budget approval
 > **Lean budget:** compile each novel candidate once through cached persistent workers
 > **Local staging root:** `/storage/milikic/leanfaith/value_first/sft2_llm_transforms_v1/`
@@ -407,3 +407,20 @@ recorded budget/model decision.
   shards. The sample, rehearsal, audit, detached launch, and 50K projection code remain fail-closed
   for calls until an additive hash-bound rehearsal authorization is received. The approximately
   10K gate, 50K run, legacy rejudge, and publication remain separately unauthorized.
+- 2026-08-31 — passed the closure-aware v5 live gate on implementation `92ddfb4` (tree
+  `15c0425`). Opus-high correctly classified all three closure canaries as equivalent with no
+  malformed response and no Lean request. The `mathlib:le_trans` smoke then accepted two
+  preserving and two breaking candidates on their first attempts, with zero self-pairs,
+  cross-root duplicates, contamination, invalidity, unknowns, malformed judgments, or semantic
+  disagreements. Four candidates executed once through frozen REPR in 8.424 seconds; replay
+  executed zero provider calls and zero Lean requests. The smoke used four Terra calls and seven
+  Opus calls including canaries, with $0.230928 total reported Opus spend. Receipt
+  `configs/sft2a/closure_aware_v5_smoke_receipt.json` seals the manifests and replay.
+- 2026-08-31 — materialized the additive readiness-only receipt
+  `configs/sft2a/rehearsal_readiness_v5.json` for sample
+  `f7d3e27d8361dcbdde245e5236902239b5ca505538a3ca35d5efb80c6e042c4c`, exactly 100 roots and
+  400 slots with source mix 42 Mathlib / 25 Physlib / 17 CSLib / 16 safe-context compiler-data.
+  It is fail-closed with `authorized: false` under ceilings 2,480 total provider calls, 1,200
+  Terra, 1,200 Opus, 80 Kimi, three candidate attempts per slot, and $160 reported Opus spend.
+  No rehearsal `tmux` session was started. The approximately-10K gate, 50K run, legacy rejudge,
+  and publication remain separately unauthorized.
