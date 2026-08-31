@@ -526,3 +526,10 @@ recorded budget/model decision.
   The recovery-v3 fix excludes derived replay/preflight receipts from their own durable tree and
   has a regression requiring two identical, zero-call replay results. All 300 terminal reference
   cache entries remain reusable; no provider call was made.
+- 2026-08-31 — committed replay-stable recovery-v3 at `c23b295` (tree `63c7954`) and materialized
+  `configs/sft2a/reference_certification_authorization_v5_2_recovery_v3.json` with hash
+  `3a9fc2bf63ee0eccfffb96388ec3cdbb66fc38f531ed69eb3004ba32247b0b52`. Its config hash is
+  `28ebd549a1abd85a58796d987b2a56f03f481a3420cd427ff87f0de2b766da15`; it retains pool
+  `8ec78fd1823b17565c80ec0ffbf483e1d6907382a30d0500843237d640fdfd9b` and uses fresh output
+  `runs/reference_certification_v5_2_recovery_v3` plus session
+  `leanfaith-sft2a-v5-reference-certification-v3`. Authorization remains local certification only.
