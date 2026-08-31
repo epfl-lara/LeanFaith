@@ -1,0 +1,79 @@
+schema_version: 1
+smoke_id: sft1_thin_two_row_smoke_v1
+status: implementation
+authorization:
+  exact_local_row_count: 2
+  mathlib_only: true
+  p01_allowed: false
+  general_n31_bank_allowed: false
+  census_allowed: false
+  hundred_roots_allowed: false
+  ten_k_allowed: false
+  production_allowed: false
+  scale_allowed: false
+  training_allowed: false
+  publication_allowed: false
+implementation:
+  base_commit: fc8cdc2c6d9d93e99e20933a17dbcfa2afc2be48
+  base_tree: 130bf13d240798e8830b106ddaa17a8e3feeb08f
+  wave1_path: LeanFaith/Meta/SFT1/Wave1.lean
+  wave1_sha256: 7d4c27e1fd631cc1ba2f8de7cacec1eca618280c12c8ac351d9544a06e94ba4d
+  helper_path: LeanFaith/Meta/SFT1/ThinSmoke.lean
+  helper_sha256: 8aa15ca964d6e1c9094b6b8124d62059f86ba2b8b1d6796c4d064348964c6147
+  runner_path: src/leanfaith/sft1/thin_smoke.py
+  runner_sha256: 1f6f8d102198c7272b82fc4b93000233bfda8f4559b3015957d63f04961ed559
+  import_strip_policy: remove_lines_whose_first_token_is_import_v1
+project:
+  project_id: mathlib
+  project_dir: /storage/milikic/leanfaith/mathlib4
+  project_revision: d568c8c09630de097a046763c17b9ea99f95f950
+  lean_version: v4.31.0-rc1
+  lean_interact_version: 0.11.4
+  repl_revision: augustepoiroux/repl@lean-interact-0.11.4
+  import_header: import Mathlib
+  options:
+    Elab.async: false
+    autoImplicit: false
+  persistent_worker_count: 1
+  lean_rss_claim_gib: 24
+positive:
+  root_kind: imported_mathlib_theorem
+  root_name: Nat.lor_comm
+  root_id_basis: [mathlib, d568c8c09630de097a046763c17b9ea99f95f950, Nat.lor_comm]
+  source_path: Mathlib/Data/Nat/Bitwise.lean
+  source_file_sha256: 370fca0d9640cf428f7acb11a001801e47fdcb1073510ee4b3f8b4f60911d207
+  operation_id: P18_SYMMETRIZE_EQUALITY_V1
+  label: true
+negative:
+  root_kind: hand_written_closed_canary
+  root_name: n31_nat_eq_zero_add_one_v1
+  root_id_basis: [local_canary, n31_nat_eq_zero_add_one_v1]
+  reference_proposition: "∀ (n : Nat) (hn : n = 0), n + 1 = 1"
+  operation_id: N31_DROP_REQUIRED_GUARD_RUBRIC_V1
+  proof_evidence_operation_id: N31_DROP_REQUIRED_GUARD_PROOF_V1
+  label: false
+  candidate_truth: refuted
+  counterexample_witness: "(1 : Nat)"
+  smoke_only: true
+repr:
+  freeze_commit: 176a783842c5a73b84413dfa8347670608b615d9
+  implementation_commit: 93cd9cf9d4848827f2bacad57a35c3d7f01500f7
+  spec_hash: 68d893a2c566bf3f6a82c899a32a351f9a5420f5ea98168c99b887aaa01a45a8
+  config_sha256: a65d5b29760bbc5eb89405927f946f205eb99856c0538fdf5b57d3f9eceb0db7
+  lean_renderer_sha256: 4471262f812746046570c51dde5958ee33db31a450a6974071efce584ba56bc3
+  injected_helper_sha256: a6650452eebe683db295df1dfe925d3db8b03fc24e55cbc6793e838b5fe2f272
+  python_sha256: 496237e190c394e9bd3c3036e2bc01c635905116c5084787a42e6cb569f45517
+  implementation_set_hash: 9a9252fff5ffc69cb65e71120fedffa83ed47271aecadbecf0ceb890feea65ff
+  renderer_semantic_hash: 0bec5429cc0e539841208be53cd52189a7b80cbdb4649ee2d45b84bd8a5ef1fd
+  renderer_api_hash: c695ad868c98f27218e82184559d90624491df25c7805bf29861dd891787261d
+  universe_profile_id: goal_v1_first_occurrence_u_i_v1
+  universe_profile_hash: d9e729134fcd6a086a58191810a9227062c66496ebe76b8da3c458a58b31cb61
+  render_context_id: goal_v1_render_context_v1
+  render_context_hash: 5f44b6970f0902c968fc98a2659b26c1c9d0bcaef2960cd3ea73808f203f8f62
+  route_id: closed_expr_in_session
+output:
+  evidence_dir: configs/transformations/sft1_value_first_v1/thin_smoke_v1_evidence
+  staging_root: /storage/milikic/leanfaith/value_first/sft1_thin_smoke_v1
+  core_rows_file: rows.jsonl
+  sidecars_file: sidecars.jsonl
+  manifest_file: manifest.json

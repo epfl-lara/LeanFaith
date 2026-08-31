@@ -2,13 +2,12 @@
 
 > **Task ID:** SFT1
 > **Status:** active
-> **Owner/session:** Codex `/root` — 2026-08-31 SFT1 P01 0.3.5 corrective runtime-binding session
+> **Owner/session:** Codex `/root` — 2026-08-31 SFT1 two-row thin-smoke session
 > **Last updated:** 2026-08-31
-> **Active policy:** one Lean-free corrective revision over P01 identity-policy commit
-> `505b74754f881e903b5f04eab99311a125484b24`, preserving that commit in history and binding its
-> approved policy semantic hash `a4aa3ddc383fdbc5fd1e161b5955f403ac17afa98f9d24defab4c2741846b4fd`
-> as a future runtime dependency. Revision 0.3.4, all earlier revisions, every existing receipt,
-> and the complete 46-operation registry remain immutable.
+> **Active policy:** additive, smoke-only implementation from accepted commit
+> `fc8cdc2c6d9d93e99e20933a17dbcfa2afc2be48`. Produce exactly one real Mathlib preserving pair
+> and one hand-written closed N31 breaking canary, serialize both, and replay both. All frozen
+> revisions, receipts, hashes, and the complete 46-operation registry remain immutable.
 > **Approval recorded:** on 2026-08-31 the user authorized only a Lean-free correction adding the
 > explicit fail-closed blocker
 > `p01_identity_exception_composition_dedup_runtime_binding_and_replay`. The earlier policy-level
@@ -30,22 +29,36 @@
 > fail-closed without blocking it.
 > **REPR predecessor:** `cbc933c3623d81ba649a1f9c5107ad404389d69f` was reviewed but is
 > superseded and not consumable by SFT1
-> **Next gate:** none is executable in this revision. Authored components remain fail-closed and
-> unverified until a later authorized Lean compile/conformance session. Before the future two-row
-> smoke, complete the coordinator shared-contract update, root-specific hash-bound micro-censuses
-> for the exact P01 and N31-RUBRIC smoke roots, the five primary Wave 1
-> implementation/binding bundles, and the closed N31 rubric checker. N31 N-PROOF availability is
-> optional per project/root and cannot block
-> N31-RUBRIC or the smoke.
+> **Next gate:** stop after exactly two local smoke rows and their live/cached replay evidence. No
+> census, Wave 1 gate, additional root, production row, 10K run, scale, training, or publication is
+> authorized.
 > **Compute class:** zero Lean for current policy/loader work; the completed representation gate used
 > one bounded persistent project/toolchain Meta worker at a time
-> **Lean budget:** no per-row process spawn; every retained gate row receives bounded typed Meta
-> validation and evidence replay in persistent workers; further Lean remains readiness-closed until
-> the prerequisites above pass
+> **Lean budget:** one claimed persistent Mathlib worker, `Elab.async=false`, two rows total, no
+> per-row process spawn, and release the claim after live and cache replay
 > **Local staging root:** `/storage/milikic/leanfaith/value_first/sft1_deterministic_v1/`
 > **HF destination:** private `Lemmy00/leanfaith-sft1-deterministic-v1`
 
 ## Authorization boundary
+
+### Additive two-row thin-smoke authorization (2026-08-31)
+
+The user's latest instruction supersedes the earlier readiness sequencing only for this bounded
+experiment. From the exact accepted base `fc8cdc2c6d9d93e99e20933a17dbcfa2afc2be48`, this session
+may produce exactly two local smoke rows in Mathlib: one preserving row using the simplest live
+P15/P18/P21 path and one breaking row using a hand-written closed N31 guard-dropping canary. The
+negative authorization is canary-specific and does not admit or activate a general N31 bank. P01,
+the full census, the multi-project conformance matrix, 100 roots, 10K, production admission,
+training, scale, and publication remain closed.
+
+The thin path is exactly `source Expr -> discover applicable site -> apply transform -> replay
+certificate -> render both closed Expr endpoints in one request -> serialize core row and keyed
+sidecar`. It reuses the committed Wave 1 Meta engine, the central persistent Lean backend/cache,
+and frozen REPR. It must claim one worker before live Lean, use `Elab.async=false`, issue no
+per-row process, prove a cache replay adds zero Lean requests, and release the claim afterward.
+The session stops after both rows, their proof/refutation and certificate evidence, and cache replay
+are verified. If more than 2,000 new non-test lines are needed before the first pair, implementation
+stops as a design failure.
 
 The strict loader and Lean-free tests remain authorized. The corrected additive six-real-goal
 direct-Expr gate has completed 6/6 and frozen the authoritative REPR-integration artifact
@@ -941,6 +954,19 @@ focused adversarial suite have raw hashes
 semantic hash is intentionally distinct from the approved runtime-input policy hash `a4aa3ddc…`;
 the loader's exact pre-correction projection replays the latter.
 
+**Exact paths claimed by the additive two-row thin-smoke session:**
+
+- `plans/30_sft1_deterministic.md`
+- `LeanFaith/Meta/SFT1/ThinSmoke.lean`
+- `configs/transformations/sft1_value_first_v1/thin_smoke_v1.yaml`
+- `src/leanfaith/sft1/thin_smoke.py`
+- `tests/unit/sft1/test_thin_smoke.py`
+- `configs/transformations/sft1_value_first_v1/thin_smoke_v1_evidence/`
+
+Every earlier SFT1 path is read-only in this session. The evidence directory may contain only the
+two core rows, their keyed compact sidecars, and the hash-bound smoke manifest. Raw backend/cache
+artifacts remain in the task-owned staging root. No coordinator-owned path is claimed.
+
 ## Coordinator requests
 
 1. **REPR and SFT1 representation receipt resolved:** coherent freeze
@@ -1256,3 +1282,12 @@ work. End with the exact user decision needed.
   no findings. P01 implementation readiness, overall readiness, and gate execution remain false.
   No Lean, runtime, transformation, gate, census, row, push, production admission, Wave 2, 10K,
   scale, training, publication, or shared-contract edit occurred.
+- 2026-08-31 — the user superseded the generalized readiness sequence with an empirical two-row
+  thin smoke. The entire unapproved v0.3.6 worktree state was preserved without cleanup on pushed
+  archival branch `milikic/sft1-v036-readiness-wip-archive` at commit `831e348d048cef3f7e143b178b17d6c46f0445d0`
+  (tree `18ae5d6edf3a3fcd47b11653bc78edea45468b81`). This separate branch starts exactly at accepted
+  commit `fc8cdc2c6d9d93e99e20933a17dbcfa2afc2be48` and claims only the thin helper, config,
+  adapter/runner, focused test, brief, and two-row evidence bundle named above. Lean remains the
+  bottleneck: one persistent claimed Mathlib worker will serve both rows, and cache replay must add
+  zero requests. No census, P01, generalized N31 bank, Wave 1 gate, extra root, production, 10K,
+  scale, training, or publication is authorized.
