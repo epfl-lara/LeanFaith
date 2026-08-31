@@ -1,11 +1,11 @@
 # SFT2A — LLM-generated semantic transformations
 
 > **Task ID:** SFT2A
-> **Status:** pilot_ready
+> **Status:** active
 > **Owner/session:** Codex `/root` — 2026-08-31 SFT2A v5 session
 > **Last updated:** 2026-08-31
 > **Dependencies:** REPR `goal_v1.0`; shared rubric; roots may be selected independently of SFT1
-> **Next gate:** exact user authorization for only the corrected 100-root/400-slot v5.1 rehearsal
+> **Next gate:** complete, replay, and audit only the authorized corrected v5.1 rehearsal
 > **Compute class:** external LLM/API plus CPU/RAM for Lean; large run may need explicit budget approval
 > **Lean budget:** compile each novel candidate once through cached persistent workers
 > **Local staging root:** `/storage/milikic/leanfaith/value_first/sft2_llm_transforms_v1/`
@@ -461,3 +461,13 @@ recorded budget/model decision.
   `leanfaith-sft2a-v5-rehearsal-v2`, and the unchanged 2,480/1,200/1,200/80/three-attempt/$160
   ceilings. The approximately-10K gate, 50K run, legacy rejudge, publication, and every other run
   remain unauthorized.
+- 2026-08-31 — received the exact authorization sentence for only corrected v5.1 sample
+  `480a586ea99c26f41c6dfba47fb345507f25bd9bc778c03b13cc22108abd87f5` and config
+  `add8445af25fddc99f3381dbf23d30121847f90c3ef0ddbbba4b09ee8e632f51` under the frozen
+  2,480 total / 1,200 Terra / 1,200 Opus / 80 Kimi / three-attempt / $160 Opus ceilings. Its
+  exact text hash is `00a61d1f7c4c9e32069d5d980b2115834fd7baaacd037c9c769dc66abf4cb105`.
+  Materialized additive authorization receipt `configs/sft2a/rehearsal_authorization_v5_1.json`
+  with hash `5543aeb03a1fc21ed8f71f8fd6988e5822054d9b82b273db59405f03431c26bb`, bound to clean
+  readiness commit `e1884ad` and readiness hash
+  `1e4b008565908d88a57ae26facbdf9f53e3301dc25e65266ff38b5d8e2352ac7`. The approximately-10K
+  gate, 50K run, legacy rejudge, publication, and every other run remain unauthorized.
