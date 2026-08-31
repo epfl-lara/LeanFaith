@@ -1,0 +1,201 @@
+schema_version: 1
+fixture_set_id: sft1_wave1_static_fixtures_v0_3_4
+fixture_set_version: "0.3.4"
+status: static_specification_uncompiled_unexecuted
+parent_checkpoint_commit: 18618ca6ff8383c5254bfacbfed2f4747daebbb7
+primary_operation_ids:
+  - P01_ALPHA_RENAME_SINGLE_V1
+  - P15_SWAP_IFF_SIDES_V1
+  - P18_SYMMETRIZE_EQUALITY_V1
+  - P21_BETA_REDUCE_V1
+  - N31_DROP_REQUIRED_GUARD_RUBRIC_V1
+optional_n31_proof_fixture_count: 0
+fixture_text_is_not_a_source_root: true
+fixture_text_is_not_a_model_facing_row: true
+lean_compilation_or_execution_performed: false
+
+project_contexts:
+  - project_id: compiler_data
+    source_revision: ca37d4701b11022f183e72b7b96ff543a8a615d3
+    compile_project_id: mathlib
+    compile_project_revision: d568c8c09630de097a046763c17b9ea99f95f950
+    import_header: import Mathlib
+    namespace_context: []
+    open_context: []
+    scoped_context: []
+    options: {Elab.async: false, autoImplicit: false}
+    live_context_verified_for_these_fixtures: false
+  - project_id: cslib
+    source_revision: 2f677bfc8ef76fa7a27feafc597c1e4a7eda3e42
+    compile_project_id: cslib
+    compile_project_revision: 2f677bfc8ef76fa7a27feafc597c1e4a7eda3e42
+    import_header: import Cslib
+    namespace_context: []
+    open_context: []
+    scoped_context: []
+    options: {Elab.async: false, autoImplicit: false}
+    live_context_verified_for_these_fixtures: false
+  - project_id: mathlib
+    source_revision: d568c8c09630de097a046763c17b9ea99f95f950
+    compile_project_id: mathlib
+    compile_project_revision: d568c8c09630de097a046763c17b9ea99f95f950
+    import_header: import Mathlib
+    namespace_context: []
+    open_context: []
+    scoped_context: []
+    options: {Elab.async: false, autoImplicit: false}
+    live_context_verified_for_these_fixtures: false
+  - project_id: physlib
+    source_revision: f5242c99d796b59a390d26cd7d1a8057e04c46b5
+    compile_project_id: physlib
+    compile_project_revision: f5242c99d796b59a390d26cd7d1a8057e04c46b5
+    import_header: import PhysLean
+    namespace_context: []
+    open_context: []
+    scoped_context: []
+    options: {Elab.async: false, autoImplicit: false}
+    live_context_verified_for_these_fixtures: false
+
+templates:
+  - template_id: p01_success_v1
+    operation_id: P01_ALPHA_RENAME_SINGLE_V1
+    fixture_kind: success
+    reference_term: "(x : Nat) → x + 1 = Nat.succ x"
+    selector: {kind: outer_binder, binder_index: 0}
+    expected_future_terminal: candidate
+    expected_reason_class: exact_single_binder_name_delta
+  - template_id: p01_reject_v1
+    operation_id: P01_ALPHA_RENAME_SINGLE_V1
+    fixture_kind: adversarial_rejection
+    reference_term: "True"
+    selector: {kind: outer_binder, binder_index: 0}
+    expected_future_terminal: typed_not_applicable
+    expected_reason_class: no_explicit_named_forall_at_selected_site
+  - template_id: p15_success_v1
+    operation_id: P15_SWAP_IFF_SIDES_V1
+    fixture_kind: success
+    reference_term: "((0 : Nat) = 1) ↔ ((1 : Nat) = 0)"
+    selector: {kind: outer_target, site_path: "/"}
+    expected_future_terminal: candidate
+    expected_reason_class: exact_distinct_iff_side_swap
+  - template_id: p15_reject_v1
+    operation_id: P15_SWAP_IFF_SIDES_V1
+    fixture_kind: adversarial_rejection
+    reference_term: "((0 : Nat) = 0) ↔ ((0 : Nat) = 0)"
+    selector: {kind: outer_target, site_path: "/"}
+    expected_future_terminal: typed_not_applicable
+    expected_reason_class: definitionally_equal_iff_sides
+  - template_id: p18_success_v1
+    operation_id: P18_SYMMETRIZE_EQUALITY_V1
+    fixture_kind: success
+    reference_term: "(0 : Nat) = 1"
+    selector: {kind: outer_target, site_path: "/"}
+    expected_future_terminal: candidate
+    expected_reason_class: exact_distinct_equality_operand_swap
+  - template_id: p18_reject_v1
+    operation_id: P18_SYMMETRIZE_EQUALITY_V1
+    fixture_kind: adversarial_rejection
+    reference_term: "(0 : Nat) = 0"
+    selector: {kind: outer_target, site_path: "/"}
+    expected_future_terminal: typed_not_applicable
+    expected_reason_class: definitionally_equal_equality_operands
+  - template_id: p21_success_v1
+    operation_id: P21_BETA_REDUCE_V1
+    fixture_kind: success
+    reference_term: "(fun p : Prop => p ∧ (0 : Nat) = 0) ((0 : Nat) = 1)"
+    selector: {kind: exact_expr_site, site_path: "/"}
+    expected_future_terminal: candidate
+    expected_reason_class: exact_single_closed_argument_beta_reduction
+  - template_id: p21_reject_v1
+    operation_id: P21_BETA_REDUCE_V1
+    fixture_kind: adversarial_rejection
+    reference_term: "(fun _p : Prop => (0 : Nat) = 0) True"
+    selector: {kind: exact_expr_site, site_path: "/"}
+    expected_future_terminal: typed_not_applicable
+    expected_reason_class: beta_argument_erases_complete_claim_input
+  - template_id: n31_rubric_success_v1
+    operation_id: N31_DROP_REQUIRED_GUARD_RUBRIC_V1
+    fixture_kind: success
+    reference_term: "(x : Nat) → (hx : x ≠ 0) → x / x = 1"
+    selector:
+      kind: exact_outer_guard_and_unique_body_target
+      guard_binder_index: 1
+      guard_shape_id: ne_zero_guard_v1
+      target_head_name: HDiv.hDiv
+      target_path: null
+      reachability_mode_id: explicit_telescope_witness_and_retained_hypothesis_proofs
+      future_telescope_assignments:
+        - {binder_index: 0, binder_name: x, candidate_term: "(1 : Nat)", live_elaboration_verified: false}
+        - {binder_index: 1, binder_name: hx, candidate_term: "Nat.one_ne_zero", live_elaboration_verified: false}
+    expected_future_terminal: candidate
+    expected_reason_class: exact_required_ne_zero_guard_delta
+  - template_id: n31_rubric_reject_v1
+    operation_id: N31_DROP_REQUIRED_GUARD_RUBRIC_V1
+    fixture_kind: adversarial_rejection
+    reference_term: "(x : Nat) → (hx : x ≠ 0) → (hpos : 0 < x) → x / x = 1"
+    selector:
+      kind: exact_outer_guard_and_unique_body_target
+      guard_binder_index: 1
+      guard_shape_id: ne_zero_guard_v1
+      target_head_name: HDiv.hDiv
+      target_path: null
+      reachability_mode_id: explicit_telescope_witness_and_retained_hypothesis_proofs
+      future_telescope_assignments:
+        - {binder_index: 0, binder_name: x, candidate_term: "(1 : Nat)", live_elaboration_verified: false}
+        - {binder_index: 1, binder_name: hx, candidate_term: "Nat.one_ne_zero", live_elaboration_verified: false}
+        - {binder_index: 2, binder_name: hpos, candidate_term: "Nat.zero_lt_succ 0", live_elaboration_verified: false}
+    expected_future_terminal: typed_not_applicable
+    expected_reason_class: retained_positive_guard_implies_removed_ne_zero_guard
+
+fixture_matrix:
+  - {fixture_id: compiler_data_p01_success, project_id: compiler_data, operation_id: P01_ALPHA_RENAME_SINGLE_V1, fixture_kind: success, template_id: p01_success_v1, expected_future_terminal: candidate, expected_reason_class: exact_single_binder_name_delta, live_verified: false, receipt_sha256: null}
+  - {fixture_id: compiler_data_p01_reject, project_id: compiler_data, operation_id: P01_ALPHA_RENAME_SINGLE_V1, fixture_kind: adversarial_rejection, template_id: p01_reject_v1, expected_future_terminal: typed_not_applicable, expected_reason_class: no_explicit_named_forall_at_selected_site, live_verified: false, receipt_sha256: null}
+  - {fixture_id: cslib_p01_success, project_id: cslib, operation_id: P01_ALPHA_RENAME_SINGLE_V1, fixture_kind: success, template_id: p01_success_v1, expected_future_terminal: candidate, expected_reason_class: exact_single_binder_name_delta, live_verified: false, receipt_sha256: null}
+  - {fixture_id: cslib_p01_reject, project_id: cslib, operation_id: P01_ALPHA_RENAME_SINGLE_V1, fixture_kind: adversarial_rejection, template_id: p01_reject_v1, expected_future_terminal: typed_not_applicable, expected_reason_class: no_explicit_named_forall_at_selected_site, live_verified: false, receipt_sha256: null}
+  - {fixture_id: mathlib_p01_success, project_id: mathlib, operation_id: P01_ALPHA_RENAME_SINGLE_V1, fixture_kind: success, template_id: p01_success_v1, expected_future_terminal: candidate, expected_reason_class: exact_single_binder_name_delta, live_verified: false, receipt_sha256: null}
+  - {fixture_id: mathlib_p01_reject, project_id: mathlib, operation_id: P01_ALPHA_RENAME_SINGLE_V1, fixture_kind: adversarial_rejection, template_id: p01_reject_v1, expected_future_terminal: typed_not_applicable, expected_reason_class: no_explicit_named_forall_at_selected_site, live_verified: false, receipt_sha256: null}
+  - {fixture_id: physlib_p01_success, project_id: physlib, operation_id: P01_ALPHA_RENAME_SINGLE_V1, fixture_kind: success, template_id: p01_success_v1, expected_future_terminal: candidate, expected_reason_class: exact_single_binder_name_delta, live_verified: false, receipt_sha256: null}
+  - {fixture_id: physlib_p01_reject, project_id: physlib, operation_id: P01_ALPHA_RENAME_SINGLE_V1, fixture_kind: adversarial_rejection, template_id: p01_reject_v1, expected_future_terminal: typed_not_applicable, expected_reason_class: no_explicit_named_forall_at_selected_site, live_verified: false, receipt_sha256: null}
+  - {fixture_id: compiler_data_p15_success, project_id: compiler_data, operation_id: P15_SWAP_IFF_SIDES_V1, fixture_kind: success, template_id: p15_success_v1, expected_future_terminal: candidate, expected_reason_class: exact_distinct_iff_side_swap, live_verified: false, receipt_sha256: null}
+  - {fixture_id: compiler_data_p15_reject, project_id: compiler_data, operation_id: P15_SWAP_IFF_SIDES_V1, fixture_kind: adversarial_rejection, template_id: p15_reject_v1, expected_future_terminal: typed_not_applicable, expected_reason_class: definitionally_equal_iff_sides, live_verified: false, receipt_sha256: null}
+  - {fixture_id: cslib_p15_success, project_id: cslib, operation_id: P15_SWAP_IFF_SIDES_V1, fixture_kind: success, template_id: p15_success_v1, expected_future_terminal: candidate, expected_reason_class: exact_distinct_iff_side_swap, live_verified: false, receipt_sha256: null}
+  - {fixture_id: cslib_p15_reject, project_id: cslib, operation_id: P15_SWAP_IFF_SIDES_V1, fixture_kind: adversarial_rejection, template_id: p15_reject_v1, expected_future_terminal: typed_not_applicable, expected_reason_class: definitionally_equal_iff_sides, live_verified: false, receipt_sha256: null}
+  - {fixture_id: mathlib_p15_success, project_id: mathlib, operation_id: P15_SWAP_IFF_SIDES_V1, fixture_kind: success, template_id: p15_success_v1, expected_future_terminal: candidate, expected_reason_class: exact_distinct_iff_side_swap, live_verified: false, receipt_sha256: null}
+  - {fixture_id: mathlib_p15_reject, project_id: mathlib, operation_id: P15_SWAP_IFF_SIDES_V1, fixture_kind: adversarial_rejection, template_id: p15_reject_v1, expected_future_terminal: typed_not_applicable, expected_reason_class: definitionally_equal_iff_sides, live_verified: false, receipt_sha256: null}
+  - {fixture_id: physlib_p15_success, project_id: physlib, operation_id: P15_SWAP_IFF_SIDES_V1, fixture_kind: success, template_id: p15_success_v1, expected_future_terminal: candidate, expected_reason_class: exact_distinct_iff_side_swap, live_verified: false, receipt_sha256: null}
+  - {fixture_id: physlib_p15_reject, project_id: physlib, operation_id: P15_SWAP_IFF_SIDES_V1, fixture_kind: adversarial_rejection, template_id: p15_reject_v1, expected_future_terminal: typed_not_applicable, expected_reason_class: definitionally_equal_iff_sides, live_verified: false, receipt_sha256: null}
+  - {fixture_id: compiler_data_p18_success, project_id: compiler_data, operation_id: P18_SYMMETRIZE_EQUALITY_V1, fixture_kind: success, template_id: p18_success_v1, expected_future_terminal: candidate, expected_reason_class: exact_distinct_equality_operand_swap, live_verified: false, receipt_sha256: null}
+  - {fixture_id: compiler_data_p18_reject, project_id: compiler_data, operation_id: P18_SYMMETRIZE_EQUALITY_V1, fixture_kind: adversarial_rejection, template_id: p18_reject_v1, expected_future_terminal: typed_not_applicable, expected_reason_class: definitionally_equal_equality_operands, live_verified: false, receipt_sha256: null}
+  - {fixture_id: cslib_p18_success, project_id: cslib, operation_id: P18_SYMMETRIZE_EQUALITY_V1, fixture_kind: success, template_id: p18_success_v1, expected_future_terminal: candidate, expected_reason_class: exact_distinct_equality_operand_swap, live_verified: false, receipt_sha256: null}
+  - {fixture_id: cslib_p18_reject, project_id: cslib, operation_id: P18_SYMMETRIZE_EQUALITY_V1, fixture_kind: adversarial_rejection, template_id: p18_reject_v1, expected_future_terminal: typed_not_applicable, expected_reason_class: definitionally_equal_equality_operands, live_verified: false, receipt_sha256: null}
+  - {fixture_id: mathlib_p18_success, project_id: mathlib, operation_id: P18_SYMMETRIZE_EQUALITY_V1, fixture_kind: success, template_id: p18_success_v1, expected_future_terminal: candidate, expected_reason_class: exact_distinct_equality_operand_swap, live_verified: false, receipt_sha256: null}
+  - {fixture_id: mathlib_p18_reject, project_id: mathlib, operation_id: P18_SYMMETRIZE_EQUALITY_V1, fixture_kind: adversarial_rejection, template_id: p18_reject_v1, expected_future_terminal: typed_not_applicable, expected_reason_class: definitionally_equal_equality_operands, live_verified: false, receipt_sha256: null}
+  - {fixture_id: physlib_p18_success, project_id: physlib, operation_id: P18_SYMMETRIZE_EQUALITY_V1, fixture_kind: success, template_id: p18_success_v1, expected_future_terminal: candidate, expected_reason_class: exact_distinct_equality_operand_swap, live_verified: false, receipt_sha256: null}
+  - {fixture_id: physlib_p18_reject, project_id: physlib, operation_id: P18_SYMMETRIZE_EQUALITY_V1, fixture_kind: adversarial_rejection, template_id: p18_reject_v1, expected_future_terminal: typed_not_applicable, expected_reason_class: definitionally_equal_equality_operands, live_verified: false, receipt_sha256: null}
+  - {fixture_id: compiler_data_p21_success, project_id: compiler_data, operation_id: P21_BETA_REDUCE_V1, fixture_kind: success, template_id: p21_success_v1, expected_future_terminal: candidate, expected_reason_class: exact_single_closed_argument_beta_reduction, live_verified: false, receipt_sha256: null}
+  - {fixture_id: compiler_data_p21_reject, project_id: compiler_data, operation_id: P21_BETA_REDUCE_V1, fixture_kind: adversarial_rejection, template_id: p21_reject_v1, expected_future_terminal: typed_not_applicable, expected_reason_class: beta_argument_erases_complete_claim_input, live_verified: false, receipt_sha256: null}
+  - {fixture_id: cslib_p21_success, project_id: cslib, operation_id: P21_BETA_REDUCE_V1, fixture_kind: success, template_id: p21_success_v1, expected_future_terminal: candidate, expected_reason_class: exact_single_closed_argument_beta_reduction, live_verified: false, receipt_sha256: null}
+  - {fixture_id: cslib_p21_reject, project_id: cslib, operation_id: P21_BETA_REDUCE_V1, fixture_kind: adversarial_rejection, template_id: p21_reject_v1, expected_future_terminal: typed_not_applicable, expected_reason_class: beta_argument_erases_complete_claim_input, live_verified: false, receipt_sha256: null}
+  - {fixture_id: mathlib_p21_success, project_id: mathlib, operation_id: P21_BETA_REDUCE_V1, fixture_kind: success, template_id: p21_success_v1, expected_future_terminal: candidate, expected_reason_class: exact_single_closed_argument_beta_reduction, live_verified: false, receipt_sha256: null}
+  - {fixture_id: mathlib_p21_reject, project_id: mathlib, operation_id: P21_BETA_REDUCE_V1, fixture_kind: adversarial_rejection, template_id: p21_reject_v1, expected_future_terminal: typed_not_applicable, expected_reason_class: beta_argument_erases_complete_claim_input, live_verified: false, receipt_sha256: null}
+  - {fixture_id: physlib_p21_success, project_id: physlib, operation_id: P21_BETA_REDUCE_V1, fixture_kind: success, template_id: p21_success_v1, expected_future_terminal: candidate, expected_reason_class: exact_single_closed_argument_beta_reduction, live_verified: false, receipt_sha256: null}
+  - {fixture_id: physlib_p21_reject, project_id: physlib, operation_id: P21_BETA_REDUCE_V1, fixture_kind: adversarial_rejection, template_id: p21_reject_v1, expected_future_terminal: typed_not_applicable, expected_reason_class: beta_argument_erases_complete_claim_input, live_verified: false, receipt_sha256: null}
+  - {fixture_id: compiler_data_n31_success, project_id: compiler_data, operation_id: N31_DROP_REQUIRED_GUARD_RUBRIC_V1, fixture_kind: success, template_id: n31_rubric_success_v1, expected_future_terminal: candidate, expected_reason_class: exact_required_ne_zero_guard_delta, live_verified: false, receipt_sha256: null}
+  - {fixture_id: compiler_data_n31_reject, project_id: compiler_data, operation_id: N31_DROP_REQUIRED_GUARD_RUBRIC_V1, fixture_kind: adversarial_rejection, template_id: n31_rubric_reject_v1, expected_future_terminal: typed_not_applicable, expected_reason_class: retained_positive_guard_implies_removed_ne_zero_guard, live_verified: false, receipt_sha256: null}
+  - {fixture_id: cslib_n31_success, project_id: cslib, operation_id: N31_DROP_REQUIRED_GUARD_RUBRIC_V1, fixture_kind: success, template_id: n31_rubric_success_v1, expected_future_terminal: candidate, expected_reason_class: exact_required_ne_zero_guard_delta, live_verified: false, receipt_sha256: null}
+  - {fixture_id: cslib_n31_reject, project_id: cslib, operation_id: N31_DROP_REQUIRED_GUARD_RUBRIC_V1, fixture_kind: adversarial_rejection, template_id: n31_rubric_reject_v1, expected_future_terminal: typed_not_applicable, expected_reason_class: retained_positive_guard_implies_removed_ne_zero_guard, live_verified: false, receipt_sha256: null}
+  - {fixture_id: mathlib_n31_success, project_id: mathlib, operation_id: N31_DROP_REQUIRED_GUARD_RUBRIC_V1, fixture_kind: success, template_id: n31_rubric_success_v1, expected_future_terminal: candidate, expected_reason_class: exact_required_ne_zero_guard_delta, live_verified: false, receipt_sha256: null}
+  - {fixture_id: mathlib_n31_reject, project_id: mathlib, operation_id: N31_DROP_REQUIRED_GUARD_RUBRIC_V1, fixture_kind: adversarial_rejection, template_id: n31_rubric_reject_v1, expected_future_terminal: typed_not_applicable, expected_reason_class: retained_positive_guard_implies_removed_ne_zero_guard, live_verified: false, receipt_sha256: null}
+  - {fixture_id: physlib_n31_success, project_id: physlib, operation_id: N31_DROP_REQUIRED_GUARD_RUBRIC_V1, fixture_kind: success, template_id: n31_rubric_success_v1, expected_future_terminal: candidate, expected_reason_class: exact_required_ne_zero_guard_delta, live_verified: false, receipt_sha256: null}
+  - {fixture_id: physlib_n31_reject, project_id: physlib, operation_id: N31_DROP_REQUIRED_GUARD_RUBRIC_V1, fixture_kind: adversarial_rejection, template_id: n31_rubric_reject_v1, expected_future_terminal: typed_not_applicable, expected_reason_class: retained_positive_guard_implies_removed_ne_zero_guard, live_verified: false, receipt_sha256: null}
+
+matrix_contract:
+  primary_operation_count: 5
+  registered_project_count: 4
+  fixture_kinds_per_cell: 2
+  exact_fixture_count: 40
+  one_success_and_one_adversarial_rejection_per_operation_project: true
+  all_live_verified: false
+  any_receipt_present: false
+  matrix_is_gate_evidence: false
+  n31_reachability_candidate_terms_bound_by_fixture_hash: true

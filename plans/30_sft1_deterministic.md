@@ -2,18 +2,20 @@
 
 > **Task ID:** SFT1
 > **Status:** active
-> **Owner/session:** Codex `/root` — 2026-08-30 SFT1 readiness revision 0.3.3 session
+> **Owner/session:** Codex `/root` — 2026-08-30 SFT1 Wave 1 implementation-readiness revision 0.3.4 session
 > **Last updated:** 2026-08-30
-> **Active policy:** additive task-owned effective-readiness revision 0.3.3 over frozen checkpoint
-> `dae99b3bd04d765a7a2011e10129589951dcb3c2`. Revision 0.3.2 remains an immutable, incomplete,
-> fail-closed admission/readiness snapshot; revision 0.3.3 does not rewrite it, its hashes or
-> receipts, or the complete 46-operation registry.
-> **Approval recorded:** on 2026-08-30 the user authorized preparation and commitment of revision
-> 0.3.3 only in task-owned SFT1 paths. The earlier exact Wave 1 gate admission remains recorded, but
-> this revision authorizes only Lean-free policy, loader, invariant, formatting, and plan work.
-> Lean, transform and gate execution, row generation, Wave 2 implementation or admission,
-> production admission, 10K, scale, publication, and all row-count commitments remain
-> unauthorized. The current freeze permits zero production negatives.
+> **Active policy:** additive task-owned implementation-readiness revision 0.3.4 over frozen
+> checkpoint `18618ca6ff8383c5254bfacbfed2f4747daebbb7`. That checkpoint, revision 0.3.3,
+> revision 0.3.2, every existing hash and receipt, and the complete 46-operation registry remain
+> immutable.
+> **Approval recorded:** on 2026-08-30 the user authorized only task-owned Wave 1
+> implementation-readiness work for the five primary semantic mechanisms. This permits additive
+> source, dispatch/checker contract, applicability-bank, fixture-specification, cache-contract,
+> strict-loader, invariant, formatting, and plan work. It does not authorize running Lean,
+> executing a transform or gate, generating or emitting rows, implementing Wave 2, production
+> admission, a 10K pilot, scale, publication, or any row-count commitment. N31 N-PROOF remains an
+> optional evidence adapter and cannot block N31 N-RUBRIC. The current freeze permits zero
+> production negatives.
 > **Dependencies:** approved REPR freeze `176a783842c5a73b84413dfa8347670608b615d9`
 > and authoritative SFT1 receipt
 > `f62b68ebc946469952bdd34674c127e2bd1146b0a8febbe5d199fea54a081e78`
@@ -27,10 +29,12 @@
 > fail-closed without blocking it.
 > **REPR predecessor:** `cbc933c3623d81ba649a1f9c5107ad404389d69f` was reviewed but is
 > superseded and not consumable by SFT1
-> **Next gate:** none is executable in this revision. Before the future two-row smoke, complete the
-> coordinator shared-contract update, root-specific hash-bound micro-censuses for the exact P01 and
-> N31-RUBRIC smoke roots, the five primary Wave 1 implementation/binding bundles, and the closed
-> N31 rubric checker. N31 N-PROOF availability is optional per project/root and cannot block
+> **Next gate:** none is executable in this revision. Authored components remain fail-closed and
+> unverified until a later authorized Lean compile/conformance session. Before the future two-row
+> smoke, complete the coordinator shared-contract update, root-specific hash-bound micro-censuses
+> for the exact P01 and N31-RUBRIC smoke roots, the five primary Wave 1
+> implementation/binding bundles, and the closed N31 rubric checker. N31 N-PROOF availability is
+> optional per project/root and cannot block
 > N31-RUBRIC or the smoke.
 > **Compute class:** zero Lean for current policy/loader work; the completed representation gate used
 > one bounded persistent project/toolchain Meta worker at a time
@@ -54,7 +58,7 @@ authorities that may not imply one another:
 
 | Authority/state | Exact meaning | Current state |
 | --- | --- | --- |
-| user-authorized bounded implementation scope | the earlier approval permits exact task-owned implementation of the selected operations in a separately authorized implementation session; it does not imply readiness or gate execution | preserved for the six selected operation IDs; this policy-only revision does not start implementation |
+| user-authorized bounded implementation scope | the inherited gate approval names six operation IDs, while the current revision authorizes static task-owned implementation-readiness work for five primary mechanisms; it does not imply readiness or gate execution | active for P01, P15, P18, P21, and N31 N-RUBRIC; N31 N-PROOF is an optional evidence adapter with no required implementation binding |
 | implementation readiness | global dependencies plus complete resolved dispatch/checker/anchor/bank/fixture bindings and regressions for the five primary Wave 1 IDs; an N31 N-PROOF binding is conditional on a proof-eligible project/root cell | false/pending |
 | gate admission | one explicit user decision naming the wave, operations, eligible projects, and negative family/dimension admissions that may run the bounded smoke/conformance/approximately-100-root gates after readiness | true for exactly the six selected IDs and N31 `required_domain_guard`; execution remains blocked |
 | production admission | a post-measurement user promotion of exact operations, versions, projects, caps, and negative dimensions from proof-of-concept or implementation-candidate status to production-eligible | false for every operation; zero production negatives |
@@ -91,6 +95,73 @@ P24, P28, P32-COMM, P33, P35, P40, P42, N25-RUBRIC/PROOF, N26-RUBRIC/PROOF, N30-
 N32-RUBRIC. These 17 exact IDs represent 15 proposed semantic mechanisms. This record grants no
 family/dimension admission, implementation, execution, production, row, 10K, scale, or publication
 authority and does not modify the 46-operation registry.
+
+### Additive revision 0.3.4 implementation-readiness layer
+
+Revision 0.3.4 is a static, fail-closed authoring layer over the immutable revision-0.3.3
+checkpoint. It prepares exactly five mandatory operation bundles: P01 alpha rename, P15 final-target
+Iff-side swap, P18 final-target equality symmetry, P21 exact one-redex beta reduction, and N31
+required-domain-guard removal in the N-RUBRIC lane. It does not turn the frozen all-empty 0.3.2
+execution bindings into resolved bindings. The additive layer uses the distinct state
+`static_authored_hash_bound`: source bytes, public symbols, operation-bank entries, anchors, fixture
+specifications, and cache-key contracts may be pinned while compiled declarations, live checker
+semantics, live fixture receipts, and the historical `complete_binding_hash` remain absent.
+The pure 30-field cache preimage/hash helper does not bind or invoke the central persistent cache
+store, and this revision does not add the persistent request adapter that will eventually dispatch,
+replay, and render both endpoints in one request. Both remain explicit implementation blockers.
+
+The task-owned Wave 1 source must not import the shared historical `TransformEngine`. That engine
+has a separate pretty-printer/text-re-elaboration path, declaration-order universe naming, and an
+external hashing process, all incompatible with the frozen SFT1/REPR route. The new source owns no
+renderer or universe canonicalizer, creates no declaration or proof for rendering, and exposes only
+typed in-session discovery, exact dispatch, and independent certificate replay over live Exprs.
+Later serialization still calls the frozen REPR emitter exactly once for each explicitly unrolled
+reference/candidate endpoint in one persistent Meta request.
+
+All 20 primary operation/project cells have one static success specification and one static
+adversarial-rejection specification, for 40 specifications total. They are deliberately marked
+uncompiled, unexecuted, and not gate evidence. Positive applicability is captured by explicit
+operation-local typed banks rather than inventing external bank identities for registry entries
+whose frozen `bank_id` is null. P15 and P18 initially apply only to the final target beneath an
+unchanged outer telescope, avoiding an unapproved arbitrary-context equivalence transporter. P21's
+“closed argument” means globally closed at the selected redex: no mvars, universe mvars, fvars, or
+loose bvars. N31 retains all five design shapes, but its proposed concrete Lean head/role entries
+remain `authored_candidates_require_live_resolution`; unknown, missing, or ambiguous entries are
+typed-not-applicable.
+
+Two operation-specific blockers remain explicit:
+
+- P01's frozen attempt-009 reference and candidate have different render hashes but the same
+  alpha-invariant canonical closed-Expr hash. The frozen composition grammar rejects repeated
+  closed-Expr hashes, and its narrow P01 exception does not permit an Expr-hash repeat. A new
+  binder-aware exact-delta fingerprint is useful evidence but cannot override that frozen rule.
+  P01 therefore remains not implementation-ready pending an additive coordinator identity/dedup
+  decision.
+- N31's target-head candidates cannot become an executable bank until a later authorized live Lean
+  session resolves every project-scoped name, application arity, protected role position, type and
+  instance constraint and replays the success/adversarial fixtures. The generic checker source may
+  be authored now, but that does not close the N31 blocker. Retained contradiction patterns are a
+  separate nonselectable inventory. Unknown or multiply matched retained propositions fail closed,
+  and target uniqueness is checked across the selected guard shape plus every conclusion in its
+  frozen implication closure, not merely within the selected target-head entry. The current source
+  admits exactly zero resolved N31 bank identities, so no caller-supplied bank can dispatch N31 in
+  revision 0.3.4. A future authorized revision must pin a project, bank ID, resolved-Lean hash, and
+  resolution-receipt hash after verifying the exact bank hash in process. Each N31 certificate
+  carries the complete typed bank and complete reachability assignment; replay rejects a different
+  supplied context even when its IDs or mode strings are reused.
+
+`N31_DROP_REQUIRED_GUARD_PROOF_V1` is not a sixth primary implementation. Revision 0.3.4 authors no
+independent N-PROOF mutation or required fixture. A future proof adapter may only replay the exact
+parent N-RUBRIC candidate and upgrade its sidecar after an exact source proof and exact candidate
+refutation pass; absence remains `not_in_scope_for_n_proof`, never a parent or Wave 1 blocker, and
+any success counts against both caps without emitting a second pair.
+
+During an independent static-source audit, a reviewer invoked `lean --print-prefix` once while
+locating the installed Lean source tree. This was outside the authorized boundary and is preserved
+in the machine-readable revision-0.3.4 incident record. The command exited without loading,
+importing, or compiling this project; it did not start Meta, a transformation, a gate, a census, or
+row work and produced no file or artifact. No project Lean compilation or Meta validation was run,
+and this incident is not evidence for any readiness or gate state.
 
 ## Objective and scale contract
 
@@ -746,6 +817,24 @@ effective-state loader, and invariant tests. The revision-0.3.2 paths remain fro
 shared contract, REPR file, shared TransformEngine, historical artifact, user-work path, or frozen
 track is claimed, and no claimed path implements or executes a transform or generates rows.
 
+**Exact paths claimed by the revision-0.3.4 session:**
+
+- `plans/30_sft1_deterministic.md`
+- `LeanFaith/Meta/SFT1/Wave1.lean`
+- `configs/transformations/sft1_value_first_v1/wave1_operation_banks_v0_3_4.yaml`
+- `configs/transformations/sft1_value_first_v1/wave1_implementation_readiness_v0_3_4.yaml`
+- `src/leanfaith/sft1/wave1_readiness.py`
+- `tests/fixtures/sft1/wave1_v0_3_4.yaml`
+- `tests/unit/sft1/test_wave1_readiness.py`
+
+These are additive task-owned implementation-readiness paths only. Revision 0.3.4 may author and
+hash-bind the five primary Wave 1 mechanisms and their future dispatch/checker/cache/fixture
+contracts, but no authored Lean source may be compiled or executed in this session. A source being
+present and hash-bound is not a passed implementation, a live fixture, gate evidence, operation
+promotion, label, or row. `N31_DROP_REQUIRED_GUARD_PROOF_V1` may be described only as an optional
+sidecar-evidence adapter; it is not a sixth implementation-readiness blocker. All earlier claimed
+paths other than this brief are frozen for this revision.
+
 ## Coordinator requests
 
 1. **REPR and SFT1 representation receipt resolved:** coherent freeze
@@ -760,9 +849,15 @@ track is claimed, and no claimed path implements or executes a transform or gene
    generic D0, F2 direction, failed search, and candidate provability alone never create a label.
    Record N-RUBRIC and capped N-PROOF lanes and keep candidate truth evidence
    `proved|refuted|unknown` separate from the label.
+3. **P01 identity/dedup request is open:** reconcile the frozen P01 alpha-cycle exception with
+   REPR's intentionally alpha-invariant closed-Expr hash. The exact existing evidence has equal
+   reference/candidate closed-Expr hashes but distinct render hashes. Decide additively whether one
+   P01 hop may bind a distinct render hash plus binder-aware exact-delta hash while repeating only
+   the alpha-invariant semantic hash, or remove P01 from an executable wave. Revision 0.3.4 does not
+   override the existing repeated-closed-Expr-hash rejection.
 
-Neither request authorizes this session to edit the coordinator-owned path. Policy revision 0.3.1
-and additive readiness revision 0.3.3 leave `plans/00_shared_contracts.md` untouched.
+No coordinator request authorizes this session to edit a coordinator-owned path. Policy revision 0.3.1
+and additive readiness revisions 0.3.3/0.3.4 leave `plans/00_shared_contracts.md` untouched.
 
 ## Closed REPR dependency and remaining pre-Wave-1-smoke blockers
 
@@ -822,11 +917,16 @@ stored in the 0.3.3 overlay under SHA-256
 policy/loader/test changes described here, preserves the earlier bounded Wave 1 admission, and does
 not start implementation or execution, admit Wave 2, or grant any production or scale authority.
 
+The user then froze checkpoint `18618ca6ff8383c5254bfacbfed2f4747daebbb7` and authorized this
+additive revision 0.3.4 to prepare task-owned static implementation-readiness components for the
+five primary mechanisms only. N31 N-PROOF remains optional and unimplemented. Revision 0.3.4 does
+not inherit permission to run Lean or any gate from the older admission wording.
+
 This remains bounded Wave 1 gate admission only. It does not make implementation ready, permit
 Lean/transform execution before the named prerequisites, admit any operation to production, or
-authorize a model-facing row. This session stops after the Lean-free revision 0.3.3 commit. A later
-instruction may resume the already bounded task-owned Wave 1 implementation scope; gate execution
-still cannot begin until readiness is true. After the wave gates, separately request exact
+authorize a model-facing row. This session stops after the static revision 0.3.4 commit. A later
+instruction must separately authorize any project Lean compilation or Meta validation; gate
+execution still cannot begin until readiness is true. After the wave gates, separately request exact
 operation-production promotions supported by the measured receipt. Only after those promotions and
 the complete cross-source census are recorded may the project request exactly:
 
@@ -968,3 +1068,25 @@ work. End with the exact user decision needed.
   brief and three new revision-0.3.3 paths changed. No Lean/lake, transform or gate execution,
   census-scale processing, row generation, production admission, 10K, scale, publication, push, or
   coordinator-owned edit occurred.
+- 2026-08-30 — user froze checkpoint `18618ca6ff8383c5254bfacbfed2f4747daebbb7` and authorized
+  only additive task-owned Wave 1 implementation-readiness work for P01 alpha rename, P15 Iff-side
+  swap, P18 equality symmetry, P21 beta reduction, and the N31 required-guard mutation. Exact new
+  source, policy/bank, fixture, loader, and test paths are claimed above. N31 N-PROOF remains an
+  optional non-blocking evidence adapter. Lean/transform/gate execution, rows, Wave 2,
+  production/10K, scale, and publication remain prohibited; the Lean bottleneck contract still
+  requires all cheap schema, provenance, hashing, filtering, and sampling work before later bounded
+  typed Meta validation in persistent workers, never one process per row.
+- 2026-08-30 — completed the additive static revision-0.3.4 readiness layer without project Lean or
+  gate execution. The uncompiled task-owned typed source is pinned at raw/import-stripped hashes
+  `7d4c27e1…` / `0b905f3d…`; the operation bank at raw/semantic hashes `282836a5…` /
+  `99440883…`; the 40-specification fixture matrix at `0856c6cf…` / `6d8dbc0d…`; and the main
+  readiness contract at `87197cef…` / `cdf5ad55…`. The strict loader is pinned by this commit at
+  raw hash `f59c9304…`. It loads exactly five primary bundles with implementation readiness false,
+  preserves the complete 46-operation registry and every parent hash/receipt, admits zero runtime
+  N31 bank identities, and keeps N31 N-PROOF optional/unimplemented. The new focused suite passed
+  161/161; the combined Lean-free SFT1 loader/invariant and project-plan suite passed 506/506;
+  Ruff check/format, strict Mypy, live typed-loader/hash replay, and whitespace checks passed.
+  The separately recorded read-only `lean --print-prefix` boundary incident loaded no project and
+  produced no artifact; no project Lean compilation, Meta validation, transform, gate, census,
+  row, Wave 2, production, 10K, scale, or publication work occurred. P01's repeated alpha-invariant
+  closed-Expr hash and N31's zero admitted resolved bank identities remain fail-closed blockers.

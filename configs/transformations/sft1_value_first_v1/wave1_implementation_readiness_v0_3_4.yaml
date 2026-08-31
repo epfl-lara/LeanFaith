@@ -1,0 +1,412 @@
+schema_version: 1
+readiness_id: sft1_wave1_implementation_readiness_v0_3_4
+readiness_version: "0.3.4"
+status: static_authored_hash_bound_lean_and_gates_prohibited
+
+parent_freeze:
+  commit: 18618ca6ff8383c5254bfacbfed2f4747daebbb7
+  tree: 2c3521f71fd6e54c47333c8ca759ae7dbdc80366
+  effective_overlay_path: configs/transformations/sft1_value_first_v1/wave1_effective_readiness_v0_3_3.yaml
+  effective_overlay_file_sha256: 5673d2ee2e3d9b088bcc42ccec4d4d851096b6c0fc8cc5349b1c3b231f2b1474
+  effective_overlay_semantic_hash: 1b323508b3c3edcc62582d637c88af693e81507c3b7f1bd178dc7f3b8af2412e
+  effective_loader_path: src/leanfaith/sft1/effective_readiness.py
+  effective_loader_file_sha256: 3e1ccb7f1b0507960bdf7632278ed994a60f22cab0efcc40999ed0d5504cb146
+  preserves_complete_46_operation_registry: true
+
+user_authorization:
+  exact_user_text: >-
+    Keep commit `18618ca6ff8383c5254bfacbfed2f4747daebbb7` frozen and authorize only task-owned Wave 1 implementation-readiness work for the five primary mechanisms, with N31 N-PROOF remaining optional; do not start Lean or any gate, generate rows, implement Wave 2, authorize production or 10K, scale, or publish.
+  exact_user_text_sha256: fcda45c53522ec46966e0b8ab1db7fbb4a12b7c6a0f9a720fb1da0ba40d74c6d
+  recorded_date: "2026-08-30"
+  interpretation: task_owned_static_wave1_implementation_readiness_only
+
+authorization_scope:
+  primary_operation_ids:
+    - P01_ALPHA_RENAME_SINGLE_V1
+    - P15_SWAP_IFF_SIDES_V1
+    - P18_SYMMETRIZE_EQUALITY_V1
+    - P21_BETA_REDUCE_V1
+    - N31_DROP_REQUIRED_GUARD_RUBRIC_V1
+  semantic_mechanism_count: 5
+  optional_proof_operation_id: N31_DROP_REQUIRED_GUARD_PROOF_V1
+  task_owned_source_authoring_allowed: true
+  policy_bank_fixture_loader_test_work_allowed: true
+  lean_compilation_or_execution_allowed: false
+  transform_or_gate_execution_allowed: false
+  row_generation_or_emission_allowed: false
+  wave2_implementation_allowed: false
+  production_admission_allowed: false
+  ten_k_allowed: false
+  scale_allowed: false
+  publication_allowed: false
+
+authored_artifacts:
+  lean_source:
+    path: LeanFaith/Meta/SFT1/Wave1.lean
+    file_sha256: 7d4c27e1fd631cc1ba2f8de7cacec1eca618280c12c8ac351d9544a06e94ba4d
+    import_strip_policy: remove_lines_whose_first_token_is_import_v1
+    import_stripped_preamble_sha256: 0b905f3d1d045694b3dcc1174fb069ca82f76d345b0f439936e7e61af3868009
+    source_version_symbol: LeanFaith.SFT1.Wave1.sourceVersion
+    source_version_value: sft1_wave1_expr_engine_v0_3_4
+    public_discover_symbol: LeanFaith.SFT1.Wave1.discover
+    public_dispatch_symbol: LeanFaith.SFT1.Wave1.dispatchAt
+    public_checker_symbol: LeanFaith.SFT1.Wave1.replayCertificate
+    n31_bank_admission_symbol: LeanFaith.SFT1.Wave1.admittedN31BankIdentitiesV0_3_4
+    imports_shared_transform_engine: false
+    owns_renderer_or_universe_canonicalizer: false
+  operation_bank:
+    path: configs/transformations/sft1_value_first_v1/wave1_operation_banks_v0_3_4.yaml
+    file_sha256: 282836a539d055e227ccfba12dd612522654f036d6705aec07a551a217c82a34
+    semantic_hash: 99440883e2ae37b7ee95ca3332273107665277cb9597586c6de427b36e9ce8da
+  fixture_spec:
+    path: tests/fixtures/sft1/wave1_v0_3_4.yaml
+    file_sha256: 0856c6cfa1536bd935d4606ec2d09a34c72ef5c2ddf92d2f15b67867ac6dd6ea
+    semantic_hash: 6d8dbc0d7da271f880223ec519afabbe030dd0d480ba7d0731707d5b66f46e51
+
+hash_contracts:
+  hash_algorithm: sha256_canonical_json_v1
+  operation_bank_entry_hash_fields: [operation_bank_entry]
+  fixture_aggregate_hash_fields:
+    - operation_id
+    - referenced_templates_success_then_adversarial_rejection
+    - project_contexts_in_registered_order
+    - fixtures_sorted_by_project_then_kind
+  dispatch_binding_hash_fields:
+    - operation_id
+    - lean_source_file_sha256
+    - operation_constructor
+    - dispatch_symbol
+    - bank_semantic_hash
+  checker_binding_hash_fields:
+    - operation_id
+    - lean_source_file_sha256
+    - checker_symbol
+    - registry_entry_hash
+    - anchor_hash
+    - operation_bank_entry_hash
+  anchor_binding_hash_fields: [operation_id, anchor_ref, anchor_hash, registry_entry_hash]
+  authored_bundle_hash_fields:
+    - operation_id
+    - mechanism_id
+    - evidence_class
+    - registry_entry_hash
+    - lean_source_file_sha256
+    - dispatch_binding_hash
+    - checker_binding_hash
+    - anchor_binding_hash
+    - operation_bank_entry_hash
+    - fixture_aggregate_hash
+    - cache_contract_semantic_hash
+    - execution_contract_semantic_hash
+
+primary_bundles:
+  - operation_id: P01_ALPHA_RENAME_SINGLE_V1
+    mechanism_id: p01_alpha_rename_single_v1
+    evidence_class: P-DEF
+    registry_entry_hash: 36b680c6c3407d0761de8af1b0c5e685ce0bc89fefed720bc46255c9bc218844
+    operation_constructor: LeanFaith.SFT1.Wave1.PrimaryOperation.p01AlphaRenameSingle
+    dispatch_symbol: LeanFaith.SFT1.Wave1.dispatchAt
+    checker_symbol: LeanFaith.SFT1.Wave1.replayCertificate
+    anchor_ref: sft1.meta.p01_alpha_rename_single.v1
+    anchor_hash: ca485f300ecc818057f10877f0eec5c6b4b963fec2e0a574a6895f9d83357095
+    operation_bank_entry_hash: da08e62d1dd1839da683bcdb8d4a73e40fd627498ffed78a20fed146e1088c39
+    fixture_aggregate_hash: 8fad8342d8925bf3018778aa8ae800c98303a6cecec7ae1f7610ed053d436454
+    dispatch_binding_hash: ca6922b344a7667667a2e7b0397f4f601139eab8dd7d28e2acf3cf0df7903484
+    checker_binding_hash: 265b95e5f15405e1ee43cb710d44326d1dd28537c6f879c92ac1c589426ec9a8
+    anchor_binding_hash: c822034fad0f593158158e2be90ac908ffdb82e2983122b8881739a6d113b697
+    authored_bundle_hash: 121a01a046095784e02c9b0dc0356110523bb785adb09fb6d962e00424c84ce8
+    static_source_authored: true
+    lean_compile_verified: false
+    live_success_verified: false
+    live_adversarial_rejection_verified: false
+    implementation_ready: false
+    gate_execution_may_start: false
+    production_admitted: false
+    row_emission_authorized: false
+  - operation_id: P15_SWAP_IFF_SIDES_V1
+    mechanism_id: p15_swap_iff_sides_v1
+    evidence_class: P-SCHEMA
+    registry_entry_hash: cefb0b1f138d40cc48df102d834e6f98735697213f4ab0d2688fe64943c7ed97
+    operation_constructor: LeanFaith.SFT1.Wave1.PrimaryOperation.p15SwapIffSides
+    dispatch_symbol: LeanFaith.SFT1.Wave1.dispatchAt
+    checker_symbol: LeanFaith.SFT1.Wave1.replayCertificate
+    anchor_ref: sft1.schema.p15_swap_iff_sides.v1
+    anchor_hash: ecad6c6ea110dff281b051045eb37846b194b54fa1a879bce11f5c04e5ed6bd4
+    operation_bank_entry_hash: ca645071138232854736d49515efb37f4c602122b55e06ac75c973313a3d64cb
+    fixture_aggregate_hash: 0ba5ebb5669dcc3d9a14f64504d9f13fd1efe97f26e66dfa6aec7b1923a1b247
+    dispatch_binding_hash: e0c087c412108df0f7f6417f465350676873904cf90c528f45b1f0de8659c49c
+    checker_binding_hash: 789fd63a7e8165f136c06ccf89ff1e5fb8edfde8f6567449b1e52ac896c114b5
+    anchor_binding_hash: 4a10101db905be375ceaa1e33f526624df77f636d83347ae155759ad968611ed
+    authored_bundle_hash: 476ced5fe4ac78db335f6854ff8a395bf63e591be4733476fc3f6afd67cd761a
+    static_source_authored: true
+    lean_compile_verified: false
+    live_success_verified: false
+    live_adversarial_rejection_verified: false
+    implementation_ready: false
+    gate_execution_may_start: false
+    production_admitted: false
+    row_emission_authorized: false
+  - operation_id: P18_SYMMETRIZE_EQUALITY_V1
+    mechanism_id: p18_symmetrize_equality_v1
+    evidence_class: P-SCHEMA
+    registry_entry_hash: 84d9a3615a30aca49e44705fc341f147b74b2885f4831244bb31ea7f97364472
+    operation_constructor: LeanFaith.SFT1.Wave1.PrimaryOperation.p18SymmetrizeEquality
+    dispatch_symbol: LeanFaith.SFT1.Wave1.dispatchAt
+    checker_symbol: LeanFaith.SFT1.Wave1.replayCertificate
+    anchor_ref: sft1.schema.p18_equality_symmetry.v1
+    anchor_hash: a79b0b92d5fca0360c38a9edaead1edec038df63bc2167da580bcf9d2c335b8d
+    operation_bank_entry_hash: 007d09f2a6b2037c22fd220fdc8b10371e0a7f4caceb37f101d5b296065fb205
+    fixture_aggregate_hash: 3ffb6d02097c003cc2bad10c41248d4c752c27f06b3f918cd3fa4b3344308a10
+    dispatch_binding_hash: 1bec5738334a3afb7e78e6dc2c9ef04f70f28fc3be1a02718201f5ffd48e1dc9
+    checker_binding_hash: bea1cca565f5764ae748810027b9dd55415e91cfcd2368c598f70a81fd09c982
+    anchor_binding_hash: 0c922a2d0b373431e25f49a110751819df1e8a89fa6b83792944e03b276815a5
+    authored_bundle_hash: c3f35fc5db6761555e8fc68b416fc1424117e1ad4db8179f740f20349f4ca975
+    static_source_authored: true
+    lean_compile_verified: false
+    live_success_verified: false
+    live_adversarial_rejection_verified: false
+    implementation_ready: false
+    gate_execution_may_start: false
+    production_admitted: false
+    row_emission_authorized: false
+  - operation_id: P21_BETA_REDUCE_V1
+    mechanism_id: p21_beta_reduce_v1
+    evidence_class: P-DEF
+    registry_entry_hash: 5a7ff8ce195cafd42b971bb5a07e23ec7e46b7d0376b7ab34c8dfa42459261f3
+    operation_constructor: LeanFaith.SFT1.Wave1.PrimaryOperation.p21BetaReduce
+    dispatch_symbol: LeanFaith.SFT1.Wave1.dispatchAt
+    checker_symbol: LeanFaith.SFT1.Wave1.replayCertificate
+    anchor_ref: sft1.meta.p21_beta_reduce.v1
+    anchor_hash: dd364fd25afd801ae97c2f47ea59ca9f46cae0fff393da5a57b5842acb306d4c
+    operation_bank_entry_hash: 655c3d8a28820d66b6f0227cd8c26aa40f77e7217e5f2ca5366b3ac358df281b
+    fixture_aggregate_hash: f49d9aa1ab1e6f5fee5394d542c09c38e122012843ac026da451f7e7a6b443f8
+    dispatch_binding_hash: b8fb1e72999300d199d8df7348c2070f7c885f4812a1692a61ae55a6db8f9523
+    checker_binding_hash: 7f8eb130e628b4b714c6cfc6aab7c6eed5026ccda2f701f38c1b15fc63913dde
+    anchor_binding_hash: b839a0a1d2fb49f0578ed056cb93ba025e36a0ca164c54eb23b5f17159ba5d9c
+    authored_bundle_hash: c40b402fd4ea5690981f1233110d78a8f445dfc38e47b215f600f5a22fea3e32
+    static_source_authored: true
+    lean_compile_verified: false
+    live_success_verified: false
+    live_adversarial_rejection_verified: false
+    implementation_ready: false
+    gate_execution_may_start: false
+    production_admitted: false
+    row_emission_authorized: false
+  - operation_id: N31_DROP_REQUIRED_GUARD_RUBRIC_V1
+    mechanism_id: n31_required_guard_mutation
+    evidence_class: N-RUBRIC
+    registry_entry_hash: e10cae5e82a8b17bcfe9a5bd4d5811eea6b75c78e77b6c67a3c082a2c2feae5f
+    operation_constructor: LeanFaith.SFT1.Wave1.PrimaryOperation.n31DropRequiredGuardRubric
+    dispatch_symbol: LeanFaith.SFT1.Wave1.dispatchAt
+    checker_symbol: LeanFaith.SFT1.Wave1.replayCertificate
+    anchor_ref: shared_consistency_rubric.required_domain_guard
+    anchor_hash: 03789414409dca332f807a6b53ed1fe4416fbfd13c377362119a910858fbf00d
+    operation_bank_entry_hash: cb9dbe3695f197ecbacc65ae0f2c58ff78919bf727c64876a838da47ad7a38f8
+    fixture_aggregate_hash: 1bfc134f3c33481afddfe869865539536cd4f5c0b785cbbdbbf0e13b347b71dc
+    dispatch_binding_hash: f5ec30523ba3fdbde56391c421502ac8883c478149c5098eb04c8fb3aae926a7
+    checker_binding_hash: 898611780e62e8776758615c2c9408db888dc739b4c16cc1e67c4415e22e2afe
+    anchor_binding_hash: ad41b2c4629609ec7d4f7072ededfef6c8937b4520396b75fb9b13f9eb9cfcb4
+    authored_bundle_hash: 12cd759f1852e8f66b101780320784e7b87e58b5d69f98f7a37ce203f0237408
+    static_source_authored: true
+    lean_compile_verified: false
+    live_success_verified: false
+    live_adversarial_rejection_verified: false
+    implementation_ready: false
+    gate_execution_may_start: false
+    production_admitted: false
+    row_emission_authorized: false
+
+verification_state:
+  static_primary_bundle_count: 5
+  static_primary_bundles_hash_bound: true
+  lean_compile:
+    status: not_run_unauthorized
+    verified: false
+    receipt_sha256: null
+  live_success_fixtures:
+    status: not_run_unauthorized
+    verified: false
+    receipt_sha256: null
+  live_adversarial_rejections:
+    status: not_run_unauthorized
+    verified: false
+    receipt_sha256: null
+  certificate_replay:
+    status: not_run_unauthorized
+    verified: false
+    receipt_sha256: null
+  implementation_ready: false
+  gate_execution_may_start: false
+  remaining_implementation_blockers:
+    - p01_alpha_closed_expr_hash_collision
+    - n31_guard_target_and_contradiction_bank_live_resolution
+    - n31_runtime_bank_identity_admission_requires_separate_user_authorization
+    - n31_in_process_exact_full_typed_bank_hash_verifier_binding
+    - lean_source_compile_and_symbol_resolution
+    - live_success_and_adversarial_fixture_replay
+    - certificate_checker_live_replay
+    - persistent_meta_request_and_same_request_repr_adapter
+    - central_persistent_cache_adapter_binding_and_replay
+  remaining_pre_smoke_nonimplementation_blockers:
+    - coordinator_shared_label_contract_update
+    - positive_smoke_root_specific_micro_census
+    - n31_rubric_smoke_root_specific_micro_census
+
+p01_identity_blocker:
+  blocker_id: p01_alpha_closed_expr_hash_collision
+  operation_id: P01_ALPHA_RENAME_SINGLE_V1
+  status: open_fail_closed
+  source: frozen_attempt_009
+  reference_and_candidate_closed_expr_hash_equal: true
+  reference_and_candidate_render_hash_distinct: true
+  frozen_repeated_closed_expr_hash_rejection_still_applies: true
+  additive_binder_aware_fingerprint_authored: true
+  additive_fingerprint_overrides_frozen_rule: false
+  blocks_operation_implementation_readiness: true
+
+n31_target_bank_state:
+  operation_id: N31_DROP_REQUIRED_GUARD_RUBRIC_V1
+  bank_id: sft1_n31_guard_target_candidates_v0_3_4
+  bank_semantic_hash: c70856f7ea2b46604f1208d8926dfd6f667b0692c69103e9e6f2eef323de9c52
+  operation_bank_artifact_semantic_hash: 99440883e2ae37b7ee95ca3332273107665277cb9597586c6de427b36e9ce8da
+  selectable_guard_target_candidate_entries_authored: true
+  retained_contradiction_candidate_entries_authored: true
+  bank_semantic_hash_binds_both_inventories: true
+  operation_bank_semantic_hash_binds_n31_runtime_contracts: true
+  source_admission_symbol: LeanFaith.SFT1.Wave1.admittedN31BankIdentitiesV0_3_4
+  runtime_admitted_resolved_bank_identity_count: 0
+  runtime_admitted_resolved_bank_identities: []
+  empty_admission_blocks_dispatch_and_discovery: true
+  current_runtime_activation_authorized: false
+  future_activation_requires_separate_user_authorization: true
+  future_identity_pin_field_order:
+    - projectId
+    - bankId
+    - resolvedLeanHash
+    - resolutionReceiptHash
+  in_process_exact_full_typed_bank_hash_verification_required: true
+  in_process_exact_full_typed_bank_hash_verifier_bound: false
+  identity_membership_is_not_a_substitute_for_bank_hash_verification: true
+  certificate_binds_full_typed_bank: true
+  certificate_binds_full_reachability_assignment: true
+  replay_context_mismatch_reason: replayContextMismatch
+  selectable_guard_and_target_role_instance_indices_disjoint: true
+  selectable_guard_and_target_instance_or_type_constraints_nonempty: true
+  retained_contradiction_role_instance_paths_disjoint: true
+  retained_contradiction_instance_or_type_constraints_nonempty: true
+  live_selectable_and_contradiction_name_arity_role_instance_resolution_complete: false
+  unknown_or_ambiguous_disposition: typed_not_applicable
+  unknown_or_ambiguous_retained_prop_reason: n31RetainedContextUnknownOrAmbiguous
+  blocks_n31_implementation_readiness: true
+
+optional_n31_proof_adapter:
+  operation_id: N31_DROP_REQUIRED_GUARD_PROOF_V1
+  parent_operation_id: N31_DROP_REQUIRED_GUARD_RUBRIC_V1
+  registry_entry_hash: b3ba4acd04c3adb7eff83e8a7b242a7c953f5d2b87ec659e9bbc9abafe81199a
+  status: optional_not_implemented
+  implementation_source_path: null
+  checker_symbol: null
+  required_for_primary_implementation_readiness: false
+  blocks_parent: false
+  blocks_wave: false
+  blocks_smoke: false
+  blocks_conformance: false
+  blocks_approximately_100_root_gate: false
+  optional_per_project: true
+  optional_per_root: true
+  unavailable_disposition: not_in_scope_for_n_proof
+  candidate_truth_when_unavailable: unknown
+  parent_candidate_and_root_pool_reuse_required: true
+  sidecar_upgrade_only: true
+  proof_upgrade_may_emit_additional_pair: false
+  counts_as_sixth_semantic_mechanism: false
+  counts_against_own_and_parent_caps: true
+
+cache_readiness:
+  base_cache_contract_semantic_hash: 1ffb866d02376fbce8161fdfeaf75fd5d13770f36e7a2526e6d107f2b7091d43
+  base_execution_contract_semantic_hash: ab98caf36f359d2a2599e166bb0e13cd07c2fe03b1392200b8348c78912412fa
+  exact_ordered_key_fields:
+    - source_closed_expr_hash
+    - candidate_closed_expr_hash
+    - canonical_universe_profile_id
+    - canonical_universe_profile_hash
+    - source_expr_builder_version
+    - candidate_expr_builder_version
+    - lean_version
+    - project_id
+    - project_revision
+    - toolchain_revision
+    - imports_hash
+    - options_hash
+    - synthesized_instance_hashes
+    - operation_id
+    - operation_registry_entry_hash
+    - schema_lemma_procedure_hash
+    - evidence_certificate_payload_hash
+    - bank_resolved_lean_hash
+    - transparency
+    - allowed_axiom_profile
+    - typed_meta_validator_version
+    - evidence_replay_version
+    - evaluation_blocklist_sha256
+    - repr_replacement_commit
+    - render_context_id
+    - render_context_hash
+    - renderer_api_hash
+    - repr_spec_hash
+    - environment_fingerprint_hash
+    - policy_config_hash
+  hash_algorithm: sha256_canonical_json_v1
+  hashing_must_occur_in_persistent_process_when_executed: true
+  cache_successes: true
+  cache_deterministic_terminal_failures: true
+  task_owned_key_builder_symbol: leanfaith.sft1.wave1_readiness.compute_wave1_cache_key
+  central_cache_store_adapter_bound: false
+  central_cache_store_invoked: false
+  cache_replay_executed: false
+
+repr_integration_contract:
+  route: closed_expr_in_session
+  endpoint_emitter: LeanFaith.GoalV1.emitClosedProp
+  exact_emitter_calls_per_pair: 2
+  reference_and_candidate_alive_in_same_persistent_meta_request: true
+  sft1_renderer_implementation_forbidden: true
+  sft1_universe_canonicalization_forbidden: true
+  candidate_declaration_or_proof_for_rendering_forbidden: true
+  pretty_print_or_text_reelaboration_for_serialization_forbidden: true
+  goal_v1_text_compilation_forbidden: true
+  universe_profile_id: goal_v1_first_occurrence_u_i_v1
+  universe_profile_hash: d9e729134fcd6a086a58191810a9227062c66496ebe76b8da3c458a58b31cb61
+  render_context_id: goal_v1_render_context_v1
+  render_context_hash: 5f44b6970f0902c968fc98a2659b26c1c9d0bcaef2960cd3ea73808f203f8f62
+  renderer_api_hash: c695ad868c98f27218e82184559d90624491df25c7805bf29861dd891787261d
+  repr_spec_hash: 68d893a2c566bf3f6a82c899a32a351f9a5420f5ea98168c99b887aaa01a45a8
+
+prohibitions:
+  lean_project_compilation_or_meta_execution_started: false
+  transform_execution_started: false
+  gate_execution_started: false
+  census_processing_started: false
+  rows_generated_or_emitted: false
+  wave2_implementation_started: false
+  production_admitted_operation_count: 0
+  production_admitted_negative_count: 0
+  ten_k_authorized: false
+  scale_authorized: false
+  publication_authorized: false
+  shared_contract_modified: false
+
+boundary_incidents:
+  - incident_id: unauthorized_read_only_lean_print_prefix_v1
+    incident_date: "2026-08-30"
+    command: lean --print-prefix
+    authorization_status: outside_authorized_scope_recorded_for_audit
+    lean_executable_invoked: true
+    project_loaded: false
+    project_imported: false
+    project_compiled: false
+    meta_execution_started: false
+    transform_execution_started: false
+    gate_execution_started: false
+    row_generation_or_emission_started: false
+    files_or_artifacts_produced: false
