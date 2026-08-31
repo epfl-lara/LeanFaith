@@ -1,13 +1,13 @@
 # SFT2B — autoformalization consistency data
 
 > **Task ID:** SFT2B
-> **Status:** pilot_ready
-> **Owner/session:** Codex `/root` — 2026-08-30 matched-500 runner handoff ready
-> **Last updated:** 2026-08-30
+> **Status:** active
+> **Owner/session:** Codex `/root` — 2026-08-31 diverse full-source freeze
+> **Last updated:** 2026-08-31
 > **Dependencies:** REPR `goal_v1.0`; source-quality audit and frozen consistency/voting prompts
-> **Next gate:** on the authorized 8xA100 host, run the single pinned command recorded below; it
-> consumes Hub revision `08aa352a1e6c80f7c98f63070f0351ad39f8a272`, fills the 2,000
-> ReForm-32B DP=4/TP=2 cells, and publishes/fresh-verifies an additive output revision
+> **Next gate:** privately publish and fresh-verify all 54,455 quality-qualified diverse
+> trusted-reference sources plus the deterministic 50K matched view, without running a
+> formalizer, Lean, judges, labels, publication of generated outputs, or training
 > **Compute class:** source-freeze work is Lean/GPU-free; downstream inference uses eight
 > A100-SXM4-80GB GPUs at DP=4/TP=2
 > **Lean budget:** compile each novel formalization candidate once through persistent cached workers
@@ -212,6 +212,55 @@ the original machine.
 Lean is the bottleneck for the later compilation stage, so this generation-only command invokes no
 Lean process. It performs every schema, string, provenance, hash, join, and deduplication check
 before GPU startup.
+
+### Authorized diverse full-source freeze subplan
+
+The user explicitly authorized preparation of the full SFT2B source set while the separate 8xA100
+host runs the matched-500 generation. This subplan prepares and privately publishes source inputs
+only; it does not launch ReForm, Lean, judges, semantic labels, generated-output publication, or
+training.
+
+1. Inventory pinned local and Hugging Face evidence for every plausible trusted NL-to-Lean source,
+   including Mathlib, Physlib, CSLib, the user's curated `lean-docs`/library snapshots, Numina,
+   Lean-Workbook, and other already-present public datasets. Record exact revisions, file hashes,
+   licenses/redistribution notes, source-use authorization, project/toolchain/import contexts, and
+   whether each family actually supplies standalone NL linked to a theorem. Lean-only CPT text is
+   not silently promoted into SFT2B when no trustworthy NL alignment exists.
+2. Reuse the strict versioned `SourceRecord` contract and stable IDs. Library rows require an
+   attached explanatory docstring/comment plus a proof-bearing theorem declaration in a pinned
+   successful library snapshot; dataset rows require a pinned standalone problem statement and an
+   exact trusted Lean reference with auditable success evidence. Reject proof leakage, prompt text,
+   placeholders, malformed/ambiguous declarations, and incomplete compilation contexts without
+   invoking Lean.
+3. Audit each family before setting quotas. Target roughly 50K rows with deliberate domain and
+   ecosystem diversity rather than Numina-only backfill; publish the maximum quality-qualified set
+   if fewer than 50K survive. Preserve Mathlib/Physlib/CSLib, competition/problem, broader
+   public/synthetic, and specialist/high-difficulty family counts separately.
+4. Replay source-use policy, the existing-301 exclusion, ShadowBench/test-only exclusion, golden
+   exact/near/problem-identity screens, global NL/reference/signature-near deduplication, and
+   cross-family priority rules. Record every audited, eligible, selected, and exclusion count.
+5. Measure one row, 100 rows, then about 10K rows before full selection. All scans, parsing,
+   provenance, joins, hashing, deduplication, contamination screening, prompt rendering, and token
+   counting are Lean-free. Any genuinely necessary Lean oracle remains separately bounded and
+   resource-claimed; no process-per-row validation is permitted.
+6. Render the exact pinned ReForm prompt for every selected row and record prompt hashes/token
+   counts with the frozen tokenizer revision. Emit strict source, prompt-token, family-audit,
+   exclusion, manifest, and checksum files with deterministic compaction and a durable terminal
+   marker. If the full build outlives the interactive turn, run it in a named detached `tmux`
+   session with committed code/config, persistent log/journal, ceilings, resume command, and the
+   required startup health evidence.
+7. Validate from a fresh directory, then upload additively under a new content-addressed path in
+   private `Lemmy00/leanfaith-sft2-autoformalizer-v1`; never overwrite the matched-500 input or any
+   prior release. Fresh-download the immutable Hub revision and replay schemas, counts, IDs,
+   checksums, source mix, context completeness, prompt tokens, provenance, and contamination.
+8. Commit and push only the SFT2B brief plus task-owned source-freeze code/config/tests. Hand off
+   exact Git/HF revisions, source-family and domain counts, shortages/exclusions, licenses/policies,
+   maximum prompt length, required model length, hashes, cache/output roots, and the generation
+   consumer command.
+
+Lean remains the bottleneck: this source-only preparation deliberately completes every cheap
+operation before any future candidate compilation, uses existing trusted success evidence where
+available, and starts no Lean process in the default path.
 
 Lean is the bottleneck throughout this plan: all safe string parsing, source filtering, schemas,
 provenance, joins, deduplication, prompt validation, hashing, and restart logic precede Lean. The
@@ -524,3 +573,21 @@ Do not launch 50K sources without the pilot and user compute/model approval.
   public repository, or training. Offline unit checks passed and the command's own live Hub input
   downloader reverified revision `08aa352a1e6c80f7c98f63070f0351ad39f8a272` at 500 rows and 967
   maximum prompt tokens; no model download, GPU server, or generation ran on the original machine.
+- 2026-08-31 — claimed the SFT2B full-source freeze on branch
+  `milikic/sft2b-full-source-freeze` and expanded the requested 50K cap to every row surviving the
+  same source-quality contract. The Lean/GPU-free audit now joins a frozen 176,101-row closed-type
+  census to strict adjacent human docstrings across Mathlib, Physlib, and CSLib; audits all 104,155
+  rows of public `AI-MO/NuminaMath-LEAN`; replays all 33,027 owner Numina and 25,214 Lean-Workbook
+  rows; and replays the 301-candidate exclusion receipt. The raw qualified pools contain 14,298
+  library rows, 33,470 current Numina rows, 27,464 legacy owner Numina rows, and 8,501 Workbook
+  rows. Priority-ordered global proposition/NL/signature deduplication plus existing-301 and golden
+  screens leave 54,455 unique sources. ProofNet, ProofNetVerif, ProofNetSharp/ProofNet#, every
+  derived or mixed ProofNet variant, and ShadowBench are blanket-excluded; the ProofNet-containing
+  `iiis-lean/lean-math-formal-corpus` aggregate is audit-only and contributes no row.
+- 2026-08-31 — the required serialized 1-row, 100-row, and 10,000-row gates passed after one 10K
+  gate exposed and fixed a substring-based prompt leak false-positive before writing output. The
+  100-row view represented all seven release classes. The successful 10K run took 108.92 seconds,
+  peaked at 1,944,936 KiB RSS, produced exact prompt hashes/counts, replayed all strict
+  `SourceRecord` identities and bundle checksums, and observed 739 maximum prompt tokens
+  (`max_model_len` 4,835 with 4,096 completion tokens). No Lean, ReForm, judge, label, generated
+  output publication, or training process ran.
