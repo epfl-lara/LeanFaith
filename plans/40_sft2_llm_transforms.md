@@ -511,3 +511,10 @@ recorded budget/model decision.
   The additive recovery canonicalizes library lookup to one import/options context per project,
   retains source context only in provenance/prompt fields, reuses the shared terminal cache, and
   uses fresh output/session/resource identities. Provider calls remain zero and unauthorized.
+- 2026-08-31 — committed the v5.2 recovery at `b25da69` (tree `7602b2f`) and materialized
+  `configs/sft2a/reference_certification_authorization_v5_2_recovery_v2.json` with hash
+  `e4cbdecb5d33d3f2804aae6644b04417bc2ea61283d4ace441e052c24bf08ba7`. The corrected config
+  hash is `4cf6d7f275e98c501e518472ceedde6d88db4166905430672b368a10883a2a8a`; it binds the same exact
+  pool `8ec78fd1823b17565c80ec0ffbf483e1d6907382a30d0500843237d640fdfd9b`, fresh output
+  `runs/reference_certification_v5_2_recovery_v2`, and session
+  `leanfaith-sft2a-v5-reference-certification-v2`. No authorization scope changed.
