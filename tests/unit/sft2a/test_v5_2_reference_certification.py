@@ -17,6 +17,7 @@ from leanfaith.sft2a.parallel_rehearsal import (
     ParallelRehearsalError,
     ParallelRootJournal,
     deterministic_parallel_compaction,
+    parallel_launch_lock,
 )
 from leanfaith.sft2a.reference_certification import prepare_reference_pool, verify_reference_replay
 from leanfaith.sft2a.reference_certifier import (
@@ -237,6 +238,16 @@ def test_simultaneous_duplicate_root_claim_is_refused(tmp_path: Path) -> None:
     assert sorted(outcomes) == ["claimed", "refused"]
 
 
+def test_duplicate_parallel_launch_is_refused_before_workers(tmp_path: Path) -> None:
+    lock = tmp_path / "parallel-launch.lock"
+    with (
+        parallel_launch_lock(lock),
+        pytest.raises(ParallelRehearsalError, match=r"duplicate.*launch refused"),
+        parallel_launch_lock(lock),
+    ):
+        raise AssertionError("duplicate launch entered its protected body")
+
+
 def test_parallel_compaction_separates_planned_and_accepted_histograms(tmp_path: Path) -> None:
     rows = [
         {
@@ -256,7 +267,11 @@ def test_parallel_compaction_separates_planned_and_accepted_histograms(tmp_path:
     ]
     manifest = deterministic_parallel_compaction(rows, output=tmp_path / "compacted")
     compacted = (tmp_path / "compacted/rows.jsonl").read_text()
+    first_hash = hash_file(tmp_path / "compacted/rows.jsonl")
+    replay = deterministic_parallel_compaction(rows, output=tmp_path / "compacted")
     assert compacted.index("row-a") < compacted.index("row-b")
+    assert replay == manifest
+    assert hash_file(tmp_path / "compacted/rows.jsonl") == first_hash
     assert (
         manifest["planned_mechanism_histogram"] != manifest["accepted_mechanism_evidence_histogram"]
     )

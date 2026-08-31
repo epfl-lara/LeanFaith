@@ -6,7 +6,8 @@ import fcntl
 import json
 import os
 from collections import Counter
-from collections.abc import Iterable, Mapping
+from collections.abc import Iterable, Iterator, Mapping
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Literal
 
@@ -24,6 +25,24 @@ ProviderKind = Literal["proposer", "opus", "lemex"]
 
 class ParallelRehearsalError(RuntimeError):
     """A parallel budget, resume, deduplication, or launch invariant failed."""
+
+
+@contextmanager
+def parallel_launch_lock(path: Path) -> Iterator[None]:
+    """Refuse a second process before any provider or Lean worker is constructed."""
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if path.exists() and (path.is_symlink() or not path.is_file()):
+        raise ParallelRehearsalError("parallel launch lock is unsafe")
+    with path.open("a+b") as handle:
+        try:
+            fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError as exc:
+            raise ParallelRehearsalError("duplicate parallel rehearsal launch refused") from exc
+        try:
+            yield
+        finally:
+            fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
 
 
 def _events(path: Path) -> list[dict[str, object]]:
@@ -421,5 +440,6 @@ __all__ = [
     "ParallelRehearsalError",
     "ParallelRootJournal",
     "deterministic_parallel_compaction",
+    "parallel_launch_lock",
     "prepare_parallel_rehearsal_path",
 ]
