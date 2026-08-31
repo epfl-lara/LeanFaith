@@ -1,11 +1,11 @@
 # SFT2A — LLM-generated semantic transformations
 
 > **Task ID:** SFT2A
-> **Status:** pilot_ready
+> **Status:** active
 > **Owner/session:** Codex `/root` — 2026-08-31 SFT2A v5 session
 > **Last updated:** 2026-08-31
 > **Dependencies:** REPR `goal_v1.0`; shared rubric; roots may be selected independently of SFT1
-> **Next gate:** user authorization for only the 100-root/400-slot rehearsal
+> **Next gate:** complete, replay, and audit only the authorized 100-root/400-slot v5 rehearsal
 > **Compute class:** external LLM/API plus CPU/RAM for Lean; large run may need explicit budget approval
 > **Lean budget:** compile each novel candidate once through cached persistent workers
 > **Local staging root:** `/storage/milikic/leanfaith/value_first/sft2_llm_transforms_v1/`
@@ -424,3 +424,11 @@ recorded budget/model decision.
   Terra, 1,200 Opus, 80 Kimi, three candidate attempts per slot, and $160 reported Opus spend.
   No rehearsal `tmux` session was started. The approximately-10K gate, 50K run, legacy rejudge,
   and publication remain separately unauthorized.
+- 2026-08-31 — received the exact authorization sentence for only the closure-aware v5 rehearsal
+  bound to sample `f7d3e27d8361dcbdde245e5236902239b5ca505538a3ca35d5efb80c6e042c4c`,
+  config `ba77a49dd162b88e59bdf1fe5cd04687eeaa2affda314dc3b3b0e5cfa2cc16da`, and the
+  readiness ceilings. Its exact text hash is
+  `d02d8bc031cf01695853e773515214db0ce78926a8494d9ae76ee6bb05a71279`. Materialized the
+  additive `configs/sft2a/rehearsal_authorization_v5.json`; the historical readiness-only receipt,
+  v5 smoke, and recovery-v4 evidence remain unchanged. This authorization still excludes the
+  approximately-10K gate, 50K run, legacy rejudge, publication, and every other run.
