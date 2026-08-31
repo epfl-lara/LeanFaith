@@ -1,14 +1,14 @@
 # SFT2B — autoformalization consistency data
 
 > **Task ID:** SFT2B
-> **Status:** active
+> **Status:** waiting_user
 > **Owner/session:** Codex `/root` — 2026-08-31 additive source correction v3 and consumer hardening
 > **Last updated:** 2026-08-31
 > **Dependencies:** REPR `goal_v1.0`; source-quality audit and frozen consistency/voting prompts
-> **Next gate:** finish the local v3 filter/conservation and consumer-verifier work, satisfy the
-> explicit row-level human-review contract without model substitution, publish and force-reverify
-> the additive v3 source bundle, then consume the independently frozen matched-500 receipt as pilot
-> evidence only; do not request or record scale authorization in this session
+> **Next gate:** receive the authentic 992-row human review plus frozen reviewer/attestor allowlists
+> and external attestation, or an explicit contract change before Opus/Terra substitution; only then
+> build, publish, and force-reverify additive v3. Separately ingest genuine missing matched-pilot
+> shutdown/resource/zero-call-replay receipts if they exist. Do not request scale authorization.
 > **Compute class:** source-freeze work is Lean/GPU-free; downstream inference uses eight
 > A100-SXM4-80GB GPUs at DP=4/TP=2
 > **Lean budget:** compile each novel formalization candidate once through persistent cached workers
@@ -472,7 +472,13 @@ Do not launch 50K sources without the pilot and user compute/model approval.
 
 ## Coordinator requests
 
-- Approve source freeze and formalizer/hardware choice after the 500-source pilot.
+- Supply the authentic 992-row human review, frozen reviewer/attestor identity allowlists, and the
+  accountable external attestation, or explicitly change the contract before any Opus/Terra
+  substitution. No model review is inferred from the missing human evidence.
+- If they still exist on the independently managed eight-GPU host, supply the original
+  shutdown/resource/zero-call-replay and fresh-publication receipt artifacts for the matched-500
+  run. Their absence leaves that run useful as mechanically verified pilot evidence but does not
+  authorize scale. No scale authorization is requested here.
 
 ## Progress log (append-only)
 
@@ -793,3 +799,69 @@ Do not launch 50K sources without the pilot and user compute/model approval.
   and tail authorization independently false. Lean is the bottleneck; no Lean, model, provider,
   judge, detached scale job, generated-output publication, training, or scale-authorization request
   is permitted in this session.
+- 2026-08-31 — correction to the preceding kickoff record: the additive v3 work was moved to and
+  completed on pushed branch `milikic/sft2b-source-correction-v3`; kickoff commit `15a9594` was
+  recorded before substantial execution. The exact originally reported meta-instruction impact is
+  frozen at 326 rows (262 matched core and 64 tail), fixture SHA-256
+  `8dc3e66023d687405bb77e4e811a2eea4dc79b4846e534db0d1afbbfd2604c25`.
+  The fail-closed active rule set finds 469 rows (394 core and 75 tail), including 143 additive
+  strict hits, at fixture SHA-256
+  `44566540c96adc0ab96ca6aa4a8e8ae757edcc75a863fe5524fbd48689ee50ab`.
+  Automatic rule dispositions remain explicitly mechanical and non-semantic.
+- 2026-08-31 — generated the authentic-human-review packet without performing or simulating its
+  review. It contains 992 unique rows: all 293 Workbook hits plus deterministic 100-row samples
+  from each of seven release classes, with one row overlapping those requirements. Packet SHA-256
+  is `77bc24c8372c55e1698f60a5d3fd715d56fd1fb277ede7acfc577cc812c9fd6d` at
+  `/storage/milikic/leanfaith/value_first/sft2_autoformalizer_v1/source_reviews/source_review_contract_v3_pending_human`.
+  No human verdict, reviewer/attestor allowlist, external attestation, Opus call, Terra call, or
+  other model substitution exists. The additive v3 builder, config, and tests are pushed in commit
+  `4c1a65a`; builder SHA-256 is
+  `233b8980b12f4be8f220dff2a0c700cd25281b034c1a3924404c7553acabb8c1` and config SHA-256 is
+  `0d2777163cdb74f678ab062892e210925378cc1cfa6cfe8ffbffefa3b8f86b12`.
+  An unmocked preflight replayed the real 54,621 active plus 285 quarantined v2 rows and stopped
+  only at the missing authentic-review/attestation pins, with return code 1 and no output path.
+  Hub revisions `88d768355b87a678be5fb37c5e677812f2614015` and
+  `d0b961d2112d186009984242db674f2ad59905c7` remain byte-immutable; no v3 bundle was built or
+  published.
+- 2026-08-31 — consumed the completed matched-500 generation read-only without restarting it.
+  Private Hub revision `e7f2ef6e5c84f22de479cf99360aace281523a71` contains exactly 11 files
+  under `pilot_outputs/reform_32b_matched_500_v1/d9eadc4aa717813e61d9809a98ba771e7004c1fc9161caa97a7c020b4746d387`;
+  the remote revision still resolves exactly and a local immutable-revision download passes every
+  published checksum. The hardened verifier streamed and replayed the 1,331,118,638-byte raw SSE
+  artifact, all 500-by-four ordered request keys, request/terminal/attempt joins, extraction,
+  routing, model/config/git/input/REPR pins, and observed eight-H100 telemetry. It found 1,242
+  strict output-contract admissions and 758 output-contract rejections, not Lean-validity or
+  semantic labels; per-slot admissions are 322/314/300/306, 1,147 signatures are globally unique,
+  and 246 requests ended at the length limit. The frozen selection mix remains 175 library
+  docstrings, 175 theorem problems, 100 broader public/synthetic, and 50 specialist sources.
+  Partial-evidence binding is
+  `20e275a9bd842ba158bd71be21b6680de44d9bd7cfe424f98bd90a83c349b7ad`.
+- 2026-08-31 — the observed matched-500 receipt is deliberately `gate_passed=false` and
+  `quality_decision=not_authorized`. The 11-file publication does not contain independently
+  replayable clean-shutdown, process-absence, resource-claim, resource-release, true zero-call
+  cache-replay, explicit quality-acceptance, or fresh-download publication-receipt artifacts. The
+  user's pipeline JSON reports 2,000 fresh model calls and `fresh_verification=true`; those useful
+  facts are preserved as externally reported evidence but are not converted into missing receipt
+  files or a scale pass. The actual manifest reports H100s, so it is not relabeled as A100 runtime
+  evidence.
+- 2026-08-31 — hardened the unlaunched full-source consumer around the real integrated vLLM
+  executor. It now streams compaction and pilot SSE replay; journals provider starts and terminals;
+  refuses ambiguous in-flight calls; records append-only runtime start/close and multi-session
+  resource claim/release evidence; verifies every historical pair before completion; requires
+  nonce/PID plus actual journal/output advancement for detached health; and routes complete caches
+  without sufficient runtime evidence to `recovered_unattested`. The host-specific eight-A100
+  profile consistently uses `/scratch`, matching the already-frozen runner on the host where
+  `/storage` was absent. Frozen authorization requires complete pilot artifacts and exact evidence
+  binding; the checked config remains `active` and unfrozen with both core and tail disabled, both
+  final run IDs deferred, and `launch_authorized=false`. Consumer SHA-256 is
+  `7acab628001f43a23473256529d349d0f127bee07219e655e3fda46e7cd547e9`; config SHA-256 is
+  `24aac54b6c70e7e6883e18b6d9f5d51d2f8951226c32142a61590235dfe7b205`.
+  The focused consumer suite passes 23 tests and the complete SFT2B suite passes 121; Ruff lint and
+  format checks, strict mypy, diff checks, both disabled-shard preflights, the authentic-review
+  fail-closed preflight, and the real 1.331-GB pilot replay all pass. No full or tail generation,
+  model server, provider call, Lean process, judge, tmux scale job, generated-output publication,
+  training action, or scale-authorization request ran in this session.
+- 2026-08-31 — all authorized local v3 and consumer-hardening work is exhausted, so the task moves
+  from `active` to `waiting_user` only at this boundary. The next input is authentic review evidence
+  (or an explicit review-contract change) and, independently, any genuine missing pilot closure
+  receipts that still exist on the generation host. This is not a request for scale authorization.

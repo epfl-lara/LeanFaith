@@ -1,0 +1,158 @@
+{
+  "schema_version": "sft2b_reform_diverse_full_consumer_v2",
+  "status": "active",
+  "input": {
+    "repo_id": "Lemmy00/leanfaith-sft2-autoformalizer-v1",
+    "repo_type": "dataset",
+    "private_required": true,
+    "revision": null,
+    "path_prefix": "source_inputs/reform_diverse_full_v3",
+    "files": [
+      {"path": "SHA256SUMS", "sha256": null},
+      {"path": "sources.jsonl", "sha256": null},
+      {"path": "source_manifest.json", "sha256": null},
+      {"path": "prompt_token_counts.json", "sha256": null},
+      {"path": "matched_50000_source_ids.json", "sha256": null},
+      {"path": "legacy_tail_source_ids.json", "sha256": null}
+    ],
+    "expected_source_rows": null,
+    "shards": [
+      {
+        "shard_id": "corrected_core_50000",
+        "id_view_path": "matched_50000_source_ids.json",
+        "id_view_sha256": null,
+        "expected_rows": 50000
+      },
+      {
+        "shard_id": "legacy_tail",
+        "id_view_path": "legacy_tail_source_ids.json",
+        "id_view_sha256": null,
+        "expected_rows": null
+      }
+    ]
+  },
+  "model": {
+    "model_id": "GuoxinChen/ReForm-32B",
+    "revision": "80e9d9d83998d8c118c512bd6a35d1cdf11b57c8",
+    "placement_config_path": "configs/sft2b/reform_32b_placement_v1.json",
+    "placement_config_sha256": "faef13dba4d21eb381e85a201fb8bda3617003bc8323c3e796006dd97caa77a5",
+    "prompt_path": "prompts/sft2b/reform_8b_generation_theorem_v1.md",
+    "prompt_sha256": "9aa0de0550bd871fc1cff03cf2614ed4e7e5bfa6c4371351b901d745515afe36",
+    "tokenizer_sha256": "fa572b107ab6cc0b9932cf8b6b3f4b0febbc0c693fc3afb71458e6c1d87799fb",
+    "snapshot_binding_sha256": "8dfcd12699d8a3730d1776dc6969e96ebe678d29ccaa43754e0deea3cd90773a",
+    "served_model_name": "reform-32b-80e9d9d83998",
+    "slots": [
+      {"slot": "slot_0", "seed": 0},
+      {"slot": "slot_1", "seed": 1},
+      {"slot": "slot_2", "seed": 2},
+      {"slot": "slot_3", "seed": 3}
+    ]
+  },
+  "matched_500_gate": {
+    "evidence_state": "outputs_frozen_incomplete_receipts",
+    "published_repo_id": "Lemmy00/leanfaith-sft2-autoformalizer-v1",
+    "published_revision": "e7f2ef6e5c84f22de479cf99360aace281523a71",
+    "published_path_prefix": "pilot_outputs/reform_32b_matched_500_v1/d9eadc4aa717813e61d9809a98ba771e7004c1fc9161caa97a7c020b4746d387",
+    "artifact_root": null,
+    "pilot_input_root": null,
+    "pipeline_config_path": "configs/sft2b/reform_32b_matched_500_pipeline_v1.json",
+    "pipeline_config_sha256": "e34b93cf43d68c6e7cb9f55ddc78edf35bdb67594ecbc8272f98414e7e987f44",
+    "artifact_files": [
+      {"path": "SHA256SUMS", "sha256": "451ae2bfbd607cd339ddff2abe544f209949b76c7175f43e6c5bd30aa92a619d"},
+      {"path": "candidates.jsonl", "sha256": "316e79de2c32d6121822da2863a3826d13dfd9eed66e0d68d4de7e1f51da60cf"},
+      {"path": "formalizer_attempts.jsonl", "sha256": "cf5dc97431696da7d3ec72b7e29ec490ccdc1bc3cbe2fd54f4f00e92af92dd1c"},
+      {"path": "formalizer_invalid_attempts.jsonl", "sha256": "0c9e1525e97d477672795e87ad00ae7e4d467aeb549ffcfb2d7adadd2bae0d87"},
+      {"path": "generation_manifest.json", "sha256": "04504e127750c422d3c90c3f41de5e4c1a83e040f77e815d6852d13827a00ad6"},
+      {"path": "raw_generations.jsonl", "sha256": "7888bbf0748f55dc4e429be8c7b87baa28c924e794b47258c58d361eebf38b9b"},
+      {"path": "request_metrics.jsonl", "sha256": "4c68136765f85136fd289f79420ab4b470352f7df5c85b1c02f5c9edd5bebebd"},
+      {"path": "request_terminals.jsonl", "sha256": "855fd598726962cc51624b2485e39b0809d0b3ebe468fe08cb32845cbd1d3f11"},
+      {"path": "requests_journal.jsonl", "sha256": "ae1040704b1fc07f4b3f0731ab32c8d8bb434e1d94d8f7af3ce1baabfe949651"},
+      {"path": "telemetry.jsonl", "sha256": "34169407c2a1f959b0f84a819a16d8328fa0ba9258d917d8287fecdc3cf39198"},
+      {"path": "vllm_server.log", "sha256": "8abc01298fe1075abd1561b0e4087a45db7ef3ccc7e6e00cd5e7509f374055cc"}
+    ],
+    "observed_runtime_code_pins": [
+      {"path": "src/leanfaith/sft2b/vllm_backend.py", "sha256": "ce859852fcb5f9c81103ebb94fc69097014bf4bcaf2952c73d23306a878ce640"},
+      {"path": "src/leanfaith/sft2b/vllm_telemetry.py", "sha256": "47f4867e33ab7f36e94dfc39a4e984b1a8a66e2a4f65aea9d26bb122c721aea5"},
+      {"path": "src/leanfaith/sft2b/formalizer.py", "sha256": "72f59ae2755080adc25bc9083bb7056120031aebf704a4a8c291d8b4a9840cd0"},
+      {"path": "src/leanfaith/sft2b/durable.py", "sha256": "a0d01c76196c9cf80dd07fb2e3b4271a6a8564dd32e8d3a7ed9ef7123d783b68"},
+      {"path": "src/leanfaith/sft2b/reform_32b.py", "sha256": "a01269e90b5e3a055b690221a94cbe95395d9cefc568fdaa833dec0f89e04881"},
+      {"path": "src/leanfaith/sft2b/schemas.py", "sha256": "3c55738a6cab77c74ee872074e6511a06cecb4c0b312d798b1750c7333c43550"},
+      {"path": "src/leanfaith/config/hashing.py", "sha256": "6b9c8d39b9a75890788ab5780984c41aa074c4ea4900f5cd3060805bce3e6e38"},
+      {"path": "src/leanfaith/config/models.py", "sha256": "1c02ba6ed3579c62e52802a06b01fec0f4cd6bdefb98a9b75533386c1b7c90e3"},
+      {"path": "src/leanfaith/host_resources.py", "sha256": "dd514d0f23dc29feb64e1bc1be358b61d373d7ebf7b3cc874479a6d6b876715d"}
+    ],
+    "receipt_path": null,
+    "receipt_sha256": null,
+    "decision": "pending",
+    "expected_sources": 500,
+    "expected_requests": 2000
+  },
+  "executor": {
+    "kind": "integrated_vllm",
+    "argv": null,
+    "visible_devices": [0, 1, 2, 3, 4, 5, 6, 7],
+    "data_parallel_size": 4,
+    "tensor_parallel_size": 2,
+    "port": 8102,
+    "max_model_len": null,
+    "max_num_seqs": 16,
+    "gpu_memory_utilization": 0.9,
+    "prefix_caching": false,
+    "concurrency": 64,
+    "request_timeout_seconds": 900,
+    "telemetry_interval_seconds": 0.5,
+    "journal_fsync_every": 64,
+    "server_startup_timeout_seconds": 2400,
+    "server_shutdown_timeout_seconds": 300
+  },
+  "runtime": {
+    "cache_root": "/scratch/milikic/data/leanfaith/value_first/sft2_autoformalizer_v1/cache/reform_diverse_full_v3",
+    "run_root": "/scratch/milikic/data/leanfaith/value_first/sft2_autoformalizer_v1/runs/reform_diverse_full_v3",
+    "reservation_root": "/scratch/milikic/data/leanfaith/value_first/host_reservations",
+    "reservation_task": "SFT2B",
+    "tmux_session_prefix": "leanfaith-sft2b-full-v3",
+    "startup_health_timeout_seconds": 2400,
+    "owner_session": "SFT2B corrected full-source consumer v2 on eight-A100 host",
+    "host_profile": "eight_a100_scratch",
+    "scratch_root": "/scratch/milikic/data/leanfaith",
+    "model_snapshot_path": "/scratch/milikic/data/leanfaith/huggingface/hub/models--GuoxinChen--ReForm-32B/snapshots/80e9d9d83998d8c118c512bd6a35d1cdf11b57c8"
+  },
+  "authorization": {
+    "frozen": false,
+    "core_enabled": false,
+    "tail_enabled": false,
+    "authorized_by": null,
+    "authorized_at": null,
+    "pilot_evidence_binding_sha256": null
+  },
+  "code_pins": [
+    {
+      "path": "src/leanfaith/sft2b/full_source_consumer.py",
+      "sha256": "7acab628001f43a23473256529d349d0f127bee07219e655e3fda46e7cd547e9"
+    },
+    {
+      "path": "src/leanfaith/sft2b/vllm_backend.py",
+      "sha256": "ce859852fcb5f9c81103ebb94fc69097014bf4bcaf2952c73d23306a878ce640"
+    },
+    {
+      "path": "src/leanfaith/sft2b/vllm_telemetry.py",
+      "sha256": "47f4867e33ab7f36e94dfc39a4e984b1a8a66e2a4f65aea9d26bb122c721aea5"
+    },
+    {
+      "path": "src/leanfaith/sft2b/formalizer.py",
+      "sha256": "72f59ae2755080adc25bc9083bb7056120031aebf704a4a8c291d8b4a9840cd0"
+    },
+    {
+      "path": "src/leanfaith/sft2b/durable.py",
+      "sha256": "a0d01c76196c9cf80dd07fb2e3b4271a6a8564dd32e8d3a7ed9ef7123d783b68"
+    },
+    {
+      "path": "src/leanfaith/sft2b/reform_32b.py",
+      "sha256": "a01269e90b5e3a055b690221a94cbe95395d9cefc568fdaa833dec0f89e04881"
+    },
+    {
+      "path": "src/leanfaith/sft2b/schemas.py",
+      "sha256": "3c55738a6cab77c74ee872074e6511a06cecb4c0b312d798b1750c7333c43550"
+    }
+  ]
+}

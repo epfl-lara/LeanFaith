@@ -21,6 +21,7 @@ from leanfaith.sft2b.full_source_consumer import (
     compact_completed,
     load_consumer_spec,
     terminal_cache_path,
+    verify_compaction,
     verify_matched_500_gate,
     verify_source_views,
     write_cached_terminal,
@@ -163,7 +164,7 @@ def test_checked_in_config_is_pinned_but_strictly_waiting() -> None:
     assert spec.input.shards[0].expected_rows == 50000
     assert spec.input.shards[1].expected_rows == 4621
     assert spec.matched_500_gate.decision == "pending"
-    with pytest.raises(FullSourceConsumerError, match="not scale_authorized"):
+    with pytest.raises(FullSourceConsumerError, match="self-attested matched receipt"):
         verify_matched_500_gate(_REPO_ROOT, spec)
 
 
@@ -213,6 +214,7 @@ def test_run_plan_is_content_addressed_complete_four_slot_product(tmp_path: Path
 
 def test_journal_resume_suppresses_duplicates_and_compacts_only_when_complete(
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     spec, bundle, _ = _pinned_fixture(tmp_path, core_rows=1, tail_rows=1)
     verified = verify_source_views(spec, bundle_root=bundle)
@@ -246,9 +248,18 @@ def test_journal_resume_suppresses_duplicates_and_compacts_only_when_complete(
     assert result.rows == 4
     assert result.sha256 == hash_file(result.path)
     assert compact_completed(journal, result.path) == result
+    real_read_text = Path.read_text
+
+    def forbid_compacted_read_text(path: Path, *args: object, **kwargs: object) -> str:
+        if path == result.path:
+            raise AssertionError("compaction verification must stream")
+        return real_read_text(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "read_text", forbid_compacted_read_text)
+    assert verify_compaction(plan, result.path, expected_sha256=result.sha256) == result
 
 
-def test_launch_command_requires_exact_passing_receipt_before_tmux(tmp_path: Path) -> None:
+def test_legacy_self_attested_receipt_can_never_enable_tmux(tmp_path: Path) -> None:
     spec, bundle, _ = _pinned_fixture(tmp_path, core_rows=1, tail_rows=1)
     verified = verify_source_views(spec, bundle_root=bundle)
     plan = build_run_plan(
@@ -257,7 +268,7 @@ def test_launch_command_requires_exact_passing_receipt_before_tmux(tmp_path: Pat
         shard_id=CORE_SHARD,
         source_ids=verified.shard_source_ids[CORE_SHARD],
     )
-    with pytest.raises(FullSourceConsumerError, match="not scale_authorized"):
+    with pytest.raises(FullSourceConsumerError, match="self-attested matched receipt"):
         build_detached_launch(
             _REPO_ROOT,
             spec=spec,
@@ -285,7 +296,7 @@ def test_launch_command_requires_exact_passing_receipt_before_tmux(tmp_path: Pat
         )
         + b"\n"
     )
-    authorized = spec.model_copy(
+    legacy_claim = spec.model_copy(
         update={
             "status": "scale_authorized",
             "matched_500_gate": Matched500GateSpec(
@@ -298,16 +309,12 @@ def test_launch_command_requires_exact_passing_receipt_before_tmux(tmp_path: Pat
             "executor": spec.executor.model_copy(update={"argv": ("/usr/bin/true",)}),
         }
     )
-    launch = build_detached_launch(
-        _REPO_ROOT,
-        spec=authorized,
-        config_path=_CONFIG,
-        bundle_root=bundle,
-        plan=plan,
-        run_root=tmp_path / "run",
-    )
-
-    assert launch.command[:3] == ("tmux", "new-session", "-d")
-    assert launch.session_name.startswith("leanfaith-sft2b-full-v2-corrected_core_50000-")
-    assert "leanfaith.sft2b.full_source_consumer supervise" in launch.command[-1]
-    assert launch.log_path.name == "consumer.log"
+    with pytest.raises(FullSourceConsumerError, match="self-attested matched receipt"):
+        build_detached_launch(
+            _REPO_ROOT,
+            spec=legacy_claim,
+            config_path=_CONFIG,
+            bundle_root=bundle,
+            plan=plan,
+            run_root=tmp_path / "run",
+        )
