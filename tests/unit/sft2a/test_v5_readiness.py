@@ -12,7 +12,11 @@ import pytest
 
 from leanfaith.config.hashing import canonical_json_bytes, hash_canonical, hash_file, sha256_hex
 from leanfaith.sft2a.canaries import load_closure_canaries
-from leanfaith.sft2a.census import prepare_rehearsal_sample, run_zero_lean_census
+from leanfaith.sft2a.census import (
+    _contexts_at_offsets,
+    prepare_rehearsal_sample,
+    run_zero_lean_census,
+)
 from leanfaith.sft2a.config import LoadedSFT2AConfig, load_sft2a_config
 from leanfaith.sft2a.dedup import PersistentCandidateRegistry
 from leanfaith.sft2a.judgments import call_consistent_judge
@@ -389,6 +393,24 @@ def test_codex_transport_schema_adds_required_types_without_mutating_frozen_sche
     frozen_properties = original["properties"]
     assert isinstance(frozen_properties, dict)
     assert frozen_properties["version"] == {"const": 5}
+
+
+def test_census_marks_section_variables_unsafe_and_strips_open_in() -> None:
+    source = """namespace Example
+variable {α : Type*}
+open Classical in
+theorem unsafe {x : α} : x = x := rfl
+end Example
+theorem safe (n : Nat) : n = n := rfl
+"""
+    offsets = [source.index("theorem unsafe"), source.index("theorem safe")]
+    contexts = _contexts_at_offsets(source, offsets)
+
+    unsafe = contexts[offsets[0]]
+    safe = contexts[offsets[1]]
+    assert unsafe == (("Example",), ("Classical",), (), True)
+    assert safe == ((), ("Classical",), (), False)
+    assert "in" not in unsafe[1]
 
 
 def _authorization_document(loaded: LoadedSFT2AConfig, *, authorized: bool) -> dict[str, object]:

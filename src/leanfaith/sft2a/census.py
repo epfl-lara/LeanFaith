@@ -8,7 +8,7 @@ import json
 import re
 from collections import Counter, defaultdict
 from collections.abc import Iterable, Mapping, Sequence
-from dataclasses import replace
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 from leanfaith.config.hashing import canonical_json_bytes, hash_canonical, hash_file, sha256_hex
@@ -32,6 +32,8 @@ _NAMESPACE = re.compile(r"^\s*namespace\s+([A-Za-z_][A-Za-z0-9_'.]*)\s*$")
 _END = re.compile(r"^\s*end(?:\s+([A-Za-z_][A-Za-z0-9_'.]*))?\s*$")
 _OPEN = re.compile(r"^\s*open\s+(?!scoped\b)([A-Za-z0-9_'. ]+)\s*$")
 _OPEN_SCOPED = re.compile(r"^\s*open\s+scoped\s+([A-Za-z0-9_'. ]+)\s*$")
+_SECTION = re.compile(r"^\s*section(?:\s+([A-Za-z_][A-Za-z0-9_'.]*))?\s*$")
+_VARIABLE = re.compile(r"^\s*variable\b")
 _FORBIDDEN = re.compile(r"\b(?:sorry|admit|axiom)\b|\[anonymous\]|⋯|\.\.\.", re.I)
 _DOMAIN_RULES: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("number_theory", ("Prime", "Nat.gcd", "factorial", "Dvd", "∣")),
@@ -48,6 +50,13 @@ _DOMAIN_RULES: tuple[tuple[str, tuple[str, ...]], ...] = (
 
 class CensusError(RuntimeError):
     """A zero-Lean census input, declaration, or deterministic sample failed."""
+
+
+@dataclass(slots=True)
+class _ScopeState:
+    kind: str
+    name: str | None
+    has_variables: bool = False
 
 
 def _jsonl(rows: Iterable[Mapping[str, object]]) -> bytes:
@@ -118,10 +127,11 @@ def _signature_from_declaration(
 
 def _contexts_at_offsets(
     source: str, offsets: Sequence[int]
-) -> dict[int, tuple[tuple[str, ...], tuple[str, ...], tuple[str, ...]]]:
+) -> dict[int, tuple[tuple[str, ...], tuple[str, ...], tuple[str, ...], bool]]:
     wanted = sorted(offsets)
-    result: dict[int, tuple[tuple[str, ...], tuple[str, ...], tuple[str, ...]]] = {}
-    namespaces: list[str] = []
+    result: dict[int, tuple[tuple[str, ...], tuple[str, ...], tuple[str, ...], bool]] = {}
+    scopes: list[_ScopeState] = []
+    root_has_variables = False
     opened: set[str] = set()
     scoped: set[str] = set()
     position = 0
@@ -129,25 +139,63 @@ def _contexts_at_offsets(
     for line in source.splitlines(keepends=True):
         while cursor < len(wanted) and wanted[cursor] < position + len(line):
             offset = wanted[cursor]
-            result[offset] = (tuple(namespaces), tuple(sorted(opened)), tuple(sorted(scoped)))
+            namespaces = tuple(
+                scope.name
+                for scope in scopes
+                if scope.kind == "namespace" and scope.name is not None
+            )
+            result[offset] = (
+                namespaces,
+                tuple(sorted(opened)),
+                tuple(sorted(scoped)),
+                root_has_variables or any(scope.has_variables for scope in scopes),
+            )
             cursor += 1
         namespace = _NAMESPACE.match(line)
+        section = _SECTION.match(line)
         end = _END.match(line)
         open_match = _OPEN.match(line)
         scoped_match = _OPEN_SCOPED.match(line)
         if namespace:
-            namespaces.append(namespace.group(1))
-        elif end and namespaces:
+            scopes.append(_ScopeState("namespace", namespace.group(1)))
+        elif section:
+            scopes.append(_ScopeState("section", section.group(1)))
+        elif end and scopes:
             expected = end.group(1)
-            if expected is None or expected == namespaces[-1]:
-                namespaces.pop()
+            if expected is None:
+                scopes.pop()
+            else:
+                matching = next(
+                    (
+                        index
+                        for index in range(len(scopes) - 1, -1, -1)
+                        if scopes[index].name == expected
+                    ),
+                    len(scopes) - 1,
+                )
+                del scopes[matching:]
+        elif _VARIABLE.match(line):
+            if scopes:
+                scopes[-1].has_variables = True
+            else:
+                root_has_variables = True
         elif scoped_match:
-            scoped.update(scoped_match.group(1).split())
+            names = scoped_match.group(1).split()
+            scoped.update(names[:-1] if names and names[-1] == "in" else names)
         elif open_match:
-            opened.update(open_match.group(1).split())
+            names = open_match.group(1).split()
+            opened.update(names[:-1] if names and names[-1] == "in" else names)
         position += len(line)
     for offset in wanted[cursor:]:
-        result[offset] = (tuple(namespaces), tuple(sorted(opened)), tuple(sorted(scoped)))
+        namespaces = tuple(
+            scope.name for scope in scopes if scope.kind == "namespace" and scope.name is not None
+        )
+        result[offset] = (
+            namespaces,
+            tuple(sorted(opened)),
+            tuple(sorted(scoped)),
+            root_has_variables or any(scope.has_variables for scope in scopes),
+        )
     return result
 
 
@@ -245,7 +293,9 @@ def _library_rows(
             )
             if signature is None:
                 continue
-            namespace, opened, scoped = contexts[match.start()]
+            namespace, opened, scoped, has_context_variables = contexts[match.start()]
+            if has_context_variables:
+                continue
             declaration_name = match.group(1)
             qualified = ".".join((*namespace, declaration_name))
             relative = path.relative_to(source_root)
@@ -396,6 +446,11 @@ def run_zero_lean_census(
             "project_revisions": {
                 name: contexts[name].project_revision for name in sorted(contexts)
             },
+        },
+        "source_filter_contract": {
+            "section_or_namespace_variable_context": "exclude_before_sampling",
+            "open_command_trailing_in": "strip_context_modifier_token",
+            "lean_requests": 0,
         },
         "eligible_rows": len(eligible),
         "source_counts": dict(sorted(source_counts.items())),
