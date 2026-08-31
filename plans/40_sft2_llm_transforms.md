@@ -502,3 +502,12 @@ recorded budget/model decision.
   `configs/sft2a/reference_certification_authorization_v5_2.json` against that clean commit; its
   hash is `4d097b49120e2bd6ae6576b9695b378315708d4c6676ff57753293745dc8eef4`.
   The receipt permits zero provider calls and leaves every provider-backed or scale path disabled.
+- 2026-08-31 — the first local v5.2 detached launch failed closed after one durable certification
+  result and before any provider call. Qualified constant lookup correctly ignored source text, but
+  the grouped backend retained the first declaration's context fingerprint while the next pool row
+  carried different source namespace/open metadata; the central protocol rejected that mismatch
+  before Lean execution. Preserved all 14 files under `runs/reference_certification_v5_2` at
+  combined-tree hash `b9a90affabb1a82723bd7a6dd0d17df01a5ed79cd13c319fb40ea2b408b50820`.
+  The additive recovery canonicalizes library lookup to one import/options context per project,
+  retains source context only in provenance/prompt fields, reuses the shared terminal cache, and
+  uses fresh output/session/resource identities. Provider calls remain zero and unauthorized.

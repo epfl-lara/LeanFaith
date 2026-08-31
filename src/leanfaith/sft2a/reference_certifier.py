@@ -76,15 +76,16 @@ def _v5_2(loaded: LoadedSFT2AConfig) -> SFT2AV52Config:
 
 def _compile_context(root: OneRootConfig) -> CompileContext:
     source = root.compile_context
+    authoritative_constant_lookup = root.source in {"mathlib", "physlib", "cslib"}
     return CompileContext(
         project_id=source.project_id,
         project_revision=source.project_revision,
         lean_version=source.lean_version,
         import_header=source.import_header,
         command_preamble=source.command_preamble,
-        namespace_context=source.namespace_context,
-        open_context=source.open_context,
-        scoped_context=source.scoped_context,
+        namespace_context=() if authoritative_constant_lookup else source.namespace_context,
+        open_context=() if authoritative_constant_lookup else source.open_context,
+        scoped_context=() if authoritative_constant_lookup else source.scoped_context,
         options=source.options,
     )
 

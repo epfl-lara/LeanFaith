@@ -19,9 +19,14 @@ from leanfaith.sft2a.parallel_rehearsal import (
     deterministic_parallel_compaction,
 )
 from leanfaith.sft2a.reference_certification import prepare_reference_pool
-from leanfaith.sft2a.reference_certifier import constant_lookup_command, term_elaboration_command
+from leanfaith.sft2a.reference_certifier import (
+    _compile_context,
+    constant_lookup_command,
+    term_elaboration_command,
+)
 
 _CONFIG = Path("configs/sft2a/closure_aware_v5_2.yaml")
+_RECOVERY_CONFIG = Path("configs/sft2a/closure_aware_v5_2_recovery_v2.yaml")
 
 
 def _loaded() -> LoadedSFT2AConfig:
@@ -122,6 +127,25 @@ def test_certified_goal_shape_counts_true_implicit_binders() -> None:
     assert shape.binder_count >= 5
     assert "(Label : Type u_0)" in planning
     assert "(State : Type u_1)" in planning
+
+
+def test_recovery_uses_one_canonical_lookup_context_per_project() -> None:
+    loaded = load_sft2a_config(_RECOVERY_CONFIG)
+    assert isinstance(loaded.config, SFT2AV52Config)
+    source_context = loaded.config.root.compile_context.model_copy(
+        update={
+            "namespace_context": ("Cslib", "LTS"),
+            "open_context": ("Classical",),
+            "scoped_context": ("BigOperators",),
+        }
+    )
+    root = loaded.config.root.model_copy(
+        update={"source": "cslib", "compile_context": source_context}
+    )
+    canonical = _compile_context(root)
+    assert canonical.namespace_context == ()
+    assert canonical.open_context == ()
+    assert canonical.scoped_context == ()
 
 
 def test_atomic_provider_budget_survives_restart_and_requires_opus_cost(tmp_path: Path) -> None:

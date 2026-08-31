@@ -611,6 +611,13 @@ class SFT2AV52Config(SFT2AV5Config):
     parallel_rehearsal: ParallelRehearsalPolicy
 
 
+class SFT2AV52RecoveryConfig(SFT2AV52Config):
+    """Fresh-output recovery after the preserved context-fingerprint failure."""
+
+    config_id: Literal["leanfaith_sft2a_closure_aware_v5_2_recovery_v2"]  # type: ignore[assignment]
+    failed_v5_2_seal: ArtifactBinding
+
+
 class ProposerOutput(StrictModel):
     schema_version: Literal[1]
     requested_polarity: Polarity
