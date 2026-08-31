@@ -2,17 +2,21 @@
 
 > **Task ID:** SFT1
 > **Status:** active
-> **Owner/session:** Codex `/root` — 2026-08-31 SFT1 P01 identity-policy revision 0.3.5 session
+> **Owner/session:** Codex `/root` — 2026-08-31 SFT1 P01 0.3.5 corrective runtime-binding session
 > **Last updated:** 2026-08-31
-> **Active policy:** additive task-owned P01 identity-policy revision 0.3.5 over frozen checkpoint
-> `5ddda95d05fe4c0fcd755e042174ca50453ebd03`. Revision 0.3.4, all earlier revisions, every
-> existing hash and receipt, and the complete 46-operation registry remain immutable.
-> **Approval recorded:** on 2026-08-31 the user authorized only a new additive policy/loader/test
-> overlay clearing the P01 alpha-invariant closed-Expr identity blocker under exact one-hop,
-> one-pair-per-root, 0.5%-share, distinct-render/text, unique-site, binder-aware exact-delta, and
-> deterministic-replay conditions. This does not authorize Lean, transformation or gate execution,
-> model-facing rows, production admission, Wave 2, 10K, scale, training, or publication. Overall
-> implementation readiness and gate execution remain false.
+> **Active policy:** one Lean-free corrective revision over P01 identity-policy commit
+> `505b74754f881e903b5f04eab99311a125484b24`, preserving that commit in history and binding its
+> approved policy semantic hash `a4aa3ddc383fdbc5fd1e161b5955f403ac17afa98f9d24defab4c2741846b4fd`
+> as a future runtime dependency. Revision 0.3.4, all earlier revisions, every existing receipt,
+> and the complete 46-operation registry remain immutable.
+> **Approval recorded:** on 2026-08-31 the user authorized only a Lean-free correction adding the
+> explicit fail-closed blocker
+> `p01_identity_exception_composition_dedup_runtime_binding_and_replay`. The earlier policy-level
+> identity blocker remains cleared, but the new blocker remains open until the real runtime binds
+> and exactly replays the approved exception, caps, and duplicate/conflict rules. This does not
+> authorize Lean, transformation or gate execution, model-facing rows, production admission,
+> Wave 2, 10K, scale, training, publication, or push. P01 implementation readiness, overall
+> implementation readiness, and gate execution remain false.
 > **Dependencies:** approved REPR freeze `176a783842c5a73b84413dfa8347670608b615d9`
 > and authoritative SFT1 receipt
 > `f62b68ebc946469952bdd34674c127e2bd1146b0a8febbe5d199fea54a081e78`
@@ -195,6 +199,18 @@ compilation, live success/adversarial fixtures, live certificate replay, the per
 adapter, and central cache integration. N31 resolution, the coordinator-owned shared-label
 contract, and the two smoke-root micro-censuses also remain open. No execution or row authority is
 created by this overlay.
+
+The conditional review adds one successor-only implementation blocker:
+`p01_identity_exception_composition_dedup_runtime_binding_and_replay`. The approved policy semantic
+hash `a4aa3ddc383fdbc5fd1e161b5955f403ac17afa98f9d24defab4c2741846b4fd` remains the exact contract
+the future real composition/dedup runtime must load and bind. The corrected envelope has a distinct
+semantic hash and reconstructs the approved policy by removing only the correction-owned runtime
+section, the one new blocker, and its false incomplete-prerequisite field; that projection must
+hash back to `a4aa3ddc…`. The blocker remains `open_fail_closed` with no implementation path,
+symbol, code hash, observed policy hash, binding receipt, or replay receipt. It blocks P01
+implementation readiness, overall implementation readiness, and gate execution until the runtime
+replays the exact acceptance, rejection, cross-polarity/composition cap, and canonical
+unordered-pair duplicate/conflict contract. This correction implements no runtime.
 
 ## Objective and scale contract
 
@@ -760,16 +776,22 @@ The 10K pilot, any bulk scale, publication, and all row/root-count commitments a
 
 ## Acceptance criteria for this revision
 
-- Revision 0.3.4, every earlier revision, every pre-existing hash and receipt, and the exact
-  46-operation registry remain byte-for-byte frozen. Revision 0.3.5 is an additive P01
-  policy/effective-state overlay only.
+- Commit `505b74754f881e903b5f04eab99311a125484b24`, revision 0.3.4, every earlier
+  revision, every pre-existing receipt, and the exact 46-operation registry remain preserved. The
+  current change is one Lean-free corrective revision over the approved 0.3.5 policy.
 - The strict Lean-free loader composes and replays the immutable revision-0.3.4 closure; binds the
   exact parent commit/tree, P01 operation/bank/bundle, REPR identities, collision evidence, and
   unchanged grammar/dedup/cap contracts; rejects unknown, duplicate, contradictory, alternate-path,
   or hash-drifting state; and exposes no execution, transformation, or row-emission surface.
 - The only permitted closed-Expr repetition is the qualified adjacent P01 equality above. Only its
-  named policy blocker is removed. P01 implementation readiness, overall readiness, and every gate,
-  execution, row, production, Wave 2, 10K, scale, training, and publication state remain false.
+  original policy blocker is removed. The replacement composition/dedup runtime-binding blocker is
+  present exactly once and remains open. P01 implementation readiness, overall readiness, and every
+  gate, execution, row, production, Wave 2, 10K, scale, training, and publication state remain false.
+- The future runtime must bind `a4aa3ddc…`, accept only the adjacent two-endpoint repeat across the
+  sole P01 edge after exact certificate replay, reject every named adversarial case, count every
+  positive or negative direct/composed P01 chain against its caps, and preserve canonical
+  unordered-pair duplicate/conflict handling. This revision records those requirements but does not
+  implement or replay them.
 - Effective Wave 1 contains six exact IDs but five semantic mechanisms. Its conformance accounting
   is 20--24 project cells and 40--48 fixtures; its independent measurement target is approximately
   500 roots. Optional N31 N-PROOF cells and evidence are derived only from reproducible proof routes
@@ -890,12 +912,34 @@ bank, fixture, loader, and test artifact is frozen. Revision 0.3.5 may clear onl
 identity blocker in its composed effective state; implementation readiness, gate execution, Lean,
 transformation, row, production, Wave 2, 10K, scale, training, and publication states remain false.
 
-The checked-in overlay is pinned at raw/typed-semantic hashes
+The approved overlay at preserved parent commit `505b747…` is pinned at raw/typed-semantic hashes
 `ee43bbbe00dc7f1063cb9dec334bfb204bcedb3bae255841e3b70c85470c2bf3` /
 `a4aa3ddc383fdbc5fd1e161b5955f403ac17afa98f9d24defab4c2741846b4fd`. The strict loader and its
 focused invariant suite have raw hashes
 `8c6eff74bb2e0b590dad07cffea4542ecf21df997ce1588eb97087c3bb7b3e24` and
 `0dbe59fdef816c9e995e48587f144013c98b0ff21f1bd3ccb79a2e02a8f1d14e`, respectively.
+
+**Exact paths claimed by the corrective session over commit `505b747…`:**
+
+- `plans/30_sft1_deterministic.md`
+- `configs/transformations/sft1_value_first_v1/p01_identity_policy_v0_3_5.yaml`
+- `src/leanfaith/sft1/p01_identity_policy.py`
+- `tests/unit/sft1/test_p01_identity_policy.py`
+
+The parent commit remains preserved in history. This correction may add only the named
+composition/dedup runtime-binding blocker, its exact fail-closed contract, loader enforcement,
+adversarial invariants, new content hashes, and this brief update. It may not implement or invoke
+the runtime and grants no Lean, transformation, gate, row, production, Wave 2, 10K, scale,
+training, publication, or push authority.
+
+The corrected envelope is pinned at raw/typed-semantic hashes
+`84b1ea8dcb3a302f4c4f92c7a82f5c68ddbf45655c060e588de0acce7453e01c` /
+`dcdd6c07a83aa84faf81b448e2732121027b5a93fc89512caa38035b9c4cdbe4`. Its strict loader and
+focused adversarial suite have raw hashes
+`d322e615f2990fd35812a0af26fa43802938e9d62f6140d73293ed82d32b68ad` and
+`31a8b82cd602a46292a7edf4460b165fc4a5e8f86f252ef925b4411c9c9c1d43`, respectively. The corrected
+semantic hash is intentionally distinct from the approved runtime-input policy hash `a4aa3ddc…`;
+the loader's exact pre-correction projection replays the latter.
 
 ## Coordinator requests
 
@@ -914,8 +958,10 @@ focused invariant suite have raw hashes
 3. **P01 identity/dedup request resolved at policy level:** the user's exact revision-0.3.5
    approval permits only the qualified adjacent P01 closed-Expr-hash equality defined above. The
    frozen revision-0.3.4 rule and blocker objects remain byte-identical; only the additive composed
-   state clears that blocker. This does not resolve live certificate replay or implementation
-   readiness and grants no execution or row authority.
+   state clears that blocker. The corrective runtime-binding blocker remains open until the real
+   composition/dedup runtime binds `a4aa3ddc…` and replays every acceptance, rejection, cap, and
+   duplicate/conflict condition. This does not resolve implementation readiness and grants no
+   execution or row authority.
 
 No coordinator request authorizes this session to edit a coordinator-owned path. Policy revision 0.3.1
 and additive revisions 0.3.3/0.3.4/0.3.5 leave `plans/00_shared_contracts.md` untouched.
@@ -940,7 +986,8 @@ and additive revisions 0.3.3/0.3.4/0.3.5 leave `plans/00_shared_contracts.md` un
   commit `343ea088…` passed 127/127 focused tests plus the Git-local attempt-009 replay and the
   dedicated no-`/storage`-read check. This resolves admission and clean-checkout evidence, not
   implementation readiness;
-- **still open before the Wave 1 smoke:** the additive shared label contract; exact dispatch and
+- **still open before the Wave 1 smoke:** the P01 identity-exception composition/dedup runtime
+  binding and replay; the additive shared label contract; exact dispatch and
   certificate-checker bindings for the five primary Wave 1 IDs; concrete binder/empty-domain
   checker results; their resolved anchors, applicability-bank implementations, and adversarial
   fixtures; root-specific hash-bound micro-censuses for the exact P01 and N31-RUBRIC roots; and the
@@ -989,11 +1036,18 @@ the exact certificate-gated adjacent-hash exception above. It does not authorize
 transformation or gate execution, model-facing rows, production admission, Wave 2, 10K, scale,
 training, or publication.
 
+The 0.3.5 conditional review then authorized only this Lean-free corrective commit. It preserves
+`505b74754f881e903b5f04eab99311a125484b24` as the direct parent, keeps `a4aa3ddc…` as the future
+runtime policy identity, and adds one open implementation blocker. It does not authorize a push,
+live Lean work, runtime implementation or replay, transformations, gates, rows, production,
+Wave 2, 10K, scale, training, or publication.
+
 This remains bounded Wave 1 gate admission only. It does not make implementation ready, permit
 Lean/transform execution before the named prerequisites, admit any operation to production, or
-authorize a model-facing row. This session stops after the additive policy-only revision 0.3.5
-commit. A later instruction must separately authorize any project Lean compilation or Meta validation; gate
-execution still cannot begin until readiness is true. After the wave gates, separately request exact
+authorize a model-facing row. This session stops after the Lean-free corrective commit and does not
+request live Lean authorization. A later instruction must separately authorize any project Lean
+compilation or Meta validation; gate execution still cannot begin until readiness is true. After the
+wave gates, separately request exact
 operation-production promotions supported by the measured receipt. Only after those promotions and
 the complete cross-source census are recorded may the project request exactly:
 
@@ -1178,3 +1232,27 @@ work. End with the exact user decision needed.
   execution remain false; N31, shared-label, cache/adapter, live fixture/replay, and smoke-census
   blockers remain open. No Lean, transformation or gate execution, census, model-facing row,
   production admission, Wave 2, 10K, scale, training, publication, or shared-contract edit occurred.
+- 2026-08-31 — the 0.3.5 P01 policy review returned a conditional pass and authorized exactly one
+  Lean-free corrective revision over preserved commit `505b74754f881e903b5f04eab99311a125484b24`.
+  Claimed only the same four task-owned policy/loader/test/brief paths. The correction adds the
+  explicit fail-closed blocker
+  `p01_identity_exception_composition_dedup_runtime_binding_and_replay`, which must remain open
+  until the real composition/dedup runtime binds policy semantic hash `a4aa3ddc…` and replays the
+  exact adjacent-hash exception, rejection cases, cross-polarity/composition caps, and canonical
+  duplicate/conflict rules. Lean remains the bottleneck: only schema, hash binding, loader, and
+  adversarial invariant work may proceed. No Lean, runtime, transform, gate, census, row, push,
+  production, Wave 2, 10K, scale, training, or publication work was started.
+- 2026-08-31 — completed the conditional-pass correction without Lean or runtime execution. The
+  corrected envelope adds exactly one open blocker,
+  `p01_identity_exception_composition_dedup_runtime_binding_and_replay`, and an exact false
+  incomplete prerequisite while keeping only `p01_alpha_closed_expr_hash_collision` cleared. The
+  loader separately binds the preserved parent commit/tree/raw hash, future runtime semantic hash
+  `a4aa3ddc…`, and corrected envelope hash `dcdd6c07…`; removing only correction-owned fields
+  reconstructs and hashes the approved policy exactly. Runtime path, symbol, code hash, observed
+  policy hash, receipts, and replay axes remain null/false. The focused suite passed 127/127 and the
+  combined Lean-free SFT1 loader/invariant plus project-plan suite passed 633/633; Ruff
+  check/format, strict Mypy, typed loader/hash/projection replay, frozen-dependency replay,
+  project-plan validation, and whitespace checks passed. Independent adversarial review reported
+  no findings. P01 implementation readiness, overall readiness, and gate execution remain false.
+  No Lean, runtime, transformation, gate, census, row, push, production admission, Wave 2, 10K,
+  scale, training, publication, or shared-contract edit occurred.

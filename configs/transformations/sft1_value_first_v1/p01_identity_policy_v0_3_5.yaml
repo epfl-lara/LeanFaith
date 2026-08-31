@@ -57,6 +57,39 @@ user_authorization:
   recorded_date: "2026-08-31"
   interpretation: additive_p01_identity_policy_only_no_execution
 
+corrective_revision:
+  correction_id: p01_identity_exception_runtime_binding_blocker_correction_v1
+  parent_commit: 505b74754f881e903b5f04eab99311a125484b24
+  parent_tree: b7a1e0f477f6bd4557297853b4cf9cfd7aff5294
+  approved_policy_file_sha256: ee43bbbe00dc7f1063cb9dec334bfb204bcedb3bae255841e3b70c85470c2bf3
+  approved_policy_semantic_hash: a4aa3ddc383fdbc5fd1e161b5955f403ac17afa98f9d24defab4c2741846b4fd
+  approved_loader_file_sha256: 8c6eff74bb2e0b590dad07cffea4542ecf21df997ce1588eb97087c3bb7b3e24
+  approved_tests_file_sha256: 0dbe59fdef816c9e995e48587f144013c98b0ff21f1bd3ccb79a2e02a8f1d14e
+  exact_user_text: |-
+    The 0.3.5 P01 policy review is a conditional pass. Before pushing or requesting live Lean authorization, make one Lean-free corrective revision on top of commit `505b74754f881e903b5f04eab99311a125484b24`.
+
+    Add the explicit fail-closed implementation blocker:
+
+    `p01_identity_exception_composition_dedup_runtime_binding_and_replay`
+
+    The blocker must remain open until the real composition/dedup runtime:
+
+    - loads and binds semantic hash `a4aa3ddc383fdbc5fd1e161b5955f403ac17afa98f9d24defab4c2741846b4fd`;
+    - accepts only the adjacent two-endpoint closed-Expr-hash repetition across the sole P01 edge after exact certificate replay;
+    - rejects missing/failed certificates, equal render or model text, wrong operation edge, nonadjacent or third occurrences, and multiple P01 hops;
+    - applies P01 caps across both polarities and all compositions containing P01; and
+    - preserves canonical unordered-pair deduplication and conflict rejection.
+
+    Reflect this requirement in the policy, strict loader, adversarial tests, incomplete-prerequisite state, and SFT1 brief. Keep P01 implementation readiness, overall readiness, and gate execution false.
+
+    Do not run Lean, execute transformations or gates, generate rows, push, or authorize production, Wave 2, 10K, scale, training, or publication. Preserve commit `505b747…` in history and report the corrective commit, new hashes, exact changed paths, and replayed Lean-free checks.
+  exact_user_text_sha256: 86a9a871a94d0830fe1b4038b5b8748834c61f73f0db4654b8cfdfd6d71cf926
+  recorded_date: "2026-08-31"
+  interpretation: lean_free_runtime_binding_blocker_correction_only
+  parent_commit_preserved_in_history: true
+  lean_free_correction_only: true
+  push_authorized: false
+
 authorized_scope:
   exact_new_paths:
     - configs/transformations/sft1_value_first_v1/p01_identity_policy_v0_3_5.yaml
@@ -232,6 +265,89 @@ unchanged_rule_contract:
   post_orientation_global_duplicate_conflict_rejection_required: true
   post_orientation_failure_action: fail_shard_without_commit_or_refill
 
+runtime_binding_contract:
+  blocker_id: p01_identity_exception_composition_dedup_runtime_binding_and_replay
+  status: open_fail_closed
+  approved_parent_commit: 505b74754f881e903b5f04eab99311a125484b24
+  approved_parent_tree: b7a1e0f477f6bd4557297853b4cf9cfd7aff5294
+  approved_policy_file_sha256: ee43bbbe00dc7f1063cb9dec334bfb204bcedb3bae255841e3b70c85470c2bf3
+  required_policy_semantic_hash: a4aa3ddc383fdbc5fd1e161b5955f403ac17afa98f9d24defab4c2741846b4fd
+  corrected_overlay_semantic_hash_must_also_be_bound_by_runtime_receipt: true
+  blocks_p01_operation_implementation_readiness: true
+  blocks_overall_implementation_readiness: true
+  blocks_gate_execution: true
+  blocker_resolution_requires_every_contract_axis: true
+  acceptance_contract:
+    required_operation_id: P01_ALPHA_RENAME_SINGLE_V1
+    repeatable_hash_kind: alpha_invariant_canonical_closed_expr_hash
+    required_policy_semantic_hash_loaded_and_bound_before_evaluation: true
+    exact_certificate_replay_must_pass_before_exception: true
+    permitted_repeated_hash_class_cardinality: 2
+    repeated_hash_endpoints_must_be_adjacent: true
+    connecting_edge_must_be_required_operation: true
+    connecting_edge_must_be_chain_sole_p01_hop: true
+    maximum_p01_hops_per_chain: 1
+    reference_candidate_render_hashes_must_differ: true
+    reference_candidate_model_facing_core_text_bytes_must_differ: true
+    all_other_closed_expr_hash_repetitions_rejected: true
+  rejection_conditions:
+    - case_id: policy_semantic_hash_unbound
+      disposition: reject_policy_semantic_hash_unbound
+    - case_id: policy_semantic_hash_mismatch
+      disposition: reject_policy_semantic_hash_mismatch
+    - case_id: missing_certificate
+      disposition: reject_missing_certificate
+    - case_id: failed_certificate_replay
+      disposition: reject_certificate_replay_failed
+    - case_id: equal_render_hash
+      disposition: reject_equal_render_hash
+    - case_id: equal_model_facing_text
+      disposition: reject_equal_model_facing_text
+    - case_id: wrong_operation_edge
+      disposition: reject_wrong_operation_edge
+    - case_id: nonadjacent_occurrence
+      disposition: reject_nonadjacent_closed_expr_repeat
+    - case_id: third_occurrence
+      disposition: reject_third_closed_expr_hash_occurrence
+    - case_id: multiple_p01_hops
+      disposition: reject_multiple_p01_hops
+  cap_accounting_contract:
+    scope_basis: every_retained_pair_whose_operation_chain_contains_p01
+    count_positive_polarity: true
+    count_negative_polarity: true
+    count_direct_p01_chains: true
+    count_composed_p01_chains: true
+    count_p01_in_every_permitted_chain_position: true
+    maximum_p01_hops_per_chain: 1
+    maximum_retained_pairs_per_root: 1
+    maximum_retained_share: 0.005
+    inherited_lemma_or_procedure_share_maximum: 0.0025
+    inherited_lemma_or_procedure_cap_remains_additionally_applicable: true
+    cap_denominator_unchanged: true
+    cap_is_maximum_not_quota: true
+  dedup_conflict_contract:
+    canonical_unordered_pair_hash_basis: sha256_sorted_reference_candidate_render_hashes_v1
+    canonical_unordered_pair_deduplication_required: true
+    same_label_duplicate_survivor_rule: minimum_stable_row_hash
+    conflicting_label_class_action: reject_entire_canonical_unordered_pair_class
+    duplicate_conflict_screen_before_caps_checks_both_orientations: true
+    deterministic_training_orientation_swap_after_caps: true
+    post_orientation_global_duplicate_conflict_rejection_required: true
+    post_orientation_failure_action: fail_shard_without_commit_or_refill
+  observed_state:
+    runtime_implementation_path: null
+    runtime_implementation_symbol: null
+    runtime_code_sha256: null
+    observed_policy_semantic_hash: null
+    binding_receipt_sha256: null
+    replay_receipt_sha256: null
+    policy_semantic_hash_loaded_and_bound: false
+    acceptance_replay_complete: false
+    rejection_matrix_replay_complete: false
+    cap_accounting_replay_complete: false
+    dedup_conflict_replay_complete: false
+    blocker_resolved: false
+
 effective_state_transition:
   base_blocker_id: p01_alpha_closed_expr_hash_collision
   base_blocker_status: open_fail_closed
@@ -243,6 +359,7 @@ effective_state_transition:
   overall_implementation_ready: false
   gate_execution_may_start: false
   remaining_implementation_blockers:
+    - p01_identity_exception_composition_dedup_runtime_binding_and_replay
     - n31_guard_target_and_contradiction_bank_live_resolution
     - n31_runtime_bank_identity_admission_requires_separate_user_authorization
     - n31_in_process_exact_full_typed_bank_hash_verifier_binding
@@ -260,6 +377,7 @@ effective_state_transition:
   parent_prohibitions_remain_unmodified: true
 
 incomplete_prerequisites:
+  p01_identity_exception_composition_dedup_runtime_binding_and_replay_complete: false
   lean_compilation_complete: false
   live_fixtures_complete: false
   certificate_replay_complete: false

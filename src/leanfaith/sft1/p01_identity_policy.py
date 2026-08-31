@@ -11,7 +11,7 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Annotated, Literal, get_args, get_origin
+from typing import Annotated, Any, Literal, get_args, get_origin
 
 from pydantic import Field, StrictFloat, model_validator
 
@@ -40,8 +40,25 @@ EXPECTED_PARENT_TREE = "0ba6c5d2f5b3cf2a921e92e607eb89e2cbf8e0f0"
 EXPECTED_USER_AUTHORIZATION_SHA256 = (
     "ee6440aa41d56b0a7dbc15d15f89ef75c629bd6361685c2b70a65d0e49e59514"
 )
-EXPECTED_OVERLAY_FILE_SHA256 = "ee43bbbe00dc7f1063cb9dec334bfb204bcedb3bae255841e3b70c85470c2bf3"
-EXPECTED_OVERLAY_SEMANTIC_HASH = "a4aa3ddc383fdbc5fd1e161b5955f403ac17afa98f9d24defab4c2741846b4fd"
+EXPECTED_CORRECTIVE_AUTHORIZATION_SHA256 = (
+    "86a9a871a94d0830fe1b4038b5b8748834c61f73f0db4654b8cfdfd6d71cf926"
+)
+EXPECTED_APPROVED_V0_3_5_COMMIT = "505b74754f881e903b5f04eab99311a125484b24"
+EXPECTED_APPROVED_V0_3_5_TREE = "b7a1e0f477f6bd4557297853b4cf9cfd7aff5294"
+EXPECTED_APPROVED_V0_3_5_FILE_SHA256 = (
+    "ee43bbbe00dc7f1063cb9dec334bfb204bcedb3bae255841e3b70c85470c2bf3"
+)
+EXPECTED_APPROVED_V0_3_5_SEMANTIC_HASH = (
+    "a4aa3ddc383fdbc5fd1e161b5955f403ac17afa98f9d24defab4c2741846b4fd"
+)
+EXPECTED_APPROVED_V0_3_5_LOADER_SHA256 = (
+    "8c6eff74bb2e0b590dad07cffea4542ecf21df997ce1588eb97087c3bb7b3e24"
+)
+EXPECTED_APPROVED_V0_3_5_TESTS_SHA256 = (
+    "0dbe59fdef816c9e995e48587f144013c98b0ff21f1bd3ccb79a2e02a8f1d14e"
+)
+EXPECTED_OVERLAY_FILE_SHA256 = "84b1ea8dcb3a302f4c4f92c7a82f5c68ddbf45655c060e588de0acce7453e01c"
+EXPECTED_OVERLAY_SEMANTIC_HASH = "dcdd6c07a83aa84faf81b448e2732121027b5a93fc89512caa38035b9c4cdbe4"
 
 EXPECTED_BASE_POLICY_FILE_SHA256 = (
     "a052ecec4cc8f61db7438dd5acbc39373a624b155f8c0305bb75b7ae15d7195d"
@@ -105,7 +122,8 @@ EXPECTED_NEW_PATHS: tuple[str, ...] = (
 )
 EXPECTED_BRIEF_PATH = "plans/30_sft1_deterministic.md"
 EXPECTED_BLOCKER_ID = "p01_alpha_closed_expr_hash_collision"
-EXPECTED_REMAINING_IMPLEMENTATION_BLOCKERS: tuple[str, ...] = (
+EXPECTED_RUNTIME_BLOCKER_ID = "p01_identity_exception_composition_dedup_runtime_binding_and_replay"
+EXPECTED_PARENT_DERIVED_IMPLEMENTATION_BLOCKERS: tuple[str, ...] = (
     "n31_guard_target_and_contradiction_bank_live_resolution",
     "n31_runtime_bank_identity_admission_requires_separate_user_authorization",
     "n31_in_process_exact_full_typed_bank_hash_verifier_binding",
@@ -114,6 +132,10 @@ EXPECTED_REMAINING_IMPLEMENTATION_BLOCKERS: tuple[str, ...] = (
     "certificate_checker_live_replay",
     "persistent_meta_request_and_same_request_repr_adapter",
     "central_persistent_cache_adapter_binding_and_replay",
+)
+EXPECTED_REMAINING_IMPLEMENTATION_BLOCKERS: tuple[str, ...] = (
+    EXPECTED_RUNTIME_BLOCKER_ID,
+    *EXPECTED_PARENT_DERIVED_IMPLEMENTATION_BLOCKERS,
 )
 EXPECTED_PRE_SMOKE_BLOCKERS: tuple[str, ...] = (
     "coordinator_shared_label_contract_update",
@@ -144,6 +166,18 @@ EXPECTED_COMPOSITION_PRODUCTIONS: tuple[str, ...] = (
     "negative_row := N",
     "negative_row := P N",
     "negative_row := P P N",
+)
+EXPECTED_RUNTIME_REJECTION_CONDITIONS: tuple[tuple[str, str], ...] = (
+    ("policy_semantic_hash_unbound", "reject_policy_semantic_hash_unbound"),
+    ("policy_semantic_hash_mismatch", "reject_policy_semantic_hash_mismatch"),
+    ("missing_certificate", "reject_missing_certificate"),
+    ("failed_certificate_replay", "reject_certificate_replay_failed"),
+    ("equal_render_hash", "reject_equal_render_hash"),
+    ("equal_model_facing_text", "reject_equal_model_facing_text"),
+    ("wrong_operation_edge", "reject_wrong_operation_edge"),
+    ("nonadjacent_occurrence", "reject_nonadjacent_closed_expr_repeat"),
+    ("third_occurrence", "reject_third_closed_expr_hash_occurrence"),
+    ("multiple_p01_hops", "reject_multiple_p01_hops"),
 )
 
 
@@ -203,6 +237,23 @@ class UserAuthorization(P01StrictModel):
     exact_user_text_sha256: Sha256
     recorded_date: IsoDate
     interpretation: Literal["additive_p01_identity_policy_only_no_execution"]
+
+
+class CorrectiveRevision(P01StrictModel):
+    correction_id: Literal["p01_identity_exception_runtime_binding_blocker_correction_v1"]
+    parent_commit: Literal["505b74754f881e903b5f04eab99311a125484b24"]
+    parent_tree: Literal["b7a1e0f477f6bd4557297853b4cf9cfd7aff5294"]
+    approved_policy_file_sha256: Sha256
+    approved_policy_semantic_hash: Sha256
+    approved_loader_file_sha256: Sha256
+    approved_tests_file_sha256: Sha256
+    exact_user_text: NonEmptyStr
+    exact_user_text_sha256: Sha256
+    recorded_date: IsoDate
+    interpretation: Literal["lean_free_runtime_binding_blocker_correction_only"]
+    parent_commit_preserved_in_history: Literal[True]
+    lean_free_correction_only: Literal[True]
+    push_authorized: Literal[False]
 
 
 class AuthorizedScope(P01StrictModel):
@@ -381,6 +432,89 @@ class UnchangedRuleContract(P01StrictModel):
     post_orientation_failure_action: Literal["fail_shard_without_commit_or_refill"]
 
 
+class RuntimeAcceptanceContract(P01StrictModel):
+    required_operation_id: Literal["P01_ALPHA_RENAME_SINGLE_V1"]
+    repeatable_hash_kind: Literal["alpha_invariant_canonical_closed_expr_hash"]
+    required_policy_semantic_hash_loaded_and_bound_before_evaluation: Literal[True]
+    exact_certificate_replay_must_pass_before_exception: Literal[True]
+    permitted_repeated_hash_class_cardinality: Literal[2]
+    repeated_hash_endpoints_must_be_adjacent: Literal[True]
+    connecting_edge_must_be_required_operation: Literal[True]
+    connecting_edge_must_be_chain_sole_p01_hop: Literal[True]
+    maximum_p01_hops_per_chain: Literal[1]
+    reference_candidate_render_hashes_must_differ: Literal[True]
+    reference_candidate_model_facing_core_text_bytes_must_differ: Literal[True]
+    all_other_closed_expr_hash_repetitions_rejected: Literal[True]
+
+
+class RuntimeRejectionCondition(P01StrictModel):
+    case_id: NonEmptyStr
+    disposition: NonEmptyStr
+
+
+class RuntimeCapAccountingContract(P01StrictModel):
+    scope_basis: Literal["every_retained_pair_whose_operation_chain_contains_p01"]
+    count_positive_polarity: Literal[True]
+    count_negative_polarity: Literal[True]
+    count_direct_p01_chains: Literal[True]
+    count_composed_p01_chains: Literal[True]
+    count_p01_in_every_permitted_chain_position: Literal[True]
+    maximum_p01_hops_per_chain: Literal[1]
+    maximum_retained_pairs_per_root: Literal[1]
+    maximum_retained_share: StrictFloat
+    inherited_lemma_or_procedure_share_maximum: StrictFloat
+    inherited_lemma_or_procedure_cap_remains_additionally_applicable: Literal[True]
+    cap_denominator_unchanged: Literal[True]
+    cap_is_maximum_not_quota: Literal[True]
+
+
+class RuntimeDedupConflictContract(P01StrictModel):
+    canonical_unordered_pair_hash_basis: Literal[
+        "sha256_sorted_reference_candidate_render_hashes_v1"
+    ]
+    canonical_unordered_pair_deduplication_required: Literal[True]
+    same_label_duplicate_survivor_rule: Literal["minimum_stable_row_hash"]
+    conflicting_label_class_action: Literal["reject_entire_canonical_unordered_pair_class"]
+    duplicate_conflict_screen_before_caps_checks_both_orientations: Literal[True]
+    deterministic_training_orientation_swap_after_caps: Literal[True]
+    post_orientation_global_duplicate_conflict_rejection_required: Literal[True]
+    post_orientation_failure_action: Literal["fail_shard_without_commit_or_refill"]
+
+
+class RuntimeObservedState(P01StrictModel):
+    runtime_implementation_path: None
+    runtime_implementation_symbol: None
+    runtime_code_sha256: None
+    observed_policy_semantic_hash: None
+    binding_receipt_sha256: None
+    replay_receipt_sha256: None
+    policy_semantic_hash_loaded_and_bound: Literal[False]
+    acceptance_replay_complete: Literal[False]
+    rejection_matrix_replay_complete: Literal[False]
+    cap_accounting_replay_complete: Literal[False]
+    dedup_conflict_replay_complete: Literal[False]
+    blocker_resolved: Literal[False]
+
+
+class P01IdentityExceptionRuntimeBinding(P01StrictModel):
+    blocker_id: Literal["p01_identity_exception_composition_dedup_runtime_binding_and_replay"]
+    status: Literal["open_fail_closed"]
+    approved_parent_commit: Literal["505b74754f881e903b5f04eab99311a125484b24"]
+    approved_parent_tree: Literal["b7a1e0f477f6bd4557297853b4cf9cfd7aff5294"]
+    approved_policy_file_sha256: Sha256
+    required_policy_semantic_hash: Sha256
+    corrected_overlay_semantic_hash_must_also_be_bound_by_runtime_receipt: Literal[True]
+    blocks_p01_operation_implementation_readiness: Literal[True]
+    blocks_overall_implementation_readiness: Literal[True]
+    blocks_gate_execution: Literal[True]
+    blocker_resolution_requires_every_contract_axis: Literal[True]
+    acceptance_contract: RuntimeAcceptanceContract
+    rejection_conditions: tuple[RuntimeRejectionCondition, ...]
+    cap_accounting_contract: RuntimeCapAccountingContract
+    dedup_conflict_contract: RuntimeDedupConflictContract
+    observed_state: RuntimeObservedState
+
+
 class EffectiveStateTransition(P01StrictModel):
     base_blocker_id: Literal["p01_alpha_closed_expr_hash_collision"]
     base_blocker_status: Literal["open_fail_closed"]
@@ -398,6 +532,7 @@ class EffectiveStateTransition(P01StrictModel):
 
 
 class IncompletePrerequisites(P01StrictModel):
+    p01_identity_exception_composition_dedup_runtime_binding_and_replay_complete: Literal[False]
     lean_compilation_complete: Literal[False]
     live_fixtures_complete: Literal[False]
     certificate_replay_complete: Literal[False]
@@ -431,6 +566,7 @@ class P01IdentityPolicyOverlay(P01StrictModel):
     status: Literal["approved_additive_policy_only_no_execution"]
     parent_freeze: ParentFreezeBinding
     user_authorization: UserAuthorization
+    corrective_revision: CorrectiveRevision
     authorized_scope: AuthorizedScope
     p01_operation_binding: P01OperationBinding
     frozen_parent_contract_hashes: FrozenParentContractHashes
@@ -439,6 +575,7 @@ class P01IdentityPolicyOverlay(P01StrictModel):
     identity_exception: IdentityException
     qualification_contract: QualificationContract
     unchanged_rule_contract: UnchangedRuleContract
+    runtime_binding_contract: P01IdentityExceptionRuntimeBinding
     effective_state_transition: EffectiveStateTransition
     incomplete_prerequisites: IncompletePrerequisites
     prohibitions: Prohibitions
@@ -452,6 +589,19 @@ class P01IdentityPolicyOverlay(P01StrictModel):
             != EXPECTED_USER_AUTHORIZATION_SHA256
         ):
             raise ValueError("P01 authorization text/hash drift")
+        correction = self.corrective_revision
+        if (
+            correction.exact_user_text_sha256 != EXPECTED_CORRECTIVE_AUTHORIZATION_SHA256
+            or sha256_hex(correction.exact_user_text.encode("utf-8"))
+            != EXPECTED_CORRECTIVE_AUTHORIZATION_SHA256
+            or correction.parent_commit != EXPECTED_APPROVED_V0_3_5_COMMIT
+            or correction.parent_tree != EXPECTED_APPROVED_V0_3_5_TREE
+            or correction.approved_policy_file_sha256 != EXPECTED_APPROVED_V0_3_5_FILE_SHA256
+            or correction.approved_policy_semantic_hash != EXPECTED_APPROVED_V0_3_5_SEMANTIC_HASH
+            or correction.approved_loader_file_sha256 != EXPECTED_APPROVED_V0_3_5_LOADER_SHA256
+            or correction.approved_tests_file_sha256 != EXPECTED_APPROVED_V0_3_5_TESTS_SHA256
+        ):
+            raise ValueError("P01 corrective authorization or parent binding drift")
         if self.authorized_scope.exact_new_paths != EXPECTED_NEW_PATHS:
             raise ValueError("P01 overlay writable-path scope drift")
         if self.authorized_scope.brief_update_path != EXPECTED_BRIEF_PATH:
@@ -483,6 +633,12 @@ class P01IdentityPolicyOverlay(P01StrictModel):
             or self.unchanged_rule_contract.inherited_lemma_or_procedure_share_maximum != 0.0025
         ):
             raise ValueError("P01 or inherited procedure cap drift")
+        rejection_conditions = tuple(
+            (item.case_id, item.disposition)
+            for item in self.runtime_binding_contract.rejection_conditions
+        )
+        if rejection_conditions != EXPECTED_RUNTIME_REJECTION_CONDITIONS:
+            raise ValueError("P01 runtime rejection inventory/order drift")
         return self
 
 
@@ -793,6 +949,128 @@ def _validate_unchanged_rules(
         raise P01IdentityPolicyError("frozen duplicate/cap/orientation rules drift")
 
 
+def approved_v0_3_5_policy_projection(
+    config: P01IdentityPolicyOverlay,
+) -> dict[str, Any]:
+    """Recover the exact approved 505b747 policy semantics from the correction."""
+
+    payload: dict[str, Any] = config.model_dump(mode="json")
+    if not isinstance(payload.pop("corrective_revision"), dict):
+        raise P01IdentityPolicyError("corrective revision projection shape drift")
+    if not isinstance(payload.pop("runtime_binding_contract"), dict):
+        raise P01IdentityPolicyError("runtime binding projection shape drift")
+
+    transition = payload.get("effective_state_transition")
+    if not isinstance(transition, dict):
+        raise P01IdentityPolicyError("effective transition projection shape drift")
+    blockers = transition.get("remaining_implementation_blockers")
+    if not isinstance(blockers, list) or blockers.count(EXPECTED_RUNTIME_BLOCKER_ID) != 1:
+        raise P01IdentityPolicyError("runtime blocker projection cardinality drift")
+    transition["remaining_implementation_blockers"] = [
+        blocker for blocker in blockers if blocker != EXPECTED_RUNTIME_BLOCKER_ID
+    ]
+
+    prerequisites = payload.get("incomplete_prerequisites")
+    if not isinstance(prerequisites, dict):
+        raise P01IdentityPolicyError("incomplete prerequisite projection shape drift")
+    completion = prerequisites.pop(
+        "p01_identity_exception_composition_dedup_runtime_binding_and_replay_complete"
+    )
+    if completion is not False:
+        raise P01IdentityPolicyError("runtime prerequisite must remain incomplete")
+    return payload
+
+
+def _validate_runtime_binding_contract(config: P01IdentityPolicyOverlay) -> None:
+    contract = config.runtime_binding_contract
+    correction = config.corrective_revision
+    exception = config.identity_exception
+    qualification = config.qualification_contract
+    rules = config.unchanged_rule_contract
+    operation = config.p01_operation_binding
+
+    if (
+        contract.blocker_id != EXPECTED_RUNTIME_BLOCKER_ID
+        or contract.approved_parent_commit != EXPECTED_APPROVED_V0_3_5_COMMIT
+        or contract.approved_parent_tree != EXPECTED_APPROVED_V0_3_5_TREE
+        or contract.approved_policy_file_sha256 != EXPECTED_APPROVED_V0_3_5_FILE_SHA256
+        or contract.required_policy_semantic_hash != EXPECTED_APPROVED_V0_3_5_SEMANTIC_HASH
+        or contract.approved_parent_commit != correction.parent_commit
+        or contract.approved_parent_tree != correction.parent_tree
+        or contract.approved_policy_file_sha256 != correction.approved_policy_file_sha256
+        or contract.required_policy_semantic_hash != correction.approved_policy_semantic_hash
+    ):
+        raise P01IdentityPolicyError("P01 runtime parent or semantic-hash binding drift")
+
+    acceptance = contract.acceptance_contract
+    if (
+        acceptance.required_operation_id != operation.operation_id
+        or acceptance.required_operation_id != exception.operation_id
+        or acceptance.repeatable_hash_kind != exception.repeatable_hash_kind
+        or acceptance.permitted_repeated_hash_class_cardinality
+        != exception.permitted_repeated_hash_class_cardinality
+        or acceptance.repeated_hash_endpoints_must_be_adjacent
+        != exception.permitted_repeated_hash_endpoints_must_be_adjacent
+        or acceptance.connecting_edge_must_be_chain_sole_p01_hop
+        != exception.edge_between_permitted_repeated_endpoints_must_be_the_sole_p01_hop
+        or acceptance.maximum_p01_hops_per_chain != exception.maximum_uses_per_chain
+        or acceptance.reference_candidate_render_hashes_must_differ
+        != qualification.reference_candidate_render_hashes_distinct
+        or acceptance.reference_candidate_model_facing_core_text_bytes_must_differ
+        != qualification.reference_candidate_model_facing_texts_distinct
+        or not qualification.typed_certificate_replay_required_before_exception_applies
+        or not qualification.expr_equal_replay_and_exact_certificate_equality_required
+        or not exception.repeated_hash_must_equal_immediately_preceding_endpoint
+        or exception.may_match_any_non_immediately_preceding_endpoint
+    ):
+        raise P01IdentityPolicyError("P01 runtime acceptance conjunction drift")
+
+    rejection_conditions = tuple(
+        (item.case_id, item.disposition) for item in contract.rejection_conditions
+    )
+    if rejection_conditions != EXPECTED_RUNTIME_REJECTION_CONDITIONS:
+        raise P01IdentityPolicyError("P01 runtime rejection matrix drift")
+
+    caps = contract.cap_accounting_contract
+    if (
+        caps.maximum_p01_hops_per_chain != exception.maximum_uses_per_chain
+        or caps.maximum_retained_pairs_per_root != exception.maximum_retained_pairs_per_root
+        or caps.maximum_retained_pairs_per_root != operation.maximum_retained_pairs_per_root
+        or caps.maximum_retained_share != exception.maximum_retained_share
+        or caps.maximum_retained_share != operation.maximum_retained_share
+        or caps.inherited_lemma_or_procedure_share_maximum
+        != rules.inherited_lemma_or_procedure_share_maximum
+        or caps.inherited_lemma_or_procedure_cap_remains_additionally_applicable
+        != rules.inherited_lemma_or_procedure_cap_remains_additionally_applicable
+        or caps.cap_denominator_unchanged != exception.cap_denominator_unchanged
+        or caps.cap_is_maximum_not_quota != exception.cap_is_maximum_not_quota
+        or not exception.every_composed_pair_containing_p01_counts_toward_p01_caps_across_polarities
+    ):
+        raise P01IdentityPolicyError("P01 runtime cross-polarity/composition cap drift")
+
+    dedup = contract.dedup_conflict_contract
+    if (
+        dedup.canonical_unordered_pair_hash_basis != rules.canonical_unordered_pair_hash_basis
+        or dedup.canonical_unordered_pair_deduplication_required
+        != rules.canonical_unordered_pair_deduplication_required
+        or dedup.same_label_duplicate_survivor_rule != rules.same_label_duplicate_survivor_rule
+        or dedup.conflicting_label_class_action != rules.conflicting_label_class_action
+        or dedup.duplicate_conflict_screen_before_caps_checks_both_orientations
+        != rules.duplicate_conflict_screen_before_caps_checks_both_orientations
+        or dedup.deterministic_training_orientation_swap_after_caps
+        != rules.deterministic_training_orientation_swap_after_caps
+        or dedup.post_orientation_global_duplicate_conflict_rejection_required
+        != rules.post_orientation_global_duplicate_conflict_rejection_required
+        or dedup.post_orientation_failure_action != rules.post_orientation_failure_action
+    ):
+        raise P01IdentityPolicyError("P01 runtime unordered-pair dedup/conflict drift")
+
+    if hash_canonical(approved_v0_3_5_policy_projection(config)) != (
+        EXPECTED_APPROVED_V0_3_5_SEMANTIC_HASH
+    ):
+        raise P01IdentityPolicyError("approved revision-0.3.5 semantic projection drift")
+
+
 def _validate_effective_transition(
     config: P01IdentityPolicyOverlay,
     parent: LoadedWave1ImplementationReadiness,
@@ -813,11 +1091,13 @@ def _validate_effective_transition(
     base_blockers = parent.config.verification_state.remaining_implementation_blockers
     if base_blockers.count(EXPECTED_BLOCKER_ID) != 1:
         raise P01IdentityPolicyError("frozen readiness must contain one exact P01 blocker")
-    effective_blockers = tuple(item for item in base_blockers if item != EXPECTED_BLOCKER_ID)
+    parent_derived_blockers = tuple(item for item in base_blockers if item != EXPECTED_BLOCKER_ID)
     transition = config.effective_state_transition
     if (
-        effective_blockers != EXPECTED_REMAINING_IMPLEMENTATION_BLOCKERS
-        or transition.remaining_implementation_blockers != effective_blockers
+        parent_derived_blockers != EXPECTED_PARENT_DERIVED_IMPLEMENTATION_BLOCKERS
+        or transition.remaining_implementation_blockers
+        != EXPECTED_REMAINING_IMPLEMENTATION_BLOCKERS
+        or transition.remaining_implementation_blockers.count(EXPECTED_RUNTIME_BLOCKER_ID) != 1
         or parent.config.verification_state.remaining_pre_smoke_nonimplementation_blockers
         != EXPECTED_PRE_SMOKE_BLOCKERS
         or transition.remaining_pre_smoke_nonimplementation_blockers != EXPECTED_PRE_SMOKE_BLOCKERS
@@ -862,6 +1142,7 @@ def validate_p01_identity_policy(
     _validate_parent_contract_hashes(config, parent)
     _validate_repr_and_collision_evidence(config, root=root, parent=parent)
     _validate_unchanged_rules(config, parent)
+    _validate_runtime_binding_contract(config)
     _validate_effective_transition(config, parent)
 
 
@@ -887,6 +1168,10 @@ class LoadedP01IdentityPolicy:
     def effective_remaining_implementation_blockers(self) -> tuple[str, ...]:
         return self.config.effective_state_transition.remaining_implementation_blockers
 
+    @property
+    def approved_runtime_policy_semantic_hash(self) -> str:
+        return self.config.runtime_binding_contract.required_policy_semantic_hash
+
 
 def load_p01_identity_policy(
     repo_root: Path | None = None,
@@ -906,6 +1191,8 @@ def load_p01_identity_policy(
     loaded = load_config(resolved, P01IdentityPolicyOverlay)
     if loaded.config_hash != EXPECTED_OVERLAY_SEMANTIC_HASH:
         raise P01IdentityPolicyError("P01 policy semantic hash drift")
+    if loaded.config_hash == EXPECTED_APPROVED_V0_3_5_SEMANTIC_HASH:
+        raise P01IdentityPolicyError("corrected envelope must differ from approved runtime policy")
     parent = load_wave1_implementation_readiness(root)
     validate_p01_identity_policy(loaded.config, root=root, parent=parent)
     return LoadedP01IdentityPolicy(loaded=loaded, file_sha256=file_sha256, parent=parent)
@@ -913,6 +1200,10 @@ def load_p01_identity_policy(
 
 __all__ = [
     "DEFAULT_P01_IDENTITY_POLICY_PATH",
+    "EXPECTED_APPROVED_V0_3_5_COMMIT",
+    "EXPECTED_APPROVED_V0_3_5_FILE_SHA256",
+    "EXPECTED_APPROVED_V0_3_5_SEMANTIC_HASH",
+    "EXPECTED_APPROVED_V0_3_5_TREE",
     "EXPECTED_BLOCKER_ID",
     "EXPECTED_NEW_PATHS",
     "EXPECTED_OVERLAY_FILE_SHA256",
@@ -921,12 +1212,15 @@ __all__ = [
     "EXPECTED_PARENT_TREE",
     "EXPECTED_PRE_SMOKE_BLOCKERS",
     "EXPECTED_REMAINING_IMPLEMENTATION_BLOCKERS",
+    "EXPECTED_RUNTIME_BLOCKER_ID",
+    "EXPECTED_RUNTIME_REJECTION_CONDITIONS",
     "EXPECTED_SIDECAR_DELTA_FIELDS",
     "EXPECTED_TYPED_CERTIFICATE_FIELDS",
     "FrozenArtifactBinding",
     "LoadedP01IdentityPolicy",
     "P01IdentityPolicyError",
     "P01IdentityPolicyOverlay",
+    "approved_v0_3_5_policy_projection",
     "load_p01_identity_policy",
     "validate_p01_identity_policy",
 ]

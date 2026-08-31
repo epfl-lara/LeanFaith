@@ -12,7 +12,7 @@ import pytest
 from pydantic import ValidationError
 
 import leanfaith.sft1.p01_identity_policy as p01_policy
-from leanfaith.config.hashing import hash_file, sha256_hex
+from leanfaith.config.hashing import hash_canonical, hash_file, sha256_hex
 from leanfaith.config.loading import DuplicateKeyError, load_yaml_mapping
 from leanfaith.config.paths import find_repo_root
 
@@ -65,6 +65,13 @@ def test_checked_in_overlay_loads_with_exact_raw_and_semantic_hashes() -> None:
         p01_policy.EXPECTED_OVERLAY_FILE_SHA256
     )
     assert loaded.config_hash == p01_policy.EXPECTED_OVERLAY_SEMANTIC_HASH
+    assert loaded.config_hash != p01_policy.EXPECTED_APPROVED_V0_3_5_SEMANTIC_HASH
+    assert loaded.approved_runtime_policy_semantic_hash == (
+        p01_policy.EXPECTED_APPROVED_V0_3_5_SEMANTIC_HASH
+    )
+    assert hash_canonical(p01_policy.approved_v0_3_5_policy_projection(loaded.config)) == (
+        p01_policy.EXPECTED_APPROVED_V0_3_5_SEMANTIC_HASH
+    )
 
 
 def test_parent_commit_tree_registry_and_every_frozen_artifact_are_preserved() -> None:
@@ -102,6 +109,28 @@ def test_exact_user_approval_and_task_owned_scope_are_hash_bound() -> None:
     assert config.authorized_scope.may_clear_blocker_ids == (p01_policy.EXPECTED_BLOCKER_ID,)
     assert config.authorized_scope.may_clear_any_other_blocker is False
     assert config.authorized_scope.may_modify_parent_artifacts is False
+
+
+def test_corrective_authorization_binds_preserved_505b747_revision() -> None:
+    correction = _loaded().config.corrective_revision
+
+    assert correction.parent_commit == p01_policy.EXPECTED_APPROVED_V0_3_5_COMMIT
+    assert correction.parent_tree == p01_policy.EXPECTED_APPROVED_V0_3_5_TREE
+    assert correction.approved_policy_file_sha256 == (
+        p01_policy.EXPECTED_APPROVED_V0_3_5_FILE_SHA256
+    )
+    assert correction.approved_policy_semantic_hash == (
+        p01_policy.EXPECTED_APPROVED_V0_3_5_SEMANTIC_HASH
+    )
+    assert sha256_hex(correction.exact_user_text.encode("utf-8")) == (
+        correction.exact_user_text_sha256
+    )
+    assert correction.exact_user_text_sha256 == (
+        p01_policy.EXPECTED_CORRECTIVE_AUTHORIZATION_SHA256
+    )
+    assert correction.parent_commit_preserved_in_history is True
+    assert correction.lean_free_correction_only is True
+    assert correction.push_authorized is False
 
 
 def test_exception_is_one_optional_immediate_p01_hop_and_no_broader_cycle_escape() -> None:
@@ -208,14 +237,106 @@ def test_collision_receipt_is_only_representation_evidence_and_not_live_replay()
     assert evidence.production_admission is False
 
 
+def test_runtime_blocker_binds_reviewed_policy_hash_and_stays_open() -> None:
+    loaded = _loaded()
+    contract = loaded.config.runtime_binding_contract
+    observed = contract.observed_state
+
+    assert contract.blocker_id == p01_policy.EXPECTED_RUNTIME_BLOCKER_ID
+    assert contract.status == "open_fail_closed"
+    assert contract.approved_parent_commit == p01_policy.EXPECTED_APPROVED_V0_3_5_COMMIT
+    assert contract.approved_parent_tree == p01_policy.EXPECTED_APPROVED_V0_3_5_TREE
+    assert contract.approved_policy_file_sha256 == (p01_policy.EXPECTED_APPROVED_V0_3_5_FILE_SHA256)
+    assert contract.required_policy_semantic_hash == (
+        p01_policy.EXPECTED_APPROVED_V0_3_5_SEMANTIC_HASH
+    )
+    assert contract.corrected_overlay_semantic_hash_must_also_be_bound_by_runtime_receipt
+    assert contract.blocks_p01_operation_implementation_readiness is True
+    assert contract.blocks_overall_implementation_readiness is True
+    assert contract.blocks_gate_execution is True
+    assert contract.blocker_resolution_requires_every_contract_axis is True
+    assert observed.runtime_implementation_path is None
+    assert observed.runtime_implementation_symbol is None
+    assert observed.runtime_code_sha256 is None
+    assert observed.observed_policy_semantic_hash is None
+    assert observed.binding_receipt_sha256 is None
+    assert observed.replay_receipt_sha256 is None
+    assert observed.policy_semantic_hash_loaded_and_bound is False
+    assert observed.acceptance_replay_complete is False
+    assert observed.rejection_matrix_replay_complete is False
+    assert observed.cap_accounting_replay_complete is False
+    assert observed.dedup_conflict_replay_complete is False
+    assert observed.blocker_resolved is False
+
+
+def test_runtime_acceptance_contract_is_exact_conjunction() -> None:
+    acceptance = _loaded().config.runtime_binding_contract.acceptance_contract
+
+    assert acceptance.required_operation_id == "P01_ALPHA_RENAME_SINGLE_V1"
+    assert acceptance.repeatable_hash_kind == "alpha_invariant_canonical_closed_expr_hash"
+    assert acceptance.required_policy_semantic_hash_loaded_and_bound_before_evaluation is True
+    assert acceptance.exact_certificate_replay_must_pass_before_exception is True
+    assert acceptance.permitted_repeated_hash_class_cardinality == 2
+    assert acceptance.repeated_hash_endpoints_must_be_adjacent is True
+    assert acceptance.connecting_edge_must_be_required_operation is True
+    assert acceptance.connecting_edge_must_be_chain_sole_p01_hop is True
+    assert acceptance.maximum_p01_hops_per_chain == 1
+    assert acceptance.reference_candidate_render_hashes_must_differ is True
+    assert acceptance.reference_candidate_model_facing_core_text_bytes_must_differ is True
+    assert acceptance.all_other_closed_expr_hash_repetitions_rejected is True
+
+
+def test_runtime_rejection_inventory_is_exact_and_ordered() -> None:
+    rejection_conditions = _loaded().config.runtime_binding_contract.rejection_conditions
+
+    assert (
+        tuple((condition.case_id, condition.disposition) for condition in rejection_conditions)
+        == p01_policy.EXPECTED_RUNTIME_REJECTION_CONDITIONS
+    )
+
+
+def test_runtime_cap_scope_covers_both_polarities_and_all_p01_compositions() -> None:
+    caps = _loaded().config.runtime_binding_contract.cap_accounting_contract
+
+    assert caps.scope_basis == "every_retained_pair_whose_operation_chain_contains_p01"
+    assert caps.count_positive_polarity is True
+    assert caps.count_negative_polarity is True
+    assert caps.count_direct_p01_chains is True
+    assert caps.count_composed_p01_chains is True
+    assert caps.count_p01_in_every_permitted_chain_position is True
+    assert caps.maximum_p01_hops_per_chain == 1
+    assert caps.maximum_retained_pairs_per_root == 1
+    assert caps.maximum_retained_share == 0.005
+    assert caps.inherited_lemma_or_procedure_share_maximum == 0.0025
+    assert caps.inherited_lemma_or_procedure_cap_remains_additionally_applicable is True
+    assert caps.cap_denominator_unchanged is True
+    assert caps.cap_is_maximum_not_quota is True
+
+
+def test_runtime_preserves_unordered_pair_dedup_and_conflict_pipeline() -> None:
+    dedup = _loaded().config.runtime_binding_contract.dedup_conflict_contract
+
+    assert dedup.canonical_unordered_pair_hash_basis == (
+        "sha256_sorted_reference_candidate_render_hashes_v1"
+    )
+    assert dedup.canonical_unordered_pair_deduplication_required is True
+    assert dedup.same_label_duplicate_survivor_rule == "minimum_stable_row_hash"
+    assert dedup.conflicting_label_class_action == ("reject_entire_canonical_unordered_pair_class")
+    assert dedup.duplicate_conflict_screen_before_caps_checks_both_orientations is True
+    assert dedup.deterministic_training_orientation_swap_after_caps is True
+    assert dedup.post_orientation_global_duplicate_conflict_rejection_required is True
+    assert dedup.post_orientation_failure_action == "fail_shard_without_commit_or_refill"
+
+
 def test_only_p01_policy_blocker_is_removed_and_all_readiness_remains_false() -> None:
     loaded = _loaded()
     transition = loaded.config.effective_state_transition
     base_blockers = loaded.parent.config.verification_state.remaining_implementation_blockers
 
     assert transition.cleared_blocker_ids == (p01_policy.EXPECTED_BLOCKER_ID,)
-    assert loaded.effective_remaining_implementation_blockers == tuple(
-        blocker for blocker in base_blockers if blocker != p01_policy.EXPECTED_BLOCKER_ID
+    assert loaded.effective_remaining_implementation_blockers == (
+        p01_policy.EXPECTED_RUNTIME_BLOCKER_ID,
+        *(blocker for blocker in base_blockers if blocker != p01_policy.EXPECTED_BLOCKER_ID),
     )
     assert transition.remaining_implementation_blockers == (
         p01_policy.EXPECTED_REMAINING_IMPLEMENTATION_BLOCKERS
@@ -224,6 +345,10 @@ def test_only_p01_policy_blocker_is_removed_and_all_readiness_remains_false() ->
         p01_policy.EXPECTED_PRE_SMOKE_BLOCKERS
     )
     assert transition.p01_identity_blocker_cleared is True
+    assert (
+        transition.remaining_implementation_blockers.count(p01_policy.EXPECTED_RUNTIME_BLOCKER_ID)
+        == 1
+    )
     assert transition.p01_operation_implementation_ready is False
     assert transition.overall_implementation_ready is False
     assert transition.gate_execution_may_start is False
@@ -233,6 +358,7 @@ def test_all_execution_release_and_incomplete_prerequisite_states_fail_closed() 
     config = _loaded().config
 
     assert config.incomplete_prerequisites.model_dump(mode="python") == {
+        "p01_identity_exception_composition_dedup_runtime_binding_and_replay_complete": False,
         "lean_compilation_complete": False,
         "live_fixtures_complete": False,
         "certificate_replay_complete": False,
@@ -265,6 +391,10 @@ def test_all_execution_release_and_incomplete_prerequisite_states_fail_closed() 
         ("parent_freeze.commit", "f" * 40),
         ("parent_freeze.tree", "f" * 40),
         ("parent_freeze.frozen_artifacts.0.file_sha256", MUTATED_SHA256),
+        ("corrective_revision.parent_commit", "f" * 40),
+        ("corrective_revision.parent_tree", "f" * 40),
+        ("corrective_revision.approved_policy_file_sha256", MUTATED_SHA256),
+        ("corrective_revision.approved_policy_semantic_hash", MUTATED_SHA256),
         ("p01_operation_binding.registry_entry_hash", MUTATED_SHA256),
         ("p01_operation_binding.maximum_retained_pairs_per_root", 2),
         ("p01_operation_binding.maximum_retained_share", 0.006),
@@ -297,6 +427,106 @@ def test_all_execution_release_and_incomplete_prerequisite_states_fail_closed() 
         ),
         ("qualification_contract.candidate_must_equal_exact_deterministic_replay_expr", False),
         ("qualification_contract.current_live_certificate_replay_complete", True),
+        ("runtime_binding_contract.blocker_id", "wrong_runtime_blocker"),
+        ("runtime_binding_contract.status", "resolved"),
+        ("runtime_binding_contract.approved_parent_commit", "f" * 40),
+        ("runtime_binding_contract.approved_parent_tree", "f" * 40),
+        ("runtime_binding_contract.approved_policy_file_sha256", MUTATED_SHA256),
+        ("runtime_binding_contract.required_policy_semantic_hash", MUTATED_SHA256),
+        (
+            "runtime_binding_contract.corrected_overlay_semantic_hash_must_also_be_bound_by_runtime_receipt",
+            False,
+        ),
+        ("runtime_binding_contract.blocks_p01_operation_implementation_readiness", False),
+        ("runtime_binding_contract.blocks_overall_implementation_readiness", False),
+        ("runtime_binding_contract.blocks_gate_execution", False),
+        (
+            "runtime_binding_contract.acceptance_contract.required_policy_semantic_hash_loaded_and_bound_before_evaluation",
+            False,
+        ),
+        (
+            "runtime_binding_contract.acceptance_contract.exact_certificate_replay_must_pass_before_exception",
+            False,
+        ),
+        (
+            "runtime_binding_contract.acceptance_contract.permitted_repeated_hash_class_cardinality",
+            3,
+        ),
+        (
+            "runtime_binding_contract.acceptance_contract.repeated_hash_endpoints_must_be_adjacent",
+            False,
+        ),
+        (
+            "runtime_binding_contract.acceptance_contract.connecting_edge_must_be_required_operation",
+            False,
+        ),
+        (
+            "runtime_binding_contract.acceptance_contract.connecting_edge_must_be_chain_sole_p01_hop",
+            False,
+        ),
+        ("runtime_binding_contract.acceptance_contract.maximum_p01_hops_per_chain", 2),
+        (
+            "runtime_binding_contract.acceptance_contract.reference_candidate_render_hashes_must_differ",
+            False,
+        ),
+        (
+            "runtime_binding_contract.acceptance_contract.reference_candidate_model_facing_core_text_bytes_must_differ",
+            False,
+        ),
+        (
+            "runtime_binding_contract.acceptance_contract.all_other_closed_expr_hash_repetitions_rejected",
+            False,
+        ),
+        ("runtime_binding_contract.rejection_conditions.2.disposition", "accept"),
+        ("runtime_binding_contract.cap_accounting_contract.count_positive_polarity", False),
+        ("runtime_binding_contract.cap_accounting_contract.count_negative_polarity", False),
+        ("runtime_binding_contract.cap_accounting_contract.count_direct_p01_chains", False),
+        ("runtime_binding_contract.cap_accounting_contract.count_composed_p01_chains", False),
+        (
+            "runtime_binding_contract.cap_accounting_contract.count_p01_in_every_permitted_chain_position",
+            False,
+        ),
+        ("runtime_binding_contract.cap_accounting_contract.maximum_p01_hops_per_chain", 2),
+        ("runtime_binding_contract.cap_accounting_contract.maximum_retained_pairs_per_root", 2),
+        ("runtime_binding_contract.cap_accounting_contract.maximum_retained_share", 0.006),
+        (
+            "runtime_binding_contract.cap_accounting_contract.inherited_lemma_or_procedure_share_maximum",
+            0.005,
+        ),
+        (
+            "runtime_binding_contract.dedup_conflict_contract.canonical_unordered_pair_deduplication_required",
+            False,
+        ),
+        (
+            "runtime_binding_contract.dedup_conflict_contract.duplicate_conflict_screen_before_caps_checks_both_orientations",
+            False,
+        ),
+        (
+            "runtime_binding_contract.dedup_conflict_contract.deterministic_training_orientation_swap_after_caps",
+            False,
+        ),
+        (
+            "runtime_binding_contract.dedup_conflict_contract.post_orientation_global_duplicate_conflict_rejection_required",
+            False,
+        ),
+        (
+            "runtime_binding_contract.dedup_conflict_contract.post_orientation_failure_action",
+            "continue_with_refill",
+        ),
+        ("runtime_binding_contract.observed_state.runtime_implementation_path", "runtime.py"),
+        (
+            "runtime_binding_contract.observed_state.observed_policy_semantic_hash",
+            p01_policy.EXPECTED_APPROVED_V0_3_5_SEMANTIC_HASH,
+        ),
+        (
+            "runtime_binding_contract.observed_state.policy_semantic_hash_loaded_and_bound",
+            True,
+        ),
+        ("runtime_binding_contract.observed_state.acceptance_replay_complete", True),
+        ("runtime_binding_contract.observed_state.rejection_matrix_replay_complete", True),
+        ("runtime_binding_contract.observed_state.cap_accounting_replay_complete", True),
+        ("runtime_binding_contract.observed_state.dedup_conflict_replay_complete", True),
+        ("runtime_binding_contract.observed_state.blocker_resolved", True),
         ("unchanged_rule_contract.repeated_text_hashes_rejected", False),
         ("unchanged_rule_contract.repeated_render_hashes_rejected", False),
         ("unchanged_rule_contract.repeated_selected_site_lineage_rejected", False),
@@ -315,6 +545,10 @@ def test_all_execution_release_and_incomplete_prerequisite_states_fail_closed() 
         ),
         ("effective_state_transition.overall_implementation_ready", True),
         ("effective_state_transition.gate_execution_may_start", True),
+        (
+            "incomplete_prerequisites.p01_identity_exception_composition_dedup_runtime_binding_and_replay_complete",
+            True,
+        ),
         ("incomplete_prerequisites.lean_compilation_complete", True),
         ("incomplete_prerequisites.certificate_replay_complete", True),
         ("authorized_scope.lean_allowed", True),
@@ -356,6 +590,42 @@ def test_certificate_field_order_and_effective_blocker_inventory_reject_drift() 
     )
 
 
+def test_runtime_rejection_inventory_rejects_drop_reorder_duplicate_and_extra() -> None:
+    payload = _payload()
+    original = payload["runtime_binding_contract"]["rejection_conditions"]
+    assert isinstance(original, list)
+
+    mutations = (
+        original[:-1],
+        list(reversed(original)),
+        [*original, copy.deepcopy(original[0])],
+        [*original, {"case_id": "unexpected", "disposition": "reject_unexpected"}],
+    )
+    for rejection_conditions in mutations:
+        mutated = _payload()
+        mutated["runtime_binding_contract"]["rejection_conditions"] = rejection_conditions
+        with pytest.raises((ValidationError, p01_policy.P01IdentityPolicyError)):
+            _validate_payload(mutated)
+
+
+def test_runtime_blocker_rejects_removal_duplication_and_clearing() -> None:
+    for blockers in (
+        list(p01_policy.EXPECTED_REMAINING_IMPLEMENTATION_BLOCKERS[1:]),
+        [
+            p01_policy.EXPECTED_RUNTIME_BLOCKER_ID,
+            *p01_policy.EXPECTED_REMAINING_IMPLEMENTATION_BLOCKERS,
+        ],
+        [
+            p01_policy.EXPECTED_BLOCKER_ID,
+            *p01_policy.EXPECTED_REMAINING_IMPLEMENTATION_BLOCKERS,
+        ],
+    ):
+        mutated = _payload()
+        mutated["effective_state_transition"]["remaining_implementation_blockers"] = blockers
+        with pytest.raises((ValidationError, p01_policy.P01IdentityPolicyError)):
+            _validate_payload(mutated)
+
+
 @pytest.mark.parametrize(
     ("path", "value"),
     [
@@ -363,6 +633,12 @@ def test_certificate_field_order_and_effective_blocker_inventory_reject_drift() 
         ("identity_exception.maximum_uses_per_chain", True),
         ("qualification_contract.selected_binder_site_match_count", True),
         ("identity_exception.zero_p01_hops_remain_allowed", 1),
+        ("runtime_binding_contract.acceptance_contract.maximum_p01_hops_per_chain", True),
+        (
+            "runtime_binding_contract.observed_state.policy_semantic_hash_loaded_and_bound",
+            0,
+        ),
+        ("corrective_revision.push_authorized", 0),
         ("prohibitions.production_admitted_operation_count", False),
     ],
 )
