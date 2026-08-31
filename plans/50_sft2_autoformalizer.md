@@ -1,13 +1,13 @@
 # SFT2B — autoformalization consistency data
 
 > **Task ID:** SFT2B
-> **Status:** active
-> **Owner/session:** Codex `/root` — 2026-08-31 diverse full-source freeze
+> **Status:** pilot_ready
+> **Owner/session:** Codex `/root` — 2026-08-31 diverse full-source release verified
 > **Last updated:** 2026-08-31
 > **Dependencies:** REPR `goal_v1.0`; source-quality audit and frozen consistency/voting prompts
-> **Next gate:** privately publish and fresh-verify all 54,455 quality-qualified diverse
-> trusted-reference sources plus the deterministic 50K matched view, without running a
-> formalizer, Lean, judges, labels, publication of generated outputs, or training
+> **Next gate:** consume private Hub revision `88d768355b87a678be5fb37c5e677812f2614015`
+> for the separately authorized model/compute generation choice; the release provides all 54,455
+> qualified sources plus a deterministic matched-50K view, but this session launches no scale job
 > **Compute class:** source-freeze work is Lean/GPU-free; downstream inference uses eight
 > A100-SXM4-80GB GPUs at DP=4/TP=2
 > **Lean budget:** compile each novel formalization candidate once through persistent cached workers
@@ -591,3 +591,28 @@ Do not launch 50K sources without the pilot and user compute/model approval.
   `SourceRecord` identities and bundle checksums, and observed 739 maximum prompt tokens
   (`max_model_len` 4,835 with 4,096 completion tokens). No Lean, ReForm, judge, label, generated
   output publication, or training process ran.
+- 2026-08-31 — committed and pushed the source-freeze implementation/config/tests first as Git
+  commit `556284b4967c857e754a727ffe1bb8f02eadc453` on
+  `milikic/sft2b-full-source-freeze`, then built the manifest against that retrievable revision.
+  The full build completed in 133.52 seconds at 2,308,148 KiB maximum RSS and serialized all 54,455
+  surviving sources plus a deterministic 50,000-ID matched view. The release source mix is 12,514
+  Mathlib, 514 Physlib, 336 CSLib, 8,328 Lean-Workbook, 10,136 current human/mixed Numina, 1,183
+  current auto-proof Numina, and 21,444 additional owner Numina rows. Maximum prompt length is 967
+  tokens, so the pinned 4,096-token completion budget requires `max_model_len = 5,063`.
+- 2026-08-31 — published the six-file source-only bundle additively to private dataset
+  `Lemmy00/leanfaith-sft2-autoformalizer-v1` at immutable revision
+  `88d768355b87a678be5fb37c5e677812f2614015` under
+  `source_inputs/reform_diverse_full_v1/`. A forced fresh download from that exact revision replayed
+  file checksums, strict schemas, all stable source IDs, prompt hashes and token counts, source mix,
+  REPR/runtime pins, the 301-candidate exclusion receipt, and zero selected golden, ProofNet-family,
+  or ShadowBench hits. `sources.jsonl` is
+  `c012fe688f01e36a0a7a76ffe2e4a0b2f0090ed3d7a0919c27fab6c93b673564`;
+  `prompt_token_counts.json` is
+  `d7e97e5a7729733f64e74cff4d5bf4f65b1d82bd73e2a00c6bf8db8b03d65916`;
+  `source_audit.jsonl` is
+  `8ab01a590767dc7a9e76b9ece2054f058c0eeb619d2ab895e5d71edf9d592722`;
+  `matched_50000_source_ids.json` is
+  `7fd9e3386207ed725f68e34e66036df57bf9f943b4c6decec3bb3590179b22b2`;
+  `source_manifest.json` is
+  `4f2004b3db4b0d03283e155489dc93f92a005ec5a891f1c627165a7a85813a88`; and `SHA256SUMS` is
+  `2eb3d08ec1c37fee54847541ebdd07eb377fdc8853dcda1910cc295b0f293c5d`.
