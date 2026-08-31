@@ -1,0 +1,39 @@
+{
+  "receipt_id": "leanfaith_sft2a_rehearsal_v5_1_failed_launch_seal",
+  "algorithm": "sort absolute regular file paths lexicographically; concatenate lowercase_sha256, two spaces, absolute_path, newline; sha256 concatenated bytes",
+  "staging_root": "/storage/milikic/leanfaith/value_first/sft2_llm_transforms_v1",
+  "sealed_roots": [
+    "runs/rehearsal_closure_aware_v5_1"
+  ],
+  "regular_file_count": 21,
+  "combined_tree_sha256": "043e4d7ef3c63ca3e905d368b85600fce1469da1ad29bcd1d17d9eadfdf5869c",
+  "source_artifacts": {
+    "sample.jsonl": "480a586ea99c26f41c6dfba47fb345507f25bd9bc778c03b13cc22108abd87f5",
+    "sample_manifest.json": "1940ba03360fbd8a4eebea565bd247320facfffb01aeec2b1e3dfba865dacfe2",
+    "census/manifest.json": "8089882996c27cdc50bd4d75453424c5973e44df83bdec51d94e52fcaae5b5b5",
+    "detached/launch_receipt.json": "ab407b7680bdd968182e73fc32146e14d561a4d7cc29918760697b847fa72b88",
+    "detached/terminal_status.json": "c37de9082f4c7c87d1bc6683b65f25e507425ced89f9f0a519341097b36811c5",
+    "detached/combined.log": "442e0ea6842e7134702b60f681655b6bc0a21e1c0e8be5823e61dcc198998ac2",
+    "detached/journal.jsonl": "9bb489ac8c3c66d8481b3f2b2cb46cbc7be5fd64fafdb08203b8092466184dbf"
+  },
+  "authorization_receipt": {
+    "path": "configs/sft2a/rehearsal_authorization_v5_1.json",
+    "sha256": "5543aeb03a1fc21ed8f71f8fd6988e5822054d9b82b273db59405f03431c26bb"
+  },
+  "terminal_failure": {
+    "error_type": "OneRootPipelineError",
+    "failed_reference_root_id": "cslib:census:06dd5d231eea1d9201ee9f20",
+    "failed_declaration_name": "Cslib.LTS.mem_saturate_image_τ",
+    "provider_calls_executed": 0,
+    "reference_lean_requests_executed": 1,
+    "candidate_lean_requests_executed": 0,
+    "resource_claim_released": true
+  },
+  "root_cause": "source-text signature omitted Lean autoImplicit parameters Label, State, and s",
+  "mutation_policy": "immutable_historical_evidence",
+  "authorization_retired_for_relaunch": true,
+  "scale_10k_authorized": false,
+  "scale_50k_authorized": false,
+  "legacy_rejudge_authorized": false,
+  "publication_authorized": false
+}

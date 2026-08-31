@@ -1,11 +1,11 @@
 # SFT2A — LLM-generated semantic transformations
 
 > **Task ID:** SFT2A
-> **Status:** active
+> **Status:** waiting_user
 > **Owner/session:** Codex `/root` — 2026-08-31 SFT2A v5 session
 > **Last updated:** 2026-08-31
 > **Dependencies:** REPR `goal_v1.0`; shared rubric; roots may be selected independently of SFT1
-> **Next gate:** complete, replay, and audit only the authorized corrected v5.1 rehearsal
+> **Next gate:** user direction for a zero-provider Lean reference-certification stage before any new sample authorization
 > **Compute class:** external LLM/API plus CPU/RAM for Lean; large run may need explicit budget approval
 > **Lean budget:** compile each novel candidate once through cached persistent workers
 > **Local staging root:** `/storage/milikic/leanfaith/value_first/sft2_llm_transforms_v1/`
@@ -471,3 +471,17 @@ recorded budget/model decision.
   readiness commit `e1884ad` and readiness hash
   `1e4b008565908d88a57ae26facbdf9f53e3301dc25e65266ff38b5d8e2352ac7`. The approximately-10K
   gate, 50K run, legacy rejudge, publication, and every other run remain unauthorized.
+- 2026-08-31 — launched only `leanfaith-sft2a-v5-rehearsal-v2` through the committed v5.1
+  authorization. The worker retained its tmux PTY, acquired the single Lean resource claim, and
+  failed closed on the first CSLib reference before any Terra, Opus, or Kimi call. Declaration
+  `Cslib.LTS.mem_saturate_image_τ` relies on Lean-generated `autoImplicit` parameters `Label`,
+  `State`, and `s` that are absent from its source-text signature; one reference Lean request and
+  zero candidate Lean requests executed. The resource was released and the session exited. Froze
+  all 21 run files at combined-tree hash
+  `043e4d7ef3c63ca3e905d368b85600fce1469da1ad29bcd1d17d9eadfdf5869c` in receipt
+  `configs/sft2a/rehearsal_v5_1_failed_launch_seal.json` (file hash
+  `3a7c8fc271f7b342df386af0ef46943fa8821f9bda472b9937e1d66854e7b5d6`). V5.1 is retired for
+  relaunch. Another text-only filter is not sufficient: the next safe design must certify a larger
+  deterministic candidate pool through local Lean with zero provider calls, freeze the 100 valid
+  roots only after that certification, and then request a separate exact-sample provider-launch
+  authorization. No such new certification or run is authorized yet.
