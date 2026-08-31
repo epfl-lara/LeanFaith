@@ -80,6 +80,13 @@ class MechanismAssignment:
 
 PRESERVING_MECHANISMS: tuple[MechanismSpec, ...] = (
     MechanismSpec(
+        "definitional_unfold_refold",
+        "preserving",
+        "Use a substantive definitional unfolding, refolding, or equivalent named predicate; "
+        "do not return the original text or add logical padding.",
+        "general",
+    ),
+    MechanismSpec(
         "argument_permutation_with_recovery",
         "preserving",
         "Permute universally bound arguments only when the entire closed proposition recovers "
@@ -302,6 +309,124 @@ def planning_signature_from_goal_v1(goal: str) -> str:
     return f"∀ {binders}, {target}" if binders else target
 
 
+def _walk_expr_tree(value: object) -> list[Mapping[str, object]]:
+    nodes: list[Mapping[str, object]] = []
+    stack = [value]
+    while stack:
+        current = stack.pop()
+        if isinstance(current, Mapping):
+            nodes.append(current)
+            stack.extend(current.values())
+        elif isinstance(current, list):
+            stack.extend(current)
+    return nodes
+
+
+def _local_name_count(line: str) -> int:
+    """Count names in one rendered local declaration, not colons in its type."""
+
+    depth = 0
+    for index, character in enumerate(line):
+        if character in "([{":
+            depth += 1
+        elif character in ")]}":
+            depth = max(0, depth - 1)
+        elif character == ":" and depth == 0:
+            names = line[:index].strip().split()
+            if not names or any(name in {"⊢", ":="} for name in names):
+                raise ValueError("certified goal local declaration is malformed")
+            return len(names)
+    raise ValueError("certified goal local declaration lacks a top-level colon")
+
+
+def structured_signature_shape(goal: str, expr_tree: Mapping[str, object]) -> SignatureShape:
+    """Derive applicability from a certified goal and its closed Expr tree.
+
+    The rendered context determines the number of displayed binders exactly once.  The
+    structural Expr determines logical constants.  Only top-level arrows in the rendered target
+    are counted as premises; arrows nested in function domains are intentionally ignored.
+    """
+
+    if any(marker in goal for marker in ("[anonymous]", "⋯", "...")):
+        raise ValueError("certified model-facing goal contains a forbidden placeholder")
+    lines = [line.strip() for line in goal.splitlines() if line.strip()]
+    turnstiles = [index for index, line in enumerate(lines) if line.startswith("⊢ ")]
+    if len(turnstiles) != 1 or turnstiles[0] != len(lines) - 1:
+        raise ValueError("certified goal_v1 has a malformed turnstile layout")
+    binder_count = sum(_local_name_count(line) for line in lines[:-1])
+    target = lines[-1][2:].strip()
+
+    # Count only arrows at the target's outermost delimiter depth.  In particular, `=>` is a
+    # lambda token rather than equality and arrows in `(f : A → B)` are not premises.
+    premise_count = 0
+    depth = 0
+    index = 0
+    while index < len(target):
+        character = target[index]
+        if character in "([{":
+            depth += 1
+        elif character in ")]}":
+            depth = max(0, depth - 1)
+        elif depth == 0 and character == "→":
+            premise_count += 1
+        elif depth == 0 and target[index : index + 2] == "->":
+            premise_count += 1
+            index += 1
+        index += 1
+
+    nodes = _walk_expr_tree(expr_tree)
+    constant_nodes = [
+        str(node["name"])
+        for node in nodes
+        if node.get("k") == "const" and isinstance(node.get("name"), str)
+    ]
+    constants = set(constant_nodes)
+    conjunction_count = sum(name == "And" for name in constant_nodes)
+    disjunction_count = sum(name == "Or" for name in constant_nodes)
+    has_equality = "Eq" in constants
+    has_order = any(
+        name in {"LE.le", "LT.lt", "Set.Subset"} or name.endswith((".le", ".lt", ".ge", ".gt"))
+        for name in constants
+    )
+    has_set = any(
+        name.startswith("Set.")
+        or name in {"Set", "Membership.mem", "HasSubset.Subset", "Set.Subset"}
+        for name in constants
+    )
+    has_exists = "Exists" in constants
+    has_negation = any(name in {"Not", "Ne"} for name in constants)
+
+    def function_node(node: Mapping[str, object]) -> bool:
+        domain = node.get("domain")
+        return node.get("k") == "lam" or (
+            node.get("k") == "forall"
+            and isinstance(domain, Mapping)
+            and domain.get("k") == "forall"
+        )
+
+    has_function = any(function_node(node) for node in nodes)
+    has_boundary_domain = any(
+        name == "Nat"
+        or name == "Int"
+        or name == "Fin"
+        or name.startswith(("Fin.", "Set.Icc", "Set.Ioc"))
+        for name in constants
+    )
+    return SignatureShape(
+        binder_count=binder_count,
+        premise_count=premise_count,
+        conjunction_count=conjunction_count,
+        disjunction_count=disjunction_count,
+        has_equality=has_equality,
+        has_order=has_order,
+        has_set=has_set,
+        has_exists=has_exists,
+        has_negation=has_negation,
+        has_function=has_function,
+        has_boundary_domain=has_boundary_domain,
+    )
+
+
 def _applicable(spec: MechanismSpec, shape: SignatureShape) -> bool:
     rule = spec.applicability
     return {
@@ -417,6 +542,75 @@ def plan_mechanism_rotation(
     return planned
 
 
+def plan_structured_mechanism_rotation(
+    roots: Sequence[tuple[str, SignatureShape]],
+    *,
+    salt: str,
+    maximum_family_fraction_per_polarity: float,
+) -> dict[str, dict[str, MechanismAssignment]]:
+    """Plan the rotation from prevalidated structured certified-goal shapes."""
+
+    if not roots or not 0.0 < maximum_family_fraction_per_polarity <= 1.0:
+        raise ValueError("invalid structured mechanism rotation population or diversity cap")
+    if len({root_id for root_id, _shape in roots}) != len(roots):
+        raise ValueError("structured mechanism rotation contains duplicate root IDs")
+    slots = (
+        ("preserve_0", "preserving"),
+        ("preserve_1", "preserving"),
+        ("break_0", "breaking"),
+        ("break_1", "breaking"),
+    )
+    family_cap = max(1, math.ceil(len(roots) * 2 * maximum_family_fraction_per_polarity))
+    counts: Counter[tuple[str, str]] = Counter()
+    planned: dict[str, dict[str, MechanismAssignment]] = {}
+
+    def rank(item: tuple[str, SignatureShape]) -> tuple[int, str]:
+        root_id, shape = item
+        eligible = sum(
+            _applicable(spec, shape) for spec in (*PRESERVING_MECHANISMS, *BREAKING_MECHANISMS)
+        )
+        return eligible, root_id
+
+    for root_id, shape in sorted(roots, key=rank):
+        root_plan: dict[str, MechanismAssignment] = {}
+        for slot_id, polarity in slots:
+            specs = PRESERVING_MECHANISMS if polarity == "preserving" else BREAKING_MECHANISMS
+            eligible = [
+                spec
+                for spec in specs
+                if _applicable(spec, shape) and counts[(polarity, spec.family)] < family_cap
+            ]
+            if not eligible:
+                raise ValueError(
+                    f"mechanism diversity cap leaves no structured family for {root_id}:{slot_id}"
+                )
+            selected = min(
+                eligible,
+                key=lambda spec: (
+                    counts[(polarity, spec.family)],
+                    hash_canonical(
+                        {
+                            "salt": salt,
+                            "root_id": root_id,
+                            "slot_id": slot_id,
+                            "family": spec.family,
+                            "shape_id": shape.shape_id,
+                        }
+                    ),
+                ),
+            )
+            counts[(polarity, selected.family)] += 1
+            root_plan[slot_id] = MechanismAssignment(
+                family=selected.family,
+                polarity=selected.polarity,
+                instruction=selected.instruction,
+                applicability=selected.applicability,
+                shape_id=shape.shape_id,
+            )
+        planned[root_id] = root_plan
+    return planned
+
+
 def mechanism_histogram(
     plan: Mapping[str, Mapping[str, MechanismAssignment]],
 ) -> dict[str, dict[str, int]]:
@@ -465,6 +659,8 @@ __all__ = [
     "applicable_mechanisms",
     "mechanism_histogram",
     "plan_mechanism_rotation",
+    "plan_structured_mechanism_rotation",
     "shortcut_violation",
     "signature_shape",
+    "structured_signature_shape",
 ]

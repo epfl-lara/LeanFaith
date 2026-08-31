@@ -6,7 +6,7 @@ import fcntl
 import json
 import os
 from collections import Counter
-from collections.abc import Iterable, Iterator, Mapping
+from collections.abc import Iterable, Iterator, Mapping, Sequence
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Literal
@@ -15,6 +15,7 @@ from leanfaith.config.hashing import canonical_json_bytes, hash_canonical, hash_
 from leanfaith.sft2a.config import LoadedSFT2AConfig
 from leanfaith.sft2a.legacy import _atomic_exact
 from leanfaith.sft2a.models import ExecutionCeilings, SFT2AV52Config
+from leanfaith.sft2a.providers import ProviderCallResult
 from leanfaith.sft2a.reference_certification import (
     ReferenceCertificationPhaseError,
     verify_global_reference_preflight,
@@ -100,7 +101,11 @@ class AtomicProviderBudget:
         for event in events:
             call_key = event.get("call_key")
             phase = event.get("phase")
-            if not isinstance(call_key, str) or phase not in {"reserved", "finalized"}:
+            if not isinstance(call_key, str) or phase not in {
+                "reserved",
+                "reclaimed",
+                "finalized",
+            }:
                 raise ParallelRehearsalError("parallel budget event is malformed")
             current = states.get(call_key)
             if phase == "reserved":
@@ -108,6 +113,12 @@ class AtomicProviderBudget:
                     if current.get("reservation_id") != event.get("reservation_id"):
                         raise ParallelRehearsalError("parallel call key was reserved twice")
                     continue
+                states[call_key] = dict(event)
+            elif phase == "reclaimed":
+                if current is None or current.get("phase") == "finalized":
+                    raise ParallelRehearsalError("parallel reclaim lacks an unfinished reservation")
+                if event.get("prior_reservation_id") != current.get("reservation_id"):
+                    raise ParallelRehearsalError("parallel reclaim predecessor differs")
                 states[call_key] = dict(event)
             else:
                 if current is None or current.get("phase") == "finalized":
@@ -131,7 +142,7 @@ class AtomicProviderBudget:
         outstanding = sum(
             _number(state.get("maximum_charge_usd"), field="maximum charge")
             for state in states.values()
-            if state.get("kind") == "opus" and state.get("phase") == "reserved"
+            if state.get("kind") == "opus" and state.get("phase") != "finalized"
         )
         return {
             "unique_reserved_calls": len(states),
@@ -227,6 +238,7 @@ class AtomicProviderBudget:
         response_sha256: str,
         reported_cost_usd: float | None,
     ) -> dict[str, object]:
+        already_finalized = False
         with self.path.open("a+b") as handle:
             fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
             try:
@@ -241,37 +253,189 @@ class AtomicProviderBudget:
                 if state.get("phase") == "finalized":
                     if state.get("response_sha256") != response_sha256:
                         raise ParallelRehearsalError("provider finalization replay differs")
-                    return self.snapshot()
-                kind = state.get("kind")
-                if kind == "opus" and reported_cost_usd is None:
-                    raise ParallelRehearsalError("Opus finalization lacks reported cost")
-                charge = 0.0 if reported_cost_usd is None else reported_cost_usd
-                if charge < 0 or charge > _number(
-                    state.get("maximum_charge_usd"), field="maximum charge"
-                ):
-                    raise ParallelRehearsalError("reported cost exceeds atomic reservation")
+                    already_finalized = True
+                if not already_finalized:
+                    kind = state.get("kind")
+                    if kind == "opus" and reported_cost_usd is None:
+                        raise ParallelRehearsalError("Opus finalization lacks reported cost")
+                    charge = 0.0 if reported_cost_usd is None else reported_cost_usd
+                    if charge < 0:
+                        raise ParallelRehearsalError("reported provider cost is negative")
+                    other_opus = sum(
+                        _number(
+                            other.get(
+                                "reported_cost_usd"
+                                if other.get("phase") == "finalized"
+                                else "maximum_charge_usd"
+                            ),
+                            field="Opus cost",
+                        )
+                        for key, other in states.items()
+                        if key != call_key and other.get("kind") == "opus"
+                    )
+                    if (
+                        kind == "opus"
+                        and other_opus + charge > self.ceilings.maximum_reported_opus_spend_usd
+                    ):
+                        raise ParallelRehearsalError(
+                            "reported cost exceeds atomic Opus spend ceiling"
+                        )
+                    event = {
+                        "version": "leanfaith_sft2a_parallel_provider_budget_v5_2",
+                        "phase": "finalized",
+                        "call_key": call_key,
+                        "reservation_id": reservation_id,
+                        "kind": kind,
+                        "worker_id": state["worker_id"],
+                        "maximum_charge_usd": state["maximum_charge_usd"],
+                        "response_sha256": response_sha256,
+                        "reported_cost_usd": charge,
+                    }
+                    handle.seek(0, os.SEEK_END)
+                    handle.write(canonical_json_bytes(event) + b"\n")
+                    handle.flush()
+                    os.fsync(handle.fileno())
+            finally:
+                fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+        return self.snapshot()
+
+    def reclaim_missing_terminal(
+        self,
+        *,
+        call_key: str,
+        prior_worker_id: str,
+        new_worker_id: str,
+        terminal_path: Path,
+    ) -> str:
+        """Explicitly transfer a crashed pre-terminal reservation to a new worker."""
+
+        if terminal_path.exists():
+            raise ParallelRehearsalError("provider terminal exists; reconcile instead of reclaim")
+        with self.path.open("a+b") as handle:
+            fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+            try:
+                handle.seek(0)
+                events = [json.loads(line) for line in handle.read().splitlines() if line]
+                states = self._states(events)
+                state = states.get(call_key)
+                if state is None or state.get("phase") == "finalized":
+                    raise ParallelRehearsalError("provider reclaim lacks unfinished reservation")
+                if state.get("worker_id") != prior_worker_id:
+                    raise ParallelRehearsalError("provider reclaim prior owner differs")
+                reservation_id = hash_canonical(
+                    {"call_key": call_key, "kind": state["kind"], "worker_id": new_worker_id}
+                )
                 event = {
                     "version": "leanfaith_sft2a_parallel_provider_budget_v5_2",
-                    "phase": "finalized",
+                    "phase": "reclaimed",
                     "call_key": call_key,
                     "reservation_id": reservation_id,
-                    "kind": kind,
-                    "worker_id": state["worker_id"],
+                    "prior_reservation_id": state["reservation_id"],
+                    "kind": state["kind"],
+                    "worker_id": new_worker_id,
                     "maximum_charge_usd": state["maximum_charge_usd"],
-                    "response_sha256": response_sha256,
-                    "reported_cost_usd": charge,
                 }
                 handle.seek(0, os.SEEK_END)
                 handle.write(canonical_json_bytes(event) + b"\n")
                 handle.flush()
                 os.fsync(handle.fileno())
+                return reservation_id
             finally:
                 fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
-        return self.snapshot()
+
+    def reconcile_terminal(self, *, call_key: str, terminal_path: Path) -> dict[str, object]:
+        """Finalize a crash-left terminal without issuing another provider call."""
+
+        if not terminal_path.is_file():
+            raise ParallelRehearsalError("provider terminal is absent during reconciliation")
+        terminal = json.loads(terminal_path.read_text(encoding="utf-8"))
+        if not isinstance(terminal, dict) or terminal.get("call_key") != call_key:
+            raise ParallelRehearsalError("provider terminal identity differs during reconciliation")
+        states = self._states(_events(self.path))
+        state = states.get(call_key)
+        if state is None:
+            raise ParallelRehearsalError("provider terminal has no atomic reservation")
+        return self.finalize(
+            call_key=call_key,
+            reservation_id=str(state["reservation_id"]),
+            response_sha256=hash_file(terminal_path),
+            reported_cost_usd=(
+                float(terminal["cost_usd"])
+                if isinstance(terminal.get("cost_usd"), int | float)
+                and not isinstance(terminal.get("cost_usd"), bool)
+                else None
+            ),
+        )
 
 
-class ParallelRootJournal:
-    """Atomic root claims and slot checkpoints supporting both resume boundaries."""
+class AtomicBudgetedProvider:
+    """Connect one provider to the shared reserve/call/finalize ledger."""
+
+    def __init__(
+        self,
+        provider: object,
+        *,
+        ledger: AtomicProviderBudget,
+        kind: ProviderKind,
+        worker_id: str,
+        maximum_charge_usd: float = 0.0,
+        reclaim_from_worker: str | None = None,
+    ) -> None:
+        self.provider = provider
+        self.ledger = ledger
+        self.kind = kind
+        self.worker_id = worker_id
+        self.maximum_charge_usd = maximum_charge_usd
+        self.reclaim_from_worker = reclaim_from_worker
+
+    def call(self, *, prompt: str, input_ids: Sequence[str]) -> ProviderCallResult:
+        preview = getattr(self.provider, "preview_call", None)
+        invoke = getattr(self.provider, "call", None)
+        if not callable(preview) or not callable(invoke):
+            raise ParallelRehearsalError("budgeted provider lacks preview/call protocol")
+        call_key, terminal_path, _request = preview(prompt=prompt, input_ids=input_ids)
+        if not isinstance(call_key, str) or not isinstance(terminal_path, Path):
+            raise ParallelRehearsalError("budgeted provider preview is malformed")
+        states = self.ledger._states(_events(self.ledger.path))
+        prior = states.get(call_key)
+        if prior is not None and terminal_path.is_file():
+            self.ledger.reconcile_terminal(call_key=call_key, terminal_path=terminal_path)
+            result = invoke(prompt=prompt, input_ids=input_ids)
+            if not isinstance(result, ProviderCallResult) or not result.cache_hit:
+                raise ParallelRehearsalError("terminal reconciliation executed a provider call")
+            return result
+        if (
+            prior is not None
+            and prior.get("worker_id") != self.worker_id
+            and self.reclaim_from_worker == prior.get("worker_id")
+        ):
+            assert self.reclaim_from_worker is not None
+            self.ledger.reclaim_missing_terminal(
+                call_key=call_key,
+                prior_worker_id=self.reclaim_from_worker,
+                new_worker_id=self.worker_id,
+                terminal_path=terminal_path,
+            )
+        reservation_id = self.ledger.reserve(
+            call_key=call_key,
+            kind=self.kind,
+            worker_id=self.worker_id,
+            maximum_charge_usd=self.maximum_charge_usd,
+        )
+        result = invoke(prompt=prompt, input_ids=input_ids)
+        if not isinstance(result, ProviderCallResult) or result.call_key != call_key:
+            raise ParallelRehearsalError("provider result differs from reserved call")
+        self.ledger.finalize(
+            call_key=call_key,
+            reservation_id=reservation_id,
+            response_sha256=hash_file(result.terminal_path),
+            reported_cost_usd=result.cost_usd,
+        )
+        return result
+
+
+class ParallelRootStateMachine:
+    """Validated root ownership, checkpoints, crashes, and explicit reclamation."""
 
     def __init__(self, path: Path, *, maximum_workers: int = 2) -> None:
         if maximum_workers != 2:
@@ -279,65 +443,178 @@ class ParallelRootJournal:
         self.path = path
         self.maximum_workers = maximum_workers
 
-    def claim(self, *, root_id: str, worker_id: str) -> Literal["claimed", "replay_complete"]:
+    def _validate(
+        self, events: Iterable[Mapping[str, object]]
+    ) -> tuple[dict[str, dict[str, object]], dict[str, str]]:
+        roots: dict[str, dict[str, object]] = {}
+        workers: dict[str, str] = {}
+        for event in events:
+            phase = event.get("phase")
+            root_id = event.get("root_id")
+            worker_id = event.get("worker_id")
+            if (
+                phase not in {"claimed", "slot_checkpoint", "crashed", "reclaimed", "complete"}
+                or not isinstance(root_id, str)
+                or not isinstance(worker_id, str)
+            ):
+                raise ParallelRehearsalError("parallel root state event is malformed")
+            current = roots.get(root_id)
+            if phase == "claimed":
+                if current is not None:
+                    raise ParallelRehearsalError("root has a second initial claim")
+                if worker_id in workers:
+                    raise ParallelRehearsalError("worker owns more than one unfinished root")
+                roots[root_id] = {
+                    "status": "active",
+                    "owner": worker_id,
+                    "generation": 0,
+                    "checkpoints": {},
+                }
+                workers[worker_id] = root_id
+                continue
+            if current is None:
+                raise ParallelRehearsalError("root transition lacks an initial claim")
+            owner = current.get("owner")
+            if phase == "slot_checkpoint":
+                if current.get("status") != "active" or owner != worker_id:
+                    raise ParallelRehearsalError("slot checkpoint is not owned by active worker")
+                slot_id = event.get("slot_id")
+                artifact_hash = event.get("artifact_hash")
+                if not isinstance(slot_id, str) or not isinstance(artifact_hash, str):
+                    raise ParallelRehearsalError("slot checkpoint is malformed")
+                checkpoints = current["checkpoints"]
+                assert isinstance(checkpoints, dict)
+                prior = checkpoints.get(slot_id)
+                if prior is not None and prior != artifact_hash:
+                    raise ParallelRehearsalError("conflicting slot checkpoint")
+                checkpoints[slot_id] = artifact_hash
+            elif phase == "crashed":
+                if current.get("status") != "active" or owner != worker_id:
+                    raise ParallelRehearsalError("only the active owner may record a crash")
+                current["status"] = "crashed"
+                workers.pop(worker_id, None)
+            elif phase == "reclaimed":
+                if current.get("status") != "crashed":
+                    raise ParallelRehearsalError("only a crashed root may be reclaimed")
+                if event.get("prior_owner") != owner or worker_id in workers:
+                    raise ParallelRehearsalError("root reclaim owner or worker conflicts")
+                current["status"] = "active"
+                current["owner"] = worker_id
+                generation = current.get("generation")
+                if not isinstance(generation, int) or isinstance(generation, bool):
+                    raise ParallelRehearsalError("root generation is malformed")
+                current["generation"] = generation + 1
+                workers[worker_id] = root_id
+            else:
+                if current.get("status") != "active" or owner != worker_id:
+                    raise ParallelRehearsalError("only the active owner may complete a root")
+                manifest_hash = event.get("manifest_hash")
+                if not isinstance(manifest_hash, str) or not manifest_hash:
+                    raise ParallelRehearsalError("root completion lacks manifest hash")
+                current["status"] = "complete"
+                current["manifest_hash"] = manifest_hash
+                workers.pop(worker_id, None)
+        if len(workers) > self.maximum_workers:
+            raise ParallelRehearsalError("parallel root-worker ceiling exceeded")
+        return roots, workers
+
+    def _transition(
+        self,
+        event: Mapping[str, object],
+        *,
+        replay_result: Literal["claimed", "replay_complete"] | None = None,
+    ) -> Literal["claimed", "replay_complete"] | None:
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        event = {"phase": "claimed", "root_id": root_id, "worker_id": worker_id}
-        record = {"event_id": "sft2a-parallel:" + hash_canonical(event), **event}
-        payload = canonical_json_bytes(record) + b"\n"
         with self.path.open("a+b") as handle:
             fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
             try:
                 handle.seek(0)
-                prior = handle.read().splitlines()
-                events = [json.loads(line) for line in prior if line]
-                if not all(isinstance(item, dict) for item in events):
-                    raise ParallelRehearsalError("parallel root journal is malformed")
-                completed = {
-                    str(item["root_id"]) for item in events if item.get("phase") == "complete"
-                }
-                if root_id in completed:
-                    return "replay_complete"
-                active = {
-                    str(item["worker_id"]): str(item["root_id"])
-                    for item in events
-                    if item.get("phase") == "claimed" and str(item["root_id"]) not in completed
-                }
-                owners = [owner for owner, root in active.items() if root == root_id]
-                if owners and owners != [worker_id]:
+                prior = [json.loads(line) for line in handle.read().splitlines() if line]
+                roots, workers = self._validate(prior)
+                root_id = str(event["root_id"])
+                worker_id = str(event["worker_id"])
+                phase = event["phase"]
+                current = roots.get(root_id)
+                if phase == "claimed" and current is not None:
+                    if current.get("status") == "complete":
+                        return "replay_complete"
+                    if current.get("status") == "active" and current.get("owner") == worker_id:
+                        return "claimed"
+                    if current.get("status") == "crashed":
+                        raise ParallelRehearsalError("crashed root requires explicit reclaim")
                     raise ParallelRehearsalError("root is already claimed by another worker")
-                if worker_id not in active and len(active) >= self.maximum_workers:
-                    raise ParallelRehearsalError("parallel root-worker ceiling reached")
-                if payload.rstrip() not in prior:
-                    handle.seek(0, os.SEEK_END)
-                    handle.write(payload)
-                    handle.flush()
-                    os.fsync(handle.fileno())
-                return "claimed"
+                if phase == "claimed" and worker_id in workers:
+                    raise ParallelRehearsalError("worker already owns another unfinished root")
+                record = {"event_id": "sft2a-parallel:" + hash_canonical(event), **event}
+                if any(item.get("event_id") == record["event_id"] for item in prior):
+                    return replay_result
+                self._validate([*prior, record])
+                handle.seek(0, os.SEEK_END)
+                handle.write(canonical_json_bytes(record) + b"\n")
+                handle.flush()
+                os.fsync(handle.fileno())
+                return replay_result
             finally:
                 fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
 
+    def claim(self, *, root_id: str, worker_id: str) -> Literal["claimed", "replay_complete"]:
+        result = self._transition(
+            {"phase": "claimed", "root_id": root_id, "worker_id": worker_id},
+            replay_result="claimed",
+        )
+        assert result is not None
+        return result
+
     def checkpoint(self, *, root_id: str, worker_id: str, slot_id: str, artifact_hash: str) -> None:
-        _append_locked(
-            self.path,
+        self._transition(
             {
                 "phase": "slot_checkpoint",
                 "root_id": root_id,
                 "worker_id": worker_id,
                 "slot_id": slot_id,
                 "artifact_hash": artifact_hash,
-            },
+            }
+        )
+
+    def crash(self, *, root_id: str, worker_id: str, reason: str) -> None:
+        if not reason:
+            raise ParallelRehearsalError("root crash reason is empty")
+        self._transition(
+            {
+                "phase": "crashed",
+                "root_id": root_id,
+                "worker_id": worker_id,
+                "reason": reason,
+            }
+        )
+
+    def reclaim(self, *, root_id: str, prior_worker_id: str, worker_id: str) -> None:
+        self._transition(
+            {
+                "phase": "reclaimed",
+                "root_id": root_id,
+                "worker_id": worker_id,
+                "prior_owner": prior_worker_id,
+            }
         )
 
     def complete(self, *, root_id: str, worker_id: str, manifest_hash: str) -> None:
-        _append_locked(
-            self.path,
+        self._transition(
             {
                 "phase": "complete",
                 "root_id": root_id,
                 "worker_id": worker_id,
                 "manifest_hash": manifest_hash,
-            },
+            }
         )
+
+    def snapshot(self) -> dict[str, object]:
+        roots, workers = self._validate(_events(self.path))
+        return {"roots": roots, "unfinished_workers": workers}
+
+
+# Compatibility name for historical tests and callers; all behavior is the validated state machine.
+ParallelRootJournal = ParallelRootStateMachine
 
 
 def deterministic_parallel_compaction(
@@ -436,9 +713,11 @@ def prepare_parallel_rehearsal_path(loaded: LoadedSFT2AConfig) -> dict[str, obje
 
 
 __all__ = [
+    "AtomicBudgetedProvider",
     "AtomicProviderBudget",
     "ParallelRehearsalError",
     "ParallelRootJournal",
+    "ParallelRootStateMachine",
     "deterministic_parallel_compaction",
     "parallel_launch_lock",
     "prepare_parallel_rehearsal_path",

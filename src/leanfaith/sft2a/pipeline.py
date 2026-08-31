@@ -311,6 +311,7 @@ def run_one_root(
     cross_root_registry: CrossRootCandidateRegistry | None = None,
     mechanism_plan: Mapping[str, MechanismAssignment] | None = None,
     enforce_closure_canaries: bool = True,
+    certified_reference: SignatureOracleResult | None = None,
 ) -> OneRootResult:
     """Run or replay exactly the configured root and four independent candidate slots."""
 
@@ -358,11 +359,16 @@ def run_one_root(
         )
         if source_group_key in blocked_groups or raw_reference_hit:
             raise OneRootPipelineError("one-root reference matches the frozen gold blocklist")
-        reference = proposition_oracle.elaborate(
-            loaded.config.root.reference_signature,
-            endpoint_role="reference",
-        )
-        all_lean_results.append(reference)
+        if certified_reference is None:
+            reference = proposition_oracle.elaborate(
+                loaded.config.root.reference_signature,
+                endpoint_role="reference",
+            )
+            all_lean_results.append(reference)
+        else:
+            reference = certified_reference
+            if reference.cache_hit is not True:
+                raise OneRootPipelineError("certified reference must be a terminal cache hit")
         if reference.status != "valid" or reference.goal_v1 is None or reference.sidecar is None:
             raise OneRootPipelineError(
                 f"one-root reference failed proof-free elaboration: {reference.detail}"

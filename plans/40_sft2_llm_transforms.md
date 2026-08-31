@@ -1,11 +1,11 @@
 # SFT2A — LLM-generated semantic transformations
 
 > **Task ID:** SFT2A
-> **Status:** pilot_ready
-> **Owner/session:** Codex `/root` — 2026-08-31 SFT2A v5.2 reference-certification session
+> **Status:** active
+> **Owner/session:** Codex `/root` — 2026-08-31 SFT2A v5.2 provider-readiness correction session
 > **Last updated:** 2026-08-31
 > **Dependencies:** REPR `goal_v1.0`; shared rubric; roots may be selected independently of SFT1
-> **Next gate:** user authorization for only the provider-backed 100-root/400-slot rehearsal bound to certified sample `fb2f47f3fae9d8ac584989a2aaec64985a4ad1fa913303714ad267186d0b2bc6`
+> **Next gate:** complete the provider-free/Lean-free v5.2 executable-path correction and request a new exact authorization for only the corrected 100-root/400-slot rehearsal
 > **Compute class:** external LLM/API plus CPU/RAM for Lean; large run may need explicit budget approval
 > **Lean budget:** compile each novel candidate once through cached persistent workers
 > **Local staging root:** `/storage/milikic/leanfaith/value_first/sft2_llm_transforms_v1/`
@@ -557,3 +557,27 @@ recorded budget/model decision.
   check/format, strict Mypy, config verification, and diff checks pass. Terra, Opus, Kimi, the
   100-root rehearsal, 10K, 50K, legacy rejudging, publication, and training remain unexecuted and
   unauthorized.
+- 2026-08-31 — superseded the readiness-only v5.2 provider receipt without changing any completed
+  recovery-v3 certification byte. A model-facing audit found the single rendered ellipsis in
+  `Composition.orderEmbOfFin_boundaries`; the corrected additive track rejects `[anonymous]`, the
+  Unicode ellipsis, and ASCII ellipses, retains that declaration as a negative regression, and
+  deterministically replaces it from the already-certified initial Mathlib pool. The prior
+  readiness/config/sample remain immutable historical evidence and are explicitly recorded as
+  `superseded_not_authorized`. No provider or new Lean call was made.
+- 2026-08-31 — froze corrected certified sample
+  `23c80df14d4df72472891d99fb084af8a4cb7644ea173614fd941df11ce5a542` with replacement
+  `Filter.bliminf_inf_not` and unchanged source mix 42 Mathlib / 25 Physlib / 17 CSLib / 16
+  compiler-data. Applicability now comes from the certified closed Expr plus structured `goal_v1`:
+  binders are counted once, nested function arrows are not premises, and lambda `=>` is not an
+  equality/order token. All 13 discovered one-binder roots have zero two-binder assignments. The
+  100/100 terminal-cache replay and preflight executed zero Lean requests and zero provider calls.
+- 2026-08-31 — implemented the fail-closed v5.2 provider path against exactly the corrected
+  `certified_sample.jsonl`. Library references are admitted only when their cache key and raw Expr
+  payload prove qualified-name `ConstantInfo.type` lookup and all certified Expr/render/sidecar/
+  context hashes match; the incomplete source signature is never re-elaborated. Terra, Opus, and
+  Kimi share one atomic reserve/call/finalize ledger with reported Opus cost enforcement and
+  terminal-cache reconciliation. Root ownership is a validated state machine with explicit crash
+  and reclaim transitions, conflict-checked slot checkpoints, owner-only completion, one root per
+  worker, deterministic compaction, zero-call replay, audit-disagreement exclusion, and detached
+  two-worker/40-GiB launch/resume/health commands. The new authorization materializer is exact-text
+  and remains unexecuted; status stays `active` pending a new user sentence.

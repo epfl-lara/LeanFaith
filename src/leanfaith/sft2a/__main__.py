@@ -6,6 +6,7 @@ import argparse
 import json
 from pathlib import Path
 
+from leanfaith.config.hashing import hash_file
 from leanfaith.sft2a.activation import (
     activation_summary,
     load_pilot_activation,
@@ -31,6 +32,17 @@ from leanfaith.sft2a.parallel_rehearsal import prepare_parallel_rehearsal_path
 from leanfaith.sft2a.pilot import PilotError, prepare_pilot_sample, verify_pilot_replay
 from leanfaith.sft2a.pilot_audit import run_pilot_lemex_audit
 from leanfaith.sft2a.pipeline import run_lemex_audit, run_one_root, verify_one_root_replay
+from leanfaith.sft2a.provider_rehearsal_v52 import (
+    authorization_sentence_v52,
+    launch_provider_rehearsal_v52,
+    load_provider_authorization_v52,
+    load_provider_rehearsal_v52,
+    materialize_provider_authorization_v52,
+    preflight_provider_launch_v52,
+    prepare_provider_readiness_v52,
+    provider_rehearsal_health_v52,
+    run_detached_provider_rehearsal_v52,
+)
 from leanfaith.sft2a.readiness import load_pilot_readiness
 from leanfaith.sft2a.reference_certification import (
     launch_detached_reference_certification,
@@ -62,6 +74,8 @@ def main() -> int:
     parser.add_argument("--activation-plan", type=Path)
     parser.add_argument("--rehearsal-authorization", type=Path)
     parser.add_argument("--reference-certification-authorization", type=Path)
+    parser.add_argument("--provider-rehearsal-config", type=Path)
+    parser.add_argument("--provider-rehearsal-authorization", type=Path)
     subcommands = parser.add_subparsers(dest="command", required=True)
     subcommands.add_parser("verify-config")
     subcommands.add_parser("verify-pilot-readiness")
@@ -103,6 +117,15 @@ def main() -> int:
     subcommands.add_parser("reference-certification-health")
     subcommands.add_parser("detached-reference-certification-worker")
     subcommands.add_parser("prepare-parallel-rehearsal-path")
+    subcommands.add_parser("prepare-provider-readiness-v5-2")
+    subcommands.add_parser("preview-provider-authorization-v5-2")
+    provider_activation = subcommands.add_parser("materialize-provider-authorization-v5-2")
+    provider_activation.add_argument("--authorization-sentence", required=True)
+    subcommands.add_parser("preflight-provider-rehearsal-v5-2")
+    subcommands.add_parser("launch-provider-rehearsal-v5-2")
+    subcommands.add_parser("resume-provider-rehearsal-v5-2")
+    subcommands.add_parser("provider-rehearsal-v5-2-health")
+    subcommands.add_parser("detached-provider-rehearsal-v5-2-worker")
     arguments = parser.parse_args()
     loaded = load_sft2a_config(
         arguments.config,
@@ -163,6 +186,38 @@ def main() -> int:
     )
     if arguments.command in reference_commands and reference_authorization is None:
         parser.error("--reference-certification-authorization is required for this v5.2 command")
+    provider_commands = {
+        "prepare-provider-readiness-v5-2",
+        "preview-provider-authorization-v5-2",
+        "materialize-provider-authorization-v5-2",
+        "preflight-provider-rehearsal-v5-2",
+        "launch-provider-rehearsal-v5-2",
+        "resume-provider-rehearsal-v5-2",
+        "provider-rehearsal-v5-2-health",
+        "detached-provider-rehearsal-v5-2-worker",
+    }
+    provider_loaded = (
+        load_provider_rehearsal_v52(arguments.provider_rehearsal_config)
+        if arguments.command in provider_commands
+        and arguments.provider_rehearsal_config is not None
+        else None
+    )
+    if arguments.command in provider_commands and provider_loaded is None:
+        parser.error("--provider-rehearsal-config is required for this v5.2 command")
+    provider_authorized_commands = {
+        "launch-provider-rehearsal-v5-2",
+        "resume-provider-rehearsal-v5-2",
+        "detached-provider-rehearsal-v5-2-worker",
+    }
+    provider_authorization = (
+        load_provider_authorization_v52(provider_loaded, arguments.provider_rehearsal_authorization)
+        if provider_loaded is not None
+        and arguments.command in provider_authorized_commands
+        and arguments.provider_rehearsal_authorization is not None
+        else None
+    )
+    if arguments.command in provider_authorized_commands and provider_authorization is None:
+        parser.error("--provider-rehearsal-authorization is required for launch/worker commands")
     if arguments.command == "verify-config":
         result: object = {
             "config_hash": loaded.config_hash,
@@ -242,6 +297,39 @@ def main() -> int:
         result = run_detached_reference_certification_worker(loaded, reference_authorization)
     elif arguments.command == "prepare-parallel-rehearsal-path":
         result = prepare_parallel_rehearsal_path(loaded)
+    elif arguments.command == "prepare-provider-readiness-v5-2":
+        assert provider_loaded is not None
+        result = prepare_provider_readiness_v52(provider_loaded)
+    elif arguments.command == "preview-provider-authorization-v5-2":
+        assert provider_loaded is not None
+        readiness_path = provider_loaded.output_root / "readiness/provider_readiness.json"
+        result = {
+            "authorization_sentence": authorization_sentence_v52(
+                provider_loaded, hash_file(readiness_path)
+            ),
+            "readiness_sha256": hash_file(readiness_path),
+            "launch_started": False,
+        }
+    elif arguments.command == "materialize-provider-authorization-v5-2":
+        assert provider_loaded is not None
+        result = materialize_provider_authorization_v52(
+            provider_loaded, authorization_sentence=arguments.authorization_sentence
+        )
+    elif arguments.command == "preflight-provider-rehearsal-v5-2":
+        assert provider_loaded is not None
+        result = preflight_provider_launch_v52(provider_loaded, None)
+    elif arguments.command in {
+        "launch-provider-rehearsal-v5-2",
+        "resume-provider-rehearsal-v5-2",
+    }:
+        assert provider_loaded is not None and provider_authorization is not None
+        result = launch_provider_rehearsal_v52(provider_loaded, provider_authorization)
+    elif arguments.command == "provider-rehearsal-v5-2-health":
+        assert provider_loaded is not None
+        result = provider_rehearsal_health_v52(provider_loaded)
+    elif arguments.command == "detached-provider-rehearsal-v5-2-worker":
+        assert provider_loaded is not None and provider_authorization is not None
+        result = run_detached_provider_rehearsal_v52(provider_loaded, provider_authorization)
     elif arguments.command == "verify-replay":
         result = verify_one_root_replay(loaded)
     elif arguments.command == "run-lemex-audit":

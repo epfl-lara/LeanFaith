@@ -206,8 +206,11 @@ class CliStructuredProvider:
         )
         self.output_root = Path(loaded.config.staging_root) / "provider_calls" / pin.provider_id
 
-    def call(self, *, prompt: str, input_ids: Sequence[str]) -> ProviderCallResult:
-        verify_provider_binary(self.pin)
+    def preview_call(
+        self, *, prompt: str, input_ids: Sequence[str]
+    ) -> tuple[str, Path, dict[str, object]]:
+        """Return the immutable call identity without executing or verifying the CLI."""
+
         request_payload = {
             "version": "leanfaith_sft2a_provider_call_v1",
             "provider": self.pin.model_dump(mode="json"),
@@ -222,6 +225,13 @@ class CliStructuredProvider:
         call_key = hash_canonical(request_payload)
         call_dir = self.output_root / call_key[:2] / call_key
         terminal_path = call_dir / "terminal.json"
+        return call_key, terminal_path, request_payload
+
+    def call(self, *, prompt: str, input_ids: Sequence[str]) -> ProviderCallResult:
+        call_key, terminal_path, request_payload = self.preview_call(
+            prompt=prompt, input_ids=input_ids
+        )
+        call_dir = terminal_path.parent
         if terminal_path.exists():
             terminal = _strict_object(terminal_path.read_bytes(), label="provider terminal")
             if terminal.get("call_key") != call_key or terminal.get("request") != request_payload:
@@ -247,6 +257,8 @@ class CliStructuredProvider:
                 cache_hit=True,
                 terminal_path=terminal_path,
             )
+
+        verify_provider_binary(self.pin)
 
         call_dir.mkdir(parents=True, exist_ok=True)
         _atomic(call_dir / "request.json", canonical_json_bytes(request_payload) + b"\n")

@@ -242,6 +242,71 @@ def test_closed_expr_or_rendered_goal_self_pair_is_retried_before_judging(
     assert len(judge.calls) == 4
 
 
+def test_certified_reference_skips_source_signature_elaboration(tmp_path: Path) -> None:
+    loaded = _temporary_v5(tmp_path)
+    rotation = _rotation(loaded)
+    proposer = ScriptedProvider(
+        tmp_path,
+        loaded.config.proposer.provider_id,
+        [
+            _proposal(
+                slot.requested_polarity,
+                rotation[slot.slot_id].family,
+                f"CertifiedCandidate_{slot.slot_id}",
+            )
+            for slot in loaded.config.slots
+        ],
+    )
+    judge = ScriptedProvider(
+        tmp_path,
+        loaded.config.claude_judge.provider_id,
+        [
+            _judge(
+                "equivalent" if slot.requested_polarity == "preserving" else "non_equivalent",
+                (
+                    "The full closures are logically equivalent."
+                    if slot.requested_polarity == "preserving"
+                    else "The full closures express different mathematical claims."
+                ),
+            )
+            for slot in loaded.config.slots
+        ],
+    )
+    oracle = IdentityOracle(loaded, "none")
+    certified = SignatureOracleResult(
+        status="valid",
+        cache_key="certified-reference-cache",
+        cache_hit=True,
+        signature_sha256="1" * 64,
+        goal_v1=loaded.config.root.expected_reference_goal_v1,
+        sidecar={
+            "record": {
+                "goal_v1": loaded.config.root.expected_reference_goal_v1,
+                "provenance": {"expr_hash": "a" * 64},
+            }
+        },
+        lean_status="valid",
+        request_hash="2" * 64,
+        elapsed_ms=0,
+        raw_response_path="cached-reference.json",
+        detail="synthetic authoritative ConstantInfo.type cache hit",
+    )
+    result = run_one_root(
+        loaded,
+        proposer=proposer,
+        claude_judge=judge,
+        oracle=oracle,
+        mechanism_plan=rotation,
+        certified_reference=certified,
+    )
+    assert result.manifest["counts"]["accepted"] == 4  # type: ignore[index]
+    assert oracle.calls
+    assert all(role == "candidate" for _signature, role in oracle.calls)
+    assert loaded.config.root.reference_signature not in {
+        signature for signature, _role in oracle.calls
+    }
+
+
 def test_malformed_verdict_rationale_retries_once_but_disagreement_does_not(
     tmp_path: Path,
 ) -> None:

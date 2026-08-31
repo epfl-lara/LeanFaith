@@ -1,0 +1,11 @@
+{
+  "version": "leanfaith_sft2a_provider_readiness_supersession_v5_2",
+  "superseded_readiness_path": "configs/sft2a/parallel_rehearsal_readiness_v5_2.json",
+  "superseded_readiness_sha256": "5c0368529d42817c0bb0968e6f43483be0020a031a573001e16dccf34e2b135c",
+  "superseded_authorized": false,
+  "reason": "placeholder-bearing certified goal and unstructured mechanism applicability",
+  "historical_certification_evidence_immutable": true,
+  "replacement_config_path": "configs/sft2a/provider_rehearsal_v5_2_corrected.json",
+  "replacement_authorized": false,
+  "status": "superseded_not_authorized"
+}
