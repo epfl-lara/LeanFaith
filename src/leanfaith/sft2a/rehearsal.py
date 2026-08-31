@@ -18,7 +18,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import cast
 
-from leanfaith.config.hashing import canonical_json_bytes, hash_canonical, hash_file
+from leanfaith.config.hashing import canonical_json_bytes, hash_canonical, hash_file, sha256_hex
 from leanfaith.host_resources import claim_resources, release_resources
 from leanfaith.representations.views import signature_near_dup_hash
 from leanfaith.sft2a.budget import BudgetedProvider, PersistentProviderBudget
@@ -45,6 +45,16 @@ from leanfaith.sft2a.providers import (
 
 class RehearsalError(RuntimeError):
     """Authorization, execution, replay, compaction, audit, or detached launch failed."""
+
+
+_V5_AUTHORIZATION_SENTENCE = (
+    "I authorize SFT2A to launch only the 100-root/400-slot closure-aware v5 rehearsal bound to "
+    "sample f7d3e27d8361dcbdde245e5236902239b5ca505538a3ca35d5efb80c6e042c4c and config "
+    "ba77a49dd162b88e59bdf1fe5cd04687eeaa2affda314dc3b3b0e5cfa2cc16da under ceilings 2,480 "
+    "total provider calls, 1,200 Terra calls, 1,200 Opus calls, 80 Kimi calls, three candidate "
+    "attempts per slot, and $160 reported Opus spend; the approximately-10K gate, 50K run, "
+    "legacy rejudge, publication, and all other runs remain unauthorized."
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -125,9 +135,19 @@ def load_rehearsal_authorization(
         "config_hash": loaded.config_hash,
         "config_file_sha256": hash_file(loaded.path),
         "sample_sha256": sample["sample_sha256"],
+        "sample_manifest_sha256": hash_file(_output(loaded) / "sample_manifest.json"),
+        "census_manifest_sha256": hash_file(
+            Path(config.staging_root) / config.source_census.output_subdir / "manifest.json"
+        ),
+        "census_inventory_sha256": hash_file(
+            Path(config.staging_root) / config.source_census.output_subdir / "eligible_roots.jsonl"
+        ),
         "root_count": 100,
         "slot_count": 400,
+        "source_mix": sample["source_mix"],
         "ceilings": config.rehearsal.ceilings.model_dump(mode="json"),
+        "output_root": str(_output(loaded)),
+        "tmux_session": config.rehearsal.detached_launch.session_name,
         "legacy_rejudge_authorized": False,
         "scale_10k_authorized": False,
         "scale_50k_authorized": False,
@@ -145,6 +165,23 @@ def load_rehearsal_authorization(
         raise RehearsalError("rehearsal authorization state is malformed")
     if authorized != (status == "authorized_rehearsal"):
         raise RehearsalError("rehearsal authorization flag/status contradict")
+    if authorized:
+        readiness_path_value = document.get("readiness_receipt_path")
+        readiness_sha256 = document.get("readiness_receipt_sha256")
+        if readiness_path_value != "configs/sft2a/rehearsal_readiness_v5.json":
+            raise RehearsalError("authorized rehearsal readiness path differs")
+        readiness_path = loaded.repo_root / str(readiness_path_value)
+        if (
+            not isinstance(readiness_sha256, str)
+            or readiness_path.is_symlink()
+            or not readiness_path.is_file()
+            or hash_file(readiness_path) != readiness_sha256
+        ):
+            raise RehearsalError("authorized rehearsal readiness receipt differs")
+        if document.get("authorization_text") != _V5_AUTHORIZATION_SENTENCE or document.get(
+            "authorization_text_sha256"
+        ) != sha256_hex(_V5_AUTHORIZATION_SENTENCE.encode()):
+            raise RehearsalError("authorized rehearsal sentence differs")
     implementation_commit = document.get("implementation_commit")
     implementation_tree = document.get("implementation_tree")
     if (

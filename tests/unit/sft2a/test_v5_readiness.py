@@ -27,6 +27,7 @@ from leanfaith.sft2a.pipeline import run_one_root
 from leanfaith.sft2a.providers import ProviderCallResult, _codex_transport_schema
 from leanfaith.sft2a.readiness import implementation_identity
 from leanfaith.sft2a.rehearsal import (
+    _V5_AUTHORIZATION_SENTENCE,
     RehearsalError,
     exclude_audit_unknowns,
     load_rehearsal_authorization,
@@ -391,7 +392,7 @@ def _authorization_document(loaded: LoadedSFT2AConfig, *, authorized: bool) -> d
     sample = prepare_rehearsal_sample(loaded)
     assert isinstance(loaded.config, SFT2AV5Config)
     implementation = implementation_identity(loaded.repo_root, require_clean=False)
-    return {
+    document: dict[str, object] = {
         "version": "leanfaith_sft2a_rehearsal_authorization_v5",
         "status": "authorized_rehearsal" if authorized else "ready_not_authorized",
         "authorized": authorized,
@@ -399,17 +400,49 @@ def _authorization_document(loaded: LoadedSFT2AConfig, *, authorized: bool) -> d
         "config_hash": loaded.config_hash,
         "config_file_sha256": hash_file(loaded.path),
         "sample_sha256": sample["sample_sha256"],
+        "sample_manifest_sha256": hash_file(
+            Path(loaded.config.staging_root)
+            / loaded.config.rehearsal.output_subdir
+            / "sample_manifest.json"
+        ),
+        "census_manifest_sha256": hash_file(
+            Path(loaded.config.staging_root)
+            / loaded.config.source_census.output_subdir
+            / "manifest.json"
+        ),
+        "census_inventory_sha256": hash_file(
+            Path(loaded.config.staging_root)
+            / loaded.config.source_census.output_subdir
+            / "eligible_roots.jsonl"
+        ),
         "root_count": 100,
         "slot_count": 400,
+        "source_mix": sample["source_mix"],
         "ceilings": loaded.config.rehearsal.ceilings.model_dump(mode="json"),
         **implementation,
         "smoke_receipt_path": "configs/sft2a/closure_aware_v5.yaml",
         "smoke_receipt_sha256": hash_file(loaded.repo_root / "configs/sft2a/closure_aware_v5.yaml"),
+        "output_root": str(
+            Path(loaded.config.staging_root) / loaded.config.rehearsal.output_subdir
+        ),
+        "tmux_session": loaded.config.rehearsal.detached_launch.session_name,
         "legacy_rejudge_authorized": False,
         "scale_10k_authorized": False,
         "scale_50k_authorized": False,
         "publication_authorized": False,
     }
+    if authorized:
+        document.update(
+            {
+                "authorization_text": _V5_AUTHORIZATION_SENTENCE,
+                "authorization_text_sha256": sha256_hex(_V5_AUTHORIZATION_SENTENCE.encode()),
+                "readiness_receipt_path": "configs/sft2a/rehearsal_readiness_v5.json",
+                "readiness_receipt_sha256": hash_file(
+                    loaded.repo_root / "configs/sft2a/rehearsal_readiness_v5.json"
+                ),
+            }
+        )
+    return document
 
 
 def test_rehearsal_authorization_is_hash_bound_and_preflight_stops_at_tmux(
