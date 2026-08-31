@@ -674,3 +674,32 @@ Do not launch 50K sources without the pilot and user compute/model approval.
   quarantine, stronger fresh verification, additive v2 publication, a prepared-but-unlaunched
   two-shard consumer, and a separate extension admission report. No Lean, provider, scale-generation,
   generated-output publication, or training action is authorized.
+- 2026-08-31 — replaced the v1 library docstring lookup with a nesting-aware Lean block-comment
+  scanner that records only balanced top-level documentation comments outside attributes, strings,
+  and line comments while retaining an independent fail-closed `/-`/`-/` model-facing canary. An
+  exact frozen impact fixture replays all 92 corrupt v1 rows (54 Mathlib, 32 Physlib, 6 CSLib); all
+  92 now fail closed. Regression coverage also exercises ordinary intervening comments, nested
+  comments, attribute-internal docstrings, and physical line locators across multiline comments.
+  No Lean process was started.
+- 2026-08-31 — completed the full corrected source-only probe and its strengthened verifier. The
+  corrected pre-quarantine pool contains 54,906 rows; nesting-aware recovery increases legitimate
+  Mathlib rows while removing every corrupt delimiter-bearing row. The frozen Workbook heuristic
+  still finds exactly 293 selected rows: an audit quarantines 285 solution/answer-discourse rows in
+  an auxiliary full-row view and retains eight explicit prove-that claims/questions. The final core
+  has 54,621 rows (13,003 Mathlib, 482 Physlib, 330 CSLib, 8,043 Workbook, 10,136 current-human
+  Numina, 1,183 current-auto Numina, and 21,444 legacy-owner Numina), with an exact deterministic
+  50,000-row matched view and a disjoint 4,621-row tail. The semantic sidecar contains 992 unique
+  audit rows: exactly 100 deterministic rows for each of seven release classes plus every one of
+  the 293 Workbook hits. Maximum prompt length remains 967 tokens and the required model length is
+  5,063. Fresh verification replays every strict sidecar row, original headless signatures, closed
+  propositions, near hashes, problem identities, golden/existing-301 screens, prompt tokens, exact
+  matched selection, tail partition, schemas, and checksums.
+- 2026-08-31 — prepared but did not launch the gated two-shard full-source consumer. It freezes the
+  four slot/seed Cartesian product, content-addressed run/cell/cache identities, locked append-only
+  journals, duplicate suppression, deterministic complete-only compaction, resource-supervised
+  detached tmux construction, and durable startup-health evidence. Its checked-in status remains
+  `waiting_matched_500_report`; v2 input pins are filled only after additive publication, and actual
+  launch remains impossible until an exact passing matched-500 runtime/quality receipt plus later
+  scale authorization are recorded. The A100 host is not observable from this machine; Hub has no
+  output receipt yet, so the run was neither interrupted nor duplicated and the scale gate remains
+  closed.
