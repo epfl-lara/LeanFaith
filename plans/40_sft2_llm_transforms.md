@@ -1,11 +1,11 @@
 # SFT2A — LLM-generated semantic transformations
 
 > **Task ID:** SFT2A
-> **Status:** active
+> **Status:** pilot_ready
 > **Owner/session:** Codex `/root` — 2026-08-31 SFT2A v5.2 reference-certification session
 > **Last updated:** 2026-08-31
 > **Dependencies:** REPR `goal_v1.0`; shared rubric; roots may be selected independently of SFT1
-> **Next gate:** complete and verify the authorized local-only v5.2 100-root reference certificate; then request exact authorization for provider-backed rehearsal only
+> **Next gate:** user authorization for only the provider-backed 100-root/400-slot rehearsal bound to certified sample `fb2f47f3fae9d8ac584989a2aaec64985a4ad1fa913303714ad267186d0b2bc6`
 > **Compute class:** external LLM/API plus CPU/RAM for Lean; large run may need explicit budget approval
 > **Lean budget:** compile each novel candidate once through cached persistent workers
 > **Local staging root:** `/storage/milikic/leanfaith/value_first/sft2_llm_transforms_v1/`
@@ -533,3 +533,27 @@ recorded budget/model decision.
   `8ec78fd1823b17565c80ec0ffbf483e1d6907382a30d0500843237d640fdfd9b` and uses fresh output
   `runs/reference_certification_v5_2_recovery_v3` plus session
   `leanfaith-sft2a-v5-reference-certification-v3`. Authorization remains local certification only.
+- 2026-08-31 — completed local reference certification and the 100/100 global cache preflight in
+  recovery-v3. All 300 initial rows were terminal cache hits in the final replay-stable run, so it
+  executed zero Lean requests and zero provider calls; no extension block was needed. The exact
+  certified sample hash is `fb2f47f3fae9d8ac584989a2aaec64985a4ad1fa913303714ad267186d0b2bc6`
+  with source mix 42 Mathlib / 25 Physlib / 17 CSLib / 16 compiler-data, 100 unique closed-Expr
+  hashes, 100 unique rendered-goal hashes, and no gold contamination or placeholder. Manifest hash
+  `3bd706899630fb2c9d3dabdda22627242d9f3aa70273309e96ec06953f442be6`; 100/100 preflight hash
+  `eadcccc3b8df7a018319d4f71e95b46e50c790006eeae4551a6376b7c97579b5`.
+- 2026-08-31 — the fresh local certification measurements behind the shared terminal cache used
+  299 Lean requests plus the separately authorized canary, no more than one worker, and peaked at
+  7.08 GiB RSS. Per-source durable-event throughput was 7.71 Mathlib, 7.44 Physlib, 8.41 CSLib,
+  and 7.51 compiler-data rows/second; the complete detached attempt including project startup and
+  compaction was about 90 seconds. The canary succeeded by `loaded_constant_type` and exposed
+  `Label`, `State`, `s`, the `HasTau` instance, and `lts` in its certified goal.
+- 2026-08-31 — prepared but did not execute the bounded-parallel rehearsal path. Atomic provider
+  reservation/finalization, cross-worker deduplication, at-most-two worker claims, mid-root and
+  between-root resume, duplicate-launch refusal, deterministic compaction, planned-versus-accepted
+  mechanism reporting, and zero-call replay are executable and tested. Repository readiness
+  receipt `configs/sft2a/parallel_rehearsal_readiness_v5_2.json` has hash
+  `5c0368529d42817c0bb0968e6f43483be0020a031a573001e16dccf34e2b135c`, binds runner commit
+  `e9cee4a` (tree `8c77961`), and remains `authorized: false`. All 46 SFT2A unit tests, Ruff
+  check/format, strict Mypy, config verification, and diff checks pass. Terra, Opus, Kimi, the
+  100-root rehearsal, 10K, 50K, legacy rejudging, publication, and training remain unexecuted and
+  unauthorized.
