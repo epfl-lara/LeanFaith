@@ -1,13 +1,13 @@
 # SFT2B — autoformalization consistency data
 
 > **Task ID:** SFT2B
-> **Status:** active
+> **Status:** waiting_user
 > **Owner/session:** Codex `/root` — 2026-08-31 source correction v2 and extension audit
 > **Last updated:** 2026-08-31
 > **Dependencies:** REPR `goal_v1.0`; source-quality audit and frozen consistency/voting prompts
-> **Next gate:** publish and fresh-verify an additive corrected private v2 source bundle, report the
-> still-running matched-500 runtime/quality evidence without interrupting it, and leave the
-> full-source consumer prepared but unlaunched pending that report
+> **Next gate:** obtain the matched-500 runtime/quality receipt, review it with the user, and record
+> a separate explicit scale decision before authorizing either corrected-core or legacy-tail
+> generation; the pinned full-source consumer remains fail-closed until then
 > **Compute class:** source-freeze work is Lean/GPU-free; downstream inference uses eight
 > A100-SXM4-80GB GPUs at DP=4/TP=2
 > **Lean budget:** compile each novel formalization candidate once through persistent cached workers
@@ -703,3 +703,33 @@ Do not launch 50K sources without the pilot and user compute/model approval.
   scale authorization are recorded. The A100 host is not observable from this machine; Hub has no
   output receipt yet, so the run was neither interrupted nor duplicated and the scale gate remains
   closed.
+- 2026-08-31 — published the corrected source-only bundle additively under
+  `source_inputs/reform_diverse_full_v2/` in private dataset
+  `Lemmy00/leanfaith-sft2-autoformalizer-v1` at immutable revision
+  `d0b961d2112d186009984242db674f2ad59905c7`. All 11 files were rebuilt against pushed Git commit
+  `637ee92`, verified from a separate clean directory before upload, force-downloaded from the exact
+  Hub revision, and fully replayed afterward. `sources.jsonl` is
+  `1e53fd731822d3c69e1395f934f1849257a3565517a09c38a50f7e3589a851c7`, the exact 50K view is
+  `49a0cee8a90e048eb7f9b1c18b7e6cb85e0bff3dbe7dfa70d8dde1865d3ae4ab`, the ordered 4,621-row tail
+  is `7eecf134f734ea9275a30b03fb7c230824406a085d1394dcfbd17df2de4aba64`, and `SHA256SUMS` is
+  `34554e7c6f39427ce230153ba8f04e83f5b1fd0b500e1847bd8dbbd502d8c608`. Superseded revision
+  `88d768355b87a678be5fb37c5e677812f2614015` still resolves with its original six v1 files and
+  original `SHA256SUMS` hash `2eb3d08ec1c37fee54847541ebdd07eb377fdc8853dcda1910cc295b0f293c5d`.
+- 2026-08-31 — pinned the full-source consumer to the immutable corrected Hub revision and replayed
+  both downloaded ID views without launching anything. Core preflight expands exactly 50,000
+  sources to 200,000 four-slot cells with run ID
+  `sft2b_full_reform_run:35f665ea7bfa8b61a8c61726cb97bd7d6899acfc9e524895b6c74d87b0c159fb`;
+  tail preflight expands 4,621 sources to 18,484 cells with run ID
+  `sft2b_full_reform_run:9ff78e7ab94ef0769397872c0991f6e670c1c822f40c39313ebc3cbc91f51533`.
+  Both receipts report `launch_authorized=false` and `waiting_matched_500_report`; no tmux session,
+  resource claim, GPU process, or generation call was created.
+- 2026-08-31 — completed the separate, non-admitting extension report at
+  `configs/sft2b/source_extension_admission_v1.json`. Lean-free current-release/benchmark screens
+  find 141,733 priority-incremental generated-dataset candidates (135,453 Mathlib-informal, 3,894
+  Herald after Mathlib dedup, 2,055 AgenticCommons, and 331 formal-mathfin) plus 1,260 conditional
+  library candidates (455 PhysLean, 331 Stdlib, 314 FormalConjectures, 53 Batteries, 47 FLT, 45
+  Equational Theories, 13 CvxLean, and 2 SciLean). Every family has a deterministic 100-row audit,
+  or every surviving row when fewer than 100 exist. None is admitted: generated-NL faithfulness,
+  explicit benchmark normalization, exact source/context recovery, multi-claim projection, and
+  bounded kernel axiom checks remain family-specific gates; ProofNet/ShadowBench and by-sorry-only
+  references stay excluded.

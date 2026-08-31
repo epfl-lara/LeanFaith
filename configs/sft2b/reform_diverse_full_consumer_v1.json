@@ -5,28 +5,28 @@
     "repo_id": "Lemmy00/leanfaith-sft2-autoformalizer-v1",
     "repo_type": "dataset",
     "private_required": true,
-    "revision": null,
+    "revision": "d0b961d2112d186009984242db674f2ad59905c7",
     "path_prefix": "source_inputs/reform_diverse_full_v2",
     "files": [
-      {"path": "SHA256SUMS", "sha256": null},
-      {"path": "sources.jsonl", "sha256": null},
-      {"path": "source_manifest.json", "sha256": null},
-      {"path": "matched_50000_source_ids.json", "sha256": null},
-      {"path": "legacy_tail_source_ids.json", "sha256": null}
+      {"path": "SHA256SUMS", "sha256": "34554e7c6f39427ce230153ba8f04e83f5b1fd0b500e1847bd8dbbd502d8c608"},
+      {"path": "sources.jsonl", "sha256": "1e53fd731822d3c69e1395f934f1849257a3565517a09c38a50f7e3589a851c7"},
+      {"path": "source_manifest.json", "sha256": "c44b9edd3515f7e1ba03dee902c55fcfa5b8be378a732a3e7c7f101fd5250d53"},
+      {"path": "matched_50000_source_ids.json", "sha256": "49a0cee8a90e048eb7f9b1c18b7e6cb85e0bff3dbe7dfa70d8dde1865d3ae4ab"},
+      {"path": "legacy_tail_source_ids.json", "sha256": "7eecf134f734ea9275a30b03fb7c230824406a085d1394dcfbd17df2de4aba64"}
     ],
-    "expected_source_rows": null,
+    "expected_source_rows": 54621,
     "shards": [
       {
         "shard_id": "corrected_core_50000",
         "id_view_path": "matched_50000_source_ids.json",
-        "id_view_sha256": null,
+        "id_view_sha256": "49a0cee8a90e048eb7f9b1c18b7e6cb85e0bff3dbe7dfa70d8dde1865d3ae4ab",
         "expected_rows": 50000
       },
       {
         "shard_id": "legacy_tail",
         "id_view_path": "legacy_tail_source_ids.json",
-        "id_view_sha256": null,
-        "expected_rows": null
+        "id_view_sha256": "7eecf134f734ea9275a30b03fb7c230824406a085d1394dcfbd17df2de4aba64",
+        "expected_rows": 4621
       }
     ]
   },
@@ -54,11 +54,11 @@
   },
   "executor": {"argv": null},
   "runtime": {
-    "cache_root": "/storage/milikic/leanfaith/value_first/sft2_autoformalizer_v1/cache/full_source_v1",
-    "run_root": "/storage/milikic/leanfaith/value_first/sft2_autoformalizer_v1/runs/reform_diverse_full_v1",
+    "cache_root": "/storage/milikic/leanfaith/value_first/sft2_autoformalizer_v1/cache/reform_diverse_full_v2",
+    "run_root": "/storage/milikic/leanfaith/value_first/sft2_autoformalizer_v1/runs/reform_diverse_full_v2",
     "reservation_root": "/storage/milikic/leanfaith/value_first/host_reservations",
     "reservation_task": "SFT2B",
-    "tmux_session_prefix": "leanfaith-sft2b-full-v1",
+    "tmux_session_prefix": "leanfaith-sft2b-full-v2",
     "startup_health_timeout_seconds": 120,
     "owner_session": "Codex /root SFT2B corrected full-source consumer"
   }

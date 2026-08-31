@@ -1,0 +1,266 @@
+{
+  "schema_version": "sft2b_source_extension_admission_report_v1",
+  "status": "audit_only_not_admitted",
+  "audit_date": "2026-08-31",
+  "active_run_merge": false,
+  "lean_compilation_performed": false,
+  "provider_labeling_performed": false,
+  "publication_performed": false,
+  "screening_baseline": {
+    "release": "source_inputs/reform_diverse_full_v1",
+    "hf_revision": "88d768355b87a678be5fb37c5e677812f2614015",
+    "sources_sha256": "c012fe688f01e36a0a7a76ffe2e4a0b2f0090ed3d7a0919c27fab6c93b673564",
+    "rows": 54455,
+    "golden_blocklist_sha256": "8e4af6a9e47fb06d281169cdaddb01c5c66c1b0d150f2df9c9283ecb587117f7",
+    "canonical_golden_sha256": "5f26c9b1b126e8bc9fe714f3c17fe68ad1d9b3aac60b19d80fdb4993ac8ed4e1",
+    "screens": [
+      "exact proposition",
+      "normalized natural language",
+      "near-signature hash",
+      "problem identity",
+      "benchmark-family marker",
+      "within-family deduplication",
+      "priority-ordered cross-family deduplication"
+    ],
+    "blanket_exclusions": [
+      "ProofNet",
+      "ProofNetVerif",
+      "ProofNetSharp",
+      "ProofNet#",
+      "ShadowBench",
+      "MiniF2F/MathD/AIME/AMC/IMO benchmark-family identifiers",
+      "by-sorry-only references"
+    ],
+    "replay_against_corrected_v2_required_before_admission": true
+  },
+  "generated_dataset_candidates": {
+    "raw_rows": 265614,
+    "mechanically_net_new_rows": 165580,
+    "priority_incremental_rows": 141733,
+    "families": [
+      {
+        "family": "FrenzyMath/mathlib_informal_v4.19.0",
+        "hf_revision": "78f48e12b8ed5f0b72867419aca31f78d3821ebd",
+        "data_sha256": "2081704cb726d0f92349c57eaecb07612f9605294b61fc6be63097e93ab25ad9",
+        "license": "Apache-2.0",
+        "raw_rows": 218071,
+        "mechanically_net_new_rows": 135453,
+        "priority_incremental_rows": 135453,
+        "upstream_revision": "mathlib-v4.19.0:c44e0c8ee63ca166450922a373c7409c5d26b00b",
+        "domain_style_gains": {
+          "style": "machine-generated informal explanations paired with real Mathlib theorem proofs",
+          "largest_domains": {
+            "Algebra": 22637,
+            "Data": 19514,
+            "Analysis": 14607,
+            "Topology": 11843,
+            "Order": 11398,
+            "RingTheory": 8611,
+            "CategoryTheory": 8327,
+            "MeasureTheory": 7164
+          }
+        },
+        "trust_tier": "conditional_generated_nl_real_mathlib_reference",
+        "proof_sorry_axiom_status": "144577 Mathlib-root theorem values; no visible sorry, admit, or axiom declaration after comment/string masking",
+        "context_recoverability": "module path present, but dataset card does not cryptographically bind v4.19.0 to the inferred official Mathlib tag",
+        "semantic_alignment_audit": {
+          "selection": "deterministic_100",
+          "audited_rows": 100,
+          "clear": 99,
+          "defects": 1,
+          "defect_summary": "Fin.image_succ_uIoo explanatory NL states the wrong ambient Fin domain"
+        },
+        "admission_decision": "defer_bulk; consider a lower-trust auxiliary tier only after stronger semantic screening"
+      },
+      {
+        "family": "FrenzyMath/Herald_proofs",
+        "hf_revision": "2d31b459df74d730bff85682de237d894b4eecfa",
+        "data_sha256": "4b60fe33b7818d21d4d8e880adf3f9704fd1b5f5553eb3a03fc36bc8db9d5c29",
+        "license": "Apache-2.0",
+        "raw_rows": 44553,
+        "mechanically_net_new_rows": 27740,
+        "priority_incremental_rows": 3894,
+        "upstream_revision": "lean_test_v4110:25a1d0527272e24bc88f0aec08db74e69b5db4b3; mathlib:20c73142afa995ac9c8fb80a9bb585a55ca38308",
+        "toolchain": "Lean 4.11.0",
+        "domain_style_gains": "generated explanatory NL for List, Nat, Int, BitVec, Bool, MeasureTheory, Matroid, and Batteries",
+        "trust_tier": "conditional_generated_nl_complete_formal_proof",
+        "proof_sorry_axiom_status": "formal_theorem is placeholder-bearing and forbidden; complete formal_proof is present with no visible holes",
+        "context_recoverability": "exclude 14334 Unable-to-analyze headers; replay signature plus formal_proof in the pinned linked environment",
+        "semantic_alignment_audit": {
+          "selection": "deterministic_100_after_nested_let_parser_fix",
+          "audited_rows": 100,
+          "clear": 100,
+          "defects": 0
+        },
+        "admission_decision": "conditional_generated_nl_tier; only 3894 rows are incremental after Mathlib-informal priority dedup"
+      },
+      {
+        "family": "AgenticCommons/formal-math-autoformalization",
+        "hf_revision": "723af4760cff47c8ba03a5e502ee53149adf341e",
+        "data_sha256": "a5249cf606e7dd67b098f1daaa4c6ce0dc3b4a4a41aa565b1e299c14de9dcbf1",
+        "license": "CC0-1.0",
+        "raw_rows": 2621,
+        "mechanically_net_new_rows": 2056,
+        "priority_incremental_rows": 2055,
+        "toolchain": "Lean 4.30.0; Mathlib c5ea00351c28e24afc9f0f84379aa41082b1188f",
+        "domain_style_gains": "diverse generated autoformalization pairs with compile and independent NLI metadata",
+        "trust_tier": "conditional_compile_and_nli_pass_generated_pair",
+        "proof_sorry_axiom_status": "all rows claim compile+nli-pass; no visible holes or nonstandard listed axioms",
+        "context_recoverability": "retain every row-specific preamble and definition from lean4_statement; import Mathlib alone is insufficient",
+        "benchmark_screen": "removed 102 explicit MiniF2F/MathD/AIME/AMC/IMO-family rows and 13 stable Lean-Workbook-name overlaps",
+        "semantic_alignment_audit": {
+          "selection": "deterministic_100_after_benchmark_normalization",
+          "audited_rows": 100,
+          "clear": 94,
+          "scope_mismatches": 4,
+          "malformed_nl": 2,
+          "defect_summary": "dropped continuity, omitted completeness, added nonempty assumption, one-way NL versus iff, and two malformed statements"
+        },
+        "admission_decision": "conditional; require SFT2B semantic review despite upstream NLI pass"
+      },
+      {
+        "family": "formal-applied-math/formal-mathfin-theorems",
+        "hf_revision": "53383b12d8b7b5a2c4e52c04de3fabccaeeefa6a",
+        "data_sha256": "91b27a986608a7e346113134fbddc552987b57b3b6d93c050f2fb5bcba3e74ab",
+        "license": "Apache-2.0",
+        "raw_rows": 369,
+        "mechanically_net_new_rows": 331,
+        "priority_incremental_rows": 331,
+        "upstream_revision": "784a8311f75a1519a23717856df9982bd6a9a370",
+        "toolchain": "Lean 4.32.0; Mathlib 81a5d257c8e410db227a6665ed08f64fea08e997; BrownianMotion 4d52fa776130a29d4ad7d6eda2035a919c0b4696",
+        "domain_style_gains": "254 mathematical-finance and 46 stochastic-calculus rows plus martingales, Brownian motion, Poisson processes, stopping times, SDEs, and Markov chains",
+        "trust_tier": "conditional_specialist_exact_claim_projection",
+        "proof_sorry_axiom_status": "no visible holes or axiom declarations; project reports the standard three axioms",
+        "context_recoverability": "320 full plus 11 library_wrapper candidates; split six multi-declaration rows and project descriptions to one exact claim",
+        "quality_screen": "excluded 13 reduced_core, 10 non-theorem, and 15 weak-NL rows; 41 candidates still contain proof/delivery/meta discourse",
+        "semantic_alignment_audit": {
+          "selection": "deterministic_100",
+          "audited_rows": 100,
+          "clear": 97,
+          "claim_mismatches": 3,
+          "defect_summary": "credit spread versus hazard derivative, three-result NL versus one declaration, and derivative-duration NL versus algebraic identity"
+        },
+        "admission_decision": "highest-value specialist candidate; condition on exact single-claim projection and keep library_wrapper separate"
+      }
+    ]
+  },
+  "library_docstring_candidates": {
+    "net_new_rows": 1260,
+    "families": [
+      {
+        "family": "PhysLean",
+        "hf_revision": "bdc13b4e5051ce950426062136efbf3ba503e311",
+        "upstream_revision": "01143d7c9702318879b3c86bd9eadcdc60a13cc3",
+        "toolchain": "Lean 4.30.0; Mathlib c5ea00351c28e24afc9f0f84379aa41082b1188f",
+        "license": "Apache-2.0",
+        "net_new_rows": 455,
+        "domain_style_gains": "particle physics, QFT, relativity, quantum information, thermodynamics, and specialist analysis",
+        "trust_tier": "B+ conditional",
+        "proof_sorry_axiom_status": "static-clean after placeholder/dependency screen; kernel axiom report still required",
+        "context_recoverability": "exact source re-extraction required; catalog signatures and active contexts are insufficient",
+        "semantic_alignment_audit": {"audited_rows": 100, "clear": 96, "context_weak": 4},
+        "admission_decision": "highest-priority library extension after exact recovery"
+      },
+      {
+        "family": "Stdlib",
+        "hf_revision": "e64c08ae8e52aba14065a1bdb43c2d7f1880000a",
+        "upstream_revision": "d265d1ca745e7741a7e7f7366c22ce9c9dda57b6",
+        "toolchain": "exact Lean source-tree build/release/stage1",
+        "license": "Apache-2.0",
+        "net_new_rows": 331,
+        "domain_style_gains": "bitvectors, SAT/AIG, hash maps, tree maps, parsers, runtime, and weakest preconditions",
+        "trust_tier": "B conditional",
+        "proof_sorry_axiom_status": "static-clean sample; exact self-built kernel environment required",
+        "context_recoverability": "hard: rebuild exact Lean source tree and re-extract nested signatures from source",
+        "semantic_alignment_audit": {"audited_rows": 100, "clear": 85, "weak_or_metadata": 15, "contradictions": 0},
+        "admission_decision": "valuable but operationally expensive"
+      },
+      {
+        "family": "FormalConjectures",
+        "hf_revision": "14a2974933546cd0b068ca6825643f6e7e4db9f6",
+        "upstream_revision": "b9b8aa0fd6170e482798f7c78c163acacd40e083",
+        "toolchain": "Lean 4.27.0; Mathlib a3a10db0e9d66acbebf76c5e6a135066525ac900",
+        "license": "Apache-2.0",
+        "net_new_rows": 314,
+        "domain_style_gains": "number theory, graph theory, OEIS, combinatorics, and quantum topics",
+        "trust_tier": "C conditional",
+        "proof_sorry_axiom_status": "about 2199 direct placeholder-bearing declarations; candidates require individual source recovery and axiom-clean proof",
+        "context_recoverability": "exact checkout re-extraction and kernel axiom report required",
+        "semantic_alignment_audit": {"audited_rows": 100, "clear": 98, "weak": 2, "solution_discourse_hits": 17},
+        "admission_decision": "do not admit as a family; individually recover solved axiom-clean declarations only"
+      },
+      {
+        "family": "Batteries",
+        "hf_revision": "3a02916eaf41bcaa55dfea52adc59cf2a0c70238",
+        "upstream_revision": "41680f5d84023c7406c841d08ef83bf15a9782a6",
+        "toolchain": "Lean 4.31.0-rc1",
+        "license": "Apache-2.0",
+        "net_new_rows": 53,
+        "domain_style_gains": "red-black trees, monads, lists, and runtime infrastructure",
+        "trust_tier": "B+ conditional",
+        "proof_sorry_axiom_status": "53 static-clean candidates",
+        "context_recoverability": "exact source checkout and module-context recovery required",
+        "semantic_alignment_audit": {"audited_rows": 53, "clear": 53, "note": "all available rows audited"},
+        "admission_decision": "high-priority small library extension"
+      },
+      {
+        "family": "FLT",
+        "hf_revision": "df47f7586be535b1c3919647b98dddaafe8f4b9c",
+        "upstream_revision": "6cffefeb368ca4cfabc907f86f96783a49ae4033",
+        "toolchain": "Lean 4.31.0-rc1; Mathlib 89ce8bf5e2ab371b9bd480b4af18d843805f876b",
+        "license": "Apache-2.0",
+        "net_new_rows": 47,
+        "domain_style_gains": "algebraic number theory, adeles, valuations, Haar measure, and automorphic forms",
+        "trust_tier": "C pending kernel axiom report",
+        "proof_sorry_axiom_status": "headline area contains knownin1980s, Mazur_statement, Odlyzko_statement, and sorryAx evidence; headline excluded",
+        "context_recoverability": "admit auxiliary lemmas only after exact source extraction and per-declaration axiom evidence",
+        "semantic_alignment_audit": {"audited_rows": 47, "clear": 47, "note": "all available rows audited"},
+        "admission_decision": "conditional auxiliary lemmas only"
+      },
+      {
+        "family": "Equational Theories",
+        "hf_revision": "c17c42c4ca81b3d9a0ac31068f40b5f459fab5a3",
+        "upstream_revision": "3f3999d958c5e289c7f5a063479af9dac122a7a8",
+        "toolchain": "Lean 4.29.1; Mathlib 5e932f97dd25535344f80f9dd8da3aab83df0fe6",
+        "license": "Apache-2.0",
+        "net_new_rows": 45,
+        "domain_style_gains": "universal algebra, magma laws, finite models, and definability",
+        "trust_tier": "C+ conditional",
+        "proof_sorry_axiom_status": "Conjecture.conjectureAx exists; statically tainted rows removed but kernel confirmation remains mandatory",
+        "context_recoverability": "nested signatures are truncated in the catalog; exact source re-extraction required",
+        "semantic_alignment_audit": {"audited_rows": 45, "clear": 43, "metadata_mismatch": 1, "context_weak": 1},
+        "admission_decision": "conditional after source recovery and axiom screening"
+      },
+      {
+        "family": "CvxLean",
+        "hf_revision": "3c7f0bcf67799204ff83b3aa59d78451f5808bcc",
+        "upstream_revision": "c62c2f292c6420f31a12e738ebebdfed50f6f840",
+        "toolchain": "Lean 4.8.0-rc1; Mathlib efad919b6687484ee26ac7c65a29c972d2112b8d",
+        "license": "Apache-2.0",
+        "net_new_rows": 13,
+        "domain_style_gains": "convex optimization, cones, matrices, and relaxations",
+        "trust_tier": "B conditional",
+        "proof_sorry_axiom_status": "13 static-clean candidates",
+        "context_recoverability": "exact local checkout exists; isolate old Lean 4.8 context",
+        "semantic_alignment_audit": {"audited_rows": 13, "clear": 13, "note": "all available rows audited"},
+        "admission_decision": "small but uniquely valuable after exact recovery"
+      },
+      {
+        "family": "SciLean",
+        "hf_revision": "b6f175421228b0fb0bcc982db82614e2b2e293ab",
+        "upstream_revision": "95f8119a2884e9c41f82136523bd5568ea7075c5",
+        "toolchain": "Lean 4.28.0-rc1; Mathlib 5352afccd6866369be9de43f5b7ec47203555f44",
+        "license": "Apache-2.0",
+        "net_new_rows": 2,
+        "domain_style_gains": "scientific computing and optimization",
+        "trust_tier": "D defer",
+        "proof_sorry_axiom_status": "pervasive placeholders plus realFloatEquiv, sorryProofAxiom, and sorryDataAxiom",
+        "context_recoverability": "exact local checkout exists, but contamination risk dominates",
+        "semantic_alignment_audit": {"audited_rows": 2, "clear": 2, "note": "all available rows audited"},
+        "admission_decision": "defer"
+      }
+    ]
+  },
+  "catalog_extraction_warning": "phanerozoic statements can truncate at nested :=, let, letI, match-with, or have, and omit active namespace/open/scoped/options context; never promote catalog text directly as a trusted reference",
+  "next_gate": "re-extract exact signatures from pinned source checkouts, recover executable contexts, replay corrected-v2 and benchmark deduplication, then use persistent bounded Lean workers for only the surviving oracle audit"
+}

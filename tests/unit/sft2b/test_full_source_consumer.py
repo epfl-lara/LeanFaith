@@ -21,6 +21,7 @@ from leanfaith.sft2b.full_source_consumer import (
     compact_completed,
     load_consumer_spec,
     terminal_cache_path,
+    verify_matched_500_gate,
     verify_source_views,
     write_cached_terminal,
 )
@@ -153,19 +154,17 @@ def _pinned_fixture(
     return spec, bundle, rows
 
 
-def test_checked_in_config_is_strictly_waiting_and_cannot_build_launch(tmp_path: Path) -> None:
-    spec, config_hash = load_consumer_spec(_CONFIG)
+def test_checked_in_config_is_pinned_but_strictly_waiting() -> None:
+    spec, _ = load_consumer_spec(_CONFIG)
 
     assert spec.status == "waiting_matched_500_report"
-    assert spec.input.revision is None
+    assert spec.input.revision == "d0b961d2112d186009984242db674f2ad59905c7"
+    assert spec.input.expected_source_rows == 54621
+    assert spec.input.shards[0].expected_rows == 50000
+    assert spec.input.shards[1].expected_rows == 4621
     assert spec.matched_500_gate.decision == "pending"
-    with pytest.raises(FullSourceConsumerError, match="still pending"):
-        build_run_plan(
-            spec,
-            config_sha256=config_hash,
-            shard_id=CORE_SHARD,
-            source_ids=(),
-        )
+    with pytest.raises(FullSourceConsumerError, match="not scale_authorized"):
+        verify_matched_500_gate(_REPO_ROOT, spec)
 
 
 def test_source_views_are_disjoint_ordered_and_cover_release(tmp_path: Path) -> None:
@@ -309,6 +308,6 @@ def test_launch_command_requires_exact_passing_receipt_before_tmux(tmp_path: Pat
     )
 
     assert launch.command[:3] == ("tmux", "new-session", "-d")
-    assert launch.session_name.startswith("leanfaith-sft2b-full-v1-corrected_core_50000-")
+    assert launch.session_name.startswith("leanfaith-sft2b-full-v2-corrected_core_50000-")
     assert "leanfaith.sft2b.full_source_consumer supervise" in launch.command[-1]
     assert launch.log_path.name == "consumer.log"
