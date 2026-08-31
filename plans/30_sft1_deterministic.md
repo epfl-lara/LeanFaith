@@ -1,7 +1,7 @@
 # SFT1 — deterministic theorem-equivalence data at scale
 
 > **Task ID:** SFT1
-> **Status:** active
+> **Status:** blocked
 > **Owner/session:** Codex `/root` — 2026-08-31 SFT1 two-row thin-smoke session
 > **Last updated:** 2026-08-31
 > **Active policy:** additive, smoke-only implementation from accepted commit
@@ -29,11 +29,13 @@
 > fail-closed without blocking it.
 > **REPR predecessor:** `cbc933c3623d81ba649a1f9c5107ad404389d69f` was reviewed but is
 > superseded and not consumable by SFT1
-> **Next gate:** stop after exactly two local smoke rows and their live/cached replay evidence. No
-> census, Wave 1 gate, additional root, production row, 10K run, scale, training, or publication is
-> authorized.
-> **Compute class:** zero Lean for current policy/loader work; the completed representation gate used
-> one bounded persistent project/toolchain Meta worker at a time
+> **Next gate:** resume the already committed two-row command only after the existing shared
+> 2-worker/40-GiB reservation releases. Stop after exactly two local smoke rows and their live/cached
+> replay evidence. No census, Wave 1 gate, additional root, production row, 10K run, scale,
+> training, or publication is authorized.
+> **Compute class:** one bounded persistent Mathlib Meta worker is authorized for the thin smoke but
+> could not be claimed before the two-hour stop; the completed representation gate used one bounded
+> persistent project/toolchain Meta worker at a time
 > **Lean budget:** one claimed persistent Mathlib worker, `Elab.async=false`, two rows total, no
 > per-row process spawn, and release the claim after live and cache replay
 > **Local staging root:** `/storage/milikic/leanfaith/value_first/sft1_deterministic_v1/`
@@ -1291,3 +1293,14 @@ work. End with the exact user decision needed.
   bottleneck: one persistent claimed Mathlib worker will serve both rows, and cache replay must add
   zero requests. No census, P01, generalized N31 bank, Wave 1 gate, extra root, production, 10K,
   scale, training, or publication is authorized.
+- 2026-08-31 — the thin implementation was committed and pushed at
+  `142c7480ea1c6879b146b3084178ca7244d1c095` (tree
+  `c114598733c78d48857ebb9062235c8c9bf5a859`) after 16 focused tests passed with one live-evidence
+  skip, plus strict typing, lint, formatting, bytecode, config-loader, and plan checks. Two
+  independent read-only audits found no definite Lean, REPR, cache, or replay blocker. The live
+  command was attempted only through its resource claim and stopped before backend construction:
+  `SFT2A-V5-2-REHEARSAL-CORRECTED-V4` still owned 2 workers/40 GiB, so the atomic ledger rejected a
+  requested total of 3 workers against the cap of 2. At the two-hour cutoff that healthy external
+  run had completed 51/100 roots. SFT1 made zero Lean requests, created no staging/evidence path,
+  emitted zero rows, and took no reservation. Status is `blocked` only on release of that external
+  capacity; the smallest resume is the already committed one-command smoke, with no redesign.
