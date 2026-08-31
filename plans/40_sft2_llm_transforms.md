@@ -1,11 +1,11 @@
 # SFT2A — LLM-generated semantic transformations
 
 > **Task ID:** SFT2A
-> **Status:** active
+> **Status:** pilot_ready
 > **Owner/session:** Codex `/root` — 2026-08-31 SFT2A v5 session
 > **Last updated:** 2026-08-31
 > **Dependencies:** REPR `goal_v1.0`; shared rubric; roots may be selected independently of SFT1
-> **Next gate:** complete, replay, and audit only the authorized 100-root/400-slot v5 rehearsal
+> **Next gate:** exact user authorization for only the corrected 100-root/400-slot v5.1 rehearsal
 > **Compute class:** external LLM/API plus CPU/RAM for Lean; large run may need explicit budget approval
 > **Lean budget:** compile each novel candidate once through cached persistent workers
 > **Local staging root:** `/storage/milikic/leanfaith/value_first/sft2_llm_transforms_v1/`
@@ -440,3 +440,24 @@ recorded budget/model decision.
   journal event, and created additive recovery authorization
   `configs/sft2a/rehearsal_authorization_v5_recovery_v2.json` bound to the same user sentence,
   sample, config, ceilings, and failed-startup seal. No scope was expanded.
+- 2026-08-31 — the PTY-safe v5 recovery launch entered the worker, acquired and then released the
+  single Lean resource claim, and failed closed while elaborating the first sampled CSLib reference,
+  before any Terra, Opus, or Kimi call and before any candidate elaboration. The zero-Lean census
+  had omitted an active section variable and retained the `in` modifier from `open Classical in`.
+  The historical 24-file failed-run tree is frozen at combined-tree hash
+  `3b36a72a61e63e7ae9d9bce6f4262bd6787795f564ce60fff30fb44e04a330fa` in
+  `configs/sft2a/rehearsal_v5_failed_launch_seal.json`. The authorization bound to sample
+  `f7d3e27d8361dcbdde245e5236902239b5ca505538a3ca35d5efb80c6e042c4c` is retired for relaunch.
+- 2026-08-31 — corrected the source-context census conservatively by excluding declarations under
+  active section/namespace variables and stripping the trailing `in` open-command modifier. Added
+  a two-applicable-mechanism minimum per polarity so both candidate slots have substantive choices.
+  The additive v5.1 config has logical hash
+  `add8445af25fddc99f3381dbf23d30121847f90c3ef0ddbbba4b09ee8e632f51`; its zero-provider,
+  zero-Lean sample is `480a586ea99c26f41c6dfba47fb345507f25bd9bc778c03b13cc22108abd87f5`
+  with the unchanged 42/25/17/16 source mix, 12 preserving and 14 breaking mechanism families,
+  and 11%/8.5% maximum family shares. A second preparation preserved every durable hash. Readiness
+  receipt `configs/sft2a/rehearsal_readiness_v5_1.json` is fail-closed with `authorized: false`,
+  output root `runs/rehearsal_closure_aware_v5_1`, session
+  `leanfaith-sft2a-v5-rehearsal-v2`, and the unchanged 2,480/1,200/1,200/80/three-attempt/$160
+  ceilings. The approximately-10K gate, 50K run, legacy rejudge, publication, and every other run
+  remain unauthorized.

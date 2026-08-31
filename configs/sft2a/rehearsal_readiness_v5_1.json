@@ -1,0 +1,66 @@
+{
+  "version": "leanfaith_sft2a_rehearsal_authorization_v5",
+  "status": "ready_not_authorized",
+  "authorized": false,
+  "authorization_scope": "sft2a_v5_1_100_roots_400_slots_only",
+  "required_authorization_text": "I authorize SFT2A to launch only the corrected 100-root/400-slot closure-aware v5.1 rehearsal bound to sample 480a586ea99c26f41c6dfba47fb345507f25bd9bc778c03b13cc22108abd87f5 and config add8445af25fddc99f3381dbf23d30121847f90c3ef0ddbbba4b09ee8e632f51 under ceilings 2,480 total provider calls, 1,200 Terra calls, 1,200 Opus calls, 80 Kimi calls, three candidate attempts per slot, and $160 reported Opus spend; the approximately-10K gate, 50K run, legacy rejudge, publication, and all other runs remain unauthorized.",
+  "required_authorization_text_sha256": "00a61d1f7c4c9e32069d5d980b2115834fd7baaacd037c9c769dc66abf4cb105",
+  "retired_authorized_sample_sha256": "f7d3e27d8361dcbdde245e5236902239b5ca505538a3ca35d5efb80c6e042c4c",
+  "retired_authorized_config_hash": "ba77a49dd162b88e59bdf1fe5cd04687eeaa2affda314dc3b3b0e5cfa2cc16da",
+  "config_hash": "add8445af25fddc99f3381dbf23d30121847f90c3ef0ddbbba4b09ee8e632f51",
+  "config_file_sha256": "0fabe86dc0a76b6244e8a61303b1c8ca6c7951a10fc2fa72beeb15cec6bbc435",
+  "sample_sha256": "480a586ea99c26f41c6dfba47fb345507f25bd9bc778c03b13cc22108abd87f5",
+  "sample_manifest_sha256": "1940ba03360fbd8a4eebea565bd247320facfffb01aeec2b1e3dfba865dacfe2",
+  "census_manifest_sha256": "8089882996c27cdc50bd4d75453424c5973e44df83bdec51d94e52fcaae5b5b5",
+  "census_inventory_sha256": "ceb6809006b745defc183e5b6864b2cc472e07414119927ce7675adf6a31bab4",
+  "failed_v5_launch_seal_path": "configs/sft2a/rehearsal_v5_failed_launch_seal.json",
+  "failed_v5_launch_seal_sha256": "0979dbd84f5a750947b50f735269e7852a358dde61502d2056b0137758bc4c61",
+  "root_count": 100,
+  "slot_count": 400,
+  "source_mix": {
+    "compiler_data": 16,
+    "cslib": 17,
+    "mathlib": 42,
+    "physlib": 25
+  },
+  "domain_counts": {
+    "compiler_data": 8,
+    "cslib": 3,
+    "mathlib": 14,
+    "physlib": 7
+  },
+  "mechanism_families": {
+    "preserving": 12,
+    "breaking": 14
+  },
+  "maximum_mechanism_family_fraction": {
+    "preserving": 0.11,
+    "breaking": 0.085
+  },
+  "minimum_applicable_mechanisms_per_polarity": 2,
+  "ceilings": {
+    "maximum_roots": 100,
+    "maximum_provider_calls": 2480,
+    "maximum_proposer_calls": 1200,
+    "maximum_opus_calls": 1200,
+    "maximum_lemex_calls": 80,
+    "maximum_attempts_per_slot": 3,
+    "maximum_reported_opus_spend_usd": 160.0,
+    "codex_cost_status": "unavailable",
+    "lemex_cost_status": "unavailable"
+  },
+  "implementation_commit": "a758756125d71d6115ed79d207f30db3a1d8ae4c",
+  "implementation_tree": "61882aa6ab9e21d29d51ef6c9b3a0e475a0ea54b",
+  "smoke_receipt_path": "configs/sft2a/closure_aware_v5_smoke_receipt.json",
+  "smoke_receipt_sha256": "87bb8ee6a45b34dad7031c1876390c6edb84dce3e4ed34f70bf323a97bd10556",
+  "output_root": "/storage/milikic/leanfaith/value_first/sft2_llm_transforms_v1/runs/rehearsal_closure_aware_v5_1",
+  "tmux_session": "leanfaith-sft2a-v5-rehearsal-v2",
+  "zero_call_sample_replay_tree_sha256": "aa6c186f018b6498bc40d9acbe1cef9e8fc5e712df80f2b0f6b89163368bbef0",
+  "provider_calls_executed_for_correction": 0,
+  "lean_requests_executed_for_correction": 0,
+  "next_gate": "exact user authorization for only the corrected 100-root/400-slot v5.1 rehearsal",
+  "legacy_rejudge_authorized": false,
+  "scale_10k_authorized": false,
+  "scale_50k_authorized": false,
+  "publication_authorized": false
+}
