@@ -27,10 +27,23 @@ from leanfaith.sft2a.legacy_rejudge import (
     prepare_legacy_opus_sample,
     run_legacy_opus_rejudge,
 )
+from leanfaith.sft2a.parallel_rehearsal import prepare_parallel_rehearsal_path
 from leanfaith.sft2a.pilot import PilotError, prepare_pilot_sample, verify_pilot_replay
 from leanfaith.sft2a.pilot_audit import run_pilot_lemex_audit
 from leanfaith.sft2a.pipeline import run_lemex_audit, run_one_root, verify_one_root_replay
 from leanfaith.sft2a.readiness import load_pilot_readiness
+from leanfaith.sft2a.reference_certification import (
+    launch_detached_reference_certification,
+    load_reference_authorization,
+    materialize_reference_authorization,
+    preflight_reference_launch,
+    prepare_reference_pool,
+    reference_certification_health,
+    run_detached_reference_certification_worker,
+    run_reference_certification,
+    verify_global_reference_preflight,
+    verify_reference_replay,
+)
 from leanfaith.sft2a.rehearsal import (
     launch_detached_rehearsal,
     load_rehearsal_authorization,
@@ -48,6 +61,7 @@ def main() -> int:
     parser.add_argument("--pilot-config", type=Path)
     parser.add_argument("--activation-plan", type=Path)
     parser.add_argument("--rehearsal-authorization", type=Path)
+    parser.add_argument("--reference-certification-authorization", type=Path)
     subcommands = parser.add_subparsers(dest="command", required=True)
     subcommands.add_parser("verify-config")
     subcommands.add_parser("verify-pilot-readiness")
@@ -79,6 +93,16 @@ def main() -> int:
     subcommands.add_parser("preflight-v5-rehearsal")
     subcommands.add_parser("launch-v5-rehearsal")
     subcommands.add_parser("detached-v5-rehearsal-worker")
+    subcommands.add_parser("prepare-reference-pool")
+    subcommands.add_parser("materialize-reference-certification-authorization")
+    subcommands.add_parser("run-reference-certification")
+    subcommands.add_parser("verify-reference-certification-replay")
+    subcommands.add_parser("verify-global-reference-preflight")
+    subcommands.add_parser("preflight-reference-certification")
+    subcommands.add_parser("launch-reference-certification")
+    subcommands.add_parser("reference-certification-health")
+    subcommands.add_parser("detached-reference-certification-worker")
+    subcommands.add_parser("prepare-parallel-rehearsal-path")
     arguments = parser.parse_args()
     loaded = load_sft2a_config(
         arguments.config,
@@ -125,6 +149,20 @@ def main() -> int:
     )
     if arguments.command in rehearsal_commands and rehearsal_authorization is None:
         parser.error("--rehearsal-authorization is required for this v5 command")
+    reference_commands = {
+        "run-reference-certification",
+        "preflight-reference-certification",
+        "launch-reference-certification",
+        "detached-reference-certification-worker",
+    }
+    reference_authorization = (
+        load_reference_authorization(loaded, arguments.reference_certification_authorization)
+        if arguments.command in reference_commands
+        and arguments.reference_certification_authorization is not None
+        else None
+    )
+    if arguments.command in reference_commands and reference_authorization is None:
+        parser.error("--reference-certification-authorization is required for this v5.2 command")
     if arguments.command == "verify-config":
         result: object = {
             "config_hash": loaded.config_hash,
@@ -175,6 +213,35 @@ def main() -> int:
     elif arguments.command == "detached-v5-rehearsal-worker":
         assert rehearsal_authorization is not None
         result = run_detached_rehearsal_worker(loaded, rehearsal_authorization)
+    elif arguments.command == "prepare-reference-pool":
+        result = prepare_reference_pool(loaded)
+    elif arguments.command == "materialize-reference-certification-authorization":
+        if arguments.reference_certification_authorization is None:
+            parser.error("--reference-certification-authorization is required")
+        result = materialize_reference_authorization(
+            loaded,
+            path=arguments.reference_certification_authorization,
+        )
+    elif arguments.command == "run-reference-certification":
+        assert reference_authorization is not None
+        result = run_reference_certification(loaded, reference_authorization)
+    elif arguments.command == "verify-reference-certification-replay":
+        result = verify_reference_replay(loaded)
+    elif arguments.command == "verify-global-reference-preflight":
+        result = verify_global_reference_preflight(loaded)
+    elif arguments.command == "preflight-reference-certification":
+        assert reference_authorization is not None
+        result = preflight_reference_launch(loaded, reference_authorization)
+    elif arguments.command == "launch-reference-certification":
+        assert reference_authorization is not None
+        result = launch_detached_reference_certification(loaded, reference_authorization)
+    elif arguments.command == "reference-certification-health":
+        result = reference_certification_health(loaded)
+    elif arguments.command == "detached-reference-certification-worker":
+        assert reference_authorization is not None
+        result = run_detached_reference_certification_worker(loaded, reference_authorization)
+    elif arguments.command == "prepare-parallel-rehearsal-path":
+        result = prepare_parallel_rehearsal_path(loaded)
     elif arguments.command == "verify-replay":
         result = verify_one_root_replay(loaded)
     elif arguments.command == "run-lemex-audit":

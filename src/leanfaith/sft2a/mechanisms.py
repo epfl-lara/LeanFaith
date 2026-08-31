@@ -290,6 +290,18 @@ def signature_shape(signature: str) -> SignatureShape:
     )
 
 
+def planning_signature_from_goal_v1(goal: str) -> str:
+    """Convert a certified rendered goal into binder-aware planning text."""
+
+    lines = [line.strip() for line in goal.splitlines() if line.strip()]
+    turnstiles = [index for index, line in enumerate(lines) if line.startswith("⊢ ")]
+    if len(turnstiles) != 1 or turnstiles[0] != len(lines) - 1:
+        raise ValueError("certified goal_v1 has a malformed turnstile layout")
+    target = lines[-1][2:].strip()
+    binders = " ".join(f"({line})" for line in lines[:-1])
+    return f"∀ {binders}, {target}" if binders else target
+
+
 def _applicable(spec: MechanismSpec, shape: SignatureShape) -> bool:
     rule = spec.applicability
     return {

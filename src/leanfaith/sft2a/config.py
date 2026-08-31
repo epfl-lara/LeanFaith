@@ -19,11 +19,14 @@ from leanfaith.sft2a.models import (
     SFT2AOpusConfig,
     SFT2AProductionConfig,
     SFT2AV5Config,
+    SFT2AV52Config,
 )
 
 DEFAULT_CONFIG_PATH = Path("configs/sft2a/one_root_v1.yaml")
 OPUS_CONFIG_PATH = Path("configs/sft2a/one_root_opus5_v1.yaml")
-SFT2AAnyConfig = SFT2AConfig | SFT2AOpusConfig | SFT2AProductionConfig | SFT2AV5Config
+SFT2AAnyConfig = (
+    SFT2AConfig | SFT2AOpusConfig | SFT2AProductionConfig | SFT2AV5Config | SFT2AV52Config
+)
 
 _EXPECTED_LABELING_DEFAULTS_SHA256 = (
     "4554a071b06b1af9015b253b5e64b2a0a4d013630e5224ef7729bbf65757646f"
@@ -232,6 +235,33 @@ def _verify_v5_inputs(config: SFT2AV5Config, repo_root: Path) -> None:
         raise SFT2AConfigError("v5 base config must not authorize the 100-root rehearsal")
 
 
+def _verify_v5_2_inputs(config: SFT2AV52Config, repo_root: Path) -> None:
+    seal_path = _repo_artifact(repo_root, config.failed_v5_1_seal)
+    seal = _strict_json(seal_path)
+    staging_value = seal.get("staging_root")
+    roots_value = seal.get("sealed_roots")
+    if (
+        seal.get("receipt_id") != "leanfaith_sft2a_rehearsal_v5_1_failed_launch_seal"
+        or not isinstance(staging_value, str)
+        or roots_value != ["runs/rehearsal_closure_aware_v5_1"]
+    ):
+        raise SFT2AConfigError("v5.1 failed-run seal contract differs")
+    staging = Path(staging_value)
+    files = [
+        path
+        for relative in roots_value
+        for path in (staging / str(relative)).rglob("*")
+        if path.is_file() and not path.is_symlink()
+    ]
+    lines = b"".join(f"{hash_file(path)}  {path}\n".encode() for path in sorted(files, key=str))
+    if hashlib.sha256(lines).hexdigest() != seal.get("combined_tree_sha256"):
+        raise SFT2AConfigError("v5.1 failed-run historical evidence differs")
+    if config.reference_certification.authorized:
+        raise SFT2AConfigError("v5.2 base config cannot self-authorize reference certification")
+    if config.parallel_rehearsal.execution_authorized:
+        raise SFT2AConfigError("v5.2 base config cannot authorize provider-backed rehearsal")
+
+
 def verify_provider_binary(pin: ProviderPin) -> None:
     configured = Path(pin.binary_path).resolve(strict=True)
     discovered_text = shutil.which(pin.cli)
@@ -271,6 +301,8 @@ def load_sft2a_config(
         loaded = load_config(config_path, SFT2AProductionConfig)
     elif config_id == "leanfaith_sft2a_closure_aware_v5":
         loaded = load_config(config_path, SFT2AV5Config)
+    elif config_id == "leanfaith_sft2a_closure_aware_v5_2":
+        loaded = load_config(config_path, SFT2AV52Config)
     else:
         raise SFT2AConfigError(f"unsupported SFT2A config_id: {config_id!r}")
     config = loaded.config
@@ -279,6 +311,8 @@ def load_sft2a_config(
         _verify_labeling_defaults(config, repo_root)
     if isinstance(config, SFT2AV5Config):
         _verify_v5_inputs(config, repo_root)
+    if isinstance(config, SFT2AV52Config):
+        _verify_v5_2_inputs(config, repo_root)
     proposer_prompt_path = _repo_artifact(repo_root, config.prompts.codex_proposer)
     judge_prompt_path = _repo_artifact(repo_root, config.prompts.blinded_claude_judge)
     proposer_schema_path = _repo_artifact(repo_root, config.schemas.codex_proposer_output)

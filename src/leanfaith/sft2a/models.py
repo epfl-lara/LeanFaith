@@ -525,6 +525,92 @@ class SFT2AV5Config(SFT2AProductionConfig):
     legacy_rejudge: LegacyRejudgeV2Policy  # type: ignore[assignment]
 
 
+class ReferenceCertificationPolicy(StrictModel):
+    version: Literal["sft2a_reference_certification_v5_2"]
+    authorized: Literal[False]
+    output_subdir: NonEmpty
+    cache_subdir: NonEmpty
+    pool_salt: NonEmpty
+    initial_allocations: tuple[PilotSourceAllocation, ...]
+    extension_allocations: tuple[PilotSourceAllocation, ...]
+    final_allocations: tuple[PilotSourceAllocation, ...]
+    initial_pool_size: Literal[300]
+    maximum_certification_attempts: Literal[600]
+    extension_rule: Literal[
+        "only_underfilled_source_one_fixed_quota_sized_block_after_initial_pool"
+    ]
+    provider_calls_allowed: Literal[0]
+    lean_workers_initial: Literal[1]
+    lean_workers_maximum: Literal[2]
+    measured_rss_gib_maximum: Annotated[float, Field(strict=True)]
+    timeout_seconds_per_reference: int = Field(ge=30, le=600, strict=True)
+    constant_lookup_sources: tuple[Literal["mathlib", "physlib", "cslib"], ...]
+    term_elaboration_sources: tuple[Literal["compiler_data"], ...]
+    positive_canary_declaration: Literal["Cslib.LTS.mem_saturate_image_τ"]
+    detached_launch: DetachedLaunchPolicy
+
+    @model_validator(mode="after")
+    def _certification_contract(self) -> Self:
+        sources = ("mathlib", "physlib", "cslib", "compiler_data")
+        if tuple(item.source for item in self.initial_allocations) != sources:
+            raise ValueError("v5.2 initial certification pool requires the ordered four sources")
+        if tuple(item.source for item in self.extension_allocations) != sources:
+            raise ValueError("v5.2 certification extensions require the ordered four sources")
+        if tuple(item.source for item in self.final_allocations) != sources:
+            raise ValueError("v5.2 final sample requires the ordered four sources")
+        initial = tuple(item.roots for item in self.initial_allocations)
+        extension = tuple(item.roots for item in self.extension_allocations)
+        final = tuple(item.roots for item in self.final_allocations)
+        if initial != (126, 75, 51, 48) or extension != initial:
+            raise ValueError("v5.2 certification pool quotas differ from 126/75/51/48")
+        if final != (42, 25, 17, 16):
+            raise ValueError("v5.2 final quotas differ from 42/25/17/16")
+        if sum(initial) != self.initial_pool_size:
+            raise ValueError("v5.2 initial certification allocations do not total 300")
+        if sum(initial) + sum(extension) != self.maximum_certification_attempts:
+            raise ValueError("v5.2 certification extension contract does not cap at 600")
+        if self.measured_rss_gib_maximum != 40.0:
+            raise ValueError("v5.2 reference certification RSS cap must be exactly 40 GiB")
+        if self.constant_lookup_sources != ("mathlib", "physlib", "cslib"):
+            raise ValueError("v5.2 imported-library reference routes differ")
+        return self
+
+
+class ParallelRehearsalPolicy(StrictModel):
+    version: Literal["sft2a_bounded_parallel_rehearsal_v5_2"]
+    execution_authorized: Literal[False]
+    maximum_root_workers: Literal[2]
+    lean_workers_per_root: Literal[1]
+    maximum_total_lean_workers: Literal[2]
+    maximum_measured_rss_gib: Annotated[float, Field(strict=True)]
+    provider_budget_protocol: Literal["atomic_reservation_then_finalization_v1"]
+    lean_isolation: Literal["one_persistent_project_session_per_root_worker"]
+    cross_worker_deduplication: Literal[True]
+    mid_root_resume_required: Literal[True]
+    between_root_resume_required: Literal[True]
+    duplicate_launch_refusal: Literal[True]
+    deterministic_compaction: Literal[True]
+    zero_call_replay: Literal[True]
+    report_planned_and_accepted_mechanisms_separately: Literal[True]
+
+    @field_validator("maximum_measured_rss_gib")
+    @classmethod
+    def _parallel_rss_cap(cls, value: float) -> float:
+        if value != 40.0:
+            raise ValueError("v5.2 parallel rehearsal RSS cap must be exactly 40 GiB")
+        return value
+
+
+class SFT2AV52Config(SFT2AV5Config):
+    """Reference-certified v5.2 track; provider-backed rehearsal remains disabled."""
+
+    config_id: Literal["leanfaith_sft2a_closure_aware_v5_2"]  # type: ignore[assignment]
+    status: Literal["v5_2_reference_certification_only"]  # type: ignore[assignment]
+    failed_v5_1_seal: ArtifactBinding
+    reference_certification: ReferenceCertificationPolicy
+    parallel_rehearsal: ParallelRehearsalPolicy
+
+
 class ProposerOutput(StrictModel):
     schema_version: Literal[1]
     requested_polarity: Polarity

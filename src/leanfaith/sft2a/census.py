@@ -21,7 +21,12 @@ from leanfaith.sft2a.mechanisms import (
     plan_mechanism_rotation,
     signature_shape,
 )
-from leanfaith.sft2a.models import CompileContextConfig, OneRootConfig, SFT2AV5Config
+from leanfaith.sft2a.models import (
+    CompileContextConfig,
+    OneRootConfig,
+    SFT2AV5Config,
+    SFT2AV52Config,
+)
 
 _VERSION = "sft2a_zero_lean_source_census_v5"
 _DECLARATION = re.compile(
@@ -271,6 +276,8 @@ def _library_rows(
     source_root: Path,
     source_revision: str,
     base_context: CompileContextConfig,
+    include_context_variables: bool = False,
+    include_source_header: bool = False,
 ) -> Iterable[dict[str, object]]:
     for path in sorted(source_root.rglob("*.lean")):
         if path.is_symlink() or not path.is_file():
@@ -294,7 +301,7 @@ def _library_rows(
             if signature is None:
                 continue
             namespace, opened, scoped, has_context_variables = contexts[match.start()]
-            if has_context_variables:
+            if has_context_variables and not include_context_variables:
                 continue
             declaration_name = match.group(1)
             qualified = ".".join((*namespace, declaration_name))
@@ -308,7 +315,7 @@ def _library_rows(
                 scoped=scoped,
             )
             root_id = f"{source_name}:census:{sha256_hex(f'{locator}:{qualified}'.encode())[:24]}"
-            yield {
+            row: dict[str, object] = {
                 "root_id": root_id,
                 "source": source_name,
                 "source_revision": source_revision,
@@ -320,9 +327,23 @@ def _library_rows(
                 "domain": _domain(signature, source_name, locator),
                 "shape_id": signature_shape(signature).shape_id,
             }
+            if include_source_header:
+                assignment = _assignment_offset(masked, match.end(), finish)
+                if assignment is None:
+                    continue
+                source_header = source[match.start() : assignment + 2].strip()
+                row["source_header"] = source_header
+                row["source_header_sha256"] = sha256_hex(source_header.encode())
+                row["source_context_variables_present"] = has_context_variables
+            yield row
 
 
-def _compiler_rows(path: Path, base_context: CompileContextConfig) -> Iterable[dict[str, object]]:
+def _compiler_rows(
+    path: Path,
+    base_context: CompileContextConfig,
+    *,
+    include_source_header: bool = False,
+) -> Iterable[dict[str, object]]:
     options = dict(base_context.options)
     options["autoImplicit"] = True
     safe_context = base_context.model_copy(update={"options": options})
@@ -351,7 +372,7 @@ def _compiler_rows(path: Path, base_context: CompileContextConfig) -> Iterable[d
             declaration_name = match.group(1)
             theorem_hash = sha256_hex(theorem.encode())
             locator = f"compiler_data:{index}:theorem_sha256={theorem_hash}"
-            yield {
+            row: dict[str, object] = {
                 "root_id": f"compiler_data:census:{theorem_hash[:24]}",
                 "source": "compiler_data",
                 "source_revision": "ca37d4701b11022f183e72b7b96ff543a8a615d3",
@@ -363,6 +384,17 @@ def _compiler_rows(path: Path, base_context: CompileContextConfig) -> Iterable[d
                 "domain": _domain(signature, "compiler_data", locator),
                 "shape_id": signature_shape(signature).shape_id,
             }
+            if include_source_header:
+                masked = mask_lean_source(theorem)
+                assignment = _assignment_offset(masked, match.end(), len(theorem))
+                if assignment is None:
+                    continue
+                source_header = theorem[match.start() : assignment + 2].strip()
+                row["source_header"] = source_header
+                row["source_header_sha256"] = sha256_hex(source_header.encode())
+                row["compiler_data_row_index"] = index
+                row["compiler_data_theorem_sha256"] = theorem_hash
+            yield row
 
 
 def _base_contexts(loaded: LoadedSFT2AConfig) -> dict[str, CompileContextConfig]:
@@ -401,16 +433,25 @@ def run_zero_lean_census(
         return dict(existing)
     contexts = _base_contexts(loaded)
     policy = loaded.config.source_census
+    reference_certification = isinstance(loaded.config, SFT2AV52Config)
     producers = [
         _library_rows(
             source_name=name,
             source_root=Path(policy.library_source_subdirs[name]),
             source_revision=contexts[name].project_revision,
             base_context=contexts[name],
+            include_context_variables=reference_certification,
+            include_source_header=reference_certification,
         )
         for name in ("mathlib", "physlib", "cslib")
     ]
-    producers.append(_compiler_rows(Path(policy.compiler_data_path), contexts["mathlib"]))
+    producers.append(
+        _compiler_rows(
+            Path(policy.compiler_data_path),
+            contexts["mathlib"],
+            include_source_header=reference_certification,
+        )
+    )
     _blocklist_path, blocked_hashes = _blocklist(loaded)
     seen: set[str] = set()
     eligible: list[dict[str, object]] = []
@@ -448,8 +489,17 @@ def run_zero_lean_census(
             },
         },
         "source_filter_contract": {
-            "section_or_namespace_variable_context": "exclude_before_sampling",
+            "section_or_namespace_variable_context": (
+                "retain_for_authoritative_constant_lookup"
+                if reference_certification
+                else "exclude_before_sampling"
+            ),
             "open_command_trailing_in": "strip_context_modifier_token",
+            "source_text_role": (
+                "provenance_and_prompt_context_only"
+                if reference_certification
+                else "source_signature_candidate"
+            ),
             "lean_requests": 0,
         },
         "eligible_rows": len(eligible),

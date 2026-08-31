@@ -1,11 +1,11 @@
 # SFT2A — LLM-generated semantic transformations
 
 > **Task ID:** SFT2A
-> **Status:** waiting_user
-> **Owner/session:** Codex `/root` — 2026-08-31 SFT2A v5 session
+> **Status:** active
+> **Owner/session:** Codex `/root` — 2026-08-31 SFT2A v5.2 reference-certification session
 > **Last updated:** 2026-08-31
 > **Dependencies:** REPR `goal_v1.0`; shared rubric; roots may be selected independently of SFT1
-> **Next gate:** user direction for a zero-provider Lean reference-certification stage before any new sample authorization
+> **Next gate:** complete and verify the authorized local-only v5.2 100-root reference certificate; then request exact authorization for provider-backed rehearsal only
 > **Compute class:** external LLM/API plus CPU/RAM for Lean; large run may need explicit budget approval
 > **Lean budget:** compile each novel candidate once through cached persistent workers
 > **Local staging root:** `/storage/milikic/leanfaith/value_first/sft2_llm_transforms_v1/`
@@ -485,3 +485,12 @@ recorded budget/model decision.
   deterministic candidate pool through local Lean with zero provider calls, freeze the 100 valid
   roots only after that certification, and then request a separate exact-sample provider-launch
   authorization. No such new certification or run is authorized yet.
+- 2026-08-31 — received authorization for additive v5.2 implementation and only the bounded local
+  reference-certification phase. The frozen architecture retrieves imported Mathlib, Physlib, and
+  CSLib declarations by qualified name, requires theorem kind, and sends the actual
+  `ConstantInfo.type` directly through frozen REPR; only compiler-data uses proof-free term
+  elaboration. The initial deterministic pool is fixed at 126/75/51/48 roots, with one optional
+  same-source fixed-quota extension block per underfilled source and a hard 600-attempt cap. The
+  final certificate must be exactly 42/25/17/16 with a global 100/100 cache-hit preflight before
+  any future provider construction. Terra, Opus, Kimi, the provider-backed rehearsal, 10K, 50K,
+  legacy rejudging, publication, and training remain unauthorized.
