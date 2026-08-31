@@ -5,6 +5,7 @@ from __future__ import annotations
 import fcntl
 import json
 import os
+import re
 import shlex
 import subprocess
 import sys
@@ -144,6 +145,40 @@ def load_rehearsal_authorization(
         raise RehearsalError("rehearsal authorization state is malformed")
     if authorized != (status == "authorized_rehearsal"):
         raise RehearsalError("rehearsal authorization flag/status contradict")
+    implementation_commit = document.get("implementation_commit")
+    implementation_tree = document.get("implementation_tree")
+    if (
+        not isinstance(implementation_commit, str)
+        or re.fullmatch(r"[0-9a-f]{40}", implementation_commit) is None
+    ):
+        raise RehearsalError("rehearsal implementation commit is malformed")
+    if (
+        not isinstance(implementation_tree, str)
+        or re.fullmatch(r"[0-9a-f]{40}", implementation_tree) is None
+    ):
+        raise RehearsalError("rehearsal implementation tree is malformed")
+    observed_tree = subprocess.run(
+        ("git", "rev-parse", f"{implementation_commit}^{{tree}}"),
+        cwd=loaded.repo_root,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    ancestor = subprocess.run(
+        ("git", "merge-base", "--is-ancestor", implementation_commit, "HEAD"),
+        cwd=loaded.repo_root,
+        check=False,
+        capture_output=True,
+    )
+    if observed_tree != implementation_tree or ancestor.returncode != 0:
+        raise RehearsalError("rehearsal implementation identity is not an ancestor of HEAD")
+    smoke_path_value = document.get("smoke_receipt_path")
+    smoke_sha256 = document.get("smoke_receipt_sha256")
+    if not isinstance(smoke_path_value, str) or not isinstance(smoke_sha256, str):
+        raise RehearsalError("rehearsal authorization lacks its smoke receipt binding")
+    smoke_path = loaded.repo_root / smoke_path_value
+    if smoke_path.is_symlink() or not smoke_path.is_file() or hash_file(smoke_path) != smoke_sha256:
+        raise RehearsalError("rehearsal smoke receipt binding differs")
     return LoadedRehearsalAuthorization(
         path=resolved,
         document=document,
@@ -640,6 +675,9 @@ def run_rehearsal(
         "version": "leanfaith_sft2a_100_root_rehearsal_v5",
         "config_hash": loaded.config_hash,
         "authorization_receipt_sha256": authorization.sha256,
+        "implementation_commit": authorization.document["implementation_commit"],
+        "implementation_tree": authorization.document["implementation_tree"],
+        "smoke_receipt_sha256": authorization.document["smoke_receipt_sha256"],
         "sample_sha256": hash_file(output / "sample.jsonl"),
         "root_count": len(receipts),
         "slot_count": 400,
@@ -697,6 +735,8 @@ def verify_rehearsal_replay(
         "version": "leanfaith_sft2a_rehearsal_replay_v5",
         "config_hash": loaded.config_hash,
         "authorization_receipt_sha256": authorization.sha256,
+        "implementation_commit": authorization.document["implementation_commit"],
+        "implementation_tree": authorization.document["implementation_tree"],
         "manifest_sha256": hash_file(output / "manifest.json"),
         "durable_artifact_set_sha256": hash_canonical(before),
         "provider_calls_executed": 0,
@@ -932,6 +972,8 @@ def preflight_rehearsal_launch(
         "sample_sha256": sample["sample_sha256"],
         "config_hash": loaded.config_hash,
         "authorization_receipt_sha256": authorization.sha256,
+        "implementation_commit": authorization.document["implementation_commit"],
+        "implementation_tree": authorization.document["implementation_tree"],
         "provider_calls_executed": 0,
         "lean_requests_executed": 0,
         "tmux_sessions_started": 0,
@@ -1009,6 +1051,9 @@ def run_detached_rehearsal_worker(
                 "config_hash": loaded.config_hash,
                 "config_file_sha256": hash_file(loaded.path),
                 "authorization_receipt_sha256": authorization.sha256,
+                "implementation_commit": authorization.document["implementation_commit"],
+                "implementation_tree": authorization.document["implementation_tree"],
+                "smoke_receipt_sha256": authorization.document["smoke_receipt_sha256"],
                 "sample_sha256": hash_file(output / "sample.jsonl"),
                 "ceilings": config.rehearsal.ceilings.model_dump(mode="json"),
                 "output_root": str(output),

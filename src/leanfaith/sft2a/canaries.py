@@ -14,7 +14,7 @@ from leanfaith.sft2a.legacy import _atomic_exact
 from leanfaith.sft2a.models import SFT2AV5Config
 from leanfaith.sft2a.pipeline import StructuredProvider
 from leanfaith.sft2a.prompts import prompt_hash, render_blinded_judge_prompt
-from leanfaith.sft2a.providers import claude_judge_provider
+from leanfaith.sft2a.providers import ProviderCallResult, claude_judge_provider
 
 
 class ClosureCanaryError(RuntimeError):
@@ -98,6 +98,7 @@ def run_closure_canaries(
         return existing
     client = judge or claude_judge_provider(loaded)
     audit_rows: list[dict[str, object]] = []
+    all_calls: list[ProviderCallResult] = []
     all_passed = True
     for canary in load_closure_canaries(loaded):
         prompt = render_blinded_judge_prompt(
@@ -112,6 +113,7 @@ def run_closure_canaries(
             closure_aware=True,
             malformed_retries=1,
         )
+        all_calls.extend(result.calls)
         passed = result.judgment is not None and result.judgment.verdict == "equivalent"
         all_passed = all_passed and passed
         audit_rows.append(
@@ -148,6 +150,21 @@ def run_closure_canaries(
             for row in audit_rows
             for value in (row.get("call_keys"),)
         ),
+        "provider_usage": [
+            {
+                "call_key": call.call_key,
+                "provider_id": call.provider_id,
+                "cache_hit": call.cache_hit,
+                "usage": call.usage,
+                "cost_usd": call.cost_usd,
+                "elapsed_seconds": call.elapsed_seconds,
+            }
+            for call in all_calls
+        ],
+        "reported_opus_spend_usd": sum(
+            call.cost_usd or 0.0 for call in all_calls if not call.cache_hit
+        ),
+        "provider_latency_seconds": sum(call.elapsed_seconds for call in all_calls),
         "lean_requests": 0,
         "scale_50k_started": False,
     }

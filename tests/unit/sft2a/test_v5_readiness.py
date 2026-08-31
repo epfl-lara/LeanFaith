@@ -25,6 +25,7 @@ from leanfaith.sft2a.mechanisms import (
 from leanfaith.sft2a.models import SFT2AV5Config
 from leanfaith.sft2a.pipeline import run_one_root
 from leanfaith.sft2a.providers import ProviderCallResult
+from leanfaith.sft2a.readiness import implementation_identity
 from leanfaith.sft2a.rehearsal import (
     RehearsalError,
     exclude_audit_unknowns,
@@ -365,6 +366,7 @@ def test_cross_root_dedup_includes_closed_expr_identity(tmp_path: Path) -> None:
 def _authorization_document(loaded: LoadedSFT2AConfig, *, authorized: bool) -> dict[str, object]:
     sample = prepare_rehearsal_sample(loaded)
     assert isinstance(loaded.config, SFT2AV5Config)
+    implementation = implementation_identity(loaded.repo_root, require_clean=False)
     return {
         "version": "leanfaith_sft2a_rehearsal_authorization_v5",
         "status": "authorized_rehearsal" if authorized else "ready_not_authorized",
@@ -376,6 +378,9 @@ def _authorization_document(loaded: LoadedSFT2AConfig, *, authorized: bool) -> d
         "root_count": 100,
         "slot_count": 400,
         "ceilings": loaded.config.rehearsal.ceilings.model_dump(mode="json"),
+        **implementation,
+        "smoke_receipt_path": "configs/sft2a/closure_aware_v5.yaml",
+        "smoke_receipt_sha256": hash_file(loaded.repo_root / "configs/sft2a/closure_aware_v5.yaml"),
         "legacy_rejudge_authorized": False,
         "scale_10k_authorized": False,
         "scale_50k_authorized": False,

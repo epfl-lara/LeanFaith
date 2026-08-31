@@ -53,6 +53,7 @@ from leanfaith.sft2a.providers import (
     lemex_audit_provider,
     proposer_provider,
 )
+from leanfaith.sft2a.readiness import implementation_identity
 
 
 class OneRootPipelineError(RuntimeError):
@@ -970,6 +971,7 @@ def run_one_root(
         ),
         "config_hash": loaded.config_hash,
         "config_file_sha256": hash_file(loaded.path),
+        "implementation": implementation_identity(loaded.repo_root, require_clean=False),
         "root_id": loaded.config.root.root_id,
         "root_count": 1,
         "slot_count": 4,
