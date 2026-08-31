@@ -1,0 +1,246 @@
+schema_version: 1
+census_id: sft1_wave1_zero_lean_census_v0_3_6
+revision: "0.3.6"
+status: implementation_ready_execution_separately_authorized
+
+implementation_binding:
+  implementation_base_commit: fc8cdc2c6d9d93e99e20933a17dbcfa2afc2be48
+  implementation_source_path: src/leanfaith/sft1/wave1_census_v0_3_6.py
+  implementation_source_sha256: a868e7411bde787aeca737d7bcc9b177b38c77e38c31a1ea9be77a056a78e071
+  runtime_git_commit_recorded_in_state: true
+
+policy_binding:
+  source_use_path: policies/source_use_v2.yaml
+  source_use_sha256: 62a4daca09ca669aef0133cd4d0b0913e1d7795558560f3aac4b289efc75e95c
+  effective_readiness_path: configs/transformations/sft1_value_first_v1/wave1_effective_readiness_v0_3_3.yaml
+  effective_readiness_sha256: 5673d2ee2e3d9b088bcc42ccec4d4d851096b6c0fc8cc5349b1c3b231f2b1474
+
+evaluation_blocklist_binding:
+  path: data/benchmarks/golden_blocklist_v1.json
+  file_sha256: 8e4af6a9e47fb06d281169cdaddb01c5c66c1b0d150f2df9c9283ecb587117f7
+  loader: leanfaith.collect2.postprocess.GoldenBlocklist.load
+  normalization: leanfaith.representations.views.normalize_headless
+  near_duplicate_hash: leanfaith.representations.views.signature_near_dup_hash
+  procedure_id: golden_blocklist_v1_normalize_headless_signature_near_dup_hash_root_screen_v1
+  screen_scope: raw_theorem_lemma_discovery_before_eligibility_v1
+  placeholder_screen_is_additive: true
+
+authorization:
+  invokes_lean: false
+  executes_transforms: false
+  emits_model_facing_rows: false
+  internal_gate_source_eligible: true
+  bounded_internal_pilot_source_eligible: true
+  pilot_execution_authorized_by_this_config: false
+  redistribution_review_complete: false
+  public_redistribution_eligible: false
+  publication_authorized: false
+  ten_k_authorized: false
+  scale_authorized: false
+
+evidence_levels:
+  ordered: [surface_prefilter, preexisting_typed, typed_pending, typed]
+  surface_prefilter:
+    current_environment_typed: false
+    requires_upstream_typed_evidence: false
+    requires_compile_context: false
+    requires_closed_expr_route: false
+    requires_current_meta_receipt: false
+  preexisting_typed:
+    current_environment_typed: false
+    requires_upstream_typed_evidence: true
+    requires_compile_context: false
+    requires_closed_expr_route: false
+    requires_current_meta_receipt: false
+  typed_pending:
+    current_environment_typed: false
+    requires_upstream_typed_evidence: true
+    requires_compile_context: true
+    requires_closed_expr_route: true
+    requires_current_meta_receipt: false
+  typed:
+    current_environment_typed: true
+    requires_upstream_typed_evidence: true
+    requires_compile_context: true
+    requires_closed_expr_route: true
+    requires_current_meta_receipt: true
+
+operation_contract:
+  primary_operation_ids:
+    - P01_ALPHA_RENAME_SINGLE_V1
+    - P15_SWAP_IFF_SIDES_V1
+    - P18_SYMMETRIZE_EQUALITY_V1
+    - P21_BETA_REDUCE_V1
+    - N31_DROP_REQUIRED_GUARD_RUBRIC_V1
+  optional_n31_proof_operation_id: N31_DROP_REQUIRED_GUARD_PROOF_V1
+  n31_proof_is_nested_under_parent_mutation: true
+  n31_proof_has_no_independent_root_pool: true
+  n31_proof_absence_does_not_block_rubric: true
+  n31_proof_activation_authorized: false
+
+tiers:
+  smoke:
+    tier_id: root_specific_smoke_micro_census_v1
+    input_route: hash_bound_root_manifest
+    selection_rule: global_minimum_stable_eligible_root_hash_v1
+    selection_operation_ids:
+      - P01_ALPHA_RENAME_SINGLE_V1
+      - N31_DROP_REQUIRED_GUARD_RUBRIC_V1
+    target_per_primary_operation: 1
+    scan_budget_unit: raw_theorem_lemma_discoveries
+    completion_claim: hash_bound_route_slice_complete_not_source_complete
+    blocks_two_row_smoke: true
+    blocks_approximately_100_root_gate: false
+    blocks_ten_k_and_scale: false
+  selected_wave:
+    tier_id: selected_wave_sampling_frame_census_v1
+    input_route: deterministic_bounded_sampling_frame_scan
+    selection_rule: round_robin_source_strata_then_root_hash_v1
+    selection_operation_ids:
+      - P01_ALPHA_RENAME_SINGLE_V1
+      - P15_SWAP_IFF_SIDES_V1
+      - P18_SYMMETRIZE_EQUALITY_V1
+      - P21_BETA_REDUCE_V1
+      - N31_DROP_REQUIRED_GUARD_RUBRIC_V1
+    target_per_primary_operation: 125
+    minimum_gate_roots_per_primary_operation: 100
+    source_scan_root_budget: 25000
+    scan_budget_unit: raw_theorem_lemma_discoveries
+    completion_claim: bounded_route_slice_complete_not_source_complete
+    blocks_two_row_smoke: false
+    blocks_approximately_100_root_gate: true
+    blocks_ten_k_and_scale: false
+  full_cross_source:
+    tier_id: complete_cross_source_census_v1
+    input_route: complete_streaming_source_scan
+    selection_rule: no_root_selection_full_inventory_only_v1
+    selection_operation_ids: []
+    target_per_primary_operation: 0
+    source_scan_root_budget: null
+    scan_budget_unit: raw_theorem_lemma_discoveries
+    completion_claim: complete_source_inventory
+    blocks_two_row_smoke: false
+    blocks_approximately_100_root_gate: false
+    blocks_ten_k_and_scale: true
+
+durability:
+  state_backend: sqlite_wal_v1
+  append_only_journal_required: true
+  terminal_marker_required: true
+  receipt_write: immutable_create_or_identical_v2
+  resume_rule: restart_incomplete_source_scan_with_root_id_dedup_v1
+  stable_root_id: sha256_canonical_source_revision_locator_and_surface_hash_v1
+  candidate_set_hash: sha256_len_prefixed_sorted_root_ids_v1
+  state_evidence_hash: sha256_len_prefixed_canonical_sorted_sqlite_rows_v1
+  journal_chain: sha256_canonical_event_with_sequence_and_previous_hash_v1
+  journal_path_bound_in_state_receipt_and_marker: true
+  no_per_row_process_spawn: true
+
+cluster_contract:
+  exact_key: whitespace_normalized_bounded_signature_without_declared_name_v1
+  alpha_key: binder_names_normalized_bounded_signature_v1
+  structure_key: identifiers_and_numerals_normalized_bounded_signature_v1
+  memberships_persisted_in_sqlite: true
+  per_operation_pool_hashes_required: true
+  selected_wave_clusters_must_remain_intact: true
+  oversized_cluster_policy: skip_cluster_without_splitting_v1
+  target_125_is_soft_after_cluster_integrity: true
+
+surface_procedure:
+  procedure_id: conservative_lean_declaration_surface_prefilter_v1
+  declaration_kinds: [theorem, lemma]
+  proof_placeholder_tokens: [sorry, admit, "by?"]
+  proof_placeholder_matching: masked_lean_token_boundaries_v1
+  raw_discovery_accounting: all_bounded_theorem_lemma_commands_v1
+  exclusion_reasons:
+    - private_declaration
+    - proof_placeholder
+    - golden_blocklist_near_duplicate
+    - golden_blocklist_problem
+  surface_identity: whitespace_normalized_bounded_signature_without_declared_name_v1
+  near_identity: binder_names_normalized_bounded_signature_v1
+  applicability_is_typed_claim: false
+  operation_applicability_status: typed_validation_pending
+  zero_lean_operation_applicability_claimed: false
+
+sources:
+  - source_id: compiler_data
+    kind: parquet_source_code
+    repository: formalmathatepfl/compiler_data
+    revision: ca37d4701b11022f183e72b7b96ff543a8a615d3
+    checkout_or_artifact_path: /storage/milikic/leanfaith/value_first/cpt2_v1/source_cache/answer_data.parquet
+    artifact_sha256: c45145de5b681efd5aa265fdc90b9dc68d542321dd931d139cdead693360a81a
+    repo_binding_path: configs/data/cpt2/cpt2_v1.yaml
+    repo_binding_sha256: 917fe1061cc1e2b96b12e6e42f47c64739df25172aacb5528a37e579449c00c6
+    globs: []
+    expected_toolchain: null
+    root_module: null
+    default_evidence_level: preexisting_typed
+    domain_stratum: mixed_compiler_training_data
+    closed_expr_route: compiler_data_elaborated_signature_in_persistent_project_session_v1
+    compile_context_bound: false
+    closed_expr_route_bound: false
+    internal_gate_eligible: true
+    bounded_internal_pilot_eligible: true
+    redistribution_review_complete: false
+    publication_eligible: false
+  - source_id: cslib
+    kind: git_lean_source
+    repository: https://github.com/leanprover/cslib
+    revision: 2f677bfc8ef76fa7a27feafc597c1e4a7eda3e42
+    checkout_or_artifact_path: /storage/milikic/leanfaith/value_first/sft1_deterministic_v1/checkouts/cslib
+    artifact_sha256: null
+    repo_binding_path: configs/projects/cslib.yaml
+    repo_binding_sha256: 1cd35e901ca9bed56454ee534e4dc48838fbc9012cb7fbfe7901c4e7ea31e4d5
+    globs: [Cslib/**/*.lean]
+    expected_toolchain: v4.31.0-rc1
+    root_module: Cslib
+    default_evidence_level: typed_pending
+    domain_stratum: computer_science
+    closed_expr_route: imported_constant_info_type_in_persistent_project_session_v1
+    compile_context_bound: true
+    closed_expr_route_bound: true
+    internal_gate_eligible: true
+    bounded_internal_pilot_eligible: true
+    redistribution_review_complete: false
+    publication_eligible: false
+  - source_id: mathlib
+    kind: git_lean_source
+    repository: https://github.com/leanprover-community/mathlib4
+    revision: d568c8c09630de097a046763c17b9ea99f95f950
+    checkout_or_artifact_path: /storage/milikic/leanfaith/mathlib4
+    artifact_sha256: null
+    repo_binding_path: configs/projects/mathlib.yaml
+    repo_binding_sha256: dfaccff566a513c17aad970c7204b1e86bc65a15ea2e234e749301b9be5cb940
+    globs: [Mathlib/**/*.lean]
+    expected_toolchain: v4.31.0-rc1
+    root_module: Mathlib
+    default_evidence_level: typed_pending
+    domain_stratum: general_formal_mathematics
+    closed_expr_route: imported_constant_info_type_in_persistent_project_session_v1
+    compile_context_bound: true
+    closed_expr_route_bound: true
+    internal_gate_eligible: true
+    bounded_internal_pilot_eligible: true
+    redistribution_review_complete: false
+    publication_eligible: false
+  - source_id: physlib
+    kind: git_lean_source
+    repository: https://github.com/leanprover-community/physlib
+    revision: f5242c99d796b59a390d26cd7d1a8057e04c46b5
+    checkout_or_artifact_path: /storage/milikic/leanfaith/value_first/sft1_deterministic_v1/checkouts/physlib
+    artifact_sha256: null
+    repo_binding_path: configs/projects/physlib.yaml
+    repo_binding_sha256: feab69e9e39792068d398cf1b7f17d787b219b2bd819ffb3239e648ef228edc1
+    globs: [Physlib/**/*.lean]
+    expected_toolchain: v4.30.0
+    root_module: Physlib
+    default_evidence_level: typed_pending
+    domain_stratum: physics
+    closed_expr_route: imported_constant_info_type_in_persistent_project_session_v1
+    compile_context_bound: true
+    closed_expr_route_bound: true
+    internal_gate_eligible: true
+    bounded_internal_pilot_eligible: true
+    redistribution_review_complete: false
+    publication_eligible: false

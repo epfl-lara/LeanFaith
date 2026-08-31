@@ -1,0 +1,171 @@
+schema_version: 1
+fixture_set_id: sft1_wave1_readiness_fixtures_v0_3_6
+fixture_set_version: "0.3.6"
+status: authorized_for_bounded_readiness_not_a_gate
+parent_fixture_path: tests/fixtures/sft1/wave1_v0_3_4.yaml
+parent_fixture_file_sha256: 0856c6cfa1536bd935d4606ec2d09a34c72ef5c2ddf92d2f15b67867ac6dd6ea
+fixture_text_is_not_a_source_root: true
+fixture_text_is_not_model_facing: true
+fixture_execution_is_wave1_gate_execution: false
+optional_n31_proof_fixture_count: 0
+
+project_contexts:
+  - project_id: compiler_data
+    source_revision: ca37d4701b11022f183e72b7b96ff543a8a615d3
+    compile_project_id: mathlib
+    compile_project_revision: d568c8c09630de097a046763c17b9ea99f95f950
+    lean_version: v4.31.0-rc1
+    import_header: import Mathlib
+    namespace_context: []
+    open_context: []
+    scoped_context: []
+    options: {Elab.async: false, autoImplicit: false}
+    source_faithful_context_required_for_real_roots: true
+  - project_id: cslib
+    source_revision: 2f677bfc8ef76fa7a27feafc597c1e4a7eda3e42
+    compile_project_id: cslib
+    compile_project_revision: 2f677bfc8ef76fa7a27feafc597c1e4a7eda3e42
+    lean_version: v4.31.0-rc1
+    import_header: import Cslib
+    namespace_context: []
+    open_context: []
+    scoped_context: []
+    options: {Elab.async: false, autoImplicit: false}
+    source_faithful_context_required_for_real_roots: true
+  - project_id: mathlib
+    source_revision: d568c8c09630de097a046763c17b9ea99f95f950
+    compile_project_id: mathlib
+    compile_project_revision: d568c8c09630de097a046763c17b9ea99f95f950
+    lean_version: v4.31.0-rc1
+    import_header: import Mathlib
+    namespace_context: []
+    open_context: []
+    scoped_context: []
+    options: {Elab.async: false, autoImplicit: false}
+    source_faithful_context_required_for_real_roots: true
+  - project_id: physlib
+    source_revision: f5242c99d796b59a390d26cd7d1a8057e04c46b5
+    compile_project_id: physlib
+    compile_project_revision: f5242c99d796b59a390d26cd7d1a8057e04c46b5
+    lean_version: v4.30.0
+    import_header: import Physlib
+    namespace_context: []
+    open_context: []
+    scoped_context: []
+    options: {Elab.async: false, autoImplicit: false}
+    source_faithful_context_required_for_real_roots: true
+
+templates:
+  - template_id: p01_success_v0_3_6
+    operation_id: P01_ALPHA_RENAME_SINGLE_V1
+    fixture_kind: success
+    reference_term: "(x : Nat) → x + 1 = Nat.succ x"
+    selector: {kind: outer_binder, binder_index: 0}
+    expected_engine_terminal: applicable
+    expected_reason_class: exact_single_binder_name_delta
+  - template_id: p01_reject_v0_3_6
+    operation_id: P01_ALPHA_RENAME_SINGLE_V1
+    fixture_kind: adversarial_rejection
+    reference_term: "True"
+    selector: {kind: outer_binder, binder_index: 0}
+    expected_engine_terminal: typedNotApplicable
+    expected_engine_reason: operationNotApplicable
+    expected_reason_class: no_explicit_named_forall_at_selected_site
+  - template_id: p15_success_v0_3_6
+    operation_id: P15_SWAP_IFF_SIDES_V1
+    fixture_kind: success
+    reference_term: "((0 : Nat) = 1) ↔ ((1 : Nat) = 0)"
+    selector: {kind: outer_target}
+    expected_engine_terminal: applicable
+    expected_reason_class: exact_distinct_iff_side_swap
+  - template_id: p15_reject_v0_3_6
+    operation_id: P15_SWAP_IFF_SIDES_V1
+    fixture_kind: adversarial_rejection
+    reference_term: "((0 : Nat) = 0) ↔ ((0 : Nat) = 0)"
+    selector: {kind: outer_target}
+    expected_engine_terminal: typedNotApplicable
+    expected_engine_reason: operationNotApplicable
+    expected_reason_class: definitionally_equal_iff_sides
+  - template_id: p18_success_v0_3_6
+    operation_id: P18_SYMMETRIZE_EQUALITY_V1
+    fixture_kind: success
+    reference_term: "(0 : Nat) = 1"
+    selector: {kind: outer_target}
+    expected_engine_terminal: applicable
+    expected_reason_class: exact_distinct_equality_operand_swap
+  - template_id: p18_reject_v0_3_6
+    operation_id: P18_SYMMETRIZE_EQUALITY_V1
+    fixture_kind: adversarial_rejection
+    reference_term: "(0 : Nat) = 0"
+    selector: {kind: outer_target}
+    expected_engine_terminal: typedNotApplicable
+    expected_engine_reason: operationNotApplicable
+    expected_reason_class: definitionally_equal_equality_operands
+  - template_id: p21_success_v0_3_6
+    operation_id: P21_BETA_REDUCE_V1
+    fixture_kind: success
+    reference_term: "(fun p : Prop => p ∧ (0 : Nat) = 0) ((0 : Nat) = 1)"
+    selector: {kind: exact_expr_site, site_path: "/"}
+    expected_engine_terminal: applicable
+    expected_reason_class: exact_single_closed_argument_beta_reduction
+  - template_id: p21_reject_v0_3_6
+    operation_id: P21_BETA_REDUCE_V1
+    fixture_kind: adversarial_rejection
+    reference_term: "(fun _p : Prop => (0 : Nat) = 0) True"
+    selector: {kind: exact_expr_site, site_path: "/"}
+    expected_engine_terminal: typedNotApplicable
+    expected_engine_reason: operationNotApplicable
+    expected_reason_class: beta_argument_erases_complete_claim_input
+  - template_id: n31_rubric_success_proposal_v0_3_6
+    operation_id: N31_DROP_REQUIRED_GUARD_RUBRIC_V1
+    fixture_kind: success
+    reference_term: "(x : Nat) → (hx : x ≠ 0) → x / x = 1"
+    selector:
+      kind: required_guard_proposal
+      guard_binder_index: 1
+      guard_shape_id: ne_zero_guard_v1
+      target_head_name: HDiv.hDiv
+      reachability_assignments: ["(1 : Nat)", Nat.one_ne_zero]
+    expected_engine_terminal: proposed_not_admitted
+    expected_reason_class: exact_required_ne_zero_guard_delta_proposal
+  - template_id: n31_rubric_reject_proposal_v0_3_6
+    operation_id: N31_DROP_REQUIRED_GUARD_RUBRIC_V1
+    fixture_kind: adversarial_rejection
+    reference_term: "(x : Nat) → (hx : x ≠ 0) → (hpos : 0 < x) → x / x = 1"
+    selector:
+      kind: required_guard_proposal
+      guard_binder_index: 1
+      guard_shape_id: ne_zero_guard_v1
+      target_head_name: HDiv.hDiv
+      reachability_assignments: ["(1 : Nat)", Nat.one_ne_zero, "Nat.zero_lt_succ 0"]
+    expected_engine_terminal: proposal_rejected
+    expected_engine_reason: n31CompetingGuard
+    expected_reason_class: retained_positive_guard_implies_removed_ne_zero_guard
+
+matrix_contract:
+  project_order: [compiler_data, cslib, mathlib, physlib]
+  template_operation_order:
+    - P01_ALPHA_RENAME_SINGLE_V1
+    - P15_SWAP_IFF_SIDES_V1
+    - P18_SYMMETRIZE_EQUALITY_V1
+    - P21_BETA_REDUCE_V1
+    - N31_DROP_REQUIRED_GUARD_RUBRIC_V1
+  positive_checkpoint_operation_order:
+    - P01_ALPHA_RENAME_SINGLE_V1
+    - P15_SWAP_IFF_SIDES_V1
+    - P18_SYMMETRIZE_EQUALITY_V1
+    - P21_BETA_REDUCE_V1
+  n31_proposal_operation_order:
+    - N31_DROP_REQUIRED_GUARD_RUBRIC_V1
+  fixture_kind_order: [success, adversarial_rejection]
+  positive_checkpoint_expansion: exact_cartesian_project_positive_operation_fixture_kind_v1
+  exact_positive_operation_project_count: 16
+  exact_positive_fixture_count: 32
+  exact_n31_project_count: 4
+  exact_n31_phase_request_count: 8
+  combined_40_case_live_checkpoint_allowed: false
+  every_positive_success_requires_same_request_two_endpoint_repr: true
+  every_rejection_requires_persistent_meta_outcome_receipt: true
+  rejections_must_not_invent_candidate_endpoints: true
+  n31_success_is_proposal_not_activation: true
+  matrix_is_gate_evidence: false

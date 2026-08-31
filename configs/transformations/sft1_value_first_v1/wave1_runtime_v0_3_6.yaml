@@ -1,0 +1,319 @@
+schema_version: 1
+policy_version: "0.3.6"
+status: implementation_authorized_live_receipts_pending
+accepted_corrective_commit: fc8cdc2c6d9d93e99e20933a17dbcfa2afc2be48
+accepted_parent_branch_push_completed: true
+current_revision_commit: null
+current_revision_push_completed: false
+frozen_readiness_file_sha256: 87197cef05d4e755a0d92745b2b3846787b5e1159edac29dfdd967ba81aed614
+p01_required_policy_semantic_hash: a4aa3ddc383fdbc5fd1e161b5955f403ac17afa98f9d24defab4c2741846b4fd
+p01_corrected_envelope_semantic_hash: dcdd6c07a83aa84faf81b448e2732121027b5a93fc89512caa38035b9c4cdbe4
+
+source_bindings:
+  - role: fixed_reference_elaboration
+    path: LeanFaith/Meta/SFT1/RepresentationGate.lean
+    file_sha256: c87b9c5065a41f51e7cbdcdcc98f14fedc6a015054c40a0cfe4367ad63330129
+  - role: frozen_wave1_engine
+    path: LeanFaith/Meta/SFT1/Wave1.lean
+    file_sha256: 7d4c27e1fd631cc1ba2f8de7cacec1eca618280c12c8ac351d9544a06e94ba4d
+  - role: p01_policy
+    path: configs/transformations/sft1_value_first_v1/p01_identity_policy_v0_3_5.yaml
+    file_sha256: 84b1ea8dcb3a302f4c4f92c7a82f5c68ddbf45655c060e588de0acce7453e01c
+  - role: composition_runtime
+    path: src/leanfaith/sft1/wave1_runtime.py
+    file_sha256: 72700eec02bf207c8a923d479a64308abde0d2aa4c3a5dd26033991abdf1e5d9
+  - role: meta_cache_adapter
+    path: src/leanfaith/sft1/wave1_meta_adapter.py
+    file_sha256: 81d84f6271c18d68719001f2e2360ddc7a178086bac3468d1450abc54b9b24db
+  - role: live_readiness_runner
+    path: src/leanfaith/sft1/wave1_live_runner.py
+    file_sha256: cdfe43380b3b0984bc1689632786f13ffb255e0e927c66996b1d8cc80b54d4d7
+  - role: lean_runtime_helper
+    path: LeanFaith/Meta/SFT1/Wave1Runtime.lean
+    file_sha256: 5967ed1f02e0e96bf185391fe817741d14c75a8b6bea0b679e40624289e02c4f
+  - role: runtime_fixtures
+    path: tests/fixtures/sft1/wave1_v0_3_6.yaml
+    file_sha256: 67e5012f7c7e3bb5d4b2cb55d103f335aa6fb082d29baae434ace91010d035c1
+
+resource_contract:
+  task_id: SFT1
+  shared_resource_claim_required_before_lean: true
+  initial_persistent_lean_workers: 1
+  maximum_concurrent_lean_workers: 2
+  maximum_combined_measured_rss_gib: 40
+  increase_only_after_measurement: true
+  elab_async: false
+  per_row_process_spawn_allowed: false
+  compile_corpus_allowed: false
+  memory_hard_limit_mb_per_worker: 24576
+
+persistence_contract:
+  root: /storage/milikic/leanfaith/value_first/sft1_deterministic_v1/wave1_readiness_v0_3_6
+  one_append_only_journal_per_project: true
+  durable_logs: true
+  central_cache_adapter: true
+  resume_command_recorded_before_detached_run: true
+  terminal_marker_required: true
+  detached_tmux_required_if_run_may_outlive_turn: true
+  model_facing_staging_area: false
+
+backend_projects:
+  - backend_id: mathlib
+    project_dir: /storage/milikic/leanfaith/mathlib4
+    project_revision: d568c8c09630de097a046763c17b9ea99f95f950
+    lean_version: v4.31.0-rc1
+    source_project_ids: [compiler_data, mathlib]
+  - backend_id: cslib
+    project_dir: /storage/milikic/leanfaith/value_first/sft1_deterministic_v1/checkouts/cslib
+    project_revision: 2f677bfc8ef76fa7a27feafc597c1e4a7eda3e42
+    lean_version: v4.31.0-rc1
+    source_project_ids: [cslib]
+  - backend_id: physlib
+    project_dir: /storage/milikic/leanfaith/value_first/sft1_deterministic_v1/checkouts/physlib
+    project_revision: f5242c99d796b59a390d26cd7d1a8057e04c46b5
+    lean_version: v4.30.0
+    source_project_ids: [physlib]
+
+lean_environment_contract:
+  environment_lock_path: configs/environment.lock.yaml
+  environment_lock_file_sha256: e447ac3a773b0d29ec75b51bcfa5318158399e9fe7459a650f9d0bfef9986298
+  environment_schema_version: 1
+  lean_interact_version: 0.11.4
+  repl_revision: augustepoiroux/repl@lean-interact-0.11.4
+  server_mode: stable
+  timeout_seconds_per_request: 300
+  infrastructure_retry_max_attempts: 2
+  retried_statuses: [crash, internal_error]
+  semantic_failures_retried: false
+  heartbeat_seconds: 30
+
+representation_contract:
+  route: closed_expr_in_session
+  python_entrypoint: render_closed_expr_in_session
+  endpoint_emitter: LeanFaith.GoalV1.emitClosedProp
+  one_run_meta_per_pair: true
+  explicitly_unrolled_endpoint_count: 2
+  same_persistent_request: true
+  complete_sidecars_persisted: true
+  model_facing_projection: sidecar.core_text()
+  candidate_declaration_allowed: false
+  candidate_proof_allowed: false
+  copied_renderer_allowed: false
+  text_reelaboration_allowed: false
+  goal_v1_compilation_allowed: false
+  forbidden_rendered_substrings: ["[anonymous]", "⋯"]
+
+preamble_contract:
+  assembler_version: sft1_wave1_import_stripped_concat_v1
+  ordered_source_roles:
+    - fixed_reference_elaboration
+    - frozen_wave1_engine
+    - lean_runtime_helper
+  import_line_policy: remove_lines_starting_exactly_import_space_v1
+  expected_removed_import_line_count: 3
+  assembled_preamble_sha256: ba6058c5af958e0887f7e6ee39df884807ed17be59f96788ca4ab4b2d35453a2
+  hash_reviewed_before_lean: true
+  endpoint_declarations_allowed: false
+  proof_or_sorry_allowed: false
+
+cache_contract:
+  complete_wave1_cache_key_field_count: 30
+  central_evidence_cache_adapter_required: true
+  cache_hit_requires_evidence_replay: true
+  immutable_no_overwrite: true
+  positive_bank_hash_convention:
+    convention_id: positive_live_resolved_runtime_anchor_bundle_v1
+    canonical_hash_fields:
+      - operation_id
+      - project_id
+      - toolchain_revision
+      - frozen_wave1_source_sha256
+      - runtime_helper_sha256
+      - operation_constructor
+      - dispatch_symbol
+      - checker_symbol
+      - anchor_hash
+      - symbol_resolution_receipt_hash
+    zero_or_authored_yaml_substitution_allowed: false
+    required_for_bank_resolved_lean_hash_of_positive_operations: true
+  n31_bank_hash_is_exact_resolved_typed_bank_hash: true
+  imports_hash_convention: sha256_utf8_exact_import_header_v1
+  options_hash_convention: sha256_canonical_sorted_compile_options_v1
+  synthesized_instance_hash_convention: sha256_canonical_typed_instance_expr_inventory_entry_v1
+  empty_instance_inventory_requires_typed_receipt: true
+  environment_hash_convention: compile_context_fingerprint_v1
+
+operations:
+  - operation_id: P01_ALPHA_RENAME_SINGLE_V1
+    mechanism_superclass: presentation_alpha
+    inverse_token: P01_ALPHA_RENAME
+    registry_entry_hash: 36b680c6c3407d0761de8af1b0c5e685ce0bc89fefed720bc46255c9bc218844
+    anchor_hash: ca485f300ecc818057f10877f0eec5c6b4b963fec2e0a574a6895f9d83357095
+    operation_bank_entry_hash: da08e62d1dd1839da683bcdb8d4a73e40fd627498ffed78a20fed146e1088c39
+    fixture_aggregate_hash: 8fad8342d8925bf3018778aa8ae800c98303a6cecec7ae1f7610ed053d436454
+    runtime_fixture_bundle_hash: 6c62f5fd74de57ed82dcee42d31ae22469ed866d6a31465945fe2977ada885a0
+    operation_constructor: LeanFaith.SFT1.Wave1.PrimaryOperation.p01AlphaRenameSingle
+    selector_constructor: LeanFaith.SFT1.Wave1.Selector.outerBinder
+    dispatch_symbol: LeanFaith.SFT1.Wave1.dispatchAt
+    checker_symbol: LeanFaith.SFT1.Wave1.replayCertificate
+    transparency: none
+    allowed_axiom_profile: constructive_kernel
+    runtime_status: positive_implementation_authorized_pending_live_receipt
+  - operation_id: P15_SWAP_IFF_SIDES_V1
+    mechanism_superclass: logical_symmetry
+    inverse_token: P15_IFF_SWAP
+    registry_entry_hash: cefb0b1f138d40cc48df102d834e6f98735697213f4ab0d2688fe64943c7ed97
+    anchor_hash: ecad6c6ea110dff281b051045eb37846b194b54fa1a879bce11f5c04e5ed6bd4
+    operation_bank_entry_hash: ca645071138232854736d49515efb37f4c602122b55e06ac75c973313a3d64cb
+    fixture_aggregate_hash: 0ba5ebb5669dcc3d9a14f64504d9f13fd1efe97f26e66dfa6aec7b1923a1b247
+    runtime_fixture_bundle_hash: 68b5dac1c0e7a5833d0608b95b44c06223d410c1133a7b08193274540d8c2078
+    operation_constructor: LeanFaith.SFT1.Wave1.PrimaryOperation.p15SwapIffSides
+    selector_constructor: LeanFaith.SFT1.Wave1.Selector.outerTarget
+    dispatch_symbol: LeanFaith.SFT1.Wave1.dispatchAt
+    checker_symbol: LeanFaith.SFT1.Wave1.replayCertificate
+    transparency: none
+    allowed_axiom_profile: constructive_kernel
+    runtime_status: positive_implementation_authorized_pending_live_receipt
+  - operation_id: P18_SYMMETRIZE_EQUALITY_V1
+    mechanism_superclass: relation_symmetry
+    inverse_token: P18_EQUALITY_SYMMETRY
+    registry_entry_hash: 84d9a3615a30aca49e44705fc341f147b74b2885f4831244bb31ea7f97364472
+    anchor_hash: a79b0b92d5fca0360c38a9edaead1edec038df63bc2167da580bcf9d2c335b8d
+    operation_bank_entry_hash: 007d09f2a6b2037c22fd220fdc8b10371e0a7f4caceb37f101d5b296065fb205
+    fixture_aggregate_hash: 3ffb6d02097c003cc2bad10c41248d4c752c27f06b3f918cd3fa4b3344308a10
+    runtime_fixture_bundle_hash: be5bb848657fd7e12f12391f77edfa590435a37a7e576a4dfaddfc92fbcd3c75
+    operation_constructor: LeanFaith.SFT1.Wave1.PrimaryOperation.p18SymmetrizeEquality
+    selector_constructor: LeanFaith.SFT1.Wave1.Selector.outerTarget
+    dispatch_symbol: LeanFaith.SFT1.Wave1.dispatchAt
+    checker_symbol: LeanFaith.SFT1.Wave1.replayCertificate
+    transparency: none
+    allowed_axiom_profile: constructive_kernel
+    runtime_status: positive_implementation_authorized_pending_live_receipt
+  - operation_id: P21_BETA_REDUCE_V1
+    mechanism_superclass: definitional_beta
+    inverse_token: P21_BETA_INTRO_REDUCE
+    registry_entry_hash: 5a7ff8ce195cafd42b971bb5a07e23ec7e46b7d0376b7ab34c8dfa42459261f3
+    anchor_hash: dd364fd25afd801ae97c2f47ea59ca9f46cae0fff393da5a57b5842acb306d4c
+    operation_bank_entry_hash: 655c3d8a28820d66b6f0227cd8c26aa40f77e7217e5f2ca5366b3ac358df281b
+    fixture_aggregate_hash: f49d9aa1ab1e6f5fee5394d542c09c38e122012843ac026da451f7e7a6b443f8
+    runtime_fixture_bundle_hash: f3a15da3c82d067d3fc31eb0fff07d0b394d5a8f899bb154dfcf0f543e31eb70
+    operation_constructor: LeanFaith.SFT1.Wave1.PrimaryOperation.p21BetaReduce
+    selector_constructor: LeanFaith.SFT1.Wave1.Selector.subexpr
+    dispatch_symbol: LeanFaith.SFT1.Wave1.dispatchAt
+    checker_symbol: LeanFaith.SFT1.Wave1.replayCertificate
+    transparency: reducible
+    allowed_axiom_profile: constructive_kernel
+    runtime_status: positive_implementation_authorized_pending_live_receipt
+  - operation_id: N31_DROP_REQUIRED_GUARD_RUBRIC_V1
+    mechanism_superclass: required_guard_mutation
+    inverse_token: N31_DROP_REQUIRED_GUARD
+    registry_entry_hash: e10cae5e82a8b17bcfe9a5bd4d5811eea6b75c78e77b6c67a3c082a2c2feae5f
+    anchor_hash: 03789414409dca332f807a6b53ed1fe4416fbfd13c377362119a910858fbf00d
+    operation_bank_entry_hash: cb9dbe3695f197ecbacc65ae0f2c58ff78919bf727c64876a838da47ad7a38f8
+    fixture_aggregate_hash: 1bfc134f3c33481afddfe869865539536cd4f5c0b785cbbdbbf0e13b347b71dc
+    runtime_fixture_bundle_hash: 8360bb2cfe375bd9f911b6407941f0d0e791d3d7fcf68e4599f590969f1e603a
+    operation_constructor: LeanFaith.SFT1.Wave1.PrimaryOperation.n31DropRequiredGuardRubric
+    selector_constructor: LeanFaith.SFT1.Wave1.Selector.requiredGuard
+    dispatch_symbol: LeanFaith.SFT1.Wave1.dispatchAt
+    checker_symbol: LeanFaith.SFT1.Wave1.replayCertificate
+    transparency: reducible
+    allowed_axiom_profile: classical_recorded
+    runtime_status: n31_resolution_proposal_only_not_admitted
+
+n31_contract:
+  parent_operation_id: N31_DROP_REQUIRED_GUARD_RUBRIC_V1
+  optional_proof_operation_id: N31_DROP_REQUIRED_GUARD_PROOF_V1
+  frozen_admitted_identity_count: 0
+  proposal_resolution_authorized: true
+  activation_authorized: false
+  proposal_result_status: proposed_not_admitted
+  n_proof_optional_per_project_and_root: true
+  n_proof_unavailability_blocks_n_rubric: false
+  n_proof_independent_root_pool_allowed: false
+  exact_user_admission_fields: [project_id, bank_id, resolved_lean_hash, resolution_receipt_hash]
+  stop_after_proposal_receipt: true
+
+n31_proposal_bank:
+  template_id: sft1_n31_nat_ne_zero_hdiv_proposal_template_v0_3_6
+  bank_id: sft1_n31_nat_ne_zero_hdiv_proposal_v0_3_6
+  status: proposed_not_admitted
+  project_ids: [compiler_data, cslib, mathlib, physlib]
+  zero_term: "(0 : Nat)"
+  retained_witness_term: "(1 : Nat) = 0"
+  entries:
+    - entry_id: n31_ne_zero_hdiv_nat_v0_3_6
+      guard_shape_id: ne_zero_guard_v1
+      guard_head_name: Ne
+      guard_argument_count: 3
+      guard_role_argument_indices: [1]
+      guard_instance_or_type_argument_indices: [0]
+      guard_exact_zero_argument_index: 2
+      target_head_name: HDiv.hDiv
+      target_argument_count: 6
+      target_role_argument_indices: [5]
+      target_instance_or_type_argument_indices: [0]
+    - entry_id: n31_positive_hdiv_nat_v0_3_6
+      guard_shape_id: positive_guard_v1
+      guard_head_name: LT.lt
+      guard_argument_count: 4
+      guard_role_argument_indices: [3]
+      guard_instance_or_type_argument_indices: [0]
+      guard_exact_zero_argument_index: 2
+      target_head_name: HDiv.hDiv
+      target_argument_count: 6
+      target_role_argument_indices: [5]
+      target_instance_or_type_argument_indices: [0]
+  retained_contradiction_patterns:
+    - shape_id: eq_zero_retained_v1
+      head_name: Eq
+      argument_count: 3
+      role_paths: [[1]]
+      instance_or_type_paths: [[0]]
+      exact_zero_paths: [[2]]
+  implications:
+    - premise_shape_id: positive_guard_v1
+      conclusion_shape_id: ne_zero_guard_v1
+  contradictions:
+    - retained_shape_id: eq_zero_retained_v1
+      removed_shape_id: ne_zero_guard_v1
+  phase_two_source_template_id: n31_rubric_success_proposal_v0_3_6
+  phase_two_selector_guard_ordinal: 1
+  phase_two_selector_target_path: "/"
+  phase_two_selector_bank_entry_id: n31_ne_zero_hdiv_nat_v0_3_6
+  reachability_mode_id: explicit_telescope_witness_and_retained_hypothesis_proofs
+  reachability_assignment_terms: ["(1 : Nat)", Nat.one_ne_zero]
+  phase_one_identity_hash_fields_empty: true
+  semantic_success_conformance_performed: false
+  semantic_adversarial_conformance_performed: false
+  activation_exposed: false
+
+authorization:
+  zero_lean_censuses: true
+  task_owned_wave1_implementation: true
+  bounded_live_compile_and_fixture_replay: true
+  wave1_gate_execution: false
+  model_facing_rows: false
+  wave2_implementation_or_execution: false
+  production_admission: false
+  ten_k: false
+  scale: false
+  training: false
+  publication: false
+  shared_contract_edit_by_sft1: false
+
+readiness_state:
+  implementation_ready: false
+  p01_runtime_ready: false
+  all_five_live_bundles_ready: false
+  persistent_meta_adapter_ready: false
+  central_cache_replay_ready: false
+  n31_active: false
+  positive_checkpoint_receipt_path: null
+  positive_checkpoint_receipt_hash: null
+  n31_proposal_receipt_path: null
+  n31_proposal_receipt_hash: null
+  combined_five_mechanism_receipt_path: null
+  combined_five_mechanism_receipt_hash: null
+  gate_execution_enabled: false
+
+shared_label_contract_status: coordinator_request_open

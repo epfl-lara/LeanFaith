@@ -2,21 +2,21 @@
 
 > **Task ID:** SFT1
 > **Status:** active
-> **Owner/session:** Codex `/root` — 2026-08-31 SFT1 P01 0.3.5 corrective runtime-binding session
+> **Owner/session:** Codex `/root` — 2026-08-31 SFT1 Wave 1 revision-0.3.6 implementation-readiness session
 > **Last updated:** 2026-08-31
-> **Active policy:** one Lean-free corrective revision over P01 identity-policy commit
-> `505b74754f881e903b5f04eab99311a125484b24`, preserving that commit in history and binding its
-> approved policy semantic hash `a4aa3ddc383fdbc5fd1e161b5955f403ac17afa98f9d24defab4c2741846b4fd`
-> as a future runtime dependency. Revision 0.3.4, all earlier revisions, every existing receipt,
-> and the complete 46-operation registry remain immutable.
-> **Approval recorded:** on 2026-08-31 the user authorized only a Lean-free correction adding the
-> explicit fail-closed blocker
-> `p01_identity_exception_composition_dedup_runtime_binding_and_replay`. The earlier policy-level
-> identity blocker remains cleared, but the new blocker remains open until the real runtime binds
-> and exactly replays the approved exception, caps, and duplicate/conflict rules. This does not
-> authorize Lean, transformation or gate execution, model-facing rows, production admission,
-> Wave 2, 10K, scale, training, publication, or push. P01 implementation readiness, overall
-> implementation readiness, and gate execution remain false.
+> **Active policy:** additive revision 0.3.6 implementation-readiness work over accepted corrective
+> commit `fc8cdc2c6d9d93e99e20933a17dbcfa2afc2be48`. Revision 0.3.5, revision 0.3.4,
+> all earlier revisions, every existing hash and receipt, and the complete 46-operation registry
+> remain immutable. The real runtime must bind approved P01 policy semantic hash
+> `a4aa3ddc383fdbc5fd1e161b5955f403ac17afa98f9d24defab4c2741846b4fd`.
+> **Approval recorded:** on 2026-08-31 the user accepted corrective revision 0.3.5, authorized its
+> branch push, and authorized only Wave 1 implementation-readiness work: all three zero-Lean census
+> tiers; the P01 composition/dedup runtime; the five primary Wave 1 bundles; the persistent
+> same-request Meta/REPR adapter; central cache integration; and then bounded live Lean compile,
+> symbol, success/rejection fixture, certificate, P01 runtime, and cache replay. This does not
+> authorize Wave 1 gate execution, model-facing rows, Wave 2, production promotion, 10K, scale,
+> training, or publication. N31 resolution may produce proposed identities and receipts only and
+> must stop for exact user admission before activation.
 > **Dependencies:** approved REPR freeze `176a783842c5a73b84413dfa8347670608b615d9`
 > and authoritative SFT1 receipt
 > `f62b68ebc946469952bdd34674c127e2bd1146b0a8febbe5d199fea54a081e78`
@@ -30,18 +30,15 @@
 > fail-closed without blocking it.
 > **REPR predecessor:** `cbc933c3623d81ba649a1f9c5107ad404389d69f` was reviewed but is
 > superseded and not consumable by SFT1
-> **Next gate:** none is executable in this revision. Authored components remain fail-closed and
-> unverified until a later authorized Lean compile/conformance session. Before the future two-row
-> smoke, complete the coordinator shared-contract update, root-specific hash-bound micro-censuses
-> for the exact P01 and N31-RUBRIC smoke roots, the five primary Wave 1
-> implementation/binding bundles, and the closed N31 rubric checker. N31 N-PROOF availability is
-> optional per project/root and cannot block
-> N31-RUBRIC or the smoke.
-> **Compute class:** zero Lean for current policy/loader work; the completed representation gate used
-> one bounded persistent project/toolchain Meta worker at a time
-> **Lean budget:** no per-row process spawn; every retained gate row receives bounded typed Meta
-> validation and evidence replay in persistent workers; further Lean remains readiness-closed until
-> the prerequisites above pass
+> **Next gate:** none is executable in this revision. Complete and hash-bind the authorized
+> implementation-readiness work, keep proposed N31 identities inactive, and stop for the exact N31
+> admission decision. The two-row smoke and every later Wave 1 gate remain unauthorized.
+> **Compute class:** zero Lean for all census/schema/provenance work first; then one bounded
+> persistent project/toolchain Meta worker, increasing only after measurement and never beyond two
+> concurrent Lean workers or 40 GiB combined measured RSS
+> **Lean budget:** claim shared resources before Lean; use `Elab.async=false`; compile no corpus;
+> never spawn a process per row; reuse persistent project sessions; live work is restricted to the
+> five primary readiness bundles and bounded fixtures/replays named in the current authorization
 > **Local staging root:** `/storage/milikic/leanfaith/value_first/sft1_deterministic_v1/`
 > **HF destination:** private `Lemmy00/leanfaith-sft1-deterministic-v1`
 
@@ -776,22 +773,40 @@ The 10K pilot, any bulk scale, publication, and all row/root-count commitments a
 
 ## Acceptance criteria for this revision
 
-- Commit `505b74754f881e903b5f04eab99311a125484b24`, revision 0.3.4, every earlier
-  revision, every pre-existing receipt, and the exact 46-operation registry remain preserved. The
-  current change is one Lean-free corrective revision over the approved 0.3.5 policy.
-- The strict Lean-free loader composes and replays the immutable revision-0.3.4 closure; binds the
-  exact parent commit/tree, P01 operation/bank/bundle, REPR identities, collision evidence, and
-  unchanged grammar/dedup/cap contracts; rejects unknown, duplicate, contradictory, alternate-path,
-  or hash-drifting state; and exposes no execution, transformation, or row-emission surface.
-- The only permitted closed-Expr repetition is the qualified adjacent P01 equality above. Only its
-  original policy blocker is removed. The replacement composition/dedup runtime-binding blocker is
-  present exactly once and remains open. P01 implementation readiness, overall readiness, and every
-  gate, execution, row, production, Wave 2, 10K, scale, training, and publication state remain false.
-- The future runtime must bind `a4aa3ddc…`, accept only the adjacent two-endpoint repeat across the
-  sole P01 edge after exact certificate replay, reject every named adversarial case, count every
-  positive or negative direct/composed P01 chain against its caps, and preserve canonical
-  unordered-pair duplicate/conflict handling. This revision records those requirements but does not
-  implement or replay them.
+- Accepted corrective commit `fc8cdc2c6d9d93e99e20933a17dbcfa2afc2be48`, revision 0.3.5,
+  every earlier revision, every pre-existing hash/receipt, and the exact 46-operation registry
+  remain preserved. Revision 0.3.6 changes only the additive task-owned paths claimed below.
+- The checked-in Lean-free loaders replay their actual canonical config, fixture, policy, source,
+  REPR, project, environment, preamble, and implementation hash closures. Tests may not substitute
+  unchecked `Loaded*` values for that closure. Unknown fields, alternate paths, stale source hashes,
+  contradictory flags, and cross-phase receipt drift fail closed.
+- The three census tiers remain distinct. Selected-wave and complete cross-source censuses can run
+  without Lean and produce durable receipts independently. The two-root smoke census requires
+  exactly one authenticated P01 root and one authenticated, admitted N31-RUBRIC root; N31 proposal
+  or nonactivation evidence alone cannot satisfy typed applicability.
+- The P01 runtime binds semantic hash `a4aa3ddc…`; its certificate binds the exact selected binder
+  ordinal/path, old/new names, `BinderInfo`, endpoint/sidecar hashes, and deterministic replay. It
+  accepts only the sole adjacent P01 alpha-hash repetition, rejects all named adversaries and
+  overlapping sites, and replays cap/dedup/conflict logic from a durable hash-bound scope manifest
+  and journal. Readiness fixtures explicitly do not claim a complete production retention scope.
+- The first live checkpoint contains exactly 32 cases: P01, P15, P18, and P21 success plus
+  adversarial rejection in each of four projects. Its typed receipt and durable artifacts bind the
+  clean implementation commit/tree, exact run spec, source closure, reusable symbol receipt per
+  operation/project, raw responses, typed certificates, same-request REPR sidecars, central cache
+  write/readback, P01 replay, timing/bytes/RSS, journals, heartbeat, resource release, and terminal
+  marker. It is implementation-readiness evidence, never a Wave 1 gate or row.
+- N31 is a separate two-request proposal-only checkpoint. It may resolve and record exact
+  project/bank/Lean/receipt identities, but it exposes no candidate or semantic checker, activates
+  no bank, performs no semantic conformance, and stops for exact user admission. No combined
+  40-case semantic checkpoint or loader exists before that admission and a later authorization.
+- Live work starts with one claimed persistent worker, uses `Elab.async=false`, reuses one project
+  session, compiles no corpus, spawns no process per row, and never exceeds two concurrent workers
+  or 40 GiB combined measured RSS. Every success/rejection, certificate, cache, and P01 acceptance
+  claim is replayed before its checkpoint can close.
+- P01 implementation readiness, all-five readiness, overall readiness, and gate execution remain
+  false until their exact live evidence and the other named prerequisites are recorded. This
+  revision does not authorize the two-row smoke, selected-wave conformance, approximately-100-root
+  gate, model-facing rows, production promotion, Wave 2, 10K, scale, training, or publication.
 - Effective Wave 1 contains six exact IDs but five semantic mechanisms. Its conformance accounting
   is 20--24 project cells and 40--48 fixtures; its independent measurement target is approximately
   500 roots. Optional N31 N-PROOF cells and evidence are derived only from reproducible proof routes
@@ -819,9 +834,10 @@ The 10K pilot, any bulk scale, publication, and all row/root-count commitments a
 - The tiered zero-Lean census, source routes, exact grammar, axiom profiles, cache keys,
   deterministic cap order, source/polarity balancing, cap denominator, scale arithmetic, and gates
   are invariant-tested.
-- The six-goal run used bounded persistent project environments and produced only representation
-  evidence. This revision runs no Lean, transform, census-scale job, gate, or generation and grants
-  no production, 10K, scale, publication, or frozen/shared-artifact mutation authority.
+- The prior six-goal run remains representation evidence only. The current authorization permits
+  only the zero-Lean censuses and bounded five-mechanism implementation-readiness compilation and
+  replay described above; it grants no transform gate, generation, model-facing row, production,
+  10K, scale, publication, or frozen/shared-artifact mutation authority.
 
 ## Writable paths and ownership
 
@@ -941,6 +957,78 @@ focused adversarial suite have raw hashes
 semantic hash is intentionally distinct from the approved runtime-input policy hash `a4aa3ddc…`;
 the loader's exact pre-correction projection replays the latter.
 
+**Exact paths claimed by the revision-0.3.6 implementation-readiness session:**
+
+- `plans/30_sft1_deterministic.md`
+- `LeanFaith/Meta/SFT1/Wave1Runtime.lean`
+- `configs/transformations/sft1_value_first_v1/wave1_runtime_v0_3_6.yaml`
+- `configs/transformations/sft1_value_first_v1/wave1_census_v0_3_6.yaml`
+- `configs/transformations/sft1_value_first_v1/wave1_smoke_micro_census_receipt_v0_3_6.json`
+- `configs/transformations/sft1_value_first_v1/wave1_selected_wave_census_receipt_v0_3_6.json`
+- `configs/transformations/sft1_value_first_v1/wave1_cross_source_census_receipt_v0_3_6.json`
+- `configs/transformations/sft1_value_first_v1/wave1_n31_resolution_proposal_v0_3_6.json`
+- `configs/transformations/sft1_value_first_v1/wave1_positive_live_checkpoint_v0_3_6.json`
+- `src/leanfaith/sft1/wave1_census_v0_3_6.py`
+- `src/leanfaith/sft1/wave1_runtime.py`
+- `src/leanfaith/sft1/wave1_meta_adapter.py`
+- `src/leanfaith/sft1/wave1_live_readiness.py`
+- `src/leanfaith/sft1/wave1_live_runner.py`
+- `tests/fixtures/sft1/wave1_v0_3_6.yaml`
+- `tests/unit/sft1/test_wave1_census_v0_3_6.py`
+- `tests/unit/sft1/test_wave1_runtime.py`
+- `tests/unit/sft1/test_wave1_meta_adapter.py`
+- `tests/unit/sft1/test_wave1_live_readiness.py`
+- `tests/unit/sft1/test_wave1_live_runner.py`
+
+These are additive task-owned paths only. Frozen revision-0.3.5 and earlier artifacts remain
+read-only. The three census receipts and positive-only live checkpoint are non-row metadata
+evidence. The runtime and live-readiness artifacts may execute only the five primary mechanisms
+under the bounded readiness authorization;
+they expose no Wave 1 gate, row-emission, Wave 2, production, 10K, scale, training, or publication
+entrypoint. Any N31 name/arity/type/instance resolution is recorded only in the claimed proposal
+receipt with activation false until the user admits its exact project, bank, resolved-Lean, and
+receipt hashes. Task-owned durable runtime state is confined to
+`/storage/milikic/leanfaith/value_first/sft1_deterministic_v1/wave1_readiness_v0_3_6/` with one
+append-only journal per project, a content-addressed central-cache adapter root, persistent logs,
+and terminal markers; it is not a model-facing dataset staging area.
+
+### Revision 0.3.6 implementation-readiness acceptance contract
+
+Lean remains the bottleneck. All source enumeration, license/revision checks, blocklist screening,
+schema validation, provenance, joins, hashing, duplicate clustering, sampling, and durable-state
+setup run before Lean. The live phase starts with one resource-claimed persistent worker per active
+project/toolchain session under `Elab.async=false`; it never launches a process per row, compiles a
+corpus, exceeds two concurrent Lean workers, or exceeds 40 GiB combined measured RSS.
+
+The static checkpoint is complete only when the checked-in strict loader replays the exact runtime
+config, fixture, implementation source, helper, assembled preamble, frozen policy, REPR, project,
+and environment hashes. Passing unit models with substituted paths or patched constants is not a
+substitute for loading the checked-in closure. The runtime must preserve P01's field-sensitive
+binder-name site, exact typed certificate and adjacent alpha-hash exception, canonical unordered
+pair deduplication, conflict rejection, and caps over direct/composed pairs across both polarities.
+The cache may return a hit only after current typed certificate replay and complete revalidation of
+both closed Exprs, the same REPR request, both sidecars, raw response, typed replay artifact,
+certificate dependency, and all mandatory success checks.
+
+The zero-Lean census has three distinct terminal states. The selected-wave result is a bounded
+sampling-frame slice, not a complete-source count. The cross-source result separately reports raw
+theorem/lemma discoveries, reason-coded exclusions, eligible roots, duplicate clusters, source
+routes, and the exact frozen evaluation-blocklist screen. The root-specific smoke census accepts
+only source-recomputed roots backed by current hash-bound live Meta evidence. In particular, an
+N31 proposal/nonactivation receipt is not typed applicability and cannot close the N31 smoke root.
+
+The first live checkpoint covers exactly the 32 positive-operation cases: P01, P15, P18, and P21,
+each with one success and one adversarial rejection in all four project contexts. It persists the
+raw response, typed receipt, both complete sidecars for each success, cache entry/replay, reusable
+operation-project symbol-resolution receipt, P01 runtime acceptance/rejections, logs, journals,
+heartbeats, RSS samples, resource receipt, and terminal marker. It is readiness evidence only, not
+a Wave 1 gate or row. N31 then runs in a separate two-request, four-project proposal-only phase:
+typed name/arity/type/instance resolution followed by frozen nonactivation replay. It constructs no
+candidate, performs no semantic success/adversarial conformance, emits no row or gate, and stops for
+the exact user admission fields `project_id`, `bank_id`, `resolved_lean_hash`, and
+`resolution_receipt_hash`. The future 40-case all-five semantic receipt remains absent until that
+decision and a separately authorized post-admission execution path exist.
+
 ## Coordinator requests
 
 1. **REPR and SFT1 representation receipt resolved:** coherent freeze
@@ -1036,18 +1124,19 @@ the exact certificate-gated adjacent-hash exception above. It does not authorize
 transformation or gate execution, model-facing rows, production admission, Wave 2, 10K, scale,
 training, or publication.
 
-The 0.3.5 conditional review then authorized only this Lean-free corrective commit. It preserves
+Historical revision-0.3.5 boundary (superseded only by the explicit revision-0.3.6 authorization
+recorded above): the 0.3.5 conditional review authorized only its Lean-free corrective commit. It preserves
 `505b74754f881e903b5f04eab99311a125484b24` as the direct parent, keeps `a4aa3ddc…` as the future
 runtime policy identity, and adds one open implementation blocker. It does not authorize a push,
 live Lean work, runtime implementation or replay, transformations, gates, rows, production,
 Wave 2, 10K, scale, training, or publication.
 
-This remains bounded Wave 1 gate admission only. It does not make implementation ready, permit
-Lean/transform execution before the named prerequisites, admit any operation to production, or
-authorize a model-facing row. This session stops after the Lean-free corrective commit and does not
-request live Lean authorization. A later instruction must separately authorize any project Lean
-compilation or Meta validation; gate execution still cannot begin until readiness is true. After the
-wave gates, separately request exact
+The current revision-0.3.6 instruction supersedes that historical no-push/no-live-readiness limit
+only for the task-owned bounded implementation and live readiness work listed at the top of this
+brief. It does not make implementation ready, authorize a Wave 1 gate, admit any operation to
+production, or authorize a model-facing row. The current session must stop after proposal-only N31
+resolution and request exact project/bank/hash admission before any N31 activation or semantic
+fixture execution. After separately authorized wave gates, request exact
 operation-production promotions supported by the measured receipt. Only after those promotions and
 the complete cross-source census are recorded may the project request exactly:
 
@@ -1256,3 +1345,15 @@ work. End with the exact user decision needed.
   no findings. P01 implementation readiness, overall readiness, and gate execution remain false.
   No Lean, runtime, transformation, gate, census, row, push, production admission, Wave 2, 10K,
   scale, training, publication, or shared-contract edit occurred.
+- 2026-08-31 — the user accepted corrective commit
+  `fc8cdc2c6d9d93e99e20933a17dbcfa2afc2be48`, authorized its branch push, and authorized only
+  additive Wave 1 implementation-readiness work. The accepted branch was pushed unchanged. This
+  session claimed the exact revision-0.3.6 task-owned paths above for the three zero-Lean census
+  tiers, the P01 composition/dedup runtime, five primary dispatch/checker/anchor/bank/fixture
+  bundles, persistent same-request Meta/REPR adapter, central cache adapter, and bounded live
+  compile/symbol/fixture/certificate/P01/cache replays. Lean remains the bottleneck: all cheap
+  source filtering, provenance, hashing, sampling, and duplicate work precedes Lean; live work
+  starts with one claimed persistent worker under `Elab.async=false`, never one process per row,
+  and can never exceed two workers or 40 GiB combined measured RSS. Wave 1 gates, model-facing
+  rows, Wave 2, production, 10K, scale, training, and publication remain unauthorized. Any N31
+  resolved identity remains proposed and inactive pending the user's exact hash admission.
