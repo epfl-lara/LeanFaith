@@ -1040,12 +1040,23 @@ def launch_detached_rehearsal(
     )
     log = output / policy.combined_log_relative_path
     log.parent.mkdir(parents=True, exist_ok=True)
-    shell_command = f"exec {shlex.join(command)} </dev/null >>{shlex.quote(str(log))} 2>&1"
     with _exclusive_lock(output / "detached/launch.lock"):
         if _session_exists(policy.session_name):
             raise RehearsalError("duplicate v5 rehearsal launch refused")
+        _append_journal(
+            output / policy.journal_relative_path,
+            {
+                "event": "launch_requested",
+                "at": _now(),
+                "session_name": policy.session_name,
+                "config_hash": loaded.config_hash,
+                "authorization_receipt_sha256": authorization.sha256,
+                "implementation_commit": authorization.document["implementation_commit"],
+                "implementation_tree": authorization.document["implementation_tree"],
+            },
+        )
         completed = subprocess.run(
-            ("tmux", "new-session", "-d", "-s", policy.session_name, shell_command),
+            ("tmux", "new-session", "-d", "-s", policy.session_name, shlex.join(command)),
             check=False,
             capture_output=True,
             text=True,
@@ -1065,6 +1076,33 @@ def run_detached_rehearsal_worker(
     config = _v5(loaded)
     policy = config.rehearsal.detached_launch
     terminal_path = output / policy.terminal_status_relative_path
+    log_path = output / policy.combined_log_relative_path
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    log_descriptor = os.open(log_path, os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o600)
+    null_descriptor = os.open(os.devnull, os.O_RDONLY)
+    # Retain a non-I/O reference to the tmux PTY for the lifetime of this worker. If stdin,
+    # stdout, and stderr all leave the PTY without this descriptor, tmux observes EOF and sends
+    # SIGHUP before the worker can claim its Lean resource.
+    tty_keepalive_descriptor = os.dup(sys.stdout.fileno())
+    os.set_inheritable(tty_keepalive_descriptor, False)
+    try:
+        os.dup2(log_descriptor, sys.stdout.fileno())
+        os.dup2(log_descriptor, sys.stderr.fileno())
+        os.dup2(null_descriptor, sys.stdin.fileno())
+    finally:
+        os.close(log_descriptor)
+        os.close(null_descriptor)
+    print(
+        json.dumps(
+            {
+                "event": "worker_stdio_ready",
+                "pid": os.getpid(),
+                "session_name": policy.session_name,
+            },
+            sort_keys=True,
+        ),
+        flush=True,
+    )
     with _exclusive_lock(output / policy.run_lock_relative_path):
         reservation = None
         try:

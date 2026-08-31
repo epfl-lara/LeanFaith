@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import subprocess
 from collections import Counter
 from collections.abc import Sequence
 from dataclasses import replace
@@ -28,8 +29,10 @@ from leanfaith.sft2a.providers import ProviderCallResult, _codex_transport_schem
 from leanfaith.sft2a.readiness import implementation_identity
 from leanfaith.sft2a.rehearsal import (
     _V5_AUTHORIZATION_SENTENCE,
+    LoadedRehearsalAuthorization,
     RehearsalError,
     exclude_audit_unknowns,
+    launch_detached_rehearsal,
     load_rehearsal_authorization,
     preflight_rehearsal_launch,
     project_50000_root_attempts,
@@ -464,3 +467,35 @@ def test_rehearsal_authorization_is_hash_bound_and_preflight_stops_at_tmux(
     assert preflight["provider_calls_executed"] == 0
     assert preflight["lean_requests_executed"] == 0
     assert preflight["tmux_sessions_started"] == 0
+
+
+def test_v5_detached_launcher_leaves_pty_redirection_to_worker(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    loaded = _loaded()
+    authorization = LoadedRehearsalAuthorization(
+        path=tmp_path / "authorization.json",
+        document={"implementation_commit": "a" * 40, "implementation_tree": "b" * 40},
+        sha256="c" * 64,
+    )
+    captured: list[tuple[str, ...]] = []
+
+    def fake_run(args: Sequence[str], **_kwargs: object) -> subprocess.CompletedProcess[str]:
+        captured.append(tuple(args))
+        return subprocess.CompletedProcess(args, 0, "", "")
+
+    monkeypatch.setattr(
+        "leanfaith.sft2a.rehearsal.preflight_rehearsal_launch",
+        lambda *_args: {"boundary": "tmux_start_not_executed"},
+    )
+    monkeypatch.setattr("leanfaith.sft2a.rehearsal._output", lambda _loaded: tmp_path)
+    monkeypatch.setattr("leanfaith.sft2a.rehearsal._session_exists", lambda _name: False)
+    monkeypatch.setattr("leanfaith.sft2a.rehearsal.subprocess.run", fake_run)
+
+    result = launch_detached_rehearsal(loaded, authorization)
+
+    assert result["session_started"] is True
+    tmux_command = captured[-1][-1]
+    assert "detached-v5-rehearsal-worker" in tmux_command
+    assert "</dev/null" not in tmux_command
+    assert ">>" not in tmux_command
