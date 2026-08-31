@@ -24,7 +24,7 @@ from leanfaith.sft2a.mechanisms import (
 )
 from leanfaith.sft2a.models import SFT2AV5Config
 from leanfaith.sft2a.pipeline import run_one_root
-from leanfaith.sft2a.providers import ProviderCallResult
+from leanfaith.sft2a.providers import ProviderCallResult, _codex_transport_schema
 from leanfaith.sft2a.readiness import implementation_identity
 from leanfaith.sft2a.rehearsal import (
     RehearsalError,
@@ -361,6 +361,30 @@ def test_cross_root_dedup_includes_closed_expr_identity(tmp_path: Path) -> None:
         closed_expr_hash="a" * 64,
         owner="root-b",
     )
+
+
+def test_codex_transport_schema_adds_required_types_without_mutating_frozen_schema() -> None:
+    original: dict[str, object] = {
+        "type": "object",
+        "properties": {
+            "version": {"const": 5},
+            "enabled": {"const": True},
+            "verdict": {"enum": ["equivalent", "non_equivalent"]},
+        },
+    }
+    transported = _codex_transport_schema(original)
+    assert isinstance(transported, dict)
+    properties = transported["properties"]
+    assert isinstance(properties, dict)
+    assert properties["version"] == {"const": 5, "type": "integer"}
+    assert properties["enabled"] == {"const": True, "type": "boolean"}
+    assert properties["verdict"] == {
+        "enum": ["equivalent", "non_equivalent"],
+        "type": "string",
+    }
+    frozen_properties = original["properties"]
+    assert isinstance(frozen_properties, dict)
+    assert frozen_properties["version"] == {"const": 5}
 
 
 def _authorization_document(loaded: LoadedSFT2AConfig, *, authorized: bool) -> dict[str, object]:

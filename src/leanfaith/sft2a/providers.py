@@ -133,6 +133,33 @@ def _codex_usage(stdout: bytes) -> dict[str, object]:
     return usage
 
 
+def _codex_transport_schema(value: object) -> object:
+    """Add type annotations required by the Codex JSON-schema subset."""
+
+    if isinstance(value, list):
+        return [_codex_transport_schema(item) for item in value]
+    if not isinstance(value, dict):
+        return value
+    result = {key: _codex_transport_schema(item) for key, item in value.items()}
+    if "type" not in result and "const" in result:
+        constant = result["const"]
+        if isinstance(constant, bool):
+            result["type"] = "boolean"
+        elif isinstance(constant, int):
+            result["type"] = "integer"
+        elif isinstance(constant, str):
+            result["type"] = "string"
+    choices = result.get("enum")
+    if (
+        "type" not in result
+        and isinstance(choices, list)
+        and choices
+        and all(isinstance(choice, str) for choice in choices)
+    ):
+        result["type"] = "string"
+    return result
+
+
 def _model_validate(
     structured: dict[str, object],
     *,
@@ -305,6 +332,12 @@ class CliStructuredProvider:
         transport_schema_transform = "identity"
 
         if self.pin.cli in {"codex", "lemex"}:
+            codex_schema = _codex_transport_schema(self.schema_document)
+            schema_bytes = canonical_json_bytes(codex_schema)
+            transport_schema_path = workspace / "output_schema.json"
+            _atomic(transport_schema_path, schema_bytes + b"\n")
+            transport_schema_sha256 = sha256_hex(schema_bytes)
+            transport_schema_transform = "add_required_codex_subset_type_annotations_v1"
             final_path = attempt_dir / "final_message.json"
             argv: tuple[str, ...] = (
                 self.pin.binary_path,
@@ -330,7 +363,7 @@ class CliStructuredProvider:
                 "-c",
                 "shell_environment_policy.inherit=none",
                 "--output-schema",
-                str(self.schema_path),
+                str(transport_schema_path),
                 "-o",
                 str(final_path),
                 "-",
