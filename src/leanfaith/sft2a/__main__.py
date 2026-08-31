@@ -40,6 +40,7 @@ from leanfaith.sft2a.provider_rehearsal_v52 import (
     materialize_provider_authorization_v52,
     preflight_provider_launch_v52,
     prepare_provider_readiness_v52,
+    provider_readiness_path_v52,
     provider_rehearsal_health_v52,
     run_detached_provider_rehearsal_v52,
 )
@@ -302,7 +303,7 @@ def main() -> int:
         result = prepare_provider_readiness_v52(provider_loaded)
     elif arguments.command == "preview-provider-authorization-v5-2":
         assert provider_loaded is not None
-        readiness_path = provider_loaded.output_root / "readiness/provider_readiness.json"
+        readiness_path = provider_readiness_path_v52(provider_loaded)
         result = {
             "authorization_sentence": authorization_sentence_v52(
                 provider_loaded, hash_file(readiness_path)

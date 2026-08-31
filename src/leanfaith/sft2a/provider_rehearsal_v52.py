@@ -211,6 +211,13 @@ def _git_identity(repo_root: Path) -> tuple[str, str]:
     return commit, tree
 
 
+def provider_readiness_path_v52(loaded: LoadedProviderRehearsalV52) -> Path:
+    """Return the clean-implementation-scoped additive readiness path."""
+
+    commit, _tree = _git_identity(loaded.base.repo_root)
+    return loaded.output_root / "readiness" / f"provider_readiness_{commit[:12]}.json"
+
+
 def prepare_provider_readiness_v52(loaded: LoadedProviderRehearsalV52) -> dict[str, object]:
     """Create the clean-commit readiness receipt; this never authorizes execution."""
 
@@ -260,13 +267,13 @@ def prepare_provider_readiness_v52(loaded: LoadedProviderRehearsalV52) -> dict[s
         "scale_50k_authorized": False,
         "training_authorized": False,
     }
-    path = loaded.output_root / "readiness/provider_readiness.json"
+    path = provider_readiness_path_v52(loaded)
     _atomic_exact(path, canonical_json_bytes(receipt) + b"\n")
     return receipt
 
 
 def authorization_sentence_v52(loaded: LoadedProviderRehearsalV52, readiness_sha256: str) -> str:
-    readiness = _object(loaded.output_root / "readiness/provider_readiness.json")
+    readiness = _object(provider_readiness_path_v52(loaded))
     return (
         "I authorize SFT2A to launch only the corrected 100-root/400-slot closure-aware v5.2 "
         f"provider rehearsal bound to sample {loaded.document['corrected_sample_sha256']}, config "
@@ -284,7 +291,7 @@ def materialize_provider_authorization_v52(
 ) -> dict[str, object]:
     """Materialize only an exact future user authorization; never launch from this function."""
 
-    readiness_path = loaded.output_root / "readiness/provider_readiness.json"
+    readiness_path = provider_readiness_path_v52(loaded)
     readiness = _object(readiness_path)
     readiness_sha = hash_file(readiness_path)
     expected = authorization_sentence_v52(loaded, readiness_sha)
@@ -333,7 +340,7 @@ def load_provider_authorization_v52(
     loaded: LoadedProviderRehearsalV52, path: Path
 ) -> LoadedProviderAuthorizationV52:
     document = _object(path)
-    readiness_path = loaded.output_root / "readiness/provider_readiness.json"
+    readiness_path = provider_readiness_path_v52(loaded)
     if (
         document.get("authorized") is not True
         or document.get("status") != "authorized_rehearsal_only"
@@ -999,6 +1006,7 @@ __all__ = [
     "materialize_provider_authorization_v52",
     "preflight_provider_launch_v52",
     "prepare_provider_readiness_v52",
+    "provider_readiness_path_v52",
     "provider_rehearsal_health_v52",
     "run_detached_provider_rehearsal_v52",
     "run_provider_kimi_audit_v52",
