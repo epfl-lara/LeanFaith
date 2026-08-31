@@ -494,3 +494,11 @@ recorded budget/model decision.
   final certificate must be exactly 42/25/17/16 with a global 100/100 cache-hit preflight before
   any future provider construction. Terra, Opus, Kimi, the provider-backed rehearsal, 10K, 50K,
   legacy rejudging, publication, and training remain unauthorized.
+- 2026-08-31 — committed the additive v5.2 implementation at `b555747` (tree `9b4dbec`). The
+  zero-Lean pool is frozen at `8ec78fd1823b17565c80ec0ffbf483e1d6907382a30d0500843237d640fdfd9b`:
+  its initial and extension blocks each contain exactly 126 Mathlib / 75 Physlib / 51 CSLib / 48
+  compiler-data roots, are disjoint, and include `Cslib.LTS.mem_saturate_image_τ` in the initial
+  CSLib block. Materialized local-only authorization receipt
+  `configs/sft2a/reference_certification_authorization_v5_2.json` against that clean commit; its
+  hash is `4d097b49120e2bd6ae6576b9695b378315708d4c6676ff57753293745dc8eef4`.
+  The receipt permits zero provider calls and leaves every provider-backed or scale path disabled.
