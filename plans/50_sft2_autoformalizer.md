@@ -1,13 +1,13 @@
 # SFT2B — autoformalization consistency data
 
 > **Task ID:** SFT2B
-> **Status:** pilot_ready
-> **Owner/session:** Codex `/root` — 2026-08-31 diverse full-source release verified
+> **Status:** active
+> **Owner/session:** Codex `/root` — 2026-08-31 source correction v2 and extension audit
 > **Last updated:** 2026-08-31
 > **Dependencies:** REPR `goal_v1.0`; source-quality audit and frozen consistency/voting prompts
-> **Next gate:** consume private Hub revision `88d768355b87a678be5fb37c5e677812f2614015`
-> for the separately authorized model/compute generation choice; the release provides all 54,455
-> qualified sources plus a deterministic matched-50K view, but this session launches no scale job
+> **Next gate:** publish and fresh-verify an additive corrected private v2 source bundle, report the
+> still-running matched-500 runtime/quality evidence without interrupting it, and leave the
+> full-source consumer prepared but unlaunched pending that report
 > **Compute class:** source-freeze work is Lean/GPU-free; downstream inference uses eight
 > A100-SXM4-80GB GPUs at DP=4/TP=2
 > **Lean budget:** compile each novel formalization candidate once through persistent cached workers
@@ -261,6 +261,55 @@ training.
 Lean remains the bottleneck: this source-only preparation deliberately completes every cheap
 operation before any future candidate compilation, uses existing trusted success evidence where
 available, and starts no Lean process in the default path.
+
+### Authorized source-correction v2 and extension-audit subplan
+
+This session preserves private Hub revision `88d768355b87a678be5fb37c5e677812f2614015`
+byte-for-byte as superseded evidence. The already-authorized matched-500 ReForm run consumes a
+different frozen 500-row input with zero affected library-docstring rows; monitor its durable state
+without stopping, restarting, signaling, or changing it. No 10K/50K/full generation starts before
+that run's runtime and quality report is available.
+
+1. Replace the library `_adjacent_docstring` extractor with a deterministic nesting-aware Lean
+   block-comment matcher. Fail closed unless the immediately preceding complete `/-- ... -/`
+   doc-comment is structurally balanced after nested `/- ... -/` comments are consumed; keep a
+   separate release canary that rejects any extracted NL containing literal `/-` or `-/`.
+2. Freeze the exact v1 impact set and add regressions for all 92 corrupted rows: 54 Mathlib, 32
+   Physlib, and 6 CSLib. Rebuild from pinned v1 inputs, demonstrate that no unaffected source or
+   stable ID drifts without a recorded reason, and retain v1 paths/hashes/revision unchanged.
+3. Detect obvious solution/proof discourse in Lean-Workbook with a versioned, explainable heuristic.
+   Audit every heuristic hit and at least 100 deterministic rows from each of the seven release
+   classes. Route confirmed discourse to a keyed auxiliary quarantine view; do not automatically
+   discard all 293 flagged Workbook rows, and preserve per-row heuristic plus human-audit evidence.
+4. Strengthen fresh-bundle verification to require the exact matched-view count, recompute the
+   deterministic matched selection from full sources, validate every audit and quarantine record,
+   and replay source/reference headless-signature, exact/near-duplicate, problem-identity, golden,
+   ProofNet-family, ShadowBench, and benchmark-denylist evidence.
+5. Emit a complete corrected core and separately keyed legacy tail under additive prefix
+   `source_inputs/reform_diverse_full_v2/`. Validate locally from a fresh directory, upload only
+   this prefix to private `Lemmy00/leanfaith-sft2-autoformalizer-v1`, then force-download the exact
+   immutable Hub revision and replay all schemas, identities, selections, audits, and checksums.
+6. Derive a full-source consumer from the matched-500 runner. Pin the new immutable Hub revision,
+   source-view hash, prompt/tokenizer/model/placement/REPR identities, and four slots. Treat the
+   corrected 50K core and remaining legacy tail as distinct resumable shards; require the complete
+   source-by-four-slot Cartesian product, content-addressed terminals/caches, append-only journals,
+   deterministic compaction, and explicit resource claims. Prepare and test dry-run/resume logic,
+   but do not launch the detached tmux scale command until the matched-500 report clears the gate.
+7. Produce a source-extension admission report without merging additions into the active v2 release.
+   Prioritize pinned FrenzyMath `mathlib_informal_v4.19.0`/`Herald_proofs`, AgenticCommons
+   `formal-math-autoformalization`, formal-mathfin, and exact-context theorem/docstring joins for
+   SciLean, Stdlib, Batteries, PhysLean, CvxLean, Equational Theories, and axiom-clean solved
+   FormalConjectures/FLT declarations. For each family, report net-new rows after current-release and
+   benchmark deduplication, domain/style gains, trust tier, proof/`sorry`/axiom status, context
+   recoverability, and a deterministic 100-row semantic-alignment audit. Exclude benchmark families
+   and `by sorry`-only references.
+8. Commit and push only the SFT2B brief and task-owned code/config/test/report artifacts. This
+   authorization covers the corrected private source bundle only: no Lean corpus compilation,
+   provider labeling, full generation, generated-output publication, or training.
+
+Lean remains the bottleneck for downstream candidate validation. This correction does all parsing,
+auditing, joins, deduplication, evidence replay, prompt counting, caching, and consumer dry runs
+before Lean; it invokes no corpus compilation and never starts one Lean process per row.
 
 Lean is the bottleneck throughout this plan: all safe string parsing, source filtering, schemas,
 provenance, joins, deduplication, prompt validation, hashing, and restart logic precede Lean. The
@@ -616,3 +665,12 @@ Do not launch 50K sources without the pilot and user compute/model approval.
   `source_manifest.json` is
   `4f2004b3db4b0d03283e155489dc93f92a005ec5a891f1c627165a7a85813a88`; and `SHA256SUMS` is
   `2eb3d08ec1c37fee54847541ebdd07eb377fdc8853dcda1910cc295b0f293c5d`.
+- 2026-08-31 — claimed the additive source-correction v2 and source-extension audit on branch
+  `milikic/sft2b-source-correction-v2` before implementation. Revision
+  `88d768355b87a678be5fb37c5e677812f2614015` remains immutable superseded evidence. The active
+  matched-500 input is independently frozen and contains zero of the 92 discovered docstring
+  corruption rows, so this session only monitors its journals/process health and will not interrupt
+  it. The executable subplan above gates parser correction, exact regressions, selective Workbook
+  quarantine, stronger fresh verification, additive v2 publication, a prepared-but-unlaunched
+  two-shard consumer, and a separate extension admission report. No Lean, provider, scale-generation,
+  generated-output publication, or training action is authorized.
