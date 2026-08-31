@@ -445,6 +445,86 @@ class SFT2AProductionConfig(SFT2AOpusConfig):
     labeling_defaults_policy: ArtifactBinding
 
 
+class MechanismRotationPolicy(StrictModel):
+    version: Literal["sft2a_applicability_aware_rotation_v5"]
+    salt: NonEmpty
+    maximum_family_fraction_per_polarity: Annotated[float, Field(strict=True, gt=0.0, le=0.25)]
+    maximum_shortcut_aggregate_fraction_per_polarity: Annotated[
+        float, Field(strict=True, ge=0.0, le=0.25)
+    ]
+    minimum_families_per_polarity: int = Field(ge=8, strict=True)
+    exact_copy_action: Literal["reject_before_judge"]
+    closed_expr_or_goal_identity_action: Literal["reject_before_judge"]
+    vacuous_padding_action: Literal["reject_before_lean"]
+
+
+class SourceCensusPolicy(StrictModel):
+    version: Literal["sft2a_zero_lean_source_census_v5"]
+    output_subdir: NonEmpty
+    compiler_data_path: NonEmpty
+    compiler_data_sha256: Sha256
+    library_source_subdirs: dict[Literal["mathlib", "physlib", "cslib"], NonEmpty]
+    no_lean_requests: Literal[True]
+    no_provider_calls: Literal[True]
+
+
+class RehearsalPassCriteria(StrictModel):
+    zero_self_pairs: Literal[True]
+    zero_duplicates: Literal[True]
+    zero_contamination: Literal[True]
+    zero_confirmed_label_errors: Literal[True]
+    minimum_mechanism_families_per_polarity: int = Field(ge=8, strict=True)
+    maximum_dominant_family_fraction: Annotated[float, Field(strict=True, le=0.25)]
+    maximum_cosmetic_or_tautological_fraction: Annotated[float, Field(strict=True, gt=0.0, le=0.05)]
+    minimum_audit_agreement_after_malformed_retries: Annotated[
+        float, Field(strict=True, ge=0.95, le=1.0)
+    ]
+    require_fresh_per_context_throughput: Literal[True]
+    require_interrupted_resume_verification: Literal[True]
+    require_zero_call_replay: Literal[True]
+
+
+class RehearsalPlan(StrictModel):
+    authorized: Literal[False]
+    sampler_version: Literal["sft2a_source_domain_shape_stratified_v5"]
+    salt: NonEmpty
+    output_subdir: NonEmpty
+    roots_per_shard: int = Field(ge=1, le=25, strict=True)
+    allocations: tuple[PilotSourceAllocation, ...]
+    minimum_kimi_audits: int = Field(ge=40, strict=True)
+    maximum_kimi_audits: int = Field(ge=40, strict=True)
+    malformed_audit_retries: Literal[1]
+    ceilings: ExecutionCeilings
+    pass_criteria: RehearsalPassCriteria
+    detached_launch: DetachedLaunchPolicy
+
+    @model_validator(mode="after")
+    def _rehearsal_contract(self) -> Self:
+        expected = ("mathlib", "physlib", "cslib", "compiler_data")
+        if tuple(item.source for item in self.allocations) != expected:
+            raise ValueError("v5 rehearsal allocations require the ordered four sources")
+        if sum(item.roots for item in self.allocations) != 100:
+            raise ValueError("v5 rehearsal requires exactly 100 roots")
+        if self.ceilings.maximum_roots != 100:
+            raise ValueError("v5 rehearsal root ceiling must be exactly 100")
+        if self.maximum_kimi_audits > self.ceilings.maximum_lemex_calls:
+            raise ValueError("v5 Kimi audit cap exceeds the provider ceiling")
+        return self
+
+
+class SFT2AV5Config(SFT2AProductionConfig):
+    """Additive closure-aware v5 smoke and unauthorized rehearsal contract."""
+
+    config_id: Literal["leanfaith_sft2a_closure_aware_v5"]  # type: ignore[assignment]
+    status: Literal["v5_one_root_smoke_only"]  # type: ignore[assignment]
+    recovery_v4_seal: ArtifactBinding
+    closure_canaries: ArtifactBinding
+    mechanism_rotation: MechanismRotationPolicy
+    source_census: SourceCensusPolicy
+    rehearsal: RehearsalPlan
+    legacy_rejudge: LegacyRejudgeV2Policy  # type: ignore[assignment]
+
+
 class ProposerOutput(StrictModel):
     schema_version: Literal[1]
     requested_polarity: Polarity
@@ -486,6 +566,42 @@ class ProposerOutput(StrictModel):
         return candidate
 
 
+class ProposerOutputV5(StrictModel):
+    schema_version: Literal[5]
+    requested_polarity: Polarity
+    mechanism: NonEmpty
+    applicability_reason: str = Field(min_length=1, max_length=1000)
+    candidate_signature: str = Field(min_length=1, max_length=12000)
+    change_summary: str = Field(min_length=1, max_length=800)
+    judge_trap: str = Field(min_length=1, max_length=800)
+    informative: Literal[True]
+    substantive_change: Literal[True]
+    proof_free: Literal[True]
+
+    @field_validator("mechanism")
+    @classmethod
+    def _known_mechanism(cls, value: str) -> str:
+        from leanfaith.sft2a.mechanisms import ALL_MECHANISM_FAMILIES
+
+        if value not in ALL_MECHANISM_FAMILIES:
+            raise ValueError("v5 proposer mechanism is not in the frozen rotation")
+        return value
+
+    @field_validator("candidate_signature")
+    @classmethod
+    def _proof_free_signature(cls, value: str) -> str:
+        return ProposerOutput(
+            schema_version=1,
+            requested_polarity="preserving",
+            mechanism="other",
+            candidate_signature=value,
+            change_summary="v5 signature preflight",
+            judge_trap="not used",
+            informative=True,
+            proof_free=True,
+        ).candidate_signature
+
+
 class JudgeOutput(StrictModel):
     schema_version: Literal[1]
     verdict: Verdict
@@ -521,6 +637,28 @@ class JudgeOutput(StrictModel):
                 "unknown requires an error type; binary verdicts require error_type=none"
             )
         return self
+
+
+ClosureCheck = Literal[
+    "supports_equivalence",
+    "supports_non_equivalence",
+    "checked_no_effect",
+    "not_applicable",
+]
+
+
+class ClosureChecks(StrictModel):
+    entire_universally_closed_proposition: Literal[True]
+    argument_swapping: ClosureCheck
+    symmetry: ClosureCheck
+    antisymmetry: ClosureCheck
+    extensionality: ClosureCheck
+    recoverable_boundary_cases: ClosureCheck
+
+
+class JudgeOutputV5(JudgeOutput):
+    schema_version: Literal[5]  # type: ignore[assignment]
+    closure_checks: ClosureChecks
 
 
 class CoreRow(StrictModel):

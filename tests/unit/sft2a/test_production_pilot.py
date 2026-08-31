@@ -21,7 +21,7 @@ from leanfaith.sft2a.detached import (
     launch_detached_pilot,
     preflight_detached_launch,
 )
-from leanfaith.sft2a.models import SFT2AProductionConfig
+from leanfaith.sft2a.models import ProductionPilotReadinessConfig, SFT2AProductionConfig
 from leanfaith.sft2a.pilot import prepare_pilot_sample, verify_pilot_replay
 from leanfaith.sft2a.pilot_audit import pilot_audit_indices, run_pilot_lemex_audit
 from leanfaith.sft2a.providers import ProviderCallResult
@@ -113,7 +113,7 @@ def _write_fake_completed_pilot(
             row_id = f"row-{root_index:02d}-{slot_index}"
             goal = f"⊢ Synthetic{root_index}_{slot_index}"
             root_core.append({"reference": "⊢ Reference", "candidate": goal, "label": preserving})
-            sidecar = {
+            sidecar: dict[str, object] = {
                 "row_id": row_id,
                 "root_id": root.root_id,
                 "slot_id": f"slot-{slot_index}",
@@ -307,6 +307,7 @@ def test_production_readiness_binds_smoke_and_refuses_unauthorized_launch() -> N
     assert readiness.exact_settings_smoke is not None
     assert readiness.exact_settings_smoke["successful"] is True
     assert readiness.authorization["authorized"] is False
+    assert isinstance(readiness.config, ProductionPilotReadinessConfig)
     assert readiness.config.detached_launch.session_name == ("leanfaith-sft2a-production-pilot-v1")
     with pytest.raises(PilotReadinessError, match="does not authorize execution"):
         launch_detached_pilot(loaded, readiness, resume=False)

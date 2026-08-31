@@ -1,0 +1,312 @@
+schema_version: 1
+config_id: leanfaith_sft2a_closure_aware_v5
+status: v5_one_root_smoke_only
+task_id: SFT2A
+maximum_roots: 1
+maximum_candidate_slots: 4
+publication_allowed: false
+scale_50k_allowed: false
+staging_root: /storage/milikic/leanfaith/value_first/sft2_llm_transforms_v1
+
+labeling_defaults_policy:
+  path: policies/sft2_llm_labeling_defaults_v1.yaml
+  sha256: 4554a071b06b1af9015b253b5e64b2a0a4d013630e5224ef7729bbf65757646f
+recovery_v4_seal:
+  path: configs/sft2a/recovery_v4_combined_tree_seal_v5.json
+  sha256: 89e2532b2e0f8a5f3d5ec79147a88afa98dbd51d4dbedbe76f164cb694507c60
+closure_canaries:
+  path: configs/sft2a/closure_equivalence_canaries_v5.json
+  sha256: 35b5ff8fc58c0e75ab0361fd129dfaf15a9ed04cea5d50b6ccbf4b19da3b2d14
+
+run_layout:
+  shared_cache_root: /storage/milikic/leanfaith/value_first/sft2_llm_transforms_v1
+  run_output_subdir: runs/one_root_closure_aware_v5
+  historical_fable_run_subdir: one_root_v1
+  audit_output_subdir: runs/one_root_closure_aware_v5/audit_lemex_v5
+  comparison_output_subdir: runs/one_root_closure_aware_v5/comparison_historical_v5
+  pilot_output_subdir: runs/rehearsal_closure_aware_v5
+  legacy_rejudge_output_subdir: runs/legacy_closure_aware_v5_disabled
+  post_audit_output_subdir: runs/one_root_closure_aware_v5/post_audit_release_v5
+
+smoke_ceilings:
+  maximum_roots: 1
+  maximum_provider_calls: 36
+  maximum_proposer_calls: 12
+  maximum_opus_calls: 24
+  maximum_lemex_calls: 0
+  maximum_attempts_per_slot: 3
+  maximum_reported_opus_spend_usd: 10.0
+  codex_cost_status: unavailable
+  lemex_cost_status: unavailable
+
+pilot:
+  authorized: false
+  sampler_version: sft2a_deterministic_stratified_roots_v1
+  salt: historical-production-pilot-disabled-in-v5
+  catalog_path: configs/sft2a/pilot_root_catalog_v2.json
+  catalog_sha256: 1fe261d705f75d3a0125221403011a1a74343f6dde51e8483d81d5b832e1265a
+  allocations:
+    - {source: mathlib, roots: 5}
+    - {source: physlib, roots: 3}
+    - {source: cslib, roots: 2}
+    - {source: compiler_data, roots: 2}
+  group_by: project_id+project_revision+compile_context_id
+  persistent_lean_environment_per_group: true
+  ceilings:
+    maximum_roots: 12
+    maximum_provider_calls: 296
+    maximum_proposer_calls: 144
+    maximum_opus_calls: 144
+    maximum_lemex_calls: 8
+    maximum_attempts_per_slot: 3
+    maximum_reported_opus_spend_usd: 15.0
+    codex_cost_status: unavailable
+    lemex_cost_status: unavailable
+
+mechanism_rotation:
+  version: sft2a_applicability_aware_rotation_v5
+  salt: leanfaith-sft2a-closure-aware-mechanism-rotation-v5
+  maximum_family_fraction_per_polarity: 0.2
+  maximum_shortcut_aggregate_fraction_per_polarity: 0.05
+  minimum_families_per_polarity: 8
+  exact_copy_action: reject_before_judge
+  closed_expr_or_goal_identity_action: reject_before_judge
+  vacuous_padding_action: reject_before_lean
+
+source_census:
+  version: sft2a_zero_lean_source_census_v5
+  output_subdir: runs/rehearsal_closure_aware_v5/census
+  compiler_data_path: /storage/milikic/leanfaith/value_first/cpt2_v1/gates/pilot_10k_v3_final/data.jsonl
+  compiler_data_sha256: 7bb495fe1d304404932ee6d46cc1a40de8bdca576476e8786306c7254618cd9f
+  library_source_subdirs:
+    mathlib: /storage/milikic/leanfaith/mathlib4/Mathlib
+    physlib: /storage/milikic/leanfaith/value_first/sft1_deterministic_v1/checkouts/physlib/Physlib
+    cslib: /storage/milikic/leanfaith/value_first/sft1_deterministic_v1/checkouts/cslib/Cslib
+  no_lean_requests: true
+  no_provider_calls: true
+
+rehearsal:
+  authorized: false
+  sampler_version: sft2a_source_domain_shape_stratified_v5
+  salt: leanfaith-sft2a-100-root-rehearsal-v5
+  output_subdir: runs/rehearsal_closure_aware_v5
+  roots_per_shard: 10
+  allocations:
+    - {source: mathlib, roots: 42}
+    - {source: physlib, roots: 25}
+    - {source: cslib, roots: 17}
+    - {source: compiler_data, roots: 16}
+  minimum_kimi_audits: 40
+  maximum_kimi_audits: 80
+  malformed_audit_retries: 1
+  ceilings:
+    maximum_roots: 100
+    maximum_provider_calls: 2480
+    maximum_proposer_calls: 1200
+    maximum_opus_calls: 1200
+    maximum_lemex_calls: 80
+    maximum_attempts_per_slot: 3
+    maximum_reported_opus_spend_usd: 160.0
+    codex_cost_status: unavailable
+    lemex_cost_status: unavailable
+  pass_criteria:
+    zero_self_pairs: true
+    zero_duplicates: true
+    zero_contamination: true
+    zero_confirmed_label_errors: true
+    minimum_mechanism_families_per_polarity: 8
+    maximum_dominant_family_fraction: 0.2
+    maximum_cosmetic_or_tautological_fraction: 0.05
+    minimum_audit_agreement_after_malformed_retries: 0.95
+    require_fresh_per_context_throughput: true
+    require_interrupted_resume_verification: true
+    require_zero_call_replay: true
+  detached_launch:
+    session_name: leanfaith-sft2a-v5-rehearsal-v1
+    resource_task: SFT2A-V5-REHEARSAL
+    lean_workers: 1
+    lean_rss_gib: 20.0
+    run_lock_relative_path: detached/run.lock
+    combined_log_relative_path: detached/combined.log
+    journal_relative_path: detached/journal.jsonl
+    terminal_status_relative_path: detached/terminal_status.json
+    launch_receipt_relative_path: detached/launch_receipt.json
+    stdin_closed: true
+    exclusive_run_lock: true
+    duplicate_restart_forbidden: true
+
+legacy_rejudge:
+  authorized: false
+  input_configuration: legacy_single_judge
+  output_configuration: legacy_double_judge
+  output_subdir: runs/legacy_closure_aware_v5_disabled
+  all_admitted_positives: 233
+  minimum_stratified_negatives: 2000
+  renderable_unresolved_action: single_judge_needs_second_judge_auxiliary_no_opus_call
+  exclude_placeholders: true
+  exclude_repr_invalid: true
+  stratify_by: [family]
+  salt: leanfaith-sft2a-legacy-v5-disabled
+  ceilings:
+    maximum_roots: 1
+    maximum_provider_calls: 2240
+    maximum_proposer_calls: 0
+    maximum_opus_calls: 2240
+    maximum_lemex_calls: 0
+    maximum_attempts_per_slot: 3
+    maximum_reported_opus_spend_usd: 250.0
+    codex_cost_status: unavailable
+    lemex_cost_status: unavailable
+
+gold_screen:
+  path: data/benchmarks/golden_blocklist_v1.json
+  sha256: 8e4af6a9e47fb06d281169cdaddb01c5c66c1b0d150f2df9c9283ecb587117f7
+  canonical_rows: 5111
+  group_key_count: 591
+  near_dup_hash_count: 5779
+  signature_key: signature_near_dup_hash_v1
+  match_action: exclude_to_contamination_configuration
+
+prompts:
+  codex_proposer:
+    path: prompts/sft2a/codex_proposer_v5.txt
+    sha256: 2aa71a3ce4545c683d4b4652cb834c08c1f3abde4e4360adaa1d5499c3e6dadb
+  blinded_claude_judge:
+    path: prompts/sft2a/blinded_claude_judge_v5.txt
+    sha256: 0e550d12b9cc6a5f6b1673f153b86dfd9306638c2140bad5f8f031d522361e7b
+schemas:
+  codex_proposer_output:
+    path: configs/sft2a/codex_proposer_output_v5.schema.json
+    sha256: 97843a2ec7e1c383a705ce7185d8131b1065b7f068befe8d4c0f75ab52e99e05
+  blinded_judge_output:
+    path: configs/sft2a/blinded_judge_output_v5.schema.json
+    sha256: 84af516d338017d0bb7c0b5c26fc32e0213b452e65942805ad638e38f955d5e2
+
+repr:
+  freeze_commit: 176a783842c5a73b84413dfa8347670608b615d9
+  implementation_commit: 93cd9cf9d4848827f2bacad57a35c3d7f01500f7
+  spec_hash: 68d893a2c566bf3f6a82c899a32a351f9a5420f5ea98168c99b887aaa01a45a8
+  renderer_semantic_hash: 0bec5429cc0e539841208be53cd52189a7b80cbdb4649ee2d45b84bd8a5ef1fd
+  implementation_set_hash: 9a9252fff5ffc69cb65e71120fedffa83ed47271aecadbecf0ceb890feea65ff
+  lean_renderer: {path: LeanFaith/Meta/GoalV1.lean, sha256: 4471262f812746046570c51dde5958ee33db31a450a6974071efce584ba56bc3}
+  injected_helper_sha256: a6650452eebe683db295df1dfe925d3db8b03fc24e55cbc6793e838b5fe2f272
+  python_renderer: {path: src/leanfaith/representations/goal_v1.py, sha256: 496237e190c394e9bd3c3036e2bc01c635905116c5084787a42e6cb569f45517}
+  frozen_config: {path: configs/representations/goal_v1_v1.yaml, sha256: a65d5b29760bbc5eb89405927f946f205eb99856c0538fdf5b57d3f9eceb0db7}
+  universe_profile_id: goal_v1_first_occurrence_u_i_v1
+  universe_profile_hash: d9e729134fcd6a086a58191810a9227062c66496ebe76b8da3c458a58b31cb61
+  render_context_id: goal_v1_render_context_v1
+  render_context_hash: 5f44b6970f0902c968fc98a2659b26c1c9d0bcaef2960cd3ea73808f203f8f62
+
+proposer:
+  provider_id: codex_gpt_5_6_terra_high_sft2a_v5
+  cli: codex
+  cli_version: "codex-cli 0.149.1"
+  binary_path: /localhome/milikic/.codex/packages/standalone/releases/0.149.1-x86_64-unknown-linux-musl/bin/codex
+  binary_sha256: 73dc5888888f411c1f0fa7b81d866e721dcc86b527ce8e3b2cf4708661e823ba
+  model: gpt-5.6-terra
+  effort: high
+  server_revision_status: unavailable_floating_provider_alias
+  timeout_seconds: 1800
+  termination_grace_seconds: 10
+  public_sources_only: true
+  tools_disabled: true
+claude_judge:
+  provider_id: claude_opus5_alias_high_sft2a_v5
+  cli: claude
+  cli_version: "2.1.251 (Claude Code)"
+  binary_path: /localhome/milikic/.local/share/claude/versions/2.1.251
+  binary_sha256: fd5f10ff0eb58daec04900466b143ea98aab50abf208a422bc008eaec13f61f7
+  model: opus
+  effort: high
+  server_revision_status: unavailable_floating_provider_alias
+  timeout_seconds: 1800
+  termination_grace_seconds: 10
+  public_sources_only: true
+  tools_disabled: true
+lemex_auditor:
+  provider_id: lemex_kimi_k2_7_code_high_sft2a_v5
+  cli: lemex
+  cli_version: "lemex 0.0.0"
+  binary_path: /localhome/milikic/lemex-fork/codex-rs/target/release/lemex
+  binary_sha256: 51dda654cec7f0833c5146708d7322be46cddc14ae51ae987146d5e26807accb
+  model: moonshotai/Kimi-K2.7-Code
+  effort: high
+  server_revision_status: unavailable_floating_provider_alias
+  timeout_seconds: 1800
+  termination_grace_seconds: 10
+  public_sources_only: true
+  tools_disabled: true
+
+root:
+  root_id: mathlib:le_trans:sft2a_closure_aware_v5_smoke
+  source: mathlib
+  source_revision: d568c8c09630de097a046763c17b9ea99f95f950
+  source_license: Apache-2.0
+  external_transmission: true
+  policy_version: source_use_v2
+  declaration_name: le_trans
+  reference_signature: "∀ {α : Type} [inst : Preorder α] {a b c : α}, a ≤ b → b ≤ c → a ≤ c"
+  expected_reference_goal_v1: |-
+    α : Type
+    inst : Preorder α
+    a b c : α
+    ⊢ a ≤ b → b ≤ c → a ≤ c
+  compile_context:
+    project_id: mathlib
+    project_revision: d568c8c09630de097a046763c17b9ea99f95f950
+    lean_version: v4.31.0-rc1
+    project_dir: /storage/milikic/leanfaith/mathlib4
+    import_header: import Mathlib
+    command_preamble: ""
+    namespace_context: []
+    open_context: []
+    scoped_context: []
+    options: {autoImplicit: false, maxHeartbeats: 0, Elab.async: false}
+    environment_schema_version: 1
+    leaninteract_version: 0.11.4
+    repl_revision: v1.3.17
+    memory_hard_limit_mb: 24576
+    synchronous_elaboration: true
+    workers: 1
+
+slots:
+  - {slot_id: preserve_0, requested_polarity: preserving, preferred_mechanism: "assigned by v5 rotation", max_attempts: 3}
+  - {slot_id: preserve_1, requested_polarity: preserving, preferred_mechanism: "assigned by v5 rotation", max_attempts: 3}
+  - {slot_id: break_0, requested_polarity: breaking, preferred_mechanism: "assigned by v5 rotation", max_attempts: 3}
+  - {slot_id: break_1, requested_polarity: breaking, preferred_mechanism: "assigned by v5 rotation", max_attempts: 3}
+
+legacy:
+  decision: accepted_separate_legacy_single_judge
+  source_root: /storage/milikic/leanfaith/corpus2/recovered_singlepass_codex_v1_e8567ba
+  immutable_tree_sha256: d49bad5cbe0f8a19ff76e285d958503d4c96d80afaf2571497ee1988ad970622
+  trainer_records_path: /storage/milikic/leanfaith/corpus2/recovered_singlepass_codex_v1_e8567ba/outputs/trainer_records.jsonl
+  trainer_records_sha256: 5de1f904904da6fa204a446e65c58d137a59a6a21d5afa15eb1ad24dbf3bf2f1
+  judgments_path: /storage/milikic/leanfaith/corpus2/recovered_singlepass_codex_v1_e8567ba/outputs/judgments.jsonl
+  judgments_sha256: 2a6ef8c170a20e38047b3fbe6d1b842fb51abb0d0049552aa3f4bfac57b06025
+  pair_plan_path: /storage/milikic/leanfaith/corpus2/recovered_singlepass_codex_v1_e8567ba/inputs/pair_plan.jsonl
+  pair_plan_sha256: 1746aa6b95476712f858db196138f5f18a938126b90e7de18881fb5c72056fe4
+  gross_rows: 13373
+  resolved_rows_before_dedup: 13367
+  positive_rows_before_dedup: 307
+  negative_rows_before_dedup: 13060
+  unknown_sidecar_rows: 6
+  directed_duplicate_excess_rows: 7
+  rejected_anonymous_rows: 0
+  rejected_ellipsis_rows_before_dedup: 144
+  rejected_ellipsis_rows_after_dedup: 144
+  admitted_rows_after_dedup_and_placeholder_screen: 13216
+  admitted_positive_rows: 297
+  admitted_negative_rows: 12919
+  dedup_key: raw_reference_headless+raw_candidate_headless
+  keep_rule: lexicographically_smallest_record_id
+  placeholder_policy: reject_to_legacy_placeholder_audit
+  output_configuration: legacy_single_judge
+  label_basis: qwen_or_kimi_proposer+single_codex_judge
+
+audit:
+  provider: lemex
+  blinded_prompt: true
+  fraction: 0.1
+  stratify_by: [requested_polarity, claude_verdict]
+  disagreement_action: unknown_review_exclude_core
+  requires_reproducible_one_root: true

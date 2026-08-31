@@ -33,6 +33,7 @@ def render_proposer_prompt(
     slot: SlotConfig,
     attempt_number: int,
     attempt_feedback: str | None,
+    reference_goal: str | None = None,
 ) -> str:
     if not 1 <= attempt_number <= slot.max_attempts:
         raise PromptRenderError("attempt number is outside the frozen three-attempt cap")
@@ -45,7 +46,7 @@ def render_proposer_prompt(
     return _render(
         loaded.proposer_prompt,
         {
-            "REFERENCE_GOAL": loaded.config.root.expected_reference_goal_v1,
+            "REFERENCE_GOAL": reference_goal or loaded.config.root.expected_reference_goal_v1,
             "REFERENCE_SIGNATURE": loaded.config.root.reference_signature,
             "COMPILE_CONTEXT": canonical_json_bytes(context).decode("utf-8"),
             "REQUESTED_POLARITY": slot.requested_polarity,

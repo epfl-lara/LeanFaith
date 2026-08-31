@@ -11,8 +11,15 @@ from leanfaith.config.hashing import canonical_json_bytes, hash_canonical, hash_
 from leanfaith.sft2a.budget import BudgetedProvider, PersistentProviderBudget
 from leanfaith.sft2a.config import LoadedSFT2AConfig
 from leanfaith.sft2a.dedup import PersistentCandidateRegistry
+from leanfaith.sft2a.judgments import call_consistent_judge
 from leanfaith.sft2a.legacy import _atomic_exact
-from leanfaith.sft2a.models import CoreRow, JudgeOutput, SFT2AProductionConfig
+from leanfaith.sft2a.models import (
+    CoreRow,
+    JudgeOutput,
+    JudgeOutputV5,
+    SFT2AProductionConfig,
+    SFT2AV5Config,
+)
 from leanfaith.sft2a.pilot import (
     _pilot_output,
     cast_mapping,
@@ -24,6 +31,7 @@ from leanfaith.sft2a.providers import lemex_audit_provider
 from leanfaith.sft2a.readiness import LoadedPilotReadiness, implementation_identity
 
 _AUDIT_VERSION = "sft2a_pilot_lemex_stratified_10pct_cap8_v1"
+_AUDIT_VERSION_V5 = "sft2a_rehearsal_lemex_stratified_min40_v5"
 
 
 class PilotAuditError(RuntimeError):
@@ -98,6 +106,7 @@ def pilot_audit_indices(
     *,
     fraction: float = 0.1,
     cap: int = 8,
+    selection_version: str = _AUDIT_VERSION,
 ) -> tuple[list[int], dict[str, int]]:
     """Freeze a stratified 10% selection with deterministic cap-aware round robin."""
 
@@ -114,7 +123,7 @@ def pilot_audit_indices(
         ):
             raise PilotAuditError("pilot sidecar lacks audit strata or stable row ID")
         key = (polarity, str(claude["verdict"]))
-        rank = hash_canonical({"audit": _AUDIT_VERSION, "row_id": row_id})
+        rank = hash_canonical({"audit": selection_version, "row_id": row_id})
         strata.setdefault(key, []).append((rank, index))
     targets: dict[tuple[str, str], int] = {}
     for key, ranked in strata.items():
@@ -185,12 +194,13 @@ def _validate_existing_audit(output: Path, manifest: Mapping[str, object]) -> No
     for relative, receipt in artifacts.items():
         if not isinstance(relative, str) or not isinstance(receipt, dict):
             raise PilotAuditError("pilot audit artifact receipt is malformed")
-        if hash_file(output / "audit_lemex_v1" / relative) != receipt.get("sha256"):
+        audit_subdir = str(manifest.get("audit_output_subdir", "audit_lemex_v1"))
+        if hash_file(output / audit_subdir / relative) != receipt.get("sha256"):
             raise PilotAuditError(f"pilot audit artifact differs: {relative}")
     quality = _object(output / "pilot_quality_manifest.json")
     audit = quality.get("audit")
     if not isinstance(audit, dict) or audit.get("manifest_sha256") != hash_file(
-        output / "audit_lemex_v1/manifest.json"
+        output / str(manifest.get("audit_output_subdir", "audit_lemex_v1")) / "manifest.json"
     ):
         raise PilotAuditError("consolidated pilot quality audit hash differs")
 
@@ -203,7 +213,8 @@ def run_pilot_lemex_audit(
 ) -> dict[str, object]:
     """Audit combined accepted pilot rows only after zero-execution pilot replay."""
 
-    if not isinstance(loaded.config, SFT2AProductionConfig):
+    config = loaded.config
+    if not isinstance(config, SFT2AProductionConfig):
         raise PilotAuditError("pilot audit requires the production-default config")
     output = _pilot_output(loaded, readiness)
     pilot_manifest_path = output / "manifest.json"
@@ -217,20 +228,31 @@ def run_pilot_lemex_audit(
         or replay.get("pilot_manifest_sha256") != hash_file(pilot_manifest_path)
     ):
         raise PilotAuditError("pilot Lemex audit requires the successful replay receipt")
-    audit_root = output / "audit_lemex_v1"
+    v5_config = config if isinstance(config, SFT2AV5Config) else None
+    closure_aware = v5_config is not None
+    audit_output_subdir = "audit_lemex_v5" if closure_aware else "audit_lemex_v1"
+    audit_root = output / audit_output_subdir
     manifest_path = audit_root / "manifest.json"
     if manifest_path.exists():
         existing_manifest = _object(manifest_path)
         _validate_existing_audit(output, existing_manifest)
         return existing_manifest
     core, sidecars, root_manifest_paths = _combined_rows(output, pilot_manifest)
+    maximum_calls = (
+        v5_config.rehearsal.maximum_kimi_audits
+        if v5_config is not None
+        else readiness.config.ceilings.maximum_lemex_calls
+    )
     selected, allocations = pilot_audit_indices(
         sidecars,
         fraction=loaded.config.audit.fraction,
-        cap=readiness.config.ceilings.maximum_lemex_calls,
+        cap=maximum_calls,
+        selection_version=_AUDIT_VERSION_V5 if closure_aware else _AUDIT_VERSION,
     )
-    if len(selected) > 8:
+    if not closure_aware and len(selected) > 8:
         raise PilotAuditError("pilot audit exceeds the frozen eight-call cap")
+    if v5_config is not None and len(selected) < v5_config.rehearsal.minimum_kimi_audits:
+        raise PilotAuditError("v5 rehearsal audit selected fewer than forty rows")
     budget = PersistentProviderBudget(
         output / "provider_budget_journal.jsonl", readiness.config.ceilings
     )
@@ -267,38 +289,91 @@ def run_pilot_lemex_audit(
             }
             if any(audit_row.get(key) != value for key, value in expected_checkpoint.items()):
                 raise PilotAuditError("pilot audit checkpoint lineage differs")
-            judgment = JudgeOutput.model_validate(audit_row.get("lemex_judgment"))
-            agrees = judgment.verdict == claude.get("verdict")
-            if audit_row.get("agrees") is not agrees:
-                raise PilotAuditError("pilot audit checkpoint verdict differs")
+            malformed_final = audit_row.get("malformed_exhausted") is True
+            if malformed_final:
+                judgment = None
+                agrees = False
+            else:
+                judgment = (
+                    JudgeOutputV5.model_validate(audit_row.get("lemex_judgment"))
+                    if closure_aware
+                    else JudgeOutput.model_validate(audit_row.get("lemex_judgment"))
+                )
+                agrees = judgment.verdict == claude.get("verdict")
+                if audit_row.get("agrees") is not agrees:
+                    raise PilotAuditError("pilot audit checkpoint verdict differs")
         else:
-            call = client.call(
-                prompt=prompt,
-                input_ids=(str(row["row_id"]), "blinded_pilot_lemex_audit_v1"),
-            )
-            judgment = JudgeOutput.model_validate(call.structured)
-            agrees = judgment.verdict == claude.get("verdict")
+            if closure_aware:
+                assert v5_config is not None
+                consistent = call_consistent_judge(
+                    client,
+                    prompt=prompt,
+                    input_ids=(str(row["row_id"]), "blinded_rehearsal_lemex_audit_v5"),
+                    closure_aware=True,
+                    malformed_retries=v5_config.rehearsal.malformed_audit_retries,
+                )
+                call = consistent.calls[-1]
+                judgment = consistent.judgment
+            else:
+                call = client.call(
+                    prompt=prompt,
+                    input_ids=(str(row["row_id"]), "blinded_pilot_lemex_audit_v1"),
+                )
+                judgment = JudgeOutput.model_validate(call.structured)
+                consistent = None
+            agrees = judgment is not None and judgment.verdict == claude.get("verdict")
+            exhausted = judgment is None
             audit_row = {
                 "row_id": row["row_id"],
                 "requested_polarity": row["requested_polarity"],
                 "claude_verdict": claude.get("verdict"),
-                "lemex_judgment": judgment.model_dump(mode="json"),
+                "lemex_judgment": (None if judgment is None else judgment.model_dump(mode="json")),
                 "agrees": agrees,
-                "action": "retain" if agrees else "unknown_review_exclude_core",
+                "action": (
+                    "retain"
+                    if agrees
+                    else "malformed_unknown_review_exclude_core"
+                    if exhausted
+                    else "unknown_review_exclude_core"
+                ),
                 "call_key": call.call_key,
                 "provider_id": call.provider_id,
                 "prompt_hash": rendered_prompt_hash,
                 "usage": call.usage,
                 "cost_usd": call.cost_usd,
                 "elapsed_seconds": call.elapsed_seconds,
+                "malformed_attempts": (
+                    [] if consistent is None else list(consistent.malformed_attempts)
+                ),
+                "malformed_retries": 0 if consistent is None else consistent.malformed_retries,
+                "malformed_exhausted": exhausted,
             }
             _atomic_exact(checkpoint_path, canonical_json_bytes(audit_row) + b"\n")
         checkpoint_receipts[str(row["row_id"])] = hash_file(checkpoint_path)
         audit_rows.append(audit_row)
         if not agrees:
             unknown_review.append({**audit_row, "training_eligible": False})
+    malformed_attempts = sum(
+        len(value) if isinstance(value, list) else 0
+        for row in audit_rows
+        for value in (row.get("malformed_attempts"),)
+    )
+    malformed_retries = sum(
+        int(value) if isinstance(value, int) and not isinstance(value, bool) else 0
+        for row in audit_rows
+        for value in (row.get("malformed_retries"),)
+    )
+    malformed_exhausted = sum(row.get("malformed_exhausted") is True for row in audit_rows)
+    genuine_disagreements = sum(
+        row.get("agrees") is False and row.get("malformed_exhausted") is not True
+        for row in audit_rows
+    )
     checkpoints_manifest = {
-        "version": "leanfaith_sft2a_pilot_audit_checkpoints_v1",
+        "version": (
+            "leanfaith_sft2a_rehearsal_audit_checkpoints_v5"
+            if closure_aware
+            else "leanfaith_sft2a_pilot_audit_checkpoints_v1"
+        ),
         "selected_row_ids": [str(sidecars[index]["row_id"]) for index in selected],
         "receipts": checkpoint_receipts,
     }
@@ -325,7 +400,11 @@ def run_pilot_lemex_audit(
     _atomic_exact(audit_root / "releasable_core/core.jsonl", _jsonl(released_core))
     _atomic_exact(audit_root / "releasable_core/sidecar.jsonl", _jsonl(released_sidecars))
     release_manifest = {
-        "version": "leanfaith_sft2a_pilot_post_audit_core_v1",
+        "version": (
+            "leanfaith_sft2a_rehearsal_post_audit_core_v5"
+            if closure_aware
+            else "leanfaith_sft2a_pilot_post_audit_core_v1"
+        ),
         "source_pilot_manifest_sha256": hash_file(pilot_manifest_path),
         "pilot_replay_receipt_sha256": hash_file(replay_path),
         "audit_rows_sha256": hash_file(audit_root / "audit/rows.jsonl"),
@@ -342,32 +421,44 @@ def run_pilot_lemex_audit(
         audit_root / "releasable_core/manifest.json",
         canonical_json_bytes(release_manifest) + b"\n",
     )
-    disagreements = len(unknown_review)
+    disagreements = genuine_disagreements
     budget_snapshot = budget.snapshot()
     rendered_prompt_hashes = [str(row["prompt_hash"]) for row in audit_rows]
     manifest: dict[str, object] = {
-        "version": "leanfaith_sft2a_combined_pilot_lemex_audit_v1",
+        "version": (
+            "leanfaith_sft2a_combined_rehearsal_lemex_audit_v5"
+            if closure_aware
+            else "leanfaith_sft2a_combined_pilot_lemex_audit_v1"
+        ),
         "config_hash": loaded.config_hash,
         "readiness_config_hash": readiness.config_hash,
         "source_pilot_manifest_sha256": hash_file(pilot_manifest_path),
         "pilot_replay_receipt_sha256": hash_file(replay_path),
-        "selection_version": _AUDIT_VERSION,
+        "selection_version": _AUDIT_VERSION_V5 if closure_aware else _AUDIT_VERSION,
         "target_fraction": loaded.config.audit.fraction,
-        "maximum_calls": 8,
+        "maximum_calls": maximum_calls,
         "population_rows": len(sidecars),
         "selected_rows": len(selected),
         "selected_row_ids": [str(sidecars[index]["row_id"]) for index in selected],
         "stratum_allocations": allocations,
         "selection_sha256": hash_canonical([str(sidecars[index]["row_id"]) for index in selected]),
-        "agreements": len(audit_rows) - disagreements,
+        "agreements": sum(bool(row.get("agrees")) for row in audit_rows),
         "disagreements": disagreements,
+        "malformed_attempts": malformed_attempts,
+        "malformed_retries": malformed_retries,
+        "malformed_exhausted": malformed_exhausted,
+        "agreement_rate_after_malformed_retries": (
+            0.0
+            if not audit_rows
+            else sum(bool(row.get("agrees")) for row in audit_rows) / len(audit_rows)
+        ),
         "providers": {
-            "opus_source_judge": loaded.config.claude_judge.model_dump(mode="json"),
-            "lemex_auditor": loaded.config.lemex_auditor.model_dump(mode="json"),
+            "opus_source_judge": config.claude_judge.model_dump(mode="json"),
+            "lemex_auditor": config.lemex_auditor.model_dump(mode="json"),
         },
-        "labeling_defaults_policy": loaded.config.labeling_defaults_policy.model_dump(mode="json"),
+        "labeling_defaults_policy": config.labeling_defaults_policy.model_dump(mode="json"),
         "prompt": {
-            "template": loaded.config.prompts.blinded_claude_judge.model_dump(mode="json"),
+            "template": config.prompts.blinded_claude_judge.model_dump(mode="json"),
             "rendered_prompt_hashes": rendered_prompt_hashes,
             "rendered_prompt_set_sha256": hash_canonical(rendered_prompt_hashes),
         },
@@ -380,7 +471,15 @@ def run_pilot_lemex_audit(
         },
         "persistent_provider_budget": budget_snapshot,
         "systematic_disagreement_blocks_scale": disagreements > 0,
-        "scale_gate": "blocked_disagreement" if disagreements else "audit_passed",
+        "malformed_output_blocks_scale": malformed_exhausted > 0,
+        "scale_gate": (
+            "blocked_disagreement"
+            if disagreements
+            else "blocked_malformed_audit"
+            if malformed_exhausted
+            else "audit_passed"
+        ),
+        "audit_output_subdir": audit_output_subdir,
         "artifacts": {
             "audit/rows.jsonl": {
                 "sha256": hash_file(audit_root / "audit/rows.jsonl"),
@@ -392,7 +491,7 @@ def run_pilot_lemex_audit(
             },
             "unknown_review/rows.jsonl": {
                 "sha256": hash_file(audit_root / "unknown_review/rows.jsonl"),
-                "rows": disagreements,
+                "rows": len(unknown_review),
             },
             "releasable_core/manifest.json": {
                 "sha256": hash_file(audit_root / "releasable_core/manifest.json"),

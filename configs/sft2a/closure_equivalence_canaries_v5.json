@@ -1,0 +1,40 @@
+{
+  "schema_version": 5,
+  "canary_set_id": "sft2a_universal_closure_equivalence_canaries_v5",
+  "source_recovery_v4_tree_sha256": "3ea4a72280c696b1811995b51403373384ae8269ee05accc351f9527d82dd06a",
+  "required_verdict": "equivalent",
+  "required_checks": [
+    "entire_universally_closed_proposition",
+    "argument_swapping",
+    "symmetry",
+    "antisymmetry",
+    "extensionality",
+    "recoverable_boundary_cases"
+  ],
+  "canaries": [
+    {
+      "canary_id": "nat_add_comm/break_1",
+      "source_row_id": "sft2a-new:bd849dc3352683afdfe1249259a15c6b7a8283716811cbf01a08838dca31360a",
+      "statement_a": "∀ a b : Nat, a + b = b + a",
+      "statement_b": "∀ a b : Nat, a + b ≤ b + a",
+      "required_verdict": "equivalent",
+      "reason": "Universal argument swapping gives the reverse inequality; antisymmetry recovers equality."
+    },
+    {
+      "canary_id": "set_union_comm/break_1",
+      "source_row_id": "sft2a-new:ec81204690f7ef14b69758e7e715ff07fcd3fe71e1e44d8050ac4838317a1c99",
+      "statement_a": "∀ {α : Type} (s t : Set α), s ∪ t = t ∪ s",
+      "statement_b": "∀ {α : Type} (s t : Set α), s ∪ t ⊆ t ∪ s",
+      "required_verdict": "equivalent",
+      "reason": "Universal argument swapping supplies both inclusions; extensionality recovers set equality."
+    },
+    {
+      "canary_id": "nat_gcd_comm/break_0",
+      "source_row_id": "sft2a-new:8260ec1adccc3523884e142f5a5758ec876c7ec3305f313ec6db27358a7502b3",
+      "statement_a": "∀ m n : Nat, Nat.gcd m n = Nat.gcd n m",
+      "statement_b": "∀ m n : Nat, m ≠ 0 → Nat.gcd m n = Nat.gcd n m",
+      "required_verdict": "equivalent",
+      "reason": "The guarded proposition covers nonzero m; the omitted m=0 boundary follows by reduction of gcd zero and is recoverable."
+    }
+  ]
+}

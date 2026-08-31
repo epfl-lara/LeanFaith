@@ -273,6 +273,24 @@ class SignatureOracle:
             )
         )
 
+    def rebind(self, loaded: LoadedSFT2AConfig) -> None:
+        """Switch root-local context while retaining one initialized project backend."""
+
+        current = self.loaded.config.root.compile_context
+        target = loaded.config.root.compile_context
+        identity_fields = (
+            "project_id",
+            "project_revision",
+            "project_dir",
+            "lean_version",
+            "leaninteract_version",
+            "repl_revision",
+        )
+        if any(getattr(current, field) != getattr(target, field) for field in identity_fields):
+            raise SignatureOracleError("cannot rebind a persistent oracle across Lean projects")
+        self.loaded = loaded
+        self.context = compile_context(loaded)
+
     def close(self) -> None:
         if self._owns_backend:
             self._backend.close()

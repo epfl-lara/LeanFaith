@@ -12,6 +12,8 @@ from leanfaith.sft2a.activation import (
     materialize_authorized_activation,
     preview_authorized_activation,
 )
+from leanfaith.sft2a.canaries import run_closure_canaries
+from leanfaith.sft2a.census import prepare_rehearsal_sample, run_zero_lean_census
 from leanfaith.sft2a.config import load_sft2a_config
 from leanfaith.sft2a.detached import (
     launch_detached_pilot,
@@ -29,6 +31,14 @@ from leanfaith.sft2a.pilot import PilotError, prepare_pilot_sample, verify_pilot
 from leanfaith.sft2a.pilot_audit import run_pilot_lemex_audit
 from leanfaith.sft2a.pipeline import run_lemex_audit, run_one_root, verify_one_root_replay
 from leanfaith.sft2a.readiness import load_pilot_readiness
+from leanfaith.sft2a.rehearsal import (
+    launch_detached_rehearsal,
+    load_rehearsal_authorization,
+    preflight_rehearsal_launch,
+    run_detached_rehearsal_worker,
+    run_rehearsal_audit,
+    verify_rehearsal_replay,
+)
 from leanfaith.sft2a.release import compare_fable_and_opus, materialize_post_audit_core
 
 
@@ -37,6 +47,7 @@ def main() -> int:
     parser.add_argument("--config", type=Path)
     parser.add_argument("--pilot-config", type=Path)
     parser.add_argument("--activation-plan", type=Path)
+    parser.add_argument("--rehearsal-authorization", type=Path)
     subcommands = parser.add_subparsers(dest="command", required=True)
     subcommands.add_parser("verify-config")
     subcommands.add_parser("verify-pilot-readiness")
@@ -60,6 +71,14 @@ def main() -> int:
     subcommands.add_parser("prepare-legacy-opus-sample")
     subcommands.add_parser("run-legacy-opus-rejudge")
     subcommands.add_parser("materialize-fable-post-audit-core")
+    subcommands.add_parser("run-closure-canaries")
+    subcommands.add_parser("run-v5-census")
+    subcommands.add_parser("prepare-v5-rehearsal")
+    subcommands.add_parser("verify-v5-rehearsal-replay")
+    subcommands.add_parser("run-v5-rehearsal-audit")
+    subcommands.add_parser("preflight-v5-rehearsal")
+    subcommands.add_parser("launch-v5-rehearsal")
+    subcommands.add_parser("detached-v5-rehearsal-worker")
     arguments = parser.parse_args()
     loaded = load_sft2a_config(
         arguments.config,
@@ -68,6 +87,9 @@ def main() -> int:
             "run-one-root",
             "run-lemex-audit",
             "detached-pilot-worker",
+            "run-closure-canaries",
+            "run-v5-rehearsal-audit",
+            "detached-v5-rehearsal-worker",
         },
     )
     readiness_commands = {
@@ -89,6 +111,20 @@ def main() -> int:
         if arguments.command in readiness_commands
         else None
     )
+    rehearsal_commands = {
+        "verify-v5-rehearsal-replay",
+        "run-v5-rehearsal-audit",
+        "preflight-v5-rehearsal",
+        "launch-v5-rehearsal",
+        "detached-v5-rehearsal-worker",
+    }
+    rehearsal_authorization = (
+        load_rehearsal_authorization(loaded, arguments.rehearsal_authorization)
+        if arguments.command in rehearsal_commands and arguments.rehearsal_authorization is not None
+        else None
+    )
+    if arguments.command in rehearsal_commands and rehearsal_authorization is None:
+        parser.error("--rehearsal-authorization is required for this v5 command")
     if arguments.command == "verify-config":
         result: object = {
             "config_hash": loaded.config_hash,
@@ -118,6 +154,27 @@ def main() -> int:
     elif arguments.command == "run-one-root":
         run = run_one_root(loaded)
         result = {"output_root": str(run.output_root), "replayed": run.replayed, **run.manifest}
+    elif arguments.command == "run-closure-canaries":
+        result = run_closure_canaries(loaded)
+    elif arguments.command == "run-v5-census":
+        result = run_zero_lean_census(loaded)
+    elif arguments.command == "prepare-v5-rehearsal":
+        result = prepare_rehearsal_sample(loaded)
+    elif arguments.command == "verify-v5-rehearsal-replay":
+        assert rehearsal_authorization is not None
+        result = verify_rehearsal_replay(loaded, rehearsal_authorization)
+    elif arguments.command == "run-v5-rehearsal-audit":
+        assert rehearsal_authorization is not None
+        result = run_rehearsal_audit(loaded, rehearsal_authorization)
+    elif arguments.command == "preflight-v5-rehearsal":
+        assert rehearsal_authorization is not None
+        result = preflight_rehearsal_launch(loaded, rehearsal_authorization)
+    elif arguments.command == "launch-v5-rehearsal":
+        assert rehearsal_authorization is not None
+        result = launch_detached_rehearsal(loaded, rehearsal_authorization)
+    elif arguments.command == "detached-v5-rehearsal-worker":
+        assert rehearsal_authorization is not None
+        result = run_detached_rehearsal_worker(loaded, rehearsal_authorization)
     elif arguments.command == "verify-replay":
         result = verify_one_root_replay(loaded)
     elif arguments.command == "run-lemex-audit":

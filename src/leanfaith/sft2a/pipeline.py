@@ -6,6 +6,7 @@ import fcntl
 import json
 import math
 import os
+import re
 import tempfile
 from collections import Counter
 from collections.abc import Mapping, Sequence
@@ -16,18 +17,28 @@ from typing import Literal, Protocol
 from leanfaith.config.hashing import canonical_json_bytes, hash_canonical, hash_file
 from leanfaith.representations.views import signature_near_dup_hash
 from leanfaith.sft2a.config import LoadedSFT2AConfig
+from leanfaith.sft2a.judgments import call_consistent_judge
 from leanfaith.sft2a.layout import run_paths
 from leanfaith.sft2a.lean_oracle import (
     ORACLE_METHOD_VERSION,
     SignatureOracle,
     SignatureOracleResult,
 )
+from leanfaith.sft2a.mechanisms import (
+    MechanismAssignment,
+    mechanism_histogram,
+    plan_mechanism_rotation,
+    shortcut_violation,
+)
 from leanfaith.sft2a.models import (
     CoreRow,
     JudgeOutput,
+    JudgeOutputV5,
     ProposerOutput,
+    ProposerOutputV5,
     SFT2AOpusConfig,
     SFT2AProductionConfig,
+    SFT2AV5Config,
     SlotConfig,
 )
 from leanfaith.sft2a.prompts import (
@@ -64,7 +75,14 @@ class PropositionOracle(Protocol):
 
 
 class CrossRootCandidateRegistry(Protocol):
-    def claim(self, *, raw_signature: str, rendered_goal: str, owner: str) -> bool: ...
+    def claim(
+        self,
+        *,
+        raw_signature: str,
+        rendered_goal: str,
+        owner: str,
+        closed_expr_hash: str | None = None,
+    ) -> bool: ...
 
 
 @dataclass(frozen=True, slots=True)
@@ -207,10 +225,10 @@ def _attempt_record(
     attempt_number: int,
     status: str,
     proposer_call: ProviderCallResult | None,
-    proposer: ProposerOutput | None,
+    proposer: ProposerOutput | ProposerOutputV5 | None,
     lean: SignatureOracleResult | None,
     judge_call: ProviderCallResult | None,
-    judge: JudgeOutput | None,
+    judge: JudgeOutput | JudgeOutputV5 | None,
     detail: str,
 ) -> dict[str, object]:
     candidate_signature = None if proposer is None else proposer.candidate_signature
@@ -257,6 +275,29 @@ def _attempt_record(
     }
 
 
+def _closed_expr_hash(result: SignatureOracleResult) -> str:
+    sidecar = result.sidecar
+    record = None if sidecar is None else sidecar.get("record")
+    provenance = record.get("provenance") if isinstance(record, dict) else None
+    digest = provenance.get("expr_hash") if isinstance(provenance, dict) else None
+    if not isinstance(digest, str) or re.fullmatch(r"[0-9a-f]{64}", digest) is None:
+        raise OneRootPipelineError("valid v5 REPR result lacks a closed Expr hash")
+    return digest
+
+
+def _v5_plan(loaded: LoadedSFT2AConfig) -> dict[str, MechanismAssignment]:
+    if not isinstance(loaded.config, SFT2AV5Config):
+        return {}
+    plan = plan_mechanism_rotation(
+        ({"root": loaded.config.root.model_dump(mode="json")},),
+        salt=loaded.config.mechanism_rotation.salt,
+        maximum_family_fraction_per_polarity=(
+            loaded.config.mechanism_rotation.maximum_family_fraction_per_polarity
+        ),
+    )
+    return plan[loaded.config.root.root_id]
+
+
 def run_one_root(
     loaded: LoadedSFT2AConfig,
     *,
@@ -267,6 +308,8 @@ def run_one_root(
     enforce_expected_reference_goal: bool = True,
     enforce_smoke_ceilings: bool = True,
     cross_root_registry: CrossRootCandidateRegistry | None = None,
+    mechanism_plan: Mapping[str, MechanismAssignment] | None = None,
+    enforce_closure_canaries: bool = True,
 ) -> OneRootResult:
     """Run or replay exactly the configured root and four independent candidate slots."""
 
@@ -291,11 +334,21 @@ def run_one_root(
     unknown_rows: list[dict[str, object]] = []
     rejected_rows: list[dict[str, object]] = []
     contamination_rows: list[dict[str, object]] = []
+    malformed_rows: list[dict[str, object]] = []
     all_provider_calls: list[ProviderCallResult] = []
     all_lean_results: list[SignatureOracleResult] = []
     seen_candidate_signatures: set[str] = set()
     retry_slots: set[str] = set()
     blocked_groups, blocked_hashes = _gold_blocklist(loaded)
+    closure_aware = isinstance(loaded.config, SFT2AV5Config)
+    if closure_aware and enforce_closure_canaries:
+        canary_manifest = run_paths(loaded).one_root / "closure_canaries_v5/manifest.json"
+        if (
+            not canary_manifest.is_file()
+            or _load_object(canary_manifest).get("all_passed") is not True
+        ):
+            raise OneRootPipelineError("v5 generation requires the passed closure canary receipt")
+    selected_mechanisms = dict(mechanism_plan or _v5_plan(loaded))
 
     try:
         source_group_key = f"{loaded.config.root.source}::{loaded.config.root.declaration_name}"
@@ -327,7 +380,17 @@ def run_one_root(
         if rendered_reference_hit:
             raise OneRootPipelineError("one-root rendered reference matches the gold blocklist")
 
-        for slot in loaded.config.slots:
+        for configured_slot in loaded.config.slots:
+            assignment = selected_mechanisms.get(configured_slot.slot_id)
+            if closure_aware and assignment is None:
+                raise OneRootPipelineError("v5 slot lacks an applicability-aware mechanism")
+            slot = (
+                configured_slot
+                if assignment is None
+                else configured_slot.model_copy(
+                    update={"preferred_mechanism": assignment.prompt_text()}
+                )
+            )
             feedback: str | None = None
             accepted = False
             for attempt_number in range(1, slot.max_attempts + 1):
@@ -338,6 +401,7 @@ def run_one_root(
                     slot=slot,
                     attempt_number=attempt_number,
                     attempt_feedback=feedback,
+                    reference_goal=reference.goal_v1,
                 )
                 proposer_call = proposer_client.call(
                     prompt=proposer_prompt,
@@ -349,7 +413,11 @@ def run_one_root(
                 )
                 all_provider_calls.append(proposer_call)
                 try:
-                    proposal = ProposerOutput.model_validate(proposer_call.structured)
+                    proposal = (
+                        ProposerOutputV5.model_validate(proposer_call.structured)
+                        if closure_aware
+                        else ProposerOutput.model_validate(proposer_call.structured)
+                    )
                 except Exception as exc:
                     detail = f"proposer_schema_rejected:{type(exc).__name__}:{exc}"
                     record = _attempt_record(
@@ -389,6 +457,58 @@ def run_one_root(
                     invalid_rows.append(record)
                     _append_event(journal_path, record)
                     feedback = _feedback("proposer_rejected", detail)
+                    continue
+                if assignment is not None and proposal.mechanism != assignment.family:
+                    detail = (
+                        "proposer mechanism differs from the applicability-aware rotation: "
+                        f"expected={assignment.family}; observed={proposal.mechanism}"
+                    )
+                    record = _attempt_record(
+                        root_id=loaded.config.root.root_id,
+                        slot=slot,
+                        attempt_number=attempt_number,
+                        status="mechanism_rejected",
+                        proposer_call=proposer_call,
+                        proposer=proposal,
+                        lean=None,
+                        judge_call=None,
+                        judge=None,
+                        detail=detail,
+                    )
+                    record["proposer_prompt_hash"] = prompt_hash(proposer_prompt)
+                    record["planned_mechanism"] = assignment.to_dict()
+                    attempts.append(record)
+                    invalid_rows.append(record)
+                    _append_event(journal_path, record)
+                    feedback = _feedback("mechanism_rejected", detail)
+                    continue
+                shortcut = shortcut_violation(
+                    loaded.config.root.reference_signature,
+                    proposal.candidate_signature,
+                )
+                if closure_aware and shortcut is not None:
+                    detail = f"v5 shortcut screen rejected candidate: {shortcut}"
+                    record = _attempt_record(
+                        root_id=loaded.config.root.root_id,
+                        slot=slot,
+                        attempt_number=attempt_number,
+                        status="shortcut_rejected",
+                        proposer_call=proposer_call,
+                        proposer=proposal,
+                        lean=None,
+                        judge_call=None,
+                        judge=None,
+                        detail=detail,
+                    )
+                    record["proposer_prompt_hash"] = prompt_hash(proposer_prompt)
+                    record["shortcut_reason"] = shortcut
+                    record["planned_mechanism"] = (
+                        None if assignment is None else assignment.to_dict()
+                    )
+                    attempts.append(record)
+                    invalid_rows.append(record)
+                    _append_event(journal_path, record)
+                    feedback = _feedback("shortcut_rejected", detail)
                     continue
                 candidate_key = " ".join(proposal.candidate_signature.split())
                 reference_key = " ".join(loaded.config.root.reference_signature.split())
@@ -472,6 +592,43 @@ def run_one_root(
                     feedback = _feedback(status, lean.detail)
                     continue
 
+                if closure_aware:
+                    reference_expr_hash = _closed_expr_hash(reference)
+                    candidate_expr_hash = _closed_expr_hash(lean)
+                    identity_reasons = []
+                    if candidate_expr_hash == reference_expr_hash:
+                        identity_reasons.append("closed_expr_hash")
+                    if lean.goal_v1 == reference.goal_v1:
+                        identity_reasons.append("rendered_goal_v1")
+                    if identity_reasons:
+                        detail = "candidate equals its reference after elaboration: " + "+".join(
+                            identity_reasons
+                        )
+                        record = _attempt_record(
+                            root_id=loaded.config.root.root_id,
+                            slot=slot,
+                            attempt_number=attempt_number,
+                            status="self_pair_rejected",
+                            proposer_call=proposer_call,
+                            proposer=proposal,
+                            lean=lean,
+                            judge_call=None,
+                            judge=None,
+                            detail=detail,
+                        )
+                        record["proposer_prompt_hash"] = prompt_hash(proposer_prompt)
+                        record["identity_reasons"] = identity_reasons
+                        record["reference_closed_expr_hash"] = reference_expr_hash
+                        record["candidate_closed_expr_hash"] = candidate_expr_hash
+                        record["planned_mechanism"] = (
+                            None if assignment is None else assignment.to_dict()
+                        )
+                        attempts.append(record)
+                        invalid_rows.append(record)
+                        _append_event(journal_path, record)
+                        feedback = _feedback("self_pair_rejected", detail)
+                        continue
+
                 rendered_candidate_hit, rendered_candidate_hash = _gold_signature_hit(
                     lean.goal_v1, blocked_hashes
                 )
@@ -507,6 +664,7 @@ def run_one_root(
                     raw_signature=proposal.candidate_signature,
                     rendered_goal=lean.goal_v1,
                     owner=claim_owner,
+                    closed_expr_hash=(_closed_expr_hash(lean) if closure_aware else None),
                 ):
                     detail = "candidate duplicates a prior valid candidate from another root"
                     record = _attempt_record(
@@ -533,16 +691,60 @@ def run_one_root(
                     statement_a=reference.goal_v1,
                     statement_b=lean.goal_v1,
                 )
-                judge_call = judge_client.call(
-                    prompt=judge_prompt,
-                    input_ids=(
-                        loaded.config.root.root_id,
-                        lean.signature_sha256,
-                        "blinded_claude_judge",
-                    ),
-                )
-                all_provider_calls.append(judge_call)
-                judgment = JudgeOutput.model_validate(judge_call.structured)
+                judge_malformed: list[dict[str, object]] = []
+                if closure_aware:
+                    consistent = call_consistent_judge(
+                        judge_client,
+                        prompt=judge_prompt,
+                        input_ids=(
+                            loaded.config.root.root_id,
+                            lean.signature_sha256,
+                            "blinded_claude_judge_v5",
+                        ),
+                        closure_aware=True,
+                        malformed_retries=1,
+                    )
+                    all_provider_calls.extend(consistent.calls)
+                    judge_malformed = list(consistent.malformed_attempts)
+                    if consistent.judgment is None:
+                        detail = "Claude returned malformed output twice"
+                        record = _attempt_record(
+                            root_id=loaded.config.root.root_id,
+                            slot=slot,
+                            attempt_number=attempt_number,
+                            status="judge_malformed_exhausted",
+                            proposer_call=proposer_call,
+                            proposer=proposal,
+                            lean=lean,
+                            judge_call=consistent.calls[-1],
+                            judge=None,
+                            detail=detail,
+                        )
+                        record["proposer_prompt_hash"] = prompt_hash(proposer_prompt)
+                        record["judge_prompt_hash"] = prompt_hash(judge_prompt)
+                        record["judge_call_keys"] = [call.call_key for call in consistent.calls]
+                        record["judge_malformed_attempts"] = judge_malformed
+                        record["planned_mechanism"] = (
+                            None if assignment is None else assignment.to_dict()
+                        )
+                        attempts.append(record)
+                        malformed_rows.append(record)
+                        _append_event(journal_path, record)
+                        feedback = _feedback("judge_malformed_exhausted", detail)
+                        continue
+                    judgment = consistent.judgment
+                    judge_call = consistent.calls[-1]
+                else:
+                    judge_call = judge_client.call(
+                        prompt=judge_prompt,
+                        input_ids=(
+                            loaded.config.root.root_id,
+                            lean.signature_sha256,
+                            "blinded_claude_judge",
+                        ),
+                    )
+                    all_provider_calls.append(judge_call)
+                    judgment = JudgeOutput.model_validate(judge_call.structured)
                 expected = accepted_verdict_for(slot.requested_polarity)
                 if judgment.verdict != expected:
                     status = "judge_unknown" if judgment.verdict == "unknown" else "judge_disagreed"
@@ -560,6 +762,10 @@ def run_one_root(
                     )
                     record["proposer_prompt_hash"] = prompt_hash(proposer_prompt)
                     record["judge_prompt_hash"] = prompt_hash(judge_prompt)
+                    record["judge_malformed_attempts"] = judge_malformed
+                    record["planned_mechanism"] = (
+                        None if assignment is None else assignment.to_dict()
+                    )
                     attempts.append(record)
                     (unknown_rows if judgment.verdict == "unknown" else rejected_rows).append(
                         record
@@ -596,6 +802,8 @@ def run_one_root(
                 record["proposer_prompt_hash"] = prompt_hash(proposer_prompt)
                 record["judge_prompt_hash"] = prompt_hash(judge_prompt)
                 record["row_id"] = row_id
+                record["judge_malformed_attempts"] = judge_malformed
+                record["planned_mechanism"] = None if assignment is None else assignment.to_dict()
                 attempts.append(record)
                 core_rows.append(core)
                 sidecars.append(
@@ -619,6 +827,14 @@ def run_one_root(
                         "judge_prompt_hash": prompt_hash(judge_prompt),
                         "raw_reference_signature": loaded.config.root.reference_signature,
                         "raw_candidate_signature": proposal.candidate_signature,
+                        "planned_mechanism": (None if assignment is None else assignment.to_dict()),
+                        "reference_closed_expr_hash": (
+                            _closed_expr_hash(reference) if closure_aware else None
+                        ),
+                        "candidate_closed_expr_hash": (
+                            _closed_expr_hash(lean) if closure_aware else None
+                        ),
+                        "judge_malformed_attempts": judge_malformed,
                     }
                 )
                 _append_event(journal_path, record)
@@ -645,6 +861,7 @@ def run_one_root(
         "unknown/rows.jsonl": _canonical_jsonl(unknown_rows),
         "rejected/rows.jsonl": _canonical_jsonl(rejected_rows),
         "contamination/rows.jsonl": _canonical_jsonl(contamination_rows),
+        "malformed/rows.jsonl": _canonical_jsonl(malformed_rows),
         "attempts/terminal_attempts.jsonl": _canonical_jsonl(attempts),
     }
     for relative, payload in artifact_payloads.items():
@@ -690,14 +907,65 @@ def run_one_root(
             if any(not result.cache_hit for result in all_lean_results):
                 raise OneRootPipelineError("Opus smoke unexpectedly executed a Lean request")
 
+    count_summary: dict[str, object] = {
+        "accepted": len(core_rows),
+        "accepted_positive": sum(bool(row["label"]) for row in core_rows),
+        "accepted_negative": sum(not bool(row["label"]) for row in core_rows),
+        "invalid_attempts": len(invalid_rows),
+        "unknown_rows": len(unknown_rows),
+        "judge_disagreements": len(rejected_rows),
+        "gold_contamination": len(contamination_rows),
+        "cross_root_duplicates": sum(
+            row.get("status") == "cross_root_duplicate" for row in invalid_rows
+        ),
+        "retry_slots": len(retry_slots),
+        "attempts": len(attempts),
+    }
+    if closure_aware:
+        count_summary.update(
+            {
+                "self_pairs_rejected": sum(
+                    row.get("status") == "self_pair_rejected" for row in invalid_rows
+                ),
+                "shortcut_rejections": sum(
+                    row.get("status") == "shortcut_rejected" for row in invalid_rows
+                ),
+                "mechanism_rejections": sum(
+                    row.get("status") == "mechanism_rejected" for row in invalid_rows
+                ),
+                "lean_invalid_attempts": sum(
+                    row.get("status") == "lean_invalid" for row in invalid_rows
+                ),
+                "proposer_schema_rejections": sum(
+                    row.get("status") == "proposer_rejected" for row in invalid_rows
+                ),
+                "judge_malformed_exhausted": len(malformed_rows),
+                "judge_malformed_attempts": sum(
+                    len(value) if isinstance(value, list) else 0
+                    for row in attempts
+                    for value in (row.get("judge_malformed_attempts"),)
+                ),
+                "candidate_attempts": len(attempts),
+                "candidate_retry_attempts": sum(
+                    isinstance(value, int) and not isinstance(value, bool) and value > 1
+                    for row in attempts
+                    for value in (row.get("attempt_number", 1),)
+                ),
+            }
+        )
+
     final_manifest: dict[str, object] = {
         "version": (
-            "leanfaith_sft2a_one_root_production_defaults_manifest_v1"
-            if isinstance(loaded.config, SFT2AProductionConfig)
+            "leanfaith_sft2a_one_root_closure_aware_manifest_v5"
+            if closure_aware
             else (
-                "leanfaith_sft2a_one_root_opus5_manifest_v1"
-                if isinstance(loaded.config, SFT2AOpusConfig)
-                else "leanfaith_sft2a_one_root_manifest_v1"
+                "leanfaith_sft2a_one_root_production_defaults_manifest_v1"
+                if isinstance(loaded.config, SFT2AProductionConfig)
+                else (
+                    "leanfaith_sft2a_one_root_opus5_manifest_v1"
+                    if isinstance(loaded.config, SFT2AOpusConfig)
+                    else "leanfaith_sft2a_one_root_manifest_v1"
+                )
             )
         ),
         "config_hash": loaded.config_hash,
@@ -705,27 +973,28 @@ def run_one_root(
         "root_id": loaded.config.root.root_id,
         "root_count": 1,
         "slot_count": 4,
-        "counts": {
-            "accepted": len(core_rows),
-            "accepted_positive": sum(bool(row["label"]) for row in core_rows),
-            "accepted_negative": sum(not bool(row["label"]) for row in core_rows),
-            "invalid_attempts": len(invalid_rows),
-            "unknown_rows": len(unknown_rows),
-            "judge_disagreements": len(rejected_rows),
-            "gold_contamination": len(contamination_rows),
-            "cross_root_duplicates": sum(
-                row.get("status") == "cross_root_duplicate" for row in invalid_rows
-            ),
-            "retry_slots": len(retry_slots),
-            "attempts": len(attempts),
-        },
+        "counts": count_summary,
         "quality": {
             "accepted_siblings_preserved": len(core_rows),
             "slot_attempt_cap": 3,
             "retry_slots": sorted(retry_slots),
             "all_valid_candidates_independently_judged": all(
-                row.get("judge_blinded") is True for row in attempts if valid_lean_attempt(row)
+                row.get("judge_blinded") is True
+                for row in attempts
+                if valid_lean_attempt(row)
+                and row.get("status")
+                not in {
+                    "self_pair_rejected",
+                    "gold_contamination",
+                    "cross_root_duplicate",
+                }
             ),
+            "retry_taxonomy": {
+                "candidate_slot_retry": "new proposer candidate; consumes slot attempt",
+                "judge_malformed_retry": "same candidate; does not consume slot attempt",
+                "provider_infrastructure_retry": "provider wrapper only; not a semantic attempt",
+                "lean_infrastructure": "terminal run failure; never a candidate semantic retry",
+            },
         },
         "lean": {
             "method_version": ORACLE_METHOD_VERSION,
@@ -784,6 +1053,29 @@ def run_one_root(
         "published": False,
         "pilot_started": False,
     }
+    if closure_aware:
+        assert isinstance(loaded.config, SFT2AV5Config)
+        accepted_plan = {
+            loaded.config.root.root_id: {
+                str(row["slot_id"]): selected_mechanisms[str(row["slot_id"])]
+                for row in sidecars
+                if str(row["slot_id"]) in selected_mechanisms
+            }
+        }
+        planned = {loaded.config.root.root_id: selected_mechanisms}
+        final_manifest["mechanisms"] = {
+            "rotation_version": loaded.config.mechanism_rotation.version,
+            "planned": mechanism_histogram(planned),
+            "accepted": mechanism_histogram(accepted_plan),
+            "assignments": {
+                slot_id: assignment.to_dict()
+                for slot_id, assignment in sorted(selected_mechanisms.items())
+            },
+        }
+        final_manifest["identity_policy"] = {
+            "closed_expr_or_rendered_goal_equal_reference": "reject_before_judge",
+            "self_pairs_rejected": count_summary["self_pairs_rejected"],
+        }
     if isinstance(loaded.config, SFT2AOpusConfig) and enforce_smoke_ceilings:
         final_manifest["execution_ceilings"] = loaded.config.smoke_ceilings.model_dump(mode="json")
         final_manifest["server_model_pin_limit"] = (
@@ -932,6 +1224,10 @@ def run_lemex_audit(
     unknown_review_rows: list[dict[str, object]] = []
     audit_calls: list[ProviderCallResult] = []
     disagreements = 0
+    malformed_attempts = 0
+    malformed_retries = 0
+    malformed_exhausted = 0
+    closure_aware = isinstance(loaded.config, SFT2AV5Config)
     for index in selected:
         row = sidecar_rows[index]
         reference_repr = row.get("reference_repr")
@@ -951,27 +1247,54 @@ def run_lemex_audit(
             statement_a=statement_a,
             statement_b=statement_b,
         )
-        call = audit_client.call(
-            prompt=prompt,
-            input_ids=(str(row["row_id"]), "blinded_lemex_audit"),
-        )
-        audit_calls.append(call)
-        judgment = JudgeOutput.model_validate(call.structured)
+        if closure_aware:
+            consistent = call_consistent_judge(
+                audit_client,
+                prompt=prompt,
+                input_ids=(str(row["row_id"]), "blinded_lemex_audit_v5"),
+                closure_aware=True,
+                malformed_retries=1,
+            )
+            audit_calls.extend(consistent.calls)
+            malformed_attempts += len(consistent.malformed_attempts)
+            malformed_retries += consistent.malformed_retries
+            judgment = consistent.judgment
+            call = consistent.calls[-1]
+        else:
+            call = audit_client.call(
+                prompt=prompt,
+                input_ids=(str(row["row_id"]), "blinded_lemex_audit"),
+            )
+            audit_calls.append(call)
+            judgment = JudgeOutput.model_validate(call.structured)
         claude = row["claude_judge"]
         assert isinstance(claude, dict)
-        agrees = judgment.verdict == claude.get("verdict")
-        disagreements += not agrees
+        agrees = judgment is not None and judgment.verdict == claude.get("verdict")
+        malformed_final = judgment is None
+        malformed_exhausted += malformed_final
+        disagreements += not agrees and not malformed_final
         audit_row = {
             "row_id": row["row_id"],
             "requested_polarity": row["requested_polarity"],
             "claude_verdict": claude.get("verdict"),
-            "lemex_judgment": judgment.model_dump(mode="json"),
+            "lemex_judgment": (None if judgment is None else judgment.model_dump(mode="json")),
             "agrees": agrees,
-            "action": "retain" if agrees else "unknown_review_exclude_core",
+            "action": (
+                "retain"
+                if agrees
+                else "malformed_unknown_review_exclude_core"
+                if malformed_final
+                else "unknown_review_exclude_core"
+            ),
             "call_key": call.call_key,
             "prompt_hash": prompt_hash(prompt),
             "cost_usd": call.cost_usd,
             "usage": call.usage,
+            "malformed_attempts": (
+                [] if not closure_aware else list(consistent.malformed_attempts)
+            ),
+            "malformed_retries": 0 if not closure_aware else consistent.malformed_retries,
+            "malformed_exhausted": malformed_final,
         }
         audit_rows.append(audit_row)
         if not agrees:
@@ -998,6 +1321,9 @@ def run_lemex_audit(
         "realized_fraction": 0.0 if not sidecar_rows else len(selected) / len(sidecar_rows),
         "small_n_stratum_rounding": True,
         "disagreements": disagreements,
+        "malformed_attempts": malformed_attempts,
+        "malformed_retries": malformed_retries,
+        "malformed_exhausted": malformed_exhausted,
         "providers": {
             "opus_source_judge": loaded.config.claude_judge.model_dump(mode="json"),
             "lemex_auditor": loaded.config.lemex_auditor.model_dump(mode="json"),

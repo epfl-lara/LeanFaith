@@ -2,10 +2,10 @@
 
 > **Task ID:** SFT2A
 > **Status:** active
-> **Owner/session:** Codex `/root` — 2026-08-30 SFT2A session
-> **Last updated:** 2026-08-30
+> **Owner/session:** Codex `/root` — 2026-08-31 SFT2A v5 session
+> **Last updated:** 2026-08-31
 > **Dependencies:** REPR `goal_v1.0`; shared rubric; roots may be selected independently of SFT1
-> **Next gate:** corrected 12-root recovery pilot completed with zero-call replay and bounded audit
+> **Next gate:** closure-aware v5 one-root smoke, then user authorization for only the 100-root/400-slot rehearsal
 > **Compute class:** external LLM/API plus CPU/RAM for Lean; large run may need explicit budget approval
 > **Lean budget:** compile each novel candidate once through cached persistent workers
 > **Local staging root:** `/storage/milikic/leanfaith/value_first/sft2_llm_transforms_v1/`
@@ -391,3 +391,19 @@ recorded budget/model decision.
   `6a562f4b9e397ede3b8096ba1ce3d59bee977ee6dd66a0dac8133ce67f3f54b6`, and cumulative failed-run
   ledger `b5b661ec4828f6616a9e4379d1ca7dcbd9f01100a7c7a23bb5dbd4bbff1ca8e9` under the existing
   296-call/$15 Opus ceilings. Legacy rejudging, publication, and 50K remain unauthorized.
+- 2026-08-31 — accepted recovery-v4 only as immutable historical evidence and sealed its 137
+  regular files with combined-tree hash
+  `3ea4a72280c696b1811995b51403373384ae8269ee05accc351f9527d82dd06a`. Added an additive v5
+  contract under active Opus-high/Terra-high/Kimi-high defaults. V5 rejects raw shortcuts before
+  Lean and rejects closed-Expr or rendered-`goal_v1` identity before judging. It adds exact
+  closure-equivalence canaries for `nat_add_comm/break_1`, `set_union_comm/break_1`, and
+  `nat_gcd_comm/break_0`, one malformed-judge retry for verdict/rationale contradictions, and
+  separate genuine-disagreement routing. Recovery-v4 bytes were not changed.
+- 2026-08-31 — completed the source-text-only v5 census with zero provider calls and zero Lean
+  requests: 178,673 eligible distinct signatures across Mathlib, Physlib, CSLib, and safe-context
+  compiler-data inputs. Froze a domain/shape/source-stratified 100-root sample with source mix
+  42/25/17/16 and 400 planned slots, applicability-aware mechanism assignments, 13 preserving and
+  14 breaking families, maximum observed family shares 14% and 9%, and deterministic project
+  shards. The sample, rehearsal, audit, detached launch, and 50K projection code remain fail-closed
+  for calls until an additive hash-bound rehearsal authorization is received. The approximately
+  10K gate, 50K run, legacy rejudge, and publication remain separately unauthorized.

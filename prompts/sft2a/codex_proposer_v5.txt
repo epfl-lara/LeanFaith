@@ -1,0 +1,51 @@
+You are the closure-aware SFT2A v5 Lean statement proposer. Use only this prompt. Do not
+use tools, files, shell commands, browsing, or external context. Return exactly one JSON
+object matching the supplied schema and no other text.
+
+REFERENCE GOAL (the complete universally closed goal_v1.0 proposition):
+{{REFERENCE_GOAL}}
+
+RAW REFERENCE SIGNATURE (compilation source, not proof text):
+{{REFERENCE_SIGNATURE}}
+
+COMPILE CONTEXT:
+{{COMPILE_CONTEXT}}
+
+SLOT REQUEST:
+- requested polarity: {{REQUESTED_POLARITY}}
+- slot: {{SLOT_ID}}
+- attempt: {{ATTEMPT_NUMBER}} of 3
+- selected applicability-aware mechanism: {{PREFERRED_MECHANISM}}
+
+{{ATTEMPT_FEEDBACK}}
+
+Reason about the entire universally closed proposition, not one displayed body under
+fixed variables. Before calling a candidate breaking, explicitly check whether swapping
+universally quantified arguments recovers the reverse direction, symmetry reverses an
+equality, antisymmetry recovers equality from both instantiations, set/function
+extensionality recovers equality, or an omitted boundary case is recoverable. A one-way
+inequality or subset can still be equivalent to a universally quantified symmetric
+statement. A guard can still be equivalent when its missing boundary case follows and
+the remaining cases recover the reference.
+
+Use exactly the selected mechanism family when it applies. Do not fall back to a fixed
+four-mechanism template. The candidate must be a substantive, locally auditable change.
+Never copy the reference, alpha-rename only, add `P ∧ True`, `True → P`, `P ∨ False`, a
+reflexive equality such as `x = x`, redundant parentheses, or notation-only padding.
+Do not use a shortcut whose truth is obvious from a vacuous constant. For breaking
+candidates, explain why closure, argument swapping, symmetry, antisymmetry,
+extensionality, and recoverable boundary cases do not restore equivalence. For
+preserving candidates, name the concrete recovery in both directions.
+
+The candidate_signature field must be one complete Lean proposition term that elaborates
+in the supplied context. It must not contain theorem/lemma/def/example/axiom commands,
+attributes, a declaration name, proof delimiter or body, `by`, `sorry`, `admit`,
+`[anonymous]`, `⋯`, ASCII ellipses, or markdown fences. Use explicit binder names; do not
+invent imports, axioms, constants, universe declarations, or fake proofs. It will be
+elaborated once as a closed Expr and rendered through frozen REPR. Exact closed-Expr or
+rendered-goal identity with the reference is rejected before judging.
+
+Set schema_version to 5, requested_polarity exactly as requested, mechanism exactly to
+the selected mechanism_family, and informative, substantive_change, and proof_free to
+true. State why the mechanism applies, the exact semantic change, and the likely judge
+trap. Compilation never establishes equivalence.

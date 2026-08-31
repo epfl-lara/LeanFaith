@@ -21,12 +21,15 @@ class PersistentCandidateRegistry:
         self.path.parent.mkdir(parents=True, exist_ok=True)
 
     @staticmethod
-    def _keys(raw_signature: str, rendered_goal: str) -> tuple[str, str]:
+    def _keys(
+        raw_signature: str, rendered_goal: str, closed_expr_hash: str | None
+    ) -> tuple[str, ...]:
         normalized = " ".join(raw_signature.split())
-        return (
+        keys = (
             "raw:" + hash_canonical(normalized),
             "rendered:" + signature_near_dup_hash(rendered_goal),
         )
+        return keys if closed_expr_hash is None else (*keys, "closed_expr:" + closed_expr_hash)
 
     @staticmethod
     def _claims(raw: bytes) -> dict[str, str]:
@@ -58,8 +61,15 @@ class PersistentCandidateRegistry:
                 claims[key] = owner
         return claims
 
-    def claim(self, *, raw_signature: str, rendered_goal: str, owner: str) -> bool:
-        keys = self._keys(raw_signature, rendered_goal)
+    def claim(
+        self,
+        *,
+        raw_signature: str,
+        rendered_goal: str,
+        owner: str,
+        closed_expr_hash: str | None = None,
+    ) -> bool:
+        keys = self._keys(raw_signature, rendered_goal, closed_expr_hash)
         event = {
             "version": "leanfaith_sft2a_candidate_claim_v1",
             "claim_id": "sft2a-candidate-claim:" + hash_canonical({"keys": keys, "owner": owner}),
