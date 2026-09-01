@@ -1,14 +1,15 @@
 # SFT2B — autoformalization consistency data
 
 > **Task ID:** SFT2B
-> **Status:** waiting_user
-> **Owner/session:** Codex `/root` — 2026-08-31 additive source correction v3 and consumer hardening
-> **Last updated:** 2026-08-31
+> **Status:** active
+> **Owner/session:** Codex `/root` — 2026-09-01 additive Opus/Terra source-review contract v4
+> **Last updated:** 2026-09-01
 > **Dependencies:** REPR `goal_v1.0`; source-quality audit and frozen consistency/voting prompts
-> **Next gate:** receive the authentic 992-row human review plus frozen reviewer/attestor allowlists
-> and external attestation, or an explicit contract change before Opus/Terra substitution; only then
-> build, publish, and force-reverify additive v3. Separately ingest genuine missing matched-pilot
-> shutdown/resource/zero-call-replay receipts if they exist. Do not request scale authorization.
+> **Next gate:** implement and verify the additive blinded Opus/Terra model-panel contract, then run
+> exactly one packet row through both reviewers, strict parsing, consensus/unknown routing, durable
+> evidence, and zero-call restart. Report that evidence before authorizing the remaining 991 rows.
+> Separately ingest genuine missing matched-pilot shutdown/resource/zero-call-replay receipts if they
+> exist. Do not request scale authorization.
 > **Compute class:** source-freeze work is Lean/GPU-free; downstream inference uses eight
 > A100-SXM4-80GB GPUs at DP=4/TP=2
 > **Lean budget:** compile each novel formalization candidate once through persistent cached workers
@@ -360,6 +361,42 @@ Lean is the bottleneck. Complete all text filtering, schemas, source joins, revi
 deduplication, conservation accounting, artifact hashing, journal reconciliation, and restart tests
 without Lean. This subplan authorizes no corpus compilation and never starts one Lean process per
 row.
+
+### Authorized additive Opus/Terra source-review contract v4
+
+The user explicitly replaces the pending-human-only gate with an additive model-panel option for
+the frozen 992-row packet. The v3 human-review contract, packet, releases, and prior evidence remain
+immutable. Model-panel records must be named and described as model review, never human or semantic
+ground truth. This authorization covers contract implementation and one exact two-provider smoke;
+it does not authorize reviewing the other 991 rows, building or publishing a corrected bundle, or
+any generation, Lean, judging, training, or scale run.
+
+1. Freeze a new versioned contract binding the existing packet bytes and source-use authorization,
+   plus separate prompts for Claude Code Opus 5 (`opus`, high effort) and Codex GPT-5.6 Terra
+   (`gpt-5.6-terra`, high effort). Record prompt/config/implementation hashes and live CLI identities
+   before a call; provider aliases are floating and must be reported as such rather than invented as
+   immutable server revisions.
+2. Give each provider the same hash-bound source fields and rubric while blinding it to the other
+   review, automatic inclusion/quarantine disposition, expected verdict, and downstream selection.
+   Require strict structured output with verdict, finding classes, confidence, rationale, and
+   reviewed-field/source hashes. Preserve raw request/response bytes in content-addressed storage.
+3. Define the panel outcome deterministically: matching decisive verdicts admit that disposition;
+   any disagreement, escalation, malformed output, provider failure, or insufficient confidence
+   routes to an unresolved keyed view. Never use one provider to repair, summarize, or arbitrate the
+   other, and never convert an unresolved row into keep or quarantine.
+4. Implement append-only request/terminal journals, content-addressed caches, duplicate-call
+   suppression, deterministic compaction, bounded timeouts, usage/cost provenance, and fail-closed
+   reconciliation for ambiguous in-flight calls. External CLI stdin stays closed except for the
+   exact prompt payload, and credentials never enter configs or logs.
+5. Test schemas, prompt blindness, hash/version drift, malformed responses, disagreement,
+   uncertainty, duplicate terminals, and crash/restart. Then select one deterministic packet row,
+   run Opus and Terra independently, compact its panel result, and replay from cache with zero new
+   calls. Report the exact record, outcome, hashes, latency, token/cost usage when available, and
+   remaining risks before seeking authorization for the other 991 rows.
+
+Lean is the bottleneck downstream, but this contract change is entirely Lean-free: all schema,
+prompt, provenance, hashing, cache, journal, and replay work is completed without compiling a corpus
+or starting any Lean process.
 
 Lean is the bottleneck throughout this plan: all safe string parsing, source filtering, schemas,
 provenance, joins, deduplication, prompt validation, hashing, and restart logic precede Lean. The
@@ -865,3 +902,10 @@ Do not launch 50K sources without the pilot and user compute/model approval.
   from `active` to `waiting_user` only at this boundary. The next input is authentic review evidence
   (or an explicit review-contract change) and, independently, any genuine missing pilot closure
   receipts that still exist on the generation host. This is not a request for scale authorization.
+- 2026-09-01 — the user explicitly authorized the alternative Opus/Terra review contract. Status
+  returns to `active` under the additive v4 subplan above; the frozen v3 pending-human contract and
+  every v1/v2/pilot artifact remain immutable. The bounded implementation gate is one deterministic
+  packet row reviewed independently by Claude Code Opus 5 and Codex GPT-5.6 Terra at high effort,
+  followed by strict consensus/unknown compaction and a zero-provider-call restart. This is model
+  panel review, not human or semantic ground truth, and does not authorize the other 991 reviews,
+  corrected-bundle publication, generation, Lean, judging, training, or scale authorization.
