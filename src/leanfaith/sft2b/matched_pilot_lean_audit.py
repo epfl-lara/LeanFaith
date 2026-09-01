@@ -558,14 +558,14 @@ def _build_isolated_tolerant_session_body(
                 f"{origin_literal} {source_literal} "
                 f"{_lean_name_list(_level_names(endpoint.proposition))}",
                 "      if (← Lean.MonadLog.hasErrors) then",
-                "        restoreState saved",
+                "        Lean.restoreState saved",
                 "        pure none",
                 "      else",
                 "        Lean.Core.setMessageLog "
                 "(saved.meta.core.messages ++ (← Lean.Core.getMessageLog))",
                 "        pure (some value)",
                 "    catch ex =>",
-                "      restoreState saved",
+                "      Lean.restoreState saved",
                 "      if ex.isInterrupt || ex.isRuntime then",
                 "        throw ex",
                 "      pure none",

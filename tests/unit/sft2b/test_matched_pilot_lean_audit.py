@@ -278,7 +278,7 @@ def test_isolated_tolerant_body_rolls_back_diagnostics_and_rethrows_interrupts()
     endpoints = audit._endpoints(source, ())
     body = audit._build_isolated_tolerant_session_body(endpoints, render_scope_id="scope:test")
     assert "Lean.Core.resetMessageLog" in body
-    assert "restoreState saved" in body
+    assert "Lean.restoreState saved" in body
     assert "Lean.Elab.Term.restoreState" not in body
     assert "Lean.Core.setMessageLog" in body
     assert "if ex.isInterrupt || ex.isRuntime then" in body
