@@ -427,7 +427,7 @@ class SprintRunner:
             name=name,
         )
 
-    def op_key(self, reference_alpha_hash: str, operation: str) -> str:
+    def op_key(self, reference_alpha_hash: str, operation: str, name: str) -> str:
         return SemanticCache.op_key(
             reference_alpha_hash=reference_alpha_hash,
             operation_id=operation,
@@ -435,6 +435,7 @@ class SprintRunner:
             lean_version=self.pins.lean_version,
             project_revision=self.pins.project_revision,
             import_options_fingerprint=self.identity.import_options_fingerprint,
+            name=name,
         )
 
     def root_id(self, name: str) -> str:
@@ -620,7 +621,7 @@ class SprintRunner:
                 operation = str(terminal["operation_id"])
                 if operation not in operations_in_mask(mask):
                     continue
-                key = self.op_key(str(payload["reference_alpha_hash"]), operation)
+                key = self.op_key(str(payload["reference_alpha_hash"]), operation, name)
                 op_keys[operation] = key
                 if terminal.get("status") != "retained":
                     self.cache.put_op(
@@ -753,7 +754,7 @@ class SprintRunner:
         for index, (name, operation, payload, terminal) in enumerate(chunk):
             reference = sidecars.get(f"{index}.reference")
             candidate = sidecars.get(f"{index}.candidate")
-            key = self.op_key(str(payload["reference_alpha_hash"]), operation)
+            key = self.op_key(str(payload["reference_alpha_hash"]), operation, name)
             rebuilt = rendered.rebuild_hashes.get(index)
             expected_hashes = (
                 str(payload["reference_alpha_hash"]),
@@ -1023,7 +1024,7 @@ class SprintRunner:
             },
             "project": self.pins.to_dict(),
             "engine": self.identity.to_dict(),
-            "cache_key": self.op_key(str(root_record["reference_alpha_hash"]), operation),
+            "cache_key": self.op_key(str(root_record["reference_alpha_hash"]), operation, name),
             "lean_request_hashes": {
                 "process": op_record.get("process_request_hash"),
                 "render": render.get("request_hash"),

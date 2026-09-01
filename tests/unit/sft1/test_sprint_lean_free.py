@@ -236,6 +236,7 @@ def test_journal_and_cache_round_trip(tmp_path: Path) -> None:
         lean_version="l",
         project_revision="p",
         import_options_fingerprint="f",
+        name="Nat.foo",
     )
     assert cache.get_op(key) is None
     cache.put_op(key, {"status": "retained"})
@@ -246,6 +247,8 @@ def test_journal_and_cache_round_trip(tmp_path: Path) -> None:
     assert key == hash_canonical(
         {
             "kind": "sprint_operation",
+            "cache_schema": 2,
+            "name": "Nat.foo",
             "reference_alpha_hash": "1",
             "operation_id": "P15",
             "engine_semantic_version": "v",

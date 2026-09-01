@@ -102,6 +102,7 @@ class SemanticCache:
         return hash_canonical(
             {
                 "kind": "sprint_root",
+                "cache_schema": 2,
                 "project_revision": project_revision,
                 "lean_version": lean_version,
                 "import_options_fingerprint": import_options_fingerprint,
@@ -119,10 +120,20 @@ class SemanticCache:
         lean_version: str,
         project_revision: str,
         import_options_fingerprint: str,
+        name: str,
     ) -> str:
+        """Operation record key.
+
+        Alias theorems with alpha-identical statements share the reference
+        hash but not their source constant, and negative evidence cites that
+        constant, so the root name is part of the key (cache schema 2).
+        """
+
         return hash_canonical(
             {
                 "kind": "sprint_operation",
+                "cache_schema": 2,
+                "name": name,
                 "reference_alpha_hash": reference_alpha_hash,
                 "operation_id": operation_id,
                 "engine_semantic_version": engine_semantic_version,
