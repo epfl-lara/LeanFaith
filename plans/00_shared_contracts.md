@@ -9,7 +9,8 @@
 The project optimizes useful supervision per unit of compute and human/model judgment.
 
 - SFT1 is deliberately huge, cheap, automatic, and somewhat noisy. Its value comes from scale and
-  known transform polarity. It must not require an LLM or Lean compilation for every pair.
+  known transform polarity. It must not require an LLM or a fresh Lean process/compilation for
+  every pair; bounded persistent Meta workers may batch-check typed certificates for retained rows.
 - SFT2 is smaller, more expensive, and higher quality. Compilation, multiple judges, explanations,
   relation labels, or auxiliary heads are appropriate there.
 - Rich metadata is additive. Failure to produce it must not block a valid minimal training row.
@@ -103,14 +104,21 @@ blocklist remains applicable because EVAL v2 repartitions the same 5,111 canonic
 
 - **CPT2:** the source dataset's existing `isValid` is the label. Do not relabel or recompile all
   rows. The task is extraction, not a new validity audit.
-- **SFT1:** the approved transform composition determines polarity automatically. All-positive
-  compositions are label `1`; any approved breaking transform makes label `0`, and subsequent
-  operations may not target/reverse the protected breaking site. No per-pair LLM judge.
+- **SFT1:** no per-pair LLM judge. A preserving row is label `1` only when the exact typed
+  transformation certificate and a checked equivalence witness replay for the closed pair. A
+  breaking row is label `0` only when a checked separator or candidate refutation establishes
+  non-equivalence for that exact closed pair. A rubric mutation, failed search, non-definitional
+  equality, or expected polarity alone is diagnostic sidecar evidence and cannot enter the core.
+  Historical N-RUBRIC/N-PROOF artifacts remain immutable, but new sprint data uses one operational
+  rule: certified negative or no row. Composition remains disabled until single-hop coverage and
+  shortcut diagnostics justify it.
 - **SFT2A:** Codex proposes two preserving and two breaking candidates per root. Each candidate is
   compiled, then Claude independently judges intended-claim consistency. Retain every accepted
   candidate independently; a failed sibling does not discard it. Retry a failed slot at most three
   times. The core basis is precisely `proposer_intent+single_judge`, with the blinded second-judge
-  audit defined in the SFT2A brief; do not describe it as two independent semantic judgments.
+  audit defined in the SFT2A brief; do not describe it as two independent semantic judgments. The
+  stored binary label comes from the accepted Claude verdict, not from the proposer-requested
+  polarity; disagreement, malformed output, and unknown stay outside the binary core.
 - **SFT2B:** an autoformalizer proposes four Lean candidates from an NL source with a trusted Lean
   reference. Compile each candidate. Codex, Lemex, and Claude vote under the shared rubric: at least
   two equivalent votes gives `1`, at least two non-equivalent votes gives `0`, otherwise unknown.
@@ -196,12 +204,18 @@ minimal output contract.
 
 ## 7. Scale and compute gates
 
-Each task must pass:
+Each task must pass the smallest task-specific version of:
 
 - **one example:** final serialized row, sidecar/manifest link, cache behavior, and resume behavior;
 - **small pilot:** correctness/coverage thresholds plus measured rows/s and failure taxonomy;
 - **about 10K rows or task-specific equivalent:** reliable wall-time/space projection;
 - **scale:** only after the brief's explicit acceptance gate.
+
+These are scientific and operational gates, not a requirement for a new exact authorization
+sentence at every transition. A coordinator decision may authorize automatic progression from a
+passing bounded gate to the next named shard/run. The task still records the measured result,
+resource claim, durable launch contract, and stop conditions before starting; it does not pause for
+another review when the already-recorded conditions pass.
 
 The local RTX 4090/server is for correctness, parsing, baseline CPU work, and short throughput
 experiments. Ask the user explicitly for A100/H100 capacity before large model inference/training or

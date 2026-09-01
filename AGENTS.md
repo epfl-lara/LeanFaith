@@ -16,6 +16,18 @@ If sessions share one worktree, the ownership boundary below is mandatory, not a
 Historical plans, reports, frozen manifests, and content-addressed artifacts are evidence. They do
 not override the active plan. Do not edit hash-bound historical outputs merely to reformat them.
 
+## Active 72-hour SFT sprint
+
+For SFT1, SFT2A, and SFT2B, read
+[`plans/72h_sft_data_sprint_2026-09-01.md`](plans/72h_sft_data_sprint_2026-09-01.md) after the shared
+contracts and before the task brief. Its objective gates supersede older task-brief sequencing that
+only adds authorization wording, repeated review, full-tree hashing, or historical-receipt checks.
+When a sprint gate passes, proceed automatically to its named next shard/run, record the evidence,
+and use the durable unattended-run contract below; do not stop for another exact authorization
+sentence. Historical artifacts remain immutable. Stop for possible label corruption, unsafe resume
+or duplicate expensive calls, a failed measured yield/throughput threshold, unavailable resources,
+or missing reproducibility identities—not for ceremony alone.
+
 ## Lean is the bottleneck
 
 Repeat this decision in every implementation plan and progress handoff:

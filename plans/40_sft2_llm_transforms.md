@@ -2,17 +2,32 @@
 
 > **Task ID:** SFT2A
 > **Status:** active
-> **Owner/session:** Coordinator integration — 2026-09-01 verified post-run state
+> **Owner/session:** Codex `codex://threads/01a0537f-14af-7e31-9f96-4a7514ccc527`
 > **Last updated:** 2026-09-01
 > **Dependencies:** REPR `goal_v1.0`; shared rubric; roots may be selected independently of SFT1
-> **Next gate:** complete an additive, row-checkpointed Kimi audit repair against the existing
-> v5.2 recovery-v5 generation artifacts, then pass a 20-root dynamic-provider-concurrency
-> performance pilot with exactly two persistent Lean workers; do not rerun generation or start
-> approximately 10K/50K scale
+> **Next gate:** implement F5--F9, resume the cached row-checkpointed Kimi audit, and pass the
+> 20-root performance/resume pilot; a pass automatically launches ten independent 1K-root shards
 > **Compute class:** external LLM/API plus CPU/RAM for Lean; large run may need explicit budget approval
 > **Lean budget:** compile each novel candidate once through cached persistent workers
 > **Local staging root:** `/storage/milikic/leanfaith/value_first/sft2_llm_transforms_v1/`
 > **HF destination:** private `Lemmy00/leanfaith-sft2-llm-transforms-v1`
+
+## Active 72-hour sprint override
+
+The active execution contract is
+[`72h_sft_data_sprint_2026-09-01.md`](72h_sft_data_sprint_2026-09-01.md). It supersedes the active
+sequencing in this older brief while preserving every historical config, receipt, hash, and run as
+evidence. Exact authorization sentences, per-failure recovery configs, clean-tree bindings, full
+replays, and durable-tree hashing are not dependencies of the sprint path. Do not rerun the
+completed 100-root generation.
+
+Keep independent per-slot Terra calls, but decouple provider concurrency from Lean. The blocking
+path is only: F5--F9 and focused tests; cached concurrent Kimi-audit completion; a 20-root/80-slot
+dynamic-queue pilot with exactly two persistent Lean workers; then automatic reference
+certification and ten resumable 1K-root shards. Per-candidate Lean validity, self/gold screening,
+accepted-only deduplication, blinded Opus agreement, durable terminals, and invalid-is-not-negative
+remain mandatory. Kimi sampling, mechanism agreement, partial replay, and manual inspection run
+asynchronously and do not serialize generation.
 
 ## Objective and scale
 
@@ -182,21 +197,38 @@ training. Validate hashes/counts and the remote Hub revision.
 ## Session kickoff prompt
 
 ```text
-Own only SFT2A in /localhome/milikic/LeanFaith. Read AGENTS.md, PLAN.md,
-plans/00_shared_contracts.md, and plans/40_sft2_llm_transforms.md completely. Update this brief and
-claim exact paths. Design and freeze careful Codex proposer and blinded Claude judge prompts, then
-run exactly one root through four independent slots before any pilot. Preserve every accepted slot;
-retry only its rejected slot up to three times. Lean is the bottleneck: compile each candidate once
-through persistent cached workers and reuse the result. Invalid is not semantic false. Keep core,
-legacy, unknown, and invalid views distinct. Do not launch the 50K run without a measured pilot and
-recorded budget/model decision.
+Own only SFT2A from clean main. Read AGENTS.md, PLAN.md, plans/00_shared_contracts.md,
+plans/72h_sft_data_sprint_2026-09-01.md, and this brief completely. Preserve the completed 100-root
+run; do not regenerate it or build more authorization/recovery ceremony.
+
+Implement the minimum sprint path. Persist parseable provider JSON as a terminal even when
+semantic-schema-invalid; let the proposer/judge layer retry malformed output once and then route it
+to unknown or a slot retry. Keep judge semantics strict and explain error_type/unknown_reason in the
+prompt. In the Lean oracle support canonical universes and remaining level metavariables, require
+all displayed section variables to be bound, bump the semantic method version, and remove source
+file bytes from cache identity. Keep one Terra call per slot. Replace the static two-root schedule
+with an as_completed queue: concurrency 8 for the pilot and 16 after it passes, backed by exactly
+two locked persistent project-grouped SignatureOracles reused with rebind. Claim global dedup only
+after Opus accepts. Make mechanism mismatch telemetry and remove definitional_unfold_refold.
+Checkpoint Kimi per row at concurrency 8. Before 10K, stop rereading full ledgers under every lock;
+load state once plus append, or use SQLite. Interrupted calls retry under the same semantic key.
+
+First finish the cached 40-row Kimi audit without rerunning generation. Then run exactly 20 unused
+certified roots/80 slots and one controlled completed-root resume. Pass only with Lean-invalid
+below 25%, accepted slots at least 70%, zero accepted self-pairs/duplicates, no crash on an injected
+malformed answer, zero new provider/Lean calls for completed roots, and at most 30 minutes wall
+time. A pass automatically certifies about 12K references and launches 10K as ten independent
+1K-root tmux shards. Shard 1 starts at concurrency 16 and falls to 8 on sustained throttling;
+continue automatically when provider failures stay below 2%, accepted throughput is at least 8
+rows/minute, and pilot quality bounds hold. Leave healthy long runs detached with durable journals.
 ```
 
 ## Coordinator requests
 
-- Approve the bounded diverse-root sample size/source mix and legacy double-judge spend before the
-  pilot begins; the one-root smoke is not used to project 50K-root quality or cost.
-- Approve pinned production proposer/judge settings and projected API budget after the pilot.
+- No new exact authorization sentence or model review is required inside the active 72-hour path.
+  Objective pilot and shard-1 thresholds authorize the next stage automatically.
+- Legacy bulk rejudging, 50K-root expansion, training, and any change to frozen historical evidence
+  remain outside this sprint.
 
 ## Progress log (append-only)
 
@@ -633,3 +665,8 @@ recorded budget/model decision.
   `as_completed` queue over independent provider calls and appends resumable results. The additive
   performance pilot must adopt that scheduling pattern for provider work, checkpoint the audit per
   row, and keep only the measured two persistent Lean workers; it must not relax semantic checks.
+- 2026-09-01 — adopted the code-grounded GPT Pro/Fable 5 review through the active 72-hour sprint
+  override. Historical authorization/recovery/full-replay sequencing remains immutable evidence,
+  not an active dependency. The task now fixes F5--F9, completes the cached Kimi audit, runs one
+  20-root performance/resume pilot, and automatically proceeds to ten 1K-root shards on the stated
+  thresholds. No provider or Lean call was made by this plan update.

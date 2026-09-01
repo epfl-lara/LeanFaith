@@ -1,6 +1,6 @@
 # LeanFaith value-first parallel data plan
 
-> **Status:** active; SFT1/SFT2A/SFT2B histories integrated locally with bounded next gates
+> **Status:** active; 72-hour SFT execution sprint from integrated local `main`
 > **Approved:** 2026-08-30
 > **Last updated:** 2026-09-01
 > **Current scope:** prepare, validate, and publish the datasets and evaluation assets. Do not start
@@ -31,9 +31,9 @@ process per row or recompile an entire corpus by default. The full contract is i
 | Existing-data reuse | [`plans/05_existing_data_reuse.md`](plans/05_existing_data_reuse.md) | complete | downstream consumption only |
 | CPT phase 1 | [`plans/10_cpt1.md`](plans/10_cpt1.md) | complete and privately released | training ablation later |
 | CPT phase 2 | [`plans/20_cpt2.md`](plans/20_cpt2.md) | complete and privately released | training ablation later |
-| SFT phase 1 deterministic | [`plans/30_sft1_deterministic.md`](plans/30_sft1_deterministic.md) | active; thin two-row plumbing smoke passed, Wave 1 engine not certified | bounded verification only |
-| SFT phase 2A LLM transforms | [`plans/40_sft2_llm_transforms.md`](plans/40_sft2_llm_transforms.md) | active; 100-root generation complete, final audit incomplete | recovery/performance pilot only |
-| SFT phase 2B autoformalization | [`plans/50_sft2_autoformalizer.md`](plans/50_sft2_autoformalizer.md) | waiting user; matched-500 generation complete | source correction and Lean audit only |
+| SFT phase 1 deterministic | [`plans/30_sft1_deterministic.md`](plans/30_sft1_deterministic.md) | active; compact proof-backed sprint engine next | 100 roots, then automatic 10K/full-wave progression on pass |
+| SFT phase 2A LLM transforms | [`plans/40_sft2_llm_transforms.md`](plans/40_sft2_llm_transforms.md) | active; repair throughput/resume path without rerunning 100 roots | 20 roots, then sharded 10K on pass |
+| SFT phase 2B autoformalization | [`plans/50_sft2_autoformalizer.md`](plans/50_sft2_autoformalizer.md) | active; corrected-core scale path | mechanical v3 + full pilot compile audit, then four generation shards |
 | Evaluation and baselines | [`plans/60_eval_baselines.md`](plans/60_eval_baselines.md) | not started | yes; mandatory |
 | Training and ablations | [`plans/70_training_ablations.md`](plans/70_training_ablations.md) | deferred | design/smokes only |
 
@@ -78,6 +78,47 @@ Clean-worktree verification passed 520 focused SFT1 tests and all 53 SFT2A tests
 129 tests with four narrowly skipped historical-evidence replays because repository-ignored
 raw/parsed evidence is not mounted in the integration worktree; those checks remain fail-closed
 and executable when the evidence is present.
+
+## 2026-09-01 72-hour SFT execution reset
+
+The user accepted the substance of the independent GPT Pro and Claude Fable 5 reviews and asked
+the project to stop spending time on authorization prose and repeated evidence checks. The active
+cross-task execution contract is [`plans/72h_sft_data_sprint_2026-09-01.md`](plans/72h_sft_data_sprint_2026-09-01.md).
+It supersedes older task-brief sequencing where that sequencing adds ceremony but does not protect
+labels, resumability, or an expensive run. Historical plans, configs, receipts, and data remain
+immutable evidence; they are frozen, not deleted or rewritten.
+
+Passing the objective gates in the sprint plan authorizes the next named stage automatically. No
+new exact authorization sentence, full-tree rehash, clean-worktree receipt, exhaustive registry
+matrix, or repeated review is required. The remaining hard protections are: checked evidence for
+every SFT1 label; Lean validity and semantic-judge routing for SFT2; self-pair/gold/duplicate screens;
+and append-only terminals plus tested resume for every long run.
+
+- **SFT1:** preserve the uncompiled historical Wave 1 stack. Build a compact seven-operation,
+  single-hop Mathlib engine from the working thin-smoke route. Positives require a checked
+  equivalence witness; negatives require a checked source proof and exact candidate refutation.
+  Run one success and typed rejection fixture per operation, then 100 deterministic roots and a
+  30-row inspection. A pass starts a sharded 10K run without another approval. Composition and P01
+  remain off. Larger scale starts only if the 10K shortcut checks pass and measured throughput fits
+  the remaining sprint window.
+- **SFT2A:** do not rerun the completed 100-root generation. Fix malformed-provider terminals,
+  universe/section-variable elaboration, persistent oracle reuse, dynamic provider scheduling,
+  accepted-only deduplication, and quadratic ledgers. Keep independent per-slot Terra calls; use
+  concurrency rather than a new four-slot envelope. A 20-root kill/resume pilot gates ten resumable
+  1K-root shards; its first shard is the long-run throughput gate. Kimi is checkpointed audit
+  telemetry and routes disagreements out of the audited core rather than serializing generation.
+- **SFT2B:** build a boundary-preserving mechanical quarantine/refill release; no 991-row review
+  delay. Compile every admitted matched-500 candidate, then prove a 100-source generation
+  kill/resume after fixing semantic cache keys, retries, stale-process recovery, and the sliding
+  request window. A pass launches the corrected 50K core as four independently publishable
+  12.5K-source ReForm shards. Build persistent Lean plus concurrent three-judge consumption in
+  parallel and start it as soon as shard 1 publishes.
+
+For the matched-500 SFT2B run, the coordinator explicitly waives the historical clean-shutdown,
+process-absence, resource-claim/release, zero-call-replay, quality-acceptance, and fresh-download
+receipt prerequisites. The data-bearing request terminals, request keys, extraction results, and
+observed pilot verification remain required. This waiver grants no permission to ignore a live
+process, duplicate requests, source validity, or a failed resume test.
 
 ## Shared decisions
 

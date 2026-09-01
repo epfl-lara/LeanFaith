@@ -2,36 +2,29 @@
 
 > **Task ID:** SFT1
 > **Status:** active
-> **Owner/session:** Codex `/root` — 2026-09-01 coordinator integration and thin-smoke handoff
+> **Owner/session:** Codex [`01a05100-8f35-7192-ab49-a9cf09f1dd1e`](codex://threads/01a05100-8f35-7192-ab49-a9cf09f1dd1e)
 > **Last updated:** 2026-09-01
-> **Active policy:** the additive, smoke-only implementation from accepted commit
+> **Active 72-hour sprint:** follow the compact execution path in
+> [`72h_sft_data_sprint_2026-09-01.md`](72h_sft_data_sprint_2026-09-01.md). The historical
+> authorization/readiness sequencing preserved below is frozen evidence, not an active dependency.
+> **Active policy:** historical baseline preserved: the additive, smoke-only implementation from accepted commit
 > `fc8cdc2c6d9d93e99e20933a17dbcfa2afc2be48` has produced exactly one real Mathlib preserving
 > pair and one hand-written closed N31 breaking canary, serialized both, and replayed both from
 > cache. This is thin plumbing/certificate evidence only: it does not compile or certify the
 > frozen Wave 1 engine. All frozen revisions, receipts, hashes, and the complete 46-operation
 > registry remain immutable.
-> **Approval recorded:** the user subsequently authorized exactly the additive two-row local smoke
-> described below: one real Mathlib preserving pair and one exact closed N31 breaking canary, plus
-> cache replay. This does not authorize P01, a general N31 bank, Wave 1 gate execution,
-> model-facing training rows, production admission, Wave 2, 10K, scale, training, or publication.
-> **Dependencies:** approved REPR freeze `176a783842c5a73b84413dfa8347670608b615d9`
-> and authoritative SFT1 receipt
-> `f62b68ebc946469952bdd34674c127e2bd1146b0a8febbe5d199fea54a081e78`
-> are pinned below. The additive shared-contract clarification remains a coordinator prerequisite.
-> Census readiness is now tiered: an exact-root micro-census precedes the two-row smoke, a
-> selected-wave sampling-frame census precedes the approximately-100-root gate, and the complete
-> cross-source census precedes any 10K, production-count, scale, or publication decision. Concrete
-> dispatch/checker/anchor/bank/fixture resolutions and operation-specific regressions are required
-> for the five primary Wave 1 IDs. The optional N31 N-PROOF binding is required only for a
-> proof-eligible project/root cell; its absence cannot block the wave. Unselected operations remain
-> fail-closed without blocking it.
+> **Approval recorded:** active 72-hour sprint approved by the user on 2026-09-01; its measured
+> fixture/100-root/10K gates authorize automatic progression. Older narrower approvals remain
+> preserved below as historical evidence and do not constrain the additive sprint path.
+> **Dependencies:** frozen REPR `176a783842c5a73b84413dfa8347670608b615d9`, current shared label
+> contract, pinned Mathlib project context, gold blocklist, and the sprint's compact engine/cache/
+> journal implementation. Historical census, admission, and readiness dependencies below are not
+> active sprint prerequisites.
 > **REPR predecessor:** `cbc933c3623d81ba649a1f9c5107ad404389d69f` was reviewed but is
 > superseded and not consumable by SFT1
-> **Next gate:** repair and compile the actual Wave 1 engine in a bounded persistent worker,
-> including opening telescopes before definitional-equality checks, then obtain live success,
-> expected-rejection, and certificate-replay evidence for the exact mechanisms exercised. Follow
-> that with a manually inspected 10--20-real-root audit. Stop before approximately 100 roots,
-> model-facing training rows, production, or scale.
+> **Next gate:** compact seven-operation engine -> success/rejection fixtures -> 100 deterministic
+> Mathlib roots plus 30-pair inspection -> automatic 10K retained-pair run on pass. There is no
+> separate 10--20-root gate or new authorization gate between these steps.
 > **Compute class:** no active claim. The completed thin smoke used one persistent Mathlib Meta
 > request, 8.960906 seconds wall time, and 7,656,505,344 bytes peak process-tree RSS; its claim was
 > released.
@@ -40,6 +33,50 @@
 > deterministic results, and release the claim after live and zero-call replay checks.
 > **Local staging root:** `/storage/milikic/leanfaith/value_first/sft1_deterministic_v1/`
 > **HF destination:** private `Lemmy00/leanfaith-sft1-deterministic-v1`
+
+## 72-hour sprint override (active)
+
+This section supersedes the operational sequencing below without modifying or deleting its frozen
+artifacts, receipts, hashes, or historical claims. The old admission/readiness loaders, tiered
+censuses, P01 exception, 46-operation matrix, composition stack, and per-revision authorization
+records remain reviewable evidence but are not dependencies of the sprint runner.
+
+The sprint uses single-hop Mathlib transformations only:
+
+- positive: `P15_SWAP_IFF_SIDES_V1`, `P18_SYMMETRIZE_EQUALITY_V1`,
+  `P14_SWAP_INDEPENDENT_DATA_BINDERS_V1`, and `P23_CURRY_PROP_PAIR_V1`;
+- negative: `N25_TOGGLE_EQ_NE_PROOF_V1`, `N32_SWAP_ROLE_ORDER_PROOF_V1`, and
+  `N31_DROP_REQUIRED_GUARD_PROOF_V1`.
+
+`P24_SWAP_INDEPENDENT_PROP_BINDERS_V1` replaces P14 only if P14 takes more than two implementation
+hours or cannot yield ten accepted pilot pairs. P01, P21, composition, rubric-only negative rows,
+and generic guard deletion are off. Every positive core row requires a replayed, Lean-typechecked
+`Iff reference candidate` proof. Every negative requires a loaded source-theorem proof and a
+replayed, Lean-typechecked `Not candidate` proof under a complete ground context; otherwise it is
+terminal sidecar-only. N32 begins with strict `Nat`/`Int` `<`; `<=` is ineligible without separate
+strictness or disequality evidence. N31 is restricted to bounded Nat/Int guard schemas with a
+checked boundary refutation.
+
+Implement this as a compact additive engine so the hash-bound historical `Wave1.lean` and its
+Lean-free loaders remain unchanged. The runner cheaply preselects roots, reads its semantic cache
+before Lean, journals one terminal per root/operation, batches work through one persistent Mathlib
+worker, and deduplicates deterministically. Its cache key binds root closed-Expr hash, operation ID,
+engine semantic version, Lean/project revision, and import/options context; runner and config file
+hashes are provenance, not semantic cache invalidators. Core rows reject self-pairs, invalid/open
+Exprs, wrong turnstile count, `[anonymous]`, `⋯`, and generated-dagger names on ordinary explicit
+locals; frozen generated instance names are reported separately rather than blanket-rejected.
+
+The 100-root run passes only if all seven operations first have one live success and one typed
+rejection fixture; at least five mechanisms each retain ten pairs, including at least three
+positive and two negative mechanisms; every retained proof/certificate replays; completed-terminal
+resume adds zero Lean calls and no duplicate; and inspection of 30 operation-stratified pairs,
+including every N31 row, finds zero wrong labels. A pass automatically launches a detached,
+resumable 10,000-retained-pair run in 1,000-pair shards. The 10K output, not the 100-root run, is
+the shortcut gate for larger scale: candidate-only/reference-only balanced accuracy must each be
+below 0.60 and mechanism-held-out balanced accuracy below 0.65, alongside 100% proof/certificate
+replay and duplicate/conflict rejection. If those checks and the measured completion projection
+pass, launch larger scale in independently complete private-release shards; do not weaken negative
+proof requirements to hit a row target.
 
 ## Authorization boundary
 
@@ -1084,13 +1121,36 @@ the complete cross-source census are recorded may the project request exactly:
 ## Session kickoff prompt
 
 ```text
-Own only SFT1 in /localhome/milikic/LeanFaith. Read AGENTS.md, PLAN.md,
-plans/00_shared_contracts.md, plans/30_sft1_deterministic.md, and TRANSFORM_CATALOG_V2.md. Claim
-exact paths before edits. Audit and propose preserving/breaking operations with exact applicability,
-composition safety, value, and Lean cost. Do not generate rows until explicitly approved. Never
-spawn a process per row: pre-sample cheaply, then validate and replay every retained row in bounded
-persistent Meta workers with durable journals and exact caches. Preserve frozen tracks and user
-work. End with the exact user decision needed.
+Own only SFT1 in the main integration worktree. Read AGENTS.md, PLAN.md,
+plans/00_shared_contracts.md, plans/72h_sft_data_sprint_2026-09-01.md, and this brief completely.
+The 72-hour sprint override above is authoritative. Preserve the hash-bound historical Wave1
+engine, policy/readiness/admission/identity/census loaders, receipts, and YAMLs; do not make the new
+runner depend on them and do not add an authorization or census gate.
+
+Implement one compact additive Mathlib engine for exactly P15, P18, P14, P23, proof-backed N25,
+proof-backed N32, and proof-backed N31. If P14 takes more than two implementation hours or cannot
+yield ten accepted pilot pairs, substitute P24. P01, P21, composition, rubric-only negatives, and
+generic guard deletion stay off. Every positive retained row must carry a replayed,
+Lean-typechecked `Iff reference candidate` proof. Every negative retained row must carry both the
+loaded source-theorem proof and a replayed, Lean-typechecked `Not candidate` proof under a complete
+ground context; failed or unavailable refutation is sidecar-only, never label 0. Restrict N32 first
+to strict Nat/Int `<`, and N31 to bounded Nat/Int guard schemas with checked boundary witnesses.
+
+Build the thin runner around stable root/operation terminals: preselect roots cheaply, read cache
+before Lean, batch through one claimed persistent Mathlib worker with `Elab.async=false`, append one
+durable terminal per root/operation, resume without repeating completed Lean work, and deduplicate
+globally. Bind cache semantics to root closed-Expr hash, operation ID, engine version,
+Lean/project revision, and import/options context; keep runner/config hashes only as provenance.
+Reject self-pairs, invalid/open Exprs, wrong turnstile count, `[anonymous]`, `⋯`, and generated
+dagger names on ordinary explicit locals. Keep minimal core rows and keyed sidecars.
+
+Compile the engine, run one success and one typed rejection fixture per operation, then run 100
+deterministic Mathlib roots and prepare 30 operation-stratified pairs for inspection, including all
+N31 rows. If the recorded pass criteria above hold, automatically launch 10,000 retained pairs in
+1,000-pair shards in a named detached tmux session; do not pause for another review or approval.
+Run the shortcut screen after 10K and scale only if it, proof replay, deduplication, and the measured
+completion projection pass. Report durable counts, cache/restart behavior, throughput, failures,
+resource use, output paths, and exact remaining ETA. Do not run training.
 ```
 
 ## Progress log (append-only)
@@ -1350,3 +1410,8 @@ work. End with the exact user decision needed.
   equality checks. The next bounded step is live mechanism success/rejection and certificate replay
   followed by a manually inspected 10--20-real-root audit; no approximately-100-root gate,
   model-facing data, production admission, 10K, scale, training, or publication is authorized.
+- 2026-09-01 — the user directed a 72-hour execution reset after GPT Pro and Fable 5 code review.
+  The active sprint now bypasses, but preserves, the historical admission/readiness ceremony and
+  uses a compact seven-operation, single-hop Mathlib engine with proof-backed negatives only. Its
+  direct path is fixtures -> 100 roots plus 30 inspected pairs -> automatic sharded 10K on pass;
+  the shortcut screen gates only larger scale. No Lean or generation was started by this plan edit.

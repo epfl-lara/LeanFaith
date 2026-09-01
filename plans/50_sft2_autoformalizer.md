@@ -1,20 +1,48 @@
 # SFT2B — autoformalization consistency data
 
 > **Task ID:** SFT2B
-> **Status:** waiting_user
-> **Owner/session:** Codex `/root` — 2026-09-01 matched-pilot integration review
+> **Status:** active
+> **Owner/session:** Codex `codex://threads/01a0537e-90a6-70d0-ac17-6767393be3b9`
 > **Last updated:** 2026-09-01
 > **Dependencies:** REPR `goal_v1.0`; source-quality audit and frozen consistency/voting prompts
-> **Next gate:** decide and build the corrected source-v3 release, then run a stratified 200-candidate
-> persistent-Lean compilation audit over the frozen matched-pilot outputs and explicitly record
-> whether the missing historical shutdown/resource/zero-call-replay/publication receipts are waived
-> or supplied. Only after those checks may the corrected 50K-core ReForm generation be considered
-> for authorization; the tail and full Lean-plus-three-judge labeling remain separately disabled.
+> **Next gate:** build and publish mechanical source v3, compile all 1,242 matched-pilot candidates,
+> pass the 100-source kill/resume smoke, then automatically launch four contiguous 12,500-source
+> corrected-core ReForm shards; no additional authorization sentence or review gate intervenes.
 > **Compute class:** source-freeze work is Lean/GPU-free; the completed matched pilot used eight
 > H100-80GB GPUs at DP=4/TP=2. Any future scale config records the actual A100/H100 host profile.
 > **Lean budget:** compile each novel formalization candidate once through persistent cached workers
 > **Local staging root:** `/scratch/milikic/data/leanfaith/value_first/sft2_autoformalizer_v1/`
 > **HF destination:** private `Lemmy00/leanfaith-sft2-autoformalizer-v1`
+
+## Active 72-hour sprint override
+
+The active execution contract is
+[`72h_sft_data_sprint_2026-09-01.md`](72h_sft_data_sprint_2026-09-01.md). It supersedes any
+conflicting historical gate below while preserving every prior config, output, receipt, hash, and
+progress entry as evidence. The operative path is deliberately short:
+
+1. Build additive `mechanical_conservative_v1` source v3 without inventing human reviews. The
+   expected partition is 50,000 core, 4,144 tail, and 762 quarantine rows from 54,906 total rows.
+2. Compile all 1,242 admitted matched-pilot candidates in persistent context-grouped tolerant Lean
+   sessions. Pass only when every trusted reference elaborates, at least 500 candidates elaborate,
+   at least 250 sources have one valid candidate, and infrastructure failures are below 2%.
+3. Make the generation consumer semantically keyed, three-attempt retryable, sliding-windowed, and
+   able to reconcile dead same-run processes, reservations, ports, and started-without-terminal
+   cells. Prove it on a 100-source/400-cell kill-and-resume smoke with exact coverage and no
+   duplicate logical terminals.
+4. A passing smoke automatically launches four contiguous 12,500-source shards sequentially on
+   eight GPUs in named detached `tmux` sessions. Each independently compacts and publishes its
+   50,000 request terminals. Build and pilot persistent-Lean plus concurrent three-judge
+   consumption in parallel, then consume each generation shard as it lands.
+
+The remaining 991 rows of the 992-row review packet are optional, nonblocking consumption QA. They
+are not a source-publication or generation gate and no review records may be fabricated.
+
+The coordinator accepts the matched-500 run as mechanically verified generation evidence and
+waives only the unavailable historical clean-shutdown, process-absence, resource-claim,
+resource-release, zero-call-replay, explicit-quality-acceptance, and fresh-download-publication
+receipts. All 2,000 request terminals/keys, SSE bytes, extraction counts, and frozen
+model/prompt/input identities remain mandatory.
 
 ## Objective and scale
 
@@ -534,25 +562,43 @@ training. Verify remote counts/schema/hashes and Hub revision.
 ## Session kickoff prompt
 
 ```text
-Own only SFT2B in /localhome/milikic/LeanFaith. Read AGENTS.md, PLAN.md,
-plans/00_shared_contracts.md, and plans/50_sft2_autoformalizer.md completely. Update this brief and
-claim exact paths. Start with a source-quality audit and one of the existing 301 candidates through
-the complete compile-and-three-vote loop. Do not assume sft_classic_numina is sufficient, and keep
-ShadowBench test-only/reference-free. Lean is the bottleneck: compile each candidate once in a
-persistent cached pool and share that evidence. Keep valid false pairs in core; invalid and unknown
-are separate. Compare ReForm 8B/32B on 500 sources and request A100/H100 before unsupported runs.
-Do not launch 50K sources without the pilot and user compute/model approval.
+Own only SFT2B from current integrated main. Read AGENTS.md, PLAN.md,
+plans/00_shared_contracts.md, plans/72h_sft_data_sprint_2026-09-01.md, and this brief completely.
+Preserve all v1/v2/v3-human-review and matched-500 artifacts; implement additive sprint paths.
+
+First add mechanical_conservative_v1: quarantine the exact 469 meta rows plus all 293 Workbook
+hits, retain the prior-core order, refill from prior-tail order, emit the expected 50,000/4,144/762
+partition and class/domain conservation, fresh-verify, and publish privately. Do not call or wait
+for the remaining 991 reviews.
+
+Next download and verify the frozen matched-500 inputs/outputs and compile all 1,242 admitted
+candidates. Group the 500 sources by their frozen contexts, reuse persistent tolerant Lean
+sessions, compile each trusted reference once with its candidates, cache terminals, and report the
+exact sprint thresholds and failure histograms. No per-row Lean process.
+
+In parallel harden generation: semantic request keys exclude code/config/authorization hashes;
+transient calls get at most three attempts; dead same-run servers, reservations, ports, interrupted
+runtime sessions, and started-without-terminal cells reconcile without manual cleanup; one sliding
+window spans input chunks; four contiguous 12,500-source shards compact and publish independently.
+Prove this with the 100-source/400-cell accelerator kill/resume smoke. If it passes, launch the four
+corrected-core shards automatically in verified named tmux sessions and leave them running. Do not
+generate the legacy tail.
+
+Also reuse the 1,242 Lean results for the downstream pilot: send 100 deterministic valid unique
+candidates to Opus 5/high, GPT-5.6 Terra/high, and Kimi 2.7/high concurrently, preserve per-vote
+terminals, route majority versus unknown exactly, and prove a zero-call restart. Invalid Lean never
+becomes a semantic negative. Stop only on a sprint stop condition, not for another review,
+authorization sentence, clean-tree receipt, or historical-artifact ceremony.
 ```
 
 ## Coordinator requests
 
-- Supply the authentic 992-row human review, frozen reviewer/attestor identity allowlists, and the
-  accountable external attestation, or explicitly change the contract before any Opus/Terra
-  substitution. No model review is inferred from the missing human evidence.
-- If they still exist on the independently managed eight-GPU host, supply the original
-  shutdown/resource/zero-call-replay and fresh-publication receipt artifacts for the matched-500
-  run. Their absence leaves that run useful as mechanically verified pilot evidence but does not
-  authorize scale. No scale authorization is requested here.
+- No historical review or receipt is a blocking coordinator input under the sprint override. The
+  remaining 991 review rows are optional consumption QA, and the exact historical receipt waiver
+  is recorded above.
+- Keep the eight-A100/H100 host available for the 100-source restart smoke and four sequential
+  generation shards. Request user action only if that allocation is unavailable or a measured
+  sprint threshold fails.
 
 ## Progress log (append-only)
 
@@ -1018,3 +1064,9 @@ Do not launch 50K sources without the pilot and user compute/model approval.
   verification and does not catch hash, schema, count, or replay failures. Those same tests remain
   executable—and must fail on drift—when the evidence is mounted. This portability boundary does
   not weaken release verification or convert external evidence into tracked repository data.
+- 2026-09-01 — coordinator adopted the 72-hour execution override after code-grounded GPT Pro and
+  Fable 5 review. The active path is mechanical v3 (50,000 core, 4,144 tail, 762 quarantine), all
+  1,242 matched-pilot candidates through persistent Lean, one 100-source/400-cell kill-and-resume
+  smoke, then automatic four-by-12,500 corrected-core generation. The remaining 991 reviews and
+  unavailable historical operational receipts are nonblocking as specified above. This planning
+  update ran no Lean, provider, GPU, publication, or detached job.
