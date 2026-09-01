@@ -361,3 +361,22 @@ def test_canonical_surface_matches_frozen_route_and_rejects_unsupported_text() -
     assert violation is None and canonical == "n : ℕ\n⊢ n + 0 = n"
     rejected, reason = canonical_surface("a b : ℕ\n⊢ a ||| b = b ||| a")
     assert rejected is None and reason is not None and reason.startswith("repr_surface:")
+
+
+def test_balanced_view_equalizes_labels_per_root() -> None:
+    from leanfaith.sft1.sprint.runner import balanced_view
+
+    records = []
+    for root, (positives, negatives) in {"a": (3, 1), "b": (2, 2), "c": (4, 0)}.items():
+        for index in range(positives):
+            records.append({"root_name": root, "label": True, "row_hash": f"{root}p{index}"})
+        for index in range(negatives):
+            records.append({"root_name": root, "label": False, "row_hash": f"{root}n{index}"})
+    kept = balanced_view(records)
+    assert len(kept) == 6
+    for root in ("a", "b"):
+        subset = [item for item in kept if item["root_name"] == root]
+        assert sum(1 for item in subset if item["label"]) == sum(
+            1 for item in subset if not item["label"]
+        )
+    assert not any(item["root_name"] == "c" for item in kept)

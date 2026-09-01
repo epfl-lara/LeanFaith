@@ -1129,15 +1129,40 @@ def read_retained(path: Path) -> list[dict[str, Any]]:
     return records
 
 
+def balanced_view(records: Sequence[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Per-root label balancing: each root contributes equally many positive and
+    negative pairs (chosen by stable row hash); roots lacking either polarity
+    are dropped.  This makes the reference text uninformative about the label."""
+
+    by_root: dict[str, dict[bool, list[dict[str, Any]]]] = {}
+    for record in records:
+        root = str(record["root_name"])
+        by_root.setdefault(root, {True: [], False: []})[bool(record["label"])].append(record)
+    kept: list[dict[str, Any]] = []
+    for root in sorted(by_root):
+        polarity = by_root[root]
+        count = min(len(polarity[True]), len(polarity[False]))
+        if count == 0:
+            continue
+        for label in (True, False):
+            kept.extend(sorted(polarity[label], key=lambda item: str(item["row_hash"]))[:count])
+    return kept
+
+
 def compact_run(
     repo_root: Path,
     loaded: LoadedConfig[SprintConfig],
     *,
     run_id: str,
     shard_size: int | None = None,
+    view: str = "raw",
 ) -> dict[str, object]:
+    if view not in {"raw", "balanced"}:
+        raise SprintRunnerError(f"unknown compaction view {view!r}")
     config = loaded.config
     paths = RunPaths(Path(config.output.staging_root), run_id)
+    if view != "raw":
+        paths.compacted = paths.compacted.parent / f"{run_id}_{view}"
     records = read_retained(paths.retained)
     gold = GoldBlocklist.load(
         repo_root / config.screens.gold_blocklist_path,
@@ -1163,7 +1188,8 @@ def compact_run(
     outcome = deduplicate(screened)
     size = shard_size or config.output.shard_size
     paths.compacted.mkdir(parents=True, exist_ok=True)
-    kept = group_by_ancestry(outcome.kept)
+    selected = balanced_view(outcome.kept) if view == "balanced" else outcome.kept
+    kept = group_by_ancestry(selected)
     shards = ancestry_shards(kept, size)
     shard_manifests: list[dict[str, object]] = []
     for number, shard in enumerate(shards, start=1):
@@ -1197,8 +1223,10 @@ def compact_run(
         "schema_version": 1,
         "sprint_id": config.sprint_id,
         "run_id": run_id,
+        "view": view,
         "compacted_at": utc_now(),
         "input_records": len(records),
+        "deduplicated_records": len(outcome.kept),
         "screen_rejections": screen_rejections,
         "duplicates_removed": outcome.duplicate_count,
         "conflicting_classes_rejected": outcome.conflict_count,
@@ -1540,12 +1568,16 @@ def release_report(
     run_id: str,
     sprint_end_utc: str,
     minimum_negative_pairs: int = 100,
+    view: str = "raw",
+    minimum_rows: int = 10000,
 ) -> dict[str, object]:
     from leanfaith.sft1.sprint import shortcut
 
     config = loaded.config
     paths = RunPaths(Path(config.output.staging_root), run_id)
-    manifest = compact_run(repo_root, loaded, run_id=run_id)
+    manifest = compact_run(repo_root, loaded, run_id=run_id, view=view)
+    if view != "raw":
+        paths.compacted = paths.compacted.parent / f"{run_id}_{view}"
     records: list[dict[str, Any]] = []
     for shard in sorted(paths.compacted.glob("shard-*")):
         rows = read_retained(shard / "rows.jsonl")
@@ -1594,7 +1626,7 @@ def release_report(
     retained_rows = cast(int, manifest["retained_rows"])
     conflicting = cast(int, manifest["conflicting_classes_rejected"])
     checks = {
-        "retained_at_least_10000": retained_rows >= 10000,
+        "retained_at_least_minimum": retained_rows >= minimum_rows,
         "all_rows_kernel_and_meta_checked": unchecked == 0,
         "zero_duplicate_or_conflicting_pairs": conflicting == 0,
         "two_useful_negative_mechanisms": len(useful_negatives) >= 2,
@@ -1603,6 +1635,8 @@ def release_report(
     report = {
         "schema_version": 1,
         "run_id": run_id,
+        "view": view,
+        "minimum_rows": minimum_rows,
         "generated_at": utc_now(),
         "compaction": {k: v for k, v in manifest.items() if k != "shards"},
         "shards": len(cast(list[object], manifest["shards"])),
@@ -1715,6 +1749,8 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--owner-session", default="claude-sft1-sprint")
     parser.add_argument("--sprint-end-utc", default="2026-09-04T21:30:00+00:00")
     parser.add_argument("--roots-per-window", type=int, default=2000)
+    parser.add_argument("--view", choices=("raw", "balanced"), default="raw")
+    parser.add_argument("--minimum-rows", type=int, default=10000)
     return parser
 
 
@@ -1778,7 +1814,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(json.dumps(read_json_object(paths.status), ensure_ascii=False, indent=1))
         return 0
     if args.command == "compact":
-        manifest = compact_run(repo_root, loaded, run_id=args.run_id, shard_size=args.shard_size)
+        manifest = compact_run(
+            repo_root, loaded, run_id=args.run_id, shard_size=args.shard_size, view=args.view
+        )
         print(
             json.dumps(
                 {k: v for k, v in manifest.items() if k != "shards"}, ensure_ascii=False, indent=1
@@ -1797,7 +1835,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 0
     if args.command == "gate10k":
         release = release_report(
-            repo_root, loaded, run_id=args.run_id, sprint_end_utc=args.sprint_end_utc
+            repo_root,
+            loaded,
+            run_id=args.run_id,
+            sprint_end_utc=args.sprint_end_utc,
+            view=args.view,
+            minimum_rows=args.minimum_rows,
         )
         print(json.dumps(release, ensure_ascii=False, indent=1))
         return 0 if release["passed"] else 1
