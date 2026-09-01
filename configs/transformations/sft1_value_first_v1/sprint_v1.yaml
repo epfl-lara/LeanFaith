@@ -1,0 +1,63 @@
+schema_version: 1
+sprint_id: sft1_sprint_v1
+project:
+  project_id: mathlib
+  project_dir: /storage/milikic/leanfaith/mathlib4
+  project_revision: d568c8c09630de097a046763c17b9ea99f95f950
+  lean_version: v4.31.0-rc1
+  lean_interact_version: 0.11.4
+  repl_revision: augustepoiroux/repl@lean-interact-0.11.4
+  import_header: import Mathlib
+  options:
+    Elab.async: false
+    autoImplicit: false
+engine:
+  path: LeanFaith/Meta/SFT1/Sprint.lean
+  operations:
+    - P15_SWAP_IFF_SIDES_V1
+    - P18_SYMMETRIZE_EQUALITY_V1
+    - P14_SWAP_INDEPENDENT_DATA_BINDERS_V1
+    - P23_CURRY_PROP_PAIR_V1
+    - N25_TOGGLE_EQ_NE_PROOF_V1
+    - N32_SWAP_ROLE_ORDER_PROOF_V1
+    - N31_DROP_REQUIRED_GUARD_PROOF_V1
+inventory:
+  root: /storage/milikic/leanfaith/value_first/sft1_deterministic_v1/sprint_v1/inventory
+  order_salt: sft1_sprint_v1_roots
+  pools:
+    - pool_id: nat_int
+      module_prefixes: [Mathlib.Data.Nat, Mathlib.Data.Int]
+      weight: 3
+    - pool_id: general
+      module_prefixes: []
+      weight: 1
+screens:
+  gold_blocklist_path: data/benchmarks/golden_blocklist_v1.json
+  gold_blocklist_sha256: 8e4af6a9e47fb06d281169cdaddb01c5c66c1b0d150f2df9c9283ecb587117f7
+execution:
+  resource_task: SFT1-SPRINT
+  batch_roots: 25
+  render_batch_pairs: 40
+  request_timeout_seconds: 900
+  lean_workers: 1
+  lean_rss_claim_gib: 24
+  memory_hard_limit_mb: 24576
+  server_restart_rss_gib: 20
+output:
+  staging_root: /storage/milikic/leanfaith/value_first/sft1_deterministic_v1/sprint_v1
+  shard_size: 1000
+fixtures:
+  - {root: le_antisymm_iff, operation_id: P15_SWAP_IFF_SIDES_V1, expect_status: retained}
+  - {root: Nat.pow_sub_one, operation_id: P15_SWAP_IFF_SIDES_V1, expect_status: not_applicable, expect_reason_prefix: final_target_iff_not_applicable}
+  - {root: PNat.gcd_comm, operation_id: P18_SYMMETRIZE_EQUALITY_V1, expect_status: retained}
+  - {root: Nat.factorial_lt, operation_id: P18_SYMMETRIZE_EQUALITY_V1, expect_status: not_applicable, expect_reason_prefix: final_target_eq_not_applicable}
+  - {root: Nat.div_right_comm, operation_id: P14_SWAP_INDEPENDENT_DATA_BINDERS_V1, expect_status: retained}
+  - {root: Nat.factorial_lt, operation_id: P14_SWAP_INDEPENDENT_DATA_BINDERS_V1, expect_status: not_applicable, expect_reason_prefix: p14_no_adjacent_independent_data_binders}
+  - {root: le_of_le_of_eq', operation_id: P23_CURRY_PROP_PAIR_V1, expect_status: retained}
+  - {root: Nat.lt_factorial_self, operation_id: P23_CURRY_PROP_PAIR_V1, expect_status: not_applicable, expect_reason_prefix: p23_no_adjacent_independent_prop_binders}
+  - {root: Nat.mul_factorial_pred, operation_id: N25_TOGGLE_EQ_NE_PROOF_V1, expect_status: retained}
+  - {root: PNat.gcd_comm, operation_id: N25_TOGGLE_EQ_NE_PROOF_V1, expect_status: rejected, expect_reason_prefix: no_ground_assignment}
+  - {root: Nat.factorial_lt_of_lt, operation_id: N32_SWAP_ROLE_ORDER_PROOF_V1, expect_status: retained}
+  - {root: Nat.factorial_le, operation_id: N32_SWAP_ROLE_ORDER_PROOF_V1, expect_status: not_applicable, expect_reason_prefix: final_target_strict_lt_not_applicable}
+  - {root: Nat.lt_factorial_self, operation_id: N31_DROP_REQUIRED_GUARD_PROOF_V1, expect_status: retained}
+  - {root: Nat.div_right_comm, operation_id: N31_DROP_REQUIRED_GUARD_PROOF_V1, expect_status: not_applicable, expect_reason_prefix: n31_no_supported_guard}
