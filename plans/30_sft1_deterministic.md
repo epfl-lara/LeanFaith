@@ -1310,3 +1310,8 @@ work. End with the exact user decision needed.
   was released. The corrective path now injects only a narrow task-local P18 implementation plus
   the exact N31 canary, keeps the frozen Wave 1 source hash as design provenance, converts proof
   hashes to `Nat`, and remains bounded to the same two rows and replay.
+- 2026-09-01 — the first corrective rerun confirmed that removing the uncompiled Wave 1 preamble
+  eliminated every Wave1 parse failure and that both custom transforms reached elaboration. It
+  still failed closed before rows because field projection also cannot resolve `Nat.toString` in
+  this request environment. The follow-up uses the generic `toString` function explicitly; the
+  failed raw response remains preserved and the reservation was again released.

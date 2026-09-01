@@ -257,9 +257,9 @@ def emitEvidence (positive : PositiveResult) (negative : NegativeResult) : MetaM
       ("certificate_replay", Json.bool true),
       ("candidate_elaboration", Json.str "valid_closed_prop"),
       ("reference_proof", Json.str "loaded_mathlib_theorem"),
-      ("reference_proof_expr_hash_u64", Json.str positive.referenceProofHash.toString),
+      ("reference_proof_expr_hash_u64", Json.str (toString positive.referenceProofHash)),
       ("equivalence_proof", Json.str "kernel_checked"),
-      ("equivalence_proof_expr_hash_u64", Json.str positive.equivalenceProofHash.toString)
+      ("equivalence_proof_expr_hash_u64", Json.str (toString positive.equivalenceProofHash))
     ]),
     ("negative", Json.mkObj [
       ("operation_id", Json.str "N31_DROP_REQUIRED_GUARD_RUBRIC_V1"),
@@ -276,11 +276,11 @@ def emitEvidence (positive : PositiveResult) (negative : NegativeResult) : MetaM
       ("certificate_replay", Json.bool true),
       ("candidate_elaboration", Json.str "valid_closed_prop"),
       ("reference_proof", Json.str "kernel_checked"),
-      ("reference_proof_expr_hash_u64", Json.str negative.referenceProofHash.toString),
+      ("reference_proof_expr_hash_u64", Json.str (toString negative.referenceProofHash)),
       ("candidate_truth", Json.str "refuted"),
       ("counterexample_witness", Json.str "(1 : Nat)"),
-      ("candidate_refutation_expr_hash_u64", Json.str negative.candidateRefutationHash.toString),
-      ("witness_refutation_expr_hash_u64", Json.str negative.witnessRefutationHash.toString),
+      ("candidate_refutation_expr_hash_u64", Json.str (toString negative.candidateRefutationHash)),
+      ("witness_refutation_expr_hash_u64", Json.str (toString negative.witnessRefutationHash)),
       ("smoke_only", Json.bool true),
       ("general_n31_bank_activated", Json.bool false)
     ])

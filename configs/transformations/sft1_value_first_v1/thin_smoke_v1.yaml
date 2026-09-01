@@ -19,7 +19,7 @@ implementation:
   wave1_path: LeanFaith/Meta/SFT1/Wave1.lean
   wave1_sha256: 7d4c27e1fd631cc1ba2f8de7cacec1eca618280c12c8ac351d9544a06e94ba4d
   helper_path: LeanFaith/Meta/SFT1/ThinSmoke.lean
-  helper_sha256: 55076e9ccdb0093239b2ad522fae08bf8eca738b82de56dd51f5628a2598749a
+  helper_sha256: 49c9e137ae7b4cefea8ac6cb010513e249b0c83e840142bdea3910982dd358c2
   runner_path: src/leanfaith/sft1/thin_smoke.py
   runner_sha256: 4454ccb3537f5e80163dda9753beeb5045eaed4c1b3c744a1af8e4e441216d0e
   import_strip_policy: remove_lines_whose_first_token_is_import_v1
