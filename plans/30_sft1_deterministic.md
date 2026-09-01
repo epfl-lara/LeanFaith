@@ -2,12 +2,14 @@
 
 > **Task ID:** SFT1
 > **Status:** active
-> **Owner/session:** Codex `/root` — 2026-09-01 coordinator integration and thin-smoke repair
+> **Owner/session:** Codex `/root` — 2026-09-01 coordinator integration and thin-smoke handoff
 > **Last updated:** 2026-09-01
-> **Active policy:** additive, smoke-only implementation from accepted commit
-> `fc8cdc2c6d9d93e99e20933a17dbcfa2afc2be48`. Produce exactly one real Mathlib preserving pair
-> and one hand-written closed N31 breaking canary, serialize both, and replay both. All frozen
-> revisions, receipts, hashes, and the complete 46-operation registry remain immutable.
+> **Active policy:** the additive, smoke-only implementation from accepted commit
+> `fc8cdc2c6d9d93e99e20933a17dbcfa2afc2be48` has produced exactly one real Mathlib preserving
+> pair and one hand-written closed N31 breaking canary, serialized both, and replayed both from
+> cache. This is thin plumbing/certificate evidence only: it does not compile or certify the
+> frozen Wave 1 engine. All frozen revisions, receipts, hashes, and the complete 46-operation
+> registry remain immutable.
 > **Approval recorded:** the user subsequently authorized exactly the additive two-row local smoke
 > described below: one real Mathlib preserving pair and one exact closed N31 breaking canary, plus
 > cache replay. This does not authorize P01, a general N31 bank, Wave 1 gate execution,
@@ -25,16 +27,17 @@
 > fail-closed without blocking it.
 > **REPR predecessor:** `cbc933c3623d81ba649a1f9c5107ad404389d69f` was reviewed but is
 > superseded and not consumable by SFT1
-> **Next gate:** commit the narrow live-syntax repair and rerun exactly the same two-row smoke. The
-> first live attempt failed closed before row emission because the previously uncompiled Wave 1
-> source contained invalid Option-do/reserved-identifier syntax and the helper used an unavailable
-> `UInt64.toString` projection. Stop after live and zero-call replay evidence.
-> A passing rerun is plumbing/certificate evidence for the two exact examples only; it is explicitly
-> not live evidence for the frozen Wave 1 engine or implementation-readiness.
-> **Compute class:** one bounded persistent Mathlib Meta worker; the first live attempt used one
-> request, emitted no rows, released its reservation, and exposed the static-review gap above
-> **Lean budget:** one claimed persistent Mathlib worker, `Elab.async=false`, two rows total, no
-> per-row process spawn, and release the claim after live and cache replay
+> **Next gate:** repair and compile the actual Wave 1 engine in a bounded persistent worker,
+> including opening telescopes before definitional-equality checks, then obtain live success,
+> expected-rejection, and certificate-replay evidence for the exact mechanisms exercised. Follow
+> that with a manually inspected 10--20-real-root audit. Stop before approximately 100 roots,
+> model-facing training rows, production, or scale.
+> **Compute class:** no active claim. The completed thin smoke used one persistent Mathlib Meta
+> request, 8.960906 seconds wall time, and 7,656,505,344 bytes peak process-tree RSS; its claim was
+> released.
+> **Lean budget:** the next gate may use one claimed persistent project worker with
+> `Elab.async=false`; do all root selection and filtering first, issue no per-row process, cache
+> deterministic results, and release the claim after live and zero-call replay checks.
 > **Local staging root:** `/storage/milikic/leanfaith/value_first/sft1_deterministic_v1/`
 > **HF destination:** private `Lemmy00/leanfaith-sft1-deterministic-v1`
 
@@ -1326,3 +1329,24 @@ work. End with the exact user decision needed.
   root-eligibility failure, not a renderer bug and not permission to weaken REPR. The smoke replaces
   only that positive root with the exact source-pinned `PNat.gcd_comm`, whose final equality uses no
   unsupported surface notation; the operation, row count, and all authorization limits are unchanged.
+- 2026-09-01 — the exact additive thin smoke passed at implementation commit
+  `5199fe1a040d1c1a6b37d6b9c03b493963797920` (tree
+  `ad84f9b5ff2db786277bcee62810d596a7fa28b5`). Run
+  `16038ae99abb68f262b70b1aa5493ce7d0338ca6e48e73868271e7f7e8e36ae5` issued one persistent
+  Lean request (`2cd997c4…`), retained exactly two rows, used 8.960906 seconds wall / 8,723 ms
+  reported Lean time with 7,656,505,344 bytes peak process-tree RSS, and released its resource
+  claim. The positive row is the exact P18 equality-side swap of the real Mathlib theorem
+  `PNat.gcd_comm`; its distinct closed endpoints have a replayed transform certificate and a
+  kernel-checked equivalence proof. The negative row removes the required `n = 0` guard from
+  `n + 1 = 1`; its exact N31 canary certificate replayed, the reference proof was kernel checked,
+  and the candidate was refuted at witness `n = 1`. Cache replay hit both entries and issued zero
+  Lean requests. The checked-in evidence hashes are manifest `de170a9d…`, rows `41f7465b…`, and
+  sidecars `da42e469…`.
+- 2026-09-01 — the passing artifact is deliberately scoped as thin plumbing evidence. Its manifest
+  records `thin_task_local_p18: true`, `wave1_engine_live_evidence: false`,
+  `general_n31_bank_activated: false`, and `production_or_scale_authorized: false`. It therefore
+  does not cure or certify the original `Wave1.lean` source: that engine still needs real project
+  compilation plus correctness repair, including opening telescopes before P15/P18 definitional-
+  equality checks. The next bounded step is live mechanism success/rejection and certificate replay
+  followed by a manually inspected 10--20-real-root audit; no approximately-100-root gate,
+  model-facing data, production admission, 10K, scale, training, or publication is authorized.
