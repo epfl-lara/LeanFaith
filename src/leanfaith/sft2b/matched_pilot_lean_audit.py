@@ -19,7 +19,7 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import Annotated, Any, Literal, cast
 
-from pydantic import Field, model_validator
+from pydantic import Field, ValidationError, model_validator
 
 from leanfaith.config.hashing import canonical_json_bytes, hash_canonical, hash_file, sha256_hex
 from leanfaith.config.models import StrictModel
@@ -941,6 +941,7 @@ def _endpoint_record(
     status: CompileStatus,
     sidecar: object | None = None,
     detail: str | None = None,
+    error_class: str | None = None,
 ) -> EndpointCacheRecord:
     key = endpoint_cache_key(
         endpoint,
@@ -989,13 +990,48 @@ def _endpoint_record(
         repr_spec_sha256=pins.repr_spec_hash,
         repr_implementation_set_sha256=pins.repr_implementation_set_hash,
         status=status,
-        error_class=(
+        error_class=error_class
+        or (
             "trusted_reference_elaboration_invalid"
             if endpoint.endpoint_role == "reference"
             else "candidate_elaboration_invalid"
         ),
         error_detail=detail,
     )
+
+
+def _valid_candidate_record_or_repr_failure(
+    *,
+    endpoint: PropositionEndpoint,
+    source: SourceRecord,
+    context: CompileContext,
+    pins: RuntimePins,
+    sidecar: object,
+) -> EndpointCacheRecord:
+    """Keep closed-Prop success distinct from strict model-render failure."""
+
+    try:
+        return _endpoint_record(
+            endpoint=endpoint,
+            source=source,
+            context=context,
+            pins=pins,
+            status=CompileStatus.VALID,
+            sidecar=sidecar,
+        )
+    except ValidationError:
+        return _endpoint_record(
+            endpoint=endpoint,
+            source=source,
+            context=context,
+            pins=pins,
+            status=CompileStatus.INVALID,
+            error_class="candidate_repr_invalid",
+            detail=(
+                "candidate elaborated as one closed Prop, but its frozen GoalV1 sidecar failed "
+                "strict endpoint validation"
+            ),
+        )
 
 
 def _terminal_path(run_root: Path, source: SourceRecord) -> Path:
@@ -1121,12 +1157,11 @@ def _execute_source(
         sidecar = sidecars.get(endpoint.endpoint_id)
         if sidecar is not None:
             candidate_records.append(
-                _endpoint_record(
+                _valid_candidate_record_or_repr_failure(
                     endpoint=endpoint,
                     source=source,
                     context=context,
                     pins=pins,
-                    status=CompileStatus.VALID,
                     sidecar=sidecar,
                 )
             )

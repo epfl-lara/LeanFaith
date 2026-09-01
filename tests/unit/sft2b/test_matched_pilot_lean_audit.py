@@ -432,6 +432,30 @@ def test_named_reference_body_loads_theorem_type_without_text_elaboration() -> N
     assert "elaborateProposition" not in prefix
 
 
+def test_valid_closed_prop_with_forbidden_render_is_repr_invalid() -> None:
+    source, context = _source()
+    candidate_id = stable_id("sft2b_candidate", {"repr": "invalid"})
+    endpoint = PropositionEndpoint(
+        endpoint_id=candidate_id,
+        endpoint_role="candidate",
+        proposition="True",
+        source_id=source.source_id,
+        candidate_id=candidate_id,
+    )
+
+    observed = audit._valid_candidate_record_or_repr_failure(
+        endpoint=endpoint,
+        source=source,
+        context=context,
+        pins=_pins(),
+        sidecar=_Sidecar(candidate_id, "⊢ M ⋯ x"),
+    )
+
+    assert observed.status == CompileStatus.INVALID
+    assert observed.error_class == "candidate_repr_invalid"
+    assert observed.goal_v1 is None
+
+
 def test_terminal_rejects_candidate_order_mismatch() -> None:
     source, context = _source()
     endpoint = PropositionEndpoint(
