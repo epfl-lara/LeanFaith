@@ -208,6 +208,117 @@ def publish_run(
     return receipt
 
 
+def _upload_verified(
+    api: Any,
+    *,
+    repo_id: str,
+    local_root: Path,
+    files: Sequence[Path],
+    remote_prefix: str,
+    commit_message: str,
+    extra_operations: Sequence[Any] = (),
+) -> tuple[str, str, dict[str, str]]:
+    from huggingface_hub import CommitOperationAdd, hf_hub_download
+
+    hashes = {path.relative_to(local_root).as_posix(): hash_file(path) for path in files}
+    info = api.repo_info(repo_id=repo_id, repo_type=REPO_TYPE)
+    if not bool(info.private):
+        raise PublishError("refusing to publish SFT1 sprint data to a public repository")
+    parent = str(info.sha)
+    existing = set(api.list_repo_files(repo_id=repo_id, repo_type=REPO_TYPE, revision=parent))
+    if any(name.startswith(f"{remote_prefix}/") for name in existing):
+        raise PublishError(f"remote prefix {remote_prefix!r} is already occupied")
+    remote_paths = {relative: f"{remote_prefix}/{relative}" for relative in hashes}
+    operations = [
+        CommitOperationAdd(
+            path_in_repo=remote_paths[relative], path_or_fileobj=local_root / relative
+        )
+        for relative in sorted(hashes)
+    ]
+    operations.extend(extra_operations)
+    commit = api.create_commit(
+        repo_id=repo_id,
+        repo_type=REPO_TYPE,
+        operations=operations,
+        commit_message=commit_message,
+        parent_commit=parent,
+    )
+    revision = str(commit.oid)
+    if len(revision) != 40:
+        raise PublishError("Hub publication did not return an immutable revision")
+    verified: dict[str, str] = {}
+    with tempfile.TemporaryDirectory(prefix="sft1-sprint-verify-") as fresh:
+        for relative, remote in sorted(remote_paths.items()):
+            downloaded = hf_hub_download(
+                repo_id=repo_id,
+                filename=remote,
+                repo_type=REPO_TYPE,
+                revision=revision,
+                cache_dir=fresh,
+            )
+            digest = hash_file(Path(downloaded))
+            if digest != hashes[relative]:
+                raise PublishError(f"fresh download hash mismatch for {remote}")
+            verified[remote] = digest
+    return revision, parent, verified
+
+
+def publish_windows(
+    repo_root: Path,
+    *,
+    run_id: str,
+    repo_id: str = DEFAULT_REPO_ID,
+    config_path: Path | None = None,
+) -> list[dict[str, Any]]:
+    """Publish every compacted root window that has no publication receipt yet."""
+
+    from huggingface_hub import HfApi
+
+    loaded = load_sprint_config(repo_root, config_path)
+    paths = RunPaths(Path(loaded.config.output.staging_root), run_id)
+    api = HfApi()
+    api.create_repo(repo_id=repo_id, repo_type=REPO_TYPE, private=True, exist_ok=True)
+    receipts: list[dict[str, Any]] = []
+    for window_dir in sorted(paths.compacted.glob("window-*")):
+        receipt_path = window_dir / "publication_receipt.json"
+        if receipt_path.is_file():
+            continue
+        manifest = read_json_object(window_dir / "manifest.json")
+        files = [window_dir / name for name in ("rows.jsonl", "sidecars.jsonl", "manifest.json")]
+        if any(not path.is_file() for path in files):
+            raise PublishError(f"window files missing in {window_dir}")
+        prefix = f"sprint_v1/{run_id}/{window_dir.name}"
+        revision, parent, verified = _upload_verified(
+            api,
+            repo_id=repo_id,
+            local_root=window_dir,
+            files=files,
+            remote_prefix=prefix,
+            commit_message=(
+                f"sft1 sprint v1: publish {run_id} {window_dir.name} "
+                f"({manifest.get('row_count')} rows)"
+            ),
+        )
+        receipt = {
+            "schema_version": 1,
+            "run_id": run_id,
+            "window": manifest.get("window"),
+            "repo_id": repo_id,
+            "repo_type": REPO_TYPE,
+            "private": True,
+            "revision": revision,
+            "parent_revision": parent,
+            "remote_prefix": prefix,
+            "file_sha256": verified,
+            "row_count": manifest.get("row_count"),
+            "published_at": datetime.datetime.now(datetime.UTC).isoformat(timespec="seconds"),
+            "fresh_verification": True,
+        }
+        write_atomic(receipt_path, canonical_json_bytes(receipt) + b"\n")
+        receipts.append(receipt)
+    return receipts
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--repo-root", type=Path, default=find_repo_root(Path.cwd()))
@@ -215,7 +326,22 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--run-id", required=True)
     parser.add_argument("--repo-id", default=DEFAULT_REPO_ID)
     parser.add_argument("--remote-prefix")
+    parser.add_argument("--windows", action="store_true", help="publish compacted root windows")
     args = parser.parse_args(argv)
+    if args.windows:
+        receipts = publish_windows(
+            args.repo_root.resolve(),
+            run_id=args.run_id,
+            repo_id=args.repo_id,
+            config_path=args.config.resolve() if args.config else None,
+        )
+        print(
+            json.dumps(
+                [{k: v for k, v in item.items() if k != "file_sha256"} for item in receipts],
+                indent=1,
+            )
+        )
+        return 0
     receipt = publish_run(
         args.repo_root.resolve(),
         run_id=args.run_id,

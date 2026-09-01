@@ -1272,7 +1272,7 @@ def compact_root_windows(
     compacted_windows = cast(list[dict[str, Any]], state.get("windows", []))
     compacted_indices = {int(item["window"]) for item in compacted_windows}
     gold = runner.gold
-    emitted: list[dict[str, object]] = []
+    emitted: list[dict[str, Any]] = []
     for window_index, start in enumerate(range(0, len(order), roots_per_window)):
         window_number = window_index + 1
         window_roots = order[start : start + roots_per_window]
