@@ -1228,6 +1228,128 @@ def ancestry_shards(records: Sequence[dict[str, Any]], size: int) -> list[list[d
     return shards
 
 
+def completed_roots(journal_path: Path, operation_count: int) -> set[str]:
+    """Roots whose every operation has a journal terminal."""
+
+    counts: dict[str, set[str]] = {}
+    for record in Journal(journal_path).read():
+        if record.get("kind") == "terminal":
+            counts.setdefault(str(record["root"]), set()).add(str(record["operation_id"]))
+    return {root for root, ops in counts.items() if len(ops) >= operation_count}
+
+
+def compact_root_windows(
+    repo_root: Path,
+    loaded: LoadedConfig[SprintConfig],
+    *,
+    run_id: str,
+    roots_per_window: int,
+) -> dict[str, object]:
+    """Emit one shard per complete window of the deterministic root order.
+
+    Windows are cut over the run's root order, so a shard's membership never
+    changes as later roots arrive.  A window is compacted only when every root
+    in it has terminals for all operations.  Duplicate unordered pairs are
+    resolved within a window and against every previously compacted window
+    through a persisted key set, so shards remain independently publishable.
+    """
+
+    runner = SprintRunner(repo_root, loaded, run_id=run_id)
+    order = [name for name, _ in runner.root_order()]
+    paths = runner.paths
+    done = completed_roots(paths.journal, len(OPERATIONS))
+    records = read_retained(paths.retained)
+    by_root: dict[str, list[dict[str, Any]]] = {}
+    for record in records:
+        by_root.setdefault(str(record["root_name"]), []).append(record)
+    windows_dir = paths.compacted
+    windows_dir.mkdir(parents=True, exist_ok=True)
+    state_path = windows_dir / "dedup_state.json"
+    state: dict[str, Any] = (
+        read_json_object(state_path) if state_path.is_file() else {"seen_keys": [], "windows": []}
+    )
+    seen_keys = set(cast(list[str], state.get("seen_keys", [])))
+    compacted_windows = cast(list[dict[str, Any]], state.get("windows", []))
+    compacted_indices = {int(item["window"]) for item in compacted_windows}
+    gold = runner.gold
+    emitted: list[dict[str, object]] = []
+    for window_index, start in enumerate(range(0, len(order), roots_per_window)):
+        window_number = window_index + 1
+        window_roots = order[start : start + roots_per_window]
+        if window_number in compacted_indices:
+            continue
+        if any(root not in done for root in window_roots):
+            break
+        window_records: list[dict[str, Any]] = []
+        for root in window_roots:
+            for record in by_root.get(root, []):
+                row = record["row"]
+                bad = (
+                    residue_violation(str(row["reference"]))
+                    or residue_violation(str(row["candidate"]))
+                    or ("self_pair" if row["reference"] == row["candidate"] else None)
+                    or (
+                        "gold"
+                        if gold.hit(str(row["reference"])) or gold.hit(str(row["candidate"]))
+                        else None
+                    )
+                )
+                if bad is None:
+                    window_records.append(record)
+        outcome = deduplicate(window_records)
+        kept = [item for item in outcome.kept if str(item["unordered_pair_key"]) not in seen_keys]
+        cross_duplicates = len(outcome.kept) - len(kept)
+        kept = group_by_ancestry(kept)
+        shard_dir = windows_dir / f"window-{window_number:05d}"
+        shard_dir.mkdir(parents=True, exist_ok=True)
+        rows_bytes = b"".join(canonical_json_bytes(item["row"]) + b"\n" for item in kept)
+        sidecar_bytes = b"".join(canonical_json_bytes(item["sidecar"]) + b"\n" for item in kept)
+        write_atomic(shard_dir / "rows.jsonl", rows_bytes)
+        write_atomic(shard_dir / "sidecars.jsonl", sidecar_bytes)
+        manifest: dict[str, Any] = {
+            "schema_version": 1,
+            "run_id": run_id,
+            "window": window_number,
+            "root_order_start": start,
+            "root_order_end": start + len(window_roots),
+            "roots_in_window": len(window_roots),
+            "row_count": len(kept),
+            "complete": True,
+            "labels": {
+                "positive": sum(1 for item in kept if item["label"]),
+                "negative": sum(1 for item in kept if not item["label"]),
+            },
+            "operations": _count_by(kept, "operation_id"),
+            "duplicates_removed_in_window": outcome.duplicate_count,
+            "conflicting_classes_rejected": outcome.conflict_count,
+            "cross_window_duplicates_removed": cross_duplicates,
+            "rows_sha256": sha256_hex(rows_bytes),
+            "sidecars_sha256": sha256_hex(sidecar_bytes),
+            "compacted_at": utc_now(),
+        }
+        write_atomic(shard_dir / "manifest.json", canonical_json_bytes(manifest) + b"\n")
+        seen_keys.update(str(item["unordered_pair_key"]) for item in kept)
+        compacted_windows.append(manifest)
+        emitted.append(manifest)
+        state = {"seen_keys": sorted(seen_keys), "windows": compacted_windows}
+        write_atomic(state_path, canonical_json_bytes(state) + b"\n")
+    summary = {
+        "schema_version": 1,
+        "run_id": run_id,
+        "roots_per_window": roots_per_window,
+        "root_order_size": len(order),
+        "completed_roots": len(done),
+        "windows_compacted_total": len(compacted_windows),
+        "windows_compacted_now": [int(item["window"]) for item in emitted],
+        "rows_total": sum(int(item["row_count"]) for item in compacted_windows),
+        "config_semantic_hash": loaded.config_hash,
+        "engine": runner.identity.to_dict(),
+        "updated_at": utc_now(),
+    }
+    write_atomic(windows_dir / "manifest.json", canonical_json_bytes(summary) + b"\n")
+    return summary
+
+
 def _count_by(records: Iterable[Mapping[str, Any]], field: str) -> dict[str, int]:
     counts: dict[str, int] = {}
     for record in records:
@@ -1558,6 +1680,8 @@ def _parser() -> argparse.ArgumentParser:
             "compact",
             "inspect",
             "gate100",
+            "gate10k",
+            "compact-windows",
         ),
     )
     parser.add_argument("--repo-root", type=Path, default=find_repo_root(Path.cwd()))
@@ -1569,6 +1693,7 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--shard-size", type=int)
     parser.add_argument("--owner-session", default="claude-sft1-sprint")
     parser.add_argument("--sprint-end-utc", default="2026-09-04T21:30:00+00:00")
+    parser.add_argument("--roots-per-window", type=int, default=2000)
     return parser
 
 
@@ -1642,6 +1767,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.command == "inspect":
         path, count = write_inspection(loaded, run_id=args.run_id, count=args.count)
         print(json.dumps({"path": str(path), "count": count}))
+        return 0
+    if args.command == "compact-windows":
+        summary = compact_root_windows(
+            repo_root, loaded, run_id=args.run_id, roots_per_window=args.roots_per_window
+        )
+        print(json.dumps(summary, ensure_ascii=False, indent=1))
         return 0
     if args.command == "gate10k":
         release = release_report(
