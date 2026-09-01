@@ -426,7 +426,7 @@ def test_named_reference_body_loads_theorem_type_without_text_elaboration() -> N
         reference_constant_name="Namespace.test",
     )
     prefix = body.split("let endpoint1?", maxsplit=1)[0]
-    assert '(← getEnv).find? "Namespace.test".toName' in prefix
+    assert '(← Lean.getEnv).find? "Namespace.test".toName' in prefix
     assert "some (.thmInfo info)" in prefix
     assert '"loaded_constant_type" endpoint0' in body
     assert "elaborateProposition" not in prefix

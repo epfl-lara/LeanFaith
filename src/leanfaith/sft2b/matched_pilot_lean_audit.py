@@ -801,7 +801,7 @@ def _build_isolated_tolerant_session_body(
         lines.extend(
             (
                 "  let endpoint0 ←",
-                f"    match (← getEnv).find? {constant_literal}.toName with",
+                f"    match (← Lean.getEnv).find? {constant_literal}.toName with",
                 "    | some (.thmInfo info) =>",
                 "        LeanFaith.SFT2B.Helper.checkedClosedProp "
                 f'"reference:{reference_constant_name}" info.type',
