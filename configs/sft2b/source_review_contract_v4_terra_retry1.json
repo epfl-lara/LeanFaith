@@ -1,0 +1,78 @@
+{
+  "schema_version": "sft2b_source_review_v4_terra_retry1",
+  "base_contract": {
+    "path": "configs/sft2b/source_review_contract_v4_model_panel.json",
+    "sha256": "579acee1dcaf3d2f9f49fb688018600c814637b67b7b0e2f75c35420ae3764f5"
+  },
+  "base_implementation": {
+    "path": "src/leanfaith/sft2b/source_review_v4.py",
+    "sha256": "1c05607138896c385867795e99add457bd541b1a35d03f7bc73fcdfd92e00101"
+  },
+  "retry_implementation": {
+    "path": "src/leanfaith/sft2b/source_review_v4_terra_retry1.py",
+    "sha256": "42dee2fec55d6de9d4ed1b7147e819463214b2276cee2e45e8c49620d1a5122d"
+  },
+  "logical_output_schema": {
+    "path": "configs/sft2b/source_review_output_schema_v4.json",
+    "sha256": "c7fa9a66caf52cd0b97562aa14f078e8f3317ee6e410391eecfe429418401e31"
+  },
+  "terra_transport_output_schema": {
+    "path": "configs/sft2b/source_review_output_schema_v4_terra_retry1.json",
+    "sha256": "78102363f993015abbfc3cd84d8da54392410a5f215003223d8825af3fce3f8a"
+  },
+  "initial_run": {
+    "run_id": "sft2b_model_review_run:cfb529a7d7a86e6e0d45d797f7d685a8ef665dfc1caea75b8d09e3bbf3e3e604",
+    "run_root": "/storage/milikic/leanfaith/value_first/sft2_autoformalizer_v1/source_reviews/source_review_contract_v4_model_panel_smoke/sft2b_model_review_run:cfb529a7d7a86e6e0d45d797f7d685a8ef665dfc1caea75b8d09e3bbf3e3e604",
+    "files": {
+      "SHA256SUMS": {
+        "path": "SHA256SUMS",
+        "sha256": "566201e9fc1338a3a248049296c5b0174728b0be6f6a09dd56f811dde10715b6"
+      },
+      "model_panel_outcomes.jsonl": {
+        "path": "model_panel_outcomes.jsonl",
+        "sha256": "14c345dcab4533edf8fa133af8d9216743cb6be842e138c78df7e81f7956b164"
+      },
+      "model_review_attempts.jsonl": {
+        "path": "model_review_attempts.jsonl",
+        "sha256": "fe3a55564e7030b08b6f6597ef2bcd8c22af241f34f6275f07bb38eb6b983248"
+      },
+      "model_review_manifest.json": {
+        "path": "model_review_manifest.json",
+        "sha256": "480fceee78f3399a5cb1aea07069215e911006f266c8285cd27d4890554de546"
+      },
+      "model_review_unknowns.jsonl": {
+        "path": "model_review_unknowns.jsonl",
+        "sha256": "cd695040358ceea7ea724f71801b70db5e2f55c19c38a7fc2291d457aaa5d3f5"
+      },
+      "model_reviews.jsonl": {
+        "path": "model_reviews.jsonl",
+        "sha256": "bada9286d5f622e13f7cc5aaad80025e1ff09bb30095239f8acbc7fa4cbb6328"
+      }
+    },
+    "opus_review_id": "sft2b_model_source_review:1a3a1bd4d0a6c7283c4dab753bf684cc35e959bcca923fe01a233edf7facad08",
+    "terra_failed_attempt_id": "sft2b_model_review_attempt:52f1257095046ad0b6baab351eeb332a20cd4df4ff28150fd23c664e95d68f1d",
+    "terra_failed_cache_key": "e257714820f7439015a4a71f27ee46ab15ecc90025eeb565e0161e151d825a56",
+    "terra_raw_stdout_sha256": "a48178bba6dba340f82124c182a9dafffb8eae388733c91b0456904aeb5c8a58",
+    "expected_provider_error_code": "invalid_json_schema",
+    "expected_rejected_keyword": "uniqueItems",
+    "terra_model_answer_produced": false,
+    "terra_usage_event_produced": false
+  },
+  "authorization": {
+    "authorized_by": "repository_owner",
+    "authorization_basis": "same_row_pre_inference_transport_correction_v1",
+    "packet_entry_id": "sft2b_review_packet:f1fbb98fa666e7e46187d31463fb649d1f7565c1db500cb2c51f62cd8b82631c",
+    "source_id": "sft2b_source:003b590c635e6fdd69761066fdd52ae8def4a6b1f8093a3288486543810e432f",
+    "retry_provider": "terra",
+    "maximum_provider_calls": 1,
+    "successful_opus_recall_authorized": false,
+    "ambiguous_call_retry_authorized": false,
+    "remaining_packet_rows_authorized": false,
+    "generation_authorized": false,
+    "lean_authorized": false,
+    "publication_authorized": false,
+    "training_authorized": false
+  },
+  "cache_root": "/storage/milikic/leanfaith/value_first/sft2_autoformalizer_v1/source_reviews/model_panel_v4_terra_retry1_cache",
+  "output_root": "/storage/milikic/leanfaith/value_first/sft2_autoformalizer_v1/source_reviews/source_review_contract_v4_terra_retry1"
+}

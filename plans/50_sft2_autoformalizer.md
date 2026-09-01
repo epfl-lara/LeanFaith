@@ -394,6 +394,11 @@ any generation, Lean, judging, training, or scale run.
    run Opus and Terra independently, compact its panel result, and replay from cache with zero new
    calls. Report the exact record, outcome, hashes, latency, token/cost usage when available, and
    remaining risks before seeking authorization for the other 991 rows.
+6. If a provider rejects the response schema before inference, preserve that terminal as immutable
+   failure evidence and permit at most one additive transport-schema correction for that same row
+   and provider. Prove from the event stream that no model answer was produced, retain the stricter
+   parser-side validation, change the request identity, and reuse—not recall—any successful peer
+   review. This exception does not permit retrying an ambiguous call or widening the row set.
 
 Lean is the bottleneck downstream, but this contract change is entirely Lean-free: all schema,
 prompt, provenance, hashing, cache, journal, and replay work is completed without compiling a corpus
@@ -925,3 +930,24 @@ Do not launch 50K sources without the pilot and user compute/model approval.
   disposition are omitted from both model projections. Focused tests pass 9/9, Ruff passes, and
   strict mypy passes. No provider, Lean, generation, publication, judging, or training call has run
   at this boundary.
+- 2026-09-01 — ran the exact one-row v4 smoke from pushed commit `d400e1e`. Opus returned a valid
+  `quarantine_solution_or_proof_fragment` review at confidence 0.86 in 19.12 seconds, reporting
+  4 input, 3,173 cache-read, 4,390 cache-creation, and 1,593 output tokens at $0.0879335. Terra's
+  request terminated in 2.89 seconds with HTTP 400 `invalid_json_schema`: the provider rejected
+  `uniqueItems` before any model item, answer, or usage event. The fail-closed panel outcome is
+  `unknown_provider_failure`; its run ID is
+  `sft2b_model_review_run:cfb529a7d7a86e6e0d45d797f7d685a8ef665dfc1caea75b8d09e3bbf3e3e604`.
+  A restart produced two cache hits, zero provider calls, the identical manifest hash
+  `480fceee78f3399a5cb1aea07069215e911006f266c8285cd27d4890554de546`, and no ambiguous
+  request. The additive retry rule above now permits one Terra-only transport correction on this
+  row; the successful Opus record must be reused and the initial run remains immutable.
+- 2026-09-01 — froze the one-call Terra correction under retry-config SHA-256
+  `b9a42a9a8adc7bca5c322ceef3efd166dcaf9c97c624329c924a1e4a8dc94a49`, retry implementation
+  SHA-256 `42dee2fec55d6de9d4ed1b7147e819463214b2276cee2e45e8c49620d1a5122d`, and transport-schema
+  SHA-256 `78102363f993015abbfc3cd84d8da54392410a5f215003223d8825af3fce3f8a`.
+  Its no-call preflight reverified the original config/run/output/checksum/cache hashes, proved the
+  exact `thread.started`, `turn.started`, `error`, `turn.failed` pre-inference event shape, proved
+  there was no item or usage event, and mechanically showed that the transport schema differs only
+  by removing `uniqueItems`; the Pydantic parser still requires unique sorted issue classes. The
+  runner exposes only one Terra cell and explicitly records zero Opus recalls. Twelve focused v4
+  and retry tests, Ruff, and strict mypy pass. No retry provider call has run at this boundary.

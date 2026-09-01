@@ -1,0 +1,57 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "verdict": {
+      "type": "string",
+      "enum": [
+        "admit_standalone_aligned",
+        "quarantine_solution_or_proof_fragment",
+        "quarantine_incomplete_or_nonstandalone",
+        "quarantine_misaligned",
+        "quarantine_other_quality_failure",
+        "needs_escalation"
+      ]
+    },
+    "standalone_status": {
+      "type": "string",
+      "enum": ["yes", "no", "uncertain"]
+    },
+    "alignment_status": {
+      "type": "string",
+      "enum": ["aligned", "misaligned", "uncertain"]
+    },
+    "issue_classes": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "solution_or_proof_fragment",
+          "incomplete_or_nonstandalone",
+          "misaligned_claim",
+          "other_quality_failure",
+          "uncertain"
+        ]
+      },
+      "maxItems": 5
+    },
+    "confidence": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "rationale": {
+      "type": "string",
+      "minLength": 20,
+      "maxLength": 2000
+    }
+  },
+  "required": [
+    "verdict",
+    "standalone_status",
+    "alignment_status",
+    "issue_classes",
+    "confidence",
+    "rationale"
+  ]
+}
