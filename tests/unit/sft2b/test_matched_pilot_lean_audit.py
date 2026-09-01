@@ -201,6 +201,10 @@ def test_inline_compile_context_replays_frozen_render_identity() -> None:
     assert observed.compile_context_id == source.compile_context.render_compile_context_id
 
 
+def test_audit_level_names_include_explicit_constant_universe() -> None:
+    assert audit._audit_level_names("CommRingCat.{u_1}") == ("u_1",)
+
+
 def test_source_material_accepts_content_pinned_snapshot_symlink(tmp_path: Path) -> None:
     source, _ = _source()
     blob = tmp_path / "blob"

@@ -12,6 +12,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import resource
 import subprocess
 from collections import Counter, defaultdict
@@ -79,10 +80,19 @@ _INFRASTRUCTURE_STATUSES = {
     LeanStatus.UNSUPPORTED,
     LeanStatus.INTERNAL_ERROR,
 }
+_FROZEN_EXPLICIT_LEVEL = re.compile(r"\bu_[0-9]+\b")
 
 
 class MatchedPilotLeanAuditError(RuntimeError):
     """Raised when the audit cannot produce trustworthy terminal evidence."""
+
+
+def _audit_level_names(proposition: str) -> tuple[str, ...]:
+    """Include universe parameters appearing only in explicit constant levels."""
+
+    return tuple(
+        dict.fromkeys((*_level_names(proposition), *_FROZEN_EXPLICIT_LEVEL.findall(proposition)))
+    )
 
 
 class BundlePin(StrictModel):
@@ -814,7 +824,7 @@ def _build_isolated_tolerant_session_body(
         lines.append(
             "  let endpoint0 ← LeanFaith.SFT2B.Helper.elaborateProposition "
             f'"reference:reference" {reference_source} '
-            f"{_lean_name_list(_level_names(reference.proposition))}"
+            f"{_lean_name_list(_audit_level_names(reference.proposition))}"
         )
     else:
         constant_literal = json.dumps(reference_constant_name, ensure_ascii=False)
@@ -841,7 +851,7 @@ def _build_isolated_tolerant_session_body(
                 "    try",
                 "      let value ← LeanFaith.SFT2B.Helper.elaborateProposition "
                 f"{origin_literal} {source_literal} "
-                f"{_lean_name_list(_level_names(endpoint.proposition))}",
+                f"{_lean_name_list(_audit_level_names(endpoint.proposition))}",
                 "      if (← Lean.MonadLog.hasErrors) then",
                 "        Lean.restoreState saved",
                 "        pure none",
