@@ -1,7 +1,8 @@
 # LeanFaith value-first parallel data plan
 
-> **Status:** approved; handoff setup ready for independent task sessions
+> **Status:** active; SFT1/SFT2A/SFT2B histories integrated locally with bounded next gates
 > **Approved:** 2026-08-30
+> **Last updated:** 2026-09-01
 > **Current scope:** prepare, validate, and publish the datasets and evaluation assets. Do not start
 > full training from this coordinator task.
 
@@ -24,15 +25,15 @@ process per row or recompile an entire corpus by default. The full contract is i
 
 ## Parallel workstreams
 
-| Workstream | Task brief | Initial state | May start independently? |
+| Workstream | Task brief | Current state | May start independently? |
 | --- | --- | --- | --- |
-| Shared goal representation | [`plans/02_goal_v1.md`](plans/02_goal_v1.md) | not started | yes; enables SFT/eval text |
-| Existing-data reuse | [`plans/05_existing_data_reuse.md`](plans/05_existing_data_reuse.md) | not started | yes |
-| CPT phase 1 | [`plans/10_cpt1.md`](plans/10_cpt1.md) | not started | yes |
-| CPT phase 2 | [`plans/20_cpt2.md`](plans/20_cpt2.md) | not started | yes |
-| SFT phase 1 deterministic | [`plans/30_sft1_deterministic.md`](plans/30_sft1_deterministic.md) | waiting for transform review | inventory only |
-| SFT phase 2A LLM transforms | [`plans/40_sft2_llm_transforms.md`](plans/40_sft2_llm_transforms.md) | not started | yes, pilot only |
-| SFT phase 2B autoformalization | [`plans/50_sft2_autoformalizer.md`](plans/50_sft2_autoformalizer.md) | not started | yes, source/pilot work |
+| Shared goal representation | [`plans/02_goal_v1.md`](plans/02_goal_v1.md) | complete and frozen | downstream pin only |
+| Existing-data reuse | [`plans/05_existing_data_reuse.md`](plans/05_existing_data_reuse.md) | complete | downstream consumption only |
+| CPT phase 1 | [`plans/10_cpt1.md`](plans/10_cpt1.md) | complete and privately released | training ablation later |
+| CPT phase 2 | [`plans/20_cpt2.md`](plans/20_cpt2.md) | complete and privately released | training ablation later |
+| SFT phase 1 deterministic | [`plans/30_sft1_deterministic.md`](plans/30_sft1_deterministic.md) | active; thin two-row plumbing smoke passed, Wave 1 engine not certified | bounded verification only |
+| SFT phase 2A LLM transforms | [`plans/40_sft2_llm_transforms.md`](plans/40_sft2_llm_transforms.md) | active; 100-root generation complete, final audit incomplete | recovery/performance pilot only |
+| SFT phase 2B autoformalization | [`plans/50_sft2_autoformalizer.md`](plans/50_sft2_autoformalizer.md) | waiting user; matched-500 generation complete | source correction and Lean audit only |
 | Evaluation and baselines | [`plans/60_eval_baselines.md`](plans/60_eval_baselines.md) | not started | yes; mandatory |
 | Training and ablations | [`plans/70_training_ablations.md`](plans/70_training_ablations.md) | deferred | design/smokes only |
 
@@ -43,6 +44,40 @@ but does not need to finish before CPT or evaluation. SFT1 bulk generation has o
 its owner must first review the complete preserving/breaking transform catalog with the user. Full
 training waits for versioned datasets and frozen evaluation inputs, but architecture preparation
 may proceed.
+
+## 2026-09-01 integration checkpoint
+
+The three SFT branches have been integrated locally into `main`; no remote `main` push is implied.
+The source tips are SFT1 `8be4ef6`, SFT2A `42cd0d6`, and SFT2B `06df8c0`. The rejected
+24K-line SFT1 v0.3.6 archive remains outside `main`.
+At inspection time, no SFT1, SFT2A, or SFT2B process, detached `tmux` session, or shared host
+reservation was active.
+
+- **SFT1:** the exact two-row thin smoke produced one kernel-supported preserving P18 pair and one
+  grounded N31 breaking pair, then replayed with two cache hits and zero Lean calls. This validates
+  serialization, evidence, caching, and resource cleanup only. It does not validate the archived
+  Wave 1 engine. Repair and compile the real engine under opened telescopes, exercise P15/P18/P21
+  (and P01 if retained), and manually inspect 10--20 real rendered roots before any 100-root gate.
+- **SFT2A:** the 100-root rehearsal completed all 400 requested slots and retained 284 pairs, with
+  a zero-provider/zero-Lean replay. Its Kimi audit stopped on a judgment-schema mismatch, leaving
+  one reservation unresolved and no final audit manifest. Repair and resume only that audit, then
+  run a 20-root performance pilot with a dynamic provider queue and exactly two persistent Lean
+  workers. Do not rerun the completed generation or authorize 10K/50K yet.
+- **SFT2B:** the matched-500 ReForm-32B generation completed 2,000 requests on eight H100-80GB
+  GPUs, admitting 1,242 contract-valid signatures (1,147 globally unique) in 924.6 seconds. This is
+  generation evidence, not semantic-label evidence. Freeze corrected source v3 and compile a
+  stratified 200-candidate sample with persistent Lean before authorizing the corrected 50K-source
+  core; the full Lean plus three-judge consumer remains a separate scale gate.
+
+The next three bounded tasks should proceed in parallel. Every subsequent long run must use a
+named detached `tmux` session with durable journals, verified liveness, and a recorded resource
+claim. Provider work should be parallelized independently of the two-worker Lean host cap; Lean
+sessions should be persistent and project-grouped rather than recreated per root.
+
+Clean-worktree verification passed 520 focused SFT1 tests and all 53 SFT2A tests. SFT2B passed
+129 tests with four narrowly skipped historical-evidence replays because repository-ignored
+raw/parsed evidence is not mounted in the integration worktree; those checks remain fail-closed
+and executable when the evidence is present.
 
 ## Shared decisions
 

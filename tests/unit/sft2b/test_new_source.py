@@ -2,15 +2,43 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from leanfaith.config.paths import find_repo_root
 from leanfaith.sft2b.new_source import load_new_source
 from leanfaith.sft2b.pins import verify_runtime_pins
 
 _REPO_ROOT = find_repo_root(Path(__file__).parent)
 _HELPER = _REPO_ROOT / "src/leanfaith/sft2b/lean_helper.lean"
+_EXISTING_301_LOCAL_PREREQUISITES = (
+    _REPO_ROOT / "data/raw/real_outputs/public_research_v1",
+    _REPO_ROOT / "data/raw/real_outputs/gate3_docstrings_operational_v1",
+    _REPO_ROOT / "data/raw/real_outputs/cross_domain_docstrings_operational_v1",
+    _REPO_ROOT / "data/parsed/real_outputs/public_research_v1/reference_representations.jsonl",
+    _REPO_ROOT / "data/parsed/real_outputs/cross_domain_docstrings_operational_v1/"
+    "reference_representations.jsonl",
+)
+_NEW_SOURCE_CATALOGS = (
+    _REPO_ROOT / "data/parsed/real_outputs/gate3_docstrings_operational_v1/"
+    "problem_pool_records.jsonl",
+    _REPO_ROOT / "data/parsed/real_outputs/gate3_docstrings_operational_v1/"
+    "reference_representations.jsonl",
+    _REPO_ROOT / "data/parsed/real_outputs/gate3_docstrings_operational_v1/"
+    "reference_theorems.jsonl",
+    _REPO_ROOT / "data/parsed/real_outputs/gate3_docstrings_operational_v1/record_audits.jsonl",
+)
+
+
+def _require_local_new_source_evidence(source_path: Path) -> None:
+    prerequisites = (*_EXISTING_301_LOCAL_PREREQUISITES, *_NEW_SOURCE_CATALOGS, source_path)
+    if any(not path.exists() for path in prerequisites):
+        pytest.skip("frozen ignored new-source/301 evidence is unavailable in this worktree")
 
 
 def test_new_smoke_source_replays_prior_quality_and_contamination_audits() -> None:
+    _require_local_new_source_evidence(
+        Path("/storage/milikic/leanfaith/mathlib4/Mathlib/Algebra/Group/Action/Faithful.lean")
+    )
     pins = verify_runtime_pins(_REPO_ROOT, helper_path=_HELPER)
     source, receipt = load_new_source(
         _REPO_ROOT,
@@ -28,6 +56,9 @@ def test_new_smoke_source_replays_prior_quality_and_contamination_audits() -> No
 
 
 def test_elementary_new_source_replays_golden_and_prior_audits() -> None:
+    _require_local_new_source_evidence(
+        Path("/storage/milikic/leanfaith/mathlib4/Mathlib/Algebra/Group/Ideal.lean")
+    )
     pins = verify_runtime_pins(_REPO_ROOT, helper_path=_HELPER)
     source, receipt = load_new_source(
         _REPO_ROOT,

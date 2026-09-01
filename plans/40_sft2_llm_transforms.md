@@ -2,10 +2,13 @@
 
 > **Task ID:** SFT2A
 > **Status:** active
-> **Owner/session:** Codex `/root` — 2026-09-01 SFT2A v5.2 provider-recovery session
+> **Owner/session:** Coordinator integration — 2026-09-01 verified post-run state
 > **Last updated:** 2026-09-01
 > **Dependencies:** REPR `goal_v1.0`; shared rubric; roots may be selected independently of SFT1
-> **Next gate:** user authorization for only the additive v5.2 recovery rehearsal bound to the frozen sample, cumulative failed-run ledger, clean recovery commit/tree, and fresh output root
+> **Next gate:** complete an additive, row-checkpointed Kimi audit repair against the existing
+> v5.2 recovery-v5 generation artifacts, then pass a 20-root dynamic-provider-concurrency
+> performance pilot with exactly two persistent Lean workers; do not rerun generation or start
+> approximately 10K/50K scale
 > **Compute class:** external LLM/API plus CPU/RAM for Lean; large run may need explicit budget approval
 > **Lean budget:** compile each novel candidate once through cached persistent workers
 > **Local staging root:** `/storage/milikic/leanfaith/value_first/sft2_llm_transforms_v1/`
@@ -135,6 +138,13 @@ judges; never compile separately for each vote. Retry only infrastructure failur
 Start with one worker and measure 4/8 under concurrent-session load. Keep `Elab.async=false`,
 bounded batches, isolated requests, ordered results, and append-only attempt journals. Ask for CPU/
 RAM capacity—not GPU—if Lean dominates; ask for larger compute/API budget if model inference does.
+
+The completed v5.2 recovery-v5 rehearsal measured provider orchestration, especially Terra latency,
+as the dominant bottleneck; candidate Lean execution was not the limiting stage. The additive
+performance track must therefore decouple provider concurrency from the machine-wide Lean worker
+cap: use a dynamic provider work queue with immediate failure reporting while retaining exactly two
+persistent, project-grouped Lean workers and their content-addressed cache. Validate this change on
+20 roots before considering any larger gate.
 
 ## Execution gates
 
@@ -600,3 +610,26 @@ recorded budget/model decision.
   config verification, and diff checks pass with zero provider calls and zero Lean requests. The
   recovery remains unauthorized; 10K, 50K, legacy rejudging, publication, and training remain
   unauthorized.
+- 2026-09-01 — the authorized recovery-v5 generation completed all 100 certified roots and all 400
+  planned slots, producing 284 accepted core rows (126 preserving and 158 breaking). Deterministic
+  replay covered all 100 roots with zero provider calls and zero Lean requests while preserving the
+  compacted artifacts. This completed generation is durable evidence and must not be rerun merely
+  to repair or complete the downstream audit.
+- 2026-09-01 — the detached job then failed closed during the Kimi audit, after generation and
+  replay, because a binary `non_equivalent` verdict carried a non-`none` structured `error_type`.
+  No completed Kimi audit manifest exists, and the shared provider ledger retains one outstanding
+  reservation. No SFT2A process, tmux session, or resource claim is currently active. The measured
+  bottleneck was serialized provider orchestration rather than Lean. SFT2A therefore remains
+  `active`: first complete an additive, per-row-checkpointed Kimi audit repair over the existing
+  generated rows; then pass a bounded 20-root dynamic-concurrency pilot with exactly two persistent
+  Lean workers. Approximately 10K, 50K, legacy rejudging, publication, training, and any generation
+  rerun remain blocked.
+- 2026-09-01 — the coordinator performance postmortem counted 767 Terra calls with approximately
+  20,151 aggregate provider-seconds, 303 Opus calls with approximately 3,660 aggregate
+  provider-seconds, and only 165 executed candidate-Lean requests totaling approximately 44.6
+  seconds. The current path statically assigns roots to two workers, waits on futures in submission
+  order, closes/recreates the Lean oracle per root, serializes all slot attempts, and writes the
+  Kimi audit only after the full sequential loop. In contrast, the Numina runner keeps a dynamic
+  `as_completed` queue over independent provider calls and appends resumable results. The additive
+  performance pilot must adopt that scheduling pattern for provider work, checkpoint the audit per
+  row, and keep only the measured two persistent Lean workers; it must not relax semantic checks.

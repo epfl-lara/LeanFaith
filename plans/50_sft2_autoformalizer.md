@@ -2,16 +2,16 @@
 
 > **Task ID:** SFT2B
 > **Status:** waiting_user
-> **Owner/session:** Codex `/root` — 2026-09-01 additive Opus/Terra source-review contract v4
+> **Owner/session:** Codex `/root` — 2026-09-01 matched-pilot integration review
 > **Last updated:** 2026-09-01
 > **Dependencies:** REPR `goal_v1.0`; source-quality audit and frozen consistency/voting prompts
-> **Next gate:** preserve the passing one-row Opus/Terra evidence and await an explicit decision on
-> whether the remaining 991 rows may be reviewed under this model-panel contract. Before any such
-> calls, freeze an additive full-packet executor/config and its concurrency, time, token, and cost
-> ceilings. Separately ingest genuine missing matched-pilot shutdown/resource/zero-call-replay
-> receipts if they exist. Do not infer or request generation-scale authorization.
-> **Compute class:** source-freeze work is Lean/GPU-free; downstream inference uses eight
-> A100-SXM4-80GB GPUs at DP=4/TP=2
+> **Next gate:** decide and build the corrected source-v3 release, then run a stratified 200-candidate
+> persistent-Lean compilation audit over the frozen matched-pilot outputs and explicitly record
+> whether the missing historical shutdown/resource/zero-call-replay/publication receipts are waived
+> or supplied. Only after those checks may the corrected 50K-core ReForm generation be considered
+> for authorization; the tail and full Lean-plus-three-judge labeling remain separately disabled.
+> **Compute class:** source-freeze work is Lean/GPU-free; the completed matched pilot used eight
+> H100-80GB GPUs at DP=4/TP=2. Any future scale config records the actual A100/H100 host profile.
 > **Lean budget:** compile each novel formalization candidate once through persistent cached workers
 > **Local staging root:** `/scratch/milikic/data/leanfaith/value_first/sft2_autoformalizer_v1/`
 > **HF destination:** private `Lemmy00/leanfaith-sft2-autoformalizer-v1`
@@ -439,7 +439,7 @@ Compare 8B/32B (or justified alternative) on the same 500-source set. Report com
 unique candidates, positive/negative/unknown vote outcomes, domain breakdown, Lean/model
 throughput, VRAM/RAM, cost, and projected 50K-source time. Get user compute/model approval.
 
-### Matched 500-source pilot proposal — not authorized
+### Matched 500-source pilot — generation completed; scale gate closed
 
 Freeze exactly 500 source IDs only after auditing at least 100 candidates from each proposed source
 class. Target 175 Mathlib/Physlib/CSLib docstring sources, 175 audited theorem/problem rows, 100
@@ -484,6 +484,37 @@ measurement and the monetary judge-cost input must be reported before the user c
 proposal.
 
 ### Scale and publication
+
+No SFT2B model, Lean, judge, tmux, or reservation-backed job is currently running. The immutable
+matched pilot completed all 2,000 requested ReForm-32B generations on eight H100-80GB GPUs in an
+observed telemetry span of approximately 924.6 seconds. Its strict extractor admitted 1,242
+candidate signatures, of which 1,147 are globally unique. These are generation/output-contract
+facts only: the pilot ran no candidate Lean compilation, semantic judging, or label construction.
+The observed rate was approximately 2.16 requests/second. At the same eight-H100 profile, the
+200,000-request corrected core projects to approximately 25.7 hours plus startup and publication;
+core plus the current tail projects to approximately 28.1 hours. These are generation-only
+projections and must not be reported as end-to-end labeled-dataset time.
+
+The scale boundary is therefore:
+
+1. Resolve source v3 and publish a freshly verified immutable bundle. The default path completes
+   the remaining source-review contract. A faster conservative alternative may quarantine all 469
+   detected meta-instruction rows and all 293 Workbook heuristic hits, refill the deterministic
+   50K core from the surviving pool, and record that this is mechanical conservative filtering—not
+   semantic review.
+2. Compile a stratified deterministic sample of 200 of the 1,242 admitted pilot candidates with
+   persistent, project-grouped Lean workers. Record compilation rate, failure taxonomy, cache
+   replay, throughput, and memory before extrapolating downstream candidate yield.
+3. Supply the original pilot closure receipts if they genuinely exist, or record an explicit
+   coordinator waiver accepting the mechanically verified pilot while naming the unavailable
+   clean-shutdown, process-absence, resource-claim/release, zero-call-replay, explicit-quality, and
+   fresh-publication-receipt evidence. Never synthesize those historical facts.
+4. After the preceding items pass, freeze the actual eight-GPU host/config and request authorization
+   for corrected 50K-core generation only. Legacy-tail generation remains independently disabled.
+
+The full-source consumer currently scales ReForm generation, not the complete training-data loop.
+Persistent Lean validation followed by three independent judges and majority-label compaction needs
+its own bounded pilot and scale gate even if corrected-core generation is authorized first.
 
 Use source/candidate-slot journals, stable IDs, atomic shards, and deterministic compaction.
 Publish core pairs, rich votes, invalid attempts, source/NL records, and reference-free challenge as
@@ -970,3 +1001,20 @@ Do not launch 50K sources without the pilot and user compute/model approval.
   No other packet row, Lean process, generation, judge, publication, training, or scale job ran.
   The bounded local contract work is exhausted, so status moves to `waiting_user`; this is not a
   request for generation-scale authorization.
+- 2026-09-01 — coordinator integration rechecked the immutable matched-500 publication and live host
+  state. No SFT2B job or reservation is active. The completed eight-H100 generation contains all
+  2,000 requested terminals, 1,242 strict output-contract admissions, and 1,147 globally unique
+  signatures over approximately 924.6 telemetry seconds; it remains generation-only evidence.
+  Status stays `waiting_user`, not `scale_authorized`. The next gate is a source-v3 decision/build,
+  a stratified 200-candidate persistent-Lean compilation audit, and an explicit supply-or-waive
+  record for unavailable historical operational receipts. Only the corrected 50K-core generation
+  may then be considered; tail generation and full Lean-plus-three-judge labeling remain separate
+  later gates.
+- 2026-09-01 — replayed the complete SFT2B unit suite from a fresh integration worktree that does
+  not contain the repository-ignored historical trees under `data/raw/real_outputs/` and
+  `data/parsed/real_outputs/`. The result is 129 passed and four skipped. The four skips are limited
+  to exact existing-301, audited-new-source, and Numina provenance replays whose frozen local
+  prerequisites are absent; each guard checks prerequisite existence before invoking production
+  verification and does not catch hash, schema, count, or replay failures. Those same tests remain
+  executable—and must fail on drift—when the evidence is mounted. This portability boundary does
+  not weaken release verification or convert external evidence into tracked repository data.
