@@ -1346,7 +1346,7 @@ def compact_root_windows(
         "engine": runner.identity.to_dict(),
         "updated_at": utc_now(),
     }
-    write_atomic(windows_dir / "manifest.json", canonical_json_bytes(summary) + b"\n")
+    write_atomic(windows_dir / "windows_manifest.json", canonical_json_bytes(summary) + b"\n")
     return summary
 
 
