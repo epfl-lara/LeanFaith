@@ -1,0 +1,95 @@
+{
+  "schema_version": "sft2b_reform_diverse_full_sources_v3",
+  "output_subdir": "source_inputs/reform_diverse_full_v3",
+  "matched_view_rows": 50000,
+  "builder": {
+    "implementation_path": "src/leanfaith/sft2b/source_bundle_v3.py",
+    "implementation_sha256": "233b8980b12f4be8f220dff2a0c700cd25281b034c1a3924404c7553acabb8c1"
+  },
+  "v2_evidence": {
+    "hf_repository": "Lemmy00/leanfaith-sft2-autoformalizer-v1",
+    "hf_revision": "d0b961d2112d186009984242db674f2ad59905c7",
+    "remote_prefix": "source_inputs/reform_diverse_full_v2",
+    "local_bundle_path": "/storage/milikic/leanfaith/value_first/sft2_autoformalizer_v1/source_inputs/reform_diverse_full_v2",
+    "source_count": 54621,
+    "matched_count": 50000,
+    "tail_count": 4621,
+    "workbook_quarantine_count": 285,
+    "file_sha256": {
+      "SHA256SUMS": "34554e7c6f39427ce230153ba8f04e83f5b1fd0b500e1847bd8dbbd502d8c608",
+      "legacy_tail_source_ids.json": "7eecf134f734ea9275a30b03fb7c230824406a085d1394dcfbd17df2de4aba64",
+      "library_docstring_corrections.jsonl": "58322fb15182f683f38c51d7eb29f5dc093999ea8774396dafcc60394b85345d",
+      "matched_50000_source_ids.json": "49a0cee8a90e048eb7f9b1c18b7e6cb85e0bff3dbe7dfa70d8dde1865d3ae4ab",
+      "prompt_token_counts.json": "fe37ed4f52f6e885a6c8abdddd378d1ec51cebaaa4c2e58a70e648ceda674c41",
+      "semantic_alignment_audit.jsonl": "073f72b78d832e30d7f39dcbdfec2972e88d600e21694cc25f216718e5cbb968",
+      "source_audit.jsonl": "15c926ec5f54c582600cda4f0129bb1904b7ce8b191eca66c348886f901933a8",
+      "source_manifest.json": "c44b9edd3515f7e1ba03dee902c55fcfa5b8be378a732a3e7c7f101fd5250d53",
+      "sources.jsonl": "1e53fd731822d3c69e1395f934f1849257a3565517a09c38a50f7e3589a851c7",
+      "workbook_discourse_audit.jsonl": "e273c021a5782d280f391b0504f23a59ffc15b13b8a6d99141d538c7c45662a2",
+      "workbook_quarantine.jsonl": "81ec77e873fa8f87f8bd8075d73d09670e19d28e7ae764f70582af64f0c0ea1b"
+    }
+  },
+  "v2_source_config": {
+    "path": "configs/sft2b/reform_diverse_full_sources_v2.json",
+    "sha256": "9e083cf7f12818ed41bfca850015b8d2e078075f0d85b4987d5a573756881f6b"
+  },
+  "meta_instruction_filter": {
+    "implementation_path": "src/leanfaith/sft2b/meta_instruction_filter.py",
+    "implementation_sha256": "156307d0308a41aa3bd0a6cda00dc49f1d0f1f7220e6171fe6705ee3bdfdf3f1",
+    "baseline_fixture_path": "configs/sft2b/source_meta_instruction_impact_v1.json",
+    "baseline_fixture_sha256": "8dc3e66023d687405bb77e4e811a2eea4dc79b4846e534db0d1afbbfd2604c25",
+    "baseline_expected_rows": 326,
+    "baseline_expected_view_counts": {
+      "matched_core": 262,
+      "legacy_tail": 64
+    },
+    "active_fixture_path": "configs/sft2b/source_meta_instruction_impact_v2.json",
+    "active_fixture_sha256": "44566540c96adc0ab96ca6aa4a8e8ae757edcc75a863fe5524fbd48689ee50ab",
+    "active_expected_rows": 469,
+    "active_expected_view_counts": {
+      "matched_core": 394,
+      "legacy_tail": 75
+    }
+  },
+  "human_review": {
+    "contract_path": "configs/sft2b/source_review_contract_v3.json",
+    "contract_sha256": "c7cd8804198de3f62ded30a07af634985f3e6af3e1b359c6bcc145f2e715acb7",
+    "implementation_path": "src/leanfaith/sft2b/source_review_v3.py",
+    "implementation_sha256": "3a6d101e9e7b731595eea5a21b6d7bde0bc90eae0a3e8c34a06493a262c1465a",
+    "required_reviews": 992,
+    "required_workbook_hits": 293,
+    "required_deterministic_per_class": 100,
+    "allow_model_substitution": false,
+    "completed_reviews_path": null,
+    "completed_reviews_sha256": null,
+    "allowed_reviewer_identities": [],
+    "external_human_attestation_path": null,
+    "external_human_attestation_sha256": null,
+    "allowed_attestor_identities": []
+  },
+  "conservation": {
+    "implementation_path": "src/leanfaith/sft2b/source_conservation_v3.py",
+    "implementation_sha256": "1471e82d4fb7614d7da163ef1144bdad0fa2bb147f44675de4e22e6ce70b927d",
+    "v2_universe_rule": "v2_active_sources_plus_full_workbook_quarantine_v1",
+    "expected_v2_universe_count": 54906,
+    "allow_new_sources": false,
+    "allow_removed_sources": false,
+    "expected_additions": 0,
+    "expected_removals": 0,
+    "expected_dedup_displacements": 0,
+    "expected_dedup_displacement_movements": 0,
+    "core_selection_rule": "release_class_blocks_retained_v2_order_then_sorted_readmissions_v1"
+  },
+  "publication": {
+    "hf_repository": "Lemmy00/leanfaith-sft2-autoformalizer-v1",
+    "remote_prefix": "source_inputs/reform_diverse_full_v3",
+    "private": true,
+    "additive_only": true,
+    "requires_authentic_human_review_gate": true
+  },
+  "generation_gate": {
+    "request_scale_authorization": false,
+    "allow_core_generation": false,
+    "allow_tail_generation": false
+  }
+}

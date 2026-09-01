@@ -1,0 +1,22 @@
+{
+  "schema_version": "sft2b_runtime_v1",
+  "policy_version": "source_use_v2",
+  "external_transmission": true,
+  "repr_freeze_commit": "176a783842c5a73b84413dfa8347670608b615d9",
+  "repr_spec_sha256": "68d893a2c566bf3f6a82c899a32a351f9a5420f5ea98168c99b887aaa01a45a8",
+  "repr_implementation_set_sha256": "9a9252fff5ffc69cb65e71120fedffa83ed47271aecadbecf0ceb890feea65ff",
+  "repr_api_sha256": "c695ad868c98f27218e82184559d90624491df25c7805bf29861dd891787261d",
+  "lean_helper_path": "src/leanfaith/sft2b/lean_helper.lean",
+  "lean_helper_sha256": "d316c36ee6937fe279a89291cfb12b2696cc6c9183d510bd5c1fde8143233863",
+  "mathlib_project_path": "/storage/milikic/leanfaith/mathlib4",
+  "mathlib_project_revision": "d568c8c09630de097a046763c17b9ea99f95f950",
+  "lean_version": "v4.31.0-rc1",
+  "lean_workers": 1,
+  "lean_rss_gib": 4.0,
+  "lean_memory_hard_limit_mb": 24576,
+  "synchronous_elaboration": true,
+  "retry_infrastructure_failures_only": true,
+  "max_infrastructure_retries": 1,
+  "reject_model_facing_substrings": ["[anonymous]", "⋯"],
+  "staging_root": "/storage/milikic/leanfaith/value_first/sft2_autoformalizer_v1"
+}

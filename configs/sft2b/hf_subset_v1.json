@@ -1,0 +1,26 @@
+{
+  "schema_version": "sft2b_hf_subset_v1",
+  "repo_id": "Lemmy00/leanfaith-sft2-autoformalizer-v1",
+  "private": true,
+  "staging_path": "/storage/milikic/leanfaith/value_first/sft2_autoformalizer_v1/hf_subset_v1/staging_v2",
+  "publication_receipt_path": "/storage/milikic/leanfaith/value_first/sft2_autoformalizer_v1/hf_subset_v1/publication_receipt.json",
+  "accepted_runs": [
+    {
+      "name": "existing_301_smoke",
+      "root": "/storage/milikic/leanfaith/value_first/sft2_autoformalizer_v1/smokes/sft2b_run:be964d32a72bd578cf5c6ddc81844fc48b1b280ff92b79c659ffd2d38ad011eb",
+      "manifest_sha256": "d9a7668445af96210b628123390bfea658b9d31ab5438bf3e085d62a9f20e51d"
+    },
+    {
+      "name": "reform_8b_smoke",
+      "root": "/storage/milikic/leanfaith/value_first/sft2_autoformalizer_v1/smokes/sft2b_run:09db83a8b13421291dc2d8ba839686c796716345bca33be8d65abf352e8090dc",
+      "manifest_sha256": "e6a0178aaa5b629bebaff43d355c85cca6d75175d3ebb651af559b2437870a09"
+    }
+  ],
+  "workspace_paths": [
+    "plans/50_sft2_autoformalizer.md",
+    "src/leanfaith/sft2b",
+    "configs/sft2b",
+    "prompts/sft2b",
+    "tests/unit/sft2b"
+  ]
+}

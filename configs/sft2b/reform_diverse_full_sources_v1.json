@@ -1,0 +1,159 @@
+{
+  "schema_version": "sft2b_reform_diverse_full_sources_v1",
+  "policy_version": "source_use_v2",
+  "external_transmission": true,
+  "output_subdir": "source_inputs/reform_diverse_full_v1",
+  "minimum_expected_rows": 50000,
+  "matched_view_rows": 50000,
+  "selection_seed": "leanfaith.sft2b.reform_diverse_full_v1",
+  "dedup_priority": [
+    "libraries",
+    "workbook",
+    "current_numina_human",
+    "legacy_numina",
+    "current_numina_auto"
+  ],
+  "source_use_policy": {
+    "path": "policies/source_use_v2.yaml",
+    "sha256": "62a4daca09ca669aef0133cd4d0b0913e1d7795558560f3aac4b289efc75e95c"
+  },
+  "existing_301": {
+    "recipe_path": "configs/sft2b/existing_301_v1.json",
+    "recipe_sha256": "207fcf4ff0ef964b94f252449b2a4a755825476789f4a071a2de0ff942461b15",
+    "expected_candidates": 301,
+    "expected_unique_references": 50,
+    "consumed_bundle_sha256": "42c2501bc17daed82594e4be84150e3b27011204b2aff7ad56d130812d97c2dc"
+  },
+  "contamination": {
+    "golden_blocklist_path": "data/benchmarks/golden_blocklist_v1.json",
+    "golden_blocklist_sha256": "8e4af6a9e47fb06d281169cdaddb01c5c66c1b0d150f2df9c9283ecb587117f7",
+    "canonical_golden_path": "/storage/milikic/leanfaith/golden/canonical/golden_pairs_v1.jsonl",
+    "canonical_golden_sha256": "5f26c9b1b126e8bc9fe714f3c17fe68ad1d9b3aac60b19d80fdb4993ac8ed4e1",
+    "benchmark_registry_path": "configs/benchmarks/registry.yaml",
+    "benchmark_registry_sha256": "2420f3f73ae5de01e7746f19d13ccb97bf5638af3805b242cedd4623cbbf37b5",
+    "benchmark_denylist_path": "policies/benchmark_denylist_v1.yaml",
+    "benchmark_denylist_sha256": "9aa2c19471f705050aee6a2ed24c201bf690a397f241bd107618cec4b54e6d56",
+    "exclude_proofnet_family": true,
+    "exclude_shadowbench": true,
+    "proofnet_scope": [
+      "ProofNet",
+      "ProofNetVerif",
+      "ProofNetSharp",
+      "ProofNet#",
+      "all derived and mixed variants"
+    ]
+  },
+  "closed_library_census": {
+    "roots_path": "/storage/milikic/leanfaith/value_first/sft2_llm_transforms_v1/runs/rehearsal_closure_aware_v5/census/eligible_roots.jsonl",
+    "roots_sha256": "6c83617ec47ed8f87f1e76675caa1d3f95c05eece504b535fe8db4f93febcd54",
+    "manifest_path": "/storage/milikic/leanfaith/value_first/sft2_llm_transforms_v1/runs/rehearsal_closure_aware_v5/census/manifest.json",
+    "manifest_sha256": "260d59a546de1c5f75d4f570c9e22205cc2e143e30be980c6f34246063e9b027",
+    "rows": 176101,
+    "selection_rule": "all adjacent human docstrings passing strict standalone quality and frozen closed-reference checks",
+    "libraries": {
+      "mathlib": {
+        "project_path": "/storage/milikic/leanfaith/mathlib4",
+        "source_root": "/storage/milikic/leanfaith/mathlib4/Mathlib",
+        "revision": "d568c8c09630de097a046763c17b9ea99f95f950",
+        "repository_url": "https://github.com/leanprover-community/mathlib4",
+        "repository_subdir": "Mathlib",
+        "license_path": "/storage/milikic/leanfaith/mathlib4/LICENSE",
+        "license_sha256": "b40930bbcf80744c86c46a12bc9da056641d722716c378f5659b9e555ef833e1",
+        "license": "Apache-2.0"
+      },
+      "physlib": {
+        "project_path": "/storage/milikic/leanfaith/value_first/sft1_deterministic_v1/checkouts/physlib",
+        "source_root": "/storage/milikic/leanfaith/value_first/sft1_deterministic_v1/checkouts/physlib/Physlib",
+        "revision": "f5242c99d796b59a390d26cd7d1a8057e04c46b5",
+        "repository_url": "https://github.com/leanprover-community/physlib",
+        "repository_subdir": "Physlib",
+        "license_path": "/storage/milikic/leanfaith/value_first/sft1_deterministic_v1/checkouts/physlib/LICENSE",
+        "license_sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+        "license": "Apache-2.0"
+      },
+      "cslib": {
+        "project_path": "/storage/milikic/leanfaith/value_first/sft1_deterministic_v1/checkouts/cslib",
+        "source_root": "/storage/milikic/leanfaith/value_first/sft1_deterministic_v1/checkouts/cslib/Cslib",
+        "revision": "2f677bfc8ef76fa7a27feafc597c1e4a7eda3e42",
+        "repository_url": "https://github.com/leanprover/cslib",
+        "repository_subdir": "Cslib",
+        "license_path": "/storage/milikic/leanfaith/value_first/sft1_deterministic_v1/checkouts/cslib/LICENSE",
+        "license_sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+        "license": "Apache-2.0"
+      }
+    }
+  },
+  "current_numina": {
+    "dataset_id": "AI-MO/NuminaMath-LEAN",
+    "revision": "51fa67f1f647ae1ecd81eef9f19306aa8a7b3a94",
+    "readme_path": "/storage/milikic/leanfaith/value_first/sft2_autoformalizer_v1/source_catalogs/numinamath_lean_51fa67f/README.md",
+    "readme_sha256": "560d96a2a66a8aea82f6d4628073a924de08e2301e026854aceb5fad928c55a4",
+    "parquet_path": "/storage/milikic/leanfaith/value_first/sft2_autoformalizer_v1/source_catalogs/numinamath_lean_51fa67f/data/train-00000-of-00001.parquet",
+    "remote_parquet_path": "data/train-00000-of-00001.parquet",
+    "parquet_sha256": "cddeac3b98ad642b53e41b1751ceb7ab34ad22019d8e542b403de67ecf337bc9",
+    "rows": 104155,
+    "license": "Apache-2.0",
+    "project_path": "/storage/milikic/leanfaith/value_first/sft2_autoformalizer_v1/source_projects/mathlib4_v4.15.0",
+    "project_revision": "9837ca9d65d9de6fad1ef4381750ca688774e608",
+    "lean_version": "v4.15.0",
+    "lean_toolchain_sha256": "aff3a276fcd1daa6f311e07baf168d5c0c89a3ddad4cd4e8de3e2ec779504e46",
+    "selection_rule": "all standalone rows with exact statement/completed-reference agreement and simple pinned compilation context"
+  },
+  "legacy_inputs": {
+    "config_path": "configs/sft2b/reform_matched_500_sources_v1.json",
+    "config_sha256": "cfaa1d1508bc5273b795fd06e1f25d436dfda12e0903668ad1dab59c640e1558",
+    "uses": [
+      "formalmathatepfl/sft_classic_numina additional unique owner-authorized rows",
+      "internlm/Lean-Workbook proved no-goals rows"
+    ]
+  },
+  "audited_not_admitted": {
+    "ProofNet_family": "blanket benchmark exclusion, including derived and mixed variants",
+    "ShadowBench": "reference-free and test-only",
+    "iiis-lean/lean-math-formal-corpus": "benchmark aggregate containing ProofNetSharp, miniF2F, Putnam, and other held-out sources",
+    "formalmathatepfl/sft_classic": "known source-level informal/formal mismatch examples; not upgraded from compilation alone",
+    "phanerozoic declaration catalogs": "useful inventory, but not admitted without the frozen closed-proposition and exact-context join",
+    "formal-conjectures": "audited, but no accepted exact-context closed-reference join in this version",
+    "lean-docs": "code corpus without standalone intended-claim NL pairs"
+  },
+  "placement": {
+    "path": "configs/sft2b/reform_32b_placement_v1.json",
+    "sha256": "faef13dba4d21eb381e85a201fb8bda3617003bc8323c3e796006dd97caa77a5",
+    "model_id": "GuoxinChen/ReForm-32B",
+    "model_revision": "80e9d9d83998d8c118c512bd6a35d1cdf11b57c8",
+    "slots": [
+      {"slot": "slot_0", "seed": 0},
+      {"slot": "slot_1", "seed": 1},
+      {"slot": "slot_2", "seed": 2},
+      {"slot": "slot_3", "seed": 3}
+    ],
+    "max_new_tokens": 4096
+  },
+  "prompt": {
+    "path": "prompts/sft2b/reform_8b_generation_theorem_v1.md",
+    "sha256": "9aa0de0550bd871fc1cff03cf2614ed4e7e5bfa6c4371351b901d745515afe36",
+    "render_rule": "exact_utf8_replace_single_NL_placeholder_v1"
+  },
+  "tokenizer": {
+    "model_id": "GuoxinChen/ReForm-32B",
+    "revision": "80e9d9d83998d8c118c512bd6a35d1cdf11b57c8",
+    "snapshot_path": "/storage/milikic/leanfaith/value_first/sft2_autoformalizer_v1/tokenizers/reform_32b_80e9d9d83998d8c118c512bd6a35d1cdf11b57c8",
+    "primary_file": "tokenizer.json",
+    "primary_sha256": "fa572b107ab6cc0b9932cf8b6b3f4b0febbc0c693fc3afb71458e6c1d87799fb",
+    "files": {
+      "added_tokens.json": "94babb29b99edd964197b2a07d54a3596e7749fd1982e6404abcd63c878774f3",
+      "chat_template.jinja": "a55ee1b1660128b7098723e0abcd92caa0788061051c62d51cbe87d9cf1974d8",
+      "merges.txt": "8831e4f1a044471340f7c0a83d7bd71306a5b867e95fd870f74d0c5308a904d5",
+      "special_tokens_map.json": "58cb6ccfeaaea2682b796464ba372d1a2c49dc2649243c099339c367cf7f6820",
+      "tokenizer.json": "fa572b107ab6cc0b9932cf8b6b3f4b0febbc0c693fc3afb71458e6c1d87799fb",
+      "tokenizer_config.json": "4d5f13f33e6b98f6e1e1baa4fb78a585f56bd2ed07359f390b5bd1e54e31346c",
+      "vocab.json": "ca10d7e9fb3ed18575dd1e277a2579c16d108e32f27439684afa0e10b1440910"
+    }
+  },
+  "repr": {
+    "freeze_commit": "176a783842c5a73b84413dfa8347670608b615d9",
+    "spec_sha256": "68d893a2c566bf3f6a82c899a32a351f9a5420f5ea98168c99b887aaa01a45a8",
+    "implementation_set_sha256": "9a9252fff5ffc69cb65e71120fedffa83ed47271aecadbecf0ceb890feea65ff",
+    "api_sha256": "c695ad868c98f27218e82184559d90624491df25c7805bf29861dd891787261d"
+  }
+}

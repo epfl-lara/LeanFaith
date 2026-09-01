@@ -1,0 +1,68 @@
+{
+  "schema_version": "sft2b_reform_diverse_full_sources_v2",
+  "base_config": {
+    "path": "configs/sft2b/reform_diverse_full_sources_v1.json",
+    "sha256": "dc031088b567d8fa5ce6d9c388179f70205ad2d13d95f39607dbb6ea8eae83ce"
+  },
+  "output_subdir": "source_inputs/reform_diverse_full_v2",
+  "minimum_expected_rows": 50000,
+  "matched_view_rows": 50000,
+  "superseded_evidence": {
+    "status": "superseded_immutable_evidence",
+    "hf_repository": "Lemmy00/leanfaith-sft2-autoformalizer-v1",
+    "hf_revision": "88d768355b87a678be5fb37c5e677812f2614015",
+    "remote_prefix": "source_inputs/reform_diverse_full_v1",
+    "source_count": 54455,
+    "file_sha256": {
+      "SHA256SUMS": "2eb3d08ec1c37fee54847541ebdd07eb377fdc8853dcda1910cc295b0f293c5d",
+      "matched_50000_source_ids.json": "7fd9e3386207ed725f68e34e66036df57bf9f943b4c6decec3bb3590179b22b2",
+      "prompt_token_counts.json": "d7e97e5a7729733f64e74cff4d5bf4f65b1d82bd73e2a00c6bf8db8b03d65916",
+      "source_audit.jsonl": "8ab01a590767dc7a9e76b9ece2054f058c0eeb619d2ab895e5d71edf9d592722",
+      "source_manifest.json": "4f2004b3db4b0d03283e155489dc93f92a005ec5a891f1c627165a7a85813a88",
+      "sources.jsonl": "c012fe688f01e36a0a7a76ffe2e4a0b2f0090ed3d7a0919c27fab6c93b673564"
+    }
+  },
+  "library_docstring_correction": {
+    "fixture_path": "configs/sft2b/library_docstring_corruption_v1.json",
+    "fixture_sha256": "7841aa692032341a695ffc059900e69ef2c0b603f52c9b46de7c05268c992cfe",
+    "matcher": "nesting_aware_top_level_lean_block_comment_v2",
+    "model_facing_canary": "reject_literal_lean_block_comment_delimiters_v1",
+    "expected_rows": 92,
+    "expected_release_class_counts": {
+      "library_cslib": 6,
+      "library_mathlib": 54,
+      "library_physlib": 32
+    },
+    "expected_corrected_disposition": "excluded_no_adjacent_strict_docstring"
+  },
+  "workbook_discourse_audit": {
+    "heuristic_version": "workbook_solution_or_answer_discourse_v1",
+    "heuristic_rules": [
+      "case-insensitive solution/proof header",
+      "latex boxed/fbox answer marker",
+      "case-insensitive answer-is header"
+    ],
+    "retention_rule": "retain explicit prove-that claims and terminal mathematical questions unless headed as solution/proof/answer",
+    "expected_heuristic_hits": 293,
+    "expected_dispositions": {
+      "quarantine_solution_or_answer_discourse": 285,
+      "retain_explicit_claim_or_question": 8
+    }
+  },
+  "semantic_alignment_audit": {
+    "review_method": "deterministic_source_contract_and_lexical_alignment_v2",
+    "selection_seed": "leanfaith.sft2b.semantic_alignment_audit_v2",
+    "rows_per_release_class": 100,
+    "include_every_workbook_heuristic_hit": true
+  },
+  "publication": {
+    "hf_repository": "Lemmy00/leanfaith-sft2-autoformalizer-v1",
+    "private": true,
+    "remote_prefix": "source_inputs/reform_diverse_full_v2",
+    "additive_only": true
+  },
+  "generation_gate": {
+    "status": "waiting_matched_500_runtime_and_quality_report",
+    "allow_10k_50k_or_full_generation": false
+  }
+}

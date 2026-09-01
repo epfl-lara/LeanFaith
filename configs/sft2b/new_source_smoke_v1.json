@@ -1,0 +1,37 @@
+{
+  "schema_version": "sft2b_new_source_smoke_v1",
+  "selection_rule": "smallest valid proof-free signature among audited Mathlib docstring sources not present in the canonical existing-301 reference set",
+  "external_transmission": false,
+  "model_collection_scope": "local_models_only",
+  "problem_id": "gate3-docstring:13103e72d7eca477084f7be252822b164f60be13c02c3d0b803b1f1658df1f8e",
+  "reference_theorem_id": "thm:2d43a417373785a5102bec893f7df41fc4eca73317bc860ab2173b9afafe473a",
+  "declaration_full_name": "RightCancelMonoid.faithfulSMul",
+  "nl_statement": "`Monoid.toMulAction` is faithful on cancellative monoids.",
+  "reference_proposition": "∀ {α : Type u_1} [inst : RightCancelMonoid α], FaithfulSMul α α",
+  "source_context_id": "ctx:0cd06826b8767b3bc951c0eb00c802424af95785b558f9f8a61f18694a86c4ce",
+  "context_path": "configs/models/tokenizer_context_mathlib_v1.json",
+  "context_sha256": "d08d78779f9a3ea7c9c1779c982cc8359a309c94de2ea0b4c2c5a3df85ff51fc",
+  "source_url": "https://github.com/leanprover-community/mathlib4/blob/d568c8c09630de097a046763c17b9ea99f95f950/Mathlib/Algebra/Group/Action/Faithful.lean#L78-L84",
+  "source_revision": "d568c8c09630de097a046763c17b9ea99f95f950",
+  "source_path": "/storage/milikic/leanfaith/mathlib4/Mathlib/Algebra/Group/Action/Faithful.lean",
+  "source_file_sha256": "6fd694b9af0f5a4a03c4c30c4a2292ae4479c61d1629db3ff0cf57c09ea3b25c",
+  "source_range": [78, 84],
+  "source_license": "Apache-2.0",
+  "redistribution_note": "public Mathlib source at the pinned revision; private-first SFT2B release",
+  "catalogs": {
+    "problem_pool": {"path": "data/parsed/real_outputs/gate3_docstrings_operational_v1/problem_pool_records.jsonl", "sha256": "6f45ebf158fcbb23f7b9833f2c433fb335cda7e66c061c0436aab68702330c6f"},
+    "reference_representations": {"path": "data/parsed/real_outputs/gate3_docstrings_operational_v1/reference_representations.jsonl", "sha256": "c3109ebb282bda4b54a9beec062a45b9c42c94132485db394fd6aad6914b6493"},
+    "reference_theorems": {"path": "data/parsed/real_outputs/gate3_docstrings_operational_v1/reference_theorems.jsonl", "sha256": "75a4c486d88a981e39a18bfa611ed0245ee5684d9b2b4cf6a25023227a4a4cee"},
+    "record_audits": {"path": "data/parsed/real_outputs/gate3_docstrings_operational_v1/record_audits.jsonl", "sha256": "9c8e691beb63123d75550008ce84b4c9e437519d821fc3a03f153dbb2ede8d5c"}
+  },
+  "required_audit": {
+    "curation_decision": "standalone_sufficient",
+    "no_sorry_alias_check_valid": true,
+    "source_pair_present": true,
+    "all_three_registry_screens_clear": true,
+    "temporal_strictly_postdates_latest_checkpoint": true,
+    "release_eligible": true,
+    "trusted_nl": true
+  },
+  "existing_301_recipe_path": "configs/sft2b/existing_301_v1.json"
+}

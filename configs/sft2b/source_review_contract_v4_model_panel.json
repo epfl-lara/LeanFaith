@@ -1,0 +1,117 @@
+{
+  "schema_version": "sft2b_source_review_contract_v4_model_panel",
+  "alternative_to_contract": {
+    "path": "configs/sft2b/source_review_contract_v3.json",
+    "sha256": "c7cd8804198de3f62ded30a07af634985f3e6af3e1b359c6bcc145f2e715acb7"
+  },
+  "packet_dir": "/storage/milikic/leanfaith/value_first/sft2_autoformalizer_v1/source_reviews/source_review_contract_v3_pending_human",
+  "packet_files": {
+    "SHA256SUMS": {
+      "path": "SHA256SUMS",
+      "sha256": "daf66f97f641f54ed5b976f0387d4e0ff558f7dd207a2c2eb0eb9757bf8dfc80"
+    },
+    "automatic_dispositions.jsonl": {
+      "path": "automatic_dispositions.jsonl",
+      "sha256": "bf2c546af36f307ec54b805b6851fd795d22568a32a50796947c8d39bb7e54bd"
+    },
+    "review_packet.jsonl": {
+      "path": "review_packet.jsonl",
+      "sha256": "77bc24c8372c55e1698f60a5d3fd715d56fd1fb277ede7acfc577cc812c9fd6d"
+    },
+    "review_packet_manifest.json": {
+      "path": "review_packet_manifest.json",
+      "sha256": "bb3958871c2d43893dbd144dd0e57eebce959898054700798eb31a60c92a8d01"
+    }
+  },
+  "source_use_policy": {
+    "path": "policies/source_use_v2.yaml",
+    "sha256": "62a4daca09ca669aef0133cd4d0b0913e1d7795558560f3aac4b289efc75e95c"
+  },
+  "implementation": {
+    "path": "src/leanfaith/sft2b/source_review_v4.py",
+    "sha256": "1c05607138896c385867795e99add457bd541b1a35d03f7bc73fcdfd92e00101"
+  },
+  "output_schema": {
+    "path": "configs/sft2b/source_review_output_schema_v4.json",
+    "sha256": "c7fa9a66caf52cd0b97562aa14f078e8f3317ee6e410391eecfe429418401e31"
+  },
+  "panel": {
+    "review_kind": "independent_model_panel",
+    "method": "blinded_source_alignment_panel_v1",
+    "reviewers": ["opus", "terra"],
+    "required_packet_rows": 992,
+    "required_reviews_per_row": 2,
+    "required_request_count": 1984,
+    "minimum_decisive_confidence": 0.8,
+    "automatic_dispositions_are_not_reviews": true,
+    "human_review_performed": false,
+    "blinded_to_peer_review": true,
+    "blinded_to_expected_disposition": true,
+    "blinded_to_automatic_disposition": true,
+    "blinded_to_selection_reason": true,
+    "blinded_to_current_membership": true
+  },
+  "providers": [
+    {
+      "reviewer_slot": "opus",
+      "reviewer_kind": "model",
+      "provider": "anthropic_claude_cli",
+      "binary_path": "/localhome/milikic/.local/share/claude/versions/2.1.251",
+      "binary_sha256": "fd5f10ff0eb58daec04900466b143ea98aab50abf208a422bc008eaec13f61f7",
+      "cli_version": "2.1.251 (Claude Code)",
+      "model_family": "Opus 5",
+      "requested_model_id": "opus",
+      "effort": "high",
+      "server_revision_status": "unavailable_floating_provider_alias",
+      "prompt": {
+        "path": "prompts/sft2b/source_review_v4_opus.md",
+        "sha256": "8c537319c017ebe87ebe9062e2962f27920e633d18f4bcfcc54cf85eca648c89"
+      },
+      "timeout_seconds": 600,
+      "maximum_call_cost_usd": 2.0
+    },
+    {
+      "reviewer_slot": "terra",
+      "reviewer_kind": "model",
+      "provider": "openai_codex_exec",
+      "binary_path": "/localhome/milikic/.codex/packages/standalone/releases/0.149.1-x86_64-unknown-linux-musl/bin/codex",
+      "binary_sha256": "73dc5888888f411c1f0fa7b81d866e721dcc86b527ce8e3b2cf4708661e823ba",
+      "cli_version": "codex-cli 0.149.1",
+      "model_family": "GPT-5.6 Terra",
+      "requested_model_id": "gpt-5.6-terra",
+      "effort": "high",
+      "server_revision_status": "unavailable_floating_provider_alias",
+      "prompt": {
+        "path": "prompts/sft2b/source_review_v4_terra.md",
+        "sha256": "cb8d40b72903117a5b8360874f27a03c58d3379cde0fedf67202db129d1a1255"
+      },
+      "timeout_seconds": 600,
+      "maximum_call_cost_usd": null
+    }
+  ],
+  "external_review_authorization": {
+    "authorized_by": "repository_owner",
+    "authorized_at_utc": "2026-09-01T00:00:00Z",
+    "authorization_basis": "explicit_thread_instruction_2026-09-01",
+    "exact_packet_sha256": "77bc24c8372c55e1698f60a5d3fd715d56fd1fb277ede7acfc577cc812c9fd6d",
+    "exact_smoke_packet_entry_id": "sft2b_review_packet:f1fbb98fa666e7e46187d31463fb649d1f7565c1db500cb2c51f62cd8b82631c",
+    "external_model_processing": true,
+    "public_provenance_required": true,
+    "private_source_transmission_authorized": false
+  },
+  "smoke": {
+    "authorized_rows_per_invocation": 1,
+    "authorized_provider_calls_per_invocation": 2,
+    "packet_entry_id": "sft2b_review_packet:f1fbb98fa666e7e46187d31463fb649d1f7565c1db500cb2c51f62cd8b82631c",
+    "source_id": "sft2b_source:003b590c635e6fdd69761066fdd52ae8def4a6b1f8093a3288486543810e432f",
+    "remaining_packet_rows_authorized": false,
+    "bundle_build_authorized": false,
+    "bundle_publication_authorized": false,
+    "generation_authorized": false,
+    "lean_authorized": false,
+    "judging_authorized": false,
+    "training_authorized": false
+  },
+  "cache_root": "/storage/milikic/leanfaith/value_first/sft2_autoformalizer_v1/source_reviews/model_panel_v4_cache",
+  "output_root": "/storage/milikic/leanfaith/value_first/sft2_autoformalizer_v1/source_reviews/source_review_contract_v4_model_panel_smoke"
+}

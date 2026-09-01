@@ -1,0 +1,74 @@
+{
+  "schema_version": "sft2b_source_review_contract_v3",
+  "source_bundle_revision": "d0b961d2112d186009984242db674f2ad59905c7",
+  "source_bundle_prefix": "source_inputs/reform_diverse_full_v2",
+  "source_bundle_path": "/storage/milikic/leanfaith/value_first/sft2_autoformalizer_v1/source_inputs/reform_diverse_full_v2",
+  "source_files": {
+    "deterministic_review_selection": {
+      "path": "semantic_alignment_audit.jsonl",
+      "sha256": "073f72b78d832e30d7f39dcbdfec2972e88d600e21694cc25f216718e5cbb968"
+    },
+    "source_audit": {
+      "path": "source_audit.jsonl",
+      "sha256": "15c926ec5f54c582600cda4f0129bb1904b7ce8b191eca66c348886f901933a8"
+    },
+    "source_manifest": {
+      "path": "source_manifest.json",
+      "sha256": "c44b9edd3515f7e1ba03dee902c55fcfa5b8be378a732a3e7c7f101fd5250d53"
+    },
+    "sources": {
+      "path": "sources.jsonl",
+      "sha256": "1e53fd731822d3c69e1395f934f1849257a3565517a09c38a50f7e3589a851c7"
+    },
+    "workbook_dispositions": {
+      "path": "workbook_discourse_audit.jsonl",
+      "sha256": "e273c021a5782d280f391b0504f23a59ffc15b13b8a6d99141d538c7c45662a2"
+    },
+    "workbook_quarantine": {
+      "path": "workbook_quarantine.jsonl",
+      "sha256": "81ec77e873fa8f87f8bd8075d73d09670e19d28e7ae764f70582af64f0c0ea1b"
+    }
+  },
+  "selection": {
+    "workbook_hit_count": 293,
+    "deterministic_rows_per_release_class": 100,
+    "release_classes": [
+      "lean_workbook",
+      "library_cslib",
+      "library_mathlib",
+      "library_physlib",
+      "numina_current_auto",
+      "numina_current_human",
+      "numina_legacy_owner"
+    ],
+    "deterministic_sample_count": 700,
+    "required_unique_source_count": 992,
+    "expected_overlap_count": 1,
+    "expected_overlap_source_ids": [
+      "sft2b_source:bdcf13d0bd56e3d0faed4d91cc4056029368bc65112c1bc974879050840724ee"
+    ]
+  },
+  "human_review": {
+    "reviewer_kind": "human",
+    "method": "manual_row_level_source_alignment_v1",
+    "reviewed_fields": [
+      "nl_statement",
+      "reference_proposition",
+      "reference_theorem_id",
+      "reference_declaration_name",
+      "headless_signature",
+      "problem_identity",
+      "compile_context",
+      "provenance"
+    ],
+    "personal_review_attestation_required": true,
+    "final_verdict_required": true,
+    "external_reviews_sha256_pin_required": true,
+    "external_reviewer_identity_allowlist_required": true,
+    "external_human_attestation_pin_required": true
+  },
+  "instructions": {
+    "path": "prompts/sft2b/source_review_v3_human.md",
+    "sha256": "68f5b21a4fb587ee1e1d24914a7b21371f8eefdc87deb46b4b07ef394e99b9b9"
+  }
+}

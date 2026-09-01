@@ -1,0 +1,78 @@
+{
+  "schema_version": "sft2b_reform_32b_vllm_v1",
+  "status": "bounded_probe_authorized",
+  "placement_config_path": "configs/sft2b/reform_32b_placement_v1.json",
+  "placement_config_sha256": "faef13dba4d21eb381e85a201fb8bda3617003bc8323c3e796006dd97caa77a5",
+  "model_id": "GuoxinChen/ReForm-32B",
+  "model_revision": "80e9d9d83998d8c118c512bd6a35d1cdf11b57c8",
+  "snapshot_binding_sha256": "8dfcd12699d8a3730d1776dc6969e96ebe678d29ccaa43754e0deea3cd90773a",
+  "checkpoint_dtype": "bfloat16",
+  "quantization": null,
+  "trust_remote_code": false,
+  "served_model_name": "reform-32b-80e9d9d83998",
+  "provider": "local_vllm_openai",
+  "api_route": "/v1/completions",
+  "request_timeout_seconds": 900,
+  "telemetry_interval_seconds": 0.5,
+  "portable_release": {
+    "repo_id": "Lemmy00/leanfaith-sft2-autoformalizer-v1",
+    "revision": "878b3cab22883c732f05a5c30a9119d143e62489",
+    "release_id": "sft2b_hf_subset:c90f9650dd0a247ac54db8b48ce3bb5c6db41b59caa5e664fe31213935c37983",
+    "release_manifest_path": "release/release_manifest.json",
+    "release_manifest_sha256": "418d7cbad60dc1783ce1b68b91111876a7155d20f4fdae811068223d0011cef0",
+    "smoke_sources_path": "data/reform_8b_smoke/sources.jsonl",
+    "smoke_sources_sha256": "344c2127c5849e961e9cab39d257efb989a94c663fceac5696ecdc451b1dbbc6",
+    "probe_sources_path": "data/views/sources.jsonl",
+    "probe_sources_sha256": "2424fb1be169e0e6d3d754eedf195968716f1159da6c4ad00e5bea922ae1fbb1"
+  },
+  "source_prompt_tokens": {
+    "sft2b_source:1b67fee76e696f00fcb429eb5878471e56c912f7646dcef0bea074d55056fc4a": 221,
+    "sft2b_source:a9cffe4759d498be3268f1e163c0ba210096aa4681967ae3eb8bd57f94481eb4": 216
+  },
+  "profiles": {
+    "smoke_dp1_tp2": {
+      "profile_id": "sft2b_reform_32b_smoke_dp1_tp2_v1",
+      "visible_devices": [0, 1],
+      "data_parallel_size": 1,
+      "tensor_parallel_size": 2,
+      "port": 8101,
+      "max_model_len": 4312,
+      "max_num_seqs": 1,
+      "gpu_memory_utilization": 0.9,
+      "prefix_caching": false,
+      "concurrency": 1,
+      "source_ids": [
+        "sft2b_source:a9cffe4759d498be3268f1e163c0ba210096aa4681967ae3eb8bd57f94481eb4"
+      ],
+      "slots": ["slot_0"]
+    },
+    "probe_dp4_tp2_c8": {
+      "profile_id": "sft2b_reform_32b_probe_dp4_tp2_c8_v1",
+      "visible_devices": [0, 1, 2, 3, 4, 5, 6, 7],
+      "data_parallel_size": 4,
+      "tensor_parallel_size": 2,
+      "port": 8102,
+      "max_model_len": 4317,
+      "max_num_seqs": 16,
+      "gpu_memory_utilization": 0.9,
+      "prefix_caching": false,
+      "concurrency": 8,
+      "source_ids": [
+        "sft2b_source:1b67fee76e696f00fcb429eb5878471e56c912f7646dcef0bea074d55056fc4a",
+        "sft2b_source:a9cffe4759d498be3268f1e163c0ba210096aa4681967ae3eb8bd57f94481eb4"
+      ],
+      "slots": ["slot_0", "slot_1", "slot_2", "slot_3"]
+    }
+  },
+  "launch": {
+    "host": "127.0.0.1",
+    "load_format": "safetensors",
+    "safetensors_load_strategy": "eager",
+    "distributed_executor_backend": "mp",
+    "data_parallel_backend": "mp",
+    "enable_request_id_headers": true,
+    "disable_uvicorn_access_log": true
+  },
+  "staging_root": "/scratch/milikic/data/leanfaith/value_first/sft2_autoformalizer_v1",
+  "owner_session": "Codex /root SFT2B 8xA100 vLLM"
+}
