@@ -125,7 +125,11 @@ class MatchedPilotLeanAuditConfig(StrictModel):
 
 
 class ReferenceElaborationInput(StrictModel):
-    method: Literal["source_signature_pp", "frozen_reference_constant_type"]
+    method: Literal[
+        "source_signature_pp",
+        "frozen_reference_signature_explicit",
+        "frozen_reference_constant_type",
+    ]
     carrier: Annotated[str, Field(min_length=1)]
     raw_statement: Annotated[str, Field(min_length=1)]
 
@@ -138,7 +142,11 @@ class SourceAuditTerminal(StrictModel):
     source_class: str
     source_context_id: str
     render_compile_context_id: str
-    reference_elaboration_method: Literal["source_signature_pp", "frozen_reference_constant_type"]
+    reference_elaboration_method: Literal[
+        "source_signature_pp",
+        "frozen_reference_signature_explicit",
+        "frozen_reference_constant_type",
+    ]
     reference_elaboration_sha256: Sha256
     candidate_ids: tuple[StableId, ...]
     reference: EndpointCacheRecord
@@ -503,6 +511,7 @@ def _reference_elaboration_inputs(
             row = rows[source.reference_theorem_id]
             theorem = constant_rows[source.reference_theorem_id]
             compact = row.get("signature_pp")
+            explicit = row.get("signature_explicit")
             if compact != source.reference_proposition:
                 raise MatchedPilotLeanAuditError(
                     f"compact Mathlib reference drifted for {source.source_id}"
@@ -537,18 +546,26 @@ def _reference_elaboration_inputs(
                 raise MatchedPilotLeanAuditError(
                     f"raw Mathlib reference is missing for {source.source_id}"
                 )
-            # Apply the same proof-free constructor guard used by execution to
-            # the source-facing compact proposition.  The carrier itself is a
-            # qualified constant name and is not parsed as proposition text.
+            if not isinstance(explicit, str) or not explicit.strip():
+                raise MatchedPilotLeanAuditError(
+                    f"explicit Mathlib reference is missing for {source.source_id}"
+                )
+            # Prefer the cross-bound explicit term only when it has no
+            # proof-elision marker. Otherwise load the live named constant.
+            use_explicit = "⋯" not in explicit
             PropositionEndpoint(
                 endpoint_id="reference",
                 endpoint_role="reference",
-                proposition=source.reference_proposition,
+                proposition=explicit if use_explicit else source.reference_proposition,
                 source_id=source.source_id,
             )
             item = ReferenceElaborationInput(
-                method="frozen_reference_constant_type",
-                carrier=full_name,
+                method=(
+                    "frozen_reference_signature_explicit"
+                    if use_explicit
+                    else "frozen_reference_constant_type"
+                ),
+                carrier=explicit if use_explicit else full_name,
                 raw_statement=raw_statement,
             )
         else:
@@ -736,12 +753,15 @@ def prepare_preflight(
 
 
 def _endpoints(
-    source: SourceRecord, candidates: Sequence[CandidateRecord]
+    source: SourceRecord,
+    candidates: Sequence[CandidateRecord],
+    *,
+    reference_proposition: str | None = None,
 ) -> tuple[PropositionEndpoint, ...]:
     reference = PropositionEndpoint(
         endpoint_id="reference",
         endpoint_role="reference",
-        proposition=source.reference_proposition,
+        proposition=reference_proposition or source.reference_proposition,
         source_id=source.source_id,
     )
     candidate_endpoints = tuple(
@@ -1076,7 +1096,12 @@ def _execute_source(
     run_id: str,
     run_root: Path,
 ) -> tuple[SourceAuditTerminal | None, int]:
-    endpoints = _endpoints(source, candidates)
+    reference_proposition = (
+        reference_input.carrier
+        if reference_input.method == "frozen_reference_signature_explicit"
+        else source.reference_proposition
+    )
+    endpoints = _endpoints(source, candidates, reference_proposition=reference_proposition)
     reference_constant_name = (
         reference_input.carrier
         if reference_input.method == "frozen_reference_constant_type"

@@ -257,7 +257,7 @@ def test_reference_inputs_require_family_specific_frozen_catalogs(tmp_path: Path
                 "representation": {
                     "theorem_id": cross.reference_theorem_id,
                     "signature_pp": "True",
-                    "signature_explicit": "@True",
+                    "signature_explicit": "⋯",
                     "raw_proof_stripped": "theorem Cross.test : True := by trivial",
                 },
                 "theorem": {
@@ -308,8 +308,8 @@ def test_reference_inputs_require_family_specific_frozen_catalogs(tmp_path: Path
     )
 
     assert observed[algebra.source_id] == audit.ReferenceElaborationInput(
-        method="frozen_reference_constant_type",
-        carrier="Namespace.test",
+        method="frozen_reference_signature_explicit",
+        carrier="(True)",
         raw_statement="theorem test : True := by trivial",
     )
     assert observed[cross.source_id] == audit.ReferenceElaborationInput(
