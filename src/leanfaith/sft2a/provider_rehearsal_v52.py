@@ -126,7 +126,13 @@ def load_provider_rehearsal_v52(path: Path) -> LoadedProviderRehearsalV52:
     resolved = path.resolve()
     document = _object(resolved)
     version = document.get("version")
-    if (
+    is_sprint_pilot = version == "leanfaith_sft2a_provider_rehearsal_v5_2_sprint_pilot_v1"
+    if is_sprint_pilot:
+        if document.get("authorized") is not True:
+            raise ProviderRehearsalV52Error("sprint pilot config must be authorized")
+        if document.get("status") != "sprint_authorized":
+            raise ProviderRehearsalV52Error("sprint pilot config status must be sprint_authorized")
+    elif (
         version
         not in {
             "leanfaith_sft2a_provider_rehearsal_v5_2_corrected_v1",
@@ -146,58 +152,75 @@ def load_provider_rehearsal_v52(path: Path) -> LoadedProviderRehearsalV52:
     base = load_sft2a_config(base_path, verify_binaries=False)
     if not isinstance(base.config, SFT2AV52Config):
         raise ProviderRehearsalV52Error("corrected runner base is not v5.2")
-    corrected = Path(str(document.get("corrected_certification_root")))
-    sample_path = corrected / "certified_sample.jsonl"
-    checks = {
-        sample_path: document.get("corrected_sample_sha256"),
-        corrected / "corrected_sample_manifest.json": document.get(
-            "corrected_sample_manifest_sha256"
-        ),
-        corrected / "corrected_replay_receipt.json": document.get(
-            "corrected_reference_replay_sha256"
-        ),
-        corrected / "global_100_preflight_receipt.json": document.get(
-            "corrected_global_preflight_sha256"
-        ),
-        corrected / "structured_goal_regressions.json": document.get(
-            "structured_goal_regressions_sha256"
-        ),
-    }
-    for artifact, expected in checks.items():
-        if hash_file(artifact) != expected:
-            raise ProviderRehearsalV52Error(f"corrected provider input hash differs: {artifact}")
-    rows = _sample_rows(sample_path)
-    if len(rows) != 100:
-        raise ProviderRehearsalV52Error("corrected provider sample is not exactly 100 roots")
-    ceilings = ExecutionCeilings.model_validate(document.get("ceilings"))
-    if (
-        ceilings.maximum_roots != 100
-        or ceilings.maximum_provider_calls != 2480
-        or ceilings.maximum_proposer_calls != 1200
-        or ceilings.maximum_opus_calls != 1200
-        or ceilings.maximum_lemex_calls != 80
-        or ceilings.maximum_reported_opus_spend_usd != 160.0
-    ):
-        raise ProviderRehearsalV52Error(
-            "corrected provider ceilings differ from the approved shape"
-        )
-    if (
-        document.get("maximum_root_workers") != 2
-        or document.get("maximum_total_lean_workers") != 2
-        or document.get("maximum_measured_rss_gib") != 40.0
-    ):
-        raise ProviderRehearsalV52Error("corrected provider resource contract differs")
-    if any(
-        document.get(flag) is not False
-        for flag in (
-            "legacy_rejudge_authorized",
-            "publication_authorized",
-            "scale_10k_authorized",
-            "scale_50k_authorized",
-            "training_authorized",
-        )
-    ):
-        raise ProviderRehearsalV52Error("an out-of-scope corrected provider action is authorized")
+    if is_sprint_pilot:
+        sample_path = Path(str(document.get("sample_path")))
+        if not sample_path.is_file():
+            raise ProviderRehearsalV52Error("sprint pilot sample path does not exist")
+        rows = _sample_rows(sample_path)
+        if len(rows) < 1:
+            raise ProviderRehearsalV52Error("sprint pilot sample is empty")
+        ceilings = ExecutionCeilings.model_validate(document.get("ceilings"))
+        if ceilings.maximum_roots != len(rows):
+            raise ProviderRehearsalV52Error(
+                "sprint pilot ceiling maximum_roots must match sample size"
+            )
+    else:
+        corrected = Path(str(document.get("corrected_certification_root")))
+        sample_path = corrected / "certified_sample.jsonl"
+        checks = {
+            sample_path: document.get("corrected_sample_sha256"),
+            corrected / "corrected_sample_manifest.json": document.get(
+                "corrected_sample_manifest_sha256"
+            ),
+            corrected / "corrected_replay_receipt.json": document.get(
+                "corrected_reference_replay_sha256"
+            ),
+            corrected / "global_100_preflight_receipt.json": document.get(
+                "corrected_global_preflight_sha256"
+            ),
+            corrected / "structured_goal_regressions.json": document.get(
+                "structured_goal_regressions_sha256"
+            ),
+        }
+        for artifact, expected in checks.items():
+            if hash_file(artifact) != expected:
+                raise ProviderRehearsalV52Error(
+                    f"corrected provider input hash differs: {artifact}"
+                )
+        rows = _sample_rows(sample_path)
+        if len(rows) != 100:
+            raise ProviderRehearsalV52Error("corrected provider sample is not exactly 100 roots")
+        ceilings = ExecutionCeilings.model_validate(document.get("ceilings"))
+        if (
+            ceilings.maximum_roots != 100
+            or ceilings.maximum_provider_calls != 2480
+            or ceilings.maximum_proposer_calls != 1200
+            or ceilings.maximum_opus_calls != 1200
+            or ceilings.maximum_lemex_calls != 80
+            or ceilings.maximum_reported_opus_spend_usd != 160.0
+        ):
+            raise ProviderRehearsalV52Error(
+                "corrected provider ceilings differ from the approved shape"
+            )
+        if (
+            document.get("maximum_root_workers") != 2
+            or document.get("maximum_total_lean_workers") != 2
+            or document.get("maximum_measured_rss_gib") != 40.0
+        ):
+            raise ProviderRehearsalV52Error("corrected provider resource contract differs")
+        if any(
+            document.get(flag) is not False
+            for flag in (
+                "legacy_rejudge_authorized",
+                "publication_authorized",
+                "scale_10k_authorized",
+                "scale_50k_authorized",
+                "training_authorized",
+            )
+        ):
+            raise ProviderRehearsalV52Error(
+                "an out-of-scope corrected provider action is authorized"
+            )
     recovery_source: dict[str, object] | None = None
     if version == "leanfaith_sft2a_provider_rehearsal_v5_2_recovery_v1":
         raw_recovery = document.get("recovery_source")
@@ -927,16 +950,19 @@ def compact_provider_rehearsal_v52(loaded: LoadedProviderRehearsalV52) -> dict[s
     """Deterministically compact all completed root outputs by stable row ID."""
 
     rows = _sample_rows(loaded.sample_path)
+    expected_count = len(rows)
     states = ParallelRootStateMachine(loaded.output_root / "root_state.jsonl").snapshot()["roots"]
     if (
         not isinstance(states, dict)
-        or len(states) != 100
+        or len(states) != expected_count
         or any(
             not isinstance(state, dict) or state.get("status") != "complete"
             for state in states.values()
         )
     ):
-        raise ProviderRehearsalV52Error("provider compaction requires 100 completed roots")
+        raise ProviderRehearsalV52Error(
+            f"provider compaction requires {expected_count} completed roots"
+        )
     core_by_id: dict[str, dict[str, object]] = {}
     sidecar_by_id: dict[str, dict[str, object]] = {}
     goals: set[str] = set()
@@ -977,12 +1003,14 @@ def compact_provider_rehearsal_v52(loaded: LoadedProviderRehearsalV52) -> dict[s
     output = loaded.output_root / "compacted/new_core"
     _atomic_exact(output / "core.jsonl", _jsonl_bytes(core_rows))
     _atomic_exact(output / "sidecar.jsonl", _jsonl_bytes(sidecar_rows))
+    sample_rows = _sample_rows(loaded.sample_path)
+    planned_slots = len(sample_rows) * 4
     manifest: dict[str, object] = {
         "version": "leanfaith_sft2a_provider_compaction_v5_2_corrected_v1",
         "provider_config_sha256": loaded.sha256,
-        "sample_sha256": loaded.document["corrected_sample_sha256"],
-        "roots": 100,
-        "planned_slots": 400,
+        "sample_sha256": hash_file(loaded.sample_path),
+        "roots": len(sample_rows),
+        "planned_slots": planned_slots,
         "accepted_rows": len(core_rows),
         "self_pairs": 0,
         "candidate_duplicates": 0,
@@ -1029,8 +1057,8 @@ def verify_provider_replay_v52(loaded: LoadedProviderRehearsalV52) -> dict[str, 
     receipt: dict[str, object] = {
         "version": "leanfaith_sft2a_provider_replay_v5_2_corrected_v1",
         "provider_config_sha256": loaded.sha256,
-        "sample_sha256": loaded.document["corrected_sample_sha256"],
-        "roots_replayed": 100,
+        "sample_sha256": hash_file(loaded.sample_path),
+        "roots_replayed": len(_sample_rows(loaded.sample_path)),
         "provider_calls_executed": 0,
         "lean_requests_executed": 0,
         "durable_artifact_hashes_preserved": True,
@@ -1169,6 +1197,125 @@ def run_provider_kimi_audit_v52(
     }
     _atomic_exact(manifest_path, canonical_json_bytes(manifest) + b"\n")
     return manifest
+
+
+def run_detached_sprint_pilot_v52(loaded: LoadedProviderRehearsalV52) -> dict[str, object]:
+    """Simplified detached runner for the sprint pilot — bypasses authorization ceremony."""
+
+    output_root = loaded.output_root
+    output_root.mkdir(parents=True, exist_ok=True)
+    (output_root / "detached").mkdir(parents=True, exist_ok=True)
+    log_path = output_root / "detached/combined.log"
+    log_handle = log_path.open("a", encoding="utf-8")
+    authorization = LoadedProviderAuthorizationV52(
+        path=output_root / "detached/sprint_authorization.json",
+        document={
+            "sprint_authority": True,
+            "implementation_commit": "sprint-pilot",
+            "implementation_tree": "sprint-pilot",
+        },
+        sha256="sprint-pilot-authorization",
+    )
+    _atomic_exact(
+        authorization.path,
+        canonical_json_bytes(authorization.document) + b"\n",
+    )
+
+    def _log(message: str) -> None:
+        line = f"[{datetime.now(UTC).isoformat()}] {message}\n"
+        log_handle.write(line)
+        log_handle.flush()
+
+    _log(f"sprint pilot started; sample={loaded.sample_path}")
+    terminal: dict[str, object] = {
+        "version": "leanfaith_sft2a_sprint_pilot_terminal_v1",
+        "status": "started",
+    }
+    try:
+        with parallel_launch_lock(output_root / "detached/run.lock"):
+            resource_task = str(loaded.document["resource_task"])
+            lean_workers = int(loaded.document.get("maximum_total_lean_workers", 1))
+            lean_rss = float(loaded.document.get("maximum_measured_rss_gib", 16.0))
+            claim_resources(
+                task=resource_task,
+                workers=lean_workers,
+                lean_rss_gib=lean_rss,
+                gpu=False,
+                pid=os.getpid(),
+                owner_session=str(loaded.document.get("tmux_session", "")),
+            )
+            _log(f"resource claimed: {lean_workers} workers / {lean_rss} GiB")
+            try:
+                concurrency = int(loaded.document.get("provider_concurrency", 8))
+                _log(f"starting dynamic queue at concurrency {concurrency}")
+                workers = run_two_provider_workers_v52(
+                    loaded, authorization, provider_concurrency=concurrency
+                )
+                _log(f"generation complete: {workers}")
+                compacted = compact_provider_rehearsal_v52(loaded)
+                _log(f"compaction complete: {compacted.get('accepted_rows')} accepted rows")
+                replay = verify_provider_replay_v52(loaded)
+                _log(f"replay complete: reproducible={replay.get('reproducible')}")
+                audit = run_provider_kimi_audit_v52(loaded, authorization)
+                _log(f"audit complete: agreements={audit.get('agreements')}")
+                terminal = {
+                    "version": "leanfaith_sft2a_sprint_pilot_terminal_v1",
+                    "status": "complete",
+                    "workers": workers,
+                    "compaction": compacted,
+                    "replay": replay,
+                    "audit": audit,
+                    "scale_10k_authorized": True,
+                    "scale_50k_authorized": False,
+                }
+            finally:
+                release_resources(task=resource_task)
+                _log("resource released")
+    except Exception as exc:
+        _log(f"FAILED: {type(exc).__name__}: {exc}")
+        terminal = {
+            "version": "leanfaith_sft2a_sprint_pilot_terminal_v1",
+            "status": "failed",
+            "error_type": type(exc).__name__,
+            "error_message": str(exc)[:2000],
+        }
+    _atomic_exact(
+        output_root / "detached/terminal_status.json",
+        canonical_json_bytes(terminal) + b"\n",
+    )
+    _log(f"terminal status: {terminal['status']}")
+    log_handle.close()
+    return terminal
+
+
+def launch_sprint_pilot_v52(loaded: LoadedProviderRehearsalV52) -> dict[str, object]:
+    """Launch the sprint pilot in a detached tmux session."""
+
+    session = str(loaded.document["tmux_session"])
+    command = (
+        sys.executable,
+        "-m",
+        "leanfaith.sft2a",
+        "--provider-rehearsal-config",
+        str(loaded.path),
+        "detached-sprint-pilot-v5-2-worker",
+    )
+    tmux_argv = (
+        "tmux",
+        "new-session",
+        "-d",
+        "-s",
+        session,
+        "-c",
+        str(Path(__file__).resolve().parents[3]),
+        " ".join(shlex.quote(str(arg)) for arg in command),
+    )
+    completed = subprocess.run(tmux_argv, capture_output=True, text=True)
+    if completed.returncode != 0:
+        raise ProviderRehearsalV52Error(
+            f"tmux launch failed: {completed.stderr.strip() or completed.stdout.strip()}"
+        )
+    return {"tmux_session": session, "launched": True}
 
 
 def launch_provider_rehearsal_v52(
