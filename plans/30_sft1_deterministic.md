@@ -1321,3 +1321,8 @@ work. End with the exact user decision needed.
   and removes that unsafe redundant call. The general Wave 1 implementation must instead open its
   telescope to fvars before any definitional-equality comparison. No rows were emitted, the raw
   failure is retained, and a passing thin smoke still cannot certify Wave 1 readiness.
+- 2026-09-01 — after the loose-bvar repair, frozen REPR correctly rejected the original
+  `Nat.lor_comm` root because its `|||` notation is an unsupported compound bar operator. This is a
+  root-eligibility failure, not a renderer bug and not permission to weaken REPR. The smoke replaces
+  only that positive root with the exact source-pinned `PNat.gcd_comm`, whose final equality uses no
+  unsupported surface notation; the operation, row count, and all authorization limits are unchanged.

@@ -19,9 +19,9 @@ implementation:
   wave1_path: LeanFaith/Meta/SFT1/Wave1.lean
   wave1_sha256: 7d4c27e1fd631cc1ba2f8de7cacec1eca618280c12c8ac351d9544a06e94ba4d
   helper_path: LeanFaith/Meta/SFT1/ThinSmoke.lean
-  helper_sha256: c40dd6db8f3a29c850443bf2bbf21fa5e66805ff917ac34148b1934e1149ff3e
+  helper_sha256: 51a0d3820f51219292d7ad90ad6780191ca1bb10faef86f8eacf967421facc54
   runner_path: src/leanfaith/sft1/thin_smoke.py
-  runner_sha256: 4454ccb3537f5e80163dda9753beeb5045eaed4c1b3c744a1af8e4e441216d0e
+  runner_sha256: c424c3b8b10fcc7b8cf42f1e379539b5766501ddad1a0f625d170e922a554531
   import_strip_policy: remove_lines_whose_first_token_is_import_v1
 project:
   project_id: mathlib
@@ -38,10 +38,10 @@ project:
   lean_rss_claim_gib: 24
 positive:
   root_kind: imported_mathlib_theorem
-  root_name: Nat.lor_comm
-  root_id_basis: [mathlib, d568c8c09630de097a046763c17b9ea99f95f950, Nat.lor_comm]
-  source_path: Mathlib/Data/Nat/Bitwise.lean
-  source_file_sha256: 370fca0d9640cf428f7acb11a001801e47fdcb1073510ee4b3f8b4f60911d207
+  root_name: PNat.gcd_comm
+  root_id_basis: [mathlib, d568c8c09630de097a046763c17b9ea99f95f950, PNat.gcd_comm]
+  source_path: Mathlib/Data/PNat/Prime.lean
+  source_file_sha256: e3ce400f6118d533f6e9bc7bdd05cb42aa74e8f02c955d7156cdde7ab0e6c981
   operation_id: P18_SYMMETRIZE_EQUALITY_V1
   label: true
 negative:

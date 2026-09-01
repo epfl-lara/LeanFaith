@@ -183,10 +183,10 @@ class ThinSmokeConfig(StrictModel):
     def _exact_pairs(self) -> ThinSmokeConfig:
         if (
             self.positive.root_kind != "imported_mathlib_theorem"
-            or self.positive.root_name != "Nat.lor_comm"
+            or self.positive.root_name != "PNat.gcd_comm"
             or self.positive.operation_id != "P18_SYMMETRIZE_EQUALITY_V1"
             or self.positive.label is not True
-            or self.positive.source_path != "Mathlib/Data/Nat/Bitwise.lean"
+            or self.positive.source_path != "Mathlib/Data/PNat/Prime.lean"
             or self.positive.source_file_sha256 is None
             or any(
                 value is not None
@@ -348,8 +348,8 @@ def build_inputs(config: ThinSmokeConfig) -> tuple[ClosedExprInput, ...]:
             source_material=ClosedExprSourceMaterial(
                 kind="raw_statement",
                 raw_statement=(
-                    "theorem Nat.lor_comm (n m : ℕ) : n ||| m = m ||| n := "  # noqa: RUF001
-                    "Nat.bitwise_comm Bool.or_comm n m"
+                    "theorem PNat.gcd_comm {m n : ℕ+} : m.gcd n = n.gcd m := by "  # noqa: RUF001
+                    "apply eq; simp only [gcd_coe]; apply Nat.gcd_comm"
                 ),
             ),
         ),
@@ -360,7 +360,7 @@ def build_inputs(config: ThinSmokeConfig) -> tuple[ClosedExprInput, ...]:
             source_material=ClosedExprSourceMaterial(
                 kind="constructed_expr_no_source_text",
                 absence_reason=(
-                    "P18 candidate constructed by the thin task-local engine from Nat.lor_comm"
+                    "P18 candidate constructed by the thin task-local engine from PNat.gcd_comm"
                 ),
             ),
         ),
@@ -434,7 +434,7 @@ def _validate_typed_evidence(name: str, spec: PairSpec, value: object) -> dict[s
     if name == "positive":
         if (
             value.get("selected_site") != "outer_target"
-            or value.get("source_theorem") != "Nat.lor_comm"
+            or value.get("source_theorem") != "PNat.gcd_comm"
             or value.get("reference_proof") != "loaded_mathlib_theorem"
             or value.get("equivalence_proof") != "kernel_checked"
             or not str(value.get("equivalence_proof_expr_hash_u64", "")).isdigit()

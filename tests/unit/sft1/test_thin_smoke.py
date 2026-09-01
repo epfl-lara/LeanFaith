@@ -42,7 +42,7 @@ def test_strict_config_binds_exact_two_row_authorization_and_sources() -> None:
             "publication_allowed",
         )
     )
-    assert config.positive.root_name == "Nat.lor_comm"
+    assert config.positive.root_name == "PNat.gcd_comm"
     assert config.positive.operation_id == "P18_SYMMETRIZE_EQUALITY_V1"
     assert config.negative.reference_proposition == ("∀ (n : Nat) (hn : n = 0), n + 1 = 1")
     assert config.negative.operation_id == "N31_DROP_REQUIRED_GUARD_RUBRIC_V1"

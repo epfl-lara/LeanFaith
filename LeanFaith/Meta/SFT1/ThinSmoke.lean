@@ -103,7 +103,7 @@ private partial def symmetrizeFinalEq? : Expr → Option FinalEqRewrite
 
 private def applyP18 (source : Expr) : MetaM (Expr × P18Certificate) := do
   let some rewrite := symmetrizeFinalEq? source
-    | throwError "thin smoke: Nat.lor_comm has no unique final equality target"
+    | throwError "thin smoke: PNat.gcd_comm has no unique final equality target"
   -- `left` and `right` may contain loose bvars from the closed outer telescope;
   -- asking `isDefEq` about them outside that telescope can panic. The exact
   -- smoke transform already rejects structurally equivalent operands while
@@ -122,14 +122,14 @@ private def replayP18
 
 def buildPositive : MetaM PositiveResult := do
   let env ← getEnv
-  let some info := env.find? ``Nat.lor_comm
-    | throwError "thin smoke: Mathlib theorem Nat.lor_comm not found"
+  let some info := env.find? ``PNat.gcd_comm
+    | throwError "thin smoke: Mathlib theorem PNat.gcd_comm not found"
   let theoremInfo ←
     match info with
     | .thmInfo value => pure value
-    | _ => throwError "thin smoke: Nat.lor_comm is not a theorem"
-  let reference ← checkedClosedProp "Nat.lor_comm type" theoremInfo.type
-  let referenceProof ← checkedProof "Nat.lor_comm proof" theoremInfo.value reference
+    | _ => throwError "thin smoke: PNat.gcd_comm is not a theorem"
+  let reference ← checkedClosedProp "PNat.gcd_comm type" theoremInfo.type
+  let referenceProof ← checkedProof "PNat.gcd_comm proof" theoremInfo.value reference
   let (candidate, certificate) ← applyP18 reference
   unless ← replayP18 reference candidate certificate do
     throwError "thin smoke: P18 certificate replay failed"
@@ -137,10 +137,10 @@ def buildPositive : MetaM PositiveResult := do
   let equivalenceProof ← elaborateProof "P18 equivalence proof"
     (← `(by
       constructor
-      · intro h n m
-        exact (h n m).symm
-      · intro h n m
-        exact (h n m).symm)) equivalenceGoal
+      · intro h m n
+        exact (h (m := m) (n := n)).symm
+      · intro h m n
+        exact (h (m := m) (n := n)).symm)) equivalenceGoal
   return {
     reference
     candidate
@@ -250,7 +250,7 @@ def emitEvidence (positive : PositiveResult) (negative : NegativeResult) : MetaM
     ("schema_version", toJson 1),
     ("positive", Json.mkObj [
       ("operation_id", Json.str "P18_SYMMETRIZE_EQUALITY_V1"),
-      ("source_theorem", Json.str "Nat.lor_comm"),
+      ("source_theorem", Json.str "PNat.gcd_comm"),
       ("selected_site", Json.str "outer_target"),
       ("certificate", Json.mkObj [
         ("kind", Json.str "p18"),
