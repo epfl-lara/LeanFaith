@@ -1484,3 +1484,16 @@ resource use, output paths, and exact remaining ETA. Do not run training.
   read-only status: `uv run python -m leanfaith.sft1.sprint.runner status --run-id tenk`; attach:
   `tmux attach -t leanfaith-sft1-sprint-tenk`. Stop conditions: a potentially wrong core label,
   a non-resumable failure, throughput below the ETA window, or loss of the shared Lean allocation.
+- 2026-09-01 — while the 10K run proceeds, added the release tooling at commits `519a66c`…`21d9acc`:
+  `gate10k` (ancestry-grouped 1,000-pair shards, 100% proof-check verification, duplicate/conflict
+  rejection, candidate-only/reference-only/mechanism-held-out shortcut screens with stratified
+  cluster-bootstrap upper bounds, full-wave completion projection), `compact-windows` (root-order
+  windows that become independently publishable shards only when every root in the window has
+  all seven terminals, with cross-window duplicate suppression), and `publish` (additive private
+  Hub commits with fresh-download hash verification and receipts). The publisher was exercised on
+  the 100-root gate evidence: `Lemmy00/leanfaith-sft1-deterministic-v1` (private) revision
+  `4fe06d22eeb5fc02340f9d58a110936b992222c6`, prefix `sprint_v1/roots100/` (147 rows, gate
+  evidence only, not a release). Pre-rendered texts are now surface-validated with the frozen REPR
+  canonicalizer before the render request (commit `fba4298`), so the full wave avoids the
+  batch-atomic render failures and the false `render_reference_text_mismatch` rejections observed
+  in the live 10K job, which still runs the earlier code.
