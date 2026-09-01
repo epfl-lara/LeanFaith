@@ -673,3 +673,10 @@ rows/minute, and pilot quality bounds hold. Leave healthy long runs detached wit
   not an active dependency. The task now fixes F5--F9, completes the cached Kimi audit, runs one
   20-root performance/resume pilot, and automatically proceeds to ten 1K-root shards on the stated
   thresholds. No provider or Lean call was made by this plan update.
+- 2026-09-01 — Kilo session created the `milikic/sft2a-72h-sprint` worktree from local-main
+  `5de43eb` and cherry-picked only the F5/strict-judge code+test checkpoint (`fd5e76e` ->
+  `9dc463f`). F5 persists schema-invalid provider output as an immutable terminal and routes the
+  proposer/closure-judge/v1-judge paths to retry/unknown instead of crashing. F6 rejects binary
+  verdicts with `confidence=low`. All 58 SFT2A tests pass; Ruff and strict Mypy clean. The stale
+  `42cd0d6` brief archival checkpoint (`c7f6178`) was intentionally not cherry-picked. Began the
+  cohesive F7--F9 + Kimi-audit-resume + 20-root-pilot track on this worktree.
