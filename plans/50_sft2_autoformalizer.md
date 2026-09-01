@@ -1,15 +1,15 @@
 # SFT2B — autoformalization consistency data
 
 > **Task ID:** SFT2B
-> **Status:** active
+> **Status:** waiting_user
 > **Owner/session:** Codex `/root` — 2026-09-01 additive Opus/Terra source-review contract v4
 > **Last updated:** 2026-09-01
 > **Dependencies:** REPR `goal_v1.0`; source-quality audit and frozen consistency/voting prompts
-> **Next gate:** implement and verify the additive blinded Opus/Terra model-panel contract, then run
-> exactly one packet row through both reviewers, strict parsing, consensus/unknown routing, durable
-> evidence, and zero-call restart. Report that evidence before authorizing the remaining 991 rows.
-> Separately ingest genuine missing matched-pilot shutdown/resource/zero-call-replay receipts if they
-> exist. Do not request scale authorization.
+> **Next gate:** preserve the passing one-row Opus/Terra evidence and await an explicit decision on
+> whether the remaining 991 rows may be reviewed under this model-panel contract. Before any such
+> calls, freeze an additive full-packet executor/config and its concurrency, time, token, and cost
+> ceilings. Separately ingest genuine missing matched-pilot shutdown/resource/zero-call-replay
+> receipts if they exist. Do not infer or request generation-scale authorization.
 > **Compute class:** source-freeze work is Lean/GPU-free; downstream inference uses eight
 > A100-SXM4-80GB GPUs at DP=4/TP=2
 > **Lean budget:** compile each novel formalization candidate once through persistent cached workers
@@ -951,3 +951,22 @@ Do not launch 50K sources without the pilot and user compute/model approval.
   by removing `uniqueItems`; the Pydantic parser still requires unique sorted issue classes. The
   runner exposes only one Terra cell and explicitly records zero Opus recalls. Twelve focused v4
   and retry tests, Ruff, and strict mypy pass. No retry provider call has run at this boundary.
+- 2026-09-01 — the single corrected Terra request succeeded in 8.71 seconds with 12,345 input,
+  290 output, and 196 reasoning-output tokens; the provider did not report dollar cost or a resolved
+  immutable model revision. It independently returned
+  `quarantine_solution_or_proof_fragment` at confidence 0.96. Combined with the frozen Opus review,
+  the deterministic panel result is unanimous `consensus_quarantine`, final disposition
+  `quarantine_solution_or_proof_fragment`, outcome ID
+  `sft2b_model_panel_outcome:008acf60c7f73009a1089b74b0abd43bf7d50a945bd7d8b5c7f4f587396cb746`.
+  Retry run ID is
+  `sft2b_terra_retry1_run:b16e5bfab444f38214f4ac41afcb1813864fa5e812bff875a0c5650b0b9ff375`;
+  manifest SHA-256 is `c0d8ea456897bd588972c37565ae24b61cd1fc651549808b788481b97446e5a1`,
+  checksum-ledger SHA-256 is
+  `93a51a6d66e65198520e6f151262c8bfe930daee2fc01ee17bb2782be1e32a7d`, and journal SHA-256 is
+  `f022396655d217bdd8e7bf10771bfa4bf31f6da004839f0273b0573f98e0bc19`. The retry used one
+  Terra call and zero Opus calls; its restart used one cache hit, zero provider calls, reproduced
+  the identical manifest, and left zero ambiguous requests. Full artifact verification passes.
+  The complete SFT2B unit suite passes 133/133; focused Ruff/format checks and strict mypy pass.
+  No other packet row, Lean process, generation, judge, publication, training, or scale job ran.
+  The bounded local contract work is exhausted, so status moves to `waiting_user`; this is not a
+  request for generation-scale authorization.
