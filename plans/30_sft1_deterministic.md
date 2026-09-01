@@ -1497,3 +1497,14 @@ resource use, output paths, and exact remaining ETA. Do not run training.
   canonicalizer before the render request (commit `fba4298`), so the full wave avoids the
   batch-atomic render failures and the false `render_reference_text_mismatch` rejections observed
   in the live 10K job, which still runs the earlier code.
+- 2026-09-01 — the first `tenk` process exited at 23:25:59Z with an uncaught `GoalV1Error`
+  (`unsupported or unterminated single-quoted target syntax`) after 3,430 roots and 4,695 retained
+  pairs (1,936 s wall, 1,356 Lean requests). Cause: root names were passed to the render request
+  as Lean name literals, and the frozen route's literal masker treats a pair of primed names
+  (`foo'`, `bar'`) in one body as an unterminated character literal. No label evidence was
+  affected; the journal and retained records are intact. Fix at commit `bccfde4`: names now travel
+  as Lean string literals parsed by the engine's `parseName`, and any render-route error becomes a
+  per-pair `rejected:render_failed:route:…` terminal. Fixtures re-passed 14/14
+  (`fixtures-ff8f7dfaa3d4`). The resumable job was relaunched in the same tmux session
+  `leanfaith-sft1-sprint-tenk` at 23:28:56Z (pane PID 2491224); completed terminals are skipped
+  from the journal, so the restart repeats no finished Lean work.
