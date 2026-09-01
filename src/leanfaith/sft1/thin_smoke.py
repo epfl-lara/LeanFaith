@@ -324,8 +324,11 @@ def _strip_imports(path: Path) -> str:
 
 
 def build_compile_context(repo_root: Path, config: ThinSmokeConfig) -> CompileContext:
-    preamble = _strip_imports(repo_root / config.implementation.wave1_path)
-    preamble += _strip_imports(repo_root / config.implementation.helper_path)
+    # The frozen Wave 1 source remains hash-bound as the design provenance for
+    # P18, but it was never live-compiled and contains unrelated, unadmitted
+    # mechanisms.  The bounded smoke injects only its reviewed task-local P18
+    # implementation and exact N31 canary.
+    preamble = _strip_imports(repo_root / config.implementation.helper_path)
     return CompileContext(
         project_id=config.project.project_id,
         project_revision=config.project.project_revision,
@@ -356,7 +359,9 @@ def build_inputs(config: ThinSmokeConfig) -> tuple[ClosedExprInput, ...]:
             expr_origin="sft1_transformed_expr",
             source_material=ClosedExprSourceMaterial(
                 kind="constructed_expr_no_source_text",
-                absence_reason="P18 candidate constructed by frozen Wave1 from Nat.lor_comm",
+                absence_reason=(
+                    "P18 candidate constructed by the thin task-local engine from Nat.lor_comm"
+                ),
             ),
         ),
         ClosedExprInput(
@@ -431,6 +436,8 @@ def _validate_typed_evidence(name: str, spec: PairSpec, value: object) -> dict[s
             value.get("selected_site") != "outer_target"
             or value.get("source_theorem") != "Nat.lor_comm"
             or value.get("reference_proof") != "loaded_mathlib_theorem"
+            or value.get("equivalence_proof") != "kernel_checked"
+            or not str(value.get("equivalence_proof_expr_hash_u64", "")).isdigit()
             or certificate != {"kind": "p18", "target_site": "outer_target"}
         ):
             raise ThinSmokeError("invalid P18 proof/certificate evidence")
@@ -963,6 +970,8 @@ def run_thin_smoke(
             "gpu": False,
         },
         "resource_released": False,
+        "thin_task_local_p18": True,
+        "wave1_engine_live_evidence": False,
         "general_n31_bank_activated": False,
         "production_or_scale_authorized": False,
     }
@@ -1017,6 +1026,8 @@ def replay_thin_smoke(repo_root: Path, *, config_path: Path | None = None) -> in
         or manifest.get("lean_request_count") != 1
         or manifest.get("cache_replay_lean_request_count") != 0
         or manifest.get("cache_replay_hits") != 2
+        or manifest.get("thin_task_local_p18") is not True
+        or manifest.get("wave1_engine_live_evidence") is not False
         or manifest.get("general_n31_bank_activated") is not False
         or manifest.get("production_or_scale_authorized") is not False
         or manifest.get("resource_claim") != {"lean_workers": 1, "lean_rss_gib": 24, "gpu": False}

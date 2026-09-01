@@ -1,21 +1,17 @@
 # SFT1 — deterministic theorem-equivalence data at scale
 
 > **Task ID:** SFT1
-> **Status:** blocked
-> **Owner/session:** Codex `/root` — 2026-08-31 SFT1 two-row thin-smoke session
-> **Last updated:** 2026-08-31
+> **Status:** active
+> **Owner/session:** Codex `/root` — 2026-09-01 coordinator integration and thin-smoke repair
+> **Last updated:** 2026-09-01
 > **Active policy:** additive, smoke-only implementation from accepted commit
 > `fc8cdc2c6d9d93e99e20933a17dbcfa2afc2be48`. Produce exactly one real Mathlib preserving pair
 > and one hand-written closed N31 breaking canary, serialize both, and replay both. All frozen
 > revisions, receipts, hashes, and the complete 46-operation registry remain immutable.
-> **Approval recorded:** on 2026-08-31 the user authorized only a Lean-free correction adding the
-> explicit fail-closed blocker
-> `p01_identity_exception_composition_dedup_runtime_binding_and_replay`. The earlier policy-level
-> identity blocker remains cleared, but the new blocker remains open until the real runtime binds
-> and exactly replays the approved exception, caps, and duplicate/conflict rules. This does not
-> authorize Lean, transformation or gate execution, model-facing rows, production admission,
-> Wave 2, 10K, scale, training, publication, or push. P01 implementation readiness, overall
-> implementation readiness, and gate execution remain false.
+> **Approval recorded:** the user subsequently authorized exactly the additive two-row local smoke
+> described below: one real Mathlib preserving pair and one exact closed N31 breaking canary, plus
+> cache replay. This does not authorize P01, a general N31 bank, Wave 1 gate execution,
+> model-facing training rows, production admission, Wave 2, 10K, scale, training, or publication.
 > **Dependencies:** approved REPR freeze `176a783842c5a73b84413dfa8347670608b615d9`
 > and authoritative SFT1 receipt
 > `f62b68ebc946469952bdd34674c127e2bd1146b0a8febbe5d199fea54a081e78`
@@ -29,13 +25,14 @@
 > fail-closed without blocking it.
 > **REPR predecessor:** `cbc933c3623d81ba649a1f9c5107ad404389d69f` was reviewed but is
 > superseded and not consumable by SFT1
-> **Next gate:** resume the already committed two-row command only after the existing shared
-> 2-worker/40-GiB reservation releases. Stop after exactly two local smoke rows and their live/cached
-> replay evidence. No census, Wave 1 gate, additional root, production row, 10K run, scale,
-> training, or publication is authorized.
-> **Compute class:** one bounded persistent Mathlib Meta worker is authorized for the thin smoke but
-> could not be claimed before the two-hour stop; the completed representation gate used one bounded
-> persistent project/toolchain Meta worker at a time
+> **Next gate:** commit the narrow live-syntax repair and rerun exactly the same two-row smoke. The
+> first live attempt failed closed before row emission because the previously uncompiled Wave 1
+> source contained invalid Option-do/reserved-identifier syntax and the helper used an unavailable
+> `UInt64.toString` projection. Stop after live and zero-call replay evidence.
+> A passing rerun is plumbing/certificate evidence for the two exact examples only; it is explicitly
+> not live evidence for the frozen Wave 1 engine or implementation-readiness.
+> **Compute class:** one bounded persistent Mathlib Meta worker; the first live attempt used one
+> request, emitted no rows, released its reservation, and exposed the static-review gap above
 > **Lean budget:** one claimed persistent Mathlib worker, `Elab.async=false`, two rows total, no
 > per-row process spawn, and release the claim after live and cache replay
 > **Local staging root:** `/storage/milikic/leanfaith/value_first/sft1_deterministic_v1/`
@@ -1304,3 +1301,12 @@ work. End with the exact user decision needed.
   run had completed 51/100 roots. SFT1 made zero Lean requests, created no staging/evidence path,
   emitted zero rows, and took no reservation. Status is `blocked` only on release of that external
   capacity; the smallest resume is the already committed one-command smoke, with no redesign.
+- 2026-09-01 — the coordinator rechecked the shared ledger, found no active reservation, and ran
+  the exact authorized two-row command. The single live request failed closed before row or
+  sidecar emission. It exposed four previously uncompiled defects in the injected Wave 1 source:
+  Option-valued helpers used bind syntax outside `do`, `local` and `matches` were parsed as reserved
+  tokens, and the thin helper projected unavailable `UInt64.toString`. Only one raw failure record
+  was persisted; no evidence directory or training artifact was created, and the SFT1 reservation
+  was released. The corrective path now injects only a narrow task-local P18 implementation plus
+  the exact N31 canary, keeps the frozen Wave 1 source hash as design provenance, converts proof
+  hashes to `Nat`, and remains bounded to the same two rows and replay.

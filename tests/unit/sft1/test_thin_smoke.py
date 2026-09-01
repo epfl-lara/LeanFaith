@@ -86,8 +86,9 @@ def test_one_meta_request_contains_exactly_four_unrolled_endpoints() -> None:
     assert body.startswith("run_meta do\n")
     assert body.count("run_meta do") == 1
     assert body.count("LeanFaith.GoalV1.emitClosedProp") == 4
-    assert "LeanFaith.SFT1.Wave1.discover" in context.command_preamble
-    assert "LeanFaith.SFT1.Wave1.replayCertificate" in context.command_preamble
+    assert "private def applyP18" in context.command_preamble
+    assert "private def replayP18" in context.command_preamble
+    assert "namespace LeanFaith.SFT1.Wave1" not in context.command_preamble
     assert "Term.elabTerm" not in body
     assert not re.search(
         r"\b(?:theorem|lemma|axiom|opaque|example)\b|:=\s*by\b|\bsorry\b|addDecl",
@@ -107,6 +108,14 @@ def test_negative_helper_is_exact_canary_not_a_general_bank() -> None:
     assert "N31TargetBank" not in source
     assert "admittedN31BankIdentities" not in source
     assert "mkSorry" not in source and "sorryAx" not in source
+
+
+def test_positive_helper_kernel_checks_the_p18_equivalence() -> None:
+    source = (ROOT / "LeanFaith/Meta/SFT1/ThinSmoke.lean").read_text(encoding="utf-8")
+    assert "P18 equivalence proof" in source
+    assert 'equivalence_proof", Json.str "kernel_checked"' in source
+    assert "applyP18 source" in source
+    assert "replayP18 reference candidate certificate" in source
 
 
 def test_new_non_test_implementation_stays_under_two_thousand_lines() -> None:
@@ -145,6 +154,8 @@ def test_live_evidence_and_cache_replay_when_present() -> None:
     assert manifest["lean_request_count"] == 1
     assert manifest["cache_replay_lean_request_count"] == 0
     assert manifest["cache_replay_hits"] == 2
+    assert manifest["thin_task_local_p18"] is True
+    assert manifest["wave1_engine_live_evidence"] is False
     assert manifest["resource_released"] is True
     assert replay_thin_smoke(ROOT) == 2
 

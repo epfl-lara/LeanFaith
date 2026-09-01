@@ -2,8 +2,8 @@
 Two-row SFT1 smoke helper.
 
 This file is injected without its import command into one Mathlib Meta
-request.  It reuses the frozen Wave1 engine for P18 and implements only the
-exact hand-written N31 canary authorized for this smoke.  It declares no
+request.  It implements only the exact P18 equality-symmetry transform and
+the exact hand-written N31 canary authorized for this smoke.  It declares no
 endpoint theorem or axiom and never renders or re-elaborates a candidate.
 -/
 import Mathlib
@@ -64,14 +64,63 @@ private def elaborateProof (origin : String) (stx : Syntax) (expected : Expr) : 
     instantiateMVars proof
   checkedProof origin proof expected
 
+structure P18Certificate where
+  targetSite : String
+  deriving BEq, Inhabited, Repr
+
 structure PositiveResult where
   reference : Expr
   candidate : Expr
-  certificate : LeanFaith.SFT1.Wave1.Certificate
-  referenceProofHash : UInt64
+  certificate : P18Certificate
+  referenceProofHash : Nat
+  equivalenceProofHash : Nat
+
+private structure FinalEqRewrite where
+  candidate : Expr
+  left : Expr
+  right : Expr
+
+private partial def symmetrizeFinalEq? : Expr → Option FinalEqRewrite
+  | .mdata data body =>
+      match symmetrizeFinalEq? body with
+      | some result => some { result with candidate := .mdata data result.candidate }
+      | none => none
+  | .forallE name domain body binderInfo =>
+      match symmetrizeFinalEq? body with
+      | some result =>
+          some { result with candidate := .forallE name domain result.candidate binderInfo }
+      | none => none
+  | .app (.app (.app (.const name levels) type) left) right =>
+      if name == ``Eq && !Expr.eqv left right then
+        some {
+          candidate := .app (.app (.app (.const name levels) type) right) left
+          left
+          right
+        }
+      else
+        none
+  | _ => none
+
+private def applyP18 (source : Expr) : MetaM (Expr × P18Certificate) := do
+  let some rewrite := symmetrizeFinalEq? source
+    | throwError "thin smoke: Nat.lor_comm has no unique final equality target"
+  if ← withoutModifyingMCtx <| isDefEq rewrite.left rewrite.right then
+    throwError "thin smoke: P18 equality operands are definitionally equal"
+  let candidate ← checkedClosedProp "P18 candidate" rewrite.candidate
+  if Expr.equal source candidate then
+    throwError "thin smoke: P18 candidate did not change"
+  return (candidate, { targetSite := "outer_target" })
+
+private def replayP18
+    (source candidate : Expr) (certificate : P18Certificate) : MetaM Bool := do
+  if certificate.targetSite != "outer_target" then
+    return false
+  let (expected, expectedCertificate) ← applyP18 source
+  return Expr.equal expected candidate && expectedCertificate == certificate
 
 def buildPositive : MetaM PositiveResult := do
-  let some info := (← getEnv).find? ``Nat.lor_comm
+  let env ← getEnv
+  let some info := env.find? ``Nat.lor_comm
     | throwError "thin smoke: Mathlib theorem Nat.lor_comm not found"
   let theoremInfo ←
     match info with
@@ -79,33 +128,23 @@ def buildPositive : MetaM PositiveResult := do
     | _ => throwError "thin smoke: Nat.lor_comm is not a theorem"
   let reference ← checkedClosedProp "Nat.lor_comm type" theoremInfo.type
   let referenceProof ← checkedProof "Nat.lor_comm proof" theoremInfo.value reference
-  let context : LeanFaith.SFT1.Wave1.DispatchContext := {}
-  let discovered ← LeanFaith.SFT1.Wave1.discover
-    .p18SymmetrizeEquality context reference
-  unless discovered.size == 1 do
-    throwError m!"thin smoke: expected one P18 site, found {discovered.size}"
-  let selected := discovered[0]!
-  let applied ← LeanFaith.SFT1.Wave1.dispatchAt
-    selected.operation selected.selector context reference
-  let applied ←
-    match applied with
-    | .applicable value => pure value
-    | .typedNotApplicable _ => throwError "thin smoke: discovered P18 site did not reapply"
-  unless Expr.equal applied.candidate selected.candidate &&
-      applied.certificate == selected.certificate do
-    throwError "thin smoke: P18 discovery/application mismatch"
-  match applied.certificate with
-  | .p18 _ => pure ()
-  | _ => throwError "thin smoke: P18 returned the wrong certificate class"
-  let replay ← LeanFaith.SFT1.Wave1.replayCertificate
-    context reference applied.candidate applied.certificate
-  unless replay.passed do
+  let (candidate, certificate) ← applyP18 reference
+  unless ← replayP18 reference candidate certificate do
     throwError "thin smoke: P18 certificate replay failed"
+  let equivalenceGoal := mkApp2 (mkConst ``Iff) reference candidate
+  let equivalenceProof ← elaborateProof "P18 equivalence proof"
+    (← `(by
+      constructor
+      · intro h n m
+        exact (h n m).symm
+      · intro h n m
+        exact (h n m).symm)) equivalenceGoal
   return {
     reference
-    candidate := applied.candidate
-    certificate := applied.certificate
-    referenceProofHash := hash referenceProof
+    candidate
+    certificate
+    referenceProofHash := (hash referenceProof).toNat
+    equivalenceProofHash := (hash equivalenceProof).toNat
   }
 
 structure N31CanaryCertificate where
@@ -121,9 +160,9 @@ structure NegativeResult where
   reference : Expr
   candidate : Expr
   certificate : N31CanaryCertificate
-  referenceProofHash : UInt64
-  candidateRefutationHash : UInt64
-  witnessRefutationHash : UInt64
+  referenceProofHash : Nat
+  candidateRefutationHash : Nat
+  witnessRefutationHash : Nat
 
 private def discoverN31Canary (source : Expr) : MetaM N31CanaryCertificate := do
   let source ← checkedClosedProp "N31 canary source" source
@@ -199,9 +238,9 @@ def buildNegative : MetaM NegativeResult := do
     reference
     candidate
     certificate
-    referenceProofHash := hash referenceProof
-    candidateRefutationHash := hash candidateRefutation
-    witnessRefutationHash := hash witnessRefutation
+    referenceProofHash := (hash referenceProof).toNat
+    candidateRefutationHash := (hash candidateRefutation).toNat
+    witnessRefutationHash := (hash witnessRefutation).toNat
   }
 
 def emitEvidence (positive : PositiveResult) (negative : NegativeResult) : MetaM Unit := do
@@ -213,12 +252,14 @@ def emitEvidence (positive : PositiveResult) (negative : NegativeResult) : MetaM
       ("selected_site", Json.str "outer_target"),
       ("certificate", Json.mkObj [
         ("kind", Json.str "p18"),
-        ("target_site", Json.str "outer_target")
+        ("target_site", Json.str positive.certificate.targetSite)
       ]),
       ("certificate_replay", Json.bool true),
       ("candidate_elaboration", Json.str "valid_closed_prop"),
       ("reference_proof", Json.str "loaded_mathlib_theorem"),
-      ("reference_proof_expr_hash_u64", Json.str positive.referenceProofHash.toString)
+      ("reference_proof_expr_hash_u64", Json.str positive.referenceProofHash.toString),
+      ("equivalence_proof", Json.str "kernel_checked"),
+      ("equivalence_proof_expr_hash_u64", Json.str positive.equivalenceProofHash.toString)
     ]),
     ("negative", Json.mkObj [
       ("operation_id", Json.str "N31_DROP_REQUIRED_GUARD_RUBRIC_V1"),
