@@ -253,7 +253,7 @@ def test_reference_only_source_uses_probe_but_emits_no_candidate_terminal(
             render_scope_id=render_scope_id,
         )
 
-    monkeypatch.setattr(audit, "render_propositions_tolerant", fake_render)
+    monkeypatch.setattr(audit, "_render_propositions_isolated", fake_render)
     terminal, request_count = audit._execute_source(
         backend=capturing,
         source=source,
@@ -271,6 +271,17 @@ def test_reference_only_source_uses_probe_but_emits_no_candidate_terminal(
     assert terminal.reference.status.value == "valid"
     assert terminal.candidate_ids == ()
     assert terminal.candidates == ()
+
+
+def test_isolated_tolerant_body_rolls_back_diagnostics_and_rethrows_interrupts() -> None:
+    source, _ = _source()
+    endpoints = audit._endpoints(source, ())
+    body = audit._build_isolated_tolerant_session_body(endpoints, render_scope_id="scope:test")
+    assert "Lean.Core.resetMessageLog" in body
+    assert "Lean.Elab.Term.restoreState saved" in body
+    assert "Lean.Core.setMessageLog" in body
+    assert "if ex.isInterrupt || ex.isRuntime then" in body
+    assert "throw ex" in body
 
 
 def test_terminal_rejects_candidate_order_mismatch() -> None:

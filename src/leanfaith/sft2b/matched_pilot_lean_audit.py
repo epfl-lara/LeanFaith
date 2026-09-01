@@ -26,7 +26,14 @@ from leanfaith.config.models import StrictModel
 from leanfaith.host_resources import claim_resources, release_resources
 from leanfaith.lean.leaninteract_backend import METHOD_VERSION
 from leanfaith.lean.protocol import LeanBackend, LeanRequest, LeanResult, LeanStatus
-from leanfaith.representations.goal_v1 import CompileContext
+from leanfaith.representations.goal_v1 import (
+    ClosedExprBatchResult,
+    ClosedExprFailure,
+    ClosedExprInput,
+    ClosedExprSourceMaterial,
+    CompileContext,
+    render_closed_expr_in_session,
+)
 from leanfaith.sft2b.durable import AppendOnlyJournal, immutable_write, write_json, write_jsonl
 from leanfaith.sft2b.full_source_consumer import (
     FullSourceConsumerError,
@@ -35,9 +42,12 @@ from leanfaith.sft2b.full_source_consumer import (
 )
 from leanfaith.sft2b.lean import (
     PropositionEndpoint,
+    _failure_sentinel_expr_hash,
+    _failure_sentinel_nat,
+    _lean_name_list,
+    _level_names,
     endpoint_cache_key,
     make_mathlib_backend,
-    render_propositions_tolerant,
 )
 from leanfaith.sft2b.pins import RuntimePins, verify_runtime_pins
 from leanfaith.sft2b.schemas import (
@@ -511,6 +521,130 @@ def _endpoints(
     )
 
 
+def _build_isolated_tolerant_session_body(
+    endpoints: Sequence[PropositionEndpoint], *, render_scope_id: str
+) -> str:
+    """Build a tolerant action whose rejected diagnostics cannot escape.
+
+    ``TermElabM`` state and its message log are committed only for a clean
+    candidate.  Deterministic candidate exceptions become sentinels, while
+    interrupts and runtime failures are restored and rethrown for the Python
+    infrastructure retry policy.
+    """
+
+    if len(endpoints) < 2 or endpoints[0].endpoint_role != "reference":
+        raise ValueError("isolated tolerant session requires reference followed by candidates")
+    if any(item.endpoint_role != "candidate" for item in endpoints[1:]):
+        raise ValueError("isolated tolerant session has a non-candidate after the reference")
+    reference = endpoints[0]
+    reference_source = json.dumps(reference.proposition, ensure_ascii=False)
+    lines = [
+        "run_meta do",
+        "  let endpoint0 ← LeanFaith.SFT2B.Helper.elaborateProposition "
+        f'"reference:reference" {reference_source} '
+        f"{_lean_name_list(_level_names(reference.proposition))}",
+    ]
+    for index, endpoint in enumerate(endpoints[1:], start=1):
+        source_literal = json.dumps(endpoint.proposition, ensure_ascii=False)
+        origin_literal = json.dumps(f"candidate:{endpoint.endpoint_id}")
+        sentinel = _failure_sentinel_nat(endpoint.endpoint_id)
+        lines.extend(
+            (
+                f"  let endpoint{index}? ← Lean.Elab.Term.TermElabM.run' do",
+                "    let saved ← Lean.Elab.Term.saveState",
+                "    Lean.Core.resetMessageLog",
+                "    try",
+                "      let value ← LeanFaith.SFT2B.Helper.elaborateProposition "
+                f"{origin_literal} {source_literal} "
+                f"{_lean_name_list(_level_names(endpoint.proposition))}",
+                "      if (← Lean.MonadLog.hasErrors) then",
+                "        Lean.Elab.Term.restoreState saved",
+                "        pure none",
+                "      else",
+                "        Lean.Core.setMessageLog "
+                "(saved.meta.core.messages ++ (← Lean.Core.getMessageLog))",
+                "        pure (some value)",
+                "    catch ex =>",
+                "      Lean.Elab.Term.restoreState saved",
+                "      if ex.isInterrupt || ex.isRuntime then",
+                "        throw ex",
+                "      pure none",
+                f"  let endpoint{index} : Lean.Expr := endpoint{index}?.getD <| "
+                "Lean.mkApp3 (Lean.mkConst ``Eq [.succ .zero]) "
+                f"(Lean.mkConst ``Nat []) (.lit (.natVal {sentinel})) "
+                f"(.lit (.natVal {sentinel + 1}))",
+            )
+        )
+    scope_literal = json.dumps(render_scope_id)
+    for index, endpoint in enumerate(endpoints):
+        endpoint_literal = json.dumps(endpoint.endpoint_id)
+        lines.append(
+            "  LeanFaith.GoalV1.emitClosedProp "
+            f'{endpoint_literal} {scope_literal} "term_elaborated_proposition" endpoint{index}'
+        )
+    return "\n".join(lines)
+
+
+def _render_propositions_isolated(
+    backend: LeanBackend,
+    *,
+    endpoints: Sequence[PropositionEndpoint],
+    compile_context: CompileContext,
+    render_scope_id: str,
+    request_id: str,
+    timeout_seconds: float,
+) -> ClosedExprBatchResult:
+    inputs = tuple(
+        ClosedExprInput(
+            endpoint_id=item.endpoint_id,
+            endpoint_role=item.endpoint_role,  # type: ignore[arg-type]
+            expr_origin="term_elaborated_proposition",
+            source_material=ClosedExprSourceMaterial(
+                kind="proposition_text", proposition_text=item.proposition
+            ),
+        )
+        for item in endpoints
+    )
+    rendered = render_closed_expr_in_session(
+        backend,
+        inputs=inputs,
+        compile_context=compile_context,
+        render_scope_id=render_scope_id,
+        session_body=_build_isolated_tolerant_session_body(
+            endpoints, render_scope_id=render_scope_id
+        ),
+        request_id=request_id,
+        timeout_seconds=timeout_seconds,
+    )
+    if rendered.failures:
+        return rendered
+    candidate_ids = {item.endpoint_id for item in endpoints[1:]}
+    failures = {
+        sidecar.record.endpoint_id: (
+            "candidate proposition failed to parse, elaborate, or check as one closed Prop"
+        )
+        for sidecar in rendered.sidecars
+        if sidecar.record.endpoint_id in candidate_ids
+        and sidecar.record.provenance.expr_hash
+        == _failure_sentinel_expr_hash(sidecar.record.endpoint_id)
+    }
+    if not failures:
+        return rendered
+    return ClosedExprBatchResult(
+        sidecars=tuple(
+            item for item in rendered.sidecars if item.record.endpoint_id not in failures
+        ),
+        failures=tuple(
+            ClosedExprFailure(endpoint_id=endpoint_id, detail=detail)
+            for endpoint_id, detail in sorted(failures.items())
+        ),
+        request_hash=rendered.request_hash,
+        elapsed_ms=rendered.elapsed_ms,
+        raw_response_path=rendered.raw_response_path,
+        render_scope_id=rendered.render_scope_id,
+    )
+
+
 def _endpoint_record(
     *,
     endpoint: PropositionEndpoint,
@@ -625,7 +759,7 @@ def _execute_source(
     request_count_before = len(backend.requests)
     result_count_before = len(backend.results)
     for attempt in range(1, config.maximum_infrastructure_attempts + 1):
-        rendered = render_propositions_tolerant(
+        rendered = _render_propositions_isolated(
             backend,
             endpoints=endpoints,
             compile_context=context,
