@@ -732,10 +732,20 @@ class JudgeOutput(StrictModel):
 
     @model_validator(mode="after")
     def _unknown_contract(self) -> Self:
-        if (self.verdict == "unknown") == (self.error_type == "none"):
-            raise ValueError(
-                "unknown requires an error type; binary verdicts require error_type=none"
-            )
+        if self.verdict == "unknown":
+            if self.error_type == "none":
+                raise ValueError(
+                    "unknown requires an error_type other than none; "
+                    "use ambiguous, missing_context, or insufficient_confidence"
+                )
+        else:
+            if self.error_type != "none":
+                raise ValueError("binary verdicts require error_type=none")
+            if self.confidence == "low":
+                raise ValueError(
+                    "a binary verdict with low confidence is uncertainty metadata, "
+                    "not a committed judgment; return unknown with an error_type instead"
+                )
         return self
 
 

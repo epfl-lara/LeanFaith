@@ -240,13 +240,24 @@ class CliStructuredProvider:
             usage = terminal.get("usage")
             if not isinstance(structured, dict) or not isinstance(usage, dict):
                 raise StructuredProviderError("cached provider terminal payload is malformed")
-            structured = _model_validate(structured, response_kind=self.response_kind)
             cost = terminal.get("cost_usd")
             if cost is not None and not isinstance(cost, int | float):
                 raise StructuredProviderError("cached provider cost is not numeric")
             elapsed_seconds = terminal.get("elapsed_seconds")
             if not isinstance(elapsed_seconds, int | float):
                 raise StructuredProviderError("cached provider elapsed_seconds is not numeric")
+            if terminal.get("schema_invalid") is True:
+                return ProviderCallResult(
+                    call_key=call_key,
+                    provider_id=self.pin.provider_id,
+                    structured=structured,
+                    usage=usage,
+                    cost_usd=None if cost is None else float(cost),
+                    elapsed_seconds=float(elapsed_seconds),
+                    cache_hit=True,
+                    terminal_path=terminal_path,
+                )
+            structured = _model_validate(structured, response_kind=self.response_kind)
             return ProviderCallResult(
                 call_key=call_key,
                 provider_id=self.pin.provider_id,
@@ -516,9 +527,39 @@ class CliStructuredProvider:
                 elapsed = (
                     float(duration_ms) / 1000 if isinstance(duration_ms, int | float) else elapsed
                 )
-            structured = _model_validate(structured, response_kind=self.response_kind)
         except StructuredProviderError as exc:
             fail(str(exc))
+
+        try:
+            structured = _model_validate(structured, response_kind=self.response_kind)
+        except StructuredProviderError as exc:
+            terminal = {
+                "version": "leanfaith_sft2a_provider_terminal_v1",
+                "call_key": call_key,
+                "attempt_number": attempt_number,
+                "request": request_payload,
+                "transport_schema_sha256": transport_schema_sha256,
+                "transport_schema_transform": transport_schema_transform,
+                "structured": structured,
+                "usage": usage,
+                "cost_usd": cost_usd,
+                "elapsed_seconds": elapsed,
+                "redaction_report_sha256": redacted.report_sha256,
+                "capture_hashes": capture_hashes,
+                "schema_invalid": True,
+                "schema_invalid_detail": str(exc),
+            }
+            _atomic(terminal_path, canonical_json_bytes(terminal) + b"\n")
+            return ProviderCallResult(
+                call_key=call_key,
+                provider_id=self.pin.provider_id,
+                structured=structured,
+                usage=usage,
+                cost_usd=cost_usd,
+                elapsed_seconds=elapsed,
+                cache_hit=False,
+                terminal_path=terminal_path,
+            )
 
         terminal = {
             "version": "leanfaith_sft2a_provider_terminal_v1",

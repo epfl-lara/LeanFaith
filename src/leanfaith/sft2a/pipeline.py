@@ -14,6 +14,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal, Protocol
 
+from pydantic import ValidationError
+
 from leanfaith.config.hashing import canonical_json_bytes, hash_canonical, hash_file
 from leanfaith.representations.views import signature_near_dup_hash
 from leanfaith.sft2a.config import LoadedSFT2AConfig
@@ -751,7 +753,29 @@ def run_one_root(
                         ),
                     )
                     all_provider_calls.append(judge_call)
-                    judgment = JudgeOutput.model_validate(judge_call.structured)
+                    try:
+                        judgment = JudgeOutput.model_validate(judge_call.structured)
+                    except ValidationError as exc:
+                        detail = f"judge_schema_rejected:{type(exc).__name__}:{exc}"
+                        record = _attempt_record(
+                            root_id=loaded.config.root.root_id,
+                            slot=slot,
+                            attempt_number=attempt_number,
+                            status="judge_malformed_exhausted",
+                            proposer_call=proposer_call,
+                            proposer=proposal,
+                            lean=lean,
+                            judge_call=judge_call,
+                            judge=None,
+                            detail=detail,
+                        )
+                        record["proposer_prompt_hash"] = prompt_hash(proposer_prompt)
+                        record["judge_prompt_hash"] = prompt_hash(judge_prompt)
+                        attempts.append(record)
+                        malformed_rows.append(record)
+                        _append_event(journal_path, record)
+                        feedback = _feedback("judge_malformed_exhausted", detail)
+                        continue
                 expected = accepted_verdict_for(slot.requested_polarity)
                 if judgment.verdict != expected:
                     status = "judge_unknown" if judgment.verdict == "unknown" else "judge_disagreed"
