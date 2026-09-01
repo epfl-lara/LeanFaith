@@ -666,8 +666,10 @@ class SprintRunner:
         size = self.config.execution.render_batch_pairs
         for start in range(0, len(pending), size):
             chunk = pending[start : start + size]
-            ok = self.render_chunk(chunk, process_request_hash=process_request_hash)
-            if not ok and len(chunk) > 1:
+            if len(chunk) == 1:
+                self.render_chunk(chunk, process_request_hash=process_request_hash, final=True)
+                continue
+            if not self.render_chunk(chunk, process_request_hash=process_request_hash):
                 for item in chunk:
                     self.render_chunk([item], process_request_hash=process_request_hash, final=True)
 
@@ -1437,12 +1439,23 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
         return 0 if report["passed"] else 1
     if args.command in {"run", "replay"}:
+        max_roots = args.max_roots
+        target_retained = args.target_retained
+        run_manifest_path = RunPaths(
+            Path(loaded.config.output.staging_root), args.run_id
+        ).run_manifest
+        if args.command == "replay" and run_manifest_path.is_file():
+            recorded = read_json_object(run_manifest_path)
+            if max_roots is None and isinstance(recorded.get("max_roots"), int):
+                max_roots = int(recorded["max_roots"])
+            if target_retained is None and isinstance(recorded.get("target_retained"), int):
+                target_retained = int(recorded["target_retained"])
         runner = SprintRunner(
             repo_root,
             loaded,
             run_id=args.run_id,
-            max_roots=args.max_roots,
-            target_retained=args.target_retained,
+            max_roots=max_roots,
+            target_retained=target_retained,
             owner_session=args.owner_session,
         )
         before = len(read_retained(runner.paths.retained))

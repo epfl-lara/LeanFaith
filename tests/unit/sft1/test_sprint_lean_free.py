@@ -281,3 +281,44 @@ def test_new_non_test_implementation_stays_compact() -> None:
     total = sum(len(path.read_text(encoding="utf-8").splitlines()) for path in paths)
     assert total < 4000, total
     assert json.loads(json.dumps({"ok": True}))["ok"]
+
+
+def _synthetic_records(*, leak: bool, count: int = 240) -> list[dict[str, object]]:
+    import random
+
+    rng = random.Random(7)
+    records: list[dict[str, object]] = []
+    mechanisms = ["P15", "P18", "N25", "N31"]
+    for index in range(count):
+        mechanism = mechanisms[index % 4]
+        label = mechanism.startswith("P")
+        root = f"Root.t{index // 3}"
+        words = [rng.choice(["a", "b", "c", "d", "e", "f"]) for _ in range(6)]
+        reference = f"{words[0]} {words[1]} : ℕ\n⊢ {words[2]} + {words[3]} = {words[4]}"
+        candidate = f"{words[0]} {words[1]} : ℕ\n⊢ {words[4]} = {words[2]} + {words[3]}"
+        if leak and not label:
+            candidate += " ∧ True"
+        records.append(
+            {
+                "row": {
+                    "reference": reference,
+                    "candidate": candidate,
+                    "label": label,
+                    "operation_id": f"{mechanism}_X",
+                },
+                "sidecar": {"root_name": root, "mechanism": mechanism},
+            }
+        )
+    return records
+
+
+def test_shortcut_screen_detects_surface_leak_and_accepts_noise() -> None:
+    from leanfaith.sft1.sprint import shortcut
+
+    leaked = shortcut.run_screens(_synthetic_records(leak=True))
+    assert leaked["passed"] is False
+    candidate_only = next(s for s in leaked["screens"] if s["name"] == "candidate_only")
+    assert candidate_only["balanced_accuracy"] > 0.9
+    clean = shortcut.run_screens(_synthetic_records(leak=False))
+    assert all(s["balanced_accuracy"] == s["balanced_accuracy"] for s in clean["screens"])
+    assert clean["rows"] == 240 and clean["positives"] == 120
