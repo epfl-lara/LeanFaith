@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import threading
+from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -23,14 +24,19 @@ from leanfaith.sft2a.parallel_rehearsal import (
     deterministic_parallel_compaction,
     parallel_launch_lock,
 )
+from leanfaith.sft2a.prompts import PromptRenderError
 from leanfaith.sft2a.provider_rehearsal_v52 import (
+    LoadedProviderAuthorizationV52,
     certified_reference_result_v52,
     load_provider_rehearsal_v52,
     preflight_provider_launch_v52,
+    prepare_provider_recovery_seed_v52,
+    run_detached_provider_rehearsal_v52,
 )
 from leanfaith.sft2a.providers import ProviderCallResult
 
 _PROVIDER_CONFIG = Path("configs/sft2a/provider_rehearsal_v5_2_corrected.json")
+_RECOVERY_CONFIG = Path("configs/sft2a/provider_rehearsal_v5_2_recovery_v5.json")
 
 
 class _FakeTerminalProvider:
@@ -140,6 +146,80 @@ def test_structured_goal_regressions_and_corrected_cache_preflight() -> None:
     certified = certified_reference_result_v52(rows[0])
     assert certified.cache_hit
     assert certified.goal_v1 == rows[0]["root"]["expected_reference_goal_v1"]
+
+
+def test_recovery_config_preserves_failed_run_and_seeds_cumulative_budget(
+    tmp_path: Path,
+) -> None:
+    loaded = load_provider_rehearsal_v52(_RECOVERY_CONFIG)
+    assert loaded.recovery_source is not None
+    assert loaded.recovery_source["completed_roots"] == 70
+    assert loaded.recovery_source["source_run_identity_hash"] == (
+        "9910915ba060adac26de0630562a7e2a8fa79af58537d79aa82dbf728547d3d1"
+    )
+    isolated = replace(loaded, output_root=tmp_path / "recovery")
+
+    receipt = prepare_provider_recovery_seed_v52(isolated)
+
+    assert receipt is not None
+    assert receipt["provider_calls_executed"] == 0
+    assert receipt["lean_requests_executed"] == 0
+    snapshot = receipt["cumulative_budget_snapshot"]
+    assert isinstance(snapshot, dict)
+    assert snapshot["finalized_calls"] == 755
+    assert snapshot["proposer_calls"] == 545
+    assert snapshot["opus_calls"] == 210
+    assert snapshot["reported_opus_spend_usd"] == pytest.approx(7.900784)
+    source = Path(str(loaded.recovery_source["output_root"])) / "provider_budget.jsonl"
+    target = isolated.output_root / "provider_budget.jsonl"
+    assert target.read_bytes() == source.read_bytes()
+    assert hash_file(target) == loaded.recovery_source["provider_budget_sha256"]
+
+
+def test_detached_worker_persists_fail_closed_terminal_status(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    loaded = load_provider_rehearsal_v52(_RECOVERY_CONFIG)
+    document = {
+        **loaded.document,
+        "provider_output_root": str(tmp_path / "failed-run"),
+        "tmux_session": "synthetic-sft2a-failure",
+        "resource_task": "SFT2A-SYNTHETIC-FAILURE",
+    }
+    isolated = replace(
+        loaded,
+        document=document,
+        output_root=tmp_path / "failed-run",
+        recovery_source=None,
+    )
+    authorization = LoadedProviderAuthorizationV52(
+        path=tmp_path / "authorization.json",
+        document={
+            "implementation_commit": "a" * 40,
+            "implementation_tree": "b" * 40,
+        },
+        sha256="c" * 64,
+    )
+    monkeypatch.setattr(
+        "leanfaith.sft2a.provider_rehearsal_v52.claim_resources",
+        lambda **_kwargs: None,
+    )
+    monkeypatch.setattr(
+        "leanfaith.sft2a.provider_rehearsal_v52.run_two_provider_workers_v52",
+        lambda *_args: (_ for _ in ()).throw(PromptRenderError("synthetic adjacent braces")),
+    )
+
+    with pytest.raises(PromptRenderError, match="adjacent braces"):
+        run_detached_provider_rehearsal_v52(isolated, authorization)
+
+    terminal_path = isolated.output_root / "detached/terminal_status.json"
+    terminal = json.loads(terminal_path.read_text())
+    assert terminal["status"] == "failed"
+    assert terminal["error_type"] == "PromptRenderError"
+    assert terminal["provider_budget"]["finalized_calls"] == 0
+    assert terminal["root_state"] == {"roots": {}, "unfinished_workers": {}}
+    assert terminal["scale_10k_authorized"] is False
+    assert terminal["scale_50k_authorized"] is False
 
 
 def test_provider_free_two_worker_crash_resume_and_compaction(

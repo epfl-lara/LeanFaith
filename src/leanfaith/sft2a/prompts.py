@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from collections.abc import Mapping
 
 from leanfaith.config.hashing import canonical_json_bytes, sha256_hex
@@ -13,15 +14,30 @@ class PromptRenderError(ValueError):
     """A template token or blinded-prompt invariant failed."""
 
 
+_TEMPLATE_TOKEN = re.compile(r"\{\{([A-Z][A-Z0-9_]*)\}\}")
+
+
 def _render(template: str, values: Mapping[str, str]) -> str:
+    # Validate control tokens on the template skeleton before interpolating model-facing Lean.
+    # Lean legitimately renders adjacent closing braces (for example `{y | y ∉ {x}}`), so
+    # scanning the interpolated prompt for a raw `}}` confuses mathematical data with control
+    # syntax and makes a valid certified candidate unrecoverably crash the root worker.
+    template_tokens = set(_TEMPLATE_TOKEN.findall(template))
+    missing = set(values) - template_tokens
+    if missing:
+        token = "{{" + sorted(missing)[0] + "}}"
+        raise PromptRenderError(f"template is missing required token {token}")
+    unresolved = template_tokens - set(values)
+    if unresolved:
+        token = "{{" + sorted(unresolved)[0] + "}}"
+        raise PromptRenderError(f"rendered prompt contains unresolved template token {token}")
+    skeleton = _TEMPLATE_TOKEN.sub("", template)
+    if "{{" in skeleton or "}}" in skeleton:
+        raise PromptRenderError("template contains a malformed template delimiter")
     rendered = template
     for key, value in values.items():
         token = "{{" + key + "}}"
-        if token not in rendered:
-            raise PromptRenderError(f"template is missing required token {token}")
         rendered = rendered.replace(token, value)
-    if "{{" in rendered or "}}" in rendered:
-        raise PromptRenderError("rendered prompt contains an unresolved template token")
     if "\x00" in rendered or not rendered.strip():
         raise PromptRenderError("rendered prompt is empty or contains NUL")
     return rendered
@@ -64,10 +80,6 @@ def render_blinded_judge_prompt(
     statement_a: str,
     statement_b: str,
 ) -> str:
-    prompt = _render(
-        loaded.judge_prompt,
-        {"STATEMENT_A": statement_a, "STATEMENT_B": statement_b},
-    )
     forbidden = (
         "requested polarity",
         "slot request",
@@ -75,10 +87,15 @@ def render_blinded_judge_prompt(
         "prior attempt",
         "proposer rationale",
     )
-    lowered = prompt.casefold()
+    # Blinding is a property of the frozen template, not of the mathematical statements. A
+    # declaration or rendered proposition may contain ordinary words that overlap this metadata.
+    lowered = _TEMPLATE_TOKEN.sub("", loaded.judge_prompt).casefold()
     if any(token in lowered for token in forbidden):
         raise PromptRenderError("blinded judge prompt leaked proposer or slot metadata")
-    return prompt
+    return _render(
+        loaded.judge_prompt,
+        {"STATEMENT_A": statement_a, "STATEMENT_B": statement_b},
+    )
 
 
 def prompt_hash(prompt: str) -> str:

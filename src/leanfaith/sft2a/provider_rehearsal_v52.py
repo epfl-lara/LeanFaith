@@ -62,6 +62,7 @@ class LoadedProviderRehearsalV52:
     sample_path: Path
     output_root: Path
     ceilings: ExecutionCeilings
+    recovery_source: dict[str, object] | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -99,6 +100,14 @@ def _jsonl_bytes(rows: list[dict[str, object]]) -> bytes:
     return b"".join(canonical_json_bytes(row) + b"\n" for row in rows)
 
 
+def _completed_manifest_seal(root: Path) -> tuple[int, str]:
+    manifests = sorted(root.glob("roots/*/manifest.json"))
+    payload = b"".join(
+        f"{hash_file(path)}  {path.relative_to(root).as_posix()}\n".encode() for path in manifests
+    )
+    return len(manifests), sha256_hex(payload)
+
+
 def _repo_path(repo_root: Path, value: object) -> Path:
     if not isinstance(value, str) or not value:
         raise ProviderRehearsalV52Error("provider config repository path is malformed")
@@ -113,8 +122,13 @@ def _repo_path(repo_root: Path, value: object) -> Path:
 def load_provider_rehearsal_v52(path: Path) -> LoadedProviderRehearsalV52:
     resolved = path.resolve()
     document = _object(resolved)
+    version = document.get("version")
     if (
-        document.get("version") != "leanfaith_sft2a_provider_rehearsal_v5_2_corrected_v1"
+        version
+        not in {
+            "leanfaith_sft2a_provider_rehearsal_v5_2_corrected_v1",
+            "leanfaith_sft2a_provider_rehearsal_v5_2_recovery_v1",
+        }
         or document.get("authorized") is not False
         or document.get("status") != "ready_not_authorized"
     ):
@@ -181,6 +195,53 @@ def load_provider_rehearsal_v52(path: Path) -> LoadedProviderRehearsalV52:
         )
     ):
         raise ProviderRehearsalV52Error("an out-of-scope corrected provider action is authorized")
+    recovery_source: dict[str, object] | None = None
+    if version == "leanfaith_sft2a_provider_rehearsal_v5_2_recovery_v1":
+        raw_recovery = document.get("recovery_source")
+        if not isinstance(raw_recovery, dict):
+            raise ProviderRehearsalV52Error("recovery provider config lacks source identity")
+        recovery_source = dict(raw_recovery)
+        source_root = Path(str(recovery_source.get("output_root")))
+        output_root = Path(str(document["provider_output_root"]))
+        if source_root == output_root or not source_root.is_dir():
+            raise ProviderRehearsalV52Error("recovery source/output roots are not disjoint")
+        source_checks = {
+            source_root / "provider_budget.jsonl": recovery_source.get("provider_budget_sha256"),
+            source_root / "root_state.jsonl": recovery_source.get("root_state_sha256"),
+            source_root / "authorization/authorization_receipt.json": recovery_source.get(
+                "authorization_receipt_sha256"
+            ),
+            source_root / "detached/launch_receipt.json": recovery_source.get(
+                "launch_receipt_sha256"
+            ),
+        }
+        for artifact, expected in source_checks.items():
+            if hash_file(artifact) != expected:
+                raise ProviderRehearsalV52Error(
+                    f"recovery source artifact hash differs: {artifact}"
+                )
+        completed, manifest_seal = _completed_manifest_seal(source_root)
+        if completed != recovery_source.get(
+            "completed_roots"
+        ) or manifest_seal != recovery_source.get("completed_manifest_seal_sha256"):
+            raise ProviderRehearsalV52Error("recovery completed-root seal differs")
+        identity = {
+            "algorithm": "sha256_canonical_recovery_source_identity_v1",
+            "provider_budget_sha256": recovery_source["provider_budget_sha256"],
+            "root_state_sha256": recovery_source["root_state_sha256"],
+            "authorization_receipt_sha256": recovery_source["authorization_receipt_sha256"],
+            "launch_receipt_sha256": recovery_source["launch_receipt_sha256"],
+            "completed_manifest_seal_sha256": manifest_seal,
+            "completed_roots": completed,
+        }
+        if hash_canonical(identity) != recovery_source.get("source_run_identity_hash"):
+            raise ProviderRehearsalV52Error("recovery source identity hash differs")
+        source_budget = AtomicProviderBudget(
+            source_root / "provider_budget.jsonl", ceilings
+        ).snapshot()
+        expected_budget = recovery_source.get("provider_budget_snapshot")
+        if source_budget != expected_budget or source_budget["outstanding_calls"] != 0:
+            raise ProviderRehearsalV52Error("recovery source budget snapshot differs")
     return LoadedProviderRehearsalV52(
         path=resolved,
         document=document,
@@ -189,7 +250,40 @@ def load_provider_rehearsal_v52(path: Path) -> LoadedProviderRehearsalV52:
         sample_path=sample_path,
         output_root=Path(str(document["provider_output_root"])),
         ceilings=ceilings,
+        recovery_source=recovery_source,
     )
+
+
+def prepare_provider_recovery_seed_v52(
+    loaded: LoadedProviderRehearsalV52,
+) -> dict[str, object] | None:
+    """Copy a failed run's terminal ledger exactly into an additive recovery root."""
+
+    if loaded.recovery_source is None:
+        return None
+    source_root = Path(str(loaded.recovery_source["output_root"]))
+    source_ledger = source_root / "provider_budget.jsonl"
+    target_ledger = loaded.output_root / "provider_budget.jsonl"
+    _atomic_exact(target_ledger, source_ledger.read_bytes())
+    snapshot = AtomicProviderBudget(target_ledger, loaded.ceilings).snapshot()
+    if snapshot != loaded.recovery_source["provider_budget_snapshot"]:
+        raise ProviderRehearsalV52Error("recovery cumulative budget seed differs")
+    receipt: dict[str, object] = {
+        "version": "leanfaith_sft2a_provider_recovery_seed_v1",
+        "source_run_identity_hash": loaded.recovery_source["source_run_identity_hash"],
+        "source_output_root": str(source_root),
+        "source_provider_budget_sha256": hash_file(source_ledger),
+        "cumulative_budget_seed_sha256": hash_file(target_ledger),
+        "cumulative_budget_snapshot": snapshot,
+        "completed_source_roots": loaded.recovery_source["completed_roots"],
+        "provider_calls_executed": 0,
+        "lean_requests_executed": 0,
+    }
+    _atomic_exact(
+        loaded.output_root / "recovery/recovery_seed_receipt.json",
+        canonical_json_bytes(receipt) + b"\n",
+    )
+    return receipt
 
 
 def _git_identity(repo_root: Path) -> tuple[str, str]:
@@ -223,6 +317,7 @@ def prepare_provider_readiness_v52(loaded: LoadedProviderRehearsalV52) -> dict[s
 
     preflight = verify_corrected_global_preflight(loaded.sample_path.parent)
     commit, tree = _git_identity(loaded.base.repo_root)
+    recovery_seed = prepare_provider_recovery_seed_v52(loaded)
     closure_receipt = _repo_path(
         loaded.base.repo_root, loaded.document.get("closure_canary_receipt_path")
     )
@@ -235,7 +330,11 @@ def prepare_provider_readiness_v52(loaded: LoadedProviderRehearsalV52) -> dict[s
     ):
         raise ProviderRehearsalV52Error("closure canary receipt is not passing")
     receipt: dict[str, object] = {
-        "version": "leanfaith_sft2a_provider_readiness_v5_2_corrected_v1",
+        "version": (
+            "leanfaith_sft2a_provider_readiness_v5_2_recovery_v1"
+            if recovery_seed is not None
+            else "leanfaith_sft2a_provider_readiness_v5_2_corrected_v1"
+        ),
         "status": "ready_not_authorized",
         "authorized": False,
         "implementation_commit": commit,
@@ -267,6 +366,13 @@ def prepare_provider_readiness_v52(loaded: LoadedProviderRehearsalV52) -> dict[s
         "scale_50k_authorized": False,
         "training_authorized": False,
     }
+    if recovery_seed is not None:
+        receipt["recovery_source_run_identity_hash"] = recovery_seed["source_run_identity_hash"]
+        receipt["cumulative_budget_seed_sha256"] = recovery_seed["cumulative_budget_seed_sha256"]
+        receipt["cumulative_budget_snapshot"] = recovery_seed["cumulative_budget_snapshot"]
+        receipt["recovery_seed_receipt_sha256"] = hash_file(
+            loaded.output_root / "recovery/recovery_seed_receipt.json"
+        )
     path = provider_readiness_path_v52(loaded)
     _atomic_exact(path, canonical_json_bytes(receipt) + b"\n")
     return receipt
@@ -274,11 +380,22 @@ def prepare_provider_readiness_v52(loaded: LoadedProviderRehearsalV52) -> dict[s
 
 def authorization_sentence_v52(loaded: LoadedProviderRehearsalV52, readiness_sha256: str) -> str:
     readiness = _object(provider_readiness_path_v52(loaded))
+    recovery_clause = ""
+    action = "launch only"
+    descriptor = "provider rehearsal"
+    if loaded.recovery_source is not None:
+        action = "resume only"
+        descriptor = "provider recovery rehearsal"
+        recovery_clause = (
+            f", cumulative failed-run budget seed {readiness['cumulative_budget_seed_sha256']} "
+            f"from source run {readiness['recovery_source_run_identity_hash']}"
+        )
     return (
-        "I authorize SFT2A to launch only the corrected 100-root/400-slot closure-aware v5.2 "
-        f"provider rehearsal bound to sample {loaded.document['corrected_sample_sha256']}, config "
+        f"I authorize SFT2A to {action} the corrected 100-root/400-slot closure-aware v5.2 "
+        f"{descriptor} bound to sample {loaded.document['corrected_sample_sha256']}, config "
         f"{loaded.sha256}, readiness {readiness_sha256}, implementation "
-        f"commit {readiness['implementation_commit']} and tree {readiness['implementation_tree']} "
+        f"commit {readiness['implementation_commit']} and tree {readiness['implementation_tree']}"
+        f"{recovery_clause} "
         "under ceilings 2,480 total provider calls, 1,200 Terra calls, 1,200 Opus calls, 80 Kimi "
         "calls, three candidate attempts per slot, and $160 reported Opus spend with at most two "
         "Lean/root workers and 40 GiB measured RSS; the approximately-10K gate, 50K run, legacy "
@@ -306,7 +423,11 @@ def materialize_provider_authorization_v52(
     ):
         raise ProviderRehearsalV52Error("provider authorization implementation differs")
     receipt: dict[str, object] = {
-        "version": "leanfaith_sft2a_provider_authorization_v5_2_corrected_v1",
+        "version": (
+            "leanfaith_sft2a_provider_authorization_v5_2_recovery_v1"
+            if loaded.recovery_source is not None
+            else "leanfaith_sft2a_provider_authorization_v5_2_corrected_v1"
+        ),
         "authorized": True,
         "status": "authorized_rehearsal_only",
         "authorization_sentence": authorization_sentence,
@@ -329,6 +450,12 @@ def materialize_provider_authorization_v52(
         "training_authorized": False,
         "launch_started": False,
     }
+    if loaded.recovery_source is not None:
+        receipt["recovery_source_run_identity_hash"] = readiness[
+            "recovery_source_run_identity_hash"
+        ]
+        receipt["cumulative_budget_seed_sha256"] = readiness["cumulative_budget_seed_sha256"]
+        receipt["recovery_seed_receipt_sha256"] = readiness["recovery_seed_receipt_sha256"]
     _atomic_exact(
         loaded.output_root / "authorization/authorization_receipt.json",
         canonical_json_bytes(receipt) + b"\n",
@@ -341,6 +468,7 @@ def load_provider_authorization_v52(
 ) -> LoadedProviderAuthorizationV52:
     document = _object(path)
     readiness_path = provider_readiness_path_v52(loaded)
+    readiness = _object(readiness_path)
     if (
         document.get("authorized") is not True
         or document.get("status") != "authorized_rehearsal_only"
@@ -351,6 +479,15 @@ def load_provider_authorization_v52(
         != authorization_sentence_v52(loaded, hash_file(readiness_path))
     ):
         raise ProviderRehearsalV52Error("provider authorization receipt differs")
+    if loaded.recovery_source is not None and (
+        document.get("recovery_source_run_identity_hash")
+        != readiness.get("recovery_source_run_identity_hash")
+        or document.get("cumulative_budget_seed_sha256")
+        != readiness.get("cumulative_budget_seed_sha256")
+        or document.get("recovery_seed_receipt_sha256")
+        != readiness.get("recovery_seed_receipt_sha256")
+    ):
+        raise ProviderRehearsalV52Error("provider recovery authorization differs")
     commit, tree = _git_identity(loaded.base.repo_root)
     if (
         document.get("implementation_commit") != commit
@@ -367,6 +504,20 @@ def preflight_provider_launch_v52(
     """Reach the detached boundary without constructing a provider or Lean backend."""
 
     preflight = verify_corrected_global_preflight(loaded.sample_path.parent)
+    recovery_seed: dict[str, object] | None = None
+    if loaded.recovery_source is not None:
+        seed_path = loaded.output_root / "recovery/recovery_seed_receipt.json"
+        recovery_seed = _object(seed_path)
+        target_ledger = loaded.output_root / "provider_budget.jsonl"
+        source_ledger = Path(str(loaded.recovery_source["output_root"])) / ("provider_budget.jsonl")
+        if (
+            not target_ledger.is_file()
+            or not target_ledger.read_bytes().startswith(source_ledger.read_bytes())
+            or recovery_seed.get("cumulative_budget_seed_sha256") != hash_file(source_ledger)
+            or recovery_seed.get("source_run_identity_hash")
+            != loaded.recovery_source["source_run_identity_hash"]
+        ):
+            raise ProviderRehearsalV52Error("recovery cumulative budget seed is absent or differs")
     session = str(loaded.document["tmux_session"])
     exists = (
         subprocess.run(
@@ -390,7 +541,7 @@ def preflight_provider_launch_v52(
         raise ProviderRehearsalV52Error("completed corrected provider rehearsal cannot restart")
     if authorization is not None and authorization.document.get("authorized") is not True:
         raise ProviderRehearsalV52Error("corrected provider launch is not authorized")
-    return {
+    result: dict[str, object] = {
         "version": "leanfaith_sft2a_provider_launch_preflight_v5_2_corrected_v1",
         "boundary": "tmux_start_not_executed",
         "authorization_present": authorization is not None,
@@ -411,6 +562,11 @@ def preflight_provider_launch_v52(
         "lean_requests_executed": 0,
         "tmux_sessions_started": 0,
     }
+    if recovery_seed is not None:
+        result["recovery_source_run_identity_hash"] = recovery_seed["source_run_identity_hash"]
+        result["cumulative_budget_seed_sha256"] = recovery_seed["cumulative_budget_seed_sha256"]
+        result["cumulative_budget_snapshot"] = recovery_seed["cumulative_budget_snapshot"]
+    return result
 
 
 def certified_reference_result_v52(row: dict[str, object]) -> SignatureOracleResult:
@@ -890,36 +1046,78 @@ def run_detached_provider_rehearsal_v52(
                 ),
                 "duplicate_restart_forbidden": True,
             }
+            if loaded.recovery_source is not None:
+                readiness = _object(provider_readiness_path_v52(loaded))
+                launch_receipt["recovery_source_run_identity_hash"] = readiness[
+                    "recovery_source_run_identity_hash"
+                ]
+                launch_receipt["cumulative_budget_seed_sha256"] = readiness[
+                    "cumulative_budget_seed_sha256"
+                ]
             _atomic_exact(
                 loaded.output_root / "detached/launch_receipt.json",
                 canonical_json_bytes(launch_receipt) + b"\n",
             )
-            workers = run_two_provider_workers_v52(loaded, authorization)
-            compacted = compact_provider_rehearsal_v52(loaded)
-            replay = verify_provider_replay_v52(loaded)
-            audit = run_provider_kimi_audit_v52(loaded, authorization)
-            terminal = {
-                "version": "leanfaith_sft2a_provider_terminal_v5_2_corrected_v1",
-                "status": "complete",
-                "workers": workers,
-                "compaction_sha256": hash_file(loaded.output_root / "compacted/manifest.json"),
-                "replay_sha256": hash_file(
-                    loaded.output_root / "replay/reproducibility_receipt.json"
-                ),
-                "audit_sha256": hash_file(loaded.output_root / "audit_kimi/manifest.json"),
-                "accepted_rows": compacted["accepted_rows"],
-                "replay_zero_calls": replay["provider_calls_executed"] == 0,
-                "audit_agreement_rate": audit["agreement_rate"],
-                "systematic_disagreement": audit["systematic_disagreement"],
-                "completed_at": _now(),
-                "scale_10k_authorized": False,
-                "scale_50k_authorized": False,
-            }
-            _atomic_exact(
-                loaded.output_root / "detached/terminal_status.json",
-                canonical_json_bytes(terminal) + b"\n",
-            )
-            return terminal
+            try:
+                workers = run_two_provider_workers_v52(loaded, authorization)
+                compacted = compact_provider_rehearsal_v52(loaded)
+                replay = verify_provider_replay_v52(loaded)
+                audit = run_provider_kimi_audit_v52(loaded, authorization)
+                terminal = {
+                    "version": "leanfaith_sft2a_provider_terminal_v5_2_corrected_v1",
+                    "status": "complete",
+                    "workers": workers,
+                    "compaction_sha256": hash_file(loaded.output_root / "compacted/manifest.json"),
+                    "replay_sha256": hash_file(
+                        loaded.output_root / "replay/reproducibility_receipt.json"
+                    ),
+                    "audit_sha256": hash_file(loaded.output_root / "audit_kimi/manifest.json"),
+                    "accepted_rows": compacted["accepted_rows"],
+                    "replay_zero_calls": replay["provider_calls_executed"] == 0,
+                    "audit_agreement_rate": audit["agreement_rate"],
+                    "systematic_disagreement": audit["systematic_disagreement"],
+                    "completed_at": _now(),
+                    "scale_10k_authorized": False,
+                    "scale_50k_authorized": False,
+                }
+                _atomic_exact(
+                    loaded.output_root / "detached/terminal_status.json",
+                    canonical_json_bytes(terminal) + b"\n",
+                )
+                return terminal
+            except Exception as exc:
+                failure = {
+                    "version": "leanfaith_sft2a_provider_terminal_v5_2_corrected_v1",
+                    "status": "failed",
+                    "error_type": type(exc).__name__,
+                    "error_message": str(exc)[:1000],
+                    "provider_budget": AtomicProviderBudget(
+                        loaded.output_root / "provider_budget.jsonl", loaded.ceilings
+                    ).snapshot(),
+                    "root_state": ParallelRootStateMachine(
+                        loaded.output_root / "root_state.jsonl"
+                    ).snapshot(),
+                    "failed_at": _now(),
+                    "scale_10k_authorized": False,
+                    "scale_50k_authorized": False,
+                }
+                _atomic_exact(
+                    loaded.output_root / "detached/terminal_status.json",
+                    canonical_json_bytes(failure) + b"\n",
+                )
+                with log_path.open("a", encoding="utf-8") as log:
+                    log.write(
+                        json.dumps(
+                            {
+                                "event": "worker_failed",
+                                "at": failure["failed_at"],
+                                "error_type": failure["error_type"],
+                            }
+                        )
+                        + "\n"
+                    )
+                    log.flush()
+                raise
         finally:
             if reservation is not None:
                 release_resources(task=str(loaded.document["resource_task"]))
@@ -1006,6 +1204,7 @@ __all__ = [
     "materialize_provider_authorization_v52",
     "preflight_provider_launch_v52",
     "prepare_provider_readiness_v52",
+    "prepare_provider_recovery_seed_v52",
     "provider_readiness_path_v52",
     "provider_rehearsal_health_v52",
     "run_detached_provider_rehearsal_v52",

@@ -2,10 +2,10 @@
 
 > **Task ID:** SFT2A
 > **Status:** active
-> **Owner/session:** Codex `/root` — 2026-08-31 SFT2A v5.2 provider-readiness correction session
-> **Last updated:** 2026-08-31
+> **Owner/session:** Codex `/root` — 2026-09-01 SFT2A v5.2 provider-recovery session
+> **Last updated:** 2026-09-01
 > **Dependencies:** REPR `goal_v1.0`; shared rubric; roots may be selected independently of SFT1
-> **Next gate:** complete the provider-free/Lean-free v5.2 executable-path correction and request a new exact authorization for only the corrected 100-root/400-slot rehearsal
+> **Next gate:** user authorization for only the additive v5.2 recovery rehearsal bound to the frozen sample, cumulative failed-run ledger, clean recovery commit/tree, and fresh output root
 > **Compute class:** external LLM/API plus CPU/RAM for Lean; large run may need explicit budget approval
 > **Lean budget:** compile each novel candidate once through cached persistent workers
 > **Local staging root:** `/storage/milikic/leanfaith/value_first/sft2_llm_transforms_v1/`
@@ -581,3 +581,22 @@ recorded budget/model decision.
   worker, deterministic compaction, zero-call replay, audit-disagreement exclusion, and detached
   two-worker/40-GiB launch/resume/health commands. The new authorization materializer is exact-text
   and remains unexecuted; status stays `active` pending a new user sentence.
+- 2026-09-01 — the authorized corrected-v4 provider rehearsal stopped fail-closed after 70/100
+  completed roots. It finalized 755 cumulative provider calls (545 Terra, 210 Opus, zero Kimi),
+  recorded $7.900784 Opus spend, released its resource claim, and left 29 roots unstarted after
+  `mathlib:census:1e645cb485bb5184c3149d41` raised `PromptRenderError`. The failed run remains
+  immutable at source identity
+  `9910915ba060adac26de0630562a7e2a8fa79af58537d79aa82dbf728547d3d1`; its 70 completed
+  manifests have seal `734cc83cb066318a7163ec749a42d344b9e89ff3f893325caa6c47570321b985`.
+- 2026-09-01 — diagnosed the crash without a provider or Lean call. Frozen REPR legitimately
+  rendered the valid candidate fragment `𝓝[{y | y ∉ {x}}] x`; the prompt renderer incorrectly
+  treated the adjacent Lean closing braces as an unresolved template token. Template validation
+  now separates the frozen template skeleton from interpolated mathematical data, and the exact
+  crashed theorem is a regression. Detached failures now persist a fail-closed terminal receipt.
+  Additive recovery config `configs/sft2a/provider_rehearsal_v5_2_recovery_v5.json` has hash
+  `5130e73b58177205b16faa315b3694f913f50e0ec0de2acc40a017b2924d7269`, uses fresh output/session/
+  resource identities, and exact-copies the 755-call ledger before authorization so calls and spend
+  cannot reset across recovery. All 53 SFT2A unit tests, scoped Ruff check/format, strict Mypy,
+  config verification, and diff checks pass with zero provider calls and zero Lean requests. The
+  recovery remains unauthorized; 10K, 50K, legacy rejudging, publication, and training remain
+  unauthorized.

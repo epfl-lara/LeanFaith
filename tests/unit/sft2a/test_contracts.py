@@ -66,6 +66,32 @@ def test_judge_prompt_is_blinded_to_slot_and_polarity() -> None:
     assert "β : Type\n⊢ False" in prompt
 
 
+def test_judge_prompt_accepts_adjacent_lean_set_braces_from_crashed_root() -> None:
+    loaded = load_sft2a_config(Path("configs/sft2a/closure_aware_v5_2_recovery_v3.yaml"))
+    reference = (
+        "𝕜 : Type u_0\ninst✝² : NontriviallyNormedField 𝕜\nE : Type u_1\n"
+        "inst✝¹ : NormedAddCommGroup E\ninst✝ : NormedSpace 𝕜 E\nf : 𝕜 → E\nx : 𝕜\n"
+        "⊢ Filter.EventuallyConst f (nhdsWithin x {x}ᶜ) ↔ "
+        "∃ c, meromorphicOrderAt (fun x => f x - c) x = ⊤"
+    )
+    candidate = (
+        "𝕜 : Type\ninst : NontriviallyNormedField 𝕜\nE : Type\n"
+        "inst_1 : NormedAddCommGroup E\ninst_2 : NormedSpace 𝕜 E\nf : 𝕜 → E\nx : 𝕜\n"
+        "⊢ EventuallyConst f (𝓝[{y | y ∉ {x}}] x) ↔ "
+        "∃ c, meromorphicOrderAt (fun y => f y - c) x = ⊤"
+    )
+
+    prompt = render_blinded_judge_prompt(
+        loaded,
+        statement_a=reference,
+        statement_b=candidate,
+    )
+
+    assert "𝓝[{y | y ∉ {x}}] x" in prompt
+    assert "{{STATEMENT_A}}" not in prompt
+    assert "{{STATEMENT_B}}" not in prompt
+
+
 def test_signature_oracle_elaborates_once_and_renders_same_expr_without_proof() -> None:
     loaded = load_sft2a_config()
     command = _signature_command(
