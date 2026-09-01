@@ -21,7 +21,7 @@ from typing import Any, cast
 import numpy as np
 
 _TOKEN = re.compile(r"[A-Za-z_][A-Za-z0-9_'.!?]*|\d+|[^\sA-Za-z0-9_]")
-FEATURE_DIM = 1 << 16
+FEATURE_DIM = 1 << 13
 
 
 def tokens(text: str) -> list[str]:
