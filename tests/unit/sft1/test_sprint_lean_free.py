@@ -322,3 +322,29 @@ def test_shortcut_screen_detects_surface_leak_and_accepts_noise() -> None:
     clean = shortcut.run_screens(_synthetic_records(leak=False))
     assert all(s["balanced_accuracy"] == s["balanced_accuracy"] for s in clean["screens"])
     assert clean["rows"] == 240 and clean["positives"] == 120
+
+
+def test_ancestry_shards_never_split_a_root() -> None:
+    from leanfaith.sft1.sprint.runner import ancestry_shards, group_by_ancestry
+
+    records = []
+    for root in range(7):
+        for pair in range(3):
+            records.append(
+                {
+                    "row": {"root_id": f"root:{root}"},
+                    "row_hash": f"{root}-{pair}",
+                    "label": True,
+                    "root_name": f"r{root}",
+                }
+            )
+    grouped = group_by_ancestry(records)
+    shards = ancestry_shards(grouped, 5)
+    assert sum(len(shard) for shard in shards) == 21
+    for shard in shards[:-1]:
+        assert len(shard) >= 5
+    seen: dict[str, int] = {}
+    for index, shard in enumerate(shards):
+        for item in shard:
+            seen.setdefault(item["row"]["root_id"], index)
+            assert seen[item["row"]["root_id"]] == index

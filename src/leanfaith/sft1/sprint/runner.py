@@ -1105,11 +1105,10 @@ def compact_run(
     outcome = deduplicate(screened)
     size = shard_size or config.output.shard_size
     paths.compacted.mkdir(parents=True, exist_ok=True)
+    kept = group_by_ancestry(outcome.kept)
+    shards = ancestry_shards(kept, size)
     shard_manifests: list[dict[str, object]] = []
-    kept = outcome.kept
-    for shard_index in range(0, len(kept), size):
-        shard = kept[shard_index : shard_index + size]
-        number = shard_index // size + 1
+    for number, shard in enumerate(shards, start=1):
         shard_dir = paths.compacted / f"shard-{number:04d}"
         shard_dir.mkdir(parents=True, exist_ok=True)
         rows_bytes = b"".join(canonical_json_bytes(item["row"]) + b"\n" for item in shard)
@@ -1121,12 +1120,13 @@ def compact_run(
             "run_id": run_id,
             "shard": number,
             "row_count": len(shard),
-            "complete": len(shard) == size,
+            "complete": len(shard) >= size,
             "labels": {
                 "positive": sum(1 for item in shard if item["label"]),
                 "negative": sum(1 for item in shard if not item["label"]),
             },
             "operations": _count_by(shard, "operation_id"),
+            "roots": len({item["root_name"] for item in shard}),
             "rows_sha256": sha256_hex(rows_bytes),
             "sidecars_sha256": sha256_hex(sidecar_bytes),
             "first_row_hash": shard[0]["row_hash"],
@@ -1162,6 +1162,33 @@ def compact_run(
     }
     write_atomic(paths.compacted / "manifest.json", canonical_json_bytes(manifest) + b"\n")
     return manifest
+
+
+def group_by_ancestry(records: Sequence[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Order rows so every root's pairs are adjacent (root order by hash)."""
+
+    return sorted(
+        records,
+        key=lambda item: (hash_canonical(str(item["row"]["root_id"])), str(item["row_hash"])),
+    )
+
+
+def ancestry_shards(records: Sequence[dict[str, Any]], size: int) -> list[list[dict[str, Any]]]:
+    """Cut ancestry-grouped rows into shards without splitting a root."""
+
+    shards: list[list[dict[str, Any]]] = []
+    current: list[dict[str, Any]] = []
+    current_root: str | None = None
+    for record in records:
+        root_id = str(record["row"]["root_id"])
+        if current and len(current) >= size and root_id != current_root:
+            shards.append(current)
+            current = []
+        current.append(record)
+        current_root = root_id
+    if current:
+        shards.append(current)
+    return shards
 
 
 def _count_by(records: Iterable[Mapping[str, Any]], field: str) -> dict[str, int]:
@@ -1323,6 +1350,93 @@ def gate_report(
     }
 
 
+# ------------------------------------------------------------------ 10K release gate
+
+
+def release_report(
+    repo_root: Path,
+    loaded: LoadedConfig[SprintConfig],
+    *,
+    run_id: str,
+    sprint_end_utc: str,
+    minimum_negative_pairs: int = 100,
+) -> dict[str, object]:
+    from leanfaith.sft1.sprint import shortcut
+
+    config = loaded.config
+    paths = RunPaths(Path(config.output.staging_root), run_id)
+    manifest = compact_run(repo_root, loaded, run_id=run_id)
+    records: list[dict[str, Any]] = []
+    for shard in sorted(paths.compacted.glob("shard-*")):
+        rows = read_retained(shard / "rows.jsonl")
+        sidecars = read_retained(shard / "sidecars.jsonl")
+        records.extend(
+            {"row": row, "sidecar": sidecar, "row_hash": "", "label": row["label"]}
+            for row, sidecar in zip(rows, sidecars, strict=True)
+        )
+    unchecked = 0
+    for record in records:
+        op = str(record["row"]["operation_id"])
+        evidence = record["sidecar"].get("evidence") or {}
+        check = (
+            (evidence.get("equivalence_proof") or {}).get("check")
+            if op in POSITIVE_OPERATIONS
+            else (evidence.get("refutation") or {}).get("check")
+        )
+        if not check or not check.get("meta_checked") or not check.get("kernel_checked"):
+            unchecked += 1
+    screens = shortcut.run_screens(records) if records else {"passed": False, "screens": []}
+    status = read_json_object(paths.status) if paths.status.is_file() else {}
+    operations = cast(dict[str, int], manifest["operations"])
+    negatives = {op: n for op, n in operations.items() if op in NEGATIVE_OPERATIONS}
+    useful_negatives = [op for op, n in negatives.items() if n >= minimum_negative_pairs]
+    inventory_size = None
+    run_manifest = read_json_object(paths.run_manifest) if paths.run_manifest.is_file() else {}
+    if isinstance(run_manifest.get("root_order_size"), int):
+        inventory_size = int(run_manifest["root_order_size"])
+    roots_per_minute = float(status.get("roots_per_minute") or 0.0)
+    projection: dict[str, object] = {"roots_per_minute": roots_per_minute}
+    if inventory_size and roots_per_minute > 0:
+        remaining = inventory_size - int(status.get("roots_considered") or 0)
+        hours = remaining / roots_per_minute / 60
+        end = datetime.datetime.fromisoformat(sprint_end_utc)
+        now = datetime.datetime.now(datetime.UTC)
+        window_hours = (end - now).total_seconds() / 3600
+        projection.update(
+            {
+                "inventory_roots": inventory_size,
+                "remaining_roots": remaining,
+                "projected_hours_full_wave": round(hours, 2),
+                "remaining_sprint_hours": round(window_hours, 2),
+                "fits_remaining_window": hours <= window_hours,
+            }
+        )
+    retained_rows = cast(int, manifest["retained_rows"])
+    conflicting = cast(int, manifest["conflicting_classes_rejected"])
+    checks = {
+        "retained_at_least_10000": retained_rows >= 10000,
+        "all_rows_kernel_and_meta_checked": unchecked == 0,
+        "zero_duplicate_or_conflicting_pairs": conflicting == 0,
+        "two_useful_negative_mechanisms": len(useful_negatives) >= 2,
+        "shortcut_screens": bool(screens["passed"]),
+    }
+    report = {
+        "schema_version": 1,
+        "run_id": run_id,
+        "generated_at": utc_now(),
+        "compaction": {k: v for k, v in manifest.items() if k != "shards"},
+        "shards": len(cast(list[object], manifest["shards"])),
+        "unchecked_rows": unchecked,
+        "useful_negative_mechanisms": sorted(useful_negatives),
+        "shortcut": screens,
+        "projection": projection,
+        "checks": checks,
+        "passed": all(checks.values()),
+    }
+    write_atomic(paths.compacted / "release_report.json", canonical_json_bytes(report) + b"\n")
+    return report
+
+
 # ------------------------------------------------------------------ fixtures
 
 
@@ -1417,6 +1531,7 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--count", type=int, default=30)
     parser.add_argument("--shard-size", type=int)
     parser.add_argument("--owner-session", default="claude-sft1-sprint")
+    parser.add_argument("--sprint-end-utc", default="2026-09-04T21:30:00+00:00")
     return parser
 
 
@@ -1491,6 +1606,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         path, count = write_inspection(loaded, run_id=args.run_id, count=args.count)
         print(json.dumps({"path": str(path), "count": count}))
         return 0
+    if args.command == "gate10k":
+        release = release_report(
+            repo_root, loaded, run_id=args.run_id, sprint_end_utc=args.sprint_end_utc
+        )
+        print(json.dumps(release, ensure_ascii=False, indent=1))
+        return 0 if release["passed"] else 1
     fixtures_path = latest_fixtures_report(loaded)
     fixtures_ok = (
         read_json_object(fixtures_path).get("passed") is True if fixtures_path.is_file() else None

@@ -1,8 +1,8 @@
 # SFT1 — deterministic theorem-equivalence data at scale
 
 > **Task ID:** SFT1
-> **Status:** active
-> **Owner/session:** Codex [`01a05100-8f35-7192-ab49-a9cf09f1dd1e`](codex://threads/01a05100-8f35-7192-ab49-a9cf09f1dd1e)
+> **Status:** scaling
+> **Owner/session:** Claude Fable 5.1 sprint session on worktree `/localhome/milikic/LeanFaith-sft1-sprint`, branch `milikic/sft1-sprint-72h`
 > **Last updated:** 2026-09-01
 > **Active 72-hour sprint:** follow the compact execution path in
 > [`72h_sft_data_sprint_2026-09-01.md`](72h_sft_data_sprint_2026-09-01.md). The historical
@@ -22,12 +22,17 @@
 > active sprint prerequisites.
 > **REPR predecessor:** `cbc933c3623d81ba649a1f9c5107ad404389d69f` was reviewed but is
 > superseded and not consumable by SFT1
-> **Next gate:** compact seven-operation engine -> success/rejection fixtures -> 100 deterministic
-> Mathlib roots plus 30-pair inspection -> automatic 10K retained-pair run on pass. There is no
-> separate 10--20-root gate or new authorization gate between these steps.
-> **Compute class:** no active claim. The completed thin smoke used one persistent Mathlib Meta
-> request, 8.960906 seconds wall time, and 7,656,505,344 bytes peak process-tree RSS; its claim was
-> released.
+> **Next gate:** the detached 10,000-retained-pair run (`tenk`) completes; then `gate10k` runs
+> compaction into ancestry-grouped 1,000-pair shards, 100% proof-check verification,
+> duplicate/conflict rejection, the candidate-only/reference-only (< 0.60) and mechanism-held-out
+> (< 0.65) shortcut screens, and the measured full-wave completion projection. A pass launches the
+> full Mathlib wave in independently publishable shards; publication to the private Hub repository
+> follows the release manifest.
+> **Compute class:** one persistent Mathlib worker claimed as `SFT1-SPRINT` (1 worker / 24 GiB) by
+> the detached `tenk` run, python PID 2416707 inside tmux session `leanfaith-sft1-sprint-tenk`;
+> measured peak process-tree RSS 8.3 GB. The claim is released by the runner when the job exits.
+> Sprint outputs live under the staging root's `sprint_v1/` directory (`inventory/`, `cache/`,
+> `raw/`, `runs/<run_id>/`, `compacted/<run_id>/`, `logs/`).
 > **Lean budget:** the next gate may use one claimed persistent project worker with
 > `Elab.async=false`; do all root selection and filtering first, issue no per-row process, cache
 > deterministic results, and release the claim after live and zero-call replay checks.
@@ -993,6 +998,19 @@ focused adversarial suite have raw hashes
 semantic hash is intentionally distinct from the approved runtime-input policy hash `a4aa3ddc…`;
 the loader's exact pre-correction projection replays the latter.
 
+**Exact paths claimed by the 72-hour sprint session:**
+
+- `plans/30_sft1_deterministic.md`
+- `LeanFaith/Meta/SFT1/Sprint.lean`
+- `src/leanfaith/sft1/sprint/` (`__init__.py`, `inventory.py`, `engine.py`, `screens.py`,
+  `store.py`, `runner.py`, `shortcut.py`)
+- `configs/transformations/sft1_value_first_v1/sprint_v1.yaml`
+- `tests/unit/sft1/test_sprint_lean_free.py`
+- the sprint staging root `/storage/milikic/leanfaith/value_first/sft1_deterministic_v1/sprint_v1/`
+
+The historical `Wave1.lean`, `ThinSmoke.lean`, every policy/readiness/admission/identity/census
+loader, receipt, and YAML remain untouched; the sprint runner does not import or depend on them.
+
 **Exact paths claimed by the additive two-row thin-smoke session:**
 
 - `plans/30_sft1_deterministic.md`
@@ -1417,3 +1435,52 @@ resource use, output paths, and exact remaining ETA. Do not run training.
   uses a compact seven-operation, single-hop Mathlib engine with proof-backed negatives only. Its
   direct path is fixtures -> 100 roots plus 30 inspected pairs -> automatic sharded 10K on pass;
   the shortcut screen gates only larger scale. No Lean or generation was started by this plan edit.
+- 2026-09-01 — sprint session (Claude Fable 5.1) created worktree `/localhome/milikic/LeanFaith-sft1-sprint`
+  on branch `milikic/sft1-sprint-72h` from coordinator commit `5de43eb` (descendant of `c17104f`).
+  Built the Lean-free Mathlib inventory (180,415 `theorem`/`lemma` declarations, 180,400 unique
+  names, `inventory_sha256 73c98dfc…`) and the compact additive engine
+  `LeanFaith/Meta/SFT1/Sprint.lean` (`engineSemanticVersion sft1_sprint_engine_v1`): P15/P18 final-
+  target swaps, P14 adjacent independent explicit data-binder swap, P23 adjacent proof-independent
+  hypothesis packing with the `h`/`h_<n>` hygiene rule, N25 Eq/Ne toggle, N32 strict `Nat`/`Int`
+  `<` role swap, and N31 bounded literal-guard removal (`lit_lt_var`, `var_lt_lit`, `lit_le_var`,
+  `var_le_lit`, `var_ne_lit`, `var_eq_lit` schemas). Every positive carries an `Iff` witness
+  checked by `Meta.check` and independently by `Kernel.check`/`Kernel.isDefEq`; every negative
+  carries the loaded source constant (kernel-checked against the reference) plus a `Not candidate`
+  proof under a complete ground assignment found by bounded DFS over `Nat`/`Int`/`Bool`/`Prop`/
+  `Type` values, synthesized instances, and `decide`/`omega`/`norm_num`/`simp` hypothesis proofs;
+  N31 refutes the grounded target at the guard boundary. Universe parameters are instantiated at
+  level zero for the kernel pass and recorded. Terminal classes are `retained`, `not_applicable`,
+  `rejected`, `error`; `[anonymous]`, `⋯`, ordinary-local `✝`, self pairs, gold near-duplicate
+  hits, duplicate unordered pairs, and render/text/hash mismatches are rejected in Python.
+- 2026-09-01 — runner design: roots are interleaved deterministically from a `nat_int` pool
+  (`Mathlib.Data.Nat.*`, `Mathlib.Data.Int.*`, weight 3) and the `general` pool (weight 1) by
+  salted hash order; each batch of 25 roots is one persistent-worker *process* request (typed
+  terminals plus pre-rendered texts) followed by one *render* request through the frozen
+  `render_closed_expr_in_session` route with two `emitClosedProp` calls per pair, cross-checked by
+  the engine's structural hashes and exact text equality. Incremental prefix reuse keeps follow-up
+  requests at about 0.8 s. The append-only journal holds one terminal per root/operation; the
+  semantic cache keys operation records by root structural hash, operation ID, engine semantic
+  version, Lean/project revision, and import/options fingerprint (runner/config bytes and request
+  hashes are provenance). Implementation commit `0f6ab91`; fixes in `fed94d1`.
+- 2026-09-01 — fixture gate passed: all 14 fixtures (one success and one typed rejection per
+  operation) in run `fixtures-274ea10f55b8`, 20 retained pairs, 2 Lean requests, 12.5 s wall,
+  8.09 GB peak RSS.
+- 2026-09-01 — 100-root gate passed (run `roots100`, first 100 ordered roots): 147 retained pairs
+  in 32.7 s wall, 9 Lean requests, 8.21 GB peak RSS; retained by operation P15 15, P18 47, P14 21,
+  P23 19, N25 28, N32 3, N31 14 (six mechanisms at ten or more, four positive and two negative);
+  700 terminals = 147 retained / 524 not applicable / 29 rejected (22 N25 and 1 N32
+  `no_ground_assignment`, 2 N31 `no_boundary_refutation`, 4 reference `⋯` residue rejections).
+  Replay with the recorded limits issued 0 Lean requests and appended 0 rows. The 30-pair
+  operation-stratified inspection (`runs/roots100/inspection/sample.md`, all 14 N31 rows
+  included) found 0 wrong labels; verdict recorded in `inspection/verdict.json`.
+  `gate_report.json` passed all ten recorded checks.
+- 2026-09-01 — automatic 10K launch per the sprint contract: tmux session
+  `leanfaith-sft1-sprint-tenk`, pane PID 2416695, python PID 2416707, started 2026-09-01T22:53:40Z
+  from commit `fed94d1`, command `uv run python -m leanfaith.sft1.sprint.runner run --run-id tenk
+  --target-retained 10000`, log `sprint_v1/logs/tenk.log`, journal `sprint_v1/runs/tenk/journal.jsonl`,
+  status `sprint_v1/runs/tenk/status.json` (final marker `"final": true`). Health check at
+  22:57:31Z: 350 roots considered (100 from cache, 250 via Lean), 515 retained, 133 retained/min,
+  ETA about 71 min. Resume command: the same `run` command (completed terminals are skipped);
+  read-only status: `uv run python -m leanfaith.sft1.sprint.runner status --run-id tenk`; attach:
+  `tmux attach -t leanfaith-sft1-sprint-tenk`. Stop conditions: a potentially wrong core label,
+  a non-resumable failure, throughput below the ETA window, or loss of the shared Lean allocation.
