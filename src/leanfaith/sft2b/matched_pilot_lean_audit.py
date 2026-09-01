@@ -130,6 +130,10 @@ class SourceAuditTerminal(StrictModel):
     source_class: str
     source_context_id: str
     render_compile_context_id: str
+    reference_elaboration_method: Literal[
+        "source_signature_pp", "frozen_reference_signature_explicit"
+    ]
+    reference_elaboration_sha256: Sha256
     candidate_ids: tuple[StableId, ...]
     reference: EndpointCacheRecord
     candidates: tuple[EndpointCacheRecord, ...]
@@ -331,6 +335,148 @@ def _verify_source_material(sources: Sequence[SourceRecord], repo_root: Path) ->
     return observed
 
 
+def _reference_elaboration_inputs(
+    sources: Sequence[SourceRecord],
+    source_classes: Sequence[str],
+    source_manifest: dict[str, Any],
+) -> tuple[dict[str, tuple[str, str]], dict[str, object]]:
+    """Recover exact elaboration carriers without changing source records.
+
+    Mathlib's frozen ``signature_pp`` is the source-facing proposition, but it
+    is intentionally compact and can omit annotations needed to elaborate it
+    without an expected type.  The same hash-pinned reference catalog stores
+    ``signature_explicit`` from the identical typed constant.  Cross-bind the
+    compact text byte-for-byte, then use the explicit form only as Lean's
+    elaboration carrier.  Other source classes retain their source text.
+    """
+
+    catalogs = source_manifest.get("source_catalogs")
+    if not isinstance(catalogs, dict):
+        raise MatchedPilotLeanAuditError("source manifest lacks source catalogs")
+    mathlib = catalogs.get("mathlib_docstrings")
+    if not isinstance(mathlib, dict):
+        raise MatchedPilotLeanAuditError("source manifest lacks Mathlib reference catalog")
+    catalog_specs = (
+        (
+            "algebra",
+            Path(str(mathlib.get("reference_catalog_path", ""))),
+            str(mathlib.get("reference_catalog_sha256", "")),
+        ),
+        (
+            "cross_domain",
+            Path(str(mathlib.get("cross_domain_catalog_path", ""))),
+            str(mathlib.get("cross_domain_catalog_sha256", "")),
+        ),
+    )
+    mathlib_ids_by_family: dict[str, set[str]] = {name: set() for name, _, _ in catalog_specs}
+    for source, source_class in zip(sources, source_classes, strict=True):
+        if source_class != "library_docstring":
+            continue
+        source_family = source.provenance.source_family
+        if source_family not in mathlib_ids_by_family:
+            raise MatchedPilotLeanAuditError(
+                f"unsupported Mathlib source family for reference recovery: {source_family}"
+            )
+        mathlib_ids_by_family[source_family].add(source.reference_theorem_id)
+
+    rows: dict[str, dict[str, object]] = {}
+    catalog_receipts: dict[str, object] = {}
+    for family_key, catalog_path, catalog_hash in catalog_specs:
+        if (
+            not catalog_path.is_file()
+            or len(catalog_hash) != 64
+            or hash_file(catalog_path) != catalog_hash
+        ):
+            raise MatchedPilotLeanAuditError(
+                f"frozen Mathlib {family_key} reference catalog drifted"
+            )
+        selected_ids = mathlib_ids_by_family[family_key]
+        selected_rows: dict[str, dict[str, object]] = {}
+        with catalog_path.open(encoding="utf-8") as handle:
+            for line_number, line in enumerate(handle, start=1):
+                if not line.strip():
+                    raise MatchedPilotLeanAuditError(
+                        f"blank reference-catalog row at {catalog_path}:{line_number}"
+                    )
+                try:
+                    value: object = json.loads(line)
+                except json.JSONDecodeError as exc:
+                    raise MatchedPilotLeanAuditError(
+                        f"invalid reference-catalog JSON at {catalog_path}:{line_number}"
+                    ) from exc
+                if not isinstance(value, dict):
+                    raise MatchedPilotLeanAuditError("reference-catalog row is not an object")
+                representation: object = (
+                    value.get("representation") if family_key == "cross_domain" else value
+                )
+                if not isinstance(representation, dict):
+                    raise MatchedPilotLeanAuditError(
+                        f"Mathlib {family_key} reference representation is not an object"
+                    )
+                theorem_id = representation.get("theorem_id")
+                if theorem_id not in selected_ids:
+                    continue
+                if not isinstance(theorem_id, str) or theorem_id in selected_rows:
+                    raise MatchedPilotLeanAuditError(
+                        f"Mathlib {family_key} catalog has duplicate selected theorem ID"
+                    )
+                selected_rows[theorem_id] = cast(dict[str, object], representation)
+        if set(selected_rows) != selected_ids:
+            raise MatchedPilotLeanAuditError(
+                f"Mathlib {family_key} reference catalog lacks selected theorem IDs"
+            )
+        duplicate_ids = set(rows).intersection(selected_rows)
+        if duplicate_ids:
+            raise MatchedPilotLeanAuditError(
+                "Mathlib reference theorem IDs overlap source-family catalogs"
+            )
+        rows.update(selected_rows)
+        catalog_receipts[family_key] = {
+            "path": str(catalog_path),
+            "sha256": catalog_hash,
+            "selected_rows": len(selected_rows),
+        }
+
+    mathlib_ids = set().union(*mathlib_ids_by_family.values())
+    if set(rows) != mathlib_ids:
+        raise MatchedPilotLeanAuditError("Mathlib reference catalog union drifted")
+
+    result: dict[str, tuple[str, str]] = {}
+    method_counts: Counter[str] = Counter()
+    for source, source_class in zip(sources, source_classes, strict=True):
+        if source_class == "library_docstring":
+            row = rows[source.reference_theorem_id]
+            compact = row.get("signature_pp")
+            explicit = row.get("signature_explicit")
+            if compact != source.reference_proposition:
+                raise MatchedPilotLeanAuditError(
+                    f"compact Mathlib reference drifted for {source.source_id}"
+                )
+            if not isinstance(explicit, str) or not explicit.strip():
+                raise MatchedPilotLeanAuditError(
+                    f"explicit Mathlib reference is missing for {source.source_id}"
+                )
+            # Apply the same proof-free constructor guard used by execution.
+            PropositionEndpoint(
+                endpoint_id="reference",
+                endpoint_role="reference",
+                proposition=explicit,
+                source_id=source.source_id,
+            )
+            method = "frozen_reference_signature_explicit"
+            proposition = explicit
+        else:
+            method = "source_signature_pp"
+            proposition = source.reference_proposition
+        result[source.source_id] = (method, proposition)
+        method_counts[method] += 1
+    return result, {
+        "catalogs": catalog_receipts,
+        "selected_mathlib_rows": len(mathlib_ids),
+        "method_counts": dict(sorted(method_counts.items())),
+    }
+
+
 def _expected_candidate_order(attempts: Sequence[FormalizerAttempt]) -> tuple[str, ...]:
     return tuple(
         item.candidate_id
@@ -404,6 +550,9 @@ def prepare_preflight(
 
     source_manifest = _json_object(config.input_bundle.local_root / "source_manifest.json")
     source_classes = _source_classes(sources, source_manifest)
+    _, reference_elaboration = _reference_elaboration_inputs(
+        sources, source_classes, source_manifest
+    )
     helper_path = repo_root / config.helper_path
     pins = verify_runtime_pins(repo_root, helper_path=helper_path)
     helper_body = _helper_body(helper_path, pins)
@@ -474,6 +623,7 @@ def prepare_preflight(
         "source_ids_sha256": hash_canonical([item.source_id for item in sources]),
         "candidate_ids_sha256": hash_canonical([item.candidate_id for item in candidates]),
         "source_class_counts": dict(sorted(Counter(source_classes).items())),
+        "reference_elaboration": reference_elaboration,
         "class_candidate_counts": dict(sorted(class_candidate_counts.items())),
         "candidate_count_by_source_histogram": {
             str(key): value for key, value in sorted(candidate_count_histogram.items())
@@ -488,12 +638,15 @@ def prepare_preflight(
 
 
 def _endpoints(
-    source: SourceRecord, candidates: Sequence[CandidateRecord]
+    source: SourceRecord,
+    candidates: Sequence[CandidateRecord],
+    *,
+    reference_proposition: str | None = None,
 ) -> tuple[PropositionEndpoint, ...]:
     reference = PropositionEndpoint(
         endpoint_id="reference",
         endpoint_role="reference",
-        proposition=source.reference_proposition,
+        proposition=reference_proposition or source.reference_proposition,
         source_id=source.source_id,
     )
     candidate_endpoints = tuple(
@@ -745,6 +898,8 @@ def _execute_source(
     source: SourceRecord,
     source_ordinal: int,
     source_class: str,
+    reference_elaboration_method: str,
+    reference_proposition: str,
     candidates: tuple[CandidateRecord, ...],
     context: CompileContext,
     pins: RuntimePins,
@@ -752,7 +907,7 @@ def _execute_source(
     run_id: str,
     run_root: Path,
 ) -> tuple[SourceAuditTerminal | None, int]:
-    endpoints = _endpoints(source, candidates)
+    endpoints = _endpoints(source, candidates, reference_proposition=reference_proposition)
     infrastructure_attempts = 0
     rendered = None
     last_result: LeanResult | None = None
@@ -855,6 +1010,8 @@ def _execute_source(
         source_class=source_class,
         source_context_id=source.compile_context.source_context_id,
         render_compile_context_id=context.compile_context_id,
+        reference_elaboration_method=reference_elaboration_method,  # type: ignore[arg-type]
+        reference_elaboration_sha256=sha256_hex(reference_proposition.encode("utf-8")),
         candidate_ids=tuple(item.candidate_id for item in candidates),
         reference=reference,
         candidates=tuple(candidate_records),
@@ -874,11 +1031,18 @@ def _execute_source(
 
 def _load_inputs(
     config: MatchedPilotLeanAuditConfig,
-) -> tuple[tuple[SourceRecord, ...], tuple[CandidateRecord, ...], tuple[str, ...]]:
+) -> tuple[
+    tuple[SourceRecord, ...],
+    tuple[CandidateRecord, ...],
+    tuple[str, ...],
+    dict[str, tuple[str, str]],
+]:
     sources = _read_models(config.input_bundle.local_root / "sources.jsonl", SourceRecord)
     candidates = _read_models(config.output_bundle.local_root / "candidates.jsonl", CandidateRecord)
     source_manifest = _json_object(config.input_bundle.local_root / "source_manifest.json")
-    return sources, candidates, _source_classes(sources, source_manifest)
+    source_classes = _source_classes(sources, source_manifest)
+    reference_inputs, _ = _reference_elaboration_inputs(sources, source_classes, source_manifest)
+    return sources, candidates, source_classes, reference_inputs
 
 
 def _compact(
@@ -1010,6 +1174,9 @@ def _compact(
         "gate_checks": gate_checks,
         "gate_passed": all(gate_checks.values()),
         "source_class_counts": dict(sorted(Counter(source_classes).items())),
+        "reference_elaboration_method_counts": dict(
+            sorted(Counter(item.reference_elaboration_method for item in terminals).items())
+        ),
         "class_candidate_status_histogram": class_histogram,
         "context_candidate_status_histogram": context_histogram,
         "candidate_failure_histogram": dict(sorted(failure_histogram.items())),
@@ -1038,7 +1205,7 @@ def run_audit(
     preflight, run_root = prepare_preflight(repo_root=repo_root, config_path=config_path)
     config, _ = load_config(config_path)
     run_id = cast(str, preflight["run_id"])
-    sources, candidates, source_classes = _load_inputs(config)
+    sources, candidates, source_classes, reference_inputs = _load_inputs(config)
     helper_path = repo_root / config.helper_path
     pins = verify_runtime_pins(repo_root, helper_path=helper_path)
     helper_body = _helper_body(helper_path, pins)
@@ -1097,6 +1264,8 @@ def run_audit(
                     source=source,
                     source_ordinal=source_ordinal,
                     source_class=source_classes[source_ordinal],
+                    reference_elaboration_method=reference_inputs[source.source_id][0],
+                    reference_proposition=reference_inputs[source.source_id][1],
                     candidates=tuple(candidates_by_source[source.source_id]),
                     context=context,
                     pins=pins,
@@ -1167,7 +1336,7 @@ def run_audit(
 def verify_completed_audit(*, repo_root: Path, config_path: Path) -> dict[str, Any]:
     preflight, run_root = prepare_preflight(repo_root=repo_root, config_path=config_path)
     config, _ = load_config(config_path)
-    sources, _, _ = _load_inputs(config)
+    sources, _, _, _ = _load_inputs(config)
     missing = [item.source_id for item in sources if not _terminal_path(run_root, item).is_file()]
     if missing:
         raise MatchedPilotLeanAuditError(

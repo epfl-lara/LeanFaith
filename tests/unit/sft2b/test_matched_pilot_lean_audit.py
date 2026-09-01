@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from collections.abc import Sequence
 from pathlib import Path
 from types import SimpleNamespace
@@ -214,6 +215,83 @@ def test_source_material_accepts_content_pinned_snapshot_symlink(tmp_path: Path)
     assert observed[str(snapshot)] == sha256_hex(blob.read_bytes())
 
 
+def test_reference_inputs_require_family_specific_frozen_catalogs(tmp_path: Path) -> None:
+    algebra, _ = _source()
+    cross_theorem_id = "thm:cross"
+    cross = algebra.model_copy(
+        update={
+            "source_id": stable_id(
+                "sft2b_source",
+                {
+                    "reference_theorem_id": cross_theorem_id,
+                    "nl_statement": algebra.nl_statement,
+                    "source_revision": _REVISION,
+                },
+            ),
+            "reference_theorem_id": cross_theorem_id,
+            "provenance": algebra.provenance.model_copy(update={"source_family": "cross_domain"}),
+        }
+    )
+    algebra_catalog = tmp_path / "algebra.jsonl"
+    cross_catalog = tmp_path / "cross.jsonl"
+    algebra_catalog.write_text(
+        json.dumps(
+            {
+                "theorem_id": algebra.reference_theorem_id,
+                "signature_pp": "True",
+                "signature_explicit": "(True)",
+            },
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    cross_catalog.write_text(
+        json.dumps(
+            {
+                "representation": {
+                    "theorem_id": cross.reference_theorem_id,
+                    "signature_pp": "True",
+                    "signature_explicit": "@True",
+                },
+            },
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    manifest = {
+        "source_catalogs": {
+            "mathlib_docstrings": {
+                "reference_catalog_path": str(algebra_catalog),
+                "reference_catalog_sha256": audit.hash_file(algebra_catalog),
+                "cross_domain_catalog_path": str(cross_catalog),
+                "cross_domain_catalog_sha256": audit.hash_file(cross_catalog),
+            }
+        }
+    }
+
+    observed, receipt = audit._reference_elaboration_inputs(
+        (algebra, cross), ("library_docstring", "library_docstring"), manifest
+    )
+
+    assert observed[algebra.source_id] == ("frozen_reference_signature_explicit", "(True)")
+    assert observed[cross.source_id] == ("frozen_reference_signature_explicit", "@True")
+    assert receipt["selected_mathlib_rows"] == 2
+    assert receipt["catalogs"] == {
+        "algebra": {
+            "path": str(algebra_catalog),
+            "sha256": audit.hash_file(algebra_catalog),
+            "selected_rows": 1,
+        },
+        "cross_domain": {
+            "path": str(cross_catalog),
+            "sha256": audit.hash_file(cross_catalog),
+            "selected_rows": 1,
+        },
+    }
+
+
 def test_reference_only_source_uses_probe_but_emits_no_candidate_terminal(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -259,6 +337,8 @@ def test_reference_only_source_uses_probe_but_emits_no_candidate_terminal(
         source=source,
         source_ordinal=0,
         source_class="library_docstring",
+        reference_elaboration_method="source_signature_pp",
+        reference_proposition=source.reference_proposition,
         candidates=(),
         context=context,
         pins=_pins(),
@@ -319,6 +399,8 @@ def test_terminal_rejects_candidate_order_mismatch() -> None:
             source_class="library_docstring",
             source_context_id=source.compile_context.source_context_id,
             render_compile_context_id=context.compile_context_id,
+            reference_elaboration_method="source_signature_pp",
+            reference_elaboration_sha256=source.reference_proposition_sha256,
             candidate_ids=(),
             reference=reference,
             candidates=(candidate,),
