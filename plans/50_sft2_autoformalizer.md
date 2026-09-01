@@ -378,8 +378,9 @@ any generation, Lean, judging, training, or scale run.
    immutable server revisions.
 2. Give each provider the same hash-bound source fields and rubric while blinding it to the other
    review, automatic inclusion/quarantine disposition, expected verdict, and downstream selection.
-   Require strict structured output with verdict, finding classes, confidence, rationale, and
-   reviewed-field/source hashes. Preserve raw request/response bytes in content-addressed storage.
+   Require strict structured provider output with verdict, standalone/alignment statuses, finding
+   classes, confidence, and rationale. The wrapper—not the model—attaches reviewed-field/source
+   hashes and provider lineage. Preserve raw request/response bytes in content-addressed storage.
 3. Define the panel outcome deterministically: matching decisive verdicts admit that disposition;
    any disagreement, escalation, malformed output, provider failure, or insufficient confidence
    routes to an unresolved keyed view. Never use one provider to repair, summarize, or arbitrate the
@@ -909,3 +910,18 @@ Do not launch 50K sources without the pilot and user compute/model approval.
   followed by strict consensus/unknown compaction and a zero-provider-call restart. This is model
   panel review, not human or semantic ground truth, and does not authorize the other 991 reviews,
   corrected-bundle publication, generation, Lean, judging, training, or scale authorization.
+- 2026-09-01 — implemented the additive model-panel contract without changing v3. Contract SHA-256
+  is `579acee1dcaf3d2f9f49fb688018600c814637b67b7b0e2f75c35420ae3764f5`; implementation
+  SHA-256 is `1c05607138896c385867795e99add457bd541b1a35d03f7bc73fcdfd92e00101`;
+  response-schema SHA-256 is
+  `c7fa9a66caf52cd0b97562aa14f078e8f3317ee6e410391eecfe429418401e31`; Opus/Terra prompt
+  SHA-256 values are respectively
+  `8c537319c017ebe87ebe9062e2962f27920e633d18f4bcfcc54cf85eca648c89` and
+  `cb8d40b72903117a5b8360874f27a03c58d3379cde0fedf67202db129d1a1255`.
+  The real no-call preflight replayed all 992 packet rows and every packet/policy/prompt/schema/
+  implementation/binary/CLI pin. The authorized row is packet entry
+  `sft2b_review_packet:f1fbb98fa666e7e46187d31463fb649d1f7565c1db500cb2c51f62cd8b82631c`,
+  a public Apache-2.0 Lean-Workbook solution-discourse example; its selection reason and automatic
+  disposition are omitted from both model projections. Focused tests pass 9/9, Ruff passes, and
+  strict mypy passes. No provider, Lean, generation, publication, judging, or training call has run
+  at this boundary.
