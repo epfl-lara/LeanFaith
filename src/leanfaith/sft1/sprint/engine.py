@@ -28,7 +28,6 @@ from leanfaith.representations.goal_v1 import (
     _closed_expr_command,
     render_closed_expr_in_session,
 )
-from leanfaith.sft1.sprint.inventory import lean_name_literal
 
 ENGINE_RELATIVE_PATH = Path("LeanFaith/Meta/SFT1/Sprint.lean")
 EVIDENCE_MARKER = "LFSFT1SPRINTJSON "
@@ -145,6 +144,15 @@ def engine_identity(repo_root: Path, pins: ProjectPins, context: CompileContext)
     )
 
 
+def lean_string_literal(name: str) -> str:
+    """Lean string literal for a root name; string literals are masked by the
+    frozen render route, unlike name literals containing primes."""
+
+    if any(ch in name for ch in ('"', "\\", "\n")):
+        raise SprintEngineError(f"unsupported character in root name {name!r}")
+    return json.dumps(name, ensure_ascii=False)
+
+
 def operation_mask(operations: Sequence[str]) -> int:
     mask = 0
     for operation in operations:
@@ -161,7 +169,7 @@ def operations_in_mask(mask: int) -> tuple[str, ...]:
 def process_body(roots: Sequence[tuple[str, int]]) -> str:
     if not roots:
         raise SprintEngineError("process request needs at least one root")
-    names = ", ".join(lean_name_literal(name) for name, _ in roots)
+    names = ", ".join(lean_string_literal(name) for name, _ in roots)
     masks = ", ".join(str(mask) for _, mask in roots)
     return f"run_meta do\n  LeanFaith.SFT1.Sprint.processRoots #[{names}] #[{masks}]"
 
@@ -173,7 +181,7 @@ def render_scope_id(engine_version: str) -> str:
 def render_body(pairs: Sequence[tuple[str, str]], scope: str) -> str:
     if not pairs:
         raise SprintEngineError("render request needs at least one pair")
-    names = ", ".join(lean_name_literal(name) for name, _ in pairs)
+    names = ", ".join(lean_string_literal(name) for name, _ in pairs)
     operations = ", ".join(json.dumps(operation) for _, operation in pairs)
     lines = [
         "run_meta do",

@@ -57,9 +57,10 @@ def test_process_body_and_mask_round_trip() -> None:
         "P15_SWAP_IFF_SIDES_V1",
         "N31_DROP_REQUIRED_GUARD_PROOF_V1",
     )
-    body = engine.process_body([("Nat.foo", mask), ("Foo.«bar baz».qux", 127)])
+    body = engine.process_body([("Nat.foo", mask), ("Foo.«bar baz».qux'", 127)])
     assert body.startswith("run_meta do")
-    assert "#[`Nat.foo, `Foo.«bar baz».qux] #[65, 127]" in body
+    assert '#["Nat.foo", "Foo.«bar baz».qux\'"] #[65, 127]' in body
+    assert "`" not in body
 
 
 def test_render_body_has_exactly_two_emitter_calls_per_pair_and_no_runtime_tokens() -> None:

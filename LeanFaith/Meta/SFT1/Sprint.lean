@@ -1077,9 +1077,21 @@ def processRoot (name : Name) (mask : Nat) : MetaM Unit := do
             ("terminals", Json.arr outcomes),
             ("elapsed_ms", toJson ((← IO.monoMsNow) - t0))])
 
-def processRoots (names : Array Name) (masks : Array Nat) : MetaM Unit := do
+/-- Parse a dotted theorem name sent as a string literal.  Guillemets around a
+    component are stripped; components never contain dots. -/
+def parseName (text : String) : Name :=
+  (text.splitOn ".").foldl
+    (fun acc component =>
+      let trimmed :=
+        if component.startsWith "«" && component.endsWith "»" then
+          (component.drop 1).dropRight 1 |>.toString
+        else component
+      Name.mkStr acc trimmed)
+    Name.anonymous
+
+def processRoots (names : Array String) (masks : Array Nat) : MetaM Unit := do
   for name in names, mask in masks do
-    processRoot name mask
+    processRoot (parseName name) mask
 
 /-! ## Rebuild for the frozen render route -/
 
@@ -1095,10 +1107,10 @@ def rebuildPair (name : Name) (opId : String) : MetaM RebuiltPair := do
   let candidate ← checkedClosedProp false "candidate" applied.candidate
   return { reference := root.reference, candidate }
 
-def rebuildPairs (names : Array Name) (opIds : Array String) : MetaM (Array RebuiltPair) := do
+def rebuildPairs (names : Array String) (opIds : Array String) : MetaM (Array RebuiltPair) := do
   let mut result := #[]
   for name in names, opId in opIds do
-    result := result.push (← rebuildPair name opId)
+    result := result.push (← rebuildPair (parseName name) opId)
   return result
 
 def emitRebuildReport (pairs : Array RebuiltPair) : MetaM Unit := do

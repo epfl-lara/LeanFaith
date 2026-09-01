@@ -719,9 +719,18 @@ class SprintRunner:
         session = self.open_session()
         pairs = [(name, operation) for name, operation, _, _ in chunk]
         request_id = f"{self.run_id}:render:{self.batches}:" + hash_canonical(pairs)[:16]
-        rendered = session.run_render(
-            pairs, statements=self.statements, scope=self.scope, request_id=request_id
-        )
+        try:
+            rendered = session.run_render(
+                pairs, statements=self.statements, scope=self.scope, request_id=request_id
+            )
+        except (GoalV1Error, ValueError) as exc:
+            if not final:
+                return False
+            name, operation, _, _ = chunk[0]
+            self.finalize_terminal(
+                name, operation, "rejected", f"render_failed:route:{str(exc)[:300]}", source="lean"
+            )
+            return True
         batch = rendered.batch
         if batch.failures:
             if not final:
