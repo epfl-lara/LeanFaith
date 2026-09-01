@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "requested_polarity",
+    "mechanism",
+    "applicability_reason",
+    "candidate_signature",
+    "change_summary",
+    "judge_trap",
+    "informative",
+    "substantive_change",
+    "proof_free"
+  ],
+  "properties": {
+    "schema_version": {"const": 5},
+    "requested_polarity": {"enum": ["preserving", "breaking"]},
+    "mechanism": {
+      "enum": [
+        "argument_permutation_with_recovery",
+        "equality_symmetry",
+        "premise_permutation",
+        "curry_uncurry",
+        "quantifier_reordering_independent",
+        "conjunction_reassociation",
+        "disjunction_reassociation",
+        "antisymmetry_expansion",
+        "set_extensionality_expansion",
+        "recoverable_boundary_partition",
+        "existential_witness_repackaging",
+        "negation_implication_duality",
+        "function_extensionality_expansion",
+        "premise_strengthening",
+        "premise_weakening_or_drop",
+        "conclusion_strengthening",
+        "conclusion_weakening",
+        "quantifier_scope_change",
+        "type_or_domain_shift",
+        "guard_or_boundary_change",
+        "converse_direction",
+        "negation_scope_change",
+        "existence_uniqueness_change",
+        "witness_dependency_change",
+        "connective_change",
+        "operator_or_index_shift",
+        "relation_change_nonrecoverable"
+      ]
+    },
+    "applicability_reason": {"type": "string", "minLength": 1, "maxLength": 1000},
+    "candidate_signature": {"type": "string", "minLength": 1, "maxLength": 12000},
+    "change_summary": {"type": "string", "minLength": 1, "maxLength": 800},
+    "judge_trap": {"type": "string", "minLength": 1, "maxLength": 800},
+    "informative": {"const": true},
+    "substantive_change": {"const": true},
+    "proof_free": {"const": true}
+  }
+}

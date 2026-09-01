@@ -2,10 +2,10 @@
 
 > **Task ID:** SFT2A
 > **Status:** active
-> **Owner/session:** Codex `/root` — 2026-08-30 SFT2A session
-> **Last updated:** 2026-08-30
+> **Owner/session:** Codex `/root` — 2026-09-01 SFT2A v5.2 provider-recovery session
+> **Last updated:** 2026-09-01
 > **Dependencies:** REPR `goal_v1.0`; shared rubric; roots may be selected independently of SFT1
-> **Next gate:** Opus one-root smoke passed
+> **Next gate:** user authorization for only the additive v5.2 recovery rehearsal bound to the frozen sample, cumulative failed-run ledger, clean recovery commit/tree, and fresh output root
 > **Compute class:** external LLM/API plus CPU/RAM for Lean; large run may need explicit budget approval
 > **Lean budget:** compile each novel candidate once through cached persistent workers
 > **Local staging root:** `/storage/milikic/leanfaith/value_first/sft2_llm_transforms_v1/`
@@ -301,3 +301,302 @@ recorded budget/model decision.
   and passed the 14 SFT2A tests, Ruff check/format verification, strict Mypy, frozen-config checks,
   readiness verification, and diff checks. No provider, Lean, diverse-root, legacy, publication, or
   50K execution occurred during final readiness work.
+- 2026-08-30 — added the production-default configuration without changing either frozen smoke. It
+  is hash-bound to active policy
+  `4554a071b06b1af9015b253b5e64b2a0a4d013630e5224ef7729bbf65757646f` and pins Claude Code
+  Opus 5/high, `gpt-5.6-terra`/high, and `moonshotai/Kimi-K2.7-Code`/high under distinct provider
+  IDs with exact local CLI versions and binary hashes; all server aliases remain honestly marked
+  floating. Shared provider and Lean caches remain outside the versioned production run trees.
+- 2026-08-30 — ran exactly one authorized production-settings root, Mathlib `le_trans`, through
+  four slots. It accepted two preserving and two breaking candidates on four first attempts with
+  zero invalid, unknown, judge-disagreement, duplicate, retry, or contamination outcomes. Four new
+  Terra calls and four new Opus-high judgments ran; reported Opus spend was $0.083279 and provider
+  latency was 48.188734 seconds. Lean is still the bottleneck: cheap filtering preceded one claimed
+  persistent worker, one novel candidate executed in 15.877 seconds, three candidates hit the
+  shared cache, and the 1-worker/20-GiB claim was released immediately afterward. Replay executed
+  zero provider calls and zero Lean requests with snapshot
+  `80f5f856166c43394df938256b57fd36be7d669735eb7a0012cdb5ad33232814`.
+- 2026-08-30 — completed only the exact one-root smoke's Kimi-high blinded audit: deterministic
+  small-stratum rounding selected two of four accepted rows, both agreed with Opus, cost reporting
+  remained explicitly unavailable, and immutable audit replay made no additional call. Added the
+  pilot-specific completed-run replay receipt, which forbids provider/Lean execution and seals all
+  durable hashes, plus the combined-pilot 10% stratified audit capped at eight calls on the same
+  persistent 296-call ledger. Forced-disagreement regression routes the row to unknown/review,
+  excludes its stable ID from releasable core, propagates audit hashes into the consolidated report,
+  and blocks scale.
+- 2026-08-30 — prepared but did not launch the production pilot's named detached `tmux` path. It
+  requires a clean committed implementation, the exact config/readiness/authorization hashes, one
+  exclusive run lock, one host-wide Lean resource claim, closed stdin, a persistent combined log
+  and append-only journal, explicit resume and health commands, and duplicate-start refusal. The
+  production receipt is `authorized: false`; the next gate is user authorization for the 12-root
+  pilot only. The 2,233-row legacy rejudge, publication, and 50K run remain unauthorized.
+- 2026-08-30 — fixed the authorization-transition collision without editing the frozen
+  readiness-only receipt/config or its staged sample. The additive v2 activation plan verifies the
+  old `pilot_authorized: false` manifest and exact hashes, requires the full authorization sentence,
+  and only then can materialize new authorized receipt/readiness files. Those targets remain absent,
+  so launch is still disabled. The authorized transition uses fresh output
+  `runs/diverse_root_production_defaults_pilot_v2` and `tmux` session
+  `leanfaith-sft2a-production-pilot-v2`; preflight writes the same hash-bound 12-root sample there
+  with zero provider/Lean execution and stops before starting `tmux`. A regression proves the
+  current unauthorized state fails closed, the prospective authorized model passes
+  `require_pilot_authorization`, the old sample stays byte-identical, and the fresh-root preflight
+  reaches the detached boundary. Legacy rejudging, publication, and 50K remain unauthorized.
+- 2026-08-30 — separated SFT2A from the accidental combined history: branch
+  `milikic/sft2a-production-activation` starts at `57a63e3` and cherry-picks only the SFT2A
+  production-readiness commits before this activation fix. The two SFT2B setup commits are not
+  ancestors of this branch and must not be silently merged as part of SFT2A integration.
+- 2026-08-30 — received the exact hash-bound authorization for only the 12-root production-default
+  pilot. While clean at activation commit `5055134`, materialized the additive v2 authorization
+  receipt `e00195d887692fe309ec024f46d52867b9ec6b2bd52488fdf4b8f465e9ea0b6c` and readiness file
+  `fefdc00a8e694974fe75a64295a78122ac5f5083d036c99d3a1fbb3d90c58473` with effective readiness
+  hash `392e220d10ecb224b9ca061a02ca838d60626ab55c389a4183af5e345c5ae8c2`. The authorized path retains
+  sample `d0568942cf276939a47b375a73715fcae489a9b9c380c9aa02bd780bd706ba75`, the 296-call/$15 Opus
+  ceilings, fresh v2 output, and versioned `tmux` session. This authorization explicitly excludes
+  the 2,233-row legacy rejudge, publication, and 50K run.
+- 2026-08-30 — the first authorized detached startups reached `worker_started` but received tmux
+  `SIGHUP` before the resource claim because redirecting stdin/stdout/stderr removed every open
+  reference to the pane PTY. They executed zero provider and Lean calls and held no reservation.
+  Preserved their sample, launch requests, and journal under additive evidence root
+  `runs/diverse_root_production_defaults_pilot_v2_failed_startup_15d6a26`. The worker now retains one
+  non-I/O PTY descriptor for its lifetime, writes an initial log record, and startup health requires
+  the named live pane, held run lock, and matching one-worker/20-GiB resource claim rather than old
+  journal-row count. The authorized sample/config/ceilings and v2 tmux name are unchanged.
+- 2026-08-30 — the authorized v2 pilot completed nine roots durably, then failed closed before any
+  Physlib provider call on `physlib:ckm_row_norm`. The frozen catalog had incorrectly qualified the
+  global Physlib declarations `CKMMatrixSetoid` and `VAbs` as members of namespace `CKMMatrix`;
+  the theorem itself is correctly named `CKMMatrix.VAbs_sum_sq_row_eq_one`. The worker recorded a
+  terminal failure, released its one-worker/20-GiB claim, and left no process or tmux session.
+  Preserved the full v2 sample, manifests, 73-call cumulative ledger, journal, log, and terminal
+  bytes. A resource-claimed one-signature oracle proved that removing only those two namespace
+  qualifiers elaborates successfully through frozen REPR.
+- 2026-08-30 — added an unauthorized recovery overlay rather than editing the frozen catalog or
+  failed v2 run. It produces corrected sample
+  `52edf04e5cfddefcd6626dfcb0ee0785f4a0f1e9dbd4cfd0851407e6134ccea4`, binds correction receipt
+  `6a562f4b9e397ede3b8096ba1ce3d59bee977ee6dd66a0dac8133ce67f3f54b6`, and seeds the recovery
+  ledger byte-for-byte from failed-run ledger
+  `b5b661ec4828f6616a9e4379d1ca7dcbd9f01100a7c7a23bb5dbd4bbff1ca8e9` so restart cannot reset
+  the 296-call or $15 ceilings. Its staged readiness sample is bound to clean implementation
+  `71319fa`; a versioned v4 activation targets fresh output
+  `runs/diverse_root_production_defaults_pilot_recovery_v4` and tmux session
+  `leanfaith-sft2a-production-pilot-recovery-v4`. The original authorization was bound to the old
+  sample, so recovery launch remains fail-closed pending a new exact user sentence. Legacy
+  rejudging, publication, and 50K remain unauthorized.
+- 2026-08-30 — received the exact hash-bound authorization for only the corrected 12-root recovery
+  pilot. While clean at activation commit `c8287a5`, materialized the additive v4 authorization
+  receipt `ecd0b2c21e2a1ca7aab34d86dd9c869472807d28a8beefa4b28e5a1c5ac314b6` and readiness file
+  `2a2c3e275c40c2c1cfed3ba80389cc5b788e753a9c40a9d362ad638e5b236a79` with effective readiness
+  hash `a094a9e6ef365c7c769c6759c34d6dd61f7ffd176e11374b177190761a4e4a58`. The authorized path is
+  bound to corrected sample `52edf04e5cfddefcd6626dfcb0ee0785f4a0f1e9dbd4cfd0851407e6134ccea4`, production config
+  `2f9aafb0f36a1cc01734a02e8197b308b940efac4f0681ba306c9dd9cb0a7877`, correction receipt
+  `6a562f4b9e397ede3b8096ba1ce3d59bee977ee6dd66a0dac8133ce67f3f54b6`, and cumulative failed-run
+  ledger `b5b661ec4828f6616a9e4379d1ca7dcbd9f01100a7c7a23bb5dbd4bbff1ca8e9` under the existing
+  296-call/$15 Opus ceilings. Legacy rejudging, publication, and 50K remain unauthorized.
+- 2026-08-31 — accepted recovery-v4 only as immutable historical evidence and sealed its 137
+  regular files with combined-tree hash
+  `3ea4a72280c696b1811995b51403373384ae8269ee05accc351f9527d82dd06a`. Added an additive v5
+  contract under active Opus-high/Terra-high/Kimi-high defaults. V5 rejects raw shortcuts before
+  Lean and rejects closed-Expr or rendered-`goal_v1` identity before judging. It adds exact
+  closure-equivalence canaries for `nat_add_comm/break_1`, `set_union_comm/break_1`, and
+  `nat_gcd_comm/break_0`, one malformed-judge retry for verdict/rationale contradictions, and
+  separate genuine-disagreement routing. Recovery-v4 bytes were not changed.
+- 2026-08-31 — completed the source-text-only v5 census with zero provider calls and zero Lean
+  requests: 178,673 eligible distinct signatures across Mathlib, Physlib, CSLib, and safe-context
+  compiler-data inputs. Froze a domain/shape/source-stratified 100-root sample with source mix
+  42/25/17/16 and 400 planned slots, applicability-aware mechanism assignments, 13 preserving and
+  14 breaking families, maximum observed family shares 14% and 9%, and deterministic project
+  shards. The sample, rehearsal, audit, detached launch, and 50K projection code remain fail-closed
+  for calls until an additive hash-bound rehearsal authorization is received. The approximately
+  10K gate, 50K run, legacy rejudge, and publication remain separately unauthorized.
+- 2026-08-31 — passed the closure-aware v5 live gate on implementation `92ddfb4` (tree
+  `15c0425`). Opus-high correctly classified all three closure canaries as equivalent with no
+  malformed response and no Lean request. The `mathlib:le_trans` smoke then accepted two
+  preserving and two breaking candidates on their first attempts, with zero self-pairs,
+  cross-root duplicates, contamination, invalidity, unknowns, malformed judgments, or semantic
+  disagreements. Four candidates executed once through frozen REPR in 8.424 seconds; replay
+  executed zero provider calls and zero Lean requests. The smoke used four Terra calls and seven
+  Opus calls including canaries, with $0.230928 total reported Opus spend. Receipt
+  `configs/sft2a/closure_aware_v5_smoke_receipt.json` seals the manifests and replay.
+- 2026-08-31 — materialized the additive readiness-only receipt
+  `configs/sft2a/rehearsal_readiness_v5.json` for sample
+  `f7d3e27d8361dcbdde245e5236902239b5ca505538a3ca35d5efb80c6e042c4c`, exactly 100 roots and
+  400 slots with source mix 42 Mathlib / 25 Physlib / 17 CSLib / 16 safe-context compiler-data.
+  It is fail-closed with `authorized: false` under ceilings 2,480 total provider calls, 1,200
+  Terra, 1,200 Opus, 80 Kimi, three candidate attempts per slot, and $160 reported Opus spend.
+  No rehearsal `tmux` session was started. The approximately-10K gate, 50K run, legacy rejudge,
+  and publication remain separately unauthorized.
+- 2026-08-31 — received the exact authorization sentence for only the closure-aware v5 rehearsal
+  bound to sample `f7d3e27d8361dcbdde245e5236902239b5ca505538a3ca35d5efb80c6e042c4c`,
+  config `ba77a49dd162b88e59bdf1fe5cd04687eeaa2affda314dc3b3b0e5cfa2cc16da`, and the
+  readiness ceilings. Its exact text hash is
+  `d02d8bc031cf01695853e773515214db0ce78926a8494d9ae76ee6bb05a71279`. Materialized the
+  additive `configs/sft2a/rehearsal_authorization_v5.json`; the historical readiness-only receipt,
+  v5 smoke, and recovery-v4 evidence remain unchanged. This authorization still excludes the
+  approximately-10K gate, 50K run, legacy rejudge, publication, and every other run.
+- 2026-08-31 — the first v5 detached launch created the requested tmux session but the session
+  exited before the worker entered, exactly matching the prior all-descriptors-left-the-PTY startup
+  failure. It executed zero provider calls and zero Lean requests and claimed no resource. Preserved
+  its two empty artifacts plus manifest under `detached/failed_startup_v1/`. Applied the previously
+  proven non-I/O PTY keepalive pattern to the v5 worker at implementation `d0ca454`, added a launch
+  journal event, and created additive recovery authorization
+  `configs/sft2a/rehearsal_authorization_v5_recovery_v2.json` bound to the same user sentence,
+  sample, config, ceilings, and failed-startup seal. No scope was expanded.
+- 2026-08-31 — the PTY-safe v5 recovery launch entered the worker, acquired and then released the
+  single Lean resource claim, and failed closed while elaborating the first sampled CSLib reference,
+  before any Terra, Opus, or Kimi call and before any candidate elaboration. The zero-Lean census
+  had omitted an active section variable and retained the `in` modifier from `open Classical in`.
+  The historical 24-file failed-run tree is frozen at combined-tree hash
+  `3b36a72a61e63e7ae9d9bce6f4262bd6787795f564ce60fff30fb44e04a330fa` in
+  `configs/sft2a/rehearsal_v5_failed_launch_seal.json`. The authorization bound to sample
+  `f7d3e27d8361dcbdde245e5236902239b5ca505538a3ca35d5efb80c6e042c4c` is retired for relaunch.
+- 2026-08-31 — corrected the source-context census conservatively by excluding declarations under
+  active section/namespace variables and stripping the trailing `in` open-command modifier. Added
+  a two-applicable-mechanism minimum per polarity so both candidate slots have substantive choices.
+  The additive v5.1 config has logical hash
+  `add8445af25fddc99f3381dbf23d30121847f90c3ef0ddbbba4b09ee8e632f51`; its zero-provider,
+  zero-Lean sample is `480a586ea99c26f41c6dfba47fb345507f25bd9bc778c03b13cc22108abd87f5`
+  with the unchanged 42/25/17/16 source mix, 12 preserving and 14 breaking mechanism families,
+  and 11%/8.5% maximum family shares. A second preparation preserved every durable hash. Readiness
+  receipt `configs/sft2a/rehearsal_readiness_v5_1.json` is fail-closed with `authorized: false`,
+  output root `runs/rehearsal_closure_aware_v5_1`, session
+  `leanfaith-sft2a-v5-rehearsal-v2`, and the unchanged 2,480/1,200/1,200/80/three-attempt/$160
+  ceilings. The approximately-10K gate, 50K run, legacy rejudge, publication, and every other run
+  remain unauthorized.
+- 2026-08-31 — received the exact authorization sentence for only corrected v5.1 sample
+  `480a586ea99c26f41c6dfba47fb345507f25bd9bc778c03b13cc22108abd87f5` and config
+  `add8445af25fddc99f3381dbf23d30121847f90c3ef0ddbbba4b09ee8e632f51` under the frozen
+  2,480 total / 1,200 Terra / 1,200 Opus / 80 Kimi / three-attempt / $160 Opus ceilings. Its
+  exact text hash is `00a61d1f7c4c9e32069d5d980b2115834fd7baaacd037c9c769dc66abf4cb105`.
+  Materialized additive authorization receipt `configs/sft2a/rehearsal_authorization_v5_1.json`
+  with hash `5543aeb03a1fc21ed8f71f8fd6988e5822054d9b82b273db59405f03431c26bb`, bound to clean
+  readiness commit `e1884ad` and readiness hash
+  `1e4b008565908d88a57ae26facbdf9f53e3301dc25e65266ff38b5d8e2352ac7`. The approximately-10K
+  gate, 50K run, legacy rejudge, publication, and every other run remain unauthorized.
+- 2026-08-31 — launched only `leanfaith-sft2a-v5-rehearsal-v2` through the committed v5.1
+  authorization. The worker retained its tmux PTY, acquired the single Lean resource claim, and
+  failed closed on the first CSLib reference before any Terra, Opus, or Kimi call. Declaration
+  `Cslib.LTS.mem_saturate_image_τ` relies on Lean-generated `autoImplicit` parameters `Label`,
+  `State`, and `s` that are absent from its source-text signature; one reference Lean request and
+  zero candidate Lean requests executed. The resource was released and the session exited. Froze
+  all 21 run files at combined-tree hash
+  `043e4d7ef3c63ca3e905d368b85600fce1469da1ad29bcd1d17d9eadfdf5869c` in receipt
+  `configs/sft2a/rehearsal_v5_1_failed_launch_seal.json` (file hash
+  `3a7c8fc271f7b342df386af0ef46943fa8821f9bda472b9937e1d66854e7b5d6`). V5.1 is retired for
+  relaunch. Another text-only filter is not sufficient: the next safe design must certify a larger
+  deterministic candidate pool through local Lean with zero provider calls, freeze the 100 valid
+  roots only after that certification, and then request a separate exact-sample provider-launch
+  authorization. No such new certification or run is authorized yet.
+- 2026-08-31 — received authorization for additive v5.2 implementation and only the bounded local
+  reference-certification phase. The frozen architecture retrieves imported Mathlib, Physlib, and
+  CSLib declarations by qualified name, requires theorem kind, and sends the actual
+  `ConstantInfo.type` directly through frozen REPR; only compiler-data uses proof-free term
+  elaboration. The initial deterministic pool is fixed at 126/75/51/48 roots, with one optional
+  same-source fixed-quota extension block per underfilled source and a hard 600-attempt cap. The
+  final certificate must be exactly 42/25/17/16 with a global 100/100 cache-hit preflight before
+  any future provider construction. Terra, Opus, Kimi, the provider-backed rehearsal, 10K, 50K,
+  legacy rejudging, publication, and training remain unauthorized.
+- 2026-08-31 — committed the additive v5.2 implementation at `b555747` (tree `9b4dbec`). The
+  zero-Lean pool is frozen at `8ec78fd1823b17565c80ec0ffbf483e1d6907382a30d0500843237d640fdfd9b`:
+  its initial and extension blocks each contain exactly 126 Mathlib / 75 Physlib / 51 CSLib / 48
+  compiler-data roots, are disjoint, and include `Cslib.LTS.mem_saturate_image_τ` in the initial
+  CSLib block. Materialized local-only authorization receipt
+  `configs/sft2a/reference_certification_authorization_v5_2.json` against that clean commit; its
+  hash is `4d097b49120e2bd6ae6576b9695b378315708d4c6676ff57753293745dc8eef4`.
+  The receipt permits zero provider calls and leaves every provider-backed or scale path disabled.
+- 2026-08-31 — the first local v5.2 detached launch failed closed after one durable certification
+  result and before any provider call. Qualified constant lookup correctly ignored source text, but
+  the grouped backend retained the first declaration's context fingerprint while the next pool row
+  carried different source namespace/open metadata; the central protocol rejected that mismatch
+  before Lean execution. Preserved all 14 files under `runs/reference_certification_v5_2` at
+  combined-tree hash `b9a90affabb1a82723bd7a6dd0d17df01a5ed79cd13c319fb40ea2b408b50820`.
+  The additive recovery canonicalizes library lookup to one import/options context per project,
+  retains source context only in provenance/prompt fields, reuses the shared terminal cache, and
+  uses fresh output/session/resource identities. Provider calls remain zero and unauthorized.
+- 2026-08-31 — committed the v5.2 recovery at `b25da69` (tree `7602b2f`) and materialized
+  `configs/sft2a/reference_certification_authorization_v5_2_recovery_v2.json` with hash
+  `e4cbdecb5d33d3f2804aae6644b04417bc2ea61283d4ace441e052c24bf08ba7`. The corrected config
+  hash is `4cf6d7f275e98c501e518472ceedde6d88db4166905430672b368a10883a2a8a`; it binds the same exact
+  pool `8ec78fd1823b17565c80ec0ffbf483e1d6907382a30d0500843237d640fdfd9b`, fresh output
+  `runs/reference_certification_v5_2_recovery_v2`, and session
+  `leanfaith-sft2a-v5-reference-certification-v2`. No authorization scope changed.
+- 2026-08-31 — recovery-v2 certified all 300 initial roots with no extension and froze an exact
+  42/25/17/16 sample, then completed a 100/100 zero-Lean cache replay. Its final global preflight
+  failed only because the second replay's durable-tree calculation included the first replay
+  receipt, creating an immutable self-reference conflict. Preserved all 327 recovery-v2 files at
+  combined-tree hash `f4e90fafd7925887c2ac30fb2ee4def7afa4252470e2875b149fffba28d83958`.
+  The recovery-v3 fix excludes derived replay/preflight receipts from their own durable tree and
+  has a regression requiring two identical, zero-call replay results. All 300 terminal reference
+  cache entries remain reusable; no provider call was made.
+- 2026-08-31 — committed replay-stable recovery-v3 at `c23b295` (tree `63c7954`) and materialized
+  `configs/sft2a/reference_certification_authorization_v5_2_recovery_v3.json` with hash
+  `3a9fc2bf63ee0eccfffb96388ec3cdbb66fc38f531ed69eb3004ba32247b0b52`. Its config hash is
+  `28ebd549a1abd85a58796d987b2a56f03f481a3420cd427ff87f0de2b766da15`; it retains pool
+  `8ec78fd1823b17565c80ec0ffbf483e1d6907382a30d0500843237d640fdfd9b` and uses fresh output
+  `runs/reference_certification_v5_2_recovery_v3` plus session
+  `leanfaith-sft2a-v5-reference-certification-v3`. Authorization remains local certification only.
+- 2026-08-31 — completed local reference certification and the 100/100 global cache preflight in
+  recovery-v3. All 300 initial rows were terminal cache hits in the final replay-stable run, so it
+  executed zero Lean requests and zero provider calls; no extension block was needed. The exact
+  certified sample hash is `fb2f47f3fae9d8ac584989a2aaec64985a4ad1fa913303714ad267186d0b2bc6`
+  with source mix 42 Mathlib / 25 Physlib / 17 CSLib / 16 compiler-data, 100 unique closed-Expr
+  hashes, 100 unique rendered-goal hashes, and no gold contamination or placeholder. Manifest hash
+  `3bd706899630fb2c9d3dabdda22627242d9f3aa70273309e96ec06953f442be6`; 100/100 preflight hash
+  `eadcccc3b8df7a018319d4f71e95b46e50c790006eeae4551a6376b7c97579b5`.
+- 2026-08-31 — the fresh local certification measurements behind the shared terminal cache used
+  299 Lean requests plus the separately authorized canary, no more than one worker, and peaked at
+  7.08 GiB RSS. Per-source durable-event throughput was 7.71 Mathlib, 7.44 Physlib, 8.41 CSLib,
+  and 7.51 compiler-data rows/second; the complete detached attempt including project startup and
+  compaction was about 90 seconds. The canary succeeded by `loaded_constant_type` and exposed
+  `Label`, `State`, `s`, the `HasTau` instance, and `lts` in its certified goal.
+- 2026-08-31 — prepared but did not execute the bounded-parallel rehearsal path. Atomic provider
+  reservation/finalization, cross-worker deduplication, at-most-two worker claims, mid-root and
+  between-root resume, duplicate-launch refusal, deterministic compaction, planned-versus-accepted
+  mechanism reporting, and zero-call replay are executable and tested. Repository readiness
+  receipt `configs/sft2a/parallel_rehearsal_readiness_v5_2.json` has hash
+  `5c0368529d42817c0bb0968e6f43483be0020a031a573001e16dccf34e2b135c`, binds runner commit
+  `e9cee4a` (tree `8c77961`), and remains `authorized: false`. All 46 SFT2A unit tests, Ruff
+  check/format, strict Mypy, config verification, and diff checks pass. Terra, Opus, Kimi, the
+  100-root rehearsal, 10K, 50K, legacy rejudging, publication, and training remain unexecuted and
+  unauthorized.
+- 2026-08-31 — superseded the readiness-only v5.2 provider receipt without changing any completed
+  recovery-v3 certification byte. A model-facing audit found the single rendered ellipsis in
+  `Composition.orderEmbOfFin_boundaries`; the corrected additive track rejects `[anonymous]`, the
+  Unicode ellipsis, and ASCII ellipses, retains that declaration as a negative regression, and
+  deterministically replaces it from the already-certified initial Mathlib pool. The prior
+  readiness/config/sample remain immutable historical evidence and are explicitly recorded as
+  `superseded_not_authorized`. No provider or new Lean call was made.
+- 2026-08-31 — froze corrected certified sample
+  `23c80df14d4df72472891d99fb084af8a4cb7644ea173614fd941df11ce5a542` with replacement
+  `Filter.bliminf_inf_not` and unchanged source mix 42 Mathlib / 25 Physlib / 17 CSLib / 16
+  compiler-data. Applicability now comes from the certified closed Expr plus structured `goal_v1`:
+  binders are counted once, nested function arrows are not premises, and lambda `=>` is not an
+  equality/order token. All 13 discovered one-binder roots have zero two-binder assignments. The
+  100/100 terminal-cache replay and preflight executed zero Lean requests and zero provider calls.
+- 2026-08-31 — implemented the fail-closed v5.2 provider path against exactly the corrected
+  `certified_sample.jsonl`. Library references are admitted only when their cache key and raw Expr
+  payload prove qualified-name `ConstantInfo.type` lookup and all certified Expr/render/sidecar/
+  context hashes match; the incomplete source signature is never re-elaborated. Terra, Opus, and
+  Kimi share one atomic reserve/call/finalize ledger with reported Opus cost enforcement and
+  terminal-cache reconciliation. Root ownership is a validated state machine with explicit crash
+  and reclaim transitions, conflict-checked slot checkpoints, owner-only completion, one root per
+  worker, deterministic compaction, zero-call replay, audit-disagreement exclusion, and detached
+  two-worker/40-GiB launch/resume/health commands. The new authorization materializer is exact-text
+  and remains unexecuted; status stays `active` pending a new user sentence.
+- 2026-09-01 — the authorized corrected-v4 provider rehearsal stopped fail-closed after 70/100
+  completed roots. It finalized 755 cumulative provider calls (545 Terra, 210 Opus, zero Kimi),
+  recorded $7.900784 Opus spend, released its resource claim, and left 29 roots unstarted after
+  `mathlib:census:1e645cb485bb5184c3149d41` raised `PromptRenderError`. The failed run remains
+  immutable at source identity
+  `9910915ba060adac26de0630562a7e2a8fa79af58537d79aa82dbf728547d3d1`; its 70 completed
+  manifests have seal `734cc83cb066318a7163ec749a42d344b9e89ff3f893325caa6c47570321b985`.
+- 2026-09-01 — diagnosed the crash without a provider or Lean call. Frozen REPR legitimately
+  rendered the valid candidate fragment `𝓝[{y | y ∉ {x}}] x`; the prompt renderer incorrectly
+  treated the adjacent Lean closing braces as an unresolved template token. Template validation
+  now separates the frozen template skeleton from interpolated mathematical data, and the exact
+  crashed theorem is a regression. Detached failures now persist a fail-closed terminal receipt.
+  Additive recovery config `configs/sft2a/provider_rehearsal_v5_2_recovery_v5.json` has hash
+  `5130e73b58177205b16faa315b3694f913f50e0ec0de2acc40a017b2924d7269`, uses fresh output/session/
+  resource identities, and exact-copies the 755-call ledger before authorization so calls and spend
+  cannot reset across recovery. All 53 SFT2A unit tests, scoped Ruff check/format, strict Mypy,
+  config verification, and diff checks pass with zero provider calls and zero Lean requests. The
+  recovery remains unauthorized; 10K, 50K, legacy rejudging, publication, and training remain
+  unauthorized.

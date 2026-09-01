@@ -1,0 +1,19 @@
+{
+  "receipt_id": "leanfaith_sft2a_recovery_v4_combined_tree_seal_v5",
+  "algorithm": "sort absolute regular file paths lexicographically; concatenate lowercase_sha256, two spaces, absolute_path, newline; sha256 concatenated bytes",
+  "staging_root": "/storage/milikic/leanfaith/value_first/sft2_llm_transforms_v1",
+  "sealed_roots": [
+    "runs/diverse_root_production_defaults_pilot_recovery_v4"
+  ],
+  "regular_file_count": 137,
+  "combined_tree_sha256": "3ea4a72280c696b1811995b51403373384ae8269ee05accc351f9527d82dd06a",
+  "source_artifacts": {
+    "manifest.json": "5b20a8a088594a703ecdc4a198ff1ab7aefffe6d05480aab0e939b702b60b460",
+    "pilot_reproducibility_receipt.json": "45ef1a9b7197d863a1f842dc25abcbd1d1cf7d49c460d17402cee7dcdc46c2db",
+    "audit_lemex_v1/manifest.json": "337dd7ab2ef5b91176abbb43813e12d6ac19b59b01557ac325e8d3136c57bd38",
+    "detached/terminal_status.json": "a7836dc11ed8b91d717173ced015738fe3a4921c5665dea67430afaf3b6fb2d8"
+  },
+  "mutation_policy": "immutable_historical_evidence",
+  "scale_authorized": false,
+  "publication_authorized": false
+}

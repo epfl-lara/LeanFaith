@@ -7,18 +7,28 @@ from collections import Counter, defaultdict
 from collections.abc import Mapping, Sequence
 from dataclasses import replace
 from pathlib import Path, PurePosixPath
+from typing import Literal
 
-from leanfaith.config.hashing import canonical_json_bytes, hash_canonical, hash_file
+from leanfaith.config.hashing import canonical_json_bytes, hash_canonical, hash_file, sha256_hex
 from leanfaith.representations.views import signature_near_dup_hash
 from leanfaith.sft2a.budget import BudgetedProvider, PersistentProviderBudget
 from leanfaith.sft2a.config import LoadedSFT2AConfig
 from leanfaith.sft2a.dedup import PersistentCandidateRegistry
 from leanfaith.sft2a.layout import run_paths
-from leanfaith.sft2a.lean_oracle import SignatureOracle
+from leanfaith.sft2a.lean_oracle import SignatureOracle, SignatureOracleResult
 from leanfaith.sft2a.legacy import _atomic_exact, _blocklist
-from leanfaith.sft2a.models import CompileContextConfig, OneRootConfig, SFT2AOpusConfig
+from leanfaith.sft2a.models import (
+    CompileContextConfig,
+    OneRootConfig,
+    RecoveryProductionPilotReadinessConfig,
+    SFT2AOpusConfig,
+)
 from leanfaith.sft2a.pipeline import StructuredProvider, run_one_root
-from leanfaith.sft2a.providers import claude_judge_provider, proposer_provider
+from leanfaith.sft2a.providers import (
+    ProviderCallResult,
+    claude_judge_provider,
+    proposer_provider,
+)
 from leanfaith.sft2a.readiness import (
     LoadedPilotReadiness,
     implementation_identity,
@@ -27,6 +37,8 @@ from leanfaith.sft2a.readiness import (
 
 _SAMPLER_VERSION = "sft2a_hash_bound_catalog_sampler_v2"
 _SAMPLER_SALT = "leanfaith-sft2a-diverse-root-opus5-pilot-v2"
+_CORRECTED_SAMPLER_VERSION = "sft2a_hash_bound_catalog_sampler_v3"
+_CORRECTED_SAMPLER_SALT = "leanfaith-sft2a-diverse-root-production-recovery-v3"
 
 
 class PilotError(RuntimeError):
@@ -69,6 +81,61 @@ def _catalog(
     return value
 
 
+def _catalog_corrections(
+    loaded: LoadedSFT2AConfig,
+    readiness: LoadedPilotReadiness | None,
+) -> dict[str, dict[str, object]]:
+    if readiness is None or not isinstance(
+        readiness.config, RecoveryProductionPilotReadinessConfig
+    ):
+        return {}
+    binding = readiness.config.catalog_corrections
+    path = loaded.repo_root / binding.path
+    if path.is_symlink() or not path.is_file() or hash_file(path) != binding.sha256:
+        raise PilotError("pilot catalog correction artifact differs from its frozen hash")
+    try:
+        value = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise PilotError(f"invalid pilot catalog corrections: {exc}") from exc
+    if (
+        not isinstance(value, dict)
+        or value.get("schema_version") != 1
+        or value.get("source_catalog_sha256") != readiness.config.catalog.sha256
+    ):
+        raise PilotError("pilot catalog correction lineage differs")
+    corrections = value.get("corrections")
+    if not isinstance(corrections, list) or not corrections:
+        raise PilotError("pilot catalog corrections are empty or malformed")
+    result: dict[str, dict[str, object]] = {}
+    for raw in corrections:
+        if not isinstance(raw, dict):
+            raise PilotError("pilot catalog correction is not an object")
+        root_id = raw.get("root_id")
+        corrected = raw.get("corrected_reference_signature")
+        if not isinstance(root_id, str) or root_id in result or not isinstance(corrected, str):
+            raise PilotError("pilot catalog correction root/signature is malformed")
+        if sha256_hex(corrected.encode("utf-8")) != raw.get("corrected_signature_sha256"):
+            raise PilotError("pilot catalog corrected signature hash differs")
+        result[root_id] = raw
+    return result
+
+
+def _apply_catalog_correction(
+    raw: Mapping[str, object],
+    correction: Mapping[str, object] | None,
+) -> dict[str, object]:
+    result = dict(raw)
+    if correction is None:
+        return result
+    original = result.get("reference_signature")
+    if not isinstance(original, str):
+        raise PilotError("corrected catalog root lacks its original signature")
+    if sha256_hex(original.encode("utf-8")) != correction.get("original_signature_sha256"):
+        raise PilotError("pilot catalog original signature hash differs from correction")
+    result["reference_signature"] = correction["corrected_reference_signature"]
+    return result
+
+
 def _expanded_roots(
     loaded: LoadedSFT2AConfig, readiness: LoadedPilotReadiness | None
 ) -> list[dict[str, object]]:
@@ -77,9 +144,15 @@ def _expanded_roots(
     roots = catalog.get("roots")
     if not isinstance(contexts, dict) or not isinstance(roots, list):
         raise PilotError("pilot catalog lacks contexts or roots")
+    corrections = _catalog_corrections(loaded, readiness)
     expanded: list[dict[str, object]] = []
     seen: set[str] = set()
-    for raw in roots:
+    for raw_value in roots:
+        raw = (
+            _apply_catalog_correction(raw_value, corrections.get(str(raw_value.get("root_id"))))
+            if isinstance(raw_value, dict)
+            else raw_value
+        )
         if not isinstance(raw, dict):
             raise PilotError("pilot catalog root is not an object")
         root_id = raw.get("root_id")
@@ -114,7 +187,48 @@ def _expanded_roots(
             }
         )
         seen.add(root_id)
+    if set(corrections) != {root_id for root_id in seen if root_id in corrections}:
+        raise PilotError("pilot catalog correction references an unknown root")
     return expanded
+
+
+def _seed_failed_pilot_budget(
+    loaded: LoadedSFT2AConfig,
+    readiness: LoadedPilotReadiness | None,
+    output: Path,
+) -> dict[str, object] | None:
+    if readiness is None or not isinstance(
+        readiness.config, RecoveryProductionPilotReadinessConfig
+    ):
+        return None
+    source = readiness.config.failed_pilot_recovery_source
+    failed = _safe_output(loaded.config.staging_root, source.failed_output_subdir)
+    sample_path = failed / "sample.jsonl"
+    sample_manifest_path = failed / "sample_manifest.json"
+    terminal_path = failed / "detached/terminal_status.json"
+    budget_path = failed / "provider_budget_journal.jsonl"
+    expected = {
+        sample_path: source.source_sample_sha256,
+        sample_manifest_path: source.source_sample_manifest_sha256,
+        terminal_path: source.terminal_status_sha256,
+        budget_path: source.provider_budget_journal_sha256,
+    }
+    for path, digest in expected.items():
+        if path.is_symlink() or not path.is_file() or hash_file(path) != digest:
+            raise PilotError("failed-pilot recovery artifact differs from its frozen hash")
+    terminal = json.loads(terminal_path.read_text(encoding="utf-8"))
+    if not isinstance(terminal, dict) or terminal.get("status") != source.required_terminal_status:
+        raise PilotError("failed-pilot recovery terminal status differs")
+    _atomic_exact(output / "provider_budget_journal.jsonl", budget_path.read_bytes())
+    return {
+        "failed_output_subdir": source.failed_output_subdir,
+        "source_sample_sha256": source.source_sample_sha256,
+        "source_sample_manifest_sha256": source.source_sample_manifest_sha256,
+        "terminal_status_sha256": source.terminal_status_sha256,
+        "provider_budget_journal_sha256": source.provider_budget_journal_sha256,
+        "seeded_budget_bytes": budget_path.stat().st_size,
+        "provider_calls_executed": 0,
+    }
 
 
 def cast_mapping(value: object) -> Mapping[str, object]:
@@ -147,8 +261,23 @@ def prepare_pilot_sample(
     catalog_hash = (
         loaded.config.pilot.catalog_sha256 if readiness is None else readiness.config.catalog.sha256
     )
-    sampler_version = loaded.config.pilot.sampler_version if readiness is None else _SAMPLER_VERSION
-    salt = loaded.config.pilot.salt if readiness is None else _SAMPLER_SALT
+    corrected = readiness is not None and isinstance(
+        readiness.config, RecoveryProductionPilotReadinessConfig
+    )
+    sampler_version = (
+        loaded.config.pilot.sampler_version
+        if readiness is None
+        else _CORRECTED_SAMPLER_VERSION
+        if corrected
+        else _SAMPLER_VERSION
+    )
+    salt = (
+        loaded.config.pilot.salt
+        if readiness is None
+        else _CORRECTED_SAMPLER_SALT
+        if corrected
+        else _SAMPLER_SALT
+    )
     ceilings = loaded.config.pilot.ceilings if readiness is None else readiness.config.ceilings
     by_source: dict[str, list[tuple[str, dict[str, object]]]] = defaultdict(list)
     _blocklist_path, blocked_hashes = _blocklist(loaded)
@@ -186,6 +315,7 @@ def prepare_pilot_sample(
     observed_sample_hash = hash_file(sample_path)
     if readiness is not None and observed_sample_hash != readiness.config.expected_sample_sha256:
         raise PilotError("pilot sample differs from its authorization-bound hash")
+    recovery = _seed_failed_pilot_budget(loaded, readiness, output)
     source_counts = Counter(str(cast_mapping(row["root"])["source"]) for row in selected)
     group_counts = Counter((_project_id(row), str(row["context_id"])) for row in selected)
     identity = dict(implementation or implementation_identity(loaded.repo_root))
@@ -216,6 +346,12 @@ def prepare_pilot_sample(
         "ceilings": ceilings.model_dump(mode="json"),
         "implementation": identity,
     }
+    if readiness is not None and isinstance(
+        readiness.config, RecoveryProductionPilotReadinessConfig
+    ):
+        manifest["catalog_corrections_sha256"] = readiness.config.catalog_corrections.sha256
+    if recovery is not None:
+        manifest["failed_pilot_recovery"] = recovery
     if readiness is not None:
         manifest["readiness"] = {
             "config_id": readiness.config.config_id,
@@ -241,6 +377,8 @@ def consolidate_pilot_quality(
     implementation: Mapping[str, str],
     budget_snapshot: Mapping[str, object],
     dedup_snapshot: Mapping[str, object],
+    audit_manifest: Mapping[str, object] | None = None,
+    artifact_stem: str = "pilot_quality",
 ) -> dict[str, object]:
     """Write one quality/cost/throughput view across all completed pilot roots."""
 
@@ -295,7 +433,11 @@ def consolidate_pilot_quality(
     projected_scale = 50_000
     projected_factor = 0.0 if roots == 0 else projected_scale / roots
     quality: dict[str, object] = {
-        "version": "leanfaith_sft2a_pilot_quality_manifest_v1",
+        "version": (
+            "leanfaith_sft2a_pilot_quality_manifest_v1"
+            if audit_manifest is not None
+            else "leanfaith_sft2a_pilot_pre_audit_quality_manifest_v1"
+        ),
         "sample_sha256": sample_manifest.get("sample_sha256"),
         "sample_manifest_sha256": hash_file(output / "sample_manifest.json"),
         "root_count": roots,
@@ -332,6 +474,19 @@ def consolidate_pilot_quality(
         "publication_allowed": False,
         "scale_50k_started": False,
     }
+    if audit_manifest is not None:
+        disagreements = int(_number(audit_manifest, "disagreements"))
+        quality["audit"] = {
+            "manifest_sha256": hash_file(output / "audit_lemex_v1/manifest.json"),
+            "pilot_replay_receipt_sha256": audit_manifest.get("pilot_replay_receipt_sha256"),
+            "population_rows": audit_manifest.get("population_rows"),
+            "selected_rows": audit_manifest.get("selected_rows"),
+            "agreements": audit_manifest.get("agreements"),
+            "disagreements": disagreements,
+            "artifacts": audit_manifest.get("artifacts"),
+        }
+        quality["systematic_disagreement_blocks_scale"] = disagreements > 0
+        quality["scale_gate"] = "blocked_disagreement" if disagreements else "audit_passed"
     report_lines = [
         "# SFT2A bounded pilot quality report",
         "",
@@ -351,12 +506,27 @@ def consolidate_pilot_quality(
             f"${_number(budget_snapshot, 'reported_opus_spend_usd'):.6f}."
         ),
         "- The 50K figures are linear projections only; they do not authorize scaling.",
-        "",
     ]
-    report_path = output / "pilot_quality_report.md"
+    if audit_manifest is not None:
+        report_lines.extend(
+            [
+                (
+                    f"- Lemex audit: {audit_manifest.get('agreements')} agreements and "
+                    f"{audit_manifest.get('disagreements')} disagreements over "
+                    f"{audit_manifest.get('selected_rows')} selected rows."
+                ),
+                (
+                    "- Scale gate: blocked by systematic disagreement."
+                    if bool(audit_manifest.get("systematic_disagreement_blocks_scale"))
+                    else "- Scale gate: audit has no systematic disagreement."
+                ),
+            ]
+        )
+    report_lines.append("")
+    report_path = output / f"{artifact_stem}_report.md"
     _atomic_exact(report_path, "\n".join(report_lines).encode())
     quality["report_sha256"] = hash_file(report_path)
-    _atomic_exact(output / "pilot_quality_manifest.json", canonical_json_bytes(quality) + b"\n")
+    _atomic_exact(output / f"{artifact_stem}_manifest.json", canonical_json_bytes(quality) + b"\n")
     return quality
 
 
@@ -435,6 +605,7 @@ def run_multi_root_pilot(
                 root_manifests.append(
                     {
                         "root_id": root_model.root_id,
+                        "manifest_path": str(root_manifest_path.relative_to(output)),
                         "manifest_sha256": hash_file(root_manifest_path),
                         "replayed": result.replayed,
                     }
@@ -450,9 +621,11 @@ def run_multi_root_pilot(
         implementation=identity,
         budget_snapshot=budget_snapshot,
         dedup_snapshot=dedup_snapshot,
+        artifact_stem="pilot_quality_pre_audit",
     )
     manifest = {
         "version": "leanfaith_sft2a_diverse_root_pilot_v2",
+        "config_hash": loaded.config_hash,
         "readiness_config_hash": readiness.config_hash,
         "authorization_receipt_sha256": readiness.config.authorization_receipt.sha256,
         "sample_manifest_sha256": hash_file(output / "sample_manifest.json"),
@@ -462,14 +635,175 @@ def run_multi_root_pilot(
         "cross_root_candidate_registry": dedup_snapshot,
         "ceilings": readiness.config.ceilings.model_dump(mode="json"),
         "root_manifests": root_manifests,
-        "pilot_quality_manifest_sha256": hash_file(output / "pilot_quality_manifest.json"),
-        "pilot_quality_report_sha256": quality["report_sha256"],
+        "pre_audit_quality_manifest_sha256": hash_file(
+            output / "pilot_quality_pre_audit_manifest.json"
+        ),
+        "pre_audit_quality_report_sha256": quality["report_sha256"],
         "implementation": identity,
         "published": False,
         "scale_50k_started": False,
+        "pilot_completed": True,
     }
     _atomic_exact(output / "manifest.json", canonical_json_bytes(manifest) + b"\n")
     return manifest
+
+
+def _tree_snapshot(root: Path, *, excluded_prefixes: tuple[str, ...] = ()) -> dict[str, str]:
+    if not root.exists():
+        return {}
+    result: dict[str, str] = {}
+    for path in sorted(root.rglob("*")):
+        if not path.is_file() or path.is_symlink():
+            continue
+        relative = path.relative_to(root).as_posix()
+        if any(
+            relative == prefix or relative.startswith(prefix + "/") for prefix in excluded_prefixes
+        ):
+            continue
+        result[relative] = hash_file(path)
+    return result
+
+
+class _ForbiddenProvider:
+    def call(self, *, prompt: str, input_ids: Sequence[str]) -> ProviderCallResult:
+        del prompt, input_ids
+        raise PilotError("pilot replay attempted a provider call")
+
+
+class _ForbiddenOracle:
+    def elaborate(
+        self,
+        signature: str,
+        *,
+        endpoint_role: Literal["reference", "candidate"],
+    ) -> SignatureOracleResult:
+        del signature, endpoint_role
+        raise PilotError("pilot replay attempted a Lean request")
+
+    def close(self) -> None:
+        return None
+
+
+def _replay_snapshot(
+    loaded: LoadedSFT2AConfig,
+    output: Path,
+) -> dict[str, object]:
+    return {
+        "pilot": _tree_snapshot(
+            output,
+            excluded_prefixes=(
+                "pilot_reproducibility_receipt.json",
+                "audit_lemex_v1",
+                "pilot_quality_manifest.json",
+                "pilot_quality_report.md",
+                "detached",
+            ),
+        ),
+        "providers": {
+            pin.provider_id: _tree_snapshot(
+                Path(loaded.config.staging_root) / "provider_calls" / pin.provider_id
+            )
+            for pin in (
+                loaded.config.proposer,
+                loaded.config.claude_judge,
+                loaded.config.lemex_auditor,
+            )
+        },
+        "lean_cache": _tree_snapshot(Path(loaded.config.staging_root) / "lean_cache"),
+        "lean_raw_responses": _tree_snapshot(
+            Path(loaded.config.staging_root) / "lean_raw_responses"
+        ),
+    }
+
+
+def verify_pilot_replay(
+    loaded: LoadedSFT2AConfig,
+    readiness: LoadedPilotReadiness,
+) -> dict[str, object]:
+    """Replay every completed root with forbidden execution and seal durable hashes."""
+
+    output = _pilot_output(loaded, readiness)
+    manifest_path = output / "manifest.json"
+    if not manifest_path.is_file():
+        raise PilotError("pilot replay requires a completed pilot manifest")
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    if not isinstance(manifest, dict) or manifest.get("pilot_completed") is not True:
+        raise PilotError("pilot manifest is not successfully complete")
+    if (
+        manifest.get("config_hash") != loaded.config_hash
+        or manifest.get("readiness_config_hash") != readiness.config_hash
+    ):
+        raise PilotError("pilot replay config lineage differs")
+    sample_rows = [json.loads(line) for line in (output / "sample.jsonl").read_text().splitlines()]
+    if len(sample_rows) != readiness.config.ceilings.maximum_roots:
+        raise PilotError("pilot replay root population differs from its ceiling")
+    manifest_refs = manifest.get("root_manifests")
+    if not isinstance(manifest_refs, list):
+        raise PilotError("pilot manifest lacks root receipts")
+    refs = {str(item.get("root_id")): item for item in manifest_refs if isinstance(item, dict)}
+    if len(refs) != len(sample_rows):
+        raise PilotError("pilot root receipt population differs")
+    before = _replay_snapshot(loaded, output)
+    forbidden_provider = _ForbiddenProvider()
+    forbidden_oracle = _ForbiddenOracle()
+    replayed_roots: list[str] = []
+    for row in sample_rows:
+        root_model = OneRootConfig.model_validate(row["root"])
+        root_config = loaded.config.model_copy(update={"root": root_model})
+        root_loaded = replace(
+            loaded,
+            config=root_config,
+            config_hash=hash_canonical(root_config.model_dump(mode="json")),
+        )
+        context = cast_mapping(cast_mapping(row["root"]).get("compile_context"))
+        root_output = (
+            output
+            / "roots"
+            / str(context.get("project_id"))
+            / hash_canonical(root_model.root_id)[:16]
+        )
+        reference = refs.get(root_model.root_id)
+        if (
+            reference is None
+            or reference.get("manifest_path")
+            != str((root_output / "manifest.json").relative_to(output))
+            or reference.get("manifest_sha256") != hash_file(root_output / "manifest.json")
+        ):
+            raise PilotError("pilot replay root manifest receipt differs")
+        result = run_one_root(
+            root_loaded,
+            proposer=forbidden_provider,
+            claude_judge=forbidden_provider,
+            oracle=forbidden_oracle,
+            output_root=root_output,
+            enforce_expected_reference_goal=False,
+            enforce_smoke_ceilings=False,
+        )
+        if not result.replayed:
+            raise PilotError("pilot root did not take the immutable replay path")
+        replayed_roots.append(root_model.root_id)
+    after = _replay_snapshot(loaded, output)
+    if before != after:
+        raise PilotError("pilot replay changed a durable artifact")
+    receipt = {
+        "version": "leanfaith_sft2a_pilot_replay_receipt_v1",
+        "config_hash": loaded.config_hash,
+        "readiness_config_hash": readiness.config_hash,
+        "pilot_manifest_sha256": hash_file(manifest_path),
+        "root_count": len(replayed_roots),
+        "replayed_roots": replayed_roots,
+        "durable_snapshot_hash": hash_canonical(before),
+        "durable_artifact_hashes": before,
+        "provider_calls_executed": 0,
+        "lean_requests_executed": 0,
+        "durable_artifacts_changed": 0,
+        "reproducible": True,
+    }
+    _atomic_exact(
+        output / "pilot_reproducibility_receipt.json",
+        canonical_json_bytes(receipt) + b"\n",
+    )
+    return receipt
 
 
 __all__ = [
@@ -477,4 +811,5 @@ __all__ = [
     "consolidate_pilot_quality",
     "prepare_pilot_sample",
     "run_multi_root_pilot",
+    "verify_pilot_replay",
 ]

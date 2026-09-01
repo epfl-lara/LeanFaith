@@ -17,7 +17,14 @@ from leanfaith.generation.capture_redaction import redact_captured_streams
 from leanfaith.generation.claude_fable_judge_v1 import SubprocessClaudeCliExecutor
 from leanfaith.generation.lf022_codex_proposer import SubprocessCodexProposerExecutor
 from leanfaith.sft2a.config import LoadedSFT2AConfig, verify_provider_binary
-from leanfaith.sft2a.models import ArtifactBinding, JudgeOutput, ProposerOutput, ProviderPin
+from leanfaith.sft2a.models import (
+    ArtifactBinding,
+    JudgeOutput,
+    JudgeOutputV5,
+    ProposerOutput,
+    ProposerOutputV5,
+    ProviderPin,
+)
 
 _MAX_CAPTURE_BYTES = 16 * 1024 * 1024
 _MAX_INFRASTRUCTURE_ATTEMPTS = 3
@@ -126,12 +133,48 @@ def _codex_usage(stdout: bytes) -> dict[str, object]:
     return usage
 
 
+def _codex_transport_schema(value: object) -> object:
+    """Add type annotations required by the Codex JSON-schema subset."""
+
+    if isinstance(value, list):
+        return [_codex_transport_schema(item) for item in value]
+    if not isinstance(value, dict):
+        return value
+    result = {key: _codex_transport_schema(item) for key, item in value.items()}
+    if "type" not in result and "const" in result:
+        constant = result["const"]
+        if isinstance(constant, bool):
+            result["type"] = "boolean"
+        elif isinstance(constant, int):
+            result["type"] = "integer"
+        elif isinstance(constant, str):
+            result["type"] = "string"
+    choices = result.get("enum")
+    if (
+        "type" not in result
+        and isinstance(choices, list)
+        and choices
+        and all(isinstance(choice, str) for choice in choices)
+    ):
+        result["type"] = "string"
+    return result
+
+
 def _model_validate(
     structured: dict[str, object],
     *,
     response_kind: Literal["proposer", "judge"],
 ) -> dict[str, object]:
-    model = ProposerOutput if response_kind == "proposer" else JudgeOutput
+    v5 = structured.get("schema_version") == 5
+    model = (
+        ProposerOutputV5
+        if response_kind == "proposer" and v5
+        else ProposerOutput
+        if response_kind == "proposer"
+        else JudgeOutputV5
+        if v5
+        else JudgeOutput
+    )
     try:
         return model.model_validate(structured).model_dump(mode="json")
     except ValidationError as exc:
@@ -163,8 +206,11 @@ class CliStructuredProvider:
         )
         self.output_root = Path(loaded.config.staging_root) / "provider_calls" / pin.provider_id
 
-    def call(self, *, prompt: str, input_ids: Sequence[str]) -> ProviderCallResult:
-        verify_provider_binary(self.pin)
+    def preview_call(
+        self, *, prompt: str, input_ids: Sequence[str]
+    ) -> tuple[str, Path, dict[str, object]]:
+        """Return the immutable call identity without executing or verifying the CLI."""
+
         request_payload = {
             "version": "leanfaith_sft2a_provider_call_v1",
             "provider": self.pin.model_dump(mode="json"),
@@ -179,6 +225,13 @@ class CliStructuredProvider:
         call_key = hash_canonical(request_payload)
         call_dir = self.output_root / call_key[:2] / call_key
         terminal_path = call_dir / "terminal.json"
+        return call_key, terminal_path, request_payload
+
+    def call(self, *, prompt: str, input_ids: Sequence[str]) -> ProviderCallResult:
+        call_key, terminal_path, request_payload = self.preview_call(
+            prompt=prompt, input_ids=input_ids
+        )
+        call_dir = terminal_path.parent
         if terminal_path.exists():
             terminal = _strict_object(terminal_path.read_bytes(), label="provider terminal")
             if terminal.get("call_key") != call_key or terminal.get("request") != request_payload:
@@ -205,6 +258,8 @@ class CliStructuredProvider:
                 terminal_path=terminal_path,
             )
 
+        verify_provider_binary(self.pin)
+
         call_dir.mkdir(parents=True, exist_ok=True)
         _atomic(call_dir / "request.json", canonical_json_bytes(request_payload) + b"\n")
         _atomic(call_dir / "prompt.txt", prompt.encode("utf-8"))
@@ -220,6 +275,57 @@ class CliStructuredProvider:
             raise StructuredProviderError(
                 f"provider call has an incomplete infrastructure attempt: {call_key}"
             )
+        if prior_attempts and self.pin.cli == "claude":
+            prior = prior_attempts[-1]
+            failure = _strict_object(
+                (prior / "failure.json").read_bytes(), label="provider prior failure"
+            )
+            detail = failure.get("detail")
+            if isinstance(detail, str) and detail.startswith("provider output schema violation:"):
+                wrapper = _strict_object(
+                    (prior / "stdout.txt").read_bytes(), label="Claude prior result wrapper"
+                )
+                structured_value = wrapper.get("structured_output")
+                if not isinstance(structured_value, dict):
+                    raise StructuredProviderError(
+                        "Claude prior result wrapper lacks structured_output"
+                    )
+                structured = _model_validate(structured_value, response_kind=self.response_kind)
+                usage_value = wrapper.get("usage")
+                usage = usage_value if isinstance(usage_value, dict) else {}
+                cost_value = wrapper.get("total_cost_usd")
+                cost_usd = float(cost_value) if isinstance(cost_value, int | float) else None
+                duration_ms = wrapper.get("duration_ms")
+                elapsed = float(duration_ms) / 1000 if isinstance(duration_ms, int | float) else 0.0
+                capture_hashes = failure.get("capture_hashes")
+                if not isinstance(capture_hashes, dict):
+                    raise StructuredProviderError("provider prior failure lacks capture hashes")
+                terminal = {
+                    "version": "leanfaith_sft2a_provider_terminal_v1",
+                    "call_key": call_key,
+                    "attempt_number": int(prior.name),
+                    "request": request_payload,
+                    "transport_schema_sha256": failure.get("transport_schema_sha256"),
+                    "transport_schema_transform": failure.get("transport_schema_transform"),
+                    "structured": structured,
+                    "usage": usage,
+                    "cost_usd": cost_usd,
+                    "elapsed_seconds": elapsed,
+                    "redaction_report_sha256": failure.get("redaction_report_sha256"),
+                    "capture_hashes": capture_hashes,
+                    "recovered_from_schema_dispatch_failure": True,
+                }
+                _atomic(terminal_path, canonical_json_bytes(terminal) + b"\n")
+                return ProviderCallResult(
+                    call_key=call_key,
+                    provider_id=self.pin.provider_id,
+                    structured=structured,
+                    usage=usage,
+                    cost_usd=cost_usd,
+                    elapsed_seconds=elapsed,
+                    cache_hit=False,
+                    terminal_path=terminal_path,
+                )
         if len(prior_attempts) >= _MAX_INFRASTRUCTURE_ATTEMPTS:
             raise StructuredProviderError(
                 f"provider call exhausted {_MAX_INFRASTRUCTURE_ATTEMPTS} infrastructure attempts"
@@ -238,6 +344,12 @@ class CliStructuredProvider:
         transport_schema_transform = "identity"
 
         if self.pin.cli in {"codex", "lemex"}:
+            codex_schema = _codex_transport_schema(self.schema_document)
+            schema_bytes = canonical_json_bytes(codex_schema)
+            transport_schema_path = workspace / "output_schema.json"
+            _atomic(transport_schema_path, schema_bytes + b"\n")
+            transport_schema_sha256 = sha256_hex(schema_bytes)
+            transport_schema_transform = "add_required_codex_subset_type_annotations_v1"
             final_path = attempt_dir / "final_message.json"
             argv: tuple[str, ...] = (
                 self.pin.binary_path,
@@ -263,7 +375,7 @@ class CliStructuredProvider:
                 "-c",
                 "shell_environment_policy.inherit=none",
                 "--output-schema",
-                str(self.schema_path),
+                str(transport_schema_path),
                 "-o",
                 str(final_path),
                 "-",

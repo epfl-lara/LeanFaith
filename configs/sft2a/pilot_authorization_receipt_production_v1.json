@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "receipt_id": "leanfaith_sft2a_pilot_authorization_receipt_production_v1",
+  "pilot_config_id": "leanfaith_sft2a_production_defaults_pilot_v1",
+  "production_config_file_sha256": "8cfd63922fbeb1c166b687681e79fa1c69f078569ad1a1eae2da5bcc48a104e2",
+  "production_config_hash": "2f9aafb0f36a1cc01734a02e8197b308b940efac4f0681ba306c9dd9cb0a7877",
+  "labeling_defaults_policy_sha256": "4554a071b06b1af9015b253b5e64b2a0a4d013630e5224ef7729bbf65757646f",
+  "exact_settings_smoke_receipt_sha256": "adbe14b05e443139647dc05d483b44705452731dff3cbf384ef1f2b76a112509",
+  "sample_sha256": "d0568942cf276939a47b375a73715fcae489a9b9c380c9aa02bd780bd706ba75",
+  "ceilings_sha256": "a708c9bce0532d462c38b8c7ae55fa064f119f77346c3d9d2ea976103a115dd8",
+  "authorization_scope": "readiness_only_no_provider_or_lean_execution",
+  "authorized": false,
+  "required_authorization_sentence": "I authorize SFT2A to launch only the 12-root production-default pilot bound to sample d0568942cf276939a47b375a73715fcae489a9b9c380c9aa02bd780bd706ba75 and production config 2f9aafb0f36a1cc01734a02e8197b308b940efac4f0681ba306c9dd9cb0a7877 under the recorded 296-call and $15 Opus ceilings; the 2,233-row legacy rejudge, publication, and 50K run remain unauthorized.",
+  "recorded_from_user_instruction_date": "2026-08-30",
+  "legacy_rejudge_authorized": false,
+  "publication_authorized": false,
+  "scale_50k_authorized": false,
+  "reason": "The exact-settings one-root smoke passed, but the user explicitly prohibited starting the 12-root pilot until a separate authorization is given."
+}

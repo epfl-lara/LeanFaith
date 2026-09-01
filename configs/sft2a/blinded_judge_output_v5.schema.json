@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "verdict",
+    "confidence",
+    "relation_class",
+    "error_type",
+    "rationale",
+    "closure_checks"
+  ],
+  "properties": {
+    "schema_version": {"const": 5},
+    "verdict": {"enum": ["equivalent", "non_equivalent", "unknown"]},
+    "confidence": {"enum": ["high", "medium", "low"]},
+    "relation_class": {
+      "enum": [
+        "representation_only",
+        "logical_restatement",
+        "quantifier_scope",
+        "type_or_domain",
+        "premise_strength",
+        "conclusion_strength",
+        "converse",
+        "negation_scope",
+        "existence_uniqueness",
+        "witness_dependency",
+        "boundary_case",
+        "unrelated",
+        "ambiguous_or_missing_context",
+        "other"
+      ]
+    },
+    "error_type": {
+      "enum": ["none", "ambiguous", "missing_context", "insufficient_confidence"]
+    },
+    "rationale": {"type": "string", "minLength": 1, "maxLength": 1200},
+    "closure_checks": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "entire_universally_closed_proposition",
+        "argument_swapping",
+        "symmetry",
+        "antisymmetry",
+        "extensionality",
+        "recoverable_boundary_cases"
+      ],
+      "properties": {
+        "entire_universally_closed_proposition": {"const": true},
+        "argument_swapping": {"$ref": "#/$defs/check"},
+        "symmetry": {"$ref": "#/$defs/check"},
+        "antisymmetry": {"$ref": "#/$defs/check"},
+        "extensionality": {"$ref": "#/$defs/check"},
+        "recoverable_boundary_cases": {"$ref": "#/$defs/check"}
+      }
+    }
+  },
+  "$defs": {
+    "check": {
+      "enum": [
+        "supports_equivalence",
+        "supports_non_equivalence",
+        "checked_no_effect",
+        "not_applicable"
+      ]
+    }
+  }
+}

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import shutil
 import subprocess
@@ -11,11 +12,33 @@ from pathlib import Path, PurePosixPath
 from leanfaith.config.hashing import hash_file, sha256_hex
 from leanfaith.config.loading import LoadedConfig, load_config, load_yaml_mapping
 from leanfaith.config.paths import find_repo_root
-from leanfaith.sft2a.models import ArtifactBinding, ProviderPin, SFT2AConfig, SFT2AOpusConfig
+from leanfaith.sft2a.models import (
+    ArtifactBinding,
+    ProviderPin,
+    SFT2AConfig,
+    SFT2AOpusConfig,
+    SFT2AProductionConfig,
+    SFT2AV5Config,
+    SFT2AV52Config,
+    SFT2AV52RecoveryConfig,
+    SFT2AV52RecoveryV3Config,
+)
 
 DEFAULT_CONFIG_PATH = Path("configs/sft2a/one_root_v1.yaml")
 OPUS_CONFIG_PATH = Path("configs/sft2a/one_root_opus5_v1.yaml")
-SFT2AAnyConfig = SFT2AConfig | SFT2AOpusConfig
+SFT2AAnyConfig = (
+    SFT2AConfig
+    | SFT2AOpusConfig
+    | SFT2AProductionConfig
+    | SFT2AV5Config
+    | SFT2AV52Config
+    | SFT2AV52RecoveryConfig
+    | SFT2AV52RecoveryV3Config
+)
+
+_EXPECTED_LABELING_DEFAULTS_SHA256 = (
+    "4554a071b06b1af9015b253b5e64b2a0a4d013630e5224ef7729bbf65757646f"
+)
 
 _EXPECTED_REPR = {
     "freeze_commit": "176a783842c5a73b84413dfa8347670608b615d9",
@@ -150,6 +173,152 @@ def _verify_repr(config: SFT2AAnyConfig, repo_root: Path) -> None:
             )
 
 
+def _verify_labeling_defaults(config: SFT2AProductionConfig, repo_root: Path) -> None:
+    binding = config.labeling_defaults_policy
+    if binding.sha256 != _EXPECTED_LABELING_DEFAULTS_SHA256:
+        raise SFT2AConfigError("production config is not bound to the active SFT2 defaults")
+    path = _repo_artifact(repo_root, binding)
+    policy = load_yaml_mapping(path)
+    if policy.get("status") != "active_default":
+        raise SFT2AConfigError("bound SFT2 labeling policy is not active")
+    providers = policy.get("providers")
+    if not isinstance(providers, dict):
+        raise SFT2AConfigError("bound SFT2 labeling policy lacks providers")
+    expected = {
+        "claude": config.claude_judge,
+        "codex": config.proposer,
+        "lemex": config.lemex_auditor,
+    }
+    for name, pin in expected.items():
+        provider = providers.get(name)
+        if not isinstance(provider, dict):
+            raise SFT2AConfigError(f"bound SFT2 labeling policy lacks {name}")
+        observed = {
+            "cli": provider.get("cli"),
+            "model": provider.get("model"),
+            "effort": provider.get("effort"),
+            "server_revision_status": provider.get("server_revision_status"),
+        }
+        frozen = {
+            "cli": pin.cli,
+            "model": pin.model,
+            "effort": pin.effort,
+            "server_revision_status": pin.server_revision_status,
+        }
+        if observed != frozen:
+            raise SFT2AConfigError(f"production {name} pin differs from active defaults")
+
+
+def _verify_v5_inputs(config: SFT2AV5Config, repo_root: Path) -> None:
+    seal_path = _repo_artifact(repo_root, config.recovery_v4_seal)
+    seal = _strict_json(seal_path)
+    staging_value = seal.get("staging_root")
+    roots_value = seal.get("sealed_roots")
+    if (
+        seal.get("receipt_id") != "leanfaith_sft2a_recovery_v4_combined_tree_seal_v5"
+        or not isinstance(staging_value, str)
+        or roots_value != ["runs/diverse_root_production_defaults_pilot_recovery_v4"]
+    ):
+        raise SFT2AConfigError("v5 recovery-v4 seal contract differs")
+    staging = Path(staging_value)
+    files = [
+        path
+        for relative in roots_value
+        for path in (staging / str(relative)).rglob("*")
+        if path.is_file() and not path.is_symlink()
+    ]
+    lines = b"".join(f"{hash_file(path)}  {path}\n".encode() for path in sorted(files, key=str))
+    observed = hashlib.sha256(lines).hexdigest()
+    if observed != seal.get("combined_tree_sha256"):
+        raise SFT2AConfigError("recovery-v4 historical evidence differs from its v5 seal")
+    _repo_artifact(repo_root, config.closure_canaries)
+    census_input = Path(config.source_census.compiler_data_path)
+    if (
+        census_input.is_symlink()
+        or not census_input.is_file()
+        or hash_file(census_input) != config.source_census.compiler_data_sha256
+    ):
+        raise SFT2AConfigError("v5 compiler-data census input differs")
+    if config.rehearsal.authorized:
+        raise SFT2AConfigError("v5 base config must not authorize the 100-root rehearsal")
+
+
+def _verify_v5_2_inputs(config: SFT2AV52Config, repo_root: Path) -> None:
+    seal_path = _repo_artifact(repo_root, config.failed_v5_1_seal)
+    seal = _strict_json(seal_path)
+    staging_value = seal.get("staging_root")
+    roots_value = seal.get("sealed_roots")
+    if (
+        seal.get("receipt_id") != "leanfaith_sft2a_rehearsal_v5_1_failed_launch_seal"
+        or not isinstance(staging_value, str)
+        or roots_value != ["runs/rehearsal_closure_aware_v5_1"]
+    ):
+        raise SFT2AConfigError("v5.1 failed-run seal contract differs")
+    staging = Path(staging_value)
+    files = [
+        path
+        for relative in roots_value
+        for path in (staging / str(relative)).rglob("*")
+        if path.is_file() and not path.is_symlink()
+    ]
+    lines = b"".join(f"{hash_file(path)}  {path}\n".encode() for path in sorted(files, key=str))
+    if hashlib.sha256(lines).hexdigest() != seal.get("combined_tree_sha256"):
+        raise SFT2AConfigError("v5.1 failed-run historical evidence differs")
+    if config.reference_certification.authorized:
+        raise SFT2AConfigError("v5.2 base config cannot self-authorize reference certification")
+    if config.parallel_rehearsal.execution_authorized:
+        raise SFT2AConfigError("v5.2 base config cannot authorize provider-backed rehearsal")
+
+
+def _verify_v5_2_recovery_inputs(config: SFT2AV52RecoveryConfig, repo_root: Path) -> None:
+    seal_path = _repo_artifact(repo_root, config.failed_v5_2_seal)
+    seal = _strict_json(seal_path)
+    staging_value = seal.get("staging_root")
+    roots_value = seal.get("sealed_roots")
+    if (
+        seal.get("receipt_id") != "leanfaith_sft2a_reference_certification_v5_2_failed_launch_seal"
+        or not isinstance(staging_value, str)
+        or roots_value != ["runs/reference_certification_v5_2"]
+        or seal.get("provider_calls_executed") != 0
+    ):
+        raise SFT2AConfigError("v5.2 failed reference-certification seal contract differs")
+    staging = Path(staging_value)
+    files = [
+        path
+        for relative in roots_value
+        for path in (staging / str(relative)).rglob("*")
+        if path.is_file() and not path.is_symlink()
+    ]
+    lines = b"".join(f"{hash_file(path)}  {path}\n".encode() for path in sorted(files, key=str))
+    if hashlib.sha256(lines).hexdigest() != seal.get("combined_tree_sha256"):
+        raise SFT2AConfigError("v5.2 failed reference-certification evidence differs")
+
+
+def _verify_v5_2_recovery_v3_inputs(config: SFT2AV52RecoveryV3Config, repo_root: Path) -> None:
+    seal_path = _repo_artifact(repo_root, config.failed_v5_2_recovery_v2_seal)
+    seal = _strict_json(seal_path)
+    staging_value = seal.get("staging_root")
+    roots_value = seal.get("sealed_roots")
+    if (
+        seal.get("receipt_id")
+        != "leanfaith_sft2a_reference_certification_v5_2_recovery_v2_failed_seal"
+        or not isinstance(staging_value, str)
+        or roots_value != ["runs/reference_certification_v5_2_recovery_v2"]
+        or seal.get("provider_calls_executed") != 0
+    ):
+        raise SFT2AConfigError("v5.2 recovery-v2 seal contract differs")
+    staging = Path(staging_value)
+    files = [
+        path
+        for relative in roots_value
+        for path in (staging / str(relative)).rglob("*")
+        if path.is_file() and not path.is_symlink()
+    ]
+    lines = b"".join(f"{hash_file(path)}  {path}\n".encode() for path in sorted(files, key=str))
+    if hashlib.sha256(lines).hexdigest() != seal.get("combined_tree_sha256"):
+        raise SFT2AConfigError("v5.2 recovery-v2 evidence differs")
+
+
 def verify_provider_binary(pin: ProviderPin) -> None:
     configured = Path(pin.binary_path).resolve(strict=True)
     discovered_text = shutil.which(pin.cli)
@@ -185,10 +354,30 @@ def load_sft2a_config(
         loaded: LoadedConfig[SFT2AAnyConfig] = load_config(config_path, SFT2AConfig)
     elif config_id == "leanfaith_sft2a_one_root_opus5_v1":
         loaded = load_config(config_path, SFT2AOpusConfig)
+    elif config_id == "leanfaith_sft2a_production_pilot_v1":
+        loaded = load_config(config_path, SFT2AProductionConfig)
+    elif config_id == "leanfaith_sft2a_closure_aware_v5":
+        loaded = load_config(config_path, SFT2AV5Config)
+    elif config_id == "leanfaith_sft2a_closure_aware_v5_2":
+        loaded = load_config(config_path, SFT2AV52Config)
+    elif config_id == "leanfaith_sft2a_closure_aware_v5_2_recovery_v2":
+        loaded = load_config(config_path, SFT2AV52RecoveryConfig)
+    elif config_id == "leanfaith_sft2a_closure_aware_v5_2_recovery_v3":
+        loaded = load_config(config_path, SFT2AV52RecoveryV3Config)
     else:
         raise SFT2AConfigError(f"unsupported SFT2A config_id: {config_id!r}")
     config = loaded.config
     _verify_repr(config, repo_root)
+    if isinstance(config, SFT2AProductionConfig):
+        _verify_labeling_defaults(config, repo_root)
+    if isinstance(config, SFT2AV5Config):
+        _verify_v5_inputs(config, repo_root)
+    if isinstance(config, SFT2AV52Config):
+        _verify_v5_2_inputs(config, repo_root)
+    if isinstance(config, SFT2AV52RecoveryConfig):
+        _verify_v5_2_recovery_inputs(config, repo_root)
+    if isinstance(config, SFT2AV52RecoveryV3Config):
+        _verify_v5_2_recovery_v3_inputs(config, repo_root)
     proposer_prompt_path = _repo_artifact(repo_root, config.prompts.codex_proposer)
     judge_prompt_path = _repo_artifact(repo_root, config.prompts.blinded_claude_judge)
     proposer_schema_path = _repo_artifact(repo_root, config.schemas.codex_proposer_output)

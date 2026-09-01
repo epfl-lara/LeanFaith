@@ -142,6 +142,7 @@ def _temp_opus(tmp_path: Path) -> LoadedSFT2AConfig:
 
 def test_opus_config_is_additive_and_versioned_output_replays(tmp_path: Path) -> None:
     loaded = _temp_opus(tmp_path)
+    assert isinstance(loaded.config, SFT2AOpusConfig)
     assert loaded.config.claude_judge.model == "opus"
     assert loaded.config.claude_judge.effort == "max"
     assert loaded.config.claude_judge.provider_id == "claude_opus_alias_max_sft2a_smoke_v1"
@@ -236,7 +237,9 @@ def test_deterministic_multi_source_sample_and_legacy_sample_are_exact(
         "d0568942cf276939a47b375a73715fcae489a9b9c380c9aa02bd780bd706ba75"
     )
     assert pilot["provider_calls_executed"] == 0
-    assert [row["project_id"] for row in pilot["grouped_execution_order"]] == [  # type: ignore[union-attr,index]
+    grouped = pilot["grouped_execution_order"]
+    assert isinstance(grouped, list)
+    assert [row["project_id"] for row in grouped] == [
         "cslib",
         "mathlib",
         "physlib",

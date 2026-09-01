@@ -9,10 +9,17 @@ from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 
 from leanfaith.config.hashing import hash_canonical, hash_file
-from leanfaith.config.loading import LoadedConfig, load_config
+from leanfaith.config.loading import LoadedConfig, load_config, load_yaml_mapping
 from leanfaith.config.paths import find_repo_root
 from leanfaith.sft2a.config import LoadedSFT2AConfig
-from leanfaith.sft2a.models import PilotReadinessConfig
+from leanfaith.sft2a.models import (
+    AuthorizedProductionPilotReadinessConfig,
+    AuthorizedRecoveryProductionPilotReadinessConfig,
+    PilotReadinessConfig,
+    ProductionPilotReadinessConfig,
+    RecoveryProductionPilotReadinessConfig,
+    SFT2AProductionConfig,
+)
 
 DEFAULT_PILOT_READINESS_PATH = Path("configs/sft2a/pilot_readiness_v2.yaml")
 
@@ -31,12 +38,19 @@ class PilotReadinessError(RuntimeError):
 
 @dataclass(frozen=True, slots=True)
 class LoadedPilotReadiness:
-    config: PilotReadinessConfig
+    config: (
+        PilotReadinessConfig
+        | ProductionPilotReadinessConfig
+        | AuthorizedProductionPilotReadinessConfig
+        | AuthorizedRecoveryProductionPilotReadinessConfig
+        | RecoveryProductionPilotReadinessConfig
+    )
     path: Path
     config_hash: str
     repo_root: Path
     authorization: dict[str, object]
     historical_seal: dict[str, object]
+    exact_settings_smoke: dict[str, object] | None
 
 
 def _repo_file(repo_root: Path, relative: str, expected_sha256: str) -> Path:
@@ -99,7 +113,25 @@ def load_pilot_readiness(
     config_path = path or repo_root / DEFAULT_PILOT_READINESS_PATH
     if not config_path.is_absolute():
         config_path = repo_root / config_path
-    loaded: LoadedConfig[PilotReadinessConfig] = load_config(config_path, PilotReadinessConfig)
+    raw = load_yaml_mapping(config_path)
+    if raw.get("config_id") == "leanfaith_sft2a_diverse_root_opus5_pilot_v2":
+        loaded: LoadedConfig[
+            PilotReadinessConfig
+            | ProductionPilotReadinessConfig
+            | AuthorizedProductionPilotReadinessConfig
+            | AuthorizedRecoveryProductionPilotReadinessConfig
+            | RecoveryProductionPilotReadinessConfig
+        ] = load_config(config_path, PilotReadinessConfig)
+    elif raw.get("config_id") == "leanfaith_sft2a_production_defaults_pilot_v1":
+        loaded = load_config(config_path, ProductionPilotReadinessConfig)
+    elif raw.get("config_id") == "leanfaith_sft2a_production_defaults_pilot_v2":
+        loaded = load_config(config_path, AuthorizedProductionPilotReadinessConfig)
+    elif raw.get("config_id") == "leanfaith_sft2a_production_defaults_pilot_recovery_v3":
+        loaded = load_config(config_path, RecoveryProductionPilotReadinessConfig)
+    elif raw.get("config_id") == "leanfaith_sft2a_production_defaults_pilot_recovery_v4":
+        loaded = load_config(config_path, AuthorizedRecoveryProductionPilotReadinessConfig)
+    else:
+        raise PilotReadinessError("unsupported pilot readiness config ID")
     config = loaded.config
     base_path = _repo_file(
         repo_root,
@@ -112,6 +144,12 @@ def load_pilot_readiness(
     ):
         raise PilotReadinessError("pilot readiness is not bound to the loaded Opus smoke config")
     _repo_file(repo_root, config.catalog.path, config.catalog.sha256)
+    if isinstance(config, RecoveryProductionPilotReadinessConfig):
+        _repo_file(
+            repo_root,
+            config.catalog_corrections.path,
+            config.catalog_corrections.sha256,
+        )
     authorization = _object(
         _repo_file(
             repo_root,
@@ -134,6 +172,87 @@ def load_pilot_readiness(
         )
     )
     verify_historical_fable_seal(historical)
+    exact_settings_smoke: dict[str, object] | None = None
+    if isinstance(config, ProductionPilotReadinessConfig):
+        if not isinstance(base.config, SFT2AProductionConfig):
+            raise PilotReadinessError("production readiness requires the production config")
+        policy_binding = config.labeling_defaults_policy
+        smoke_binding = config.exact_settings_smoke_receipt
+        _repo_file(repo_root, policy_binding.path, policy_binding.sha256)
+        if policy_binding != base.config.labeling_defaults_policy:
+            raise PilotReadinessError("readiness policy differs from the production config")
+        exact_settings_smoke = _object(
+            _repo_file(repo_root, smoke_binding.path, smoke_binding.sha256)
+        )
+        run_root = Path(base.config.staging_root) / base.config.run_layout.run_output_subdir
+        expected_smoke = {
+            "production_config_sha256": hash_file(base.path),
+            "production_config_hash": base.config_hash,
+            "labeling_defaults_policy_sha256": policy_binding.sha256,
+            "one_root_manifest_sha256": hash_file(run_root / "manifest.json"),
+            "one_root_replay_receipt_sha256": hash_file(run_root / "reproducibility_receipt.json"),
+            "one_root_audit_manifest_sha256": hash_file(run_root / "audit_lemex_v1/manifest.json"),
+            "successful": True,
+        }
+        if any(exact_settings_smoke.get(key) != value for key, value in expected_smoke.items()):
+            raise PilotReadinessError("exact-settings smoke receipt or durable output differs")
+        providers = exact_settings_smoke.get("providers")
+        expected_providers = {
+            "proposer": base.config.proposer.model_dump(mode="json"),
+            "claude_judge": base.config.claude_judge.model_dump(mode="json"),
+            "lemex_auditor": base.config.lemex_auditor.model_dump(mode="json"),
+        }
+        if providers != expected_providers:
+            raise PilotReadinessError("exact-settings smoke provider pins differ")
+    if isinstance(
+        config,
+        (
+            AuthorizedProductionPilotReadinessConfig,
+            AuthorizedRecoveryProductionPilotReadinessConfig,
+        ),
+    ):
+        activation_plan = load_yaml_mapping(
+            _repo_file(
+                repo_root,
+                config.activation_plan.path,
+                config.activation_plan.sha256,
+            )
+        )
+        _repo_file(
+            repo_root,
+            config.source_readiness_config.path,
+            config.source_readiness_config.sha256,
+        )
+        _repo_file(
+            repo_root,
+            config.source_authorization_receipt.path,
+            config.source_authorization_receipt.sha256,
+        )
+        if (
+            activation_plan.get("activation_id")
+            not in {
+                "leanfaith_sft2a_production_pilot_activation_v2",
+                "leanfaith_sft2a_production_pilot_recovery_activation_v4",
+            }
+            or activation_plan.get("pilot_launch_currently_authorized") is not False
+            or config.source_readiness_config_hash
+            != activation_plan.get("source_readiness_config_hash")
+            or authorization.get("source_readiness_config_hash")
+            != config.source_readiness_config_hash
+            or authorization.get("activation_plan_sha256") != config.activation_plan.sha256
+            or authorization.get("sample_output_subdir") != config.sample_output_subdir
+            or authorization.get("tmux_session") != config.detached_launch.session_name
+            or authorization.get("legacy_rejudge_authorized") is not False
+            or authorization.get("publication_authorized") is not False
+            or authorization.get("scale_50k_authorized") is not False
+        ):
+            raise PilotReadinessError("authorized activation lineage or scope differs")
+        if isinstance(config, AuthorizedRecoveryProductionPilotReadinessConfig) and (
+            authorization.get("catalog_corrections_sha256") != config.catalog_corrections.sha256
+            or authorization.get("failed_pilot_budget_journal_sha256")
+            != config.failed_pilot_recovery_source.provider_budget_journal_sha256
+        ):
+            raise PilotReadinessError("authorized recovery lineage differs")
     return LoadedPilotReadiness(
         config=config,
         path=config_path,
@@ -141,6 +260,7 @@ def load_pilot_readiness(
         repo_root=repo_root,
         authorization=authorization,
         historical_seal=historical,
+        exact_settings_smoke=exact_settings_smoke,
     )
 
 

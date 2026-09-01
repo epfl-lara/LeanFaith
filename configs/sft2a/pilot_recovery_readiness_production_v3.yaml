@@ -1,0 +1,92 @@
+schema_version: 1
+config_id: leanfaith_sft2a_production_defaults_pilot_recovery_v3
+status: ready_not_authorized
+task_id: SFT2A
+
+base_opus_smoke_config:
+  path: configs/sft2a/production_pilot_v1.yaml
+  sha256: 8cfd63922fbeb1c166b687681e79fa1c69f078569ad1a1eae2da5bcc48a104e2
+base_opus_smoke_config_hash: 2f9aafb0f36a1cc01734a02e8197b308b940efac4f0681ba306c9dd9cb0a7877
+catalog:
+  path: configs/sft2a/pilot_root_catalog_v2.json
+  sha256: 1fe261d705f75d3a0125221403011a1a74343f6dde51e8483d81d5b832e1265a
+catalog_corrections:
+  path: configs/sft2a/pilot_root_corrections_recovery_v3.json
+  sha256: 6a562f4b9e397ede3b8096ba1ce3d59bee977ee6dd66a0dac8133ce67f3f54b6
+expected_sample_sha256: 52edf04e5cfddefcd6626dfcb0ee0785f4a0f1e9dbd4cfd0851407e6134ccea4
+sample_output_subdir: runs/diverse_root_production_defaults_pilot_recovery_v3_readiness
+allocations:
+  - {source: mathlib, roots: 5}
+  - {source: physlib, roots: 3}
+  - {source: cslib, roots: 2}
+  - {source: compiler_data, roots: 2}
+group_by: project_id+project_revision+compile_context_id
+persistent_lean_environment_per_group: true
+ceilings:
+  maximum_roots: 12
+  maximum_provider_calls: 296
+  maximum_proposer_calls: 144
+  maximum_opus_calls: 144
+  maximum_lemex_calls: 8
+  maximum_attempts_per_slot: 3
+  maximum_reported_opus_spend_usd: 15.0
+  codex_cost_status: unavailable
+  lemex_cost_status: unavailable
+authorization_receipt:
+  path: configs/sft2a/pilot_recovery_authorization_receipt_production_v3.json
+  sha256: 6057c12bf2f8e7548a59f15a422a4eb1915b3218e9c892bf3b556d28fdffdfb5
+historical_fable_seal:
+  path: configs/sft2a/historical_fable_seal_v1.json
+  sha256: d20bb53d74d65b04d5caf6f25b9aa1629338127e448e469c3c3509474023fdaf
+
+legacy_rejudge:
+  authorized: false
+  input_configuration: legacy_single_judge
+  output_configuration: legacy_double_judge
+  output_subdir: runs/legacy_production_defaults_rejudge_v1
+  all_admitted_positives: 233
+  minimum_stratified_negatives: 2000
+  renderable_unresolved_action: single_judge_needs_second_judge_auxiliary_no_opus_call
+  exclude_placeholders: true
+  exclude_repr_invalid: true
+  stratify_by: [family]
+  salt: leanfaith-sft2a-legacy-production-defaults-rejudge-v1
+  ceilings:
+    maximum_roots: 1
+    maximum_provider_calls: 2240
+    maximum_proposer_calls: 0
+    maximum_opus_calls: 2240
+    maximum_lemex_calls: 0
+    maximum_attempts_per_slot: 3
+    maximum_reported_opus_spend_usd: 250.0
+    codex_cost_status: unavailable
+    lemex_cost_status: unavailable
+
+labeling_defaults_policy:
+  path: policies/sft2_llm_labeling_defaults_v1.yaml
+  sha256: 4554a071b06b1af9015b253b5e64b2a0a4d013630e5224ef7729bbf65757646f
+exact_settings_smoke_receipt:
+  path: configs/sft2a/production_defaults_smoke_receipt_v1.json
+  sha256: adbe14b05e443139647dc05d483b44705452731dff3cbf384ef1f2b76a112509
+
+detached_launch:
+  session_name: leanfaith-sft2a-production-pilot-recovery-v3-readiness
+  resource_task: SFT2A-PILOT-PROD-RECOVERY-V3-READINESS
+  lean_workers: 1
+  lean_rss_gib: 20.0
+  run_lock_relative_path: detached/run.lock
+  combined_log_relative_path: detached/combined.log
+  journal_relative_path: detached/journal.jsonl
+  terminal_status_relative_path: detached/terminal_status.json
+  launch_receipt_relative_path: detached/launch_receipt.json
+  stdin_closed: true
+  exclusive_run_lock: true
+  duplicate_restart_forbidden: true
+
+failed_pilot_recovery_source:
+  failed_output_subdir: runs/diverse_root_production_defaults_pilot_v2
+  source_sample_sha256: d0568942cf276939a47b375a73715fcae489a9b9c380c9aa02bd780bd706ba75
+  source_sample_manifest_sha256: 24b84e75e1c3aa8abb63974b68f620bcd47b75724b15aed8f119d7cba5647295
+  terminal_status_sha256: 185f8d36af4b734dbe8c0ae48afba47246b6a531169ea99f33a590ec24882899
+  provider_budget_journal_sha256: b5b661ec4828f6616a9e4379d1ca7dcbd9f01100a7c7a23bb5dbd4bbff1ca8e9
+  required_terminal_status: failed

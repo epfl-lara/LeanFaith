@@ -1,0 +1,66 @@
+schema_version: 1
+activation_id: leanfaith_sft2a_production_pilot_activation_v2
+status: awaiting_exact_authorization
+task_id: SFT2A
+
+production_config:
+  path: configs/sft2a/production_pilot_v1.yaml
+  sha256: 8cfd63922fbeb1c166b687681e79fa1c69f078569ad1a1eae2da5bcc48a104e2
+production_config_hash: 2f9aafb0f36a1cc01734a02e8197b308b940efac4f0681ba306c9dd9cb0a7877
+source_readiness_config:
+  path: configs/sft2a/pilot_readiness_production_v1.yaml
+  sha256: 0b893d7eeaa3395604ac3f4da06614e3c16bca6d073fd471ce9702800210b387
+source_readiness_config_hash: 5b26cf8cf21a4e5542b0ba7c72a1c110e4bd415681eb2ddf2d3abd14e7203a02
+source_authorization_receipt:
+  path: configs/sft2a/pilot_authorization_receipt_production_v1.json
+  sha256: 35c56eaa7bb5b68e4412fbe0464b076285f18e48c9f7c3fefd7574f024a18f6a
+labeling_defaults_policy:
+  path: policies/sft2_llm_labeling_defaults_v1.yaml
+  sha256: 4554a071b06b1af9015b253b5e64b2a0a4d013630e5224ef7729bbf65757646f
+exact_settings_smoke_receipt:
+  path: configs/sft2a/production_defaults_smoke_receipt_v1.json
+  sha256: adbe14b05e443139647dc05d483b44705452731dff3cbf384ef1f2b76a112509
+catalog:
+  path: configs/sft2a/pilot_root_catalog_v2.json
+  sha256: 1fe261d705f75d3a0125221403011a1a74343f6dde51e8483d81d5b832e1265a
+
+expected_sample_sha256: d0568942cf276939a47b375a73715fcae489a9b9c380c9aa02bd780bd706ba75
+source_staged_sample_manifest_sha256: 8d74aecdf4b170038c7f90789f4802520960803a4034dff6f8ef32852831ee3a
+source_sample_implementation_commit: d48948989431c169fc7e018e25668acabe26081f
+source_sample_implementation_tree: 4e736f3d039fc0d061a8166704b9bf1fd546650d
+ceilings:
+  maximum_roots: 12
+  maximum_provider_calls: 296
+  maximum_proposer_calls: 144
+  maximum_opus_calls: 144
+  maximum_lemex_calls: 8
+  maximum_attempts_per_slot: 3
+  maximum_reported_opus_spend_usd: 15.0
+  codex_cost_status: unavailable
+  lemex_cost_status: unavailable
+ceilings_sha256: a708c9bce0532d462c38b8c7ae55fa064f119f77346c3d9d2ea976103a115dd8
+
+target_config_id: leanfaith_sft2a_production_defaults_pilot_v2
+target_authorization_receipt_path: configs/sft2a/pilot_authorization_receipt_production_v2.json
+target_readiness_config_path: configs/sft2a/pilot_readiness_production_v2.yaml
+fresh_sample_output_subdir: runs/diverse_root_production_defaults_pilot_v2
+authorized_detached_launch:
+  session_name: leanfaith-sft2a-production-pilot-v2
+  resource_task: SFT2A-PILOT-PROD-V2
+  lean_workers: 1
+  lean_rss_gib: 20.0
+  run_lock_relative_path: detached/run.lock
+  combined_log_relative_path: detached/combined.log
+  journal_relative_path: detached/journal.jsonl
+  terminal_status_relative_path: detached/terminal_status.json
+  launch_receipt_relative_path: detached/launch_receipt.json
+  stdin_closed: true
+  exclusive_run_lock: true
+  duplicate_restart_forbidden: true
+
+authorization_sentence_sha256: 8e11639ebe437ecfa72d77b885b394401fdfe7db145b6ec6f1e385eeadcf5581
+requires_exact_authorization_sentence: true
+pilot_launch_currently_authorized: false
+legacy_rejudge_authorized: false
+publication_authorized: false
+scale_50k_authorized: false
