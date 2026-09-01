@@ -164,6 +164,7 @@ def _config(tmp_path: Path) -> audit.MatchedPilotLeanAuditConfig:
             "mathlib_project_path": "/tmp/mathlib",
             "mathlib_named_reference_catalog_path": tmp_path / "named.jsonl",
             "mathlib_named_reference_catalog_sha256": _HASH,
+            "explicit_reference_theorem_ids": [],
             "output_parent": tmp_path,
             "input_bundle": bundle,
             "output_bundle": bundle,
@@ -309,6 +310,7 @@ def test_reference_inputs_require_family_specific_frozen_catalogs(tmp_path: Path
         manifest,
         named_catalog_path=named_catalog,
         named_catalog_sha256=audit.hash_file(named_catalog),
+        explicit_theorem_ids=frozenset({algebra.reference_theorem_id}),
     )
 
     assert observed[algebra.source_id] == audit.ReferenceElaborationInput(

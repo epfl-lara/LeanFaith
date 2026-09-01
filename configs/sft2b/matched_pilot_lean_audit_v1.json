@@ -6,6 +6,9 @@
   "mathlib_project_path": "/storage/milikic/leanfaith/mathlib4",
   "mathlib_named_reference_catalog_path": "/storage/milikic/leanfaith/gate3/frozen/gate3_inputs.theorems.jsonl",
   "mathlib_named_reference_catalog_sha256": "8eb75ffa0b9233c5a91492fa181f604e3c098a6f3970799bcb0406f8b517f09e",
+  "explicit_reference_theorem_ids": [
+    "thm:2042b3e2a5b63db28a36c41274e21d34a6b4a6cd57020776891fe47f9b35dd83"
+  ],
   "output_parent": "/storage/milikic/leanfaith/value_first/sft2_autoformalizer_v1/matched_pilot_lean_audit_v1",
   "input_bundle": {
     "repo_id": "Lemmy00/leanfaith-sft2-autoformalizer-v1",

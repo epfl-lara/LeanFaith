@@ -125,6 +125,7 @@ class MatchedPilotLeanAuditConfig(StrictModel):
     mathlib_project_path: Path
     mathlib_named_reference_catalog_path: Path
     mathlib_named_reference_catalog_sha256: Sha256
+    explicit_reference_theorem_ids: tuple[str, ...]
     output_parent: Path
     input_bundle: BundlePin
     output_bundle: BundlePin
@@ -366,6 +367,7 @@ def _reference_elaboration_inputs(
     *,
     named_catalog_path: Path,
     named_catalog_sha256: str,
+    explicit_theorem_ids: frozenset[str],
 ) -> tuple[dict[str, ReferenceElaborationInput], dict[str, object]]:
     """Recover exact elaboration carriers without changing source records.
 
@@ -476,6 +478,10 @@ def _reference_elaboration_inputs(
     mathlib_ids = set().union(*mathlib_ids_by_family.values())
     if set(rows) != mathlib_ids:
         raise MatchedPilotLeanAuditError("Mathlib reference catalog union drifted")
+    if not explicit_theorem_ids.issubset(mathlib_ids):
+        raise MatchedPilotLeanAuditError(
+            "explicit-reference exception contains an unselected theorem ID"
+        )
 
     named_path = named_catalog_path
     named_hash = named_catalog_sha256
@@ -560,9 +566,14 @@ def _reference_elaboration_inputs(
                 raise MatchedPilotLeanAuditError(
                     f"explicit Mathlib reference is missing for {source.source_id}"
                 )
-            # Prefer the cross-bound explicit term only when it has no
-            # proof-elision marker. Otherwise load the live named constant.
-            use_explicit = "⋯" not in explicit
+            # The named constant type is authoritative. A theorem enters the
+            # explicit route only after a measured GoalV1 surface failure is
+            # recorded by exact theorem ID in the config.
+            use_explicit = source.reference_theorem_id in explicit_theorem_ids
+            if use_explicit and "⋯" in explicit:
+                raise MatchedPilotLeanAuditError(
+                    f"explicit-reference exception contains proof elision: {source.source_id}"
+                )
             PropositionEndpoint(
                 endpoint_id="reference",
                 endpoint_role="reference",
@@ -594,6 +605,7 @@ def _reference_elaboration_inputs(
             "selected_rows": len(selected_named_rows),
         },
         "selected_mathlib_rows": len(mathlib_ids),
+        "explicit_reference_theorem_ids": sorted(explicit_theorem_ids),
         "method_counts": dict(sorted(method_counts.items())),
     }
 
@@ -677,6 +689,7 @@ def prepare_preflight(
         source_manifest,
         named_catalog_path=config.mathlib_named_reference_catalog_path,
         named_catalog_sha256=config.mathlib_named_reference_catalog_sha256,
+        explicit_theorem_ids=frozenset(config.explicit_reference_theorem_ids),
     )
     helper_path = repo_root / config.helper_path
     pins = verify_runtime_pins(repo_root, helper_path=helper_path)
@@ -1257,6 +1270,7 @@ def _load_inputs(
         source_manifest,
         named_catalog_path=config.mathlib_named_reference_catalog_path,
         named_catalog_sha256=config.mathlib_named_reference_catalog_sha256,
+        explicit_theorem_ids=frozenset(config.explicit_reference_theorem_ids),
     )
     return sources, candidates, source_classes, reference_inputs
 
