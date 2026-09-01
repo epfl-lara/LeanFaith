@@ -8,6 +8,11 @@ The integration checkout is `/localhome/milikic/LeanFaith-main-integration` on l
 The original `/localhome/milikic/LeanFaith` checkout contains unrelated in-progress EVAL work and
 must not be switched, cleaned, or used for these SFT edits.
 
+The execution baseline is coordinator commit
+`c17104fe9bec1cb9eaf847c4e412aa0ca76c178a`. Each SFT owner creates a dedicated
+`milikic/<task>` worktree/branch from that commit (or a later coordinator descendant) rather than
+sharing the integration worktree or continuing from a pre-integration task tip.
+
 The goal is data, not another review cycle. Preserve historical configs, receipts, plans, and
 outputs as immutable evidence, but remove them from the launch dependency graph when they do not
 protect label correctness, resumability, or an expensive run.

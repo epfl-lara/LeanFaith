@@ -1121,7 +1121,9 @@ the complete cross-source census are recorded may the project request exactly:
 ## Session kickoff prompt
 
 ```text
-Own only SFT1 in the main integration worktree. Read AGENTS.md, PLAN.md,
+Create a dedicated SFT1 worktree/branch from local-main coordinator commit
+`c17104fe9bec1cb9eaf847c4e412aa0ca76c178a` (or a later coordinator descendant); do not edit the
+integration checkout or continue from a pre-integration task tip. Own only SFT1. Read AGENTS.md, PLAN.md,
 plans/00_shared_contracts.md, plans/72h_sft_data_sprint_2026-09-01.md, and this brief completely.
 The 72-hour sprint override above is authoritative. Preserve the hash-bound historical Wave1
 engine, policy/readiness/admission/identity/census loaders, receipts, and YAMLs; do not make the new

@@ -197,7 +197,10 @@ training. Validate hashes/counts and the remote Hub revision.
 ## Session kickoff prompt
 
 ```text
-Own only SFT2A from clean main. Read AGENTS.md, PLAN.md, plans/00_shared_contracts.md,
+Create a dedicated SFT2A worktree/branch from local-main coordinator commit
+`c17104fe9bec1cb9eaf847c4e412aa0ca76c178a` (or a later coordinator descendant); do not edit the
+integration checkout or continue from a pre-integration task tip. Own only SFT2A. Read AGENTS.md,
+PLAN.md, plans/00_shared_contracts.md,
 plans/72h_sft_data_sprint_2026-09-01.md, and this brief completely. Preserve the completed 100-root
 run; do not regenerate it or build more authorization/recovery ceremony.
 

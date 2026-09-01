@@ -562,7 +562,9 @@ training. Verify remote counts/schema/hashes and Hub revision.
 ## Session kickoff prompt
 
 ```text
-Own only SFT2B from current integrated main. Read AGENTS.md, PLAN.md,
+Create a dedicated SFT2B worktree/branch from local-main coordinator commit
+`c17104fe9bec1cb9eaf847c4e412aa0ca76c178a` (or a later coordinator descendant); do not edit the
+integration checkout or continue from a pre-integration task tip. Own only SFT2B. Read AGENTS.md, PLAN.md,
 plans/00_shared_contracts.md, plans/72h_sft_data_sprint_2026-09-01.md, and this brief completely.
 Preserve all v1/v2/v3-human-review and matched-500 artifacts; implement additive sprint paths.
 

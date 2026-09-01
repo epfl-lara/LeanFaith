@@ -10,9 +10,11 @@ and historical-evidence gates while retaining label, validity, deduplication, an
 
 ## How to start a task session
 
-**Active SFT baseline:** start from the current local `main` that contains the 72-hour sprint plan.
-Do not start an SFT sprint session from the older setup commit. Historical setup baseline `3557009`
-remains useful only for archaeology; any new worktree must retain the plan-contract check.
+**Active SFT baseline:** create a dedicated task worktree/branch from coordinator commit
+`c17104fe9bec1cb9eaf847c4e412aa0ca76c178a` on local `main` (or a later coordinator descendant).
+Do not share the integration checkout and do not continue from a pre-integration task tip. Historical
+setup baseline `3557009` remains useful only for archaeology; every new worktree retains the
+plan-contract check.
 
 1. Choose one task below and open its brief.
 2. Copy the `Session kickoff prompt` from that file into a new Codex/Claude/Lemex session.
