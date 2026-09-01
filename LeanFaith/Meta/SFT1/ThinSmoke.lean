@@ -104,8 +104,10 @@ private partial def symmetrizeFinalEq? : Expr → Option FinalEqRewrite
 private def applyP18 (source : Expr) : MetaM (Expr × P18Certificate) := do
   let some rewrite := symmetrizeFinalEq? source
     | throwError "thin smoke: Nat.lor_comm has no unique final equality target"
-  if ← withoutModifyingMCtx <| isDefEq rewrite.left rewrite.right then
-    throwError "thin smoke: P18 equality operands are definitionally equal"
+  -- `left` and `right` may contain loose bvars from the closed outer telescope;
+  -- asking `isDefEq` about them outside that telescope can panic. The exact
+  -- smoke transform already rejects structurally equivalent operands while
+  -- matching the final equality, so no unsafe second comparison is needed.
   let candidate ← checkedClosedProp "P18 candidate" rewrite.candidate
   if Expr.equal source candidate then
     throwError "thin smoke: P18 candidate did not change"

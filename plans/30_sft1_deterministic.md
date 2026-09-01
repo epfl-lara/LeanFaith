@@ -1315,3 +1315,9 @@ work. End with the exact user decision needed.
   still failed closed before rows because field projection also cannot resolve `Nat.toString` in
   this request environment. The follow-up uses the generic `toString` function explicitly; the
   failed raw response remains preserved and the reservation was again released.
+- 2026-09-01 — the next rerun reached P18 and exposed a reusable Wave 1 correctness defect:
+  `isDefEq` was called on equality operands containing loose bvars below the closed telescope,
+  causing a Lean panic. The smoke correction relies on its existing structural nondegeneracy test
+  and removes that unsafe redundant call. The general Wave 1 implementation must instead open its
+  telescope to fvars before any definitional-equality comparison. No rows were emitted, the raw
+  failure is retained, and a passing thin smoke still cannot certify Wave 1 readiness.
