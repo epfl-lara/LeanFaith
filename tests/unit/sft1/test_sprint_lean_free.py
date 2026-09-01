@@ -348,3 +348,12 @@ def test_ancestry_shards_never_split_a_root() -> None:
         for item in shard:
             seen.setdefault(item["row"]["root_id"], index)
             assert seen[item["row"]["root_id"]] == index
+
+
+def test_canonical_surface_matches_frozen_route_and_rejects_unsupported_text() -> None:
+    from leanfaith.sft1.sprint.runner import canonical_surface
+
+    canonical, violation = canonical_surface("n : ℕ\n⊢ n + 0 = n")
+    assert violation is None and canonical == "n : ℕ\n⊢ n + 0 = n"
+    rejected, reason = canonical_surface("a b : ℕ\n⊢ a ||| b = b ||| a")
+    assert rejected is None and reason is not None and reason.startswith("repr_surface:")

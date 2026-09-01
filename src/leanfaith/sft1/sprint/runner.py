@@ -38,7 +38,13 @@ from leanfaith.host_resources import (
 from leanfaith.lean.leaninteract_backend import BackendSettings, LeanInteractBackend
 from leanfaith.lean.protocol import LeanStatus
 from leanfaith.lean.session_policy import ServerMode
-from leanfaith.representations.goal_v1 import ClosedExprSidecar, CompileContext
+from leanfaith.representations.goal_v1 import (
+    ClosedExprSidecar,
+    CompileContext,
+    GoalV1Error,
+    _canonicalize_elaborated_goal,
+    validate_goal_v1,
+)
 from leanfaith.schemas.ids import PAIR_PREFIX, make_id
 from leanfaith.sft1.sprint import engine as engine_module
 from leanfaith.sft1.sprint.engine import (
@@ -72,6 +78,21 @@ TerminalStatus = Literal["retained", "not_applicable", "rejected", "error"]
 
 class SprintRunnerError(RuntimeError):
     """Fail-closed runner error."""
+
+
+def canonical_surface(goal_text: str) -> tuple[str | None, str | None]:
+    """Canonicalize a pre-rendered goal exactly as the frozen REPR route will.
+
+    Returns ``(canonical_text, None)`` or ``(None, violation)`` when the frozen
+    Python-side surface validation would reject the render.
+    """
+
+    try:
+        canonical = _canonicalize_elaborated_goal(goal_text)
+        validate_goal_v1(canonical)
+    except GoalV1Error as exc:
+        return None, f"repr_surface:{str(exc)[:200]}"
+    return canonical, None
 
 
 class ProjectConfig(StrictModel):
@@ -584,8 +605,9 @@ class SprintRunner:
             )
             self.roots_seen.add(name)
             self.roots_lean += 1
-            reference_goal = str(payload["reference_goal"])
-            reference_violation = residue_violation(reference_goal)
+            reference_goal, reference_violation = self.reference_surface(
+                str(payload["reference_goal"])
+            )
             op_keys: dict[str, str] = {}
             for terminal in payload.get("terminals", []):
                 operation = str(terminal["operation_id"])
@@ -605,7 +627,7 @@ class SprintRunner:
                         source="lean",
                     )
                     continue
-                if reference_violation is not None:
+                if reference_violation is not None or reference_goal is None:
                     self.cache.put_op(
                         key, self.op_cache_record(name, terminal, None, result.request_hash)
                     )
@@ -645,7 +667,21 @@ class SprintRunner:
             self.backend.reset_session()
         self.write_status(final=False)
 
+    @staticmethod
+    def reference_surface(goal_text: str) -> tuple[str | None, str | None]:
+        canonical, violation = canonical_surface(goal_text)
+        if canonical is None:
+            return None, violation
+        residue = residue_violation(canonical)
+        if residue is not None:
+            return None, residue
+        return canonical, None
+
     def candidate_screen(self, reference_goal: str, candidate_goal: str) -> str | None:
+        canonical, surface_violation = canonical_surface(candidate_goal)
+        if canonical is None:
+            return f"screen_candidate:{surface_violation}"
+        candidate_goal = canonical
         violation = residue_violation(candidate_goal)
         if violation is not None:
             return f"screen_candidate:{violation}"
@@ -712,9 +748,9 @@ class SprintRunner:
                 mismatch = "render_missing_endpoint"
             elif rebuilt != expected_hashes:
                 mismatch = "render_rebuild_hash_mismatch"
-            elif reference.core_text() != str(payload["reference_goal"]):
+            elif reference.core_text() != canonical_surface(str(payload["reference_goal"]))[0]:
                 mismatch = "render_reference_text_mismatch"
-            elif candidate.core_text() != str(terminal["candidate_goal"]):
+            elif candidate.core_text() != canonical_surface(str(terminal["candidate_goal"]))[0]:
                 mismatch = "render_candidate_text_mismatch"
             if mismatch is not None or reference is None or candidate is None:
                 self.finalize_terminal(
@@ -829,10 +865,11 @@ class SprintRunner:
             )
             return
         render = op_record.get("render")
-        reference_goal = str(root_record.get("reference_goal", ""))
+        reference_goal, violation = self.reference_surface(
+            str(root_record.get("reference_goal", ""))
+        )
         candidate_goal = str(op_record.get("candidate_goal", ""))
-        violation = residue_violation(reference_goal)
-        if violation is not None:
+        if violation is not None or reference_goal is None:
             self.finalize_terminal(
                 name, operation, "rejected", f"screen_reference:{violation}", source=source
             )
