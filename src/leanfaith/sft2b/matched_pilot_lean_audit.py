@@ -33,6 +33,7 @@ from leanfaith.representations.goal_v1 import (
     ClosedExprInput,
     ClosedExprSourceMaterial,
     CompileContext,
+    _parse_closed_expr_payloads,
     render_closed_expr_in_session,
 )
 from leanfaith.sft2b.durable import AppendOnlyJournal, immutable_write, write_json, write_jsonl
@@ -63,9 +64,12 @@ from leanfaith.sft2b.schemas import (
 )
 
 SCHEMA_VERSION = "sft2b_matched_pilot_lean_audit_v1"
-PREFLIGHT_SCHEMA_VERSION = "sft2b_matched_pilot_lean_preflight_v1"
-TERMINAL_SCHEMA_VERSION = "sft2b_matched_pilot_source_terminal_v1"
-MANIFEST_SCHEMA_VERSION = "sft2b_matched_pilot_lean_manifest_v1"
+RUN_SCHEMA_VERSION = "sft2b_matched_pilot_lean_audit_run_v2"
+PREFLIGHT_SCHEMA_VERSION = "sft2b_matched_pilot_lean_preflight_v2"
+TERMINAL_SCHEMA_VERSION: Literal["sft2b_matched_pilot_source_terminal_v2"] = (
+    "sft2b_matched_pilot_source_terminal_v2"
+)
+MANIFEST_SCHEMA_VERSION = "sft2b_matched_pilot_lean_manifest_v2"
 
 _SOURCE_CLASS_ORDER = (
     "library_docstring",
@@ -146,7 +150,7 @@ class ReferenceElaborationInput(StrictModel):
 
 
 class SourceAuditTerminal(StrictModel):
-    schema_version: Literal["sft2b_matched_pilot_source_terminal_v1"]
+    schema_version: Literal["sft2b_matched_pilot_source_terminal_v2"]
     run_id: StableId
     source_id: StableId
     source_ordinal: Annotated[int, Field(ge=0, lt=500)]
@@ -159,7 +163,9 @@ class SourceAuditTerminal(StrictModel):
         "frozen_reference_constant_type",
     ]
     reference_elaboration_sha256: Sha256
+    reference_elaborated: bool
     candidate_ids: tuple[StableId, ...]
+    candidate_elaborated: tuple[bool, ...]
     reference: EndpointCacheRecord
     candidates: tuple[EndpointCacheRecord, ...]
     request_hash: Sha256
@@ -180,8 +186,35 @@ class SourceAuditTerminal(StrictModel):
             raise ValueError("source terminal reference identity mismatch")
         if tuple(item.candidate_id for item in self.candidates) != self.candidate_ids:
             raise ValueError("source terminal candidate identity/order mismatch")
+        if len(self.candidate_elaborated) != len(self.candidate_ids):
+            raise ValueError("source terminal candidate elaboration vector mismatch")
         if any(item.source_id != self.source_id for item in self.candidates):
             raise ValueError("source terminal mixes source IDs")
+        if self.reference.status == CompileStatus.VALID and not self.reference_elaborated:
+            raise ValueError("valid reference representation lacks elaboration evidence")
+        expected_reference_error = (
+            "trusted_reference_repr_invalid"
+            if self.reference_elaborated
+            else "trusted_reference_elaboration_invalid"
+        )
+        if (
+            self.reference.status == CompileStatus.INVALID
+            and self.reference.error_class != expected_reference_error
+        ):
+            raise ValueError("invalid reference classification disagrees with elaboration evidence")
+        for elaborated, candidate in zip(self.candidate_elaborated, self.candidates, strict=True):
+            if candidate.status == CompileStatus.VALID and not elaborated:
+                raise ValueError("valid candidate representation lacks elaboration evidence")
+            expected_error = (
+                "candidate_repr_invalid" if elaborated else "candidate_elaboration_invalid"
+            )
+            if (
+                candidate.status == CompileStatus.INVALID
+                and candidate.error_class != expected_error
+            ):
+                raise ValueError(
+                    "invalid candidate classification disagrees with elaboration evidence"
+                )
         return self
 
 
@@ -249,7 +282,7 @@ def _run_identity(
 ) -> tuple[str, Path, dict[str, str]]:
     module_path = Path(__file__).resolve()
     identity = {
-        "schema_version": SCHEMA_VERSION,
+        "schema_version": RUN_SCHEMA_VERSION,
         "config_sha256": hash_file(config_path),
         "module_sha256": hash_file(module_path),
         "repo_git_commit": _git_head(repo_root),
@@ -975,6 +1008,31 @@ def _render_propositions_isolated(
     )
 
 
+def _elaboration_statuses(
+    result: LeanResult, endpoints: Sequence[PropositionEndpoint]
+) -> tuple[bool, tuple[bool, ...]]:
+    """Read closed-Prop success from emitted Expr payloads, not surface parsing."""
+
+    if result.status != LeanStatus.VALID or result.sorries:
+        return False, tuple(False for _ in endpoints[1:])
+    endpoint_ids = {item.endpoint_id for item in endpoints}
+    payloads, issues = _parse_closed_expr_payloads(result.messages, endpoint_ids)
+    if issues:
+        raise MatchedPilotLeanAuditError(
+            "closed-Expr elaboration payloads are malformed: " + "; ".join(issues)
+        )
+    reference_elaborated = endpoints[0].endpoint_id in payloads
+    candidate_elaborated: list[bool] = []
+    for endpoint in endpoints[1:]:
+        payload = payloads.get(endpoint.endpoint_id)
+        expr_tree = payload.get("expr_tree") if payload is not None else None
+        candidate_elaborated.append(
+            expr_tree is not None
+            and hash_canonical(expr_tree) != _failure_sentinel_expr_hash(endpoint.endpoint_id)
+        )
+    return reference_elaborated, tuple(candidate_elaborated)
+
+
 def _endpoint_record(
     *,
     endpoint: PropositionEndpoint,
@@ -1175,10 +1233,18 @@ def _execute_source(
         write_json(failure_path, payload)
         return None, lean_requests
 
+    reference_elaborated, endpoint_candidate_elaborated = _elaboration_statuses(
+        last_result, endpoints
+    )
+    candidate_elaborated = endpoint_candidate_elaborated[: len(candidates)]
     failures = {item.endpoint_id: item.detail for item in rendered.failures}
     sidecars = {item.record.endpoint_id: item for item in rendered.sidecars}
     reference_endpoint = endpoints[0]
     if "reference" in sidecars:
+        if not reference_elaborated:
+            raise MatchedPilotLeanAuditError(
+                "trusted reference has a REPR sidecar without elaboration evidence"
+            )
         reference = _endpoint_record(
             endpoint=reference_endpoint,
             source=source,
@@ -1198,12 +1264,23 @@ def _execute_source(
             pins=pins,
             status=CompileStatus.INVALID,
             detail=detail,
+            error_class=(
+                "trusted_reference_repr_invalid"
+                if reference_elaborated
+                else "trusted_reference_elaboration_invalid"
+            ),
         )
 
     candidate_records: list[EndpointCacheRecord] = []
-    for endpoint in endpoints[1 : 1 + len(candidates)]:
+    for endpoint, elaborated in zip(
+        endpoints[1 : 1 + len(candidates)], candidate_elaborated, strict=True
+    ):
         sidecar = sidecars.get(endpoint.endpoint_id)
         if sidecar is not None:
+            if not elaborated:
+                raise MatchedPilotLeanAuditError(
+                    "candidate has a REPR sidecar without elaboration evidence"
+                )
             candidate_records.append(
                 _valid_candidate_record_or_repr_failure(
                     endpoint=endpoint,
@@ -1222,11 +1299,14 @@ def _execute_source(
                     pins=pins,
                     status=CompileStatus.INVALID,
                     detail=failures.get(endpoint.endpoint_id, "candidate lacks REPR or failure"),
+                    error_class=(
+                        "candidate_repr_invalid" if elaborated else "candidate_elaboration_invalid"
+                    ),
                 )
             )
     raw_path = Path(rendered.raw_response_path) if rendered.raw_response_path else None
     terminal = SourceAuditTerminal(
-        schema_version="sft2b_matched_pilot_source_terminal_v1",
+        schema_version=TERMINAL_SCHEMA_VERSION,
         run_id=run_id,
         source_id=source.source_id,
         source_ordinal=source_ordinal,
@@ -1235,7 +1315,9 @@ def _execute_source(
         render_compile_context_id=context.compile_context_id,
         reference_elaboration_method=reference_input.method,
         reference_elaboration_sha256=sha256_hex(reference_input.carrier.encode("utf-8")),
+        reference_elaborated=reference_elaborated,
         candidate_ids=tuple(item.candidate_id for item in candidates),
+        candidate_elaborated=candidate_elaborated,
         reference=reference,
         candidates=tuple(candidate_records),
         request_hash=rendered.request_hash,
@@ -1293,17 +1375,23 @@ def _compact(
     terminals = [_read_terminal(path) for path in terminal_paths]
     if [item.source_id for item in terminals] != [item.source_id for item in sources]:
         raise MatchedPilotLeanAuditError("source terminal order/identity drifted")
-    candidate_rows = [
-        {
-            "source_id": terminal.source_id,
-            "source_class": terminal.source_class,
-            "source_context_id": terminal.source_context_id,
-            "render_compile_context_id": terminal.render_compile_context_id,
-            **candidate.model_dump(mode="json"),
-        }
-        for terminal in terminals
-        for candidate in terminal.candidates
-    ]
+    candidate_rows = []
+    for terminal in terminals:
+        for candidate, elaborated in zip(
+            terminal.candidates, terminal.candidate_elaborated, strict=True
+        ):
+            candidate_rows.append(
+                {
+                    "source_id": terminal.source_id,
+                    "source_class": terminal.source_class,
+                    "source_context_id": terminal.source_context_id,
+                    "render_compile_context_id": terminal.render_compile_context_id,
+                    "elaboration_status": (
+                        CompileStatus.VALID.value if elaborated else CompileStatus.INVALID.value
+                    ),
+                    **candidate.model_dump(mode="json"),
+                }
+            )
     if [item["candidate_id"] for item in candidate_rows] != [
         item.candidate_id for item in candidates
     ]:
@@ -1315,13 +1403,18 @@ def _compact(
     write_jsonl(source_output, source_rows)
     write_jsonl(candidate_output, candidate_output_rows)
 
-    valid_candidates = sum(item["status"] == CompileStatus.VALID.value for item in candidate_rows)
-    invalid_candidates = len(candidate_rows) - valid_candidates
-    valid_references = sum(item.reference.status == CompileStatus.VALID for item in terminals)
-    sources_with_valid = sum(
-        any(item.status == CompileStatus.VALID for item in terminal.candidates)
-        for terminal in terminals
+    valid_candidates = sum(
+        item["elaboration_status"] == CompileStatus.VALID.value for item in candidate_rows
     )
+    invalid_candidates = len(candidate_rows) - valid_candidates
+    representation_valid_candidates = sum(
+        item["status"] == CompileStatus.VALID.value for item in candidate_rows
+    )
+    valid_references = sum(item.reference_elaborated for item in terminals)
+    representation_valid_references = sum(
+        item.reference.status == CompileStatus.VALID for item in terminals
+    )
+    sources_with_valid = sum(any(terminal.candidate_elaborated) for terminal in terminals)
     infrastructure_attempts = sum(item.infrastructure_attempts for item in terminals)
     total_attempts = len(terminals) + infrastructure_attempts
     infrastructure_fraction = infrastructure_attempts / total_attempts if total_attempts else 0.0
@@ -1329,25 +1422,43 @@ def _compact(
         {
             candidate.signature_sha256
             for candidate, row in zip(candidates, candidate_rows, strict=True)
-            if row["status"] == CompileStatus.VALID.value
+            if row["elaboration_status"] == CompileStatus.VALID.value
         }
     )
     class_histogram: dict[str, dict[str, int]] = {}
+    class_representation_histogram: dict[str, dict[str, int]] = {}
     for source_class in _SOURCE_CLASS_ORDER:
         rows = [item for item in candidate_rows if item["source_class"] == source_class]
         class_histogram[source_class] = dict(
+            sorted(Counter(cast(str, item["elaboration_status"]) for item in rows).items())
+        )
+        class_representation_histogram[source_class] = dict(
             sorted(Counter(cast(str, item["status"]) for item in rows).items())
         )
     context_histogram: dict[str, dict[str, int]] = {}
+    context_representation_histogram: dict[str, dict[str, int]] = {}
     for context_id in sorted({item.render_compile_context_id for item in terminals}):
         rows = [item for item in candidate_rows if item["render_compile_context_id"] == context_id]
         context_histogram[context_id] = dict(
+            sorted(Counter(cast(str, item["elaboration_status"]) for item in rows).items())
+        )
+        context_representation_histogram[context_id] = dict(
             sorted(Counter(cast(str, item["status"]) for item in rows).items())
         )
-    failure_histogram = Counter(
+    representation_failure_histogram = Counter(
         cast(str, item.get("error_class"))
         for item in candidate_rows
         if item["status"] != CompileStatus.VALID.value
+    )
+    elaboration_failure_histogram = Counter(
+        cast(str, item.get("error_class"))
+        for item in candidate_rows
+        if item["elaboration_status"] != CompileStatus.VALID.value
+    )
+    reference_representation_failure_histogram = Counter(
+        item.reference.error_class
+        for item in terminals
+        if item.reference.status != CompileStatus.VALID
     )
     thresholds = config.thresholds
     gate_checks = {
@@ -1389,8 +1500,12 @@ def _compact(
             "sources": len(sources),
             "candidates": len(candidates),
             "valid_references": valid_references,
+            "representation_valid_references": representation_valid_references,
             "valid_candidates": valid_candidates,
             "invalid_candidates": invalid_candidates,
+            "representation_valid_candidates": representation_valid_candidates,
+            "representation_invalid_candidates": len(candidate_rows)
+            - representation_valid_candidates,
             "valid_unique_signatures": valid_signature_count,
             "sources_with_valid_candidate": sources_with_valid,
             "lean_requests_total": total_attempts,
@@ -1407,9 +1522,19 @@ def _compact(
         "reference_elaboration_method_counts": dict(
             sorted(Counter(item.reference_elaboration_method for item in terminals).items())
         ),
-        "class_candidate_status_histogram": class_histogram,
-        "context_candidate_status_histogram": context_histogram,
-        "candidate_failure_histogram": dict(sorted(failure_histogram.items())),
+        "class_candidate_elaboration_status_histogram": class_histogram,
+        "class_candidate_representation_status_histogram": class_representation_histogram,
+        "context_candidate_elaboration_status_histogram": context_histogram,
+        "context_candidate_representation_status_histogram": context_representation_histogram,
+        "candidate_elaboration_failure_histogram": dict(
+            sorted(elaboration_failure_histogram.items())
+        ),
+        "candidate_representation_failure_histogram": dict(
+            sorted(representation_failure_histogram.items())
+        ),
+        "reference_representation_failure_histogram": dict(
+            sorted(reference_representation_failure_histogram.items())
+        ),
         "extractor_histogram": _json_object(run_root / "preflight.json")["extractor_histogram"],
         "performance": {
             "total_elapsed_ms": sum(item.elapsed_ms for item in terminals),
@@ -1517,7 +1642,7 @@ def run_audit(
                     terminal_key=f"matched-pilot-render:{source.source_id}",
                     artifact_path=terminal_path,
                 )
-                if terminal.reference.status != CompileStatus.VALID:
+                if not terminal.reference_elaborated:
                     raise MatchedPilotLeanAuditError(
                         f"trusted reference failed deterministically: {source.source_id}"
                     )

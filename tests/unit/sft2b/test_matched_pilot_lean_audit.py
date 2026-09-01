@@ -387,6 +387,11 @@ def test_reference_only_source_uses_probe_but_emits_no_candidate_terminal(
         )
 
     monkeypatch.setattr(audit, "_render_propositions_isolated", fake_render)
+    monkeypatch.setattr(
+        audit,
+        "_elaboration_statuses",
+        lambda result, endpoints: (True, tuple(True for _ in endpoints[1:])),
+    )
     terminal, request_count = audit._execute_source(
         backend=capturing,
         source=source,
@@ -406,9 +411,60 @@ def test_reference_only_source_uses_probe_but_emits_no_candidate_terminal(
     )
     assert terminal is not None
     assert request_count == 1
+    assert terminal.reference_elaborated is True
     assert terminal.reference.status.value == "valid"
     assert terminal.candidate_ids == ()
     assert terminal.candidates == ()
+
+
+def test_elaboration_statuses_use_raw_expr_payloads_and_detect_sentinel(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source, context = _source()
+    valid_candidate = PropositionEndpoint(
+        endpoint_id=stable_id("sft2b_candidate", {"candidate": "valid"}),
+        endpoint_role="candidate",
+        proposition="True",
+        source_id=source.source_id,
+        candidate_id=stable_id("sft2b_candidate", {"candidate": "valid"}),
+    )
+    invalid_candidate = PropositionEndpoint(
+        endpoint_id=stable_id("sft2b_candidate", {"candidate": "invalid"}),
+        endpoint_role="candidate",
+        proposition="False",
+        source_id=source.source_id,
+        candidate_id=stable_id("sft2b_candidate", {"candidate": "invalid"}),
+    )
+    endpoints = (audit._endpoints(source, ())[0], valid_candidate, invalid_candidate)
+    valid_tree = {"k": "const", "name": "True"}
+    sentinel_tree = {"k": "const", "name": "False"}
+    payload_lines = [
+        "LFGOALV1EXPRJSON "
+        + json.dumps({"endpoint_id": endpoints[0].endpoint_id, "expr_tree": valid_tree}),
+        "LFGOALV1EXPRJSON "
+        + json.dumps({"endpoint_id": valid_candidate.endpoint_id, "expr_tree": valid_tree}),
+        "LFGOALV1EXPRJSON "
+        + json.dumps({"endpoint_id": invalid_candidate.endpoint_id, "expr_tree": sentinel_tree}),
+    ]
+    monkeypatch.setattr(
+        audit,
+        "_failure_sentinel_expr_hash",
+        lambda endpoint_id: (
+            audit.hash_canonical(sentinel_tree)
+            if endpoint_id == invalid_candidate.endpoint_id
+            else _HASH
+        ),
+    )
+    result = LeanResult(
+        request_id="test",
+        request_hash=_HASH,
+        context_id=context.compile_context_id,
+        context_fingerprint=context.fingerprint,
+        status=LeanStatus.VALID,
+        messages=({"data": "\n".join(payload_lines)},),
+    )
+
+    assert audit._elaboration_statuses(result, endpoints) == (True, (True, False))
 
 
 def test_isolated_tolerant_body_rolls_back_diagnostics_and_rethrows_interrupts() -> None:
@@ -489,7 +545,7 @@ def test_terminal_rejects_candidate_order_mismatch() -> None:
     )
     with pytest.raises(ValidationError):
         audit.SourceAuditTerminal(
-            schema_version="sft2b_matched_pilot_source_terminal_v1",
+            schema_version="sft2b_matched_pilot_source_terminal_v2",
             run_id=stable_id("sft2b_matched_lean_audit", {"test": True}),
             source_id=source.source_id,
             source_ordinal=0,
@@ -498,7 +554,9 @@ def test_terminal_rejects_candidate_order_mismatch() -> None:
             render_compile_context_id=context.compile_context_id,
             reference_elaboration_method="source_signature_pp",
             reference_elaboration_sha256=source.reference_proposition_sha256,
+            reference_elaborated=True,
             candidate_ids=(),
+            candidate_elaborated=(),
             reference=reference,
             candidates=(candidate,),
             request_hash=_HASH,
