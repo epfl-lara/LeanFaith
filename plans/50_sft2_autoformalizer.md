@@ -5,9 +5,10 @@
 > **Owner/session:** Codex `/root` — 2026-09-01 72-hour SFT2B sprint execution
 > **Last updated:** 2026-09-01
 > **Dependencies:** REPR `goal_v1.0`; source-quality audit and frozen consistency/voting prompts
-> **Next gate:** build and publish mechanical source v3, compile all 1,242 matched-pilot candidates,
-> pass the 100-source kill/resume smoke, then automatically launch four contiguous 12,500-source
-> corrected-core ReForm shards; no additional authorization sentence or review gate intervenes.
+> **Next gate:** compile all 1,242 matched-pilot candidates in persistent context-grouped tolerant
+> Lean sessions while hardening the generation consumer, then pass the 100-source kill/resume smoke
+> and automatically launch four contiguous 12,500-source corrected-core ReForm shards; no
+> additional authorization sentence or review gate intervenes.
 > **Compute class:** source-freeze work is Lean/GPU-free; the completed matched pilot used eight
 > H100-80GB GPUs at DP=4/TP=2. Any future scale config records the actual A100/H100 host profile.
 > **Lean budget:** compile each novel formalization candidate once through persistent cached workers
@@ -1093,3 +1094,25 @@ authorization sentence, clean-tree receipt, or historical-artifact ceremony.
   SFT2B collection exits zero with 134 passed and the four already-documented portability skips.
   No Lean, model, provider, judge, upload, generation, reservation, or detached job ran. Next is a
   committed full build, independent fresh-directory replay, and additive private publication.
+- 2026-09-01 — completed and privately published the mechanical source-v3 gate from pushed Git
+  commit `21877bb60aeefdf680b609c5047468a29c27ce0a`. The atomic full build completed in 269.18
+  seconds at 2,918,296 KiB maximum RSS after a first safe pre-promotion failure exposed the missing
+  local `transformers` dependency; `uv sync --group dev --group local-inference` repaired only the
+  isolated environment, and the retry plus separate pre-upload copy replay both passed. The 283-MiB
+  bundle contains 54,144 active rows partitioned into exactly 50,000 core and 4,144 tail, plus 762
+  keyed quarantines from the conserved 54,906-row universe. It uses 49,598 prior-core rows and 402
+  prior-tail backfills, all 469 meta hits and all 293 Workbook hits with zero overlap, zero review
+  records, maximum 967 prompt tokens, and required model length 5,063. `sources.jsonl` SHA-256 is
+  `c3809a0f8a7986e7af10370e37dafd440a786498cd287ea54b872ae334a0c3d3`; core/tail/quarantine
+  view hashes are respectively `eec1662da06494928561db779738b7063e4a8c154aaecb79b9cafb7e22ab8d53`,
+  `906c91b168ff7729100df561067821572cb913681da5325024c21bbd8f2a5bf1`, and
+  `20244b00f7a6b0ca14e117f48f027f4831869289b6f73ef9b33c7dddeda4a8b0`; manifest and checksum
+  ledger hashes are `e2200189b065df06b6fea71d10db407a4a642eed27c4c38ed54092beccebc6c9`
+  and `adadb46402c72fb208e04278b324fda3904736096dcfdb0aa5835d3adab6d2ed`.
+  The additive private Hub revision is `a9b2d76d0f6c12e87c86434b6ad3744d13c50fee` under
+  `source_inputs/reform_diverse_full_v3_mechanical_conservative_v1/`. A forced exact-revision
+  download at
+  `/storage/milikic/leanfaith/value_first/sft2_autoformalizer_v1/fresh_verify_source_v3_mechanical.hf.H2XuHw`
+  passed the complete verifier and reproduced both manifest/checksum hashes. No Lean, model,
+  provider, judge, generation, reservation, or detached job ran; the next active gate is the full
+  1,242-candidate persistent-Lean audit plus generation-consumer resume hardening.
