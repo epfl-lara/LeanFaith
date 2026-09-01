@@ -1,0 +1,361 @@
+schema_version: 1
+receipt_id: sft1_wave1_gate_admission_v0_3_2
+receipt_version: 0.3.2
+status: gate_admitted_readiness_blocked
+
+review_source:
+  review_url: https://chatgpt.com/share/6a9450ec-3ae4-83eb-a6a8-0283a07124a2
+  attachment_id: 0bf713c4-145c-4bfd-a8a3-ddd346686648/pasted-text.txt
+  attachment_raw_sha256: a2e7052c5a3d55ea36aca9e8ff25880059bdab7a9a93f4644f005aead4472b23
+  section_heading: "# 8. Exact approval wording"
+  section_normalization: lf_trim_trailing_space_collapse_blank_runs_v1
+  section8_markdown: |-
+    # 8. Exact approval wording
+
+    > **Approve SFT1 policy revision 0.3.1 at commit `343ea0885e24a5ea062034559b7e4df33db408b6` for Wave 1 gate admission of exactly `P01_ALPHA_RENAME_SINGLE_V1`, `P15_SWAP_IFF_SIDES_V1`, `P18_SYMMETRIZE_EQUALITY_V1`, `P21_BETA_REDUCE_V1`, `N31_DROP_REQUIRED_GUARD_RUBRIC_V1`, and `N31_DROP_REQUIRED_GUARD_PROOF_V1` across their registered eligible projects. Also approve gate admission of the N31 `required_domain_guard` family/dimension for those two N31 operations.**
+    >
+    > **This approval authorizes only task-owned implementation and, after the strict loader confirms all readiness prerequisites—including the coordinator-owned shared-label-contract update, the zero-Lean census and source-eligibility matrix, a clean-checkout policy/evidence replay, and complete hash-bound implementation, dispatch, certificate-checker, anchor, applicability-bank, fixture, and regression bindings for all six selected operations—the following bounded gates:**
+    >
+    > 1. **one actual serialized positive row and one actual serialized negative row end to end;**
+    > 2. **the selected-wave operation/project conformance matrix with one success and one expected adversarial rejection per registered combination; and**
+    > 3. **approximately 100 eligible roots per selected operation with 100% retained-certificate replay and the frozen counter/conservation report.**
+    >
+    > **The N31 admissions are proof-of-concept gate admissions only. This approval does not grant production admission to any operation, model-facing row emission, a 10K pilot, bulk generation, training, publication, or any source-root or row-count commitment. Passing any bounded gate does not promote an operation or authorize rows. Any production eligibility requires a separate exact post-report user decision naming the operation versions, projects, family/dimension, lane, hashes, axiom profile, measured receipt, and cap; any 10K pilot requires another separate approval.**
+  section8_raw_sha256: 300e109e997e9c07f84eaaebf51593c5da341b2fa0420840e73d50945a35cd48
+  section8_normalized_sha256: 0484d1b6dc231ae77aaf8ef58e0eaf5a30d206b0ff350c3e9f7787acf33787f8
+
+user_adoption:
+  exact_user_text: >-
+    I adopt the exact approval wording in Section 8 of the GPT Pro review for SFT1
+    revision 0.3.1 at commit `343ea0885e24a5ea062034559b7e4df33db408b6`.
+  exact_user_text_sha256: f176417a8e0497e3faed0ed5971aa881249351302d9b3b95a2efd405beb5308d
+  adopted_review_section8_normalized_sha256: 0484d1b6dc231ae77aaf8ef58e0eaf5a30d206b0ff350c3e9f7787acf33787f8
+  approved_policy_version: 0.3.1
+  approved_commit: 343ea0885e24a5ea062034559b7e4df33db408b6
+  recorded_date: "2026-08-30"
+  interpretation: adopts_exact_section8_without_expansion
+
+approved_policy:
+  policy_version: 0.3.1
+  approved_commit: 343ea0885e24a5ea062034559b7e4df33db408b6
+  approved_commit_tree: 3a0b28d5704d5d83708fb8da95b0484940b22e55
+  composition_policy_path: configs/transformations/sft1_value_first_v1/proposed_composition_policy.yaml
+  composition_policy_file_sha256: a052ecec4cc8f61db7438dd5acbc39373a624b155f8c0305bb75b7ae15d7195d
+  composition_policy_config_hash: 08a6d1b2ea03f3674d06cdac44478377084af24ba5cd4af7cab57303f4e7a917
+  operation_registry_hash: d56fca674f7b58d92dca09f0b76a702c54d1df2e5b68dcbe94225cad7e5cd95f
+  base_policy_was_policy_only: true
+
+approved_operations:
+  - operation_id: P01_ALPHA_RENAME_SINGLE_V1
+    family_id: P01
+    evidence_class: P-DEF
+    policy_status: implementation_candidate
+    registered_eligible_projects: [compiler_data, cslib, mathlib, physlib]
+    gate_admitted: true
+    production_admitted: false
+  - operation_id: P15_SWAP_IFF_SIDES_V1
+    family_id: P15
+    evidence_class: P-SCHEMA
+    policy_status: implementation_candidate
+    registered_eligible_projects: [compiler_data, cslib, mathlib, physlib]
+    gate_admitted: true
+    production_admitted: false
+  - operation_id: P18_SYMMETRIZE_EQUALITY_V1
+    family_id: P18
+    evidence_class: P-SCHEMA
+    policy_status: implementation_candidate
+    registered_eligible_projects: [compiler_data, cslib, mathlib, physlib]
+    gate_admitted: true
+    production_admitted: false
+  - operation_id: P21_BETA_REDUCE_V1
+    family_id: P21
+    evidence_class: P-DEF
+    policy_status: implementation_candidate
+    registered_eligible_projects: [compiler_data, cslib, mathlib, physlib]
+    gate_admitted: true
+    production_admitted: false
+  - operation_id: N31_DROP_REQUIRED_GUARD_RUBRIC_V1
+    family_id: N31
+    evidence_class: N-RUBRIC
+    policy_status: proof_of_concept
+    registered_eligible_projects: [compiler_data, cslib, mathlib, physlib]
+    gate_admitted: true
+    production_admitted: false
+  - operation_id: N31_DROP_REQUIRED_GUARD_PROOF_V1
+    family_id: N31
+    evidence_class: N-PROOF
+    policy_status: proof_of_concept
+    registered_eligible_projects: [compiler_data, cslib, mathlib, physlib]
+    gate_admitted: true
+    production_admitted: false
+
+negative_dimension_admission:
+  admission_id: n31_required_domain_guard_natural_v1
+  family_id: N31
+  rubric_dimension: required_domain_guard
+  track: natural
+  operation_ids:
+    - N31_DROP_REQUIRED_GUARD_RUBRIC_V1
+    - N31_DROP_REQUIRED_GUARD_PROOF_V1
+  gate_admitted: true
+  proof_of_concept_gate_only: true
+  production_admitted: false
+
+authorization:
+  gate_admission_recorded: true
+  task_owned_implementation_authorized_now: true
+  bounded_gate_execution_conditionally_authorized: true
+  bounded_gate_execution_may_start_now: false
+  all_readiness_blockers_must_resolve_before_gate_execution: true
+  implementation_readiness: false
+  current_session_hold:
+    policy_loader_and_lean_free_tests_allowed: true
+    task_owned_implementation_allowed: true
+    lean_execution_prohibited: true
+    transform_execution_prohibited: true
+    row_generation_prohibited: true
+  bounds:
+    authorized_gate_sequence:
+      - one_positive_one_negative_end_to_end_smoke
+      - selected_wave_operation_project_conformance_matrix
+      - approximately_100_eligible_roots_per_selected_operation
+    smoke_actual_serialized_artifact_count: 2
+    operation_project_combination_count: 24
+    success_and_rejection_fixture_count: 48
+    approximate_total_eligible_roots: 600
+    retained_certificate_replay_fraction: 1.0
+    bounded_artifacts_are_model_facing_training_rows: false
+
+prohibited_authorizations:
+  production_admission: false
+  model_facing_row_emission: false
+  ten_k_pilot: false
+  bulk_generation: false
+  scale: false
+  training: false
+  publication: false
+  source_root_count_commitment: false
+  row_count_commitment: false
+  bounded_gate_pass_auto_promotes_operation: false
+  bounded_gate_pass_auto_authorizes_rows: false
+
+readiness:
+  status: blocked_fail_closed
+  all_blockers_satisfied: false
+  unresolved_blocker_ids:
+    - coordinator_shared_label_contract_update
+    - zero_lean_census_source_eligibility_and_source_proof_availability
+    - n31_closed_nonredundancy_checker
+    - six_selected_operation_execution_bindings
+  shared_contract:
+    blocker_id: coordinator_shared_label_contract_update
+    status: pending_coordinator_merge
+    satisfied: false
+    contract_path: plans/00_shared_contracts.md
+    required_additive_rule: exact_row_local_evidence_plus_production_operation_and_family_dimension_admission_plus_row_emission_authorization_creates_sft1_label
+    merged_commit: null
+    merged_contract_sha256: null
+  clean_checkout:
+    blocker_id: clean_checkout_policy_and_evidence_replay
+    status: passed_hash_bound
+    satisfied: true
+    approved_commit_to_replay: 343ea0885e24a5ea062034559b7e4df33db408b6
+    receipt_path: configs/transformations/sft1_value_first_v1/clean_checkout_receipt_v0_3_2.json
+    receipt_file_sha256: 4133c2df44b81b388d3cc39e499feb65d1cd410909b6843591ec6b1295ea3331
+    receipt_semantic_hash: 90ca160b90e294170a1d88918a6aaf5cf900b8a1c89e8c7f77fcd2c8ba5b89c5
+    passed: true
+  zero_lean_census:
+    blocker_id: zero_lean_census_source_eligibility_and_source_proof_availability
+    status: pending_zero_lean_census
+    satisfied: false
+    census_config_path: configs/transformations/sft1_value_first_v1/wave1_source_census_v0_3_2.yaml
+    census_receipt_path: configs/transformations/sft1_value_first_v1/wave1_source_census_receipt_v0_3_2.json
+    census_config_file_sha256: a8c6c3616a543ff9e1f5d4700a3b5a86da2442f70475737caf23bd264ebd2aaa
+    census_config_semantic_hash: daf4b26b782d096f77b9677e0a7cef5670103771942c415dc3420b3031eda44e
+    census_receipt_sha256: null
+    source_eligibility_matrix_passed: false
+    lean_invoked: false
+    source_proof_availability_by_project:
+      - project_id: compiler_data
+        status: unknown
+        proof_route_id: null
+        evidence_sha256: null
+      - project_id: cslib
+        status: unknown
+        proof_route_id: null
+        evidence_sha256: null
+      - project_id: mathlib
+        status: unknown
+        proof_route_id: null
+        evidence_sha256: null
+      - project_id: physlib
+        status: unknown
+        proof_route_id: null
+        evidence_sha256: null
+  n31_checker:
+    blocker_id: n31_closed_nonredundancy_checker
+    status: unresolved_fail_closed
+    satisfied: false
+    guard_bank_config_path: configs/transformations/sft1_value_first_v1/wave1_n31_guard_bank_v0_3_2.yaml
+    guard_bank_file_sha256: c2a5aa63158ffbc561bc61f2e3acaa2598aff54a926fd774014e62e6c1cd8cd8
+    guard_bank_semantic_hash: 82bca9b16861412ebaf296591944338932e51f6aaaf8372baa4fd4c1f097f9e1
+    target_head_bank_sha256: null
+    checker_source_path: null
+    checker_source_sha256: null
+    checker_symbol: null
+    checker_semantic_hash: null
+    required_capabilities:
+      - frozen_implication_closure_for_competing_guards
+      - guard_data_variables_match_protected_target_operation
+      - guarded_value_occurs_in_relevant_target_position
+      - contradictory_or_unreachable_context_rejected
+      - unknown_nonredundancy_is_typed_not_applicable
+      - exact_de_bruijn_reindexing_verified
+    unknown_nonredundancy_disposition: typed_not_applicable
+  operation_bindings:
+    blocker_id: six_selected_operation_execution_bindings
+    status: unresolved_fail_closed
+    satisfied: false
+    required_binding_components:
+      - implementation_source
+      - dispatch
+      - certificate_checker
+      - resolved_anchor
+      - applicability_bank
+      - success_fixture_bundle
+      - adversarial_fixture_bundle
+      - regression_bundle
+      - complete_binding_hash
+    operations:
+      - operation_id: P01_ALPHA_RENAME_SINGLE_V1
+        status: unresolved_fail_closed
+        ready: false
+        implementation_source_path: null
+        implementation_source_sha256: null
+        dispatch_symbol: null
+        dispatch_binding_sha256: null
+        certificate_checker_source_path: null
+        certificate_checker_source_sha256: null
+        certificate_checker_symbol: null
+        certificate_checker_semantic_hash: null
+        resolved_anchor_id: null
+        resolved_anchor_sha256: null
+        applicability_bank_id: null
+        applicability_bank_sha256: null
+        success_fixture_bundle_path: null
+        success_fixture_bundle_sha256: null
+        adversarial_fixture_bundle_path: null
+        adversarial_fixture_bundle_sha256: null
+        regression_bundle_path: null
+        regression_bundle_sha256: null
+        complete_binding_hash: null
+      - operation_id: P15_SWAP_IFF_SIDES_V1
+        status: unresolved_fail_closed
+        ready: false
+        implementation_source_path: null
+        implementation_source_sha256: null
+        dispatch_symbol: null
+        dispatch_binding_sha256: null
+        certificate_checker_source_path: null
+        certificate_checker_source_sha256: null
+        certificate_checker_symbol: null
+        certificate_checker_semantic_hash: null
+        resolved_anchor_id: null
+        resolved_anchor_sha256: null
+        applicability_bank_id: null
+        applicability_bank_sha256: null
+        success_fixture_bundle_path: null
+        success_fixture_bundle_sha256: null
+        adversarial_fixture_bundle_path: null
+        adversarial_fixture_bundle_sha256: null
+        regression_bundle_path: null
+        regression_bundle_sha256: null
+        complete_binding_hash: null
+      - operation_id: P18_SYMMETRIZE_EQUALITY_V1
+        status: unresolved_fail_closed
+        ready: false
+        implementation_source_path: null
+        implementation_source_sha256: null
+        dispatch_symbol: null
+        dispatch_binding_sha256: null
+        certificate_checker_source_path: null
+        certificate_checker_source_sha256: null
+        certificate_checker_symbol: null
+        certificate_checker_semantic_hash: null
+        resolved_anchor_id: null
+        resolved_anchor_sha256: null
+        applicability_bank_id: null
+        applicability_bank_sha256: null
+        success_fixture_bundle_path: null
+        success_fixture_bundle_sha256: null
+        adversarial_fixture_bundle_path: null
+        adversarial_fixture_bundle_sha256: null
+        regression_bundle_path: null
+        regression_bundle_sha256: null
+        complete_binding_hash: null
+      - operation_id: P21_BETA_REDUCE_V1
+        status: unresolved_fail_closed
+        ready: false
+        implementation_source_path: null
+        implementation_source_sha256: null
+        dispatch_symbol: null
+        dispatch_binding_sha256: null
+        certificate_checker_source_path: null
+        certificate_checker_source_sha256: null
+        certificate_checker_symbol: null
+        certificate_checker_semantic_hash: null
+        resolved_anchor_id: null
+        resolved_anchor_sha256: null
+        applicability_bank_id: null
+        applicability_bank_sha256: null
+        success_fixture_bundle_path: null
+        success_fixture_bundle_sha256: null
+        adversarial_fixture_bundle_path: null
+        adversarial_fixture_bundle_sha256: null
+        regression_bundle_path: null
+        regression_bundle_sha256: null
+        complete_binding_hash: null
+      - operation_id: N31_DROP_REQUIRED_GUARD_RUBRIC_V1
+        status: unresolved_fail_closed
+        ready: false
+        implementation_source_path: null
+        implementation_source_sha256: null
+        dispatch_symbol: null
+        dispatch_binding_sha256: null
+        certificate_checker_source_path: null
+        certificate_checker_source_sha256: null
+        certificate_checker_symbol: null
+        certificate_checker_semantic_hash: null
+        resolved_anchor_id: null
+        resolved_anchor_sha256: null
+        applicability_bank_id: null
+        applicability_bank_sha256: null
+        success_fixture_bundle_path: null
+        success_fixture_bundle_sha256: null
+        adversarial_fixture_bundle_path: null
+        adversarial_fixture_bundle_sha256: null
+        regression_bundle_path: null
+        regression_bundle_sha256: null
+        complete_binding_hash: null
+      - operation_id: N31_DROP_REQUIRED_GUARD_PROOF_V1
+        status: unresolved_fail_closed
+        ready: false
+        implementation_source_path: null
+        implementation_source_sha256: null
+        dispatch_symbol: null
+        dispatch_binding_sha256: null
+        certificate_checker_source_path: null
+        certificate_checker_source_sha256: null
+        certificate_checker_symbol: null
+        certificate_checker_semantic_hash: null
+        resolved_anchor_id: null
+        resolved_anchor_sha256: null
+        applicability_bank_id: null
+        applicability_bank_sha256: null
+        success_fixture_bundle_path: null
+        success_fixture_bundle_sha256: null
+        adversarial_fixture_bundle_path: null
+        adversarial_fixture_bundle_sha256: null
+        regression_bundle_path: null
+        regression_bundle_sha256: null
+        complete_binding_hash: null

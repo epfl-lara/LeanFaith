@@ -1,0 +1,391 @@
+schema_version: 1
+overlay_id: sft1_wave1_effective_readiness_v0_3_3
+overlay_version: "0.3.3"
+status: policy_overlay_authorized_execution_prohibited
+
+review_binding:
+  review_url: https://chatgpt.com/share/6a9450ec-3ae4-83eb-a6a8-0283a07124a2
+  attachment_id: 323373ba-a0c6-42b5-b3be-e19a76600684/pasted-text.txt
+  attachment_raw_sha256: 6eacfa333ab0f3507189584e497539b2b4053acc4e8fc4a91bb74b94d9597a75
+  reviewed_checkpoint_commit: dae99b3bd04d765a7a2011e10129589951dcb3c2
+  review_is_policy_input_not_authorization: true
+  wave2_recommendation_is_not_admission: true
+
+user_authorization:
+  exact_user_text: >-
+    I approve preparation and commitment of additive SFT1 readiness revision 0.3.3 from frozen checkpoint `dae99b3bd04d765a7a2011e10129589951dcb3c2`, in task-owned SFT1 paths only, while preserving revision 0.3.2, every existing hash and receipt, and the complete 46-operation registry. Revision 0.3.3 may add an effective-state loader; replace the full-census prerequisite for the two-row smoke with a root-specific hash-bound micro-census; require a selected-wave sampling-frame census before the approximately-100-root gate and the complete cross-source census before any 10K, production-count, scale, or publication decision; distinguish internal-gate, pilot, redistribution-review, and publication eligibility under the existing source authorizations; make N31 N-PROOF optional per project and root without blocking N31 N-RUBRIC; evaluate N-PROOF only over its parent mutation’s root pool; and count every N-PROOF result against both its own cap and the parent semantic-mutation cap. Record the GPT Pro Wave 2 list only as `proposed_not_admitted`. Run only Lean-free loader, invariant, formatting, and plan tests; do not start Lean, transform execution, gate execution, row generation, Wave 2 implementation, production admission, 10K, scale, or publication, and leave `plans/00_shared_contracts.md` as a coordinator request.
+  exact_user_text_sha256: fc0c951ebaf1c43c47c9582e0f6c8ca0769b40c1d6af0613d59556278d111e56
+  recorded_date: "2026-08-30"
+  interpretation: additive_policy_and_loader_only_no_execution
+
+frozen_dependencies:
+  checkpoint_commit: dae99b3bd04d765a7a2011e10129589951dcb3c2
+  base_policy:
+    path: configs/transformations/sft1_value_first_v1/proposed_composition_policy.yaml
+    file_sha256: a052ecec4cc8f61db7438dd5acbc39373a624b155f8c0305bb75b7ae15d7195d
+    semantic_hash: 08a6d1b2ea03f3674d06cdac44478377084af24ba5cd4af7cab57303f4e7a917
+    operation_registry_hash: d56fca674f7b58d92dca09f0b76a702c54d1df2e5b68dcbe94225cad7e5cd95f
+    operation_count: 46
+  admission_v0_3_2:
+    path: configs/transformations/sft1_value_first_v1/wave1_gate_admission_v0_3_2.yaml
+    file_sha256: c1cf07713bfca91e6b5fbedf75a5b5f6e0f841886df7a71e7f4f6c9d82c862b3
+    semantic_hash: 8f50f38231e3cee7a6d5ab0d66cb708ce1f949789e91cc90b74516ef1406d409
+  clean_checkout_receipt_v0_3_2:
+    path: configs/transformations/sft1_value_first_v1/clean_checkout_receipt_v0_3_2.json
+    file_sha256: 4133c2df44b81b388d3cc39e499feb65d1cd410909b6843591ec6b1295ea3331
+    semantic_hash: 90ca160b90e294170a1d88918a6aaf5cf900b8a1c89e8c7f77fcd2c8ba5b89c5
+  source_census_v0_3_2:
+    path: configs/transformations/sft1_value_first_v1/wave1_source_census_v0_3_2.yaml
+    file_sha256: a8c6c3616a543ff9e1f5d4700a3b5a86da2442f70475737caf23bd264ebd2aaa
+    semantic_hash: daf4b26b782d096f77b9677e0a7cef5670103771942c415dc3420b3031eda44e
+  n31_guard_bank_v0_3_2:
+    path: configs/transformations/sft1_value_first_v1/wave1_n31_guard_bank_v0_3_2.yaml
+    file_sha256: c2a5aa63158ffbc561bc61f2e3acaa2598aff54a926fd774014e62e6c1cd8cd8
+    semantic_hash: 82bca9b16861412ebaf296591944338932e51f6aaaf8372baa4fd4c1f097f9e1
+  source_use_v2:
+    path: policies/source_use_v2.yaml
+    file_sha256: 62a4daca09ca669aef0133cd4d0b0913e1d7795558560f3aac4b289efc75e95c
+    semantic_hash: ac9356772746459a1fed9277e127ce0575cbe4063d334a6914ed5c9ac186784d
+  repr_gate_v0_3_1:
+    path: configs/transformations/sft1_value_first_v1/repr_six_goal_gate_v0_3_1.yaml
+    file_sha256: 5126eb8fb314218017fc930a79ab82cb810ff929e1794ce4617551f6c70ced91
+    semantic_hash: 7404e31935ab35b9c3270bf46654936121944a7e8f55fb91da4f1e047f59c0ad
+  repr_receipt_v0_3_1:
+    path: configs/transformations/sft1_value_first_v1/repr_six_goal_gate_receipt_v0_3_1.json
+    file_sha256: ebd400b4a7b05daa933b1abaaacc378d1a7b9ae68f9159ac03453cd6081406a8
+    semantic_hash: f62b68ebc946469952bdd34674c127e2bd1146b0a8febbe5d199fea54a081e78
+
+authorization_boundaries:
+  allowed_now:
+    additive_policy_file_changes: true
+    effective_state_loader_changes: true
+    lean_free_loader_tests: true
+    lean_free_invariant_tests: true
+    formatting_checks: true
+    plan_tests: true
+  prior_wave1_authority_preserved:
+    gate_admission_recorded: true
+    task_owned_bounded_implementation_scope_authorized: true
+    implementation_readiness: false
+    gate_execution_may_start: false
+  current_revision_scope:
+    transform_implementation_changes_authorized: false
+    wave2_implementation_changes_authorized: false
+    execution_binding_resolution_authorized: false
+  coordinator_request:
+    contract_path: plans/00_shared_contracts.md
+    status: open_untouched
+    task_may_edit_contract: false
+  production_state:
+    production_admitted_operation_count: 0
+    production_admitted_negative_count: 0
+    row_emission_authorized: false
+
+effective_wave1:
+  operation_ids:
+    - P01_ALPHA_RENAME_SINGLE_V1
+    - P15_SWAP_IFF_SIDES_V1
+    - P18_SYMMETRIZE_EQUALITY_V1
+    - P21_BETA_REDUCE_V1
+    - N31_DROP_REQUIRED_GUARD_RUBRIC_V1
+    - N31_DROP_REQUIRED_GUARD_PROOF_V1
+  effective_mechanism_ids:
+    - p01_alpha_rename_single_v1
+    - p15_swap_iff_sides_v1
+    - p18_symmetrize_equality_v1
+    - p21_beta_reduce_v1
+    - n31_required_guard_mutation
+  operation_to_mechanism:
+    - {operation_id: P01_ALPHA_RENAME_SINGLE_V1, mechanism_id: p01_alpha_rename_single_v1}
+    - {operation_id: P15_SWAP_IFF_SIDES_V1, mechanism_id: p15_swap_iff_sides_v1}
+    - {operation_id: P18_SYMMETRIZE_EQUALITY_V1, mechanism_id: p18_symmetrize_equality_v1}
+    - {operation_id: P21_BETA_REDUCE_V1, mechanism_id: p21_beta_reduce_v1}
+    - {operation_id: N31_DROP_REQUIRED_GUARD_RUBRIC_V1, mechanism_id: n31_required_guard_mutation}
+    - {operation_id: N31_DROP_REQUIRED_GUARD_PROOF_V1, mechanism_id: n31_required_guard_mutation}
+  exact_operation_count: 6
+  semantic_mechanism_count: 5
+  gate_admission_recorded: true
+  implementation_ready: false
+  smoke_ready: false
+  conformance_ready: false
+  approximately_100_roots_ready: false
+  production_admitted_operation_count: 0
+  production_negative_count: 0
+  row_emission_authorized: false
+  smoke_blocker_ids:
+    - coordinator_shared_label_contract_update
+    - five_primary_wave1_implementation_dispatch_checker_anchor_bank_fixture_bindings
+    - n31_closed_rubric_checker_and_target_head_bank
+    - positive_smoke_root_specific_micro_census
+    - n31_rubric_smoke_root_specific_micro_census
+  smoke_non_blocker_ids:
+    - n31_source_proof_availability
+    - n31_optional_proof_execution_binding
+    - selected_wave_sampling_frame_census
+    - complete_cross_source_census
+    - wave2_proposal
+  dynamic_gate_accounting:
+    registered_project_ids: [compiler_data, cslib, mathlib, physlib]
+    registered_project_count: 4
+    primary_operation_ids:
+      - P01_ALPHA_RENAME_SINGLE_V1
+      - P15_SWAP_IFF_SIDES_V1
+      - P18_SYMMETRIZE_EQUALITY_V1
+      - P21_BETA_REDUCE_V1
+      - N31_DROP_REQUIRED_GUARD_RUBRIC_V1
+    optional_proof_operation_id: N31_DROP_REQUIRED_GUARD_PROOF_V1
+    primary_operation_project_cell_count: 20
+    proof_eligible_project_ids: []
+    current_optional_proof_operation_project_cell_count: 0
+    current_total_operation_project_cell_count: 20
+    minimum_total_operation_project_cell_count: 20
+    maximum_total_operation_project_cell_count: 24
+    operation_project_cell_formula: primary_operation_project_cell_count_plus_proof_eligible_project_count
+    fixtures_per_operation_project_cell: 2
+    current_fixture_count: 40
+    minimum_fixture_count: 40
+    maximum_fixture_count: 48
+    fixture_count_formula: two_times_total_operation_project_cell_count
+    approximate_roots_per_semantic_mechanism: 100
+    approximate_independent_root_pool_target: 500
+    proof_additional_independent_root_pool_count: 0
+    counts_are_gate_accounting_not_row_commitments: true
+
+census_tiers:
+  smoke_micro_census:
+    tier_id: root_specific_smoke_micro_census_v1
+    status: required_not_completed
+    required_before: [one_positive_one_negative_end_to_end_smoke]
+    complete: false
+    blocks_two_row_smoke: true
+    blocks_approximately_100_root_gate: false
+    may_invoke_lean: false
+    receipt_sha256: null
+    receipt_scope: exact_selected_smoke_root
+    receipt_hash_bound: true
+    selection_pool_hash_bound: true
+    selection_rule: minimum_stable_eligible_root_hash_v1
+    requirements:
+      - pinned_source_identity_and_revision
+      - internal_gate_source_policy_eligibility
+      - exact_root_identity
+      - reproducible_project_toolchain_import_options_context
+      - closed_expr_construction_route
+      - root_level_blocklist_screen
+      - exact_duplicate_screen_over_hash_bound_smoke_pool
+      - operation_specific_typed_applicability
+      - smoke_pool_construction_rule_and_candidate_set_hash
+      - minimum_stable_eligible_root_hash_over_smoke_pool
+      - selected_root_is_minimum_over_bound_eligible_pool
+  selected_wave_sampling_frame_census:
+    tier_id: selected_wave_sampling_frame_census_v1
+    status: required_not_completed
+    required_before: [approximately_100_roots_per_semantic_mechanism]
+    complete: false
+    blocks_two_row_smoke: false
+    blocks_approximately_100_root_gate: true
+    may_invoke_lean: false
+    receipt_sha256: null
+    requirements:
+      - operation_project_candidate_pools
+      - deterministic_prefix_has_enough_eligible_roots
+      - exact_and_near_duplicate_clusters_over_candidate_pools
+      - source_domain_signature_strata
+      - operation_specific_proof_availability
+      - measured_applicability_denominators
+  complete_cross_source_census:
+    tier_id: complete_cross_source_census_v1
+    status: required_not_completed
+    required_before:
+      - ten_k_pilot_decision
+      - production_row_count_decision
+      - multi_million_feasibility_claim
+      - scale_decision
+      - publication_decision
+    complete: false
+    blocks_two_row_smoke: false
+    blocks_approximately_100_root_gate: false
+    may_invoke_lean: false
+    receipt_sha256: null
+    requirements:
+      - raw_theorem_or_lemma_counts
+      - pinned_source_revision_and_release_state
+      - complete_cross_source_duplicate_unions
+      - exact_and_near_duplicate_clusters
+      - complete_source_strata
+      - source_domain_signature_strata
+      - exact_import_context_availability
+      - closed_expr_route_availability
+      - license_and_release_state
+      - realistic_root_and_yield_estimates
+
+source_authorization:
+  policy_path: policies/source_use_v2.yaml
+  policy_file_sha256: 62a4daca09ca669aef0133cd4d0b0913e1d7795558560f3aac4b289efc75e95c
+  policy_semantic_hash: ac9356772746459a1fed9277e127ce0575cbe4063d334a6914ed5c9ac186784d
+  sources:
+    - source_id: compiler_data
+      source_kind: user_owned_huggingface_dataset
+      repository: formalmathatepfl/compiler_data
+      revision: ca37d4701b11022f183e72b7b96ff543a8a615d3
+      source_artifact_sha256: c45145de5b681efd5aa265fdc90b9dc68d542321dd931d139cdead693360a81a
+      spdx_id: null
+      authorization_basis: owner_authorization_source_use_v2_and_pinned_revision
+      authorization_evidence_sha256: 62a4daca09ca669aef0133cd4d0b0913e1d7795558560f3aac4b289efc75e95c
+      exact_revision_pinned: true
+      internal_gate_eligible: true
+      pilot_eligible: true
+      redistribution_review_complete: false
+      publication_eligible: false
+    - source_id: cslib
+      source_kind: pinned_apache_2_0_git_library
+      repository: https://github.com/leanprover/cslib
+      revision: 2f677bfc8ef76fa7a27feafc597c1e4a7eda3e42
+      source_artifact_sha256: null
+      spdx_id: Apache-2.0
+      authorization_basis: pinned_revision_spdx_apache_2_0_and_hash_bound_license
+      authorization_evidence_sha256: c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4
+      exact_revision_pinned: true
+      internal_gate_eligible: true
+      pilot_eligible: true
+      redistribution_review_complete: false
+      publication_eligible: false
+    - source_id: mathlib
+      source_kind: pinned_apache_2_0_git_library
+      repository: https://github.com/leanprover-community/mathlib4
+      revision: d568c8c09630de097a046763c17b9ea99f95f950
+      source_artifact_sha256: null
+      spdx_id: Apache-2.0
+      authorization_basis: pinned_revision_spdx_apache_2_0_and_hash_bound_license
+      authorization_evidence_sha256: b40930bbcf80744c86c46a12bc9da056641d722716c378f5659b9e555ef833e1
+      exact_revision_pinned: true
+      internal_gate_eligible: true
+      pilot_eligible: true
+      redistribution_review_complete: false
+      publication_eligible: false
+    - source_id: physlib
+      source_kind: pinned_apache_2_0_git_library
+      repository: https://github.com/leanprover-community/physlib
+      revision: f5242c99d796b59a390d26cd7d1a8057e04c46b5
+      source_artifact_sha256: null
+      spdx_id: Apache-2.0
+      authorization_basis: pinned_revision_spdx_apache_2_0_and_hash_bound_license
+      authorization_evidence_sha256: c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4
+      exact_revision_pinned: true
+      internal_gate_eligible: true
+      pilot_eligible: true
+      redistribution_review_complete: false
+      publication_eligible: false
+  internal_eligibility_does_not_authorize_gate: true
+  pilot_eligibility_does_not_authorize_ten_k: true
+  publication_requires_review: true
+
+n31_lane_contract:
+  rubric_operation_id: N31_DROP_REQUIRED_GUARD_RUBRIC_V1
+  proof_operation_id: N31_DROP_REQUIRED_GUARD_PROOF_V1
+  shared_semantic_mechanism_id: n31_required_guard_mutation
+  rubric_projects: [compiler_data, cslib, mathlib, physlib]
+  proof_eligible_projects: []
+  proof_eligibility_formula:
+    - parent_n_rubric_applicable
+    - exact_source_proof_available
+    - exact_candidate_refutation_replays
+  proof_eligibility_is_project_and_root_scoped: true
+  proof_availability_by_project:
+    - {project_id: compiler_data, status: unknown, scope: not_in_scope_for_n_proof, proof_eligible: false}
+    - {project_id: cslib, status: unknown, scope: not_in_scope_for_n_proof, proof_eligible: false}
+    - {project_id: mathlib, status: unknown, scope: not_in_scope_for_n_proof, proof_eligible: false}
+    - {project_id: physlib, status: unknown, scope: not_in_scope_for_n_proof, proof_eligible: false}
+  proof_unavailability_outcome: not_in_scope_for_n_proof
+  proof_unavailability_is_operation_failure: false
+  proof_unavailability_blocks_rubric: false
+  proof_unavailability_blocks_smoke: false
+  proof_unavailability_blocks_wave: false
+  proof_unavailability_blocks_conformance: false
+  proof_unavailability_blocks_approximately_100_root_gate: false
+  proof_unavailability_blocks_other_operations: false
+  same_parent_root_pool: true
+  independent_root_sampling_forbidden: true
+  proof_counts_against_own_cap: true
+  proof_counts_against_parent_semantic_cap: true
+  proof_counts_as_distinct_semantic_mechanism: false
+  parent_maximum_retained_share: 0.01
+  proof_maximum_retained_share: 0.005
+  natural_cap_denominator: natural_model_facing_retained_semantic_pair_population_after_duplicate_conflict_screen_before_orientation
+  parent_semantic_union_key: unique_parent_mutation_pair_id_including_proof_upgraded_subset
+  synthetic_denominator_separate: true
+  parent_production_admission_required: true
+  shared_family_id: N31
+  shared_mechanism_superclass: required_guard_mutation
+  shared_correlation_group_id: corr_n31_guard_drop
+  shared_effective_diversity_group_id: corr_n31_guard_drop
+  shared_heldout_group_id: corr_n31_guard_drop
+  duplicate_invariants:
+    proof_is_sidecar_evidence_upgrade: true
+    proof_may_emit_additional_core_pair: false
+    model_facing_pair_multiplicity_maximum: 1
+    canonical_unordered_pair_duplicate_screen_before_caps: true
+    same_label_duplicate_keep_minimum_stable_row_hash: true
+    conflicting_label_canonical_pair_rejected_globally: true
+
+wave2_proposal:
+  status: proposed_not_admitted
+  exact_operation_count: 17
+  semantic_mechanism_count: 15
+  operation_ids:
+    - P14_SWAP_INDEPENDENT_DATA_BINDERS_V1
+    - P16_REASSOC_AND_LEFT_V1
+    - P22_ETA_REDUCE_EXPLICIT_FUN_V1
+    - P23_CURRY_PROP_PAIR_V1
+    - P24_SWAP_INDEPENDENT_PROP_BINDERS_V1
+    - P28_DECOMPOSE_IFF_V1
+    - P32_ADD_COMM_LOCAL_V1
+    - P33_EQ_HYP_SUBSTITUTE_NONDEPENDENT_V1
+    - P35_SET_INTER_MEMBERSHIP_V1
+    - P40_EXISTS_UNIQUE_EXPAND_V1
+    - P42_RING_POLYNOMIAL_LOCAL_V1
+    - N25_TOGGLE_EQ_NE_RUBRIC_V1
+    - N25_TOGGLE_EQ_NE_PROOF_V1
+    - N26_INCREMENT_BOUND_RUBRIC_V1
+    - N26_INCREMENT_BOUND_PROOF_V1
+    - N30_ADD_UNJUSTIFIED_UNIQUENESS_RUBRIC_V1
+    - N32_SWAP_ROLE_ORDER_RUBRIC_V1
+  n_proof_operation_ids:
+    - N25_TOGGLE_EQ_NE_PROOF_V1
+    - N26_INCREMENT_BOUND_PROOF_V1
+  n_proof_ids_count_as_distinct_mechanisms: false
+  family_dimension_ids:
+    - n25_negation_mistakes_natural_v1
+    - n26_edge_cases_natural_v1
+    - n30_existence_uniqueness_natural_v1
+    - n32_converse_mistakes_natural_v1
+  implementation_authorized: false
+  implementation_started: false
+  gate_admitted: false
+  dimension_gate_admitted: false
+  execution_authorized: false
+  production_admitted: false
+  row_emission_authorized: false
+  ten_k_authorized: false
+  scale_authorized: false
+  publication_authorized: false
+
+prohibitions:
+  lean_execution_authorized: false
+  transform_execution_authorized: false
+  census_scale_processing_authorized: false
+  gate_execution_authorized: false
+  row_generation_authorized: false
+  model_facing_training_row_emission_authorized: false
+  wave2_implementation_authorized: false
+  production_admission_authorized: false
+  ten_k_pilot_authorized: false
+  bulk_generation_authorized: false
+  scale_authorized: false
+  training_authorized: false
+  publication_authorized: false
+  row_count_commitment_authorized: false
+  source_root_count_commitment_authorized: false
+  registry_rewrite_authorized: false
+  frozen_artifact_mutation_authorized: false
+  shared_contract_edit_authorized: false

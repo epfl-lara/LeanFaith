@@ -1,0 +1,458 @@
+schema_version: 1
+census_id: sft1_wave1_zero_lean_source_census_v0_3_2
+revision: "0.3.2"
+status: design_only_incomplete
+
+policy_binding:
+  approved_policy_commit: 343ea0885e24a5ea062034559b7e4df33db408b6
+  composition_policy_path: configs/transformations/sft1_value_first_v1/proposed_composition_policy.yaml
+  composition_policy_file_sha256: a052ecec4cc8f61db7438dd5acbc39373a624b155f8c0305bb75b7ae15d7195d
+  composition_policy_semantic_hash: 08a6d1b2ea03f3674d06cdac44478377084af24ba5cd4af7cab57303f4e7a917
+  selected_operation_ids:
+    - P01_ALPHA_RENAME_SINGLE_V1
+    - P15_SWAP_IFF_SIDES_V1
+    - P18_SYMMETRIZE_EQUALITY_V1
+    - P21_BETA_REDUCE_V1
+    - N31_DROP_REQUIRED_GUARD_RUBRIC_V1
+    - N31_DROP_REQUIRED_GUARD_PROOF_V1
+  registered_project_ids: [compiler_data, cslib, mathlib, physlib]
+
+authorization:
+  executes_lean: false
+  may_start_lean: false
+  may_execute_transforms: false
+  may_generate_rows: false
+  may_write_passed_receipt: false
+  row_commitment_authorized: false
+  one_example_gate_authorized_by_this_file: false
+  hundred_root_gate_authorized_by_this_file: false
+  ten_k_authorized: false
+  scale_authorized: false
+  publication_authorized: false
+
+completion:
+  census_passed: false
+  receipt_path: null
+  measured_census_counts_present: false
+  all_source_identities_pinned: true
+  all_license_revision_eligibility_resolved: false
+  all_signature_inventories_complete: false
+  all_compile_contexts_resolved: false
+  all_exact_cluster_inputs_complete: false
+  all_near_duplicate_cluster_inputs_complete: false
+  all_n31_source_proofs_resolved: false
+  wave1_source_eligibility_complete: false
+
+required_metrics:
+  - raw_theorem_or_lemma_count
+  - license_and_revision_eligible_count
+  - exact_signature_duplicate_cluster_count
+  - exact_signature_duplicate_member_count
+  - alpha_or_structure_near_duplicate_cluster_count
+  - alpha_or_structure_near_duplicate_member_count
+  - source_domain_signature_strata
+  - per_root_compile_context_availability
+  - closed_expr_route_availability
+  - n31_source_proof_availability
+
+cluster_contract:
+  exact_cluster_key: sha256_utf8_source_faithful_complete_signature_v1
+  near_duplicate_keys:
+    - alpha_identity_fingerprint_v1
+    - signature_structure_fingerprint_v1
+  preserve_exact_clusters_intact: true
+  preserve_near_duplicate_clusters_intact: true
+  cross_source_cluster_union_required: true
+  precursor_group_counts_are_census_counts: false
+  missing_cluster_input_is_eligible: false
+
+sources:
+  - source_id: compiler_data
+    source_kind: extracted_signature
+    identity:
+      repository_kind: huggingface_dataset
+      repository: formalmathatepfl/compiler_data
+      revision: ca37d4701b11022f183e72b7b96ff543a8a615d3
+      source_glob_or_file: answer_data.parquet
+      source_artifact_sha256: c45145de5b681efd5aa265fdc90b9dc68d542321dd931d139cdead693360a81a
+      revision_binding_status: pinned_and_replayed_upstream
+      repo_bindings:
+        - path: configs/data/cpt2/cpt2_v1.yaml
+          sha256: 917fe1061cc1e2b96b12e6e42f47c64739df25172aacb5528a37e579449c00c6
+      external_precursors:
+        - path: /storage/milikic/leanfaith/value_first/cpt2_v1/source_cache/answer_data.parquet
+          sha256: c45145de5b681efd5aa265fdc90b9dc68d542321dd931d139cdead693360a81a
+          reported_rows: 4361579
+          coverage_scope: complete_upstream_dataset_not_sft1_signature_census
+          reported_rows_are_sft1_census_counts: false
+        - path: /storage/milikic/leanfaith/value_first/cpt2_v1/scale_full_v1/release/manifest.json
+          sha256: 0c9896c40f94194a5cfb4cda58f8e083a3587d5b76937619b539de377d996f10
+          reported_rows: 4278539
+          coverage_scope: cpt2_splitter_output_not_sft1_signature_census
+          reported_rows_are_sft1_census_counts: false
+    license:
+      status: unknown
+      spdx_id: null
+      evidence_path: null
+      evidence_sha256: null
+      source_eligible: false
+      blocking_reason: dataset_card_or_license_evidence_not_pinned
+    signature_inventory:
+      status: absent
+      artifact_path: null
+      artifact_sha256: null
+      completeness: none
+      raw_theorem_or_lemma_count: null
+      blocking_reason: final_declaration_signature_and_context_inventory_not_materialized
+    compile_context:
+      status: unresolved
+      expected_toolchain: null
+      root_module: null
+      per_root_imports_bound: false
+      per_root_namespaces_bound: false
+      per_root_notation_scopes_bound: false
+      per_root_options_bound: false
+      blocking_reason: source_code_context_has_not_been_frozen_as_an_sft1_per_root_context
+    closed_expr:
+      route: persistent_term_elab_of_signature_and_complete_telescope_without_declaration
+      input_kind: source_faithful_signature_text
+      declaration_insertion_allowed: false
+      pretty_print_reelaboration_allowed: false
+      route_ready: false
+      blocking_reason: signature_and_compile_context_inventory_unresolved
+    cluster_inputs:
+      exact_status: precursor_only
+      exact_artifact_path: /storage/milikic/leanfaith/value_first/cpt2_v1/scale_full_v1/release/manifest.json
+      exact_artifact_sha256: 0c9896c40f94194a5cfb4cda58f8e083a3587d5b76937619b539de377d996f10
+      exact_key_available: sha256_exact_theorem_prefix_cpt2_precursor_only
+      near_status: absent
+      near_artifact_path: null
+      near_artifact_sha256: null
+      near_key_available: null
+      sft1_exact_cluster_count: null
+      sft1_near_duplicate_cluster_count: null
+      blocking_reason: cpt2_prefix_groups_are_not_complete_signature_or_cross_source_clusters
+    n31_source_proof:
+      status: unknown
+      upstream_material: source_code_and_isValid_without_sft1_proof_binding
+      proof_inventory_path: null
+      proof_inventory_sha256: null
+      proof_extractor_or_resolver_hash: null
+      compile_context_bound: false
+      exact_proof_payload_bound: false
+      reproducible_replay_receipt_bound: false
+      n31_n_proof_eligible: false
+      blocking_reason: source_boolean_and_proof_text_do_not_bind_an_exact_replayable_source_proof
+    strata:
+      status: unresolved
+      artifact_path: null
+      artifact_sha256: null
+      blocking_reason: source_domain_and_signature_structure_strata_not_materialized
+    census_measurements:
+      raw_theorem_or_lemma_count: null
+      license_and_revision_eligible_count: null
+      exact_signature_duplicate_cluster_count: null
+      exact_signature_duplicate_member_count: null
+      near_duplicate_cluster_count: null
+      near_duplicate_member_count: null
+    operation_eligibility:
+      - {operation_id: P01_ALPHA_RENAME_SINGLE_V1, eligible: false, reason: census_incomplete}
+      - {operation_id: P15_SWAP_IFF_SIDES_V1, eligible: false, reason: census_incomplete}
+      - {operation_id: P18_SYMMETRIZE_EQUALITY_V1, eligible: false, reason: census_incomplete}
+      - {operation_id: P21_BETA_REDUCE_V1, eligible: false, reason: census_incomplete}
+      - {operation_id: N31_DROP_REQUIRED_GUARD_RUBRIC_V1, eligible: false, reason: census_incomplete}
+      - {operation_id: N31_DROP_REQUIRED_GUARD_PROOF_V1, eligible: false, reason: source_proof_unknown}
+
+  - source_id: cslib
+    source_kind: imported_constant
+    identity:
+      repository_kind: git
+      repository: https://github.com/leanprover/cslib
+      revision: 2f677bfc8ef76fa7a27feafc597c1e4a7eda3e42
+      source_glob_or_file: Cslib/**/*.lean
+      source_artifact_sha256: null
+      revision_binding_status: pinned_clean_checkout_observed
+      repo_bindings:
+        - path: configs/sources/cslib.yaml
+          sha256: 4e92dbf7857d1f0a061f5c54245e29f3805e06986b5c3a2f1a533edac32c7593
+        - path: configs/projects/cslib.yaml
+          sha256: 1cd35e901ca9bed56454ee534e4dc48838fbc9012cb7fbfe7901c4e7ea31e4d5
+      external_precursors: []
+    license:
+      status: identified_unreviewed
+      spdx_id: Apache-2.0
+      evidence_path: /storage/milikic/leanfaith/value_first/sft1_deterministic_v1/checkouts/cslib/LICENSE
+      evidence_sha256: c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4
+      source_eligible: false
+      blocking_reason: census_license_and_redistribution_decision_not_recorded
+    signature_inventory:
+      status: absent
+      artifact_path: null
+      artifact_sha256: null
+      completeness: none
+      raw_theorem_or_lemma_count: null
+      blocking_reason: pinned_extracted_constant_inventory_missing
+    compile_context:
+      status: base_project_pinned_per_root_unresolved
+      expected_toolchain: v4.31.0-rc1
+      root_module: Cslib
+      per_root_imports_bound: false
+      per_root_namespaces_bound: false
+      per_root_notation_scopes_bound: false
+      per_root_options_bound: false
+      blocking_reason: declaration_to_minimal_import_and_scope_context_not_materialized
+    closed_expr:
+      route: constant_info_type_with_canonical_universe_instantiation
+      input_kind: imported_constant_name
+      declaration_insertion_allowed: false
+      pretty_print_reelaboration_allowed: false
+      route_ready: false
+      blocking_reason: imported_constant_inventory_and_per_root_context_unresolved
+    cluster_inputs:
+      exact_status: absent
+      exact_artifact_path: null
+      exact_artifact_sha256: null
+      exact_key_available: null
+      near_status: absent
+      near_artifact_path: null
+      near_artifact_sha256: null
+      near_key_available: null
+      sft1_exact_cluster_count: null
+      sft1_near_duplicate_cluster_count: null
+      blocking_reason: no_hash_bound_signature_or_near_duplicate_inventory
+    n31_source_proof:
+      status: unknown
+      upstream_material: pinned_source_checkout_without_sft1_proof_inventory
+      proof_inventory_path: null
+      proof_inventory_sha256: null
+      proof_extractor_or_resolver_hash: null
+      compile_context_bound: false
+      exact_proof_payload_bound: false
+      reproducible_replay_receipt_bound: false
+      n31_n_proof_eligible: false
+      blocking_reason: no_hash_bound_declaration_proof_resolver_or_replay_receipt
+    strata:
+      status: unresolved
+      artifact_path: null
+      artifact_sha256: null
+      blocking_reason: source_domain_and_signature_structure_strata_not_materialized
+    census_measurements:
+      raw_theorem_or_lemma_count: null
+      license_and_revision_eligible_count: null
+      exact_signature_duplicate_cluster_count: null
+      exact_signature_duplicate_member_count: null
+      near_duplicate_cluster_count: null
+      near_duplicate_member_count: null
+    operation_eligibility:
+      - {operation_id: P01_ALPHA_RENAME_SINGLE_V1, eligible: false, reason: census_incomplete}
+      - {operation_id: P15_SWAP_IFF_SIDES_V1, eligible: false, reason: census_incomplete}
+      - {operation_id: P18_SYMMETRIZE_EQUALITY_V1, eligible: false, reason: census_incomplete}
+      - {operation_id: P21_BETA_REDUCE_V1, eligible: false, reason: census_incomplete}
+      - {operation_id: N31_DROP_REQUIRED_GUARD_RUBRIC_V1, eligible: false, reason: census_incomplete}
+      - {operation_id: N31_DROP_REQUIRED_GUARD_PROOF_V1, eligible: false, reason: source_proof_unknown}
+
+  - source_id: mathlib
+    source_kind: imported_constant
+    identity:
+      repository_kind: git
+      repository: https://github.com/leanprover-community/mathlib4
+      revision: d568c8c09630de097a046763c17b9ea99f95f950
+      source_glob_or_file: Mathlib/**/*.lean
+      source_artifact_sha256: null
+      revision_binding_status: pinned_clean_checkout_observed
+      repo_bindings:
+        - path: configs/sources/mathlib.yaml
+          sha256: 97d74a0decda12a099975b83ac1dc85fd44e7c0f347eecdce4d10d543d377957
+        - path: configs/projects/mathlib.yaml
+          sha256: dfaccff566a513c17aad970c7204b1e86bc65a15ea2e234e749301b9be5cb940
+        - path: configs/data_reuse/inventory_v1.json
+          sha256: 025ef81d3526c518263abb2a9af42dc67ee0e1be50e4c7272c06777bc27a4f87
+      external_precursors:
+        - path: /storage/milikic/leanfaith/immutable/extractions/mathlib_d568c8c_manifest_b1831204/theorems/mathlib.jsonl
+          sha256: 7f1a157bfb818b49d082dcc58de221bdddb67f6e8309554395baeb29850838d7
+          reported_rows: 27786
+          coverage_scope: partial_existing_theorem_catalog_not_full_sft1_census
+          reported_rows_are_sft1_census_counts: false
+        - path: /storage/milikic/leanfaith/scale_dc29fe6d4038/public_mathlib_repr_v3/run_a/records/mathlib.jsonl
+          sha256: c799f54c60d3eb3f45a0fa473231ba991e871b7de440c65b037436721037e505
+          reported_rows: 27786
+          coverage_scope: matching_partial_repr_v3_catalog_not_goal_v1_or_full_sft1_census
+          reported_rows_are_sft1_census_counts: false
+    license:
+      status: identified_unreviewed
+      spdx_id: Apache-2.0
+      evidence_path: /storage/milikic/leanfaith/mathlib4/LICENSE
+      evidence_sha256: b40930bbcf80744c86c46a12bc9da056641d722716c378f5659b9e555ef833e1
+      source_eligible: false
+      blocking_reason: census_license_and_redistribution_decision_not_recorded
+    signature_inventory:
+      status: partial_precursor
+      artifact_path: /storage/milikic/leanfaith/immutable/extractions/mathlib_d568c8c_manifest_b1831204/theorems/mathlib.jsonl
+      artifact_sha256: 7f1a157bfb818b49d082dcc58de221bdddb67f6e8309554395baeb29850838d7
+      completeness: partial
+      raw_theorem_or_lemma_count: null
+      blocking_reason: existing_27786_row_catalog_is_not_a_full_source_census
+    compile_context:
+      status: base_project_pinned_per_root_unresolved
+      expected_toolchain: v4.31.0-rc1
+      root_module: Mathlib
+      per_root_imports_bound: false
+      per_root_namespaces_bound: false
+      per_root_notation_scopes_bound: false
+      per_root_options_bound: false
+      blocking_reason: declaration_to_minimal_import_and_scope_context_not_materialized
+    closed_expr:
+      route: constant_info_type_with_canonical_universe_instantiation
+      input_kind: imported_constant_name
+      declaration_insertion_allowed: false
+      pretty_print_reelaboration_allowed: false
+      route_ready: false
+      blocking_reason: complete_inventory_and_per_root_context_unresolved
+    cluster_inputs:
+      exact_status: partial_precursor
+      exact_artifact_path: /storage/milikic/leanfaith/immutable/extractions/mathlib_d568c8c_manifest_b1831204/theorems/mathlib.jsonl
+      exact_artifact_sha256: 7f1a157bfb818b49d082dcc58de221bdddb67f6e8309554395baeb29850838d7
+      exact_key_available: statement_content_hash_v1_partial
+      near_status: partial_precursor
+      near_artifact_path: /storage/milikic/leanfaith/scale_dc29fe6d4038/public_mathlib_repr_v3/run_a/records/mathlib.jsonl
+      near_artifact_sha256: c799f54c60d3eb3f45a0fa473231ba991e871b7de440c65b037436721037e505
+      near_key_available: alpha_identity_fingerprint_v1_partial
+      sft1_exact_cluster_count: null
+      sft1_near_duplicate_cluster_count: null
+      blocking_reason: partial_catalogs_do_not_cover_the_complete_source_or_cross_source_union
+    n31_source_proof:
+      status: unknown
+      upstream_material: pinned_source_checkout_and_theorem_names_without_proof_payload_binding
+      proof_inventory_path: null
+      proof_inventory_sha256: null
+      proof_extractor_or_resolver_hash: null
+      compile_context_bound: false
+      exact_proof_payload_bound: false
+      reproducible_replay_receipt_bound: false
+      n31_n_proof_eligible: false
+      blocking_reason: proof_stripped_catalog_and_source_checkout_do_not_bind_exact_replayable_proofs
+    strata:
+      status: unresolved
+      artifact_path: null
+      artifact_sha256: null
+      blocking_reason: complete_source_domain_and_signature_structure_strata_not_materialized
+    census_measurements:
+      raw_theorem_or_lemma_count: null
+      license_and_revision_eligible_count: null
+      exact_signature_duplicate_cluster_count: null
+      exact_signature_duplicate_member_count: null
+      near_duplicate_cluster_count: null
+      near_duplicate_member_count: null
+    operation_eligibility:
+      - {operation_id: P01_ALPHA_RENAME_SINGLE_V1, eligible: false, reason: census_incomplete}
+      - {operation_id: P15_SWAP_IFF_SIDES_V1, eligible: false, reason: census_incomplete}
+      - {operation_id: P18_SYMMETRIZE_EQUALITY_V1, eligible: false, reason: census_incomplete}
+      - {operation_id: P21_BETA_REDUCE_V1, eligible: false, reason: census_incomplete}
+      - {operation_id: N31_DROP_REQUIRED_GUARD_RUBRIC_V1, eligible: false, reason: census_incomplete}
+      - {operation_id: N31_DROP_REQUIRED_GUARD_PROOF_V1, eligible: false, reason: source_proof_unknown}
+
+  - source_id: physlib
+    source_kind: imported_constant
+    identity:
+      repository_kind: git
+      repository: https://github.com/leanprover-community/physlib
+      revision: f5242c99d796b59a390d26cd7d1a8057e04c46b5
+      source_glob_or_file: Physlib/**/*.lean
+      source_artifact_sha256: null
+      revision_binding_status: pinned_clean_checkout_observed
+      repo_bindings:
+        - path: configs/sources/physlib.yaml
+          sha256: 82c7f17e26a0c1cc2cc5bae1a97d582134d77b179acfca93eb0d2d75956f519e
+        - path: configs/projects/physlib.yaml
+          sha256: feab69e9e39792068d398cf1b7f17d787b219b2bd819ffb3239e648ef228edc1
+      external_precursors: []
+    license:
+      status: identified_unreviewed
+      spdx_id: Apache-2.0
+      evidence_path: /storage/milikic/leanfaith/value_first/sft1_deterministic_v1/checkouts/physlib/LICENSE
+      evidence_sha256: c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4
+      source_eligible: false
+      blocking_reason: census_license_and_redistribution_decision_not_recorded
+    signature_inventory:
+      status: absent
+      artifact_path: null
+      artifact_sha256: null
+      completeness: none
+      raw_theorem_or_lemma_count: null
+      blocking_reason: pinned_extracted_constant_inventory_missing
+    compile_context:
+      status: base_project_pinned_per_root_unresolved
+      expected_toolchain: v4.30.0
+      root_module: Physlib
+      per_root_imports_bound: false
+      per_root_namespaces_bound: false
+      per_root_notation_scopes_bound: false
+      per_root_options_bound: false
+      blocking_reason: declaration_to_minimal_import_and_scope_context_not_materialized
+    closed_expr:
+      route: constant_info_type_with_canonical_universe_instantiation
+      input_kind: imported_constant_name
+      declaration_insertion_allowed: false
+      pretty_print_reelaboration_allowed: false
+      route_ready: false
+      blocking_reason: imported_constant_inventory_and_per_root_context_unresolved
+    cluster_inputs:
+      exact_status: absent
+      exact_artifact_path: null
+      exact_artifact_sha256: null
+      exact_key_available: null
+      near_status: absent
+      near_artifact_path: null
+      near_artifact_sha256: null
+      near_key_available: null
+      sft1_exact_cluster_count: null
+      sft1_near_duplicate_cluster_count: null
+      blocking_reason: no_hash_bound_signature_or_near_duplicate_inventory
+    n31_source_proof:
+      status: unknown
+      upstream_material: pinned_source_checkout_without_sft1_proof_inventory
+      proof_inventory_path: null
+      proof_inventory_sha256: null
+      proof_extractor_or_resolver_hash: null
+      compile_context_bound: false
+      exact_proof_payload_bound: false
+      reproducible_replay_receipt_bound: false
+      n31_n_proof_eligible: false
+      blocking_reason: no_hash_bound_declaration_proof_resolver_or_replay_receipt
+    strata:
+      status: unresolved
+      artifact_path: null
+      artifact_sha256: null
+      blocking_reason: source_domain_and_signature_structure_strata_not_materialized
+    census_measurements:
+      raw_theorem_or_lemma_count: null
+      license_and_revision_eligible_count: null
+      exact_signature_duplicate_cluster_count: null
+      exact_signature_duplicate_member_count: null
+      near_duplicate_cluster_count: null
+      near_duplicate_member_count: null
+    operation_eligibility:
+      - {operation_id: P01_ALPHA_RENAME_SINGLE_V1, eligible: false, reason: census_incomplete}
+      - {operation_id: P15_SWAP_IFF_SIDES_V1, eligible: false, reason: census_incomplete}
+      - {operation_id: P18_SYMMETRIZE_EQUALITY_V1, eligible: false, reason: census_incomplete}
+      - {operation_id: P21_BETA_REDUCE_V1, eligible: false, reason: census_incomplete}
+      - {operation_id: N31_DROP_REQUIRED_GUARD_RUBRIC_V1, eligible: false, reason: census_incomplete}
+      - {operation_id: N31_DROP_REQUIRED_GUARD_PROOF_V1, eligible: false, reason: source_proof_unknown}
+
+unresolved_global_fields:
+  - compiler_data_license_evidence
+  - compiler_data_final_signature_inventory
+  - compiler_data_per_root_compile_context
+  - compiler_data_exact_and_near_duplicate_clusters
+  - cslib_constant_inventory
+  - cslib_per_root_compile_context
+  - cslib_exact_and_near_duplicate_clusters
+  - mathlib_complete_constant_inventory
+  - mathlib_per_root_compile_context
+  - mathlib_complete_cross_source_clusters
+  - physlib_constant_inventory
+  - physlib_per_root_compile_context
+  - physlib_exact_and_near_duplicate_clusters
+  - all_project_n31_exact_source_proof_inventories_and_replay_receipts
+  - cross_source_cluster_union
+  - all_required_census_counts_and_strata

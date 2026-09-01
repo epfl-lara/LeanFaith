@@ -1,0 +1,207 @@
+policy_version: "0.3.2"
+contract_id: sft1_n31_required_domain_guard_closed_checker_v1
+status: design_frozen_implementation_unresolved
+purpose: >-
+  Fail-closed contract for deciding whether one exact protected domain guard may be removed by
+  the Wave 1 N31 proof-of-concept operations. This file is policy, not an executable transform.
+operation_ids:
+  - N31_DROP_REQUIRED_GUARD_RUBRIC_V1
+  - N31_DROP_REQUIRED_GUARD_PROOF_V1
+family_id: N31
+rubric_dimension: required_domain_guard
+implementation_resolved: false
+execution_ready: false
+production_eligible: false
+row_emission_authorized: false
+
+decision_contract:
+  admitted_outcome: applicable
+  rejected_outcome: typed_not_applicable
+  unknown_outcome: typed_not_applicable
+  unknown_may_create_negative_label: false
+  unrestricted_theorem_search_allowed: false
+  failed_search_is_evidence: false
+  generic_d0_is_label_evidence: false
+  rubric_lane_makes_f2_claim: false
+  candidate_truth_axis: [proved, refuted, unknown]
+  exact_single_guard_delta_required: true
+  exact_de_bruijn_reindex_receipt_required: true
+
+guard_shapes:
+  - shape_id: ne_zero_guard_v1
+    protected_relation: data_ne_zero
+    exact_orientation: data_ne_zero
+    protected_data_roles: [data]
+    target_role: denominator_or_inverse_operand
+    competing_guard_shapes: [ne_zero_guard_v1, positive_guard_v1]
+    contradictory_retained_shapes: [eq_zero_retained_v1]
+  - shape_id: positive_guard_v1
+    protected_relation: zero_lt_data
+    exact_orientation: zero_lt_data
+    protected_data_roles: [data]
+    target_role: strict_positive_domain_operand
+    competing_guard_shapes: [positive_guard_v1]
+    contradictory_retained_shapes: [nonpositive_retained_v1]
+  - shape_id: nonnegative_guard_v1
+    protected_relation: zero_le_data
+    exact_orientation: zero_le_data
+    protected_data_roles: [data]
+    target_role: nonnegative_domain_operand
+    competing_guard_shapes: [nonnegative_guard_v1, positive_guard_v1]
+    contradictory_retained_shapes: [negative_retained_v1]
+  - shape_id: membership_guard_v1
+    protected_relation: data_mem_carrier
+    exact_orientation: data_mem_carrier
+    protected_data_roles: [data, carrier]
+    target_role: carrier_restricted_operation
+    competing_guard_shapes: [membership_guard_v1]
+    contradictory_retained_shapes: [not_membership_retained_v1]
+  - shape_id: index_lt_guard_v1
+    protected_relation: index_lt_bound
+    exact_orientation: index_lt_bound
+    protected_data_roles: [index, bound]
+    target_role: bounded_index_operation
+    competing_guard_shapes: [index_lt_guard_v1]
+    contradictory_retained_shapes: [bound_le_index_retained_v1]
+
+frozen_implication_closure:
+  - premise_shape: positive_guard_v1
+    conclusion_shape: ne_zero_guard_v1
+    required_same_roles: [data]
+    required_same_type: true
+    required_same_instance: true
+  - premise_shape: positive_guard_v1
+    conclusion_shape: nonnegative_guard_v1
+    required_same_roles: [data]
+    required_same_type: true
+    required_same_instance: true
+
+retained_contradiction_shapes:
+  - shape_id: eq_zero_retained_v1
+    contradicts_guard_shape: ne_zero_guard_v1
+    required_same_roles: [data]
+    required_same_type: true
+    required_same_instance: true
+  - shape_id: nonpositive_retained_v1
+    contradicts_guard_shape: positive_guard_v1
+    required_same_roles: [data]
+    required_same_type: true
+    required_same_instance: true
+  - shape_id: negative_retained_v1
+    contradicts_guard_shape: nonnegative_guard_v1
+    required_same_roles: [data]
+    required_same_type: true
+    required_same_instance: true
+  - shape_id: not_membership_retained_v1
+    contradicts_guard_shape: membership_guard_v1
+    required_same_roles: [data, carrier]
+    required_same_type: true
+    required_same_instance: true
+  - shape_id: bound_le_index_retained_v1
+    contradicts_guard_shape: index_lt_guard_v1
+    required_same_roles: [index, bound]
+    required_same_type: true
+    required_same_instance: true
+
+required_checker_steps:
+  - exact_guard_shape_recognition
+  - exact_guard_local_identity
+  - guard_not_definitionally_true
+  - selected_target_site_rediscovery
+  - protected_role_expr_hash_match
+  - selected_target_head_bank_membership
+  - guard_body_dependency
+  - frozen_implication_closure_scan
+  - frozen_contradiction_scan
+  - closed_domain_reachability_certificate
+  - exact_single_local_deletion
+  - exact_de_bruijn_reindex_reconstruction
+  - unchanged_nonselected_telescope_and_body
+  - non_definitionally_equal_closed_endpoints
+  - exact_delta_receipt_replay
+
+fail_closed_reasons:
+  - arbitrary_prop_hypothesis
+  - unused_guard
+  - guard_definitionally_true
+  - target_site_missing_or_ambiguous
+  - protected_role_mismatch
+  - target_head_not_in_frozen_bank
+  - target_occurrence_unrelated
+  - competing_retained_guard
+  - retained_context_contradiction
+  - domain_reachability_unknown
+  - empty_or_unreachable_domain
+  - de_bruijn_reindex_mismatch
+  - nonselected_delta_detected
+  - endpoints_definitionally_equal
+  - nonredundancy_unknown
+
+reachability_contract:
+  allowed_certificate_modes:
+    - explicit_telescope_witness_and_retained_hypothesis_proofs
+    - frozen_shape_specific_decidable_certificate
+  certificate_replay_required: true
+  absent_or_unknown_is_typed_not_applicable: true
+  source_proof_not_required_for_rubric_lane: true
+
+target_head_bank_binding:
+  status: unresolved
+  required_per_shape: true
+  bank_hash: null
+  checker_symbol: null
+  checker_file_sha256: null
+  resolution_rule: >-
+    Before the N31 smoke, every guard shape must bind a finite set of exact Lean target heads,
+    role positions, instance constraints, and adversarial fixtures. Symbolic target_role values in
+    this design file are not execution bindings.
+
+lane_contracts:
+  n_rubric:
+    operation_id: N31_DROP_REQUIRED_GUARD_RUBRIC_V1
+    required_evidence:
+      - exact_closed_checker_receipt
+      - exact_delta_receipt
+      - operation_gate_admission
+      - family_dimension_gate_admission
+    source_proof_required: false
+    candidate_refutation_required: false
+    makes_f2_claim: false
+  n_proof:
+    operation_id: N31_DROP_REQUIRED_GUARD_PROOF_V1
+    parent_operation_id: N31_DROP_REQUIRED_GUARD_RUBRIC_V1
+    required_evidence:
+      - parent_rubric_receipt
+      - complete_data_assignment
+      - retained_hypothesis_proofs
+      - exact_source_proof
+      - exact_candidate_refutation
+    candidate_truth_required: refuted
+    separate_cap_required: true
+    separately_reported_stratum: true
+
+adversarial_fixture_requirements:
+  - live_conformance_one_success_and_one_rejection_per_operation_project
+  - regression_bank_covers_each_guard_shape_at_least_once_over_project_union
+  - same_guard_redundant_via_retained_duplicate_reject
+  - nonzero_redundant_via_retained_positive_reject
+  - nonnegative_redundant_via_retained_positive_reject
+  - retained_contradiction_per_shape_reject
+  - same_data_in_unrelated_target_location_reject
+  - target_head_not_in_bank_reject
+  - role_expr_mismatch_reject
+  - unknown_nonredundancy_reject
+  - missing_reachability_certificate_reject
+  - de_bruijn_reindex_off_by_one_reject
+  - second_delta_reject
+
+readiness_requirements:
+  - exact_target_head_bank_hash_bound
+  - checker_implementation_and_symbol_hash_bound
+  - checker_procedure_hash_bound
+  - success_and_rejection_fixture_bundles_hash_bound
+  - operation_specific_regressions_hash_bound
+  - source_eligibility_and_source_proof_routes_resolved
+  - shared_label_contract_merged_and_pinned
+  - clean_checkout_receipt_passed
+  - selected_wave_admission_record_valid

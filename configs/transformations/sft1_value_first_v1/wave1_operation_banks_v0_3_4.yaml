@@ -1,0 +1,414 @@
+schema_version: 1
+bank_id: sft1_wave1_operation_banks_v0_3_4
+bank_version: "0.3.4"
+status: static_authored_hash_bound_uncompiled
+parent_checkpoint_commit: 18618ca6ff8383c5254bfacbfed2f4747daebbb7
+primary_operation_ids:
+  - P01_ALPHA_RENAME_SINGLE_V1
+  - P15_SWAP_IFF_SIDES_V1
+  - P18_SYMMETRIZE_EQUALITY_V1
+  - P21_BETA_REDUCE_V1
+  - N31_DROP_REQUIRED_GUARD_RUBRIC_V1
+optional_proof_operation_id: N31_DROP_REQUIRED_GUARD_PROOF_V1
+bank_may_authorize_execution: false
+bank_may_create_labels_or_rows: false
+
+selection_contract:
+  expression_site_path_format: Lean.SubExpr.Pos.toString_v1
+  expression_site_must_be_rediscovered_in_current_typed_expr: true
+  stale_or_ambiguous_site_disposition: typed_not_applicable
+  n31_guard_binder_index_scope: opened_outer_telescope_v1
+  n31_target_path_scope: opened_outer_telescope_body_v1
+  deterministic_candidate_order: operation_then_structural_preorder_site_then_binder_index_then_bank_entry_order_v1
+  operation_discovery_orders:
+    p01_alpha_rename_single: outer_binder_ordinal_ascending_v1
+    p15_swap_iff_sides: singleton_outer_target_v1
+    p18_symmetrize_equality: singleton_outer_target_v1
+    p21_beta_reduce: structural_preorder_term_site_v1
+    n31_drop_required_guard_rubric: structural_preorder_target_site_then_guard_binder_ordinal_then_bank_entry_order_v1
+  surface_text_selection_forbidden: true
+
+n31_runtime_admission_contract:
+  source_identity_type_symbol: LeanFaith.SFT1.Wave1.N31BankIdentity
+  source_admission_symbol: LeanFaith.SFT1.Wave1.admittedN31BankIdentitiesV0_3_4
+  admitted_resolved_bank_identity_count: 0
+  admitted_resolved_bank_identities: []
+  current_runtime_activation_authorized: false
+  empty_admission_blocks_dispatch_and_discovery: true
+  absent_bank_failure_reason: n31BankMissing
+  unadmitted_bank_failure_reason: n31BankInvalid
+  future_activation_requires_separate_user_authorization: true
+  future_identity_pin_field_order:
+    - projectId
+    - bankId
+    - resolvedLeanHash
+    - resolutionReceiptHash
+  exact_project_bank_resolved_lean_hash_resolution_receipt_pin_required: true
+  in_process_exact_full_typed_bank_hash_verification_required: true
+  in_process_exact_full_typed_bank_hash_verifier_bound: false
+  identity_membership_is_not_a_substitute_for_bank_hash_verification: true
+  verification_must_precede_dispatch_discovery_and_replay: true
+
+n31_certificate_binding_contract:
+  source_certificate_symbol: LeanFaith.SFT1.Wave1.N31RubricCertificate
+  source_bank_symbol: LeanFaith.SFT1.Wave1.N31TargetBank
+  source_reachability_symbol: LeanFaith.SFT1.Wave1.N31ReachabilityEvidence
+  full_typed_bank_embedded_in_certificate: true
+  full_typed_bank_scope: identity_entries_retained_patterns_implications_contradictions_v1
+  full_reachability_evidence_embedded_in_certificate: true
+  full_reachability_scope: mode_guard_ordinal_ordered_assignment_exprs_v1
+  reachability_assignment_equality: ordered_Expr.equal_v1
+  replay_requires_supplied_bank_and_reachability_exact_equal: true
+  mismatch_failure_reason: replayContextMismatch
+
+n31_runtime_structural_constraints:
+  selectable_guard_role_and_instance_indices_disjoint: true
+  selectable_target_role_and_instance_indices_disjoint: true
+  selectable_guard_instance_or_type_indices_nonempty: true
+  selectable_target_instance_or_type_indices_nonempty: true
+  retained_contradiction_role_and_instance_paths_disjoint: true
+  retained_contradiction_instance_or_type_paths_nonempty: true
+  exact_expr_constraints_must_be_clean_and_closed: true
+  unresolved_symbolic_candidate_bank_is_runtime_inadmissible: true
+  resolved_runtime_bank_must_satisfy_all_constraints: true
+
+operation_banks:
+  - operation_id: P01_ALPHA_RENAME_SINGLE_V1
+    mechanism_id: p01_alpha_rename_single_v1
+    evidence_class: P-DEF
+    registry_entry_hash: 36b680c6c3407d0761de8af1b0c5e685ce0bc89fefed720bc46255c9bc218844
+    anchor_ref: sft1.meta.p01_alpha_rename_single.v1
+    anchor_hash: ca485f300ecc818057f10877f0eec5c6b4b963fec2e0a574a6895f9d83357095
+    selector_kind: exact_named_explicit_outer_binder
+    matcher_id: p01_named_outer_forall_v1
+    typed_applicability_checks:
+      - selected_node_is_explicit_forall
+      - selected_binder_is_in_unchanged_outer_telescope
+      - selected_binder_name_is_nonanonymous
+      - deterministic_name_is_Name.mkSimple
+      - deterministic_name_has_no_macro_scopes
+      - deterministic_name_does_not_collide_with_visible_outer_names
+      - exact_name_only_delta_under_Expr.equal
+      - whole_closed_prop_defeq
+      - required_render_difference_deferred_to_shared_repr
+    exact_delta_fields:
+      - selected_site_path
+      - old_binder_name
+      - new_binder_name
+      - binder_info
+      - binder_aware_source_fingerprint
+      - binder_aware_candidate_fingerprint
+    static_source_complete: true
+    live_lean_verified: false
+    executable: false
+  - operation_id: P15_SWAP_IFF_SIDES_V1
+    mechanism_id: p15_swap_iff_sides_v1
+    evidence_class: P-SCHEMA
+    registry_entry_hash: cefb0b1f138d40cc48df102d834e6f98735697213f4ab0d2688fe64943c7ed97
+    anchor_ref: sft1.schema.p15_swap_iff_sides.v1
+    anchor_hash: ecad6c6ea110dff281b051045eb37846b194b54fa1a879bce11f5c04e5ed6bd4
+    selector_kind: final_target_after_unchanged_outer_telescope
+    matcher_id: p15_exact_outer_target_iff_application_v1
+    typed_applicability_checks:
+      - selected_node_is_exact_Iff_application
+      - both_sides_are_props
+      - sides_are_not_definitionally_equal
+      - exact_operand_swap_only
+      - outer_telescope_is_unchanged
+      - no_repeated_inverse_token
+      - whole_candidate_is_closed_prop
+      - required_render_difference_deferred_to_shared_repr
+    exact_delta_fields:
+      - selected_site_path
+      - left_expr_fingerprint
+      - right_expr_fingerprint
+      - candidate_left_expr_fingerprint
+      - candidate_right_expr_fingerprint
+    static_source_complete: true
+    live_lean_verified: false
+    executable: false
+  - operation_id: P18_SYMMETRIZE_EQUALITY_V1
+    mechanism_id: p18_symmetrize_equality_v1
+    evidence_class: P-SCHEMA
+    registry_entry_hash: 84d9a3615a30aca49e44705fc341f147b74b2885f4831244bb31ea7f97364472
+    anchor_ref: sft1.schema.p18_equality_symmetry.v1
+    anchor_hash: a79b0b92d5fca0360c38a9edaead1edec038df63bc2167da580bcf9d2c335b8d
+    selector_kind: final_target_after_unchanged_outer_telescope
+    matcher_id: p18_exact_outer_target_eq_application_v1
+    typed_applicability_checks:
+      - selected_node_is_exact_Eq_application
+      - operands_have_the_preserved_Eq_type
+      - operands_are_not_definitionally_equal
+      - exact_operand_swap_only
+      - outer_telescope_is_unchanged
+      - no_protected_negative_relation_overlap
+      - no_repeated_inverse_token
+      - whole_candidate_is_closed_prop
+      - required_render_difference_deferred_to_shared_repr
+    exact_delta_fields:
+      - selected_site_path
+      - equality_type_fingerprint
+      - left_expr_fingerprint
+      - right_expr_fingerprint
+      - candidate_left_expr_fingerprint
+      - candidate_right_expr_fingerprint
+    static_source_complete: true
+    live_lean_verified: false
+    executable: false
+  - operation_id: P21_BETA_REDUCE_V1
+    mechanism_id: p21_beta_reduce_v1
+    evidence_class: P-DEF
+    registry_entry_hash: 5a7ff8ce195cafd42b971bb5a07e23ec7e46b7d0376b7ab34c8dfa42459261f3
+    anchor_ref: sft1.meta.p21_beta_reduce.v1
+    anchor_hash: dd364fd25afd801ae97c2f47ea59ca9f46cae0fff393da5a57b5842acb306d4c
+    selector_kind: exact_expr_site
+    matcher_id: p21_exact_single_beta_redex_v1
+    typed_applicability_checks:
+      - selected_node_is_exact_lambda_application
+      - argument_has_no_expr_or_universe_mvars
+      - argument_has_no_fvars_or_loose_bvars
+      - lambda_body_uses_bound_argument
+      - exact_instantiate1_substitution
+      - candidate_does_not_collapse_whole_claim_to_True_or_False
+      - whole_closed_prop_defeq
+      - one_definitional_mechanism_per_chain
+      - required_render_difference_deferred_to_shared_repr
+    exact_delta_fields:
+      - selected_site_path
+      - lambda_domain_fingerprint
+      - lambda_body_fingerprint
+      - closed_argument_fingerprint
+      - instantiated_result_fingerprint
+    static_source_complete: true
+    live_lean_verified: false
+    executable: false
+  - operation_id: N31_DROP_REQUIRED_GUARD_RUBRIC_V1
+    mechanism_id: n31_required_guard_mutation
+    evidence_class: N-RUBRIC
+    registry_entry_hash: e10cae5e82a8b17bcfe9a5bd4d5811eea6b75c78e77b6c67a3c082a2c2feae5f
+    anchor_ref: shared_consistency_rubric.required_domain_guard
+    anchor_hash: 03789414409dca332f807a6b53ed1fe4416fbfd13c377362119a910858fbf00d
+    selector_kind: exact_outer_guard_binder_and_exact_body_target_site
+    matcher_id: n31_closed_required_guard_v1
+    typed_applicability_checks:
+      - selected_binder_is_explicit_prop_guard
+      - guard_shape_is_in_frozen_bank
+      - runtime_resolved_bank_identity_is_in_exact_source_admission_set
+      - guard_and_target_role_instance_positions_are_disjoint
+      - guard_and_target_instance_or_type_constraints_are_nonempty
+      - retained_contradiction_role_instance_paths_are_disjoint
+      - retained_contradiction_instance_or_type_constraints_are_nonempty
+      - guard_is_not_definitionally_True
+      - guard_proof_local_is_not_used_by_retained_domains_or_body
+      - protected_guard_roles_match_exact_target_roles
+      - target_head_and_role_positions_are_in_frozen_bank
+      - exactly_one_matching_target_across_selected_guard_shape_and_frozen_implication_conclusions
+      - no_competing_guard_or_frozen_implying_guard_remains
+      - no_matching_retained_contradiction_remains
+      - exact_reachability_certificate_replays
+      - certificate_binds_full_typed_bank_and_full_reachability_assignment
+      - replay_context_exactly_matches_certificate_bank_and_reachability
+      - future_activation_requires_in_process_exact_full_typed_bank_hash_verification
+      - exact_selected_guard_removal_via_body.lowerLooseBVars_1_1
+      - preceding_outer_Pi_binders_are_reconstructed_with_original_name_domain_and_binder_info
+      - retained_body_other_than_required_de_Bruijn_lowering_is_unchanged
+      - source_and_candidate_are_not_definitionally_equal
+      - candidate_truth_is_unknown_without_optional_proof_evidence
+      - no_F2_claim
+    exact_delta_fields:
+      - guard_binder_index
+      - guard_shape_id
+      - guard_head_name
+      - protected_role_expr_fingerprints
+      - selected_target_path
+      - selected_target_head_name
+      - target_role_expr_fingerprints
+      - retained_telescope_fingerprint
+      - de_bruijn_reconstruction_authority
+      - target_head_bank_hash
+    static_source_complete: true
+    live_lean_verified: false
+    executable: false
+
+n31_guard_target_bank:
+  bank_id: sft1_n31_guard_target_candidates_v0_3_4
+  parent_design_path: configs/transformations/sft1_value_first_v1/wave1_n31_guard_bank_v0_3_2.yaml
+  parent_design_file_sha256: c2a5aa63158ffbc561bc61f2e3acaa2598aff54a926fd774014e62e6c1cd8cd8
+  status: authored_candidates_require_live_resolution
+  all_selectable_entries_live_resolved: false
+  all_retained_contradiction_patterns_live_resolved: false
+  usable_for_gate_execution: false
+  matching_semantics:
+    head_name_match: exact_Name.toString
+    symbolic_path_basis: recursive_offset_from_end_of_stripMData_getAppArgs_v1
+    live_resolved_path_basis: recursive_zero_based_index_into_stripMData_getAppArgs_v1
+    role_expr_match: exact_binder_aware_structure
+    metadata_transparent: true
+  retained_contradiction_lean_structure: LeanFaith.SFT1.Wave1.N31RetainedContradictionPattern
+  retained_contradiction_patterns_are_not_selectable_or_dispatchable: true
+  retained_prop_match_cardinality: exactly_one_across_selectable_and_contradiction_patterns_v1
+  unknown_or_ambiguous_retained_prop_disposition: n31RetainedContextUnknownOrAmbiguous
+  unknown_or_ambiguous_retained_prop_is_typed_not_applicable: true
+  shape_entries:
+    - shape_id: ne_zero_guard_v1
+      guard_patterns:
+        - {head_name: Ne, role_offsets_from_end: [1]}
+      target_candidates:
+        - {head_name: HDiv.hDiv, role_offsets_from_end: [0]}
+        - {head_name: Inv.inv, role_offsets_from_end: [0]}
+      blocks_removal_of: []
+      contradiction_shape_ids: [eq_zero_retained_v1]
+      live_resolved: false
+    - shape_id: positive_guard_v1
+      guard_patterns:
+        - {head_name: LT.lt, role_offsets_from_end: [0]}
+      target_candidates:
+        - {head_name: Real.log, role_offsets_from_end: [0]}
+      blocks_removal_of: [ne_zero_guard_v1, nonnegative_guard_v1]
+      contradiction_shape_ids: [nonpositive_retained_v1]
+      live_resolved: false
+    - shape_id: nonnegative_guard_v1
+      guard_patterns:
+        - {head_name: LE.le, role_offsets_from_end: [0]}
+      target_candidates:
+        - {head_name: Real.sqrt, role_offsets_from_end: [0]}
+      blocks_removal_of: []
+      contradiction_shape_ids: [negative_retained_v1]
+      live_resolved: false
+    - shape_id: membership_guard_v1
+      guard_patterns:
+        - {head_name: Membership.mem, role_offsets_from_end: [1, 0]}
+      target_candidates:
+        - {head_name: Set.indicator, role_offsets_from_end: [1]}
+      blocks_removal_of: []
+      contradiction_shape_ids: [not_membership_retained_v1]
+      live_resolved: false
+    - shape_id: index_lt_guard_v1
+      guard_patterns:
+        - {head_name: LT.lt, role_offsets_from_end: [1, 0]}
+      target_candidates:
+        - {head_name: GetElem.getElem, role_offsets_from_end: [1, 0]}
+      blocks_removal_of: []
+      contradiction_shape_ids: [bound_le_index_retained_v1]
+      live_resolved: false
+  retained_contradiction_patterns:
+    - shape_id: eq_zero_retained_v1
+      contradicts_guard_shape_id: ne_zero_guard_v1
+      encoding_id: ofnat_application_with_nat_literal_zero_v1
+      head_name: Eq
+      argument_count: null
+      root_head_and_arity_live_resolution_verified: false
+      role_paths: [{offsets_from_end: [1], live_resolution_verified: false}]
+      instance_paths: []
+      instance_path_resolution_required: true
+      nested_head_constraints:
+        - {path: {offsets_from_end: [0], live_resolution_verified: false}, head_name: OfNat.ofNat, argument_count: null, live_resolution_verified: false}
+      literal_constraints:
+        - {path: {offsets_from_end: [0, 1], live_resolution_verified: false}, literal_kind: nat, nat_value: 0, live_resolution_verified: false}
+      exact_expr_constraints: []
+      live_resolved: false
+    - shape_id: nonpositive_retained_v1
+      contradicts_guard_shape_id: positive_guard_v1
+      encoding_id: ofnat_application_with_nat_literal_zero_v1
+      head_name: LE.le
+      argument_count: null
+      root_head_and_arity_live_resolution_verified: false
+      role_paths: [{offsets_from_end: [1], live_resolution_verified: false}]
+      instance_paths: []
+      instance_path_resolution_required: true
+      nested_head_constraints:
+        - {path: {offsets_from_end: [0], live_resolution_verified: false}, head_name: OfNat.ofNat, argument_count: null, live_resolution_verified: false}
+      literal_constraints:
+        - {path: {offsets_from_end: [0, 1], live_resolution_verified: false}, literal_kind: nat, nat_value: 0, live_resolution_verified: false}
+      exact_expr_constraints: []
+      live_resolved: false
+    - shape_id: negative_retained_v1
+      contradicts_guard_shape_id: nonnegative_guard_v1
+      encoding_id: ofnat_application_with_nat_literal_zero_v1
+      head_name: LT.lt
+      argument_count: null
+      root_head_and_arity_live_resolution_verified: false
+      role_paths: [{offsets_from_end: [1], live_resolution_verified: false}]
+      instance_paths: []
+      instance_path_resolution_required: true
+      nested_head_constraints:
+        - {path: {offsets_from_end: [0], live_resolution_verified: false}, head_name: OfNat.ofNat, argument_count: null, live_resolution_verified: false}
+      literal_constraints:
+        - {path: {offsets_from_end: [0, 1], live_resolution_verified: false}, literal_kind: nat, nat_value: 0, live_resolution_verified: false}
+      exact_expr_constraints: []
+      live_resolved: false
+    - shape_id: not_membership_retained_v1
+      contradicts_guard_shape_id: membership_guard_v1
+      encoding_id: not_membership_nested_application_v1
+      head_name: Not
+      argument_count: null
+      root_head_and_arity_live_resolution_verified: false
+      role_paths:
+        - {offsets_from_end: [0, 1], live_resolution_verified: false}
+        - {offsets_from_end: [0, 0], live_resolution_verified: false}
+      instance_paths: []
+      instance_path_resolution_required: true
+      nested_head_constraints:
+        - {path: {offsets_from_end: [0], live_resolution_verified: false}, head_name: Membership.mem, argument_count: null, live_resolution_verified: false}
+      literal_constraints: []
+      exact_expr_constraints: []
+      live_resolved: false
+    - shape_id: bound_le_index_retained_v1
+      contradicts_guard_shape_id: index_lt_guard_v1
+      encoding_id: reversed_bound_index_roles_v1
+      head_name: LE.le
+      argument_count: null
+      root_head_and_arity_live_resolution_verified: false
+      role_paths:
+        - {offsets_from_end: [0], live_resolution_verified: false}
+        - {offsets_from_end: [1], live_resolution_verified: false}
+      instance_paths: []
+      instance_path_resolution_required: true
+      nested_head_constraints: []
+      literal_constraints: []
+      exact_expr_constraints: []
+      live_resolved: false
+  live_resolution_requirements:
+    - every_name_resolves_in_each_selected_project_or_is_project_scoped_out
+    - exact_elaborated_application_arity_is_recorded
+    - exact_role_offsets_are_confirmed_from_typed_Exprs
+    - resolved_guard_and_target_instance_or_type_positions_are_nonempty_and_disjoint_from_roles
+    - retained_contradiction_instance_or_type_paths_are_nonempty_and_disjoint_from_roles
+    - exact_project_bank_resolved_lean_hash_resolution_receipt_identity_is_separately_user_authorized
+    - in_process_exact_full_typed_bank_hash_verification_receipt_is_bound
+    - success_and_adversarial_fixture_for_each_shape_over_project_union
+    - implication_and_contradiction_scans_replay
+    - retained_contradiction_paths_heads_arities_and_exact_terms_are_resolved_in_session
+    - target_occurrence_is_unique
+    - unknown_or_ambiguous_match_is_typed_not_applicable
+
+p01_identity_blocker:
+  blocker_id: p01_alpha_closed_expr_hash_collision
+  status: open_fail_closed
+  frozen_evidence_path: configs/transformations/sft1_value_first_v1/repr_six_goal_evidence_v0_3_1/01_mathlib_add_pow.json
+  frozen_evidence_file_sha256: c999fe73078a754f174f7f465d3c829f1944f3b637a31904f2c16dc0723cf4a5
+  observed_reference_closed_expr_hash: c792a901d406878bca34269e580b34cb068515694fb6c80e5bebefb9b18f9c83
+  observed_candidate_closed_expr_hash: c792a901d406878bca34269e580b34cb068515694fb6c80e5bebefb9b18f9c83
+  observed_render_hashes_are_distinct: true
+  frozen_composition_rejects_repeated_closed_expr_hashes: true
+  binder_aware_delta_fingerprint_is_additional_evidence_only: true
+  binder_aware_delta_may_override_frozen_duplicate_rule: false
+  blocks_p01_implementation_readiness: true
+  resolution_requires_additive_coordinator_policy_decision: true
+
+optional_n31_proof_adapter:
+  operation_id: N31_DROP_REQUIRED_GUARD_PROOF_V1
+  registry_entry_hash: b3ba4acd04c3adb7eff83e8a7b242a7c953f5d2b87ec659e9bbc9abafe81199a
+  parent_operation_id: N31_DROP_REQUIRED_GUARD_RUBRIC_V1
+  status: optional_not_implemented
+  independent_mutation_implementation_forbidden: true
+  parent_candidate_reuse_required: true
+  parent_root_pool_only: true
+  blocks_parent_or_wave_readiness: false
+  exact_source_proof_required_if_attempted: true
+  exact_candidate_refutation_required_if_attempted: true
+  failed_search_is_evidence: false
+  candidate_truth_when_absent: unknown
+  candidate_truth_when_complete_proof_receipt_passes: refuted
+  counts_against_own_and_parent_caps: true
+  may_emit_additional_model_facing_pair: false
