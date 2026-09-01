@@ -287,6 +287,8 @@ class SprintRunner:
         self.roots_lean = 0
         self.roots_cache = 0
         self.batches = 0
+        self.retained_at_start = 0
+        self.roots_at_start = 0
         self.last_batch: dict[str, object] = {}
 
     # ----------------------------------------------------------------- setup
@@ -328,6 +330,11 @@ class SprintRunner:
         return ordered_roots(rows, pools, order_salt=self.config.inventory.order_salt)
 
     def load_state(self) -> None:
+        self._load_journal()
+        self.retained_at_start = self.retained_count
+        self.roots_at_start = self.roots_lean + self.roots_cache
+
+    def _load_journal(self) -> None:
         for record in self.journal.read():
             kind = record.get("kind")
             if kind == "terminal":
@@ -1063,7 +1070,9 @@ class SprintRunner:
     def summary(self) -> dict[str, object]:
         wall = time.monotonic() - self.started
         roots = self.roots_lean + self.roots_cache
-        rate = self.retained_count / wall * 60 if wall > 0 else 0.0
+        new_retained = self.retained_count - self.retained_at_start
+        new_roots = roots - self.roots_at_start
+        rate = new_retained / wall * 60 if wall > 0 else 0.0
         eta = None
         if self.target_retained is not None and rate > 0:
             eta = max(0.0, (self.target_retained - self.retained_count) / rate * 60)
@@ -1081,8 +1090,10 @@ class SprintRunner:
             "lean_requests": self.session.request_count if self.session else 0,
             "lean_elapsed_ms": self.session.lean_elapsed_ms if self.session else 0,
             "wall_seconds": round(wall, 3),
-            "roots_per_minute": round(roots / wall * 60, 3) if wall > 0 else 0.0,
+            "roots_per_minute": round(new_roots / wall * 60, 3) if wall > 0 else 0.0,
             "retained_per_minute": round(rate, 3),
+            "retained_this_process": new_retained,
+            "roots_this_process": new_roots,
             "eta_seconds": None if eta is None else round(eta),
             "target_retained": self.target_retained,
             "max_roots": self.max_roots,
