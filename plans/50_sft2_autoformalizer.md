@@ -2,7 +2,7 @@
 
 > **Task ID:** SFT2B
 > **Status:** active
-> **Owner/session:** Codex `codex://threads/01a0537e-90a6-70d0-ac17-6767393be3b9`
+> **Owner/session:** Codex `/root` — 2026-09-01 72-hour SFT2B sprint execution
 > **Last updated:** 2026-09-01
 > **Dependencies:** REPR `goal_v1.0`; source-quality audit and frozen consistency/voting prompts
 > **Next gate:** build and publish mechanical source v3, compile all 1,242 matched-pilot candidates,
@@ -1072,3 +1072,24 @@ authorization sentence, clean-tree receipt, or historical-artifact ceremony.
   smoke, then automatic four-by-12,500 corrected-core generation. The remaining 991 reviews and
   unavailable historical operational receipts are nonblocking as specified above. This planning
   update ran no Lean, provider, GPU, publication, or detached job.
+- 2026-09-01 — Codex `/root` resumed SFT2B from coordinator baseline `5de43eb` in dedicated clean
+  worktree `/localhome/milikic/LeanFaith-sft2b-72h-sprint` on branch
+  `milikic/sft2b-72h-sprint`, claiming only the SFT2B brief, package, configs, prompts, tests, and
+  staging root already listed above. The first sprint smoke is one source through the additive
+  `mechanical_conservative_v1` disposition/partition/conservation path before the full Lean-free
+  source build. Lean remains the bottleneck: all schema, filtering, provenance, joins,
+  deduplication, hashing, conservation, and restart checks precede Lean; the later 1,242-candidate
+  audit compiles each novel reference/candidate once in persistent context-grouped sessions under
+  the shared two-worker/40-GiB cap, never with one Lean process per row.
+- 2026-09-01 — implemented the additive Lean-free `mechanical_conservative_v1` source-v3 path
+  without modifying the hash-frozen human-review builder. The mounted v2 preflight replays all 11
+  immutable files and the 54,906-row universe, finds exactly 469 meta rows and 293 Workbook hits
+  with zero overlap, reads zero review records, and plans the required 50,000 core / 4,144 tail /
+  762 quarantine partition with 49,598 surviving prior-core rows plus 402 prior-tail backfills.
+  The exact expected core release-class mix replays. Builder SHA-256 is
+  `71e673bee58ee00b5034a4d5e03d167017976a17108e995fa3f454f2b2c840b7`; config SHA-256 is
+  `e748b09e8dcf24e076b50a2127a0533b0bcf1de8cee78a53979cba6437484a79`. The one-row mechanical
+  smoke and focused suite pass 5/5; Ruff lint/format and strict mypy pass; the complete 138-test
+  SFT2B collection exits zero with 134 passed and the four already-documented portability skips.
+  No Lean, model, provider, judge, upload, generation, reservation, or detached job ran. Next is a
+  committed full build, independent fresh-directory replay, and additive private publication.
