@@ -7,12 +7,15 @@ import os
 import shlex
 import subprocess
 import sys
+import threading
 from collections import Counter, defaultdict
-from concurrent.futures import ThreadPoolExecutor
+from collections.abc import Iterator
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from contextlib import contextmanager
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import cast
+from typing import Literal, cast
 
 from leanfaith.config.hashing import canonical_json_bytes, hash_canonical, hash_file, sha256_hex
 from leanfaith.host_resources import claim_resources, list_reservations, release_resources
@@ -637,6 +640,67 @@ def _root_output(loaded: LoadedProviderRehearsalV52, root_id: str) -> Path:
     return loaded.output_root / "roots" / hash_canonical(root_id)
 
 
+class OraclePool:
+    """Two locked persistent project-grouped SignatureOracles reused with rebind."""
+
+    def __init__(self, *, cache_version: Literal["v1", "v2"] = "v2") -> None:
+        self._cache_version = cache_version
+        self._oracles: list[SignatureOracle | None] = [None, None]
+        self._projects: list[str | None] = [None, None]
+        self._use_locks = [threading.Lock(), threading.Lock()]
+
+    @contextmanager
+    def acquire(self, root_loaded: LoadedSFT2AConfig) -> Iterator[SignatureOracle]:
+        project_id = root_loaded.config.root.compile_context.project_id
+        slot = -1
+        for i in range(2):
+            if self._use_locks[i].acquire(blocking=False):
+                slot = i
+                break
+        if slot < 0:
+            self._use_locks[0].acquire()
+            slot = 0
+        try:
+            current_oracle = self._oracles[slot]
+            if current_oracle is None or self._projects[slot] != project_id:
+                if current_oracle is not None:
+                    current_oracle.close()
+                current_oracle = SignatureOracle(root_loaded, cache_version=self._cache_version)
+                self._oracles[slot] = current_oracle
+                self._projects[slot] = project_id
+            else:
+                current_oracle.rebind(root_loaded)
+            yield current_oracle
+        finally:
+            self._use_locks[slot].release()
+
+    def close(self) -> None:
+        for i in range(2):
+            with self._use_locks[i]:
+                oracle = self._oracles[i]
+                if oracle is not None:
+                    oracle.close()
+                    self._oracles[i] = None
+                    self._projects[i] = None
+
+
+class PooledOracle:
+    """PropositionOracle adapter that delegates to an OraclePool with per-call locking."""
+
+    def __init__(self, pool: OraclePool, root_loaded: LoadedSFT2AConfig) -> None:
+        self._pool = pool
+        self._root_loaded = root_loaded
+
+    def elaborate(
+        self, signature: str, *, endpoint_role: Literal["reference", "candidate"]
+    ) -> SignatureOracleResult:
+        with self._pool.acquire(self._root_loaded) as oracle:
+            return oracle.elaborate(signature, endpoint_role=endpoint_role)
+
+    def close(self) -> None:
+        pass
+
+
 def run_provider_worker_v52(
     loaded: LoadedProviderRehearsalV52,
     authorization: LoadedProviderAuthorizationV52,
@@ -732,14 +796,131 @@ def run_provider_worker_v52(
 
 
 def run_two_provider_workers_v52(
-    loaded: LoadedProviderRehearsalV52, authorization: LoadedProviderAuthorizationV52
+    loaded: LoadedProviderRehearsalV52,
+    authorization: LoadedProviderAuthorizationV52,
+    *,
+    provider_concurrency: int = 8,
 ) -> list[dict[str, object]]:
-    with ThreadPoolExecutor(max_workers=2, thread_name_prefix="sft2a-v52") as pool:
-        futures = [
-            pool.submit(run_provider_worker_v52, loaded, authorization, worker_index=index)
-            for index in range(2)
-        ]
-        return [future.result() for future in futures]
+    """Dynamic as_completed root queue with two persistent project-grouped oracles.
+
+    Provider concurrency is decoupled from the two-worker Lean cap: the
+    ThreadPoolExecutor runs at *provider_concurrency*, while OraclePool keeps
+    exactly two locked persistent SignatureOracle slots reused with rebind.
+    """
+
+    import queue as queue_module
+
+    verify_corrected_global_preflight(loaded.sample_path.parent)
+    rows = _sample_rows(loaded.sample_path)
+    worker_tag = "dynamic-queue"
+    ledger = AtomicProviderBudget(loaded.output_root / "provider_budget.jsonl", loaded.ceilings)
+    proposer = AtomicBudgetedProvider(
+        proposer_provider(loaded.base),
+        ledger=ledger,
+        kind="proposer",
+        worker_id=worker_tag,
+        reclaim_from_worker=worker_tag,
+    )
+    opus = AtomicBudgetedProvider(
+        claude_judge_provider(loaded.base),
+        ledger=ledger,
+        kind="opus",
+        worker_id=worker_tag,
+        maximum_charge_usd=(
+            loaded.ceilings.maximum_reported_opus_spend_usd / loaded.ceilings.maximum_opus_calls
+        ),
+        reclaim_from_worker=worker_tag,
+    )
+    registry = PersistentCandidateRegistry(loaded.output_root / "candidate_registry.jsonl")
+    states = ParallelRootStateMachine(
+        loaded.output_root / "root_state.jsonl", maximum_workers=provider_concurrency
+    )
+    oracle_pool = OraclePool(cache_version="v2")
+    completed_count = 0
+    completed_lock = threading.Lock()
+
+    pending_queue: queue_module.Queue[dict[str, object]] = queue_module.Queue()
+    for row in rows:
+        root = OneRootConfig.model_validate(row["root"])
+        snapshot = states.snapshot()["roots"]
+        assert isinstance(snapshot, dict)
+        current = snapshot.get(root.root_id)
+        if isinstance(current, dict) and current.get("status") == "complete":
+            continue
+        pending_queue.put(row)
+
+    def process_roots() -> None:
+        nonlocal completed_count
+        while True:
+            try:
+                row = pending_queue.get_nowait()
+            except queue_module.Empty:
+                break
+            root = OneRootConfig.model_validate(row["root"])
+            root_worker = f"dyn-{root.root_id}"
+            snapshot = states.snapshot()["roots"]
+            assert isinstance(snapshot, dict)
+            current = snapshot.get(root.root_id)
+            if isinstance(current, dict) and current.get("status") == "crashed":
+                states.reclaim(
+                    root_id=root.root_id,
+                    prior_worker_id=str(current["owner"]),
+                    worker_id=root_worker,
+                )
+            outcome = states.claim(root_id=root.root_id, worker_id=root_worker)
+            if outcome == "replay_complete":
+                continue
+            root_loaded = _root_loaded(loaded, row)
+            reference = certified_reference_result_v52(row)
+            oracle = PooledOracle(oracle_pool, root_loaded)
+            try:
+                result = run_one_root(
+                    root_loaded,
+                    proposer=proposer,
+                    claude_judge=opus,
+                    oracle=oracle,
+                    output_root=_root_output(loaded, root.root_id),
+                    enforce_expected_reference_goal=True,
+                    enforce_smoke_ceilings=False,
+                    cross_root_registry=registry,
+                    mechanism_plan=_mechanism_plan(row),
+                    certified_reference=reference,
+                )
+                manifest_path = result.output_root / "manifest.json"
+                states.complete(
+                    root_id=root.root_id,
+                    worker_id=root_worker,
+                    manifest_hash=hash_file(manifest_path),
+                )
+                if not result.replayed:
+                    with completed_lock:
+                        completed_count += 1
+            except Exception as exc:
+                states.crash(root_id=root.root_id, worker_id=root_worker, reason=type(exc).__name__)
+                raise
+
+    pending_count = pending_queue.qsize()
+    if pending_count > 0:
+        with ThreadPoolExecutor(
+            max_workers=min(provider_concurrency, pending_count),
+            thread_name_prefix="sft2a-dyn",
+        ) as pool:
+            worker_count = min(provider_concurrency, pending_count)
+            futures = [pool.submit(process_roots) for _ in range(worker_count)]
+            for future in as_completed(futures):
+                future.result()
+
+    oracle_pool.close()
+    return [
+        {
+            "worker_id": worker_tag,
+            "assigned_roots": pending_count,
+            "completed_in_invocation": completed_count,
+            "provider_budget": ledger.snapshot(),
+            "candidate_registry": registry.snapshot(),
+            "authorization_receipt_sha256": authorization.sha256,
+        }
+    ]
 
 
 def compact_provider_rehearsal_v52(loaded: LoadedProviderRehearsalV52) -> dict[str, object]:
@@ -867,7 +1048,7 @@ def run_provider_kimi_audit_v52(
     loaded: LoadedProviderRehearsalV52,
     authorization: LoadedProviderAuthorizationV52,
 ) -> dict[str, object]:
-    """Run the 40-row stratified Kimi audit through the shared atomic ledger."""
+    """Run the 40-row stratified Kimi audit with per-row checkpoints at concurrency 8."""
 
     replay_path = loaded.output_root / "replay/reproducibility_receipt.json"
     if not replay_path.is_file() or _object(replay_path).get("reproducible") is not True:
@@ -885,13 +1066,22 @@ def run_provider_kimi_audit_v52(
         ledger=ledger,
         kind="lemex",
         worker_id="audit-kimi",
+        reclaim_from_worker="audit-kimi",
     )
-    audit_rows: list[dict[str, object]] = []
-    unknown_ids: set[str] = set()
-    strata: Counter[tuple[str, str]] = Counter()
-    disagreements: Counter[tuple[str, str]] = Counter()
-    for index in selected:
+    audit_root = loaded.output_root / "audit_kimi"
+    checkpoint_root = audit_root / "checkpoints"
+    checkpoint_root.mkdir(parents=True, exist_ok=True)
+
+    def _checkpoint_path(row_id: str) -> Path:
+        safe = row_id.replace("/", "_").replace(":", "_")
+        return checkpoint_root / f"{safe}.json"
+
+    def _process_audit_row(index: int) -> dict[str, object]:
         sidecar = sidecars[index]
+        row_id = str(sidecar["row_id"])
+        checkpoint = _checkpoint_path(row_id)
+        if checkpoint.is_file():
+            return _object(checkpoint)
         reference_record = sidecar.get("reference_repr")
         candidate_record = sidecar.get("candidate_repr")
         reference = reference_record.get("record") if isinstance(reference_record, dict) else None
@@ -906,7 +1096,7 @@ def run_provider_kimi_audit_v52(
         result = call_consistent_judge(
             client,
             prompt=prompt,
-            input_ids=(str(sidecar["row_id"]), "provider_rehearsal_kimi_v5_2"),
+            input_ids=(row_id, "provider_rehearsal_kimi_v5_2"),
             closure_aware=True,
             malformed_retries=1,
         )
@@ -914,34 +1104,42 @@ def run_provider_kimi_audit_v52(
         judgment = result.judgment
         agrees = judgment is not None and judgment.verdict == source_judge.verdict
         malformed_exhausted = judgment is None
-        row_id = str(sidecar["row_id"])
         source = str(sidecar["root_id"]).split(":", maxsplit=1)[0]
-        stratum = (source, str(sidecar["requested_polarity"]))
-        strata[stratum] += 1
-        disagreements[stratum] += not agrees and not malformed_exhausted
-        if not agrees:
-            unknown_ids.add(row_id)
-        audit_rows.append(
-            {
-                "row_id": row_id,
-                "source": source,
-                "requested_polarity": sidecar["requested_polarity"],
-                "opus_verdict": source_judge.verdict,
-                "kimi_judgment": (None if judgment is None else judgment.model_dump(mode="json")),
-                "agrees": agrees,
-                "malformed_attempts": list(result.malformed_attempts),
-                "malformed_retries": result.malformed_retries,
-                "malformed_exhausted": malformed_exhausted,
-                "call_keys": [call.call_key for call in result.calls],
-                "prompt_hash": prompt_hash(prompt),
-                "action": "retain" if agrees else "unknown_review_exclude_core",
-            }
-        )
-    audit_root = loaded.output_root / "audit_kimi"
+        row = {
+            "row_id": row_id,
+            "source": source,
+            "requested_polarity": sidecar["requested_polarity"],
+            "opus_verdict": source_judge.verdict,
+            "kimi_judgment": (None if judgment is None else judgment.model_dump(mode="json")),
+            "agrees": agrees,
+            "malformed_attempts": list(result.malformed_attempts),
+            "malformed_retries": result.malformed_retries,
+            "malformed_exhausted": malformed_exhausted,
+            "call_keys": [call.call_key for call in result.calls],
+            "prompt_hash": prompt_hash(prompt),
+            "action": "retain" if agrees else "unknown_review_exclude_core",
+        }
+        _atomic_exact(checkpoint, canonical_json_bytes(row) + b"\n")
+        return row
+
+    audit_rows: list[dict[str, object]] = [{} for _ in selected]
+    with ThreadPoolExecutor(max_workers=8, thread_name_prefix="sft2a-kimi") as kimi_pool:
+        future_to_index = {kimi_pool.submit(_process_audit_row, index): index for index in selected}
+        for future in as_completed(future_to_index):
+            index = future_to_index[future]
+            audit_rows[index] = future.result()
+
     _atomic_exact(audit_root / "audit_rows.jsonl", _jsonl_bytes(audit_rows))
+    unknown_ids = {str(row["row_id"]) for row in audit_rows if not bool(row["agrees"])}
     released = exclude_audit_unknowns(core, sidecars, unknown_ids)
     _atomic_exact(audit_root / "releasable_core.jsonl", _jsonl_bytes(released))
     agreements = sum(bool(row["agrees"]) for row in audit_rows)
+    strata: Counter[tuple[str, str]] = Counter()
+    disagreements: Counter[tuple[str, str]] = Counter()
+    for row in audit_rows:
+        stratum = (str(row["source"]), str(row["requested_polarity"]))
+        strata[stratum] += 1
+        disagreements[stratum] += not bool(row["agrees"]) and not bool(row["malformed_exhausted"])
     systematic = agreements / len(audit_rows) < 0.95 or any(
         strata[key] >= 5 and disagreements[key] / strata[key] >= 0.2 for key in strata
     )
@@ -964,6 +1162,7 @@ def run_provider_kimi_audit_v52(
         "persistent_provider_budget": ledger.snapshot(),
         "audit_rows_sha256": hash_file(audit_root / "audit_rows.jsonl"),
         "releasable_core_sha256": hash_file(audit_root / "releasable_core.jsonl"),
+        "checkpointed_per_row": True,
         "scale_10k_authorized": False,
         "scale_50k_authorized": False,
         "publication_authorized": False,

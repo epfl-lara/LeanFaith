@@ -24,6 +24,10 @@ from leanfaith.sft2a.config import LoadedSFT2AConfig
 from leanfaith.sft2a.models import ProposerOutput
 
 ORACLE_METHOD_VERSION = "sft2a_proof_free_signature_oracle_binder_hygiene_v1"
+ORACLE_METHOD_VERSION_V2 = "sft2a_proof_free_signature_oracle_canonical_universes_v2"
+_CACHE_VERSION_V1 = "v1"
+_CACHE_VERSION_V2 = "v2"
+_CANONICAL_UNIVERSES = [f"u_{i}" for i in range(8)]
 _SAFE_OPTION_NAME = re.compile(r"^[A-Za-z][A-Za-z0-9_.]*$")
 _INFRASTRUCTURE = {
     LeanStatus.TIMEOUT,
@@ -91,18 +95,7 @@ def _option_value(value: str | int | float | bool) -> str:
     return str(value)
 
 
-def _signature_command(
-    *,
-    context: CompileContext,
-    signature: str,
-    endpoint_id: str,
-    render_scope_id: str,
-) -> str:
-    imports = [line.strip() for line in context.import_header.splitlines() if line.strip()]
-    lines = ["import Lean", *(line for line in imports if line != "import Lean")]
-    lines.append(goal_v1._helper_body())
-    lines.append(
-        """
+_V1_NAMESPACE_BODY = """
 namespace LeanFaith.SFT2A.SignatureOracle
 
 open Lean Elab Command Term Meta
@@ -166,7 +159,121 @@ elab "lfSft2aSignature" endpoint:str scope:str ":" signature:term : command => d
 
 end LeanFaith.SFT2A.SignatureOracle
 """.strip()
-    )
+
+
+_V2_NAMESPACE_BODY = """
+namespace LeanFaith.SFT2A.SignatureOracle
+
+open Lean Elab Command Term Meta
+
+private partial def freshDisplayedName
+    (base : String) (used : Array String) (index : Nat := 0) : Name :=
+  let base := if base.isEmpty then "x" else base
+  let text := if index == 0 then base else s!"{base}_{index}"
+  let candidate := Name.mkSimple text
+  if used.contains candidate.toString then
+    freshDisplayedName base used (index + 1)
+  else
+    candidate
+
+/-- Erase parser macro scopes from named binder metadata without changing
+    binder information, domains, bodies, bound-variable indices, or constants.
+    This is a structural Expr pass, not a text renderer or re-elaborator. -/
+private partial def canonicalizeBinderMetadata (used : Array String) : Expr → Expr
+  | .forallE name domain body binderInfo =>
+      let domain := canonicalizeBinderMetadata used domain
+      let structuralArrow :=
+        binderInfo == .default && !body.hasLooseBVar 0 && (name.isAnonymous || name.hasMacroScopes)
+      if structuralArrow || name.isAnonymous then
+        .forallE name domain (canonicalizeBinderMetadata used body) binderInfo
+      else
+        let name := freshDisplayedName name.eraseMacroScopes.toString used
+        .forallE name domain (canonicalizeBinderMetadata (used.push name.toString) body) binderInfo
+  | .lam name domain body binderInfo =>
+      let domain := canonicalizeBinderMetadata used domain
+      if name.isAnonymous then
+        .lam name domain (canonicalizeBinderMetadata used body) binderInfo
+      else
+        let name := freshDisplayedName name.eraseMacroScopes.toString used
+        .lam name domain (canonicalizeBinderMetadata (used.push name.toString) body) binderInfo
+  | .letE name type value body nondep =>
+      let type := canonicalizeBinderMetadata used type
+      let value := canonicalizeBinderMetadata used value
+      if name.isAnonymous then
+        .letE name type value (canonicalizeBinderMetadata used body) nondep
+      else
+        let name := freshDisplayedName name.eraseMacroScopes.toString used
+        .letE name type value (canonicalizeBinderMetadata (used.push name.toString) body) nondep
+  | .app fn arg =>
+      .app (canonicalizeBinderMetadata used fn) (canonicalizeBinderMetadata used arg)
+  | .proj typeName index base =>
+      .proj typeName index (canonicalizeBinderMetadata used base)
+  | .mdata data body => .mdata data (canonicalizeBinderMetadata used body)
+  | e => e
+
+/-- Assign any remaining universe level metavariables to a canonical parameter
+    so that the frozen REPR renderer never sees an unresolved universe mvar. -/
+private def assignLevelMVars (canonical : Level) : Level → MetaM Level
+  | .succ level => return .succ (← assignLevelMVars canonical level)
+  | .max a b => return .max (← assignLevelMVars canonical a) (← assignLevelMVars canonical b)
+  | .imax a b => return .imax (← assignLevelMVars canonical a) (← assignLevelMVars canonical b)
+  | .mvar mvarId =>
+    unless (← mvarId.isAssigned) do
+      mvarId.assign canonical
+    pure (.mvar mvarId)
+  | level => pure level
+
+private partial def assignUnivMVars (canonical : Level) : Expr → MetaM Expr
+  | .const declName levels =>
+    let newLevels ← levels.mapM (assignLevelMVars canonical)
+    pure (.const declName newLevels)
+  | .app f arg =>
+    return .app (← assignUnivMVars canonical f) (← assignUnivMVars canonical arg)
+  | .forallE n d b bi =>
+    return .forallE n (← assignUnivMVars canonical d) (← assignUnivMVars canonical b) bi
+  | .lam n d b bi =>
+    return .lam n (← assignUnivMVars canonical d) (← assignUnivMVars canonical b) bi
+  | .letE n t v b nd =>
+    return .letE n (← assignUnivMVars canonical t) (← assignUnivMVars canonical v)
+                 (← assignUnivMVars canonical b) nd
+  | .proj t i b => return .proj t i (← assignUnivMVars canonical b)
+  | .mdata m b => return .mdata m (← assignUnivMVars canonical b)
+  | e => pure e
+
+/-- Elaborate one proof-free proposition term exactly once, assign remaining
+    universe metavariables to canonical parameters, then pass that same
+    structural Expr to the frozen REPR payload emitter. -/
+elab "lfSft2aSignatureV2" endpoint:str scope:str ":" signature:term : command => do
+  liftTermElabM do
+    let proposition ← Term.elabTerm signature (some (mkSort .zero))
+    Term.synthesizeSyntheticMVarsNoPostponing
+    let proposition ← instantiateMVars proposition
+    let proposition ← assignUnivMVars (.param `u_0) proposition
+    let proposition ← instantiateMVars proposition
+    let proposition := canonicalizeBinderMetadata #[] proposition
+    LeanFaith.GoalV1.emitClosedProp
+      endpoint.getString scope.getString "term_elaborated_proposition" proposition
+
+end LeanFaith.SFT2A.SignatureOracle
+""".strip()
+
+
+def _signature_command(
+    *,
+    context: CompileContext,
+    signature: str,
+    endpoint_id: str,
+    render_scope_id: str,
+    cache_version: Literal["v1", "v2"] = "v1",
+) -> str:
+    imports = [line.strip() for line in context.import_header.splitlines() if line.strip()]
+    lines = ["import Lean", *(line for line in imports if line != "import Lean")]
+    lines.append(goal_v1._helper_body())
+    if cache_version == "v2":
+        lines.append("universe " + " ".join(_CANONICAL_UNIVERSES))
+    command_keyword = "lfSft2aSignatureV2" if cache_version == "v2" else "lfSft2aSignature"
+    namespace_body = _V1_NAMESPACE_BODY if cache_version == "v1" else _V2_NAMESPACE_BODY
+    lines.append(namespace_body)
     if context.command_preamble.strip():
         lines.append(context.command_preamble.rstrip())
     for option_name, value in sorted(context.options.items()):
@@ -177,13 +284,13 @@ end LeanFaith.SFT2A.SignatureOracle
     lines.extend(f"open scoped {name}" for name in context.scoped_context)
     lines.extend(f"namespace {name}" for name in context.namespace_context)
     lines.append(
-        f"lfSft2aSignature {json.dumps(endpoint_id)} {json.dumps(render_scope_id)} : ({signature})"
+        f"{command_keyword} {json.dumps(endpoint_id)} {json.dumps(render_scope_id)} : ({signature})"
     )
     lines.extend(f"end {name}" for name in reversed(context.namespace_context))
     command = "\n".join(lines) + "\n"
     forbidden = ("sorry", "axiom", "admit")
     helper_start = command.index("namespace LeanFaith.GoalV1")
-    live_suffix = command[command.rfind("lfSft2aSignature") :]
+    live_suffix = command[command.rfind(command_keyword) :]
     if any(token in live_suffix for token in forbidden):
         raise SignatureOracleError("live signature command contains a forbidden proof token")
     if "Term.elabTerm" not in command or command.count("Term.elabTerm") != 1:
@@ -237,11 +344,16 @@ class SignatureOracle:
         loaded: LoadedSFT2AConfig,
         *,
         backend: LeanBackend | None = None,
+        cache_version: Literal["v1", "v2"] = "v1",
     ) -> None:
         self.loaded = loaded
         self.context = compile_context(loaded)
         self.staging_root = Path(loaded.config.staging_root)
         self.cache_root = self.staging_root / "lean_cache"
+        self.cache_version = cache_version
+        self.method_version = (
+            ORACLE_METHOD_VERSION_V2 if cache_version == "v2" else ORACLE_METHOD_VERSION
+        )
         self._owns_backend = backend is None
         self._backend = backend or self._make_backend()
 
@@ -303,18 +415,19 @@ class SignatureOracle:
     ) -> SignatureOracleResult:
         signature = validate_signature_text(signature)
         signature_sha256 = sha256_hex(signature.encode("utf-8"))
-        key_payload = {
-            "method_version": ORACLE_METHOD_VERSION,
+        key_payload: dict[str, object] = {
+            "method_version": self.method_version,
             "signature_sha256": signature_sha256,
             "endpoint_role": endpoint_role,
             "compile_context": self.context.canonical_payload(),
             "leaninteract_version": self.loaded.config.root.compile_context.leaninteract_version,
             "repl_revision": self.loaded.config.root.compile_context.repl_revision,
             "repr": self.loaded.config.repr.model_dump(mode="json"),
-            "oracle_source_sha256": hash_file(Path(__file__)),
         }
+        if self.cache_version == "v1":
+            key_payload["oracle_source_sha256"] = hash_file(Path(__file__))
         cache_key = hash_canonical(key_payload)
-        cache_path = self.cache_root / "v1" / cache_key[:2] / f"{cache_key}.json"
+        cache_path = self.cache_root / self.cache_version / cache_key[:2] / f"{cache_key}.json"
         cached = _load_cache(cache_path, cache_key)
         if cached is not None:
             sidecar = cached.get("sidecar")
@@ -354,6 +467,7 @@ class SignatureOracle:
             signature=signature,
             endpoint_id=endpoint_id,
             render_scope_id=render_scope_id,
+            cache_version=self.cache_version,
         )
         request = LeanRequest(
             request_id=f"sft2a:{endpoint_role}:{signature_sha256}",
@@ -361,7 +475,7 @@ class SignatureOracle:
             code=command,
             allow_sorry=False,
             timeout_seconds=300.0,
-            metadata={"method_version": ORACLE_METHOD_VERSION},
+            metadata={"method_version": self.method_version},
         )
         result = self._backend.run(request)
         detail = result.infrastructure_error or "; ".join(
@@ -454,6 +568,7 @@ class SignatureOracle:
 
 __all__ = [
     "ORACLE_METHOD_VERSION",
+    "ORACLE_METHOD_VERSION_V2",
     "SignatureOracle",
     "SignatureOracleError",
     "SignatureOracleResult",

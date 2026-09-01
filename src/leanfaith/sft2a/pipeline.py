@@ -467,30 +467,11 @@ def run_one_root(
                     _append_event(journal_path, record)
                     feedback = _feedback("proposer_rejected", detail)
                     continue
+                mechanism_mismatch: str | None = None
                 if assignment is not None and proposal.mechanism != assignment.family:
-                    detail = (
-                        "proposer mechanism differs from the applicability-aware rotation: "
+                    mechanism_mismatch = (
                         f"expected={assignment.family}; observed={proposal.mechanism}"
                     )
-                    record = _attempt_record(
-                        root_id=loaded.config.root.root_id,
-                        slot=slot,
-                        attempt_number=attempt_number,
-                        status="mechanism_rejected",
-                        proposer_call=proposer_call,
-                        proposer=proposal,
-                        lean=None,
-                        judge_call=None,
-                        judge=None,
-                        detail=detail,
-                    )
-                    record["proposer_prompt_hash"] = prompt_hash(proposer_prompt)
-                    record["planned_mechanism"] = assignment.to_dict()
-                    attempts.append(record)
-                    invalid_rows.append(record)
-                    _append_event(journal_path, record)
-                    feedback = _feedback("mechanism_rejected", detail)
-                    continue
                 shortcut = shortcut_violation(
                     loaded.config.root.reference_signature,
                     proposal.candidate_signature,
@@ -666,35 +647,6 @@ def run_one_root(
                     feedback = _feedback("gold_contamination", detail)
                     continue
 
-                claim_owner = (
-                    f"{loaded.config.root.root_id}:{slot.slot_id}:attempt:{attempt_number}"
-                )
-                if cross_root_registry is not None and not cross_root_registry.claim(
-                    raw_signature=proposal.candidate_signature,
-                    rendered_goal=lean.goal_v1,
-                    owner=claim_owner,
-                    closed_expr_hash=(_closed_expr_hash(lean) if closure_aware else None),
-                ):
-                    detail = "candidate duplicates a prior valid candidate from another root"
-                    record = _attempt_record(
-                        root_id=loaded.config.root.root_id,
-                        slot=slot,
-                        attempt_number=attempt_number,
-                        status="cross_root_duplicate",
-                        proposer_call=proposer_call,
-                        proposer=proposal,
-                        lean=lean,
-                        judge_call=None,
-                        judge=None,
-                        detail=detail,
-                    )
-                    record["proposer_prompt_hash"] = prompt_hash(proposer_prompt)
-                    attempts.append(record)
-                    invalid_rows.append(record)
-                    _append_event(journal_path, record)
-                    feedback = _feedback("cross_root_duplicate", detail)
-                    continue
-
                 judge_prompt = render_blinded_judge_prompt(
                     loaded,
                     statement_a=reference.goal_v1,
@@ -805,6 +757,42 @@ def run_one_root(
                     feedback = _feedback(status, judgment.rationale)
                     continue
 
+                claim_owner = (
+                    f"{loaded.config.root.root_id}:{slot.slot_id}:attempt:{attempt_number}"
+                )
+                if cross_root_registry is not None and not cross_root_registry.claim(
+                    raw_signature=proposal.candidate_signature,
+                    rendered_goal=lean.goal_v1,
+                    owner=claim_owner,
+                    closed_expr_hash=(_closed_expr_hash(lean) if closure_aware else None),
+                ):
+                    detail = "candidate duplicates a prior accepted candidate from another root"
+                    record = _attempt_record(
+                        root_id=loaded.config.root.root_id,
+                        slot=slot,
+                        attempt_number=attempt_number,
+                        status="cross_root_duplicate",
+                        proposer_call=proposer_call,
+                        proposer=proposal,
+                        lean=lean,
+                        judge_call=judge_call,
+                        judge=judgment,
+                        detail=detail,
+                    )
+                    record["proposer_prompt_hash"] = prompt_hash(proposer_prompt)
+                    record["judge_prompt_hash"] = prompt_hash(judge_prompt)
+                    record["judge_malformed_attempts"] = judge_malformed
+                    record["planned_mechanism"] = (
+                        None if assignment is None else assignment.to_dict()
+                    )
+                    if mechanism_mismatch is not None:
+                        record["mechanism_mismatch"] = mechanism_mismatch
+                    attempts.append(record)
+                    invalid_rows.append(record)
+                    _append_event(journal_path, record)
+                    feedback = _feedback("cross_root_duplicate", detail)
+                    continue
+
                 row_id = "sft2a-new:" + hash_canonical(
                     {
                         "root_id": loaded.config.root.root_id,
@@ -835,6 +823,8 @@ def run_one_root(
                 record["row_id"] = row_id
                 record["judge_malformed_attempts"] = judge_malformed
                 record["planned_mechanism"] = None if assignment is None else assignment.to_dict()
+                if mechanism_mismatch is not None:
+                    record["mechanism_mismatch"] = mechanism_mismatch
                 attempts.append(record)
                 core_rows.append(core)
                 sidecars.append(

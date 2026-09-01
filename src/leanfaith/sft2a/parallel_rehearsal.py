@@ -5,6 +5,7 @@ from __future__ import annotations
 import fcntl
 import json
 import os
+import threading
 from collections import Counter
 from collections.abc import Iterable, Iterator, Mapping, Sequence
 from contextlib import contextmanager
@@ -89,12 +90,39 @@ def _number(value: object, *, field: str) -> float:
 
 
 class AtomicProviderBudget:
-    """Reserve before a call and finalize afterward under one cross-process file lock."""
+    """Reserve before a call and finalize afterward under one cross-process file lock.
+
+    Events are loaded once per process into an in-memory cache; subsequent
+    operations use the cache and append new events under a short threading
+    lock plus an fcntl append for cross-process durability.
+    """
 
     def __init__(self, path: Path, ceilings: ExecutionCeilings) -> None:
         self.path = path
         self.ceilings = ceilings
         self.path.parent.mkdir(parents=True, exist_ok=True)
+        self._cached_events: list[dict[str, object]] | None = None
+        self._thread_lock = threading.RLock()
+
+    def _events_locked(self) -> list[dict[str, object]]:
+        if self._cached_events is None:
+            self._cached_events = _events(self.path)
+        return self._cached_events
+
+    def _append_event_locked(self, event: Mapping[str, object]) -> None:
+        record = {"event_id": "sft2a-parallel:" + hash_canonical(event), **event}
+        payload = canonical_json_bytes(record) + b"\n"
+        with self.path.open("a+b") as handle:
+            fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+            try:
+                handle.seek(0, os.SEEK_END)
+                handle.write(payload)
+                handle.flush()
+                os.fsync(handle.fileno())
+            finally:
+                fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+        assert self._cached_events is not None
+        self._cached_events.append(dict(record))
 
     def _states(self, events: Iterable[Mapping[str, object]]) -> dict[str, dict[str, object]]:
         states: dict[str, dict[str, object]] = {}
@@ -131,7 +159,8 @@ class AtomicProviderBudget:
         return states
 
     def snapshot(self) -> dict[str, object]:
-        states = self._states(_events(self.path))
+        with self._thread_lock:
+            states = self._states(self._events_locked())
         counts = Counter(str(state["kind"]) for state in states.values())
         finalized = sum(state.get("phase") == "finalized" for state in states.values())
         spend = sum(
@@ -166,69 +195,51 @@ class AtomicProviderBudget:
     ) -> str:
         if not call_key or not worker_id or maximum_charge_usd < 0:
             raise ParallelRehearsalError("invalid provider reservation")
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        with self.path.open("a+b") as handle:
-            fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
-            try:
-                handle.seek(0)
-                raw_events = [json.loads(line) for line in handle.read().splitlines() if line]
-                if not all(isinstance(event, dict) for event in raw_events):
-                    raise ParallelRehearsalError("parallel budget journal is malformed")
-                states = self._states(raw_events)
-                existing = states.get(call_key)
-                reservation_id = hash_canonical(
-                    {"call_key": call_key, "kind": kind, "worker_id": worker_id}
-                )
-                if existing is not None:
-                    if existing.get("reservation_id") != reservation_id:
-                        raise ParallelRehearsalError(
-                            "provider call key belongs to another reservation"
-                        )
-                    return reservation_id
-                counts = Counter(str(state["kind"]) for state in states.values())
-                maxima = {
-                    "proposer": self.ceilings.maximum_proposer_calls,
-                    "opus": self.ceilings.maximum_opus_calls,
-                    "lemex": self.ceilings.maximum_lemex_calls,
-                }
-                if (
-                    len(states) >= self.ceilings.maximum_provider_calls
-                    or counts[kind] >= maxima[kind]
-                ):
-                    raise ParallelRehearsalError("atomic provider call ceiling reached")
-                spent_or_held = sum(
-                    _number(
-                        state.get(
-                            "reported_cost_usd"
-                            if state.get("phase") == "finalized"
-                            else "maximum_charge_usd"
-                        ),
-                        field="Opus cost",
-                    )
-                    for state in states.values()
-                    if state.get("kind") == "opus"
-                )
-                if kind == "opus" and (
-                    spent_or_held + maximum_charge_usd
-                    > self.ceilings.maximum_reported_opus_spend_usd
-                ):
-                    raise ParallelRehearsalError("atomic reported Opus spend ceiling reached")
-                event = {
-                    "version": "leanfaith_sft2a_parallel_provider_budget_v5_2",
-                    "phase": "reserved",
-                    "call_key": call_key,
-                    "reservation_id": reservation_id,
-                    "kind": kind,
-                    "worker_id": worker_id,
-                    "maximum_charge_usd": maximum_charge_usd,
-                }
-                handle.seek(0, os.SEEK_END)
-                handle.write(canonical_json_bytes(event) + b"\n")
-                handle.flush()
-                os.fsync(handle.fileno())
+        with self._thread_lock:
+            states = self._states(self._events_locked())
+            existing = states.get(call_key)
+            reservation_id = hash_canonical(
+                {"call_key": call_key, "kind": kind, "worker_id": worker_id}
+            )
+            if existing is not None:
+                if existing.get("reservation_id") != reservation_id:
+                    raise ParallelRehearsalError("provider call key belongs to another reservation")
                 return reservation_id
-            finally:
-                fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+            counts = Counter(str(state["kind"]) for state in states.values())
+            maxima = {
+                "proposer": self.ceilings.maximum_proposer_calls,
+                "opus": self.ceilings.maximum_opus_calls,
+                "lemex": self.ceilings.maximum_lemex_calls,
+            }
+            if len(states) >= self.ceilings.maximum_provider_calls or counts[kind] >= maxima[kind]:
+                raise ParallelRehearsalError("atomic provider call ceiling reached")
+            spent_or_held = sum(
+                _number(
+                    state.get(
+                        "reported_cost_usd"
+                        if state.get("phase") == "finalized"
+                        else "maximum_charge_usd"
+                    ),
+                    field="Opus cost",
+                )
+                for state in states.values()
+                if state.get("kind") == "opus"
+            )
+            if kind == "opus" and (
+                spent_or_held + maximum_charge_usd > self.ceilings.maximum_reported_opus_spend_usd
+            ):
+                raise ParallelRehearsalError("atomic reported Opus spend ceiling reached")
+            event = {
+                "version": "leanfaith_sft2a_parallel_provider_budget_v5_2",
+                "phase": "reserved",
+                "call_key": call_key,
+                "reservation_id": reservation_id,
+                "kind": kind,
+                "worker_id": worker_id,
+                "maximum_charge_usd": maximum_charge_usd,
+            }
+            self._append_event_locked(event)
+            return reservation_id
 
     def finalize(
         self,
@@ -238,65 +249,50 @@ class AtomicProviderBudget:
         response_sha256: str,
         reported_cost_usd: float | None,
     ) -> dict[str, object]:
-        already_finalized = False
-        with self.path.open("a+b") as handle:
-            fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
-            try:
-                handle.seek(0)
-                raw_events = [json.loads(line) for line in handle.read().splitlines() if line]
-                if not all(isinstance(event, dict) for event in raw_events):
-                    raise ParallelRehearsalError("parallel budget journal is malformed")
-                states = self._states(raw_events)
-                state = states.get(call_key)
-                if state is None or state.get("reservation_id") != reservation_id:
-                    raise ParallelRehearsalError("provider finalization lacks its reservation")
-                if state.get("phase") == "finalized":
-                    if state.get("response_sha256") != response_sha256:
-                        raise ParallelRehearsalError("provider finalization replay differs")
-                    already_finalized = True
-                if not already_finalized:
-                    kind = state.get("kind")
-                    if kind == "opus" and reported_cost_usd is None:
-                        raise ParallelRehearsalError("Opus finalization lacks reported cost")
-                    charge = 0.0 if reported_cost_usd is None else reported_cost_usd
-                    if charge < 0:
-                        raise ParallelRehearsalError("reported provider cost is negative")
-                    other_opus = sum(
-                        _number(
-                            other.get(
-                                "reported_cost_usd"
-                                if other.get("phase") == "finalized"
-                                else "maximum_charge_usd"
-                            ),
-                            field="Opus cost",
-                        )
-                        for key, other in states.items()
-                        if key != call_key and other.get("kind") == "opus"
+        with self._thread_lock:
+            states = self._states(self._events_locked())
+            state = states.get(call_key)
+            if state is None or state.get("reservation_id") != reservation_id:
+                raise ParallelRehearsalError("provider finalization lacks its reservation")
+            if state.get("phase") == "finalized":
+                if state.get("response_sha256") != response_sha256:
+                    raise ParallelRehearsalError("provider finalization replay differs")
+            else:
+                kind = state.get("kind")
+                if kind == "opus" and reported_cost_usd is None:
+                    raise ParallelRehearsalError("Opus finalization lacks reported cost")
+                charge = 0.0 if reported_cost_usd is None else reported_cost_usd
+                if charge < 0:
+                    raise ParallelRehearsalError("reported provider cost is negative")
+                other_opus = sum(
+                    _number(
+                        other.get(
+                            "reported_cost_usd"
+                            if other.get("phase") == "finalized"
+                            else "maximum_charge_usd"
+                        ),
+                        field="Opus cost",
                     )
-                    if (
-                        kind == "opus"
-                        and other_opus + charge > self.ceilings.maximum_reported_opus_spend_usd
-                    ):
-                        raise ParallelRehearsalError(
-                            "reported cost exceeds atomic Opus spend ceiling"
-                        )
-                    event = {
-                        "version": "leanfaith_sft2a_parallel_provider_budget_v5_2",
-                        "phase": "finalized",
-                        "call_key": call_key,
-                        "reservation_id": reservation_id,
-                        "kind": kind,
-                        "worker_id": state["worker_id"],
-                        "maximum_charge_usd": state["maximum_charge_usd"],
-                        "response_sha256": response_sha256,
-                        "reported_cost_usd": charge,
-                    }
-                    handle.seek(0, os.SEEK_END)
-                    handle.write(canonical_json_bytes(event) + b"\n")
-                    handle.flush()
-                    os.fsync(handle.fileno())
-            finally:
-                fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+                    for key, other in states.items()
+                    if key != call_key and other.get("kind") == "opus"
+                )
+                if (
+                    kind == "opus"
+                    and other_opus + charge > self.ceilings.maximum_reported_opus_spend_usd
+                ):
+                    raise ParallelRehearsalError("reported cost exceeds atomic Opus spend ceiling")
+                event = {
+                    "version": "leanfaith_sft2a_parallel_provider_budget_v5_2",
+                    "phase": "finalized",
+                    "call_key": call_key,
+                    "reservation_id": reservation_id,
+                    "kind": kind,
+                    "worker_id": state["worker_id"],
+                    "maximum_charge_usd": state["maximum_charge_usd"],
+                    "response_sha256": response_sha256,
+                    "reported_cost_usd": charge,
+                }
+                self._append_event_locked(event)
         return self.snapshot()
 
     def reclaim_missing_terminal(
@@ -311,37 +307,28 @@ class AtomicProviderBudget:
 
         if terminal_path.exists():
             raise ParallelRehearsalError("provider terminal exists; reconcile instead of reclaim")
-        with self.path.open("a+b") as handle:
-            fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
-            try:
-                handle.seek(0)
-                events = [json.loads(line) for line in handle.read().splitlines() if line]
-                states = self._states(events)
-                state = states.get(call_key)
-                if state is None or state.get("phase") == "finalized":
-                    raise ParallelRehearsalError("provider reclaim lacks unfinished reservation")
-                if state.get("worker_id") != prior_worker_id:
-                    raise ParallelRehearsalError("provider reclaim prior owner differs")
-                reservation_id = hash_canonical(
-                    {"call_key": call_key, "kind": state["kind"], "worker_id": new_worker_id}
-                )
-                event = {
-                    "version": "leanfaith_sft2a_parallel_provider_budget_v5_2",
-                    "phase": "reclaimed",
-                    "call_key": call_key,
-                    "reservation_id": reservation_id,
-                    "prior_reservation_id": state["reservation_id"],
-                    "kind": state["kind"],
-                    "worker_id": new_worker_id,
-                    "maximum_charge_usd": state["maximum_charge_usd"],
-                }
-                handle.seek(0, os.SEEK_END)
-                handle.write(canonical_json_bytes(event) + b"\n")
-                handle.flush()
-                os.fsync(handle.fileno())
-                return reservation_id
-            finally:
-                fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+        with self._thread_lock:
+            states = self._states(self._events_locked())
+            state = states.get(call_key)
+            if state is None or state.get("phase") == "finalized":
+                raise ParallelRehearsalError("provider reclaim lacks unfinished reservation")
+            if state.get("worker_id") != prior_worker_id:
+                raise ParallelRehearsalError("provider reclaim prior owner differs")
+            reservation_id = hash_canonical(
+                {"call_key": call_key, "kind": state["kind"], "worker_id": new_worker_id}
+            )
+            event = {
+                "version": "leanfaith_sft2a_parallel_provider_budget_v5_2",
+                "phase": "reclaimed",
+                "call_key": call_key,
+                "reservation_id": reservation_id,
+                "prior_reservation_id": state["reservation_id"],
+                "kind": state["kind"],
+                "worker_id": new_worker_id,
+                "maximum_charge_usd": state["maximum_charge_usd"],
+            }
+            self._append_event_locked(event)
+            return reservation_id
 
     def reconcile_terminal(self, *, call_key: str, terminal_path: Path) -> dict[str, object]:
         """Finalize a crash-left terminal without issuing another provider call."""
@@ -351,7 +338,8 @@ class AtomicProviderBudget:
         terminal = json.loads(terminal_path.read_text(encoding="utf-8"))
         if not isinstance(terminal, dict) or terminal.get("call_key") != call_key:
             raise ParallelRehearsalError("provider terminal identity differs during reconciliation")
-        states = self._states(_events(self.path))
+        with self._thread_lock:
+            states = self._states(self._events_locked())
         state = states.get(call_key)
         if state is None:
             raise ParallelRehearsalError("provider terminal has no atomic reservation")
@@ -438,8 +426,8 @@ class ParallelRootStateMachine:
     """Validated root ownership, checkpoints, crashes, and explicit reclamation."""
 
     def __init__(self, path: Path, *, maximum_workers: int = 2) -> None:
-        if maximum_workers != 2:
-            raise ParallelRehearsalError("v5.2 root concurrency must be exactly capped at two")
+        if maximum_workers < 1:
+            raise ParallelRehearsalError("root concurrency must be at least one")
         self.path = path
         self.maximum_workers = maximum_workers
 

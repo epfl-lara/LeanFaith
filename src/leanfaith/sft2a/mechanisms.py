@@ -80,13 +80,6 @@ class MechanismAssignment:
 
 PRESERVING_MECHANISMS: tuple[MechanismSpec, ...] = (
     MechanismSpec(
-        "definitional_unfold_refold",
-        "preserving",
-        "Use a substantive definitional unfolding, refolding, or equivalent named predicate; "
-        "do not return the original text or add logical padding.",
-        "general",
-    ),
-    MechanismSpec(
         "argument_permutation_with_recovery",
         "preserving",
         "Permute universally bound arguments only when the entire closed proposition recovers "
