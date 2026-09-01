@@ -113,6 +113,8 @@ class MatchedPilotLeanAuditConfig(StrictModel):
     consumer_config_path: Path
     helper_path: Path
     mathlib_project_path: Path
+    mathlib_named_reference_catalog_path: Path
+    mathlib_named_reference_catalog_sha256: Sha256
     output_parent: Path
     input_bundle: BundlePin
     output_bundle: BundlePin
@@ -120,6 +122,12 @@ class MatchedPilotLeanAuditConfig(StrictModel):
     lean_timeout_seconds: Annotated[float, Field(gt=0.0)]
     maximum_infrastructure_attempts: Annotated[int, Field(ge=1, le=3)]
     claimed_lean_rss_gib: Annotated[float, Field(ge=3.0, le=40.0)]
+
+
+class ReferenceElaborationInput(StrictModel):
+    method: Literal["source_signature_pp", "frozen_reference_constant_type"]
+    carrier: Annotated[str, Field(min_length=1)]
+    raw_statement: Annotated[str, Field(min_length=1)]
 
 
 class SourceAuditTerminal(StrictModel):
@@ -130,9 +138,7 @@ class SourceAuditTerminal(StrictModel):
     source_class: str
     source_context_id: str
     render_compile_context_id: str
-    reference_elaboration_method: Literal[
-        "source_signature_pp", "frozen_reference_signature_explicit"
-    ]
+    reference_elaboration_method: Literal["source_signature_pp", "frozen_reference_constant_type"]
     reference_elaboration_sha256: Sha256
     candidate_ids: tuple[StableId, ...]
     reference: EndpointCacheRecord
@@ -339,15 +345,19 @@ def _reference_elaboration_inputs(
     sources: Sequence[SourceRecord],
     source_classes: Sequence[str],
     source_manifest: dict[str, Any],
-) -> tuple[dict[str, tuple[str, str]], dict[str, object]]:
+    *,
+    named_catalog_path: Path,
+    named_catalog_sha256: str,
+) -> tuple[dict[str, ReferenceElaborationInput], dict[str, object]]:
     """Recover exact elaboration carriers without changing source records.
 
     Mathlib's frozen ``signature_pp`` is the source-facing proposition, but it
     is intentionally compact and can omit annotations needed to elaborate it
-    without an expected type.  The same hash-pinned reference catalog stores
-    ``signature_explicit`` from the identical typed constant.  Cross-bind the
-    compact text byte-for-byte, then use the explicit form only as Lean's
-    elaboration carrier.  Other source classes retain their source text.
+    without an expected type.  Even ``signature_explicit`` can contain the
+    pretty-printer's proof-elision marker.  Cross-bind the compact text and
+    frozen theorem identity byte-for-byte, then load the named constant's type
+    from the exact project revision without re-elaborating either text view.
+    Other source classes retain their source text.
     """
 
     catalogs = source_manifest.get("source_catalogs")
@@ -380,6 +390,7 @@ def _reference_elaboration_inputs(
         mathlib_ids_by_family[source_family].add(source.reference_theorem_id)
 
     rows: dict[str, dict[str, object]] = {}
+    constant_rows: dict[str, dict[str, object]] = {}
     catalog_receipts: dict[str, object] = {}
     for family_key, catalog_path, catalog_hash in catalog_specs:
         if (
@@ -421,6 +432,13 @@ def _reference_elaboration_inputs(
                         f"Mathlib {family_key} catalog has duplicate selected theorem ID"
                     )
                 selected_rows[theorem_id] = cast(dict[str, object], representation)
+                if family_key == "cross_domain":
+                    theorem: object = value.get("theorem")
+                    if not isinstance(theorem, dict) or theorem.get("theorem_id") != theorem_id:
+                        raise MatchedPilotLeanAuditError(
+                            "Mathlib cross-domain theorem metadata is missing or mismatched"
+                        )
+                    constant_rows[theorem_id] = cast(dict[str, object], theorem)
         if set(selected_rows) != selected_ids:
             raise MatchedPilotLeanAuditError(
                 f"Mathlib {family_key} reference catalog lacks selected theorem IDs"
@@ -441,37 +459,113 @@ def _reference_elaboration_inputs(
     if set(rows) != mathlib_ids:
         raise MatchedPilotLeanAuditError("Mathlib reference catalog union drifted")
 
-    result: dict[str, tuple[str, str]] = {}
+    named_path = named_catalog_path
+    named_hash = named_catalog_sha256
+    if not named_path.is_file() or len(named_hash) != 64 or hash_file(named_path) != named_hash:
+        raise MatchedPilotLeanAuditError("frozen Mathlib named-reference catalog drifted")
+    algebra_ids = mathlib_ids_by_family["algebra"]
+    selected_named_rows: dict[str, dict[str, object]] = {}
+    with named_path.open(encoding="utf-8") as handle:
+        for line_number, line in enumerate(handle, start=1):
+            if not line.strip():
+                raise MatchedPilotLeanAuditError(
+                    f"blank named-reference row at {named_path}:{line_number}"
+                )
+            try:
+                named_value: object = json.loads(line)
+            except json.JSONDecodeError as exc:
+                raise MatchedPilotLeanAuditError(
+                    f"invalid named-reference JSON at {named_path}:{line_number}"
+                ) from exc
+            if not isinstance(named_value, dict):
+                raise MatchedPilotLeanAuditError("named-reference row is not an object")
+            named_theorem: object = named_value.get("theorem")
+            if not isinstance(named_theorem, dict):
+                raise MatchedPilotLeanAuditError("named-reference theorem is not an object")
+            theorem_id = named_theorem.get("theorem_id")
+            if theorem_id not in algebra_ids:
+                continue
+            if not isinstance(theorem_id, str) or theorem_id in selected_named_rows:
+                raise MatchedPilotLeanAuditError(
+                    "named-reference catalog has duplicate selected theorem ID"
+                )
+            selected_named_rows[theorem_id] = cast(dict[str, object], named_theorem)
+    if set(selected_named_rows) != algebra_ids:
+        raise MatchedPilotLeanAuditError("named-reference catalog lacks selected algebra IDs")
+    constant_rows.update(selected_named_rows)
+    if set(constant_rows) != mathlib_ids:
+        raise MatchedPilotLeanAuditError("Mathlib named-reference catalog union drifted")
+
+    result: dict[str, ReferenceElaborationInput] = {}
     method_counts: Counter[str] = Counter()
     for source, source_class in zip(sources, source_classes, strict=True):
         if source_class == "library_docstring":
             row = rows[source.reference_theorem_id]
+            theorem = constant_rows[source.reference_theorem_id]
             compact = row.get("signature_pp")
-            explicit = row.get("signature_explicit")
             if compact != source.reference_proposition:
                 raise MatchedPilotLeanAuditError(
                     f"compact Mathlib reference drifted for {source.source_id}"
                 )
-            if not isinstance(explicit, str) or not explicit.strip():
-                raise MatchedPilotLeanAuditError(
-                    f"explicit Mathlib reference is missing for {source.source_id}"
+            full_name = theorem.get("declaration_full_name")
+            source_file = theorem.get("source_file")
+            source_revision = theorem.get("source_revision")
+            raw_statement = row.get("raw_proof_stripped")
+            short_name = source.reference_declaration_name
+            normalized_short_name = (
+                short_name.removeprefix("_root_.") if short_name is not None else None
+            )
+            source_name_matches = short_name is None or (
+                isinstance(full_name, str)
+                and normalized_short_name is not None
+                and (
+                    full_name == normalized_short_name
+                    or full_name.endswith(f".{normalized_short_name}")
                 )
-            # Apply the same proof-free constructor guard used by execution.
+            )
+            if (
+                not isinstance(full_name, str)
+                or not full_name.strip()
+                or not source_name_matches
+                or source_file != source.provenance.source_path
+                or source_revision != source.provenance.source_revision
+            ):
+                raise MatchedPilotLeanAuditError(
+                    f"named Mathlib reference drifted for {source.source_id}"
+                )
+            if not isinstance(raw_statement, str) or not raw_statement.strip():
+                raise MatchedPilotLeanAuditError(
+                    f"raw Mathlib reference is missing for {source.source_id}"
+                )
+            # Apply the same proof-free constructor guard used by execution to
+            # the source-facing compact proposition.  The carrier itself is a
+            # qualified constant name and is not parsed as proposition text.
             PropositionEndpoint(
                 endpoint_id="reference",
                 endpoint_role="reference",
-                proposition=explicit,
+                proposition=source.reference_proposition,
                 source_id=source.source_id,
             )
-            method = "frozen_reference_signature_explicit"
-            proposition = explicit
+            item = ReferenceElaborationInput(
+                method="frozen_reference_constant_type",
+                carrier=full_name,
+                raw_statement=raw_statement,
+            )
         else:
-            method = "source_signature_pp"
-            proposition = source.reference_proposition
-        result[source.source_id] = (method, proposition)
-        method_counts[method] += 1
+            item = ReferenceElaborationInput(
+                method="source_signature_pp",
+                carrier=source.reference_proposition,
+                raw_statement=source.reference_proposition,
+            )
+        result[source.source_id] = item
+        method_counts[item.method] += 1
     return result, {
         "catalogs": catalog_receipts,
+        "named_reference_catalog": {
+            "path": str(named_path),
+            "sha256": named_hash,
+            "selected_rows": len(selected_named_rows),
+        },
         "selected_mathlib_rows": len(mathlib_ids),
         "method_counts": dict(sorted(method_counts.items())),
     }
@@ -551,7 +645,11 @@ def prepare_preflight(
     source_manifest = _json_object(config.input_bundle.local_root / "source_manifest.json")
     source_classes = _source_classes(sources, source_manifest)
     _, reference_elaboration = _reference_elaboration_inputs(
-        sources, source_classes, source_manifest
+        sources,
+        source_classes,
+        source_manifest,
+        named_catalog_path=config.mathlib_named_reference_catalog_path,
+        named_catalog_sha256=config.mathlib_named_reference_catalog_sha256,
     )
     helper_path = repo_root / config.helper_path
     pins = verify_runtime_pins(repo_root, helper_path=helper_path)
@@ -638,15 +736,12 @@ def prepare_preflight(
 
 
 def _endpoints(
-    source: SourceRecord,
-    candidates: Sequence[CandidateRecord],
-    *,
-    reference_proposition: str | None = None,
+    source: SourceRecord, candidates: Sequence[CandidateRecord]
 ) -> tuple[PropositionEndpoint, ...]:
     reference = PropositionEndpoint(
         endpoint_id="reference",
         endpoint_role="reference",
-        proposition=reference_proposition or source.reference_proposition,
+        proposition=source.reference_proposition,
         source_id=source.source_id,
     )
     candidate_endpoints = tuple(
@@ -675,7 +770,10 @@ def _endpoints(
 
 
 def _build_isolated_tolerant_session_body(
-    endpoints: Sequence[PropositionEndpoint], *, render_scope_id: str
+    endpoints: Sequence[PropositionEndpoint],
+    *,
+    render_scope_id: str,
+    reference_constant_name: str | None = None,
 ) -> str:
     """Build a tolerant action whose rejected diagnostics cannot escape.
 
@@ -690,13 +788,27 @@ def _build_isolated_tolerant_session_body(
     if any(item.endpoint_role != "candidate" for item in endpoints[1:]):
         raise ValueError("isolated tolerant session has a non-candidate after the reference")
     reference = endpoints[0]
-    reference_source = json.dumps(reference.proposition, ensure_ascii=False)
-    lines = [
-        "run_meta do",
-        "  let endpoint0 ← LeanFaith.SFT2B.Helper.elaborateProposition "
-        f'"reference:reference" {reference_source} '
-        f"{_lean_name_list(_level_names(reference.proposition))}",
-    ]
+    lines = ["run_meta do"]
+    if reference_constant_name is None:
+        reference_source = json.dumps(reference.proposition, ensure_ascii=False)
+        lines.append(
+            "  let endpoint0 ← LeanFaith.SFT2B.Helper.elaborateProposition "
+            f'"reference:reference" {reference_source} '
+            f"{_lean_name_list(_level_names(reference.proposition))}"
+        )
+    else:
+        constant_literal = json.dumps(reference_constant_name, ensure_ascii=False)
+        lines.extend(
+            (
+                "  let endpoint0 ←",
+                f"    match (← getEnv).find? {constant_literal}.toName with",
+                "    | some (.thmInfo info) =>",
+                "        LeanFaith.SFT2B.Helper.checkedClosedProp "
+                f'"reference:{reference_constant_name}" info.type',
+                '    | some _ => throwError "trusted reference is not a theorem"',
+                '    | none => throwError "trusted reference constant is not imported"',
+            )
+        )
     for index, endpoint in enumerate(endpoints[1:], start=1):
         source_literal = json.dumps(endpoint.proposition, ensure_ascii=False)
         origin_literal = json.dumps(f"candidate:{endpoint.endpoint_id}")
@@ -731,9 +843,14 @@ def _build_isolated_tolerant_session_body(
     scope_literal = json.dumps(render_scope_id)
     for index, endpoint in enumerate(endpoints):
         endpoint_literal = json.dumps(endpoint.endpoint_id)
+        expr_origin = (
+            "loaded_constant_type"
+            if index == 0 and reference_constant_name is not None
+            else "term_elaborated_proposition"
+        )
         lines.append(
             "  LeanFaith.GoalV1.emitClosedProp "
-            f'{endpoint_literal} {scope_literal} "term_elaborated_proposition" endpoint{index}'
+            f'{endpoint_literal} {scope_literal} "{expr_origin}" endpoint{index}'
         )
     return "\n".join(lines)
 
@@ -746,25 +863,42 @@ def _render_propositions_isolated(
     render_scope_id: str,
     request_id: str,
     timeout_seconds: float,
+    reference_constant_name: str | None = None,
+    reference_raw_statement: str | None = None,
 ) -> ClosedExprBatchResult:
-    inputs = tuple(
-        ClosedExprInput(
-            endpoint_id=item.endpoint_id,
-            endpoint_role=item.endpoint_role,  # type: ignore[arg-type]
-            expr_origin="term_elaborated_proposition",
-            source_material=ClosedExprSourceMaterial(
-                kind="proposition_text", proposition_text=item.proposition
-            ),
-        )
-        for item in endpoints
-    )
+    inputs: list[ClosedExprInput] = []
+    for index, item in enumerate(endpoints):
+        if index == 0 and reference_constant_name is not None:
+            inputs.append(
+                ClosedExprInput(
+                    endpoint_id=item.endpoint_id,
+                    endpoint_role=item.endpoint_role,  # type: ignore[arg-type]
+                    expr_origin="loaded_constant_type",
+                    source_material=ClosedExprSourceMaterial(
+                        kind="raw_statement", raw_statement=reference_raw_statement
+                    ),
+                )
+            )
+        else:
+            inputs.append(
+                ClosedExprInput(
+                    endpoint_id=item.endpoint_id,
+                    endpoint_role=item.endpoint_role,  # type: ignore[arg-type]
+                    expr_origin="term_elaborated_proposition",
+                    source_material=ClosedExprSourceMaterial(
+                        kind="proposition_text", proposition_text=item.proposition
+                    ),
+                )
+            )
     rendered = render_closed_expr_in_session(
         backend,
-        inputs=inputs,
+        inputs=tuple(inputs),
         compile_context=compile_context,
         render_scope_id=render_scope_id,
         session_body=_build_isolated_tolerant_session_body(
-            endpoints, render_scope_id=render_scope_id
+            endpoints,
+            render_scope_id=render_scope_id,
+            reference_constant_name=reference_constant_name,
         ),
         request_id=request_id,
         timeout_seconds=timeout_seconds,
@@ -898,8 +1032,7 @@ def _execute_source(
     source: SourceRecord,
     source_ordinal: int,
     source_class: str,
-    reference_elaboration_method: str,
-    reference_proposition: str,
+    reference_input: ReferenceElaborationInput,
     candidates: tuple[CandidateRecord, ...],
     context: CompileContext,
     pins: RuntimePins,
@@ -907,7 +1040,12 @@ def _execute_source(
     run_id: str,
     run_root: Path,
 ) -> tuple[SourceAuditTerminal | None, int]:
-    endpoints = _endpoints(source, candidates, reference_proposition=reference_proposition)
+    endpoints = _endpoints(source, candidates)
+    reference_constant_name = (
+        reference_input.carrier
+        if reference_input.method == "frozen_reference_constant_type"
+        else None
+    )
     infrastructure_attempts = 0
     rendered = None
     last_result: LeanResult | None = None
@@ -924,6 +1062,8 @@ def _execute_source(
                 f"{source_ordinal:03d}:attempt-{attempt}"
             ),
             timeout_seconds=config.lean_timeout_seconds,
+            reference_constant_name=reference_constant_name,
+            reference_raw_statement=reference_input.raw_statement,
         )
         last_result = backend.results[-1]
         if last_result.status not in _INFRASTRUCTURE_STATUSES:
@@ -1010,8 +1150,8 @@ def _execute_source(
         source_class=source_class,
         source_context_id=source.compile_context.source_context_id,
         render_compile_context_id=context.compile_context_id,
-        reference_elaboration_method=reference_elaboration_method,  # type: ignore[arg-type]
-        reference_elaboration_sha256=sha256_hex(reference_proposition.encode("utf-8")),
+        reference_elaboration_method=reference_input.method,
+        reference_elaboration_sha256=sha256_hex(reference_input.carrier.encode("utf-8")),
         candidate_ids=tuple(item.candidate_id for item in candidates),
         reference=reference,
         candidates=tuple(candidate_records),
@@ -1035,13 +1175,19 @@ def _load_inputs(
     tuple[SourceRecord, ...],
     tuple[CandidateRecord, ...],
     tuple[str, ...],
-    dict[str, tuple[str, str]],
+    dict[str, ReferenceElaborationInput],
 ]:
     sources = _read_models(config.input_bundle.local_root / "sources.jsonl", SourceRecord)
     candidates = _read_models(config.output_bundle.local_root / "candidates.jsonl", CandidateRecord)
     source_manifest = _json_object(config.input_bundle.local_root / "source_manifest.json")
     source_classes = _source_classes(sources, source_manifest)
-    reference_inputs, _ = _reference_elaboration_inputs(sources, source_classes, source_manifest)
+    reference_inputs, _ = _reference_elaboration_inputs(
+        sources,
+        source_classes,
+        source_manifest,
+        named_catalog_path=config.mathlib_named_reference_catalog_path,
+        named_catalog_sha256=config.mathlib_named_reference_catalog_sha256,
+    )
     return sources, candidates, source_classes, reference_inputs
 
 
@@ -1264,8 +1410,7 @@ def run_audit(
                     source=source,
                     source_ordinal=source_ordinal,
                     source_class=source_classes[source_ordinal],
-                    reference_elaboration_method=reference_inputs[source.source_id][0],
-                    reference_proposition=reference_inputs[source.source_id][1],
+                    reference_input=reference_inputs[source.source_id],
                     candidates=tuple(candidates_by_source[source.source_id]),
                     context=context,
                     pins=pins,

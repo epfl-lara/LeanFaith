@@ -4,6 +4,8 @@
   "consumer_config_path": "configs/sft2b/reform_diverse_full_consumer_v2.json",
   "helper_path": "src/leanfaith/sft2b/lean_helper.lean",
   "mathlib_project_path": "/storage/milikic/leanfaith/mathlib4",
+  "mathlib_named_reference_catalog_path": "/storage/milikic/leanfaith/gate3/frozen/gate3_inputs.theorems.jsonl",
+  "mathlib_named_reference_catalog_sha256": "8eb75ffa0b9233c5a91492fa181f604e3c098a6f3970799bcb0406f8b517f09e",
   "output_parent": "/storage/milikic/leanfaith/value_first/sft2_autoformalizer_v1/matched_pilot_lean_audit_v1",
   "input_bundle": {
     "repo_id": "Lemmy00/leanfaith-sft2-autoformalizer-v1",

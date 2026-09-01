@@ -123,6 +123,7 @@ def _source() -> tuple[SourceRecord, CompileContext]:
         source_id=source_id,
         nl_statement=nl,
         reference_theorem_id=theorem_id,
+        reference_declaration_name="test",
         reference_proposition="True",
         reference_proposition_sha256=sha256_hex(b"True"),
         compile_context=CompileContextRecord(
@@ -161,6 +162,8 @@ def _config(tmp_path: Path) -> audit.MatchedPilotLeanAuditConfig:
             "consumer_config_path": "consumer.json",
             "helper_path": "helper.lean",
             "mathlib_project_path": "/tmp/mathlib",
+            "mathlib_named_reference_catalog_path": tmp_path / "named.jsonl",
+            "mathlib_named_reference_catalog_sha256": _HASH,
             "output_parent": tmp_path,
             "input_bundle": bundle,
             "output_bundle": bundle,
@@ -229,6 +232,7 @@ def test_reference_inputs_require_family_specific_frozen_catalogs(tmp_path: Path
                 },
             ),
             "reference_theorem_id": cross_theorem_id,
+            "reference_declaration_name": "Cross.test",
             "provenance": algebra.provenance.model_copy(update={"source_family": "cross_domain"}),
         }
     )
@@ -240,6 +244,7 @@ def test_reference_inputs_require_family_specific_frozen_catalogs(tmp_path: Path
                 "theorem_id": algebra.reference_theorem_id,
                 "signature_pp": "True",
                 "signature_explicit": "(True)",
+                "raw_proof_stripped": "theorem test : True := by trivial",
             },
             sort_keys=True,
         )
@@ -253,7 +258,30 @@ def test_reference_inputs_require_family_specific_frozen_catalogs(tmp_path: Path
                     "theorem_id": cross.reference_theorem_id,
                     "signature_pp": "True",
                     "signature_explicit": "@True",
+                    "raw_proof_stripped": "theorem Cross.test : True := by trivial",
                 },
+                "theorem": {
+                    "theorem_id": cross.reference_theorem_id,
+                    "declaration_full_name": "Cross.test",
+                    "source_file": cross.provenance.source_path,
+                    "source_revision": _REVISION,
+                },
+            },
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    named_catalog = tmp_path / "named.jsonl"
+    named_catalog.write_text(
+        json.dumps(
+            {
+                "theorem": {
+                    "theorem_id": algebra.reference_theorem_id,
+                    "declaration_full_name": "Namespace.test",
+                    "source_file": algebra.provenance.source_path,
+                    "source_revision": _REVISION,
+                }
             },
             sort_keys=True,
         )
@@ -272,11 +300,23 @@ def test_reference_inputs_require_family_specific_frozen_catalogs(tmp_path: Path
     }
 
     observed, receipt = audit._reference_elaboration_inputs(
-        (algebra, cross), ("library_docstring", "library_docstring"), manifest
+        (algebra, cross),
+        ("library_docstring", "library_docstring"),
+        manifest,
+        named_catalog_path=named_catalog,
+        named_catalog_sha256=audit.hash_file(named_catalog),
     )
 
-    assert observed[algebra.source_id] == ("frozen_reference_signature_explicit", "(True)")
-    assert observed[cross.source_id] == ("frozen_reference_signature_explicit", "@True")
+    assert observed[algebra.source_id] == audit.ReferenceElaborationInput(
+        method="frozen_reference_constant_type",
+        carrier="Namespace.test",
+        raw_statement="theorem test : True := by trivial",
+    )
+    assert observed[cross.source_id] == audit.ReferenceElaborationInput(
+        method="frozen_reference_constant_type",
+        carrier="Cross.test",
+        raw_statement="theorem Cross.test : True := by trivial",
+    )
     assert receipt["selected_mathlib_rows"] == 2
     assert receipt["catalogs"] == {
         "algebra": {
@@ -289,6 +329,11 @@ def test_reference_inputs_require_family_specific_frozen_catalogs(tmp_path: Path
             "sha256": audit.hash_file(cross_catalog),
             "selected_rows": 1,
         },
+    }
+    assert receipt["named_reference_catalog"] == {
+        "path": str(named_catalog),
+        "sha256": audit.hash_file(named_catalog),
+        "selected_rows": 1,
     }
 
 
@@ -306,7 +351,11 @@ def test_reference_only_source_uses_probe_but_emits_no_candidate_terminal(
         render_scope_id: str,
         request_id: str,
         timeout_seconds: float,
+        reference_constant_name: str | None = None,
+        reference_raw_statement: str | None = None,
     ) -> ClosedExprBatchResult:
+        assert reference_constant_name is None
+        assert reference_raw_statement == source.reference_proposition
         assert len(endpoints) == 2
         assert endpoints[1].proposition == "True"
         request = LeanRequest(
@@ -337,8 +386,11 @@ def test_reference_only_source_uses_probe_but_emits_no_candidate_terminal(
         source=source,
         source_ordinal=0,
         source_class="library_docstring",
-        reference_elaboration_method="source_signature_pp",
-        reference_proposition=source.reference_proposition,
+        reference_input=audit.ReferenceElaborationInput(
+            method="source_signature_pp",
+            carrier=source.reference_proposition,
+            raw_statement=source.reference_proposition,
+        ),
         candidates=(),
         context=context,
         pins=_pins(),
@@ -363,6 +415,21 @@ def test_isolated_tolerant_body_rolls_back_diagnostics_and_rethrows_interrupts()
     assert "Lean.Core.setMessageLog" in body
     assert "if ex.isInterrupt || ex.isRuntime then" in body
     assert "throw ex" in body
+
+
+def test_named_reference_body_loads_theorem_type_without_text_elaboration() -> None:
+    source, _ = _source()
+    endpoints = audit._endpoints(source, ())
+    body = audit._build_isolated_tolerant_session_body(
+        endpoints,
+        render_scope_id="scope:test",
+        reference_constant_name="Namespace.test",
+    )
+    prefix = body.split("let endpoint1?", maxsplit=1)[0]
+    assert '(← getEnv).find? "Namespace.test".toName' in prefix
+    assert "some (.thmInfo info)" in prefix
+    assert '"loaded_constant_type" endpoint0' in body
+    assert "elaborateProposition" not in prefix
 
 
 def test_terminal_rejects_candidate_order_mismatch() -> None:
