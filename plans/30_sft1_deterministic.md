@@ -3,7 +3,7 @@
 > **Task ID:** SFT1
 > **Status:** waiting_user
 > **Owner/session:** Claude Fable 5.1 sprint session on worktree `/localhome/milikic/LeanFaith-sft1-sprint`, branch `milikic/sft1-sprint-72h`
-> **Last updated:** 2026-09-01
+> **Last updated:** 2026-09-02
 > **Active 72-hour sprint:** follow the compact execution path in
 > [`72h_sft_data_sprint_2026-09-01.md`](72h_sft_data_sprint_2026-09-01.md). The historical
 > authorization/readiness sequencing preserved below is frozen evidence, not an active dependency.
@@ -1683,3 +1683,67 @@ resource use, output paths, and exact remaining ETA. Do not run training.
     decidable Nat/Int targets, refuted at the boundary, whose candidate differs by one numeral.
     Each needs a fixture pair, a targeted run, and the stable serialized-row gate before any
     seed release.
+
+- 2026-09-02 — `core_v3_square` correction executed (additive; `core_v2`, `core_v2_seed`, the 10K
+  evidence, and all published prefixes untouched; no threshold, salt, grounding, or new-mechanism
+  changes). Branch `milikic/sft1-sprint-72h`, commits `8d4d7f0`..`78475ff`.
+  - Construction (`SQUARE_N25_SYMMETRY_V1`, engine `LeanFaith/Meta/SFT1/Sprint.lean`, source sha
+    `34e2f6110abbc2b4…`, semantic version unchanged `sft1_sprint_engine_v1`; runner
+    `src/leanfaith/sft1/sprint/square.py`): for every certified N25 negative `P ≁ C` the matching
+    symmetry `T` (P18 for `eq_to_ne`, `P_NE_SYMMETRIZE_V1` for `ne_to_eq`) is applied to both
+    endpoints; the typed diamond `T(N(P)) == N(T(P))` must hold as closed `Expr` and as rendered
+    goal; certificates `P ↔ P′`, `P′ ↔ P`, `C ↔ C′`, the loaded source proof, the N25 refutation of
+    `C`, the transported proof of `P′` (`Iff.mp`), the refutation of `C′` (`Iff.mpr`),
+    `¬(C ↔ P)` and `¬(P′ ↔ C′)` are each Meta-checked and kernel-checked (`Kernel.check` /
+    `Kernel.isDefEq` at level-zero instantiation); alpha-hash self-pair rejection over the four
+    endpoints; rows are exactly `{reference, candidate, label}` with four rows per root in one
+    ancestry group and one shard (`P′⇢P` pos, `C⇢C′` pos, `C⇢P` neg, `P′⇢C′` neg), so reference
+    and candidate marginals are identical across labels by construction. P14/P23 recipes were not
+    used (no typed diamond implemented for them).
+  - Eligible pool: `targets/square_n25.json`, 1,587 certified N25 roots deduplicated by reference
+    expr hash across `tenk`, `v2_ne`, `v2_lt` (roots sha `62f1f135…`).
+  - Gates (chain logs `logs/square_gate_chain.log`, `logs/square_full_chain.log`): fixtures —
+    retained `Nat.mul_factorial_pred`, fail-closed `PNat.gcd_comm` (`no_ground_assignment`),
+    `Nat.factorial_lt` (`final_target_eq_ne_not_applicable`); fixture runs now bypass the semantic
+    cache and wipe their run dir (live rerun: 2 Lean requests, 11.9 s Lean, 8.2 GB peak). 20-root
+    run `square_20`: 80 rows, every row inspected (`runs/square_20/inspection/sample.md`, no
+    defect), zero-Lean replay, zero duplicates. 100-root gate `square_100`: 400 rows, 13/13 checks,
+    candidate-only 0.50 (UB 0.50), reference-only 0.50 (UB 0.50), family-held-out 0.50 (UB 0.515)
+    (`compacted/core_v3_square_gate100`, local only).
+  - Full run `square_full` (tmux `leanfaith-sft1-square-full`, one persistent worker, 24 GiB
+    claim): 1,587 roots considered, 1,586 retained, 1 rejected (`Nat.cast_withBot`,
+    `square_endpoints_not_pairwise_distinct`), 6,344 rows; 179 Lean requests, 390 s Lean,
+    431 s wall, 60 batches, peak process-tree RSS 8.9 GB; 101 roots served from the square cache
+    (gate runs), 1,486 via Lean; replay: 0 Lean requests, 0 duplicate rows.
+  - Build: the first build failed its own gate (row-level global dedup left 68 partial squares;
+    kept locally as `compacted/core_v3_square.failed_row_dedup_20260902T0331Z`, unpublished).
+    Fixed by square-level selection (`select_squares`, commit `6ed5432`): squares are accepted or
+    dropped whole in stable salted-hash order; 37 duplicate squares dropped
+    (`duplicate_squares.json`; Mathlib aliases such as `WithBot.coe_ne_bot`/`WithBot.bot_ne_coe`
+    and type-distinct statements that render identically such as `ENat.zero_ne_top`/
+    `ENNReal.top_ne_zero`, both `⊢ 0 ≠ ⊤`); conservation 6,344 = 6,196 kept + 148 duplicate-square
+    rows + 0 degenerate rows.
+  - Release `core_v3_square`: 6,196 rows (3,098 positive / 3,098 negative), 1,549 roots
+    (families `square_eq` 5,348 rows, `square_ne` 848 rows), 7 shards of ≤1,000 rows with roots
+    never split (1:1000:74274691d50e, 2:1000:3ea5935f04b4, 3:1000:56ce87e64cab, 4:1000:3bbe4a92da4d, 5:1000:558df4bfa82e, 6:1000:a617cb434fab, 7:196:71def0a790be); 14/14 release checks;
+    serialized-shard screens candidate-only 0.50 (UB 0.50), reference-only 0.50 (UB 0.50),
+    family-held-out 0.4545 (UB 0.4621); per family (eq/ne) candidate-only 0.50/0.50,
+    reference-only 0.50/0.50; label-permutation control max UB 0.5234 (seeds 1, 2); integrity
+    validator 6,196/6,196 rows, 7 shards, zero issues (`integrity_report.json`); provenance one
+    segment (engine `34e2f611…`, compile context `ctx:6ba8e3a3…`, implementation commit
+    `4a10a289…` kept reachable as tag `sft1-square-full-run-4a10a28`; it was amended into
+    `337cdaf` with a test-only difference after the run).
+  - Publication: private Hub dataset `Lemmy00/leanfaith-sft1-deterministic-v1`, new immutable
+    prefix `sprint_v1/core_v3_square`, revision `980816004294e060ac7561410f67a9ccc379ea3a`
+    (parent `315b7988…`), 25 files, fresh-download hash verification passed; card generated
+    from the actual gate (`compacted/core_v3_square/README.md`, `publication_receipt.json`).
+  - Residual limitations: all negatives derive from certified N25 pairs (one negative mechanism
+    family; the design's leak immunity is the identical-marginal construction, not mechanism
+    diversity); only Eq/Ne symmetry recipes; N32/N31 absent; goal text omits types when a
+    statement has no binders, so a few type-distinct theorems collapse to one row set (dropped as
+    duplicates rather than kept twice); replay remains journal/cache replay with proof checks at
+    original generation; the 4,940 `tenk`-sourced rows inherit the 10K's root preselection bias.
+  - Status `waiting_user`: `core_v3_square` is published as the corrected candidate release;
+    SFT1 is not declared complete or scaled. Open decision: adopt `core_v3_square` (6,196 rows)
+    as the training-facing SFT1 view, and whether to grow it with P14/P23 typed diamonds or
+    N32-based squares.
