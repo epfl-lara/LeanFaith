@@ -207,18 +207,19 @@ def test_freeze_shards_builds_disjoint_samples_and_chained_configs(
     monkeypatch.setattr(sprint_scale_v52, "certified_shape", lambda certified: (shape, "h" * 64))
     manifest = freeze_sprint_shards(loaded)
     assert manifest["shard_count"] == 2 and manifest["roots_per_shard"] == 5
+    # Both mathlib:...000005 and cslib:...000005 are refused by the mocked verifier.
     assert manifest["screen_rejections"] == {
-        "certificate_verification_failed": 1,
+        "certificate_verification_failed": 2,
         "term_elaboration_invalid": 1,
     }
-    assert manifest["certified_usable_roots"] == 22
+    assert manifest["certified_usable_roots"] == 21
     failures = [
         json.loads(line)
         for line in (loaded.shard_root / "certificate_verification_failures.jsonl")
         .read_text()
         .splitlines()
     ]
-    assert len(failures) == 1 and failures[0]["root_id"].endswith("000005")
+    assert len(failures) == 2 and all(row["root_id"].endswith("000005") for row in failures)
     shards = cast(list[dict[str, object]], manifest["shards"])
     ids: list[str] = []
     for receipt in shards:
