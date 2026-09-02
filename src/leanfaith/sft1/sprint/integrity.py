@@ -68,7 +68,9 @@ def validate_view(
     staging_root: Path,
     run_id: str,
     compacted_dir: Path,
-    retained_path: Path,
+    retained_path: Path | None = None,
+    retained_paths: Sequence[Path] = (),
+    source_runs: Sequence[str] = (),
 ) -> dict[str, Any]:
     issues: list[str] = []
     counts: dict[str, int] = {}
@@ -79,7 +81,13 @@ def validate_view(
         counts[text.split(":", 1)[0]] = counts.get(text.split(":", 1)[0], 0) + 1
 
     manifest = read_json_object(compacted_dir / "manifest.json")
-    retained = {str(item["row"]["pair_id"]): item for item in read_jsonl(retained_path)}
+    sources = list(retained_paths)
+    if retained_path is not None:
+        sources.append(retained_path)
+    retained: dict[str, dict[str, Any]] = {}
+    for path in sources:
+        for item in read_jsonl(path):
+            retained.setdefault(str(item["row"]["pair_id"]), item)
     shard_dirs = sorted(compacted_dir.glob("shard-*"))
     total_rows = 0
     seen_pairs: set[str] = set()
@@ -181,17 +189,18 @@ def validate_view(
     )
     if conservation != int(manifest.get("retained_rows", -1)):
         issue("manifest_conservation: input - rejections - duplicates - conflicts - view drop")
-    run_dir = staging_root / "runs" / run_id
-    status_path = run_dir / "status.json"
-    status = read_json_object(status_path) if status_path.is_file() else {}
-    if status.get("final") is not True:
-        issue("run_status: status.json is not final")
-    replay_path = run_dir / "replay_report.json"
-    replay = read_json_object(replay_path) if replay_path.is_file() else None
-    if replay is None:
-        issue("replay_receipt: missing replay_report.json")
-    elif replay.get("lean_requests") != 0 or replay.get("duplicate_rows") != 0:
-        issue("replay_receipt: replay issued Lean requests or appended rows")
+    for source_run in list(source_runs) or [run_id]:
+        run_dir = staging_root / "runs" / source_run
+        status_path = run_dir / "status.json"
+        status = read_json_object(status_path) if status_path.is_file() else {}
+        if status.get("final") is not True:
+            issue(f"run_status: {source_run} status.json is not final")
+        replay_path = run_dir / "replay_report.json"
+        replay = read_json_object(replay_path) if replay_path.is_file() else None
+        if replay is None:
+            issue(f"replay_receipt: {source_run} missing replay_report.json")
+        elif replay.get("lean_requests") != 0 or replay.get("duplicate_rows") != 0:
+            issue(f"replay_receipt: {source_run} replay issued Lean requests or appended rows")
     provenance = derive_provenance(records, repo_root=repo_root, cache_root=staging_root / "cache")
     if not provenance["consistent"]:
         for text in provenance["issues"]:
@@ -236,10 +245,27 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--run-id", required=True)
     parser.add_argument("--view", default="raw")
     parser.add_argument("--compacted-dir", type=Path)
+    parser.add_argument("--label", help="validate a multi-run view under compacted/<label>")
     args = parser.parse_args(argv)
     repo_root = args.repo_root.resolve()
     loaded = load_sprint_config(repo_root, args.config.resolve() if args.config else None)
     staging = Path(loaded.config.output.staging_root)
+    if args.label:
+        compacted = staging / "compacted" / args.label
+        manifest = read_json_object(compacted / "manifest.json")
+        source_runs = [str(item) for item in manifest.get("source_runs", [])]
+        report = validate_view(
+            repo_root=repo_root,
+            staging_root=staging,
+            run_id=args.label,
+            compacted_dir=compacted,
+            retained_paths=[RunPaths(staging, run).retained for run in source_runs],
+            source_runs=source_runs,
+        )
+        print(json.dumps({k: v for k, v in report.items() if k != "issues"}, indent=1))
+        if report["issues"]:
+            print("\n".join(report["issues"][:40]))
+        return 0 if report["passed"] else 1
     paths = RunPaths(staging, args.run_id)
     compacted = args.compacted_dir or (
         paths.compacted
