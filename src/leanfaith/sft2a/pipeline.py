@@ -804,7 +804,7 @@ def run_one_root(
                 core = CoreRow(
                     reference=reference.goal_v1,
                     candidate=lean.goal_v1,
-                    label=slot.requested_polarity == "preserving",
+                    label=judgment.verdict == "equivalent",
                 ).model_dump(mode="json")
                 record = _attempt_record(
                     root_id=loaded.config.root.root_id,
@@ -1019,9 +1019,11 @@ def run_one_root(
             },
         },
         "lean": {
-            "method_version": ORACLE_METHOD_VERSION,
-            "oracle_source_sha256": hash_file(
-                loaded.repo_root / "src/leanfaith/sft2a/lean_oracle.py"
+            "method_version": getattr(proposition_oracle, "method_version", ORACLE_METHOD_VERSION),
+            "oracle_source_sha256": (
+                hash_file(loaded.repo_root / "src/leanfaith/sft2a/lean_oracle.py")
+                if getattr(proposition_oracle, "cache_version", "v1") == "v1"
+                else None
             ),
             "candidate_requests": len(candidate_lean),
             "candidate_cache_hits": sum(result.cache_hit for result in candidate_lean),

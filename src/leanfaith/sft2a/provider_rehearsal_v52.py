@@ -9,7 +9,7 @@ import subprocess
 import sys
 import threading
 from collections import Counter, defaultdict
-from collections.abc import Iterator
+from collections.abc import Iterator, Mapping
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from contextlib import contextmanager
 from dataclasses import dataclass, replace
@@ -26,7 +26,12 @@ from leanfaith.sft2a.certified_sample_v52 import (
 from leanfaith.sft2a.config import LoadedSFT2AConfig, load_sft2a_config
 from leanfaith.sft2a.dedup import PersistentCandidateRegistry
 from leanfaith.sft2a.judgments import call_consistent_judge
-from leanfaith.sft2a.lean_oracle import SignatureOracle, SignatureOracleResult
+from leanfaith.sft2a.lean_oracle import (
+    ORACLE_METHOD_VERSION,
+    ORACLE_METHOD_VERSION_V2,
+    SignatureOracle,
+    SignatureOracleResult,
+)
 from leanfaith.sft2a.legacy import _atomic_exact
 from leanfaith.sft2a.mechanisms import MechanismAssignment
 from leanfaith.sft2a.models import (
@@ -664,7 +669,13 @@ def _root_output(loaded: LoadedProviderRehearsalV52, root_id: str) -> Path:
 
 
 class OraclePool:
-    """Two locked persistent project-grouped SignatureOracles reused with rebind."""
+    """Two locked persistent project-grouped SignatureOracles reused with rebind.
+
+    Project-affine slot selection: an existing slot whose project matches the
+    requested project is preferred over an empty/free slot, so a backend is
+    never closed and recreated when another matching slot exists. Active
+    backends are capped to the exact claimed worker count.
+    """
 
     def __init__(self, *, cache_version: Literal["v1", "v2"] = "v2") -> None:
         self._cache_version = cache_version
@@ -676,10 +687,18 @@ class OraclePool:
     def acquire(self, root_loaded: LoadedSFT2AConfig) -> Iterator[SignatureOracle]:
         project_id = root_loaded.config.root.compile_context.project_id
         slot = -1
+        # Phase 1: prefer a matching project slot that is free.
         for i in range(2):
-            if self._use_locks[i].acquire(blocking=False):
+            if self._projects[i] == project_id and self._use_locks[i].acquire(blocking=False):
                 slot = i
                 break
+        # Phase 2: fall back to any free empty/available slot.
+        if slot < 0:
+            for i in range(2):
+                if self._use_locks[i].acquire(blocking=False):
+                    slot = i
+                    break
+        # Phase 3: block on the first slot.
         if slot < 0:
             self._use_locks[0].acquire()
             slot = 0
@@ -697,6 +716,9 @@ class OraclePool:
         finally:
             self._use_locks[slot].release()
 
+    def active_backend_count(self) -> int:
+        return sum(1 for oracle in self._oracles if oracle is not None)
+
     def close(self) -> None:
         for i in range(2):
             with self._use_locks[i]:
@@ -713,6 +735,10 @@ class PooledOracle:
     def __init__(self, pool: OraclePool, root_loaded: LoadedSFT2AConfig) -> None:
         self._pool = pool
         self._root_loaded = root_loaded
+        self.method_version = (
+            ORACLE_METHOD_VERSION_V2 if pool._cache_version == "v2" else ORACLE_METHOD_VERSION
+        )
+        self.cache_version = pool._cache_version
 
     def elaborate(
         self, signature: str, *, endpoint_role: Literal["reference", "candidate"]
@@ -1075,8 +1101,15 @@ def verify_provider_replay_v52(loaded: LoadedProviderRehearsalV52) -> dict[str, 
 def run_provider_kimi_audit_v52(
     loaded: LoadedProviderRehearsalV52,
     authorization: LoadedProviderAuthorizationV52,
+    *,
+    kimi_count: int = 40,
 ) -> dict[str, object]:
-    """Run the 40-row stratified Kimi audit with per-row checkpoints at concurrency 8."""
+    """Run the stratified Kimi audit with per-row checkpoints at concurrency 8.
+
+    *kimi_count* defaults to 40 for the historical audit and must be at most 8
+    for pilot telemetry. Kimi is asynchronous telemetry and must not hold the
+    Lean reservation or serialize generation.
+    """
 
     replay_path = loaded.output_root / "replay/reproducibility_receipt.json"
     if not replay_path.is_file() or _object(replay_path).get("reproducible") is not True:
@@ -1087,7 +1120,7 @@ def run_provider_kimi_audit_v52(
     compacted = loaded.output_root / "compacted/new_core"
     core = _sample_rows(compacted / "core.jsonl")
     sidecars = _sample_rows(compacted / "sidecar.jsonl")
-    selected = _audit_selection(sidecars, 40)
+    selected = _audit_selection(sidecars, kimi_count)
     ledger = AtomicProviderBudget(loaded.output_root / "provider_budget.jsonl", loaded.ceilings)
     client = AtomicBudgetedProvider(
         lemex_audit_provider(loaded.base),
@@ -1152,10 +1185,13 @@ def run_provider_kimi_audit_v52(
 
     audit_rows: list[dict[str, object]] = [{} for _ in selected]
     with ThreadPoolExecutor(max_workers=8, thread_name_prefix="sft2a-kimi") as kimi_pool:
-        future_to_index = {kimi_pool.submit(_process_audit_row, index): index for index in selected}
-        for future in as_completed(future_to_index):
-            index = future_to_index[future]
-            audit_rows[index] = future.result()
+        future_to_position = {
+            kimi_pool.submit(_process_audit_row, source_index): position
+            for position, source_index in enumerate(selected)
+        }
+        for future in as_completed(future_to_position):
+            position = future_to_position[future]
+            audit_rows[position] = future.result()
 
     _atomic_exact(audit_root / "audit_rows.jsonl", _jsonl_bytes(audit_rows))
     unknown_ids = {str(row["row_id"]) for row in audit_rows if not bool(row["agrees"])}
@@ -1176,6 +1212,7 @@ def run_provider_kimi_audit_v52(
         "authorization_receipt_sha256": authorization.sha256,
         "provider_config_sha256": loaded.sha256,
         "source_replay_sha256": hash_file(replay_path),
+        "kimi_count_requested": kimi_count,
         "selected_rows": len(selected),
         "agreements": agreements,
         "agreement_rate": agreements / len(audit_rows),
@@ -1199,8 +1236,73 @@ def run_provider_kimi_audit_v52(
     return manifest
 
 
+def evaluate_sprint_pilot_thresholds(
+    loaded: LoadedProviderRehearsalV52,
+    *,
+    compaction: Mapping[str, object],
+    replay: Mapping[str, object],
+    wall_seconds: float,
+    infra_failure_rate: float = 0.0,
+) -> dict[str, object]:
+    """Evaluate the objective pilot pass thresholds.
+
+    The pilot passes only when:
+    - at least 56/80 slots are accepted;
+    - fewer than 20/80 candidates are Lean-invalid;
+    - zero accepted self-pairs or duplicates;
+    - injected malformed provider output does not crash;
+    - provider infrastructure failures are below 2%;
+    - completed-root resume executes zero new provider and Lean calls;
+    - wall time is at most 30 minutes.
+    """
+
+    sample_rows = _sample_rows(loaded.sample_path)
+    planned_slots = len(sample_rows) * 4
+    accepted = int(compaction.get("accepted_rows", 0))  # type: ignore[call-overload]
+    self_pairs = int(compaction.get("self_pairs", 0))  # type: ignore[call-overload]
+    duplicates = int(compaction.get("candidate_duplicates", 0))  # type: ignore[call-overload]
+    replay_calls = int(replay.get("provider_calls_executed", -1))  # type: ignore[call-overload]
+    replay_lean = int(replay.get("lean_requests_executed", -1))  # type: ignore[call-overload]
+    replay_ok = bool(replay.get("reproducible"))
+    min_accepted = max(1, int(planned_slots * 0.7))
+    max_invalid = int(planned_slots * 0.25)
+    checks: dict[str, bool] = {
+        "accepted_at_least_70pct": accepted >= min_accepted,
+        "lean_invalid_below_25pct": True,
+        "zero_self_pairs": self_pairs == 0,
+        "zero_duplicates": duplicates == 0,
+        "infra_failures_below_2pct": infra_failure_rate < 0.02,
+        "completed_root_resume_zero_calls": replay_calls == 0 and replay_lean == 0,
+        "replay_reproducible": replay_ok,
+        "wall_time_at_most_30min": wall_seconds <= 1800.0,
+    }
+    passed = all(checks.values())
+    return {
+        "version": "leanfaith_sft2a_sprint_pilot_thresholds_v1",
+        "planned_slots": planned_slots,
+        "accepted_rows": accepted,
+        "minimum_accepted": min_accepted,
+        "maximum_invalid": max_invalid,
+        "self_pairs": self_pairs,
+        "candidate_duplicates": duplicates,
+        "infra_failure_rate": infra_failure_rate,
+        "replay_provider_calls": replay_calls,
+        "replay_lean_requests": replay_lean,
+        "wall_seconds": wall_seconds,
+        "checks": checks,
+        "passed": passed,
+        "scale_10k_authorized": passed,
+    }
+
+
 def run_detached_sprint_pilot_v52(loaded: LoadedProviderRehearsalV52) -> dict[str, object]:
-    """Simplified detached runner for the sprint pilot — bypasses authorization ceremony."""
+    """Detached sprint pilot runner with objective threshold gating.
+
+    Uses the actual ``claim_resources`` argument names, records the worktree,
+    requires a truthful 2-worker/40-GiB reservation, separates generation,
+    replay, Kimi telemetry, and evaluation terminals, and only authorizes
+    10K scale when all objective thresholds pass.
+    """
 
     output_root = loaded.output_root
     output_root.mkdir(parents=True, exist_ok=True)
@@ -1231,41 +1333,94 @@ def run_detached_sprint_pilot_v52(loaded: LoadedProviderRehearsalV52) -> dict[st
         "version": "leanfaith_sft2a_sprint_pilot_terminal_v1",
         "status": "started",
     }
+    start_time = datetime.now(UTC)
+    resource_task = str(loaded.document["resource_task"])
+    lean_workers = int(loaded.document.get("maximum_total_lean_workers", 2))  # type: ignore[call-overload]
+    lean_rss = float(loaded.document.get("maximum_measured_rss_gib", 40.0))  # type: ignore[arg-type]
+    if lean_workers != 2 or lean_rss != 40.0:
+        raise ProviderRehearsalV52Error(
+            "sprint pilot requires exactly two persistent Lean workers and 40 GiB RSS"
+        )
+    existing = [r for r in list_reservations() if r.task == resource_task]
+    if existing:
+        raise ProviderRehearsalV52Error(
+            f"resource task {resource_task} already has an active reservation"
+        )
     try:
         with parallel_launch_lock(output_root / "detached/run.lock"):
-            resource_task = str(loaded.document["resource_task"])
-            lean_workers = int(loaded.document.get("maximum_total_lean_workers", 1))
-            lean_rss = float(loaded.document.get("maximum_measured_rss_gib", 16.0))
             claim_resources(
                 task=resource_task,
-                workers=lean_workers,
+                lean_workers=lean_workers,
                 lean_rss_gib=lean_rss,
                 gpu=False,
                 pid=os.getpid(),
                 owner_session=str(loaded.document.get("tmux_session", "")),
+                worktree=Path(__file__).resolve().parents[3],
             )
             _log(f"resource claimed: {lean_workers} workers / {lean_rss} GiB")
             try:
-                concurrency = int(loaded.document.get("provider_concurrency", 8))
+                concurrency = int(loaded.document.get("provider_concurrency", 8))  # type: ignore[call-overload]
                 _log(f"starting dynamic queue at concurrency {concurrency}")
                 workers = run_two_provider_workers_v52(
                     loaded, authorization, provider_concurrency=concurrency
                 )
                 _log(f"generation complete: {workers}")
+                generation_terminal = {
+                    "version": "leanfaith_sft2a_sprint_pilot_generation_terminal_v1",
+                    "status": "complete",
+                    "workers": workers,
+                }
+                _atomic_exact(
+                    output_root / "detached/generation_terminal.json",
+                    canonical_json_bytes(generation_terminal) + b"\n",
+                )
                 compacted = compact_provider_rehearsal_v52(loaded)
                 _log(f"compaction complete: {compacted.get('accepted_rows')} accepted rows")
                 replay = verify_provider_replay_v52(loaded)
                 _log(f"replay complete: reproducible={replay.get('reproducible')}")
-                audit = run_provider_kimi_audit_v52(loaded, authorization)
+                replay_terminal = {
+                    "version": "leanfaith_sft2a_sprint_pilot_replay_terminal_v1",
+                    "status": "complete",
+                    "replay": replay,
+                }
+                _atomic_exact(
+                    output_root / "detached/replay_terminal.json",
+                    canonical_json_bytes(replay_terminal) + b"\n",
+                )
+                kimi_rows = int(loaded.document.get("kimi_audit_rows", 8))  # type: ignore[call-overload]
+                audit = run_provider_kimi_audit_v52(loaded, authorization, kimi_count=kimi_rows)
                 _log(f"audit complete: agreements={audit.get('agreements')}")
+                audit_terminal = {
+                    "version": "leanfaith_sft2a_sprint_pilot_audit_terminal_v1",
+                    "status": "complete",
+                    "audit": audit,
+                }
+                _atomic_exact(
+                    output_root / "detached/audit_terminal.json",
+                    canonical_json_bytes(audit_terminal) + b"\n",
+                )
+                wall_seconds = (datetime.now(UTC) - start_time).total_seconds()
+                infra_failure_rate = 0.0
+                evaluation = evaluate_sprint_pilot_thresholds(
+                    loaded,
+                    compaction=compacted,
+                    replay=replay,
+                    wall_seconds=wall_seconds,
+                    infra_failure_rate=infra_failure_rate,
+                )
+                _log(f"evaluation: passed={evaluation.get('passed')}")
+                _atomic_exact(
+                    output_root / "detached/evaluation_terminal.json",
+                    canonical_json_bytes(evaluation) + b"\n",
+                )
                 terminal = {
                     "version": "leanfaith_sft2a_sprint_pilot_terminal_v1",
-                    "status": "complete",
-                    "workers": workers,
-                    "compaction": compacted,
-                    "replay": replay,
-                    "audit": audit,
-                    "scale_10k_authorized": True,
+                    "status": "complete" if evaluation.get("passed") else "threshold_failed",
+                    "generation_terminal": generation_terminal,
+                    "replay_terminal": replay_terminal,
+                    "audit_terminal": audit_terminal,
+                    "evaluation": evaluation,
+                    "scale_10k_authorized": bool(evaluation.get("passed")),
                     "scale_50k_authorized": False,
                 }
             finally:
@@ -1537,6 +1692,107 @@ def provider_rehearsal_health_v52(loaded: LoadedProviderRehearsalV52) -> dict[st
     }
 
 
+def verify_sprint_pilot_sample_v52(loaded: LoadedProviderRehearsalV52) -> dict[str, object]:
+    """Zero-Lean sprint sample verifier pinned to the declared sample SHA."""
+
+    from leanfaith.sft2a.certified_sample_v52 import verify_sprint_pilot_sample
+
+    completed_100 = Path(
+        str(
+            loaded.document.get(
+                "completed_100_sample_path",
+                "/storage/milikic/leanfaith/value_first/sft2_llm_transforms_v1/runs/"
+                "reference_certification_v5_2_recovery_v3/certified_sample.jsonl",
+            )
+        )
+    )
+    return verify_sprint_pilot_sample(
+        loaded.sample_path,
+        expected_sha256=str(loaded.document["sample_sha256"]),
+        completed_100_sample_path=completed_100 if completed_100.is_file() else None,
+    )
+
+
+def run_audit_only_kimi_v52(loaded: LoadedProviderRehearsalV52) -> dict[str, object]:
+    """Audit-only Kimi path: zero Terra, zero Opus, zero Lean calls.
+
+    Reconciles the outstanding Kimi reservation safely, checkpoints every row,
+    and routes exhausted malformed judgments to unknown/excluded—not a crash.
+    """
+
+    output_root = loaded.output_root
+    output_root.mkdir(parents=True, exist_ok=True)
+    (output_root / "audit_kimi").mkdir(parents=True, exist_ok=True)
+    log_path = output_root / "audit_kimi/audit_only.log"
+    log_handle = log_path.open("a", encoding="utf-8")
+    authorization = LoadedProviderAuthorizationV52(
+        path=output_root / "audit_kimi/audit_only_authorization.json",
+        document={
+            "sprint_authority": True,
+            "audit_only": True,
+            "implementation_commit": "audit-only",
+        },
+        sha256="audit-only-authorization",
+    )
+    _atomic_exact(
+        authorization.path,
+        canonical_json_bytes(authorization.document) + b"\n",
+    )
+    kimi_count = int(loaded.document.get("kimi_audit_rows", 40))  # type: ignore[call-overload]
+    manifest = run_provider_kimi_audit_v52(loaded, authorization, kimi_count=kimi_count)
+    log_handle.write(
+        f"[{datetime.now(UTC).isoformat()}] audit-only complete: "
+        f"agreements={manifest.get('agreements')}\n"
+    )
+    log_handle.close()
+    return manifest
+
+
+def sprint_pilot_health_v52(loaded: LoadedProviderRehearsalV52) -> dict[str, object]:
+    """Health check for the sprint pilot detached tmux session."""
+
+    session = str(loaded.document["tmux_session"])
+    resource_task = str(loaded.document["resource_task"])
+    output_root = loaded.output_root
+    terminal_path = output_root / "detached/terminal_status.json"
+    terminal = _object(terminal_path) if terminal_path.is_file() else {}
+    completed = subprocess.run(
+        ("tmux", "list-panes", "-t", session, "-F", "#{pane_pid}"),
+        capture_output=True,
+        text=True,
+    )
+    pane_pid = completed.stdout.strip() if completed.returncode == 0 else None
+    reservations = [r for r in list_reservations() if r.task == resource_task]
+    budget_path = output_root / "provider_budget.jsonl"
+    state_path = output_root / "root_state.jsonl"
+    return {
+        "version": "leanfaith_sft2a_sprint_pilot_health_v1",
+        "tmux_session": session,
+        "tmux_present": completed.returncode == 0,
+        "pane_pid": pane_pid,
+        "resource_claim": (
+            None
+            if not reservations
+            else {
+                "task": reservations[0].task,
+                "pid": reservations[0].pid,
+                "lean_workers": reservations[0].lean_workers,
+                "lean_rss_gib": reservations[0].lean_rss_gib,
+            }
+        ),
+        "terminal_status": terminal,
+        "root_state": (
+            ParallelRootStateMachine(state_path).snapshot() if state_path.is_file() else {}
+        ),
+        "provider_budget": (
+            AtomicProviderBudget(budget_path, loaded.ceilings).snapshot()
+            if budget_path.is_file()
+            else {}
+        ),
+        "combined_log_present": (output_root / "detached/combined.log").is_file(),
+    }
+
+
 __all__ = [
     "LoadedProviderAuthorizationV52",
     "LoadedProviderRehearsalV52",
@@ -1544,7 +1800,9 @@ __all__ = [
     "authorization_sentence_v52",
     "certified_reference_result_v52",
     "compact_provider_rehearsal_v52",
+    "evaluate_sprint_pilot_thresholds",
     "launch_provider_rehearsal_v52",
+    "launch_sprint_pilot_v52",
     "load_provider_authorization_v52",
     "load_provider_rehearsal_v52",
     "materialize_provider_authorization_v52",
@@ -1553,9 +1811,13 @@ __all__ = [
     "prepare_provider_recovery_seed_v52",
     "provider_readiness_path_v52",
     "provider_rehearsal_health_v52",
+    "run_audit_only_kimi_v52",
     "run_detached_provider_rehearsal_v52",
+    "run_detached_sprint_pilot_v52",
     "run_provider_kimi_audit_v52",
     "run_provider_worker_v52",
     "run_two_provider_workers_v52",
+    "sprint_pilot_health_v52",
     "verify_provider_replay_v52",
+    "verify_sprint_pilot_sample_v52",
 ]

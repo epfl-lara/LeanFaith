@@ -7,6 +7,7 @@ from collections import Counter, defaultdict
 from collections.abc import Mapping
 from dataclasses import asdict
 from pathlib import Path
+from typing import cast
 
 from leanfaith.config.hashing import canonical_json_bytes, hash_canonical, hash_file
 from leanfaith.sft2a.legacy import _atomic_exact
@@ -478,6 +479,96 @@ def verify_corrected_global_preflight(output: Path) -> dict[str, object]:
     return receipt
 
 
+def verify_sprint_pilot_sample(
+    sample_path: Path,
+    *,
+    expected_sha256: str,
+    expected_source_mix: Mapping[str, int] | None = None,
+    completed_100_sample_path: Path | None = None,
+) -> dict[str, object]:
+    """Zero-Lean sprint verifier: pin the sample SHA and check structural invariants.
+
+    Checks:
+    - exactly the declared number of unique rows (default 20);
+    - exact 8 Mathlib / 5 Physlib / 4 CSLib / 3 compiler-data source mix;
+    - unique closed Exprs and rendered goals;
+    - no placeholders or gold contamination;
+    - zero overlap with the completed 100 roots.
+
+    Executes zero Lean and zero provider calls.
+    """
+
+    if expected_source_mix is None:
+        expected_source_mix = {"mathlib": 8, "physlib": 5, "cslib": 4, "compiler_data": 3}
+    if hash_file(sample_path) != expected_sha256:
+        raise CorrectedSampleError("sprint pilot sample SHA-256 differs from the declared pin")
+    rows = _rows(sample_path)
+    expected_count = sum(expected_source_mix.values())
+    if len(rows) != expected_count:
+        raise CorrectedSampleError(
+            f"sprint pilot sample is not exactly {expected_count} rows: got {len(rows)}"
+        )
+    root_ids = {str(cast(dict[str, object], row["root"])["root_id"]) for row in rows}
+    if len(root_ids) != expected_count:
+        raise CorrectedSampleError("sprint pilot sample has duplicate root IDs")
+    sources = Counter(str(cast(dict[str, object], row["root"])["source"]) for row in rows)
+    if dict(sources) != dict(expected_source_mix):
+        raise CorrectedSampleError(
+            f"sprint pilot source mix differs: {dict(sources)} != {dict(expected_source_mix)}"
+        )
+    closed_exprs = {
+        str(cast(dict[str, object], row["certified_reference"])["closed_expr_hash"]) for row in rows
+    }
+    rendered_goals = {
+        str(cast(dict[str, object], row["certified_reference"])["rendered_goal_hash"])
+        for row in rows
+    }
+    if len(closed_exprs) != expected_count:
+        raise CorrectedSampleError("sprint pilot sample has duplicate closed Expr hashes")
+    if len(rendered_goals) != expected_count:
+        raise CorrectedSampleError("sprint pilot sample has duplicate rendered goal hashes")
+    for row in rows:
+        goal = str(cast(dict[str, object], row["certified_reference"]).get("goal_v1", ""))
+        for marker in FORBIDDEN_MODEL_GOAL_MARKERS:
+            if marker in goal:
+                raise CorrectedSampleError(
+                    f"sprint pilot sample contains placeholder marker {marker!r}"
+                )
+    overlap_root_ids = 0
+    overlap_closed_exprs = 0
+    if completed_100_sample_path is not None:
+        completed = _rows(completed_100_sample_path)
+        completed_root_ids = {str(cast(dict[str, object], r["root"])["root_id"]) for r in completed}
+        completed_closed = {
+            str(cast(dict[str, object], r["certified_reference"])["closed_expr_hash"])
+            for r in completed
+        }
+        overlap_root_ids = len(root_ids & completed_root_ids)
+        overlap_closed_exprs = len(closed_exprs & completed_closed)
+        if overlap_root_ids or overlap_closed_exprs:
+            raise CorrectedSampleError(
+                f"sprint pilot sample overlaps completed 100 roots: "
+                f"ids={overlap_root_ids}, exprs={overlap_closed_exprs}"
+            )
+    receipt: dict[str, object] = {
+        "version": "leanfaith_sft2a_sprint_pilot_sample_verifier_v1",
+        "sample_path": str(sample_path),
+        "sample_sha256": hash_file(sample_path),
+        "rows": len(rows),
+        "unique_root_ids": len(root_ids),
+        "source_mix": dict(sources),
+        "unique_closed_expr_hashes": len(closed_exprs),
+        "unique_rendered_goal_hashes": len(rendered_goals),
+        "placeholder_markers": 0,
+        "overlap_with_completed_100_root_ids": overlap_root_ids,
+        "overlap_with_completed_100_closed_exprs": overlap_closed_exprs,
+        "lean_requests_executed": 0,
+        "provider_calls_executed": 0,
+        "verified": True,
+    }
+    return receipt
+
+
 __all__ = [
     "COMPOSITION_REGRESSION",
     "CORRECTOR_VERSION",
@@ -487,4 +578,5 @@ __all__ = [
     "verify_certified_reference_row",
     "verify_corrected_global_preflight",
     "verify_corrected_sample_replay",
+    "verify_sprint_pilot_sample",
 ]

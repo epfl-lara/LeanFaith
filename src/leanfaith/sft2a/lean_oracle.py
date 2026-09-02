@@ -227,6 +227,7 @@ private partial def assignUnivMVars (canonical : Level) : Expr → MetaM Expr
   | .const declName levels =>
     let newLevels ← levels.mapM (assignLevelMVars canonical)
     pure (.const declName newLevels)
+  | .sort level => return .sort (← assignLevelMVars canonical level)
   | .app f arg =>
     return .app (← assignUnivMVars canonical f) (← assignUnivMVars canonical arg)
   | .forallE n d b bi =>

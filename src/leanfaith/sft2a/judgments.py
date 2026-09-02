@@ -7,6 +7,8 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Protocol
 
+from pydantic import ValidationError
+
 from leanfaith.sft2a.models import JudgeOutput, JudgeOutputV5
 from leanfaith.sft2a.providers import ProviderCallResult
 
@@ -77,8 +79,12 @@ def call_consistent_judge(
         judgment: JudgeOutput | JudgeOutputV5 | None = None
         try:
             judgment = _parse(call.structured, closure_aware=closure_aware)
-        except Exception as exc:
-            reason = f"schema:{type(exc).__name__}:{exc}"
+        except ValidationError as exc:
+            details = "; ".join(
+                f"{'.'.join(str(p) for p in err['loc'])}: {err['msg']}"
+                for err in exc.errors(include_input=False, include_url=False)
+            )
+            reason = f"schema:{type(exc).__name__}:{details}"
         if judgment is not None:
             reason = verdict_rationale_contradiction(judgment)
         if reason is None:
@@ -99,9 +105,12 @@ def call_consistent_judge(
         if retry_index < malformed_retries:
             active_prompt = (
                 prompt
-                + "\n\nMALFORMED OUTPUT RETRY: Your prior structured verdict contradicted its "
-                "rationale or failed the schema. Re-evaluate the entire closed proposition and "
-                "return one internally consistent JSON object. Do not mention this retry."
+                + "\n\nMALFORMED OUTPUT RETRY: Your prior structured verdict was rejected: "
+                + reason
+                + ". Re-evaluate the entire closed proposition and return one internally "
+                "consistent JSON object. A binary equivalent/non_equivalent verdict requires "
+                "error_type=none and high or medium confidence. Low confidence requires "
+                "verdict=unknown with a non-none error_type. Do not mention this retry."
             )
     return ConsistentJudgeResult(
         judgment=None,

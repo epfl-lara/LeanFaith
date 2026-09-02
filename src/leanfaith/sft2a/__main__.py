@@ -35,6 +35,7 @@ from leanfaith.sft2a.pipeline import run_lemex_audit, run_one_root, verify_one_r
 from leanfaith.sft2a.provider_rehearsal_v52 import (
     authorization_sentence_v52,
     launch_provider_rehearsal_v52,
+    launch_sprint_pilot_v52,
     load_provider_authorization_v52,
     load_provider_rehearsal_v52,
     materialize_provider_authorization_v52,
@@ -42,7 +43,11 @@ from leanfaith.sft2a.provider_rehearsal_v52 import (
     prepare_provider_readiness_v52,
     provider_readiness_path_v52,
     provider_rehearsal_health_v52,
+    run_audit_only_kimi_v52,
     run_detached_provider_rehearsal_v52,
+    run_detached_sprint_pilot_v52,
+    sprint_pilot_health_v52,
+    verify_sprint_pilot_sample_v52,
 )
 from leanfaith.sft2a.readiness import load_pilot_readiness
 from leanfaith.sft2a.reference_certification import (
@@ -127,6 +132,11 @@ def main() -> int:
     subcommands.add_parser("resume-provider-rehearsal-v5-2")
     subcommands.add_parser("provider-rehearsal-v5-2-health")
     subcommands.add_parser("detached-provider-rehearsal-v5-2-worker")
+    subcommands.add_parser("verify-sprint-pilot-sample")
+    subcommands.add_parser("launch-sprint-pilot-v5-2")
+    subcommands.add_parser("detached-sprint-pilot-v5-2-worker")
+    subcommands.add_parser("sprint-pilot-v5-2-health")
+    subcommands.add_parser("run-audit-only-kimi-v5-2")
     arguments = parser.parse_args()
     loaded = load_sft2a_config(
         arguments.config,
@@ -196,6 +206,11 @@ def main() -> int:
         "resume-provider-rehearsal-v5-2",
         "provider-rehearsal-v5-2-health",
         "detached-provider-rehearsal-v5-2-worker",
+        "verify-sprint-pilot-sample",
+        "launch-sprint-pilot-v5-2",
+        "detached-sprint-pilot-v5-2-worker",
+        "sprint-pilot-v5-2-health",
+        "run-audit-only-kimi-v5-2",
     }
     provider_loaded = (
         load_provider_rehearsal_v52(arguments.provider_rehearsal_config)
@@ -331,6 +346,21 @@ def main() -> int:
     elif arguments.command == "detached-provider-rehearsal-v5-2-worker":
         assert provider_loaded is not None and provider_authorization is not None
         result = run_detached_provider_rehearsal_v52(provider_loaded, provider_authorization)
+    elif arguments.command == "verify-sprint-pilot-sample":
+        assert provider_loaded is not None
+        result = verify_sprint_pilot_sample_v52(provider_loaded)
+    elif arguments.command == "launch-sprint-pilot-v5-2":
+        assert provider_loaded is not None
+        result = launch_sprint_pilot_v52(provider_loaded)
+    elif arguments.command == "detached-sprint-pilot-v5-2-worker":
+        assert provider_loaded is not None
+        result = run_detached_sprint_pilot_v52(provider_loaded)
+    elif arguments.command == "sprint-pilot-v5-2-health":
+        assert provider_loaded is not None
+        result = sprint_pilot_health_v52(provider_loaded)
+    elif arguments.command == "run-audit-only-kimi-v5-2":
+        assert provider_loaded is not None
+        result = run_audit_only_kimi_v52(provider_loaded)
     elif arguments.command == "verify-replay":
         result = verify_one_root_replay(loaded)
     elif arguments.command == "run-lemex-audit":

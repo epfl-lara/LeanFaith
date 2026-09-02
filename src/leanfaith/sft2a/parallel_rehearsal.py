@@ -384,7 +384,8 @@ class AtomicBudgetedProvider:
         call_key, terminal_path, _request = preview(prompt=prompt, input_ids=input_ids)
         if not isinstance(call_key, str) or not isinstance(terminal_path, Path):
             raise ParallelRehearsalError("budgeted provider preview is malformed")
-        states = self.ledger._states(_events(self.ledger.path))
+        with self.ledger._thread_lock:
+            states = self.ledger._states(self.ledger._events_locked())
         prior = states.get(call_key)
         if prior is not None and terminal_path.is_file():
             self.ledger.reconcile_terminal(call_key=call_key, terminal_path=terminal_path)
