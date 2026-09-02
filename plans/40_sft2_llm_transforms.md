@@ -850,3 +850,9 @@ rows/minute, and pilot quality bounds hold. Leave healthy long runs detached wit
   configs/sft2a/sprint_pilot_20roots_v2.json sprint-pilot-v5-2-health`. On a pass the worker
   chains the 12K certification (`configs/sft2a/sprint_reference_pool_12k_v1.json`) and shard 1
   only; shard 1 is the throughput gate (v1 measured 4.02 accepted rows/minute at concurrency 8).
+- 2026-09-02 — the cell-balanced eight-row Kimi audit over the cached pilot v1 rows completed as
+  provider-only job `leanfaith-sft2a-audit-kimi-pilot-v1-cells`: exactly one row from each of
+  the eight source × polarity cells, 8/8 agreements with Opus, no malformed-exhausted rows, the
+  quarantined universe-narrowing row excluded, 65 of 66 rows releasable
+  (`runs/sprint_pilot_20roots_run/audit_kimi_cells_v1/`), 6 new Kimi calls (2 cache hits from
+  the earlier audit), ledger 0 outstanding, zero Terra, zero Opus, zero Lean.
