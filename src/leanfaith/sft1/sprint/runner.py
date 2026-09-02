@@ -289,6 +289,7 @@ class SprintRunner:
         self.batches = 0
         self.retained_at_start = 0
         self.roots_at_start = 0
+        self.replay_mode = False
         self.last_batch: dict[str, object] = {}
 
     # ----------------------------------------------------------------- setup
@@ -444,6 +445,7 @@ class SprintRunner:
     # ------------------------------------------------------------- main loop
 
     def run(self, *, require_zero_lean: bool = False) -> dict[str, object]:
+        self.replay_mode = require_zero_lean
         self.verify_pins()
         self.load_state()
         order = self.root_order()
@@ -1106,7 +1108,12 @@ class SprintRunner:
     def write_status(self, *, final: bool) -> dict[str, object]:
         summary = self.summary()
         summary["final"] = final
-        write_atomic(self.paths.status, canonical_json_bytes(summary) + b"\n")
+        summary["replay_mode"] = self.replay_mode
+        # A replay never overwrites the generation run's measured throughput.
+        target = (
+            self.paths.run_dir / "replay_status.json" if self.replay_mode else self.paths.status
+        )
+        write_atomic(target, canonical_json_bytes(summary) + b"\n")
         return summary
 
 
