@@ -1858,15 +1858,23 @@ def build_square_view(
             and all(item["identical"] for item in per_shard),
         }
         write_atomic(out / "rows_identity.json", canonical_json_bytes(identical_rows) + b"\n")
-    serialized = shortcut.load_serialized_view(out)
-    xor_baseline = shortcut.outer_negation_xor_baseline(serialized)
+    # full-view structural checks stream the shards; the model-facing rows alone feed the
+    # cheap text diagnostics; the shortcut screens run on the whole view when it is small and
+    # on a deterministic whole-root sample otherwise (recorded next to the results)
+    row_only = [{"row": item["row"]} for item in shortcut.iter_serialized_view(out)]
+    xor_baseline = shortcut.outer_negation_xor_baseline(row_only)
     write_atomic(
         out / "outer_negation_xor_baseline.json", canonical_json_bytes(xor_baseline) + b"\n"
     )
-    diagnostics = shortcut.pairwise_shortcut_diagnostics(serialized)
+    diagnostics = shortcut.pairwise_shortcut_diagnostics(row_only)
     write_atomic(out / "pairwise_diagnostics.json", canonical_json_bytes(diagnostics) + b"\n")
-    screens = shortcut.run_screens_v3(serialized)
-    control = shortcut.permutation_control(serialized)
+    serialized_rows = len(row_only)
+    exact_fields = all(set(item["row"]) == {"reference", "candidate", "label"} for item in row_only)
+    del row_only
+    sample, screen_sample_info = shortcut.screen_sample(out)
+    screens = shortcut.run_screens_v3(sample)
+    control = shortcut.permutation_control(sample)
+    del sample
     write_atomic(out / "permutation_control.json", canonical_json_bytes(control) + b"\n")
     screen_by_name = {str(s["name"]): s for s in cast(list[dict[str, Any]], screens["screens"])}
     unchecked = 0
@@ -1875,7 +1883,7 @@ def build_square_view(
     negatives_ref: dict[str, int] = {}
     positives_cand: dict[str, int] = {}
     negatives_cand: dict[str, int] = {}
-    for item in serialized:
+    for item in shortcut.iter_serialized_view(out):
         sidecar = item["sidecar"]
         evidence = sidecar.get("evidence") or {}
         check = (
@@ -1896,9 +1904,7 @@ def build_square_view(
     marginal_ok = positives_ref == negatives_ref and positives_cand == negatives_cand
     checks = {
         "square_nonempty": len(kept) > 0,
-        "rows_are_exactly_reference_candidate_label": all(
-            set(item["row"]) == {"reference", "candidate", "label"} for item in serialized
-        ),
+        "rows_are_exactly_reference_candidate_label": exact_fields,
         "four_rows_per_root": all(len(by_root[root]) == 4 for root in complete_roots)
         and len(kept) == 4 * len(complete_roots),
         "zero_incomplete_squares": incomplete == 0
@@ -1930,7 +1936,8 @@ def build_square_view(
         "generated_at": utc_now(),
         "source_runs": list(run_ids),
         "evaluated_on": "serialized_shards",
-        "rows": len(serialized),
+        "rows": serialized_rows,
+        "screen_sample": screen_sample_info,
         "labels": manifest["labels"],
         "roots": len(complete_roots),
         "families": manifest["families"],

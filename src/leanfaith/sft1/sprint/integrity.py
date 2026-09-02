@@ -237,6 +237,38 @@ def manifest_aggregate_issues(
     return issues
 
 
+PROVENANCE_SIDECAR_FIELDS = (
+    "root_name",
+    "root_id",
+    "operation_id",
+    "engine",
+    "project",
+    "implementation_commit",
+    "implementation_commit_source",
+    "runner_source_sha256",
+    "lean_request_hashes",
+    "cache",
+    "cache_key",
+    "cache_schema",
+)
+
+
+def _slim_for_provenance(sidecar: Mapping[str, Any]) -> dict[str, Any]:
+    """Only the sidecar fields provenance derivation and cache verification read."""
+    slim: dict[str, Any] = {k: sidecar[k] for k in PROVENANCE_SIDECAR_FIELDS if k in sidecar}
+    square = sidecar.get("square") or {}
+    slim["square"] = {"alpha": square.get("alpha")}
+    repr_block = sidecar.get("repr") or {}
+    slim["repr"] = {
+        side: {
+            "implementation_identity": (repr_block.get(side) or {}).get("implementation_identity"),
+            "spec_hash": (repr_block.get(side) or {}).get("spec_hash"),
+        }
+        for side in ("reference", "candidate")
+    }
+    return slim
+
+
 def _pair_id(item: Mapping[str, Any]) -> str:
     """Pair id of a retained record.
 
@@ -279,10 +311,18 @@ def validate_view(
         for path in sources:
             if not path.is_file():
                 issue(f"source_retained_missing: {path}")
-    retained: dict[str, list[dict[str, Any]]] = {}
+    # pair id -> stored (sidecar hash without view fields, model row) copies; hashing keeps
+    # memory flat for views with hundreds of thousands of rows
+    retained: dict[str, list[tuple[str, dict[str, Any]]]] = {}
     for path in sources:
-        for item in read_jsonl(path):
-            retained.setdefault(_pair_id(item), []).append(item)
+        with path.open("r", encoding="utf-8") as handle:
+            for line in handle:
+                if not line.strip():
+                    continue
+                item = json.loads(line)
+                retained.setdefault(_pair_id(item), []).append(
+                    (hash_canonical(_without_view_fields(item["sidecar"])), dict(item["row"]))
+                )
     shard_dirs = sorted(compacted_dir.glob("shard-*"))
     total_rows = 0
     seen_pairs: set[str] = set()
@@ -376,24 +416,16 @@ def validate_view(
             if not candidates_for_pair:
                 issue(f"missing_from_retained: {pair_id}")
             else:
-                stored = _without_view_fields(sidecar)
+                stored_hash = hash_canonical(_without_view_fields(sidecar))
                 # A pair may come from several source runs (overlapping roots); the
-                # stored copy must equal one of them exactly.
+                # stored copy must equal one of them exactly (canonical hash equality).
                 source_record = next(
-                    (
-                        item
-                        for item in candidates_for_pair
-                        if _without_view_fields(item["sidecar"]) == stored
-                    ),
-                    None,
+                    (item for item in candidates_for_pair if item[0] == stored_hash), None
                 )
                 if source_record is None:
                     issue(f"retained_record_mismatch: {pair_id}")
                     source_record = candidates_for_pair[0]
-                original = _without_view_fields(source_record["sidecar"])
-                if hash_canonical(original) != hash_canonical(stored):
-                    issue(f"sidecar_hash_mismatch: {pair_id}")
-                source_row = source_record["row"]
+                source_row = source_record[1]
                 if sidecar.get("orientation") != "swapped" and (
                     source_row["reference"] != row["reference"]
                     or source_row["candidate"] != row["candidate"]
@@ -401,11 +433,11 @@ def validate_view(
                 ):
                     issue(f"retained_row_mismatch: {pair_id}")
                 if sidecar.get("orientation") == "swapped" and (
-                    source_record["row"]["reference"] != row["candidate"]
-                    or source_record["row"]["candidate"] != row["reference"]
+                    source_row["reference"] != row["candidate"]
+                    or source_row["candidate"] != row["reference"]
                 ):
                     issue(f"orientation_swap_mismatch: {pair_id}")
-            records.append({"row": row, "sidecar": sidecar})
+            records.append({"row": row, "sidecar": _slim_for_provenance(sidecar)})
     if total_rows != int(manifest.get("retained_rows", -1)):
         issue("shard_conservation: total shard rows differ from manifest retained_rows")
     conservation = (

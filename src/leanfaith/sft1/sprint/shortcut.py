@@ -13,13 +13,15 @@ from __future__ import annotations
 import hashlib
 import json
 import re
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterator, Mapping, Sequence
 from dataclasses import dataclass
 from itertools import pairwise
 from pathlib import Path
 from typing import Any, cast
 
 import numpy as np
+
+from leanfaith.config.hashing import hash_canonical
 
 _TOKEN = re.compile(r"[A-Za-z_][A-Za-z0-9_'.!?]*|\d+|[^\sA-Za-z0-9_]")
 FEATURE_DIM = 1 << 13
@@ -605,6 +607,67 @@ def pairwise_shortcut_diagnostics(records: Sequence[Mapping[str, Any]]) -> dict[
         "kind": "telemetry_not_a_gate",
         "rules": rules,
         "max_balanced_accuracy": max(accuracies.values()),
+    }
+
+
+SCREEN_MAX_ROWS = 40_000
+SCREEN_SAMPLE_SALT = "sft1_sprint_screen_sample_v1"
+
+
+def iter_serialized_view(compacted_dir: Path) -> Iterator[dict[str, Any]]:
+    """Stream the rows and sidecars of a compacted view shard by shard."""
+    for shard_dir in sorted(compacted_dir.glob("shard-*")):
+        with (
+            (shard_dir / "rows.jsonl").open("r", encoding="utf-8") as rows,
+            (shard_dir / "sidecars.jsonl").open("r", encoding="utf-8") as sidecars,
+        ):
+            for row_line, sidecar_line in zip(rows, sidecars, strict=True):
+                if row_line.strip():
+                    yield {"row": json.loads(row_line), "sidecar": json.loads(sidecar_line)}
+
+
+def screen_sample(
+    compacted_dir: Path, *, max_rows: int = SCREEN_MAX_ROWS
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    """Deterministic whole-root sample of a view for the shortcut screens.
+
+    Views up to ``max_rows`` are screened in full. Larger views are screened on the roots
+    whose salted hash falls below the quantile that yields about ``max_rows`` rows, so
+    every selected root keeps all of its rows (squares stay intact) and the selection does
+    not depend on row order. The description is recorded next to the screen results.
+    """
+    total = 0
+    per_root: dict[str, int] = {}
+    for record in iter_serialized_view(compacted_dir):
+        total += 1
+        root = str(record["sidecar"].get("root_id"))
+        per_root[root] = per_root.get(root, 0) + 1
+    if total <= max_rows:
+        return list(iter_serialized_view(compacted_dir)), {
+            "rows_total": total,
+            "rows_screened": total,
+            "method": "full_view",
+        }
+    ranked = sorted(per_root, key=lambda root: hash_canonical([SCREEN_SAMPLE_SALT, root]))
+    chosen: set[str] = set()
+    rows = 0
+    for root in ranked:
+        if rows + per_root[root] > max_rows:
+            break
+        chosen.add(root)
+        rows += per_root[root]
+    sample = [
+        record
+        for record in iter_serialized_view(compacted_dir)
+        if str(record["sidecar"].get("root_id")) in chosen
+    ]
+    return sample, {
+        "rows_total": total,
+        "rows_screened": len(sample),
+        "roots_screened": len(chosen),
+        "method": "stable_salted_root_hash_prefix_whole_roots",
+        "salt": SCREEN_SAMPLE_SALT,
+        "max_rows": max_rows,
     }
 
 

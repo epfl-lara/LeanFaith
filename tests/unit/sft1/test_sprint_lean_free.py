@@ -2061,3 +2061,45 @@ def test_curriculum_sampling_configs_and_card() -> None:
     assert "**0.98**" in card and "`n19_2pct` | 0.02 | initial_default" in card
     assert "not broad theorem-equivalence coverage" in card and "telemetry, not a gate" in card
     assert "N19_WHOLE_CLAIM_NEGATION_V1" in card
+
+
+def test_screen_sample_keeps_whole_roots_and_is_deterministic(tmp_path: Path) -> None:
+    import json
+
+    from leanfaith.sft1.sprint import shortcut
+
+    view = tmp_path / "view"
+    roots = [f"root:{i}" for i in range(30)]
+    for shard, chunk in enumerate((roots[:15], roots[15:]), start=1):
+        shard_dir = view / f"shard-{shard:04d}"
+        shard_dir.mkdir(parents=True)
+        rows, sidecars = [], []
+        for root in chunk:
+            for kind in range(4):
+                rows.append(
+                    {
+                        "reference": f"{root} r{kind}",
+                        "candidate": f"{root} c{kind}",
+                        "label": kind < 2,
+                    }
+                )
+                sidecars.append({"root_id": root, "row_kind": str(kind)})
+        (shard_dir / "rows.jsonl").write_text(
+            "".join(json.dumps(r) + "\n" for r in rows), encoding="utf-8"
+        )
+        (shard_dir / "sidecars.jsonl").write_text(
+            "".join(json.dumps(s) + "\n" for s in sidecars), encoding="utf-8"
+        )
+    full, info = shortcut.screen_sample(view, max_rows=1000)
+    assert info["method"] == "full_view" and len(full) == 120
+    sample, info = shortcut.screen_sample(view, max_rows=40)
+    assert (
+        info["rows_screened"] == 40 and info["roots_screened"] == 10 and info["rows_total"] == 120
+    )
+    counts: dict[str, int] = {}
+    for record in sample:
+        counts[record["sidecar"]["root_id"]] = counts.get(record["sidecar"]["root_id"], 0) + 1
+    assert set(counts.values()) == {4}  # whole roots only
+    again, _ = shortcut.screen_sample(view, max_rows=40)
+    assert [r["row"] for r in again] == [r["row"] for r in sample]
+    assert next(iter(shortcut.iter_serialized_view(view)))["row"]["reference"] == "root:0 r0"
