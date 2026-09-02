@@ -910,6 +910,7 @@ def test_square_rows_have_identical_marginals_and_four_kinds() -> None:
     from leanfaith.sft1.sprint import square
 
     runner = square.SquareRunner.__new__(square.SquareRunner)
+    runner.operation_id = square.SQUARE_OPERATION
     runner.base = type("Base", (), {})()  # minimal stand-in for identity fields
     runner.base.root_id = lambda name: f"root:{name}"
     runner.base.pins = type(
@@ -1046,6 +1047,7 @@ def test_square_rows_attribute_generating_engine() -> None:
     from leanfaith.sft1.sprint import square
 
     runner = square.SquareRunner.__new__(square.SquareRunner)
+    runner.operation_id = square.SQUARE_OPERATION
     runner.base = type("Base", (), {})()
     runner.base.root_id = lambda name: f"root:{name}"
     runner.base.pins = type(
@@ -1126,22 +1128,30 @@ def test_select_squares_drops_duplicate_squares_whole_and_conserves_rows() -> No
     a = rows("root:a", "x=y", "x≠y", "y=x", "y≠x")
     b = rows("root:b", "y=x", "y≠x", "x=y", "x≠y")  # the same square seen from the other corner
     c = rows("root:c", "u=v", "u≠v", "v=u", "v≠u")
+    op = square.SQUARE_OPERATION
     selection = square.select_squares(a + b + c, ())
     assert len(selection.kept) == 8 and selection.degenerate_roots == []
     assert len(selection.duplicate_squares) == 1
     dropped = selection.duplicate_squares[0]
-    assert {dropped["root_id"], dropped["duplicate_of"]} == {"root:a", "root:b"}
-    assert set(selection.accepted_roots) == {"root:c", dropped["duplicate_of"]}
+    assert {dropped["root_id"], dropped["duplicate_of_root_id"]} == {"root:a", "root:b"}
+    assert dropped["operation_id"] == op and dropped["square"] == f"{dropped['root_id']}|{op}"
+    assert set(selection.accepted_roots) == {f"root:c|{op}", dropped["duplicate_of"]}
     assert [r["sidecar"]["row_kind"] for r in selection.kept[:4]] == kinds
     shuffled = a + b + c
     random.Random(3).shuffle(shuffled)
     again = square.select_squares(shuffled, ())
     assert [r["row_hash"] for r in again.kept] == [r["row_hash"] for r in selection.kept]
     conflicted = square.select_squares(a + c, (a[0]["unordered_pair_key"],))
-    assert conflicted.degenerate_roots == ["root:a"] and conflicted.conflict_rows == 1
+    assert conflicted.degenerate_roots == [f"root:a|{op}"] and conflicted.conflict_rows == 1
     assert [r["sidecar"]["root_id"] for r in conflicted.kept] == ["root:c"] * 4
     partial = square.select_squares(a[:3] + c, ())
-    assert partial.degenerate_roots == ["root:a"] and len(partial.kept) == 4
+    assert partial.degenerate_roots == [f"root:a|{op}"] and len(partial.kept) == 4
+    # the same root under two square operations forms two distinct squares
+    other = [{**r, "sidecar": {**r["sidecar"], "operation_id": "SQUARE_N25_BINDER_V1"}} for r in c]
+    for r in other:
+        r["unordered_pair_key"] = r["unordered_pair_key"] + "'"
+    both = square.select_squares(c + other, ())
+    assert len(both.kept) == 8 and both.duplicate_squares == []
 
 
 def test_validator_pair_id_reads_row_then_sidecar() -> None:
@@ -1160,6 +1170,7 @@ def _square_runner_stub(source_sha256: str = "e") -> object:
     from leanfaith.sft1.sprint import square
 
     runner = square.SquareRunner.__new__(square.SquareRunner)
+    runner.operation_id = square.SQUARE_OPERATION
     runner.base = type("Base", (), {})()
     runner.base.root_id = lambda name: f"root:{name}"
     runner.base.pins = type(

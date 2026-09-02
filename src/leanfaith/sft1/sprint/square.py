@@ -65,6 +65,36 @@ from leanfaith.sft1.sprint.screens import (
 from leanfaith.sft1.sprint.store import read_json_object, write_atomic
 
 SQUARE_OPERATION = "SQUARE_N25_SYMMETRY_V1"
+# square operation id -> (negative operation it closes, census file, family prefix)
+SQUARE_OPERATIONS: dict[str, dict[str, str]] = {
+    "SQUARE_N25_SYMMETRY_V1": {
+        "negative": "N25_TOGGLE_EQ_NE_PROOF_V1",
+        "census": "square_n25.json",
+        "family": "square",
+    },
+    "SQUARE_N25_BINDER_V1": {
+        "negative": "N25_TOGGLE_EQ_NE_PROOF_V1",
+        "census": "square_n25.json",
+        "family": "square_n25",
+    },
+    "SQUARE_N32_BINDER_V1": {
+        "negative": "N32_SWAP_ROLE_ORDER_PROOF_V1",
+        "census": "square_n32.json",
+        "family": "square_n32",
+    },
+}
+TRANSFORM_SHORT = {
+    "P18_SYMMETRIZE_EQUALITY_V1": "eq",
+    "P_NE_SYMMETRIZE_V1": "ne",
+    "P14_SWAP_INDEPENDENT_DATA_BINDERS_V1": "p14",
+    "P23_CURRY_PROP_PAIR_V1": "p23",
+}
+
+
+def census_path_for(staging: Path, operation_id: str) -> Path:
+    return staging / "targets" / SQUARE_OPERATIONS[operation_id]["census"]
+
+
 SQUARE_SALT = "sft1_sprint_core_v3_square"
 ROW_SCHEMA = "sft_core_v1"
 ENDPOINT_ROLE = {"p": "candidate", "c": "reference", "p_prime": "reference", "c_prime": "candidate"}
@@ -101,20 +131,25 @@ class SquareError(RuntimeError):
 
 
 def eligible_roots(
-    loaded: LoadedConfig[SprintConfig], run_ids: Sequence[str] = SOURCE_RUNS
+    loaded: LoadedConfig[SprintConfig],
+    run_ids: Sequence[str] = SOURCE_RUNS,
+    negative_operation: str = "N25_TOGGLE_EQ_NE_PROOF_V1",
 ) -> list[dict[str, Any]]:
-    """Certified N25 roots from the source runs, deduplicated by the reference
-    closed-Expr hash and ordered by a stable hash of that identity."""
+    """Certified roots of one negative operation from the source runs, deduplicated by
+    the reference closed-Expr hash and ordered by a stable hash of that identity."""
 
+    allowed_directions = (
+        {"eq_to_ne", "ne_to_eq"} if negative_operation.startswith("N25") else {"Nat", "Int"}
+    )
     best: dict[str, dict[str, Any]] = {}
     for run_id in run_ids:
         paths = RunPaths(Path(loaded.config.output.staging_root), run_id)
         for record in read_retained(paths.retained):
-            if record["operation_id"] != "N25_TOGGLE_EQ_NE_PROOF_V1":
+            if record["operation_id"] != negative_operation:
                 continue
             sidecar = record["sidecar"]
             direction = str((sidecar.get("site") or {}).get("detail", ""))
-            if direction not in {"eq_to_ne", "ne_to_eq"}:
+            if direction not in allowed_directions:
                 continue
             key = str(sidecar["repr"]["reference"]["provenance"]["expr_hash"])
             entry = {
@@ -134,11 +169,14 @@ def eligible_roots(
     return roots
 
 
-def write_census(loaded: LoadedConfig[SprintConfig], out: Path) -> dict[str, Any]:
-    roots = eligible_roots(loaded)
+def write_census(
+    loaded: LoadedConfig[SprintConfig], out: Path, operation_id: str = SQUARE_OPERATION
+) -> dict[str, Any]:
+    roots = eligible_roots(loaded, negative_operation=SQUARE_OPERATIONS[operation_id]["negative"])
     payload = {
         "schema_version": 1,
-        "operation_id": SQUARE_OPERATION,
+        "operation_id": operation_id,
+        "negative_operation": SQUARE_OPERATIONS[operation_id]["negative"],
         "source_runs": list(SOURCE_RUNS),
         "count": len(roots),
         "by_direction": _count_by(roots, "direction"),
@@ -152,16 +190,20 @@ def write_census(loaded: LoadedConfig[SprintConfig], out: Path) -> dict[str, Any
 # ------------------------------------------------------------------ runner
 
 
-def process_body(names: Sequence[str]) -> str:
+def process_body(names: Sequence[str], operation_id: str = SQUARE_OPERATION) -> str:
     literals = ", ".join(lean_string_literal(name) for name in names)
-    return f"run_meta do\n  LeanFaith.SFT1.Sprint.processSquares #[{literals}]"
+    return (
+        "run_meta do\n  LeanFaith.SFT1.Sprint.processSquares "
+        f"#[{literals}] {json.dumps(operation_id)}"
+    )
 
 
-def render_body(names: Sequence[str], scope: str) -> str:
+def render_body(names: Sequence[str], scope: str, operation_id: str = SQUARE_OPERATION) -> str:
     literals = ", ".join(lean_string_literal(name) for name in names)
     lines = [
         "run_meta do",
-        f"  let squares ← LeanFaith.SFT1.Sprint.rebuildSquares #[{literals}]",
+        f"  let squares ← LeanFaith.SFT1.Sprint.rebuildSquares #[{literals}]"
+        f" {json.dumps(operation_id)}",
         "  LeanFaith.SFT1.Sprint.emitSquareReport squares",
     ]
     fields = {"p": "p", "c": "c", "p_prime": "pPrime", "c_prime": "cPrime"}
@@ -215,9 +257,13 @@ class SquareRunner:
         max_roots: int | None = None,
         owner_session: str = "claude-sft1-square",
         use_cache: bool = True,
+        operation_id: str = SQUARE_OPERATION,
     ) -> None:
+        if operation_id not in SQUARE_OPERATIONS:
+            raise SquareError(f"unknown square operation {operation_id!r}")
         self.base = SprintRunner(repo_root, loaded, run_id=run_id, owner_session=owner_session)
         self.use_cache = use_cache
+        self.operation_id = operation_id
         self.repo_root = repo_root
         self.loaded = loaded
         self.config = loaded.config
@@ -307,7 +353,7 @@ class SquareRunner:
             {
                 "kind": "square_root",
                 "cache_schema": 2,
-                "operation_id": SQUARE_OPERATION,
+                "operation_id": self.operation_id,
                 "name": name,
                 "engine_semantic_version": self.base.identity.semantic_version,
                 "project_revision": self.base.pins.project_revision,
@@ -355,6 +401,7 @@ class SquareRunner:
 
     def manifest_identity(self) -> dict[str, Any]:
         return {
+            "operation_id": self.operation_id,
             "config_semantic_hash": self.loaded.config_hash,
             "engine_source_sha256": self.base.identity.source_sha256,
             "engine_semantic_version": self.base.identity.semantic_version,
@@ -392,7 +439,7 @@ class SquareRunner:
             "schema_version": 1,
             "sprint_id": self.config.sprint_id,
             "run_id": self.run_id,
-            "operation_id": SQUARE_OPERATION,
+            "operation_id": self.operation_id,
             "started_at": utc_now(),
             "config_semantic_hash": self.loaded.config_hash,
             "engine": self.base.identity.to_dict(),
@@ -431,7 +478,9 @@ class SquareRunner:
         request = LeanRequest(
             request_id=f"{self.run_id}:square:{self.batches}:" + hash_canonical(names)[:16],
             context_id=self.base.context.compile_context_id,
-            code=engine_module.command_text(self.base.context, process_body(names)),
+            code=engine_module.command_text(
+                self.base.context, process_body(names, self.operation_id)
+            ),
             allow_sorry=False,
             timeout_seconds=self.config.execution.request_timeout_seconds,
             metadata={"sprint_phase": "square_process"},
@@ -523,7 +572,7 @@ class SquareRunner:
                 inputs=render_inputs(names, self.statements),
                 compile_context=self.base.context,
                 render_scope_id=scope,
-                session_body=render_body(names, scope),
+                session_body=render_body(names, scope, self.operation_id),
                 request_id=request_id,
                 timeout_seconds=self.config.execution.request_timeout_seconds,
             )
@@ -597,7 +646,7 @@ class SquareRunner:
     ) -> dict[str, Any]:
         return {
             "schema_version": 1,
-            "operation_id": SQUARE_OPERATION,
+            "operation_id": self.operation_id,
             "root": name,
             "status": payload.get("status"),
             "reason": payload.get("reason", ""),
@@ -682,6 +731,16 @@ class SquareRunner:
         render = cast(dict[str, Any], record["render"])
         evidence = cast(dict[str, Any], record["evidence"])
         direction = str(record["direction"])
+        operation_id = str(record.get("operation_id") or self.operation_id)
+        if operation_id != self.operation_id:
+            raise SquareError(f"cache record operation {operation_id} != {self.operation_id}")
+        family_prefix = SQUARE_OPERATIONS[operation_id]["family"]
+        if operation_id == SQUARE_OPERATION:
+            core_family = f"square_{'eq' if direction == 'eq_to_ne' else 'ne'}"
+        else:
+            core_family = (
+                f"{family_prefix}_{TRANSFORM_SHORT.get(str(evidence.get('t_p')), 'other')}"
+            )
         root_id = self.base.root_id(name)
         cache_key = self.square_root_key(name)
         cache_block = {
@@ -704,7 +763,7 @@ class SquareRunner:
                 PAIR_PREFIX,
                 {
                     "root_id": root_id,
-                    "operation_id": SQUARE_OPERATION,
+                    "operation_id": operation_id,
                     "row_kind": kind,
                     "reference_expr_hash": ref_hash,
                     "candidate_expr_hash": cand_hash,
@@ -737,7 +796,7 @@ class SquareRunner:
             row_hash = hash_canonical(
                 {
                     "root_id": root_id,
-                    "operation_id": SQUARE_OPERATION,
+                    "operation_id": operation_id,
                     "row_kind": kind,
                     "reference_expr_hash": ref_hash,
                     "candidate_expr_hash": cand_hash,
@@ -754,20 +813,24 @@ class SquareRunner:
                 "root_name": name,
                 "module": record.get("module"),
                 "statement": self.statements.get(name),
-                "operation_id": SQUARE_OPERATION,
-                "mechanism": engine_module.mechanism_of(SQUARE_OPERATION),
+                "operation_id": operation_id,
+                "mechanism": engine_module.mechanism_of(operation_id),
                 "row_kind": kind,
                 "row_schema": ROW_SCHEMA,
                 "label": label,
                 "orientation": "square_fixed",
-                "core_family": f"square_{'eq' if direction == 'eq_to_ne' else 'ne'}",
+                "core_family": core_family,
                 "core_cell": kind,
                 "square": {
                     "direction": direction,
                     "alpha": dict(cast(Mapping[str, Any], record.get("alpha") or {})),
                     "alpha_reconciliation": dict(reconciliation) if reconciliation else None,
+                    "negative_operation": evidence.get("negative_operation")
+                    or SQUARE_OPERATIONS[operation_id]["negative"],
                     "t_p": evidence["t_p"],
                     "t_c": evidence["t_c"],
+                    "site_p": evidence.get("site_p"),
+                    "site_c": evidence.get("site_c"),
                     "reference_endpoint": ref_ep,
                     "candidate_endpoint": cand_ep,
                     "source_run": root.get("source_run"),
@@ -816,7 +879,7 @@ class SquareRunner:
                         str(reference["rendered_goal_hash"]), str(candidate["rendered_goal_hash"])
                     ),
                     "label": label,
-                    "operation_id": SQUARE_OPERATION,
+                    "operation_id": operation_id,
                     "root_name": name,
                     "mechanism": engine_module.mechanism_of(SQUARE_OPERATION),
                 }
@@ -830,7 +893,7 @@ class SquareRunner:
         session = self.base.session
         summary = {
             "run_id": self.run_id,
-            "operation_id": SQUARE_OPERATION,
+            "operation_id": self.operation_id,
             "updated_at": utc_now(),
             "roots_considered": self.lean_roots + self.cache_roots,
             "roots_lean": self.lean_roots,
@@ -889,7 +952,7 @@ def load_square_retained(
     return rows
 
 
-_REBUILD_CALL = re.compile(r"rebuildSquares #\[(.*?)\]\n")
+_REBUILD_CALL = re.compile(r"rebuildSquares #\[(.*?)\](?: \"[^\"]*\")?\n")
 _STRING_LITERAL = re.compile(r'"(?:[^"\\]|\\.)*"')
 
 
@@ -1021,7 +1084,7 @@ def regenerate_records(
     """
     rows: list[dict[str, Any]] = []
     quarantined: list[dict[str, Any]] = []
-    generating = generating_run_commits(runner.paths.run_dir.parent)
+    generating = generating_run_commits(runner.paths.run_dir.parent, runner.operation_id)
     for name, promised in terminal_pair_ids(runner.paths.journal).items():
         record = runner.cache.get_root(runner.square_root_key(name))
         if (
@@ -1073,6 +1136,11 @@ class SquareSelection:
     conflict_rows: int
 
 
+def square_key(sidecar: Mapping[str, Any]) -> str:
+    """One square = one root under one square operation."""
+    return f"{sidecar['root_id']}|{sidecar.get('operation_id', SQUARE_OPERATION)}"
+
+
 def select_squares(
     screened: Sequence[Mapping[str, Any]], conflict_keys: Collection[str]
 ) -> SquareSelection:
@@ -1087,7 +1155,7 @@ def select_squares(
     kind_order = {kind: index for index, (kind, *_rest) in enumerate(ROW_KINDS)}
     by_root: dict[str, list[dict[str, Any]]] = {}
     for record in screened:
-        by_root.setdefault(str(record["sidecar"]["root_id"]), []).append(dict(record))
+        by_root.setdefault(square_key(record["sidecar"]), []).append(dict(record))
     ordered = sorted(by_root, key=lambda root: hash_canonical([SQUARE_SALT, root]))
     conflicts = set(conflict_keys)
     claimed: dict[str, str] = {}
@@ -1110,7 +1178,15 @@ def select_squares(
             continue
         owner = next((claimed[key] for key in keys if key in claimed), None)
         if owner is not None:
-            duplicates.append({"root_id": root, "duplicate_of": owner})
+            duplicates.append(
+                {
+                    "square": root,
+                    "root_id": root.split("|", 1)[0],
+                    "operation_id": root.split("|", 1)[1],
+                    "duplicate_of": owner,
+                    "duplicate_of_root_id": owner.split("|", 1)[0],
+                }
+            )
             continue
         for key in keys:
             claimed[key] = root
@@ -1123,7 +1199,7 @@ def build_square_view(
     repo_root: Path,
     loaded: LoadedConfig[SprintConfig],
     *,
-    run_id: str,
+    run_ids: Sequence[str],
     label: str = "core_v3_square",
     regenerate: bool = True,
     supersedes: str | None = None,
@@ -1133,29 +1209,41 @@ def build_square_view(
 
     config = loaded.config
     staging = Path(config.output.staging_root)
-    paths = RunPaths(staging, run_id)
     out = staging / "compacted" / label
     if out.exists():
         raise SquareError(f"{out} already exists; square views are additive and immutable")
     quarantined: list[dict[str, Any]] = []
-    source_retained_paths: list[str]
-    if regenerate:
-        census = read_json_object(staging / "targets" / "square_n25.json")
-        census_roots = cast(list[dict[str, Any]], census["roots"])
-        runner = SquareRunner(repo_root, loaded, run_id=run_id, roots=census_roots)
-        runner.load_state()
-        records, quarantined = regenerate_records(
-            runner,
-            raw_dir=paths.raw,
-            roots_by_name={str(item["name"]): item for item in census_roots},
-        )
-        regenerated_path = paths.run_dir / f"retained_{label}.jsonl"
-        if regenerated_path.exists():
-            raise SquareError(f"{regenerated_path} already exists; regenerated files are additive")
-        source_retained_paths = [str(regenerated_path.relative_to(staging))]
-    else:
-        records = load_square_retained(paths)
-        source_retained_paths = [str(paths.retained.relative_to(staging))]
+    source_retained_paths: list[str] = []
+    records: list[dict[str, Any]] = []
+    regenerated: list[tuple[Path, list[dict[str, Any]]]] = []
+    for run_id in run_ids:
+        paths = RunPaths(staging, run_id)
+        run_manifest = read_json_object(paths.run_manifest)
+        operation_id = str(run_manifest.get("operation_id") or SQUARE_OPERATION)
+        if regenerate:
+            census = read_json_object(census_path_for(staging, operation_id))
+            census_roots = cast(list[dict[str, Any]], census["roots"])
+            runner = SquareRunner(
+                repo_root, loaded, run_id=run_id, roots=census_roots, operation_id=operation_id
+            )
+            runner.load_state()
+            run_records, run_quarantined = regenerate_records(
+                runner,
+                raw_dir=paths.raw,
+                roots_by_name={str(item["name"]): item for item in census_roots},
+            )
+            regenerated_path = paths.run_dir / f"retained_{label}.jsonl"
+            if regenerated_path.exists():
+                raise SquareError(
+                    f"{regenerated_path} already exists; regenerated files are additive"
+                )
+            regenerated.append((regenerated_path, run_records))
+            records.extend(run_records)
+            quarantined.extend({**item, "run_id": run_id} for item in run_quarantined)
+            source_retained_paths.append(str(regenerated_path.relative_to(staging)))
+        else:
+            records.extend(load_square_retained(paths))
+            source_retained_paths.append(str(paths.retained.relative_to(staging)))
     gold = GoldBlocklist.load(
         repo_root / config.screens.gold_blocklist_path,
         expected_sha256=config.screens.gold_blocklist_sha256,
@@ -1181,18 +1269,19 @@ def build_square_view(
     outcome = deduplicate(screened)  # conflict detection: same unordered pair, different labels
     selection = select_squares(screened, outcome.conflict_keys)
     kept = selection.kept
-    complete_roots = set(selection.accepted_roots)
+    complete_roots = set(selection.accepted_roots)  # square keys (root|operation)
     by_root: dict[str, list[dict[str, Any]]] = {}
     for record in kept:
-        by_root.setdefault(str(record["sidecar"]["root_id"]), []).append(record)
+        by_root.setdefault(square_key(record["sidecar"]), []).append(record)
     screened_by_root: dict[str, int] = {}
     root_names: dict[str, str] = {}
     for record in screened:
-        root_id = str(record["sidecar"]["root_id"])
-        screened_by_root[root_id] = screened_by_root.get(root_id, 0) + 1
-        root_names[root_id] = str(record["sidecar"].get("root_name"))
-    duplicate_rows = sum(screened_by_root[d["root_id"]] for d in selection.duplicate_squares)
+        key = square_key(record["sidecar"])
+        screened_by_root[key] = screened_by_root.get(key, 0) + 1
+        root_names[key] = str(record["sidecar"].get("root_name"))
+    duplicate_rows = sum(screened_by_root[d["square"]] for d in selection.duplicate_squares)
     degenerate_rows = sum(screened_by_root[root] for root in selection.degenerate_roots)
+    distinct_roots = {str(record["sidecar"]["root_id"]) for record in kept}
     conservation = {
         "screened_rows": len(screened),
         "kept_rows": len(kept),
@@ -1207,9 +1296,10 @@ def build_square_view(
     )
     if not provenance["consistent"]:
         raise SquareError("provenance inconsistent: " + "; ".join(provenance["issues"]))
-    if regenerate:
+    for regenerated_path, run_records in regenerated:
         write_atomic(
-            regenerated_path, b"".join(canonical_json_bytes(item) + b"\n" for item in records)
+            regenerated_path,
+            b"".join(canonical_json_bytes(item) + b"\n" for item in run_records),
         )
     out.mkdir(parents=True)
     size = config.output.shard_size
@@ -1261,7 +1351,7 @@ def build_square_view(
         "sprint_id": config.sprint_id,
         "run_id": label,
         "view": label,
-        "source_runs": [run_id],
+        "source_runs": list(run_ids),
         "source_retained_paths": source_retained_paths,
         "regenerated_from_cache": regenerate,
         "quarantined_roots": len(quarantined),
@@ -1286,7 +1376,8 @@ def build_square_view(
         "mechanisms": _count_by(kept, "mechanism"),
         "row_kinds": _count_by([item["sidecar"] for item in kept], "row_kind"),
         "families": _count_by([item["sidecar"] for item in kept], "core_family"),
-        "roots": len(complete_roots),
+        "roots": len(distinct_roots),
+        "squares": len(complete_roots),
         "grouping": "four_rows_per_root_same_shard",
         "orientation_rule": "square_fixed_marginals",
         "shard_size": size,
@@ -1305,7 +1396,7 @@ def build_square_view(
             [
                 {
                     **item,
-                    "root_name": root_names.get(item["root_id"]),
+                    "root_name": root_names.get(item["square"]),
                     "duplicate_of_name": root_names.get(item["duplicate_of"]),
                 }
                 for item in selection.duplicate_squares
@@ -1318,7 +1409,8 @@ def build_square_view(
         cast(dict[str, Any], item["sidecar"])["square"].get("alpha_reconciliation") for item in kept
     ]
     reconciliation_summary = {
-        "roots": len(complete_roots),
+        "squares": len(complete_roots),
+        "roots": len(distinct_roots),
         "rows_with_reconciliation": sum(1 for r in reconciliations if r),
         "rows_matched": sum(1 for r in reconciliations if r and r.get("matches")),
         "quarantined_roots": quarantined,
@@ -1412,7 +1504,7 @@ def build_square_view(
         "schema_version": 1,
         "view": label,
         "generated_at": utc_now(),
-        "source_runs": [run_id],
+        "source_runs": list(run_ids),
         "evaluated_on": "serialized_shards",
         "rows": len(serialized),
         "labels": manifest["labels"],
@@ -1445,19 +1537,27 @@ def build_square_view(
 
 
 def run_square_fixtures(
-    repo_root: Path, loaded: LoadedConfig[SprintConfig], fixtures: Sequence[Mapping[str, str]]
+    repo_root: Path,
+    loaded: LoadedConfig[SprintConfig],
+    fixtures: Sequence[Mapping[str, str]],
+    operation_id: str = SQUARE_OPERATION,
 ) -> dict[str, Any]:
+    if not fixtures:
+        raise SquareError(f"no fixtures defined for {operation_id}")
     roots = [
         {"name": item["root"], "direction": "fixture", "reference_expr_hash": item["root"]}
         for item in fixtures
     ]
     pins = SprintRunner(repo_root, loaded, run_id="square-fixtures").identity
-    run_id = f"square-fixtures-{pins.source_sha256[:12]}"
+    short = operation_id.removeprefix("SQUARE_").removesuffix("_V1").lower()
+    run_id = f"square-fixtures-{short}-{pins.source_sha256[:12]}"
     # Fixture gates always start fresh: they must exercise the engine, never resume a journal.
     stale_run_dir = RunPaths(Path(loaded.config.output.staging_root), run_id).run_dir
     if stale_run_dir.exists():
         shutil.rmtree(stale_run_dir)
-    runner = SquareRunner(repo_root, loaded, run_id=run_id, roots=roots, use_cache=False)
+    runner = SquareRunner(
+        repo_root, loaded, run_id=run_id, roots=roots, use_cache=False, operation_id=operation_id
+    )
     # the summary returned by run() carries the live Lean request accounting; calling
     # write_status again after the session closed would report zero requests
     summary = runner.run()
@@ -1506,19 +1606,50 @@ def run_square_fixtures(
 
 # ------------------------------------------------------------------ CLI
 
-SQUARE_FIXTURES: tuple[dict[str, str], ...] = (
-    {"root": "Nat.mul_factorial_pred", "expect_status": "retained"},
-    {
-        "root": "PNat.gcd_comm",
-        "expect_status": "rejected",
-        "expect_reason_prefix": "no_ground_assignment",
-    },
-    {
-        "root": "Nat.factorial_lt",
-        "expect_status": "not_applicable",
-        "expect_reason_prefix": "final_target_eq_ne_not_applicable",
-    },
-)
+SQUARE_FIXTURES: dict[str, tuple[dict[str, str], ...]] = {
+    SQUARE_OPERATION: (
+        {"root": "Nat.mul_factorial_pred", "expect_status": "retained"},
+        {
+            "root": "PNat.gcd_comm",
+            "expect_status": "rejected",
+            "expect_reason_prefix": "no_ground_assignment",
+        },
+        {
+            "root": "Nat.factorial_lt",
+            "expect_status": "not_applicable",
+            "expect_reason_prefix": "final_target_eq_ne_not_applicable",
+        },
+    ),
+    "SQUARE_N25_BINDER_V1": (
+        {"root": "Nat.gcd_fib_add_self", "expect_status": "retained"},  # P14 on (m n : Nat)
+        {"root": "Nat.choose_eq_choose_pred_add", "expect_status": "retained"},  # P23 on hn hk
+        {"root": "ZMod.prime_ne_zero", "expect_status": "retained"},  # P14 with Fact binders
+        {
+            "root": "PNat.gcd_comm",  # fail-closed: no binder transform applies
+            "expect_status": "not_applicable",
+            "expect_reason_prefix": "square_no_applicable_transform",
+        },
+        {
+            "root": "Nat.factorial_succ",
+            "expect_status": "not_applicable",
+            "expect_reason_prefix": "square_no_applicable_transform",
+        },
+    ),
+    "SQUARE_N32_BINDER_V1": (
+        {"root": "Nat.ascFactorial_pos", "expect_status": "retained"},  # P14 on (n k : Nat)
+        {"root": "Nat.add_pred_div_lt", "expect_status": "retained"},  # P23 on hb hn
+        {
+            "root": "Nat.succ_pos'",
+            "expect_status": "not_applicable",
+            "expect_reason_prefix": "square_no_applicable_transform",
+        },
+        {
+            "root": "Nat.factorial_succ",
+            "expect_status": "not_applicable",
+            "expect_reason_prefix": "final_target_strict_lt_not_applicable",
+        },
+    ),
+}
 
 
 # ------------------------------------------------------------------ inspection
@@ -1600,6 +1731,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--repo-root", type=Path, default=find_repo_root(Path.cwd()))
     parser.add_argument("--config", type=Path)
     parser.add_argument("--run-id", default="square_full")
+    parser.add_argument("--run-ids", help="comma-separated run ids for build (default: --run-id)")
+    parser.add_argument("--operation", default=SQUARE_OPERATION, choices=sorted(SQUARE_OPERATIONS))
     parser.add_argument("--max-roots", type=int)
     parser.add_argument("--label", default="core_v3_square")
     parser.add_argument("--owner-session", default="claude-sft1-square")
@@ -1618,15 +1751,17 @@ def main(argv: Sequence[str] | None = None) -> int:
     loaded = load_sprint_config(repo_root, args.config.resolve() if args.config else None)
     staging = Path(loaded.config.output.staging_root)
     if args.command == "census":
-        print(json.dumps(write_census(loaded, staging / "targets" / "square_n25.json"), indent=1))
+        report = write_census(loaded, census_path_for(staging, args.operation), args.operation)
+        print(json.dumps(report, indent=1))
         return 0
     if args.command == "fixtures":
-        report = run_square_fixtures(repo_root, loaded, SQUARE_FIXTURES)
+        report = run_square_fixtures(
+            repo_root, loaded, SQUARE_FIXTURES.get(args.operation, ()), args.operation
+        )
         print(json.dumps({k: v for k, v in report.items() if k != "status"}, indent=1))
         return 0 if report["passed"] else 1
     if args.command in {"run", "replay"}:
-        census_path = staging / "targets" / "square_n25.json"
-        census = read_json_object(census_path)
+        census = read_json_object(census_path_for(staging, args.operation))
         roots = cast(list[dict[str, Any]], census["roots"])
         max_roots = args.max_roots
         manifest_path = RunPaths(staging, args.run_id).run_manifest
@@ -1641,6 +1776,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             roots=roots,
             max_roots=max_roots,
             owner_session=args.owner_session,
+            operation_id=args.operation,
         )
         before = len(read_retained(runner.paths.retained))
         summary = runner.run(require_zero_lean=args.command == "replay")
@@ -1672,7 +1808,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     report = build_square_view(
         repo_root,
         loaded,
-        run_id=args.run_id,
+        run_ids=[x.strip() for x in (args.run_ids or args.run_id).split(",") if x.strip()],
         label=args.label,
         regenerate=not args.no_regenerate,
         supersedes=args.supersedes,

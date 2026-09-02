@@ -67,8 +67,12 @@ SQUARE_ROW_LABELS = {
 }
 
 
+def is_square_operation(operation: str) -> bool:
+    return operation.startswith("SQUARE_")
+
+
 def expected_label(operation: str, sidecar: Mapping[str, Any]) -> bool | None:
-    if operation == "SQUARE_N25_SYMMETRY_V1":
+    if is_square_operation(operation):
         return SQUARE_ROW_LABELS.get(str(sidecar.get("row_kind")))
     if operation in POSITIVE_OPERATIONS:
         return True
@@ -108,7 +112,7 @@ def _check_square_truths(sidecar: Mapping[str, Any], evidence: Mapping[str, Any]
 def _check_evidence(sidecar: Mapping[str, Any], operation: str) -> str | None:
     evidence = sidecar.get("evidence") or {}
     label = expected_label(operation, sidecar)
-    if operation == "SQUARE_N25_SYMMETRY_V1":
+    if is_square_operation(operation):
         truth_issue = _check_square_truths(sidecar, evidence)
         if truth_issue:
             return truth_issue
@@ -256,7 +260,7 @@ def validate_view(
                 "reference_expr_hash": (reference.get("provenance") or {}).get("expr_hash"),
                 "candidate_expr_hash": (candidate.get("provenance") or {}).get("expr_hash"),
             }
-            if operation == "SQUARE_N25_SYMMETRY_V1":
+            if is_square_operation(operation):
                 pair_payload = {
                     "root_id": row_root_id,
                     "operation_id": operation,
