@@ -856,3 +856,17 @@ rows/minute, and pilot quality bounds hold. Leave healthy long runs detached wit
   quarantined universe-narrowing row excluded, 65 of 66 rows releasable
   (`runs/sprint_pilot_20roots_run/audit_kimi_cells_v1/`), 6 new Kimi calls (2 cache hits from
   the earlier audit), ledger 0 outstanding, zero Terra, zero Opus, zero Lean.
+- 2026-09-02 — pilot v2 passed all objective thresholds
+  (`runs/sprint_pilot_20roots_run_v2/detached/evaluation_terminal.json`): both Lean workers
+  claimed at 02:31:23Z with zero wait; controlled stop after 8 completed roots and resume with
+  unchanged manifests and zero new provider or Lean calls; all 20 roots complete in 721 s of
+  generation wall time; accepted 70/80 (33 positive, 37 negative; minimum 56); Lean-invalid 22
+  of 105 elaborations = 21.0% (13 of 80 unique slots; gate below 25%); zero accepted self-pairs
+  or duplicates; zero universe-guard rejections; zero provider or Lean infrastructure failures
+  over 195 finalized calls; replay reproducible with zero calls; injected-malformed check
+  passed; 5.82 accepted rows/minute at provider concurrency 8 (v1: 4.02). Telemetry: 8 judge
+  disagreements and 10 unknown rows routed out of the core, 2 lexical contradictions recorded
+  without paid retries, 4 cross-root duplicates rejected. The worker set
+  `scale_10k_authorized: true` for this stage only and chains the zero-provider 12K reference
+  certification and shard 1; shard 1 is the throughput gate and shards 2–10 continue only if it
+  passes every quality/resume gate and its projection fits before 2026-09-04T00:00Z.
