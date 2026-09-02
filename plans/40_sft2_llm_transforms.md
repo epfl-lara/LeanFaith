@@ -6,12 +6,11 @@
 > `/localhome/milikic/LeanFaith-sft2a-72h-sprint`, branch `milikic/sft2a-72h-sprint`
 > **Last updated:** 2026-09-02
 > **Dependencies:** REPR `goal_v1.0`; shared rubric; roots may be selected independently of SFT1
-> **Next gate:** the 20-root/80-slot pilot v1 failed exactly one objective threshold
-> (Lean-invalid candidates 36 attempts across 118 elaborations = 30.5%, affecting 22 of 80
-> unique slots; gate: below 25% of elaborations); the two
-> diagnosed causes are repaired and bound into the unlaunched pilot v2 config
-> `configs/sft2a/sprint_pilot_20roots_v2.json`; a passing pilot automatically certifies the ~12K
-> reference pool and chains the ten independent 1K-root shards
+> **Next gate:** the detached 20-root/80-slot pilot v2 (`leanfaith-sft2a-sprint-pilot-20roots-v2`,
+> launched 2026-09-02T02:31:23Z at `eb55cc5`) must pass its objective thresholds; a pass
+> automatically runs the zero-provider ~12K reference certification and shard 1 only, and
+> shards 2–10 continue only if shard 1 passes every quality/resume gate and its measured
+> projection fits before 2026-09-04T00:00Z
 > **Compute class:** external LLM/API plus CPU/RAM for Lean; large run may need explicit budget approval
 > **Lean budget:** compile each novel candidate once through cached persistent workers
 > **Local staging root:** `/storage/milikic/leanfaith/value_first/sft2_llm_transforms_v1/`
@@ -808,3 +807,46 @@ rows/minute, and pilot quality bounds hold. Leave healthy long runs detached wit
   No SFT2A tmux session or Lean claim remains; relaunching pilot v2 is a user decision:
   `uv run python -m leanfaith.sft2a --provider-rehearsal-config
   configs/sft2a/sprint_pilot_20roots_v2.json launch-sprint-pilot-v5-2`.
+- 2026-09-02 — applied the four requested pre-launch corrections at `eb55cc5` (133 SFT2A tests,
+  Ruff, strict Mypy, `verify-config`, and `git diff --check` clean). (1) A deterministic
+  preserving-slot universe guard runs after Lean elaboration and before Opus: candidate and
+  reference `canonical_level_params` must match exactly, a mismatch records
+  `universe_mismatch_rejected` and retries only that slot; the known regression row
+  `sft2a-new:35707756dbe6d253f3eb500adf71e1d56435308a86cbe836f03eb8fea19b153d` (`Type u_0`
+  narrowed to `Type`, accepted by Opus in pilot v1) is quarantined from every reusable view by
+  `configs/sft2a/sprint_quarantine_v1.json`, and the sprint v2 proposer/judge prompts state that
+  universe specialization or generalization changes the claim and is not representational
+  (`configs/sft2a/closure_aware_v5_2_sprint_v3.yaml`, config hash
+  `b3e75e32b8a7f2f260546a0e14fd51b3694c546ad66a27fbb202321a416064a6`). (2) Sprint Kimi
+  sampling takes exactly one deterministic row from every source × polarity cell for an
+  eight-row audit and diversifies by mechanism family for larger audits, with exact
+  source/polarity-count tests; pilot v1's old sampler had drawn all eight rows from
+  compiler-data. (3) Judge retries are schema-only; lexical verdict/rationale contradiction is
+  telemetry, so "do not express the same claim" no longer buys a paid retry. (4) The Lean gate
+  is `lean_invalid_attempts / candidate_lean_requests < 25%`; per-slot counts are telemetry, and
+  the v1 record now reads 36 invalid attempts across 118 elaborations affecting 22 of 80 unique
+  slots. Also before shard 1: gate receipts bind method/elaborator/template/base-config identity
+  and the pilot launch verifies them; shards claim one cooperative Lean worker and share a
+  cross-shard candidate registry; `compact-sprint-shards` produces the deterministic combined,
+  cross-shard-deduplicated, quarantine- and telemetry-excluded release view; a passing shard
+  chains the next only if its measured projection fits the sprint window.
+- 2026-09-02 — verification and launches. The oracle-v2 gate reran under the v3 base config:
+  11/11 fixtures, 11 cache hits, zero Lean requests, zero provider calls, receipt sha256
+  `c54dbe62906c6359a498efd99da143aeb9cad544d535d559625e825de9bacf5a` carrying elaborator
+  `e00809299cc12cd9e88d13e3e6630917babf45c2acae7099aba2784682aa7460`. The v3 judge prompt
+  passed all three closure canaries (`runs/sprint_v3_one_root/closure_canaries_v5`, 3 Opus
+  calls, $0.111599). The corrected sampler runs the additive eight-row cell-balanced Kimi audit
+  over the cached pilot v1 rows as provider-only tmux job
+  `leanfaith-sft2a-audit-kimi-pilot-v1-cells` (`configs/sft2a/audit_only_kimi_sprint_pilot_v1_cells.json`,
+  output `runs/sprint_pilot_20roots_run/audit_kimi_cells_v1`, Kimi ceiling raised additively to
+  40, zero Terra/Opus/Lean). SFT2B's matched-pilot claim released on its own; both workers were
+  free at 02:31Z, so exactly the prepared pilot v2 was launched: tmux
+  `leanfaith-sft2a-sprint-pilot-20roots-v2`, pane PID 3204720, started 2026-09-02T02:31:23Z,
+  config `configs/sft2a/sprint_pilot_20roots_v2.json` (sha256 `41b7c8d8e75513166acd044bd427fd82f6248ff71b6d06d5f5ad3ff7b2784042`),
+  same 20-root sample `c3359ef6175f8aee0f94edf63e6cb5d2437911ef4f8d0a65981667075b8fc4de`,
+  output `runs/sprint_pilot_20roots_run_v2`, truthful 2-worker/40 GiB claim taken at once (zero
+  waits), provider concurrency 8, controlled stop after the first completed root then resume.
+  Health: `uv run python -m leanfaith.sft2a --provider-rehearsal-config
+  configs/sft2a/sprint_pilot_20roots_v2.json sprint-pilot-v5-2-health`. On a pass the worker
+  chains the 12K certification (`configs/sft2a/sprint_reference_pool_12k_v1.json`) and shard 1
+  only; shard 1 is the throughput gate (v1 measured 4.02 accepted rows/minute at concurrency 8).
