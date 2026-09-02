@@ -1,0 +1,83 @@
+{
+  "version": "leanfaith_sft2a_sprint_repair_v3_plan_v1",
+  "sprint_authority": "plans/72h_sft_data_sprint_2026-09-01.md",
+  "repair_authority": "user message 2026-09-02: focused v3 repair, bounded 20-root canary, then uninterrupted frozen shards 2-10",
+  "pool_config_path": "configs/sft2a/sprint_reference_pool_12k_v1.json",
+  "base_config_path": "configs/sft2a/closure_aware_v5_2_sprint_v3_authoring.yaml",
+  "base_config_sha256": "797e8cabd16420c6f4a22a54f645381346fced84e3ff20540018d5535450d972",
+  "labeling_defaults_policy_path": "policies/sft2_llm_labeling_defaults_v1.yaml",
+  "labeling_defaults_policy_sha256": "4554a071b06b1af9015b253b5e64b2a0a4d013630e5224ef7729bbf65757646f",
+  "historical_shard_run_root": "/storage/milikic/leanfaith/value_first/sft2_llm_transforms_v1/runs/sprint_shards_1k_v1/shard_01/run",
+  "historical_shard_sample_path": "/storage/milikic/leanfaith/value_first/sft2_llm_transforms_v1/runs/sprint_shards_1k_v1/shard_01/certified_sample.jsonl",
+  "historical_shards_manifest_path": "/storage/milikic/leanfaith/value_first/sft2_llm_transforms_v1/runs/sprint_shards_1k_v1/shards_manifest.json",
+  "repair_gates_output_root": "/storage/milikic/leanfaith/value_first/sft2_llm_transforms_v1/runs/sprint_repair_v3_gates",
+  "repair_gates_resource_task": "SFT2A-SPRINT-V3-REPAIR-GATES",
+  "adversarial": {
+    "dagger_roots": 6,
+    "context_roots": 6,
+    "minimum_validated_view_fraction": 0.5
+  },
+  "oracle_v3_gate_receipt_path": "/storage/milikic/leanfaith/value_first/sft2_llm_transforms_v1/runs/sprint_canary_20roots_v3_run/checks/oracle_v3_live_gate/oracle_v3_live_gate_receipt.json",
+  "canary": {
+    "output_root": "/storage/milikic/leanfaith/value_first/sft2_llm_transforms_v1/runs/sprint_canary_20roots_v3",
+    "provider_output_root": "/storage/milikic/leanfaith/value_first/sft2_llm_transforms_v1/runs/sprint_canary_20roots_v3_run",
+    "provider_config_path": "configs/sft2a/sprint_canary_20roots_v3.json",
+    "salt": "leanfaith-sft2a-sprint-canary-v3-2026-09-02",
+    "dagger_roots": 10,
+    "context_roots": 10,
+    "dagger_source_caps": {
+      "mathlib": 6,
+      "physlib": 2,
+      "cslib": 2,
+      "compiler_data": 0
+    },
+    "context_source_caps": {
+      "mathlib": 5,
+      "physlib": 5,
+      "cslib": 2,
+      "compiler_data": 0
+    },
+    "tmux_session": "leanfaith-sft2a-sprint-canary-20roots-v3",
+    "resource_task": "SFT2A-SPRINT-CANARY-20ROOTS-V3",
+    "provider_concurrency": 16,
+    "fallback_provider_concurrency": 8,
+    "kimi_audit_rows": 8,
+    "ceilings": {
+      "maximum_roots": 20,
+      "maximum_provider_calls": 736,
+      "maximum_proposer_calls": 240,
+      "maximum_opus_calls": 480,
+      "maximum_lemex_calls": 16,
+      "maximum_attempts_per_slot": 3,
+      "maximum_reported_opus_spend_usd": 40.0,
+      "codex_cost_status": "unavailable",
+      "lemex_cost_status": "unavailable"
+    }
+  },
+  "shards_v3": {
+    "output_root": "/storage/milikic/leanfaith/value_first/sft2_llm_transforms_v1/runs/sprint_shards_1k_v3",
+    "first_shard": 2,
+    "last_shard": 10,
+    "provider_concurrency": 16,
+    "fallback_provider_concurrency": 8,
+    "kimi_audit_fraction": 0.1,
+    "kimi_audit_rows_maximum": 80,
+    "minimum_accepted_rows_per_minute": 8.0,
+    "shared_candidate_registry_path": "/storage/milikic/leanfaith/value_first/sft2_llm_transforms_v1/runs/sprint_shards_1k_v1/candidate_registry_shared.jsonl",
+    "ceilings": {
+      "maximum_roots": 1000,
+      "maximum_provider_calls": 36160,
+      "maximum_proposer_calls": 12000,
+      "maximum_opus_calls": 24000,
+      "maximum_lemex_calls": 160,
+      "maximum_attempts_per_slot": 3,
+      "maximum_reported_opus_spend_usd": 400.0,
+      "codex_cost_status": "unavailable",
+      "lemex_cost_status": "unavailable"
+    }
+  },
+  "legacy_rejudge_authorized": false,
+  "publication_authorized": false,
+  "scale_50k_authorized": false,
+  "training_authorized": false
+}

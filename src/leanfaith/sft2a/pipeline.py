@@ -22,7 +22,9 @@ from leanfaith.sft2a.config import LoadedSFT2AConfig
 from leanfaith.sft2a.judgments import call_consistent_judge
 from leanfaith.sft2a.layout import run_paths
 from leanfaith.sft2a.lean_oracle import (
+    INACCESSIBLE_NAME_MARK,
     ORACLE_METHOD_VERSION,
+    AuthoringViewResult,
     SignatureOracle,
     SignatureOracleResult,
 )
@@ -270,6 +272,7 @@ def _attempt_record(
                 "elapsed_ms": lean.elapsed_ms,
                 "raw_response_path": lean.raw_response_path,
                 "detail": lean.detail,
+                "attribution": getattr(lean, "attribution", None),
             }
         ),
         "judge": None if judge is None else judge.model_dump(mode="json"),
@@ -317,6 +320,21 @@ def _closed_expr_hash(result: SignatureOracleResult) -> str:
     if not isinstance(digest, str) or re.fullmatch(r"[0-9a-f]{64}", digest) is None:
         raise OneRootPipelineError("valid v5 REPR result lacks a closed Expr hash")
     return digest
+
+
+def _lean_invalid_with_attribution(rows: Sequence[Mapping[str, object]], label: str) -> int:
+    """Count Lean-invalid attempts attributed to one layer (v3 attribution; None counts as
+    candidate-local so v2 manifests keep the raw total under the genuine label)."""
+
+    total = 0
+    for row in rows:
+        if row.get("status") != "lean_invalid":
+            continue
+        lean = row.get("lean")
+        attribution = lean.get("attribution") if isinstance(lean, Mapping) else None
+        if attribution == label or (attribution is None and label == "candidate_local"):
+            total += 1
+    return total
 
 
 def _v5_plan(loaded: LoadedSFT2AConfig) -> dict[str, MechanismAssignment]:
@@ -420,6 +438,54 @@ def run_one_root(
         if rendered_reference_hit:
             raise OneRootPipelineError("one-root rendered reference matches the gold blocklist")
 
+        # v3 (additive): resolve the preflighted effective context once per root and render the
+        # SFT2A-only proposer authoring view from the certified closed Expr. Training rows and
+        # blinded judging keep using the frozen goal_v1; the view is a prompt input and sidecar.
+        oracle_version = str(getattr(proposition_oracle, "cache_version", "v1"))
+        v3_path = closure_aware and oracle_version == "v3"
+        authoring: AuthoringViewResult | None = None
+        authoring_summary: dict[str, object] | None = None
+        prompt_context: dict[str, object] | None = None
+        effective_context_payload: dict[str, object] | None = None
+        if v3_path:
+            view_method = getattr(proposition_oracle, "authoring_view", None)
+            context_method = getattr(proposition_oracle, "effective_context", None)
+            if view_method is None or context_method is None:
+                raise OneRootPipelineError(
+                    "v3 oracle must provide effective contexts and authoring views"
+                )
+            effective = context_method()
+            effective_context_payload = dict(effective.record["effective_payload"])
+            raw_context = loaded.config.root.compile_context.model_dump(
+                mode="json", exclude={"project_dir"}
+            )
+            prompt_context = {
+                **raw_context,
+                "open_context": [],
+                "scoped_context": list(effective.context.scoped_context),
+                "plain_open_context_not_in_effect": list(raw_context.get("open_context", [])),
+                "scope_policy": (
+                    "v3: only the namespace_context and the listed open scoped entries are in "
+                    "effect; no plain open is emitted, so refer to every declaration outside "
+                    "the namespaces by its fully qualified name"
+                ),
+            }
+            if loaded.config.root.source == "compiler_data":
+                authoring_summary = {
+                    "status": "not_applicable_text_reference",
+                    "detail": "compiler-data references are text-elaborated; use the raw signature",
+                }
+            else:
+                authoring = view_method(
+                    loaded.config.root.declaration_name,
+                    expected_closed_expr_hash=_closed_expr_hash(reference),
+                    expected_level_params=list(_canonical_level_params(reference)),
+                )
+                authoring_summary = authoring.to_dict()
+        authoring_text = (
+            authoring.text if authoring is not None and authoring.status == "validated" else None
+        )
+
         for configured_slot in loaded.config.slots:
             assignment = selected_mechanisms.get(configured_slot.slot_id)
             if closure_aware and assignment is None:
@@ -442,6 +508,8 @@ def run_one_root(
                     attempt_number=attempt_number,
                     attempt_feedback=feedback,
                     reference_goal=reference.goal_v1,
+                    authoring_view=authoring_text,
+                    compile_context=prompt_context,
                 )
                 try:
                     proposer_call = proposer_client.call(
@@ -521,6 +589,34 @@ def run_one_root(
                     invalid_rows.append(record)
                     _append_event(journal_path, record)
                     feedback = _feedback("proposer_rejected", detail)
+                    continue
+                if v3_path and INACCESSIBLE_NAME_MARK in proposal.candidate_signature:
+                    # A dagger-bearing name is a pretty-printer artifact, never a Lean
+                    # identifier. Reject before Lean (no rewrite, no quoting) and let the slot
+                    # regenerate with the safe authoring-view binders.
+                    detail = (
+                        "candidate copies a pretty-printer-only inaccessible name containing "
+                        f"{INACCESSIBLE_NAME_MARK}; such names are not Lean identifiers. Use the "
+                        "binder names of the SAFE AUTHORING VIEW or RAW REFERENCE SIGNATURE, or "
+                        "fresh valid names such as inst_1 or h_1"
+                    )
+                    record = _attempt_record(
+                        root_id=loaded.config.root.root_id,
+                        slot=slot,
+                        attempt_number=attempt_number,
+                        status="inaccessible_name_rejected",
+                        proposer_call=proposer_call,
+                        proposer=proposal,
+                        lean=None,
+                        judge_call=None,
+                        judge=None,
+                        detail=detail,
+                    )
+                    record["proposer_prompt_hash"] = prompt_hash(proposer_prompt)
+                    attempts.append(record)
+                    invalid_rows.append(record)
+                    _append_event(journal_path, record)
+                    feedback = _feedback("inaccessible_name_rejected", detail)
                     continue
                 mechanism_mismatch: str | None = None
                 if assignment is not None and proposal.mechanism != assignment.family:
@@ -982,6 +1078,22 @@ def run_one_root(
                         ),
                         "judge_malformed_attempts": judge_malformed,
                         "judge_lexical_contradiction": judge_lexical,
+                        **(
+                            {
+                                "authoring_view": {
+                                    "status": authoring_summary.get("status"),
+                                    "profile": authoring_summary.get("profile"),
+                                    "text_sha256": authoring_summary.get("text_sha256"),
+                                },
+                                "effective_context_fingerprint": (
+                                    hash_canonical(effective_context_payload)
+                                    if effective_context_payload is not None
+                                    else None
+                                ),
+                            }
+                            if authoring_summary is not None
+                            else {}
+                        ),
                     }
                 )
                 _append_event(journal_path, record)
@@ -1011,6 +1123,19 @@ def run_one_root(
         "malformed/rows.jsonl": _canonical_jsonl(malformed_rows),
         "attempts/terminal_attempts.jsonl": _canonical_jsonl(attempts),
     }
+    if authoring_summary is not None:
+        artifact_payloads["authoring_view.json"] = (
+            canonical_json_bytes(
+                {
+                    "version": "leanfaith_sft2a_authoring_view_sidecar_v1",
+                    "root_id": loaded.config.root.root_id,
+                    "declaration_name": loaded.config.root.declaration_name,
+                    "authoring_view": authoring_summary,
+                    "effective_context": effective_context_payload,
+                }
+            )
+            + b"\n"
+        )
     for relative, payload in artifact_payloads.items():
         _atomic(output_root / relative, payload)
     artifact_paths = (*artifact_payloads, "attempt_journal.jsonl")
@@ -1094,6 +1219,18 @@ def run_one_root(
                 "lean_invalid_attempts": sum(
                     row.get("status") == "lean_invalid" for row in invalid_rows
                 ),
+                "lean_invalid_context_prelude": _lean_invalid_with_attribution(
+                    invalid_rows, "context_prelude"
+                ),
+                "lean_invalid_copied_inaccessible_name": _lean_invalid_with_attribution(
+                    invalid_rows, "copied_inaccessible_name"
+                ),
+                "lean_invalid_candidate_local": _lean_invalid_with_attribution(
+                    invalid_rows, "candidate_local"
+                ),
+                "inaccessible_name_rejections": sum(
+                    row.get("status") == "inaccessible_name_rejected" for row in invalid_rows
+                ),
                 "proposer_schema_rejections": sum(
                     row.get("status") == "proposer_rejected" for row in invalid_rows
                 ),
@@ -1164,6 +1301,10 @@ def run_one_root(
                 if getattr(proposition_oracle, "cache_version", "v1") == "v1"
                 else None
             ),
+            "command_template_version": getattr(
+                proposition_oracle, "command_template_version", None
+            ),
+            "effective_context": effective_context_payload,
             "candidate_requests": len(candidate_lean),
             "candidate_cache_hits": sum(result.cache_hit for result in candidate_lean),
             "candidate_executed": len(executed_lean),
@@ -1239,6 +1380,21 @@ def run_one_root(
             "closed_expr_or_rendered_goal_equal_reference": "reject_before_judge",
             "self_pairs_rejected": count_summary["self_pairs_rejected"],
         }
+        if authoring_summary is not None:
+            final_manifest["authoring_view"] = {
+                key: authoring_summary.get(key)
+                for key in (
+                    "status",
+                    "profile",
+                    "text_sha256",
+                    "identity_matched",
+                    "cache_key",
+                    "cache_hit",
+                    "lean_requests_executed",
+                    "detail",
+                )
+            }
+            final_manifest["inaccessible_name_policy"] = "reject_before_lean_regenerate_slot"
     if isinstance(loaded.config, SFT2AOpusConfig) and enforce_smoke_ceilings:
         final_manifest["execution_ceilings"] = loaded.config.smoke_ceilings.model_dump(mode="json")
         final_manifest["server_model_pin_limit"] = (

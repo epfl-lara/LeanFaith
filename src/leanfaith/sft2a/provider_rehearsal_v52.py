@@ -28,11 +28,13 @@ from leanfaith.sft2a.config import LoadedSFT2AConfig, load_sft2a_config
 from leanfaith.sft2a.dedup import PersistentCandidateRegistry
 from leanfaith.sft2a.judgments import call_consistent_judge
 from leanfaith.sft2a.lean_oracle import (
-    ORACLE_METHOD_VERSION,
-    ORACLE_METHOD_VERSION_V2,
+    AuthoringViewResult,
+    CacheVersion,
+    EffectiveContextV3,
     SignatureOracle,
     SignatureOracleResult,
     elaborator_sha256,
+    oracle_method_version,
 )
 from leanfaith.sft2a.legacy import _atomic_exact
 from leanfaith.sft2a.mechanisms import MechanismAssignment
@@ -208,10 +210,38 @@ def load_provider_rehearsal_v52(path: Path) -> LoadedProviderRehearsalV52:
                 "sprint pilot ceiling maximum_roots must match sample size"
             )
         role = document.get("sprint_role", "pilot")
-        if role not in {"pilot", "shard"}:
-            raise ProviderRehearsalV52Error("sprint_role must be pilot or shard")
+        if role not in {"pilot", "shard", "canary"}:
+            raise ProviderRehearsalV52Error("sprint_role must be pilot, shard, or canary")
+        oracle_version = document.get("oracle_cache_version", "v2")
+        if oracle_version not in {"v2", "v3"}:
+            raise ProviderRehearsalV52Error("oracle_cache_version must be v2 or v3")
+        if oracle_version == "v3":
+            gate_path = document.get("oracle_v3_gate_receipt_path")
+            if not isinstance(gate_path, str) or not gate_path:
+                raise ProviderRehearsalV52Error(
+                    "v3 sprint configs must name oracle_v3_gate_receipt_path"
+                )
+        projection_blocking = document.get("projection_blocking", True)
+        if not isinstance(projection_blocking, bool):
+            raise ProviderRehearsalV52Error("projection_blocking must be a boolean")
         workers = document.get("maximum_total_lean_workers")
-        if role == "pilot":
+        if role == "canary":
+            # The v3 canary runs on the measured shard allocation (one cooperative worker at
+            # 16 GiB) so its throughput and attribution telemetry are the shard path's.
+            if (
+                document.get("maximum_root_workers") != 1
+                or workers != 1
+                or document.get("maximum_measured_rss_gib") != 16.0
+            ):
+                raise ProviderRehearsalV52Error(
+                    "sprint canary requires exactly one persistent Lean worker at 16 GiB"
+                )
+            next_shard = document.get("next_shard_config_path")
+            if next_shard is not None and (
+                not isinstance(next_shard, str) or not Path(next_shard).is_file()
+            ):
+                raise ProviderRehearsalV52Error("next_shard_config_path must name an existing file")
+        elif role == "pilot":
             if (
                 document.get("maximum_root_workers") != 2
                 or workers != 2
@@ -245,7 +275,7 @@ def load_provider_rehearsal_v52(path: Path) -> LoadedProviderRehearsalV52:
             or not (1 <= concurrency <= 64)
         ):
             raise ProviderRehearsalV52Error("sprint pilot provider_concurrency must be 1..64")
-        if role == "pilot":
+        if role in {"pilot", "canary"}:
             kimi_rows = document.get("kimi_audit_rows")
             if (
                 isinstance(kimi_rows, bool)
@@ -288,7 +318,7 @@ def load_provider_rehearsal_v52(path: Path) -> LoadedProviderRehearsalV52:
                 "sprint Kimi ceiling must allow one malformed retry per telemetry row"
             )
         stop_after = document.get(
-            "controlled_stop_after_completed_roots", 1 if role == "pilot" else 0
+            "controlled_stop_after_completed_roots", 1 if role in {"pilot", "canary"} else 0
         )
         if isinstance(stop_after, bool) or not isinstance(stop_after, int) or stop_after < 0:
             raise ProviderRehearsalV52Error("controlled stop count must be a non-negative integer")
@@ -843,7 +873,7 @@ class OraclePool:
     def __init__(
         self,
         *,
-        cache_version: Literal["v1", "v2"] = "v2",
+        cache_version: CacheVersion = "v2",
         workers: int = 2,
         oracle_factory: Callable[[LoadedSFT2AConfig], SignatureOracle] | None = None,
     ) -> None:
@@ -949,23 +979,48 @@ class OraclePool:
             self._condition.notify_all()
 
 
+def _template_version(cache_version: CacheVersion) -> str | None:
+    from leanfaith.sft2a.lean_oracle import command_template_version
+
+    return command_template_version(cache_version)
+
+
 class PooledOracle:
     """PropositionOracle adapter that delegates to an OraclePool with per-call locking."""
 
     def __init__(self, pool: OraclePool, root_loaded: LoadedSFT2AConfig) -> None:
         self._pool = pool
         self._root_loaded = root_loaded
-        self.method_version = (
-            ORACLE_METHOD_VERSION_V2 if pool._cache_version == "v2" else ORACLE_METHOD_VERSION
-        )
+        self.method_version = oracle_method_version(pool._cache_version)
         self.cache_version = pool._cache_version
         self.elaborator_sha256 = elaborator_sha256(pool._cache_version)
+        self.command_template_version = (
+            None if pool._cache_version == "v1" else _template_version(pool._cache_version)
+        )
 
     def elaborate(
-        self, signature: str, *, endpoint_role: Literal["reference", "candidate"]
+        self, signature: str, *, endpoint_role: Literal["reference", "candidate", "authoring"]
     ) -> SignatureOracleResult:
         with self._pool.acquire(self._root_loaded) as oracle:
             return oracle.elaborate(signature, endpoint_role=endpoint_role)
+
+    def effective_context(self) -> EffectiveContextV3:
+        with self._pool.acquire(self._root_loaded) as oracle:
+            return oracle.effective_context()
+
+    def authoring_view(
+        self,
+        declaration_name: str,
+        *,
+        expected_closed_expr_hash: str,
+        expected_level_params: Sequence[str],
+    ) -> AuthoringViewResult:
+        with self._pool.acquire(self._root_loaded) as oracle:
+            return oracle.authoring_view(
+                declaration_name,
+                expected_closed_expr_hash=expected_closed_expr_hash,
+                expected_level_params=expected_level_params,
+            )
 
     def close(self) -> None:
         pass
@@ -1075,6 +1130,7 @@ def run_two_provider_workers_v52(
     stop_request_path: Path | None = None,
     enforce_closure_canaries: bool = True,
     registry_path: Path | None = None,
+    oracle_cache_version: CacheVersion | None = None,
 ) -> list[dict[str, object]]:
     """Dynamic as_completed root queue over exactly ``lean_workers`` persistent oracles.
 
@@ -1125,7 +1181,15 @@ def run_two_provider_workers_v52(
     states = ParallelRootStateMachine(
         loaded.output_root / "root_state.jsonl", maximum_workers=provider_concurrency
     )
-    oracle_pool = OraclePool(cache_version="v2", workers=claimed_workers)
+    configured_version = str(loaded.document.get("oracle_cache_version", "v2"))
+    if configured_version not in {"v2", "v3"}:
+        raise ProviderRehearsalV52Error("oracle_cache_version must be v2 or v3")
+    pool_version: CacheVersion = (
+        oracle_cache_version
+        if oracle_cache_version is not None
+        else cast(CacheVersion, configured_version)
+    )
+    oracle_pool = OraclePool(cache_version=pool_version, workers=claimed_workers)
     completed_count = 0
     completed_lock = threading.Lock()
     stop_event = threading.Event()
@@ -1247,6 +1311,7 @@ def run_two_provider_workers_v52(
             "stop_reasons": list(stop_reasons),
             "provider_concurrency": provider_concurrency,
             "lean_workers": claimed_workers,
+            "oracle_cache_version": pool_version,
             "oracle_pool": dict(oracle_pool.stats),
             "provider_budget": ledger.snapshot(),
             "candidate_registry": registry.snapshot(),

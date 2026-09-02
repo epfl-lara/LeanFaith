@@ -951,3 +951,68 @@ rows/minute, and pilot quality bounds hold. Leave healthy long runs detached wit
   directory is empty, and shard 1's accepted rows stay durable under
   `runs/sprint_shards_1k_v1/shard_01/run/compacted/`. Nothing was published, trained, or
   scaled to 50K; historical runs are unchanged.
+- 2026-09-02 — focused v3 repair authorized after the shard 1 attribution (its 3,242 rows,
+  manifests, journals, caches, raw responses, and reports stay unchanged; nothing was rerun,
+  recertified, or refrozen; the 34.5% raw rate stays historical telemetry). Additive changes,
+  all SFT2A-owned: (1) `lfSft2aAuthoringViewV3` renders an SFT2A-only proposer authoring view
+  from each certified constant's closed type with canonical universes and every macro-scoped
+  binder alpha-renamed to a parseable name (`inst`, `inst_1`, …), prints it with full names
+  under the frozen renderer options (profiles `notation`, then `raw` without notation, then
+  `explicit`), re-parses and re-elaborates it in the exact candidate command scope, and the
+  Python side validates it only when the re-elaborated closed-Expr hash and canonical universe
+  profile equal the certified reference's and the text carries no `✝` or placeholder; outcomes
+  are cached immutably under `lean_cache/authoring_view_v3` and written as `authoring_view.json`
+  per root plus manifest/sidecar summaries; frozen `goal_v1` is untouched and training rows and
+  blinded judging keep using it. (2) The v3 proposer prompt
+  (`prompts/sft2a/codex_proposer_sprint_v3.txt`) shows the SAFE AUTHORING VIEW, states that
+  dagger names in REFERENCE GOAL are pretty-printer artifacts that can never be written, and
+  tells Terra that only namespaces and the listed `open scoped` entries are in effect.
+  (3) Candidate text is never rewritten or quoted; a candidate containing `✝` is rejected before
+  Lean (`inaccessible_name_rejected`, counted as `inaccessible_name_rejections`) and the slot
+  regenerates. (4) v3 commands (`COMMAND_TEMPLATE_VERSION_V3`) emit imports, options, and
+  namespaces but never the lossy flattened plain `open_context`; every census `open scoped`
+  entry is validated alone through the real prelude and dropped on any diagnostic, the retained
+  entries are preflighted together and must produce zero diagnostics, and the effective context
+  (`EFFECTIVE_CONTEXT_VERSION_V3`, cached under `lean_cache/effective_context_v3`) is part of
+  every v3 cache key and sidecar; no general source parser was built. (5) New identities:
+  `ORACLE_METHOD_VERSION_V3`, cache version `v3`, elaborator sha, base config
+  `configs/sft2a/closure_aware_v5_2_sprint_v3_authoring.yaml` (config hash `f6c7c93b…`, run
+  layout `runs/sprint_v3_authoring_one_root`), sprint configs with `oracle_cache_version: v3`
+  and role `canary`; every v3 Lean failure is attributed to `context_prelude`,
+  `copied_inaccessible_name`, or `candidate_local`, and the attributed thresholds require zero
+  copied-name failures, zero prelude failures, and a genuine candidate-local rate below 25%
+  while the raw rate is reported as nonblocking telemetry. Tests: 152 SFT2A unit tests pass
+  (`tests/unit/sft2a/test_sprint_repair_v3.py` covers the command template, attribution,
+  prompt rendering with and without the view token, the pre-Lean rejection through the
+  executable root path, attributed thresholds, the canary chain, nonblocking projection, and
+  the deterministic class selections); Ruff, format, and strict Mypy pass. Gates (all
+  zero-provider): closure canaries passed for the new base config (3 Opus calls); the oracle-v3
+  live gate passed 15/15 fixtures (24 Lean requests, 13 s) including dropped plain opens with
+  zero prelude diagnostics, a corrupted scoped entry dropped without failure, unqualified names
+  attributed candidate-local, and a copied `✝` attributed as such; the adversarial check on
+  twelve shard-1 roots (six dagger-heavy with 13–28 daggers, six open/namespace/scoped cases
+  including the `Category`-order, `hiding`, and `Decidable.*` roots) passed 12/12 with
+  unchanged certified identities, zero prelude diagnostics, 10/12 validated views (8 `notation`,
+  2 `explicit`; two unavailable: a stuck `Bundle.TotalSpace` instance and a nine-universe
+  constant, which fall back to the raw signature plus fresh names) and corrupted scoped tokens
+  such as `Decidable.and_forall_ne`, `a`, `h`, `in`, and `DA.FinAcc` dropped while `Classical`,
+  `Filter`, `NNReal`, `Pointwise`, `Bundle`, `Manifold`, `Topology`, `Computability`, and `FLTS`
+  were retained; re-elaborating all 312 historical open-only failures from cached candidate
+  text under v3 yielded 233 valid, 79 genuinely invalid candidate-local results (unknown
+  identifiers, coercions without an expected type, parse errors), 0 prelude-attributed, and 0
+  copied-name results (142 s, one worker, `runs/sprint_repair_v3_gates/`). Frozen canary
+  (`runs/sprint_canary_20roots_v3/certified_sample.jsonl`, SHA `29104e7d…`): 20 unused pool
+  roots (11 Mathlib, 7 Physlib, 2 CSLib), ten dagger-heavy (12–29 daggers) and ten
+  open/namespace/scoped-context roots, disjoint from every completed sample and all ten frozen
+  shards, mechanism plans at the 0.2 cap; provider config
+  `configs/sft2a/sprint_canary_20roots_v3.json` (role canary, one worker/16 GiB, concurrency
+  16, forced stop after one root, 8 Kimi telemetry rows, thresholds ≥56/80 accepted, zero
+  copied-name and prelude failures, genuine rate <25%, zero self-pairs/duplicates,
+  infrastructure <2%, zero-call resume/replay). The chained v3 configs for the frozen shards
+  2–10 live under `runs/sprint_shards_1k_v3/shard_NN/provider_config.json` (same frozen samples
+  and SHAs, one worker/16 GiB, concurrency 16 with fallback 8, shared cross-shard registry,
+  projection reported but nonblocking, uninterrupted chain); the canary's pass launches shard 2
+  automatically. Kimi's 403 stays `failed_resumable` telemetry and never blocks a stage; the
+  shard 1 overlay (re-elaborate cached open-only candidates, regenerate only dagger-affected
+  slots, merge with accepted-only global dedup and conservation checks) is deferred so it
+  cannot delay shards 2–10.

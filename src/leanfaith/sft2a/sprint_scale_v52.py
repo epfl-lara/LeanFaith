@@ -430,22 +430,32 @@ def structured_family_coverage(shape: SignatureShape) -> dict[str, int]:
 
 
 def _screen_certified(
-    loaded: LoadedSprintPoolConfig, rows: Sequence[dict[str, object]]
+    loaded: LoadedSprintPoolConfig,
+    rows: Sequence[dict[str, object]],
+    *,
+    extra_exclusion_paths: Sequence[Path] = (),
 ) -> tuple[dict[str, list[dict[str, object]]], Counter[str], dict[str, tuple[SignatureShape, str]]]:
     _path, blocked = _blocklist(loaded.base)
     used_exprs: set[str] = set()
     used_goals: set[str] = set()
-    for sample in loaded.exclusion_sample_paths:
+    used_root_ids: set[str] = set()
+    for sample in (*loaded.exclusion_sample_paths, *extra_exclusion_paths):
         for row in _jsonl(sample):
             certified = row.get("certified_reference")
             if isinstance(certified, dict):
                 used_exprs.add(str(certified.get("closed_expr_hash")))
                 used_goals.add(str(certified.get("rendered_goal_hash")))
+            root = row.get("root")
+            if isinstance(root, dict) and isinstance(root.get("root_id"), str):
+                used_root_ids.add(str(root["root_id"]))
     accepted: dict[str, list[dict[str, object]]] = defaultdict(list)
     rejected: Counter[str] = Counter()
     verification_failures: list[dict[str, object]] = []
     shapes: dict[str, tuple[SignatureShape, str]] = {}
     for row in rows:
+        if str(row.get("root_id")) in used_root_ids:
+            rejected["duplicate_of_used_root"] += 1
+            continue
         result_path = _result_path(loaded.output_root, row)
         if not result_path.is_file():
             rejected["missing_result"] += 1

@@ -43,6 +43,13 @@ def _render(template: str, values: Mapping[str, str]) -> str:
     return rendered
 
 
+AUTHORING_VIEW_TOKEN = "{{AUTHORING_VIEW}}"
+AUTHORING_VIEW_UNAVAILABLE = (
+    "UNAVAILABLE: no validated authoring view exists for this reference. Introduce fresh valid "
+    "binder names yourself (for example inst_1, h_1); never copy a name containing \u271d."
+)
+
+
 def render_proposer_prompt(
     loaded: LoadedSFT2AConfig,
     *,
@@ -50,28 +57,40 @@ def render_proposer_prompt(
     attempt_number: int,
     attempt_feedback: str | None,
     reference_goal: str | None = None,
+    authoring_view: str | None = None,
+    compile_context: Mapping[str, object] | None = None,
 ) -> str:
     if not 1 <= attempt_number <= slot.max_attempts:
         raise PromptRenderError("attempt number is outside the frozen three-attempt cap")
-    context = loaded.config.root.compile_context.model_dump(mode="json", exclude={"project_dir"})
+    context: Mapping[str, object] = (
+        dict(compile_context)
+        if compile_context is not None
+        else loaded.config.root.compile_context.model_dump(mode="json", exclude={"project_dir"})
+    )
     feedback = (
         "No prior candidate exists for this slot."
         if attempt_feedback is None
         else "PRIOR ATTEMPT OUTCOME (do not repeat it):\n" + attempt_feedback.strip()
     )
-    return _render(
-        loaded.proposer_prompt,
-        {
-            "REFERENCE_GOAL": reference_goal or loaded.config.root.expected_reference_goal_v1,
-            "REFERENCE_SIGNATURE": loaded.config.root.reference_signature,
-            "COMPILE_CONTEXT": canonical_json_bytes(context).decode("utf-8"),
-            "REQUESTED_POLARITY": slot.requested_polarity,
-            "SLOT_ID": slot.slot_id,
-            "ATTEMPT_NUMBER": str(attempt_number),
-            "PREFERRED_MECHANISM": slot.preferred_mechanism,
-            "ATTEMPT_FEEDBACK": feedback,
-        },
-    )
+    values = {
+        "REFERENCE_GOAL": reference_goal or loaded.config.root.expected_reference_goal_v1,
+        "REFERENCE_SIGNATURE": loaded.config.root.reference_signature,
+        "COMPILE_CONTEXT": canonical_json_bytes(dict(context)).decode("utf-8"),
+        "REQUESTED_POLARITY": slot.requested_polarity,
+        "SLOT_ID": slot.slot_id,
+        "ATTEMPT_NUMBER": str(attempt_number),
+        "PREFERRED_MECHANISM": slot.preferred_mechanism,
+        "ATTEMPT_FEEDBACK": feedback,
+    }
+    # The v3 sprint proposer template carries the SAFE AUTHORING VIEW token; earlier frozen
+    # templates do not, and their rendering must stay byte-identical.
+    if AUTHORING_VIEW_TOKEN in loaded.proposer_prompt:
+        values["AUTHORING_VIEW"] = (
+            authoring_view if authoring_view is not None else AUTHORING_VIEW_UNAVAILABLE
+        )
+    elif authoring_view is not None:
+        raise PromptRenderError("proposer template has no SAFE AUTHORING VIEW token")
+    return _render(loaded.proposer_prompt, values)
 
 
 def render_blinded_judge_prompt(
@@ -107,6 +126,8 @@ def accepted_verdict_for(polarity: Polarity) -> str:
 
 
 __all__ = [
+    "AUTHORING_VIEW_TOKEN",
+    "AUTHORING_VIEW_UNAVAILABLE",
     "PromptRenderError",
     "accepted_verdict_for",
     "prompt_hash",

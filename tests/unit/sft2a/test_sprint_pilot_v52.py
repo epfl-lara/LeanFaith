@@ -836,6 +836,7 @@ def test_launch_requires_passed_canary_and_gate_receipts(
         "closure_canaries_config_hash",
         "oracle_v2_live_gate_sha256",
         "oracle_v2_live_gate_identity",
+        "oracle_cache_version",
     }
     # A shard names the pilot's gate receipt explicitly instead of its own output root.
     shared_gate = tmp_path / "pilot_gate_receipt.json"

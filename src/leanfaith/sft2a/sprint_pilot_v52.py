@@ -39,7 +39,10 @@ from leanfaith.sft2a.config import LoadedSFT2AConfig
 from leanfaith.sft2a.layout import run_paths
 from leanfaith.sft2a.lean_oracle import (
     COMMAND_TEMPLATE_VERSION_V2,
+    COMMAND_TEMPLATE_VERSION_V3,
     ORACLE_METHOD_VERSION_V2,
+    ORACLE_METHOD_VERSION_V3,
+    CacheVersion,
     SignatureOracle,
     SignatureOracleResult,
     elaborator_sha256,
@@ -77,6 +80,7 @@ from leanfaith.sft2a.providers import ProviderCallResult
 SPRINT_PILOT_VERSION = "leanfaith_sft2a_provider_rehearsal_v5_2_sprint_pilot_v1"
 AUDIT_ONLY_VERSION = "leanfaith_sft2a_audit_only_kimi_v5_2_v1"
 ORACLE_V2_GATE_VERSION = "leanfaith_sft2a_oracle_v2_live_gate_v1"
+ORACLE_V3_GATE_VERSION = "leanfaith_sft2a_oracle_v3_live_gate_v1"
 PILOT_MINIMUM_ACCEPTED_FRACTION = 0.7
 PILOT_MAXIMUM_LEAN_INVALID_FRACTION = 0.25
 PILOT_MAXIMUM_INFRASTRUCTURE_FAILURE_FRACTION = 0.02
@@ -602,10 +606,16 @@ def evaluate_sprint_pilot_thresholds(
     resume_check: Mapping[str, object],
     root_manifests: Sequence[Mapping[str, object]] | None = None,
     infrastructure: Mapping[str, object] | None = None,
-    role: Literal["pilot", "shard"] = "pilot",
+    role: Literal["pilot", "shard", "canary"] = "pilot",
     minimum_accepted_rows_per_minute: float = 8.0,
+    attribution_gate: bool = False,
 ) -> dict[str, object]:
     """Evaluate the objective pilot thresholds from durable artifacts only.
+
+    With ``attribution_gate`` (v3 oracle) the raw Lean-invalid rate is reported as nonblocking
+    telemetry after failure attribution: the blocking checks are zero copied-inaccessible-name
+    failures, zero context-prelude failures, and a genuine (candidate-local) invalid rate below
+    25%. A canary keeps the pilot checks without the 30-minute wall bound and reports throughput.
 
     A shard replaces the 30-minute wall bound with the long-run throughput bound (accepted rows
     per minute of generation time) while keeping every other check.
@@ -623,6 +633,11 @@ def evaluate_sprint_pilot_thresholds(
     lean_invalid_attempts = 0
     candidate_requests = 0
     candidate_attempts = 0
+    prelude_failures = 0
+    copied_name_failures = 0
+    candidate_local_failures = 0
+    inaccessible_rejections = 0
+    authoring_views: Counter[str] = Counter()
     lean_invalid_unique_slots = _lean_invalid_unique_slots(loaded)
     for manifest in manifests:
         counts = cast(Mapping[str, object], manifest.get("counts", {}))
@@ -630,6 +645,14 @@ def evaluate_sprint_pilot_thresholds(
         lean_invalid_attempts += int(cast(int, counts.get("lean_invalid_attempts", 0)))
         candidate_requests += int(cast(int, lean.get("candidate_requests", 0)))
         candidate_attempts += int(cast(int, counts.get("candidate_attempts", 0)))
+        prelude_failures += int(cast(int, counts.get("lean_invalid_context_prelude", 0)))
+        copied_name_failures += int(
+            cast(int, counts.get("lean_invalid_copied_inaccessible_name", 0))
+        )
+        candidate_local_failures += int(cast(int, counts.get("lean_invalid_candidate_local", 0)))
+        inaccessible_rejections += int(cast(int, counts.get("inaccessible_name_rejections", 0)))
+        view = manifest.get("authoring_view")
+        authoring_views[str(view.get("status")) if isinstance(view, Mapping) else "absent"] += 1
     infra = (
         dict(infrastructure)
         if infrastructure is not None
@@ -649,9 +672,9 @@ def evaluate_sprint_pilot_thresholds(
     resume_lean = int(
         cast(int, resume_check.get("lean_requests_for_completed_roots_after_resume", -1))
     )
+    genuine_rate = candidate_local_failures / candidate_requests if candidate_requests else 0.0
     checks: dict[str, bool] = {
         "accepted_at_least_70pct": accepted >= minimum_accepted,
-        "lean_invalid_below_25pct": lean_invalid_rate < PILOT_MAXIMUM_LEAN_INVALID_FRACTION,
         "zero_accepted_self_pairs": self_pairs == 0,
         "zero_accepted_duplicates": duplicates == 0,
         "injected_malformed_output_did_not_crash": bool(malformed_injection.get("passed")),
@@ -668,10 +691,18 @@ def evaluate_sprint_pilot_thresholds(
         ),
         "all_roots_have_manifests": len(manifests) == len(sample_rows),
     }
+    if attribution_gate:
+        checks["zero_copied_inaccessible_name_failures"] = copied_name_failures == 0
+        checks["zero_context_prelude_failures"] = prelude_failures == 0
+        checks["genuine_lean_invalid_below_25pct"] = (
+            genuine_rate < PILOT_MAXIMUM_LEAN_INVALID_FRACTION
+        )
+    else:
+        checks["lean_invalid_below_25pct"] = lean_invalid_rate < PILOT_MAXIMUM_LEAN_INVALID_FRACTION
     throughput = accepted / (generation_wall_seconds / 60.0) if generation_wall_seconds > 0 else 0.0
     if role == "pilot":
         checks["wall_time_at_most_30min"] = generation_wall_seconds <= PILOT_MAXIMUM_WALL_SECONDS
-    else:
+    elif role == "shard":
         checks["accepted_throughput_at_least_minimum"] = (
             throughput >= minimum_accepted_rows_per_minute
         )
@@ -679,10 +710,18 @@ def evaluate_sprint_pilot_thresholds(
     return {
         "version": "leanfaith_sft2a_sprint_pilot_thresholds_v1",
         "role": role,
+        "attribution_gate": attribution_gate,
         "accepted_rows_per_minute": throughput,
         "minimum_accepted_rows_per_minute": (
             minimum_accepted_rows_per_minute if role == "shard" else None
         ),
+        "lean_invalid_context_prelude": prelude_failures,
+        "lean_invalid_copied_inaccessible_name": copied_name_failures,
+        "lean_invalid_candidate_local": candidate_local_failures,
+        "inaccessible_name_rejections": inaccessible_rejections,
+        "genuine_lean_invalid_rate": genuine_rate,
+        "lean_invalid_rate_raw_is_nonblocking": attribution_gate,
+        "authoring_view_status_counts": dict(sorted(authoring_views.items())),
         "roots": len(sample_rows),
         "planned_slots": planned_slots,
         "accepted_rows": accepted,
@@ -696,7 +735,12 @@ def evaluate_sprint_pilot_thresholds(
             lean_invalid_attempts / planned_slots if planned_slots else 0.0
         ),
         "lean_invalid_unique_slots": lean_invalid_unique_slots,
-        "lean_invalid_gate": "lean_invalid_attempts / candidate_lean_requests < 0.25",
+        "lean_invalid_gate": (
+            "genuine (candidate-local) lean_invalid_attempts / candidate_lean_requests < 0.25; "
+            "raw rate is telemetry after attribution"
+            if attribution_gate
+            else "lean_invalid_attempts / candidate_lean_requests < 0.25"
+        ),
         "self_pairs": self_pairs,
         "candidate_duplicates": duplicates,
         "infrastructure": infra,
@@ -841,6 +885,8 @@ def _claim_with_wait(
         raise SprintPilotError("sprint pilot requires exactly two persistent Lean workers/40 GiB")
     if role == "shard" and (lean_workers not in {1, 2} or lean_rss != 16.0 * lean_workers):
         raise SprintPilotError("sprint shard claims one or two Lean workers at 16 GiB each")
+    if role == "canary" and (lean_workers != 1 or lean_rss != 16.0):
+        raise SprintPilotError("sprint canary claims exactly one Lean worker at 16 GiB")
     deadline = time.monotonic() + wait_seconds
     waits = 0
     while True:
@@ -955,9 +1001,13 @@ def run_detached_sprint_pilot_v52(
                 "combined_log": str(log_path),
                 "ceilings": loaded.ceilings.model_dump(mode="json"),
                 "resource_task": resource_task,
-                "maximum_root_workers": 2,
-                "maximum_total_lean_workers": 2,
-                "maximum_measured_rss_gib": 40.0,
+                "sprint_role": loaded.document.get("sprint_role", "pilot"),
+                "oracle_cache_version": loaded.document.get("oracle_cache_version", "v2"),
+                "maximum_root_workers": _int_field(loaded.document, "maximum_root_workers", 2),
+                "maximum_total_lean_workers": _int_field(
+                    loaded.document, "maximum_total_lean_workers", 2
+                ),
+                "maximum_measured_rss_gib": loaded.document.get("maximum_measured_rss_gib", 40.0),
                 "provider_concurrency": _int_field(loaded.document, "provider_concurrency", 8),
                 "kimi_audit_rows": _int_field(loaded.document, "kimi_audit_rows", 8),
                 "resume_command": (
@@ -994,12 +1044,22 @@ def run_detached_sprint_pilot_v52(
             _append_stage(stage_path, {"event": "resource_claimed", "claim": claim})
             generation_started = time.monotonic()
             role = str(loaded.document.get("sprint_role", "pilot"))
+            oracle_version = cast(
+                CacheVersion, str(loaded.document.get("oracle_cache_version", "v2"))
+            )
             concurrency = _effective_concurrency(loaded, detached)
-            _append_stage(stage_path, {"event": "effective_concurrency", "value": concurrency})
+            _append_stage(
+                stage_path,
+                {
+                    "event": "effective_concurrency",
+                    "value": concurrency,
+                    "oracle_cache_version": oracle_version,
+                },
+            )
             stop_after = _int_field(
                 loaded.document,
                 "controlled_stop_after_completed_roots",
-                1 if role == "pilot" else 0,
+                1 if role in {"pilot", "canary"} else 0,
             )
             resume_check: dict[str, object]
             try:
@@ -1017,6 +1077,7 @@ def run_detached_sprint_pilot_v52(
                         lean_workers=int(cast(int, claim["lean_workers"])),
                         stop_after_completed_roots=stop_after,
                         stop_request_path=detached / "stop_requested",
+                        oracle_cache_version=oracle_version,
                     )
                     _atomic_replace_json(
                         detached / "generation_stopped_terminal.json",
@@ -1039,6 +1100,7 @@ def run_detached_sprint_pilot_v52(
                     provider_concurrency=concurrency,
                     lean_workers=int(cast(int, claim["lean_workers"])),
                     stop_request_path=detached / "stop_requested",
+                    oracle_cache_version=oracle_version,
                 )
                 after = snapshot_completed_roots(loaded)
                 _atomic_replace_json(detached / "resume_snapshot_after.json", after)
@@ -1094,12 +1156,14 @@ def run_detached_sprint_pilot_v52(
                 generation_wall_seconds=total_generation_wall,
                 malformed_injection=injection,
                 resume_check=resume_check,
-                role="shard" if role == "shard" else "pilot",
+                role=cast(Literal["pilot", "shard", "canary"], role),
                 minimum_accepted_rows_per_minute=float(
                     cast(float, loaded.document.get("minimum_accepted_rows_per_minute", 8.0))
                 ),
+                attribution_gate=oracle_version == "v3",
             )
             evaluation["effective_provider_concurrency"] = concurrency
+            evaluation["oracle_cache_version"] = oracle_version
             _atomic_replace_json(detached / "evaluation_terminal.json", evaluation)
             _append_stage(
                 stage_path,
@@ -1263,12 +1327,20 @@ def chain_decision(
                 "reason": "pilot_passed",
             }
         return {"action": "stop", "reason": f"pilot_{status}", "failed_checks": failed}
+    if role == "canary":
+        # A passing v3 canary launches the first frozen shard of the corrected path directly;
+        # the authorization covers the uninterrupted execution of shards 2-10 after it.
+        target = loaded.document.get("next_shard_config_path")
+        if status == "complete" and isinstance(target, str):
+            return {"action": "launch_next_shard", "target": target, "reason": "canary_passed"}
+        return {"action": "stop", "reason": f"canary_{status}", "failed_checks": failed}
     target = loaded.document.get("next_shard_config_path")
     if target is None:
         return {"action": "stop", "reason": "last_shard", "failed_checks": failed}
     if status == "complete":
         projection = sprint_window_projection(loaded, evaluation)
-        if projection.get("fits_sprint_window") is False:
+        blocking = loaded.document.get("projection_blocking", True) is not False
+        if blocking and projection.get("fits_sprint_window") is False:
             return {
                 "action": "stop",
                 "reason": "projection_exceeds_sprint_window",
@@ -1278,7 +1350,11 @@ def chain_decision(
         return {
             "action": "launch_next_shard",
             "target": str(target),
-            "reason": "shard_passed",
+            "reason": (
+                "shard_passed"
+                if blocking or projection.get("fits_sprint_window") is not False
+                else "shard_passed_projection_nonblocking"
+            ),
             "projection": projection,
         }
     if failed == ["infrastructure_failures_below_2pct"]:
@@ -1346,33 +1422,52 @@ def require_sprint_prerequisite_receipts(loaded: LoadedProviderRehearsalV52) -> 
         )
     if canaries.get("config_hash") != loaded.base.config_hash:
         raise SprintPilotError("closure canary manifest is bound to a different base config")
-    configured_gate = loaded.document.get("oracle_v2_gate_receipt_path")
-    gate_path = (
-        Path(str(configured_gate))
-        if isinstance(configured_gate, str)
-        else loaded.output_root / "checks/oracle_v2_live_gate/oracle_v2_live_gate_receipt.json"
-    )
+    oracle_version = str(loaded.document.get("oracle_cache_version", "v2"))
+    if oracle_version == "v3":
+        configured_gate = loaded.document.get("oracle_v3_gate_receipt_path")
+        gate_path = (
+            Path(str(configured_gate))
+            if isinstance(configured_gate, str)
+            else loaded.output_root / "checks/oracle_v3_live_gate/oracle_v3_live_gate_receipt.json"
+        )
+        expected_identity = {
+            "method_version": ORACLE_METHOD_VERSION_V3,
+            "cache_version": "v3",
+            "elaborator_sha256": elaborator_sha256("v3"),
+            "command_template_version": COMMAND_TEMPLATE_VERSION_V3,
+            "base_config_hash": loaded.base.config_hash,
+        }
+        label = "oracle-v3"
+    else:
+        configured_gate = loaded.document.get("oracle_v2_gate_receipt_path")
+        gate_path = (
+            Path(str(configured_gate))
+            if isinstance(configured_gate, str)
+            else loaded.output_root / "checks/oracle_v2_live_gate/oracle_v2_live_gate_receipt.json"
+        )
+        expected_identity = {
+            "method_version": ORACLE_METHOD_VERSION_V2,
+            "cache_version": "v2",
+            "elaborator_sha256": elaborator_sha256("v2"),
+            "command_template_version": COMMAND_TEMPLATE_VERSION_V2,
+            "base_config_hash": loaded.base.config_hash,
+        }
+        label = "oracle-v2"
     gate = _object(gate_path) if gate_path.is_file() else {}
     if gate.get("all_passed") is not True:
-        raise SprintPilotError("sprint pilot requires the passed oracle-v2 live gate receipt")
-    expected_identity = {
-        "method_version": ORACLE_METHOD_VERSION_V2,
-        "cache_version": "v2",
-        "elaborator_sha256": elaborator_sha256("v2"),
-        "command_template_version": COMMAND_TEMPLATE_VERSION_V2,
-        "base_config_hash": loaded.base.config_hash,
-    }
+        raise SprintPilotError(f"sprint pilot requires the passed {label} live gate receipt")
     observed_identity = {key: gate.get(key) for key in expected_identity}
     if observed_identity != expected_identity:
         raise SprintPilotError(
-            "oracle-v2 live gate receipt identity differs from the current config/method/"
+            f"{label} live gate receipt identity differs from the current config/method/"
             f"elaborator: observed={observed_identity}"
         )
     return {
         "closure_canaries_sha256": hash_file(canary_path),
         "closure_canaries_config_hash": str(canaries.get("config_hash")),
-        "oracle_v2_live_gate_sha256": hash_file(gate_path),
-        "oracle_v2_live_gate_identity": expected_identity,
+        f"{label.replace('-', '_')}_live_gate_sha256": hash_file(gate_path),
+        f"{label.replace('-', '_')}_live_gate_identity": expected_identity,
+        "oracle_cache_version": oracle_version,
     }
 
 
@@ -1404,7 +1499,10 @@ def launch_sprint_pilot_v52(
             raise SprintPilotError(f"finished sprint pilot cannot be relaunched: {status}")
         if not resume:
             raise SprintPilotError("sprint pilot output exists; use resume-sprint-pilot-v5-2")
-    capacity = sprint_capacity_check(lean_workers=2, lean_rss_gib=40.0)
+    capacity = sprint_capacity_check(
+        lean_workers=_int_field(loaded.document, "maximum_total_lean_workers", 2),
+        lean_rss_gib=float(cast(float, loaded.document.get("maximum_measured_rss_gib", 40.0))),
+    )
     command = (
         sys.executable,
         "-m",
@@ -1787,6 +1885,10 @@ class OracleV2Fixture:
     minimum_distinct_universes: int = 0
     open_context: tuple[str, ...] = ()
     namespace_context: tuple[str, ...] = ()
+    scoped_context: tuple[str, ...] = ()
+    expected_attribution: str | None = None
+    expected_scoped_validated: tuple[str, ...] | None = None
+    expected_scoped_dropped: tuple[str, ...] | None = None
 
 
 ORACLE_V2_FIXTURES: tuple[OracleV2Fixture, ...] = (
@@ -1856,6 +1958,62 @@ ORACLE_V2_FIXTURES: tuple[OracleV2Fixture, ...] = (
 )
 
 
+ORACLE_V3_FIXTURES: tuple[OracleV2Fixture, ...] = (
+    *(
+        fixture
+        for fixture in ORACLE_V2_FIXTURES
+        if fixture.fixture_id
+        not in {
+            "rebound_open_context",
+            "namespace_relative_open_resolves",
+        }
+    ),
+    OracleV2Fixture(
+        "plain_open_dropped_qualified_name_resolves",
+        "∀ (n : ℕ), Nat.succ n = n + 1",
+        "valid",
+        open_context=("Nat", "hiding", "succ"),
+    ),
+    OracleV2Fixture(
+        "plain_open_dropped_unqualified_name_is_candidate_local",
+        "∀ (n : ℕ), succ n = n + 1",
+        "invalid",
+        open_context=("Nat",),
+        expected_attribution="candidate_local",
+    ),
+    OracleV2Fixture(
+        "namespace_relative_qualified_name_resolves",
+        "∀ (θ : Real.Angle), Real.Angle.toReal θ = Real.Angle.toReal θ",
+        "valid",
+        open_context=("Angle",),
+        namespace_context=("Real",),
+    ),
+    OracleV2Fixture(
+        "validated_scoped_open_retained",
+        "∀ (p : Prop), p ∨ ¬p",
+        "valid",
+        scoped_context=("Classical",),
+        expected_scoped_validated=("Classical",),
+        expected_scoped_dropped=(),
+    ),
+    OracleV2Fixture(
+        "invalid_scoped_entry_dropped_without_prelude_failure",
+        "∀ (p : Prop), p ∨ ¬p",
+        "valid",
+        open_context=("Function", "hiding", "id"),
+        scoped_context=("Classical", "Decidable.and_forall_ne"),
+        expected_scoped_validated=("Classical",),
+        expected_scoped_dropped=("Decidable.and_forall_ne",),
+    ),
+    OracleV2Fixture(
+        "copied_inaccessible_name_is_attributed",
+        "∀ {α : Type u_0} [inst✝ : Preorder α] {a b : α}, a ≤ b → a ≤ b",
+        "invalid",
+        expected_attribution="copied_inaccessible_name",
+    ),
+)
+
+
 def _distinct_universes(goal: str) -> int:
     import re
 
@@ -1868,17 +2026,27 @@ def run_oracle_v2_live_gate(
     output_root: Path,
     resource_task: str = "SFT2A-SPRINT-ORACLE-V2-GATE",
     claim: bool = True,
-    fixtures: Sequence[OracleV2Fixture] = ORACLE_V2_FIXTURES,
+    fixtures: Sequence[OracleV2Fixture] | None = None,
     wait_for_capacity_seconds: float = 12 * 3600.0,
     capacity_poll_seconds: float = 60.0,
+    cache_version: CacheVersion = "v2",
 ) -> dict[str, object]:
-    """Run the bounded live Lean fixtures through one persistent v2 oracle with rebind.
+    """Run the bounded live Lean fixtures through one persistent v2/v3 oracle with rebind.
 
     Covers ``Type*``, explicit declared/undeclared universes, distinct universe metavariables,
     ``Sort _``, dependent binders, section-variable closure, and a rebound open-context root on
-    the same backend. Claims one Lean worker/16 GiB when ``claim`` is set and releases it.
+    the same backend. The v3 gate additionally proves that plain opens are dropped without
+    prelude diagnostics, that only validated ``open scoped`` entries survive, and that failures
+    are attributed. Claims one Lean worker/16 GiB when ``claim`` is set and releases it.
     """
 
+    if cache_version not in {"v2", "v3"}:
+        raise SprintPilotError("live oracle gate supports cache versions v2 and v3")
+    if fixtures is None:
+        fixtures = ORACLE_V3_FIXTURES if cache_version == "v3" else ORACLE_V2_FIXTURES
+    if resource_task == "SFT2A-SPRINT-ORACLE-V2-GATE" and cache_version == "v3":
+        resource_task = "SFT2A-SPRINT-ORACLE-V3-GATE"
+    gate_label = f"oracle_{cache_version}_live_gate"
     reservation: dict[str, object] | None = None
     if claim:
         waits = 0
@@ -1924,13 +2092,14 @@ def run_oracle_v2_live_gate(
     started = time.monotonic()
     oracle: SignatureOracle | None = None
     try:
-        oracle = SignatureOracle(base, cache_version="v2")
+        oracle = SignatureOracle(base, cache_version=cache_version)
         for fixture in fixtures:
-            if fixture.open_context or fixture.namespace_context:
+            if fixture.open_context or fixture.namespace_context or fixture.scoped_context:
                 context = base.config.root.compile_context.model_copy(
                     update={
                         "open_context": list(fixture.open_context),
                         "namespace_context": list(fixture.namespace_context),
+                        "scoped_context": list(fixture.scoped_context),
                     }
                 )
                 root = base.config.root.model_copy(update={"compile_context": context})
@@ -1938,17 +2107,49 @@ def run_oracle_v2_live_gate(
                 oracle.rebind(rebound)
             else:
                 oracle.rebind(base)
+            effective_summary: dict[str, object] | None = None
+            if cache_version == "v3":
+                effective = oracle.effective_context()
+                combined = cast(Mapping[str, object], effective.record["combined_preflight"])
+                effective_summary = {
+                    "fingerprint": effective.fingerprint,
+                    "scoped_validated": list(cast(list[str], effective.record["scoped_validated"])),
+                    "scoped_dropped": [
+                        str(cast(Mapping[str, object], item)["name"])
+                        for item in cast(list[object], effective.record["scoped_dropped"])
+                    ],
+                    "plain_opens_dropped": list(
+                        cast(list[str], effective.record["plain_opens_dropped"])
+                    ),
+                    "prelude_diagnostics": int(cast(int, combined["diagnostic_count"])),
+                }
             result = oracle.elaborate(fixture.signature, endpoint_role="candidate")
             distinct = _distinct_universes(result.goal_v1 or "")
             passed = result.status == fixture.expected_status and (
                 distinct >= fixture.minimum_distinct_universes
             )
+            if fixture.expected_attribution is not None:
+                passed = passed and result.attribution == fixture.expected_attribution
+            if effective_summary is not None:
+                passed = passed and effective_summary["prelude_diagnostics"] == 0
+                if fixture.expected_scoped_validated is not None:
+                    passed = passed and tuple(
+                        cast(list[str], effective_summary["scoped_validated"])
+                    ) == tuple(fixture.expected_scoped_validated)
+                if fixture.expected_scoped_dropped is not None:
+                    passed = passed and tuple(
+                        cast(list[str], effective_summary["scoped_dropped"])
+                    ) == tuple(fixture.expected_scoped_dropped)
+                if result.status == "invalid":
+                    passed = passed and result.attribution != "context_prelude"
             rows.append(
                 {
                     "fixture_id": fixture.fixture_id,
                     "signature": fixture.signature,
                     "expected_status": fixture.expected_status,
                     "observed_status": result.status,
+                    "expected_attribution": fixture.expected_attribution,
+                    "observed_attribution": result.attribution,
                     "goal_v1": result.goal_v1,
                     "distinct_universes": distinct,
                     "minimum_distinct_universes": fixture.minimum_distinct_universes,
@@ -1958,6 +2159,8 @@ def run_oracle_v2_live_gate(
                     "detail": result.detail[:500],
                     "open_context": list(fixture.open_context),
                     "namespace_context": list(fixture.namespace_context),
+                    "scoped_context": list(fixture.scoped_context),
+                    "effective_context": effective_summary,
                     "passed": passed,
                 }
             )
@@ -1967,11 +2170,15 @@ def run_oracle_v2_live_gate(
         if claim:
             release_resources(task=resource_task)
     receipt: dict[str, object] = {
-        "version": ORACLE_V2_GATE_VERSION,
-        "method_version": ORACLE_METHOD_VERSION_V2,
-        "cache_version": "v2",
-        "elaborator_sha256": elaborator_sha256("v2"),
-        "command_template_version": COMMAND_TEMPLATE_VERSION_V2,
+        "version": ORACLE_V3_GATE_VERSION if cache_version == "v3" else ORACLE_V2_GATE_VERSION,
+        "method_version": (
+            ORACLE_METHOD_VERSION_V3 if cache_version == "v3" else ORACLE_METHOD_VERSION_V2
+        ),
+        "cache_version": cache_version,
+        "elaborator_sha256": elaborator_sha256(cache_version),
+        "command_template_version": (
+            COMMAND_TEMPLATE_VERSION_V3 if cache_version == "v3" else COMMAND_TEMPLATE_VERSION_V2
+        ),
         "base_config_hash": base.config_hash,
         "project_id": base.config.root.compile_context.project_id,
         "backend_context_fingerprint": (
@@ -1981,7 +2188,8 @@ def run_oracle_v2_live_gate(
         "fixture_count": len(rows),
         "passed_count": sum(bool(row["passed"]) for row in rows),
         "all_passed": all(bool(row["passed"]) for row in rows),
-        "lean_requests_executed": sum(not bool(row["cache_hit"]) for row in rows),
+        "lean_requests_executed": sum(not bool(row["cache_hit"]) for row in rows)
+        + int(getattr(oracle, "preflight_lean_requests", 0)),
         "cache_hits": sum(bool(row["cache_hit"]) for row in rows),
         "persistent_backends_created": 1,
         "provider_calls_executed": 0,
@@ -1989,15 +2197,17 @@ def run_oracle_v2_live_gate(
         "elapsed_seconds": time.monotonic() - started,
         "status_counts": dict(Counter(str(row["observed_status"]) for row in rows)),
     }
-    _atomic_replace_json(output_root / "oracle_v2_live_gate_receipt.json", receipt)
+    _atomic_replace_json(output_root / f"{gate_label}_receipt.json", receipt)
     if not bool(receipt["all_passed"]):
-        raise SprintPilotError("oracle-v2 live gate failed one or more fixtures")
+        raise SprintPilotError(f"{gate_label} failed one or more fixtures")
     return receipt
 
 
 __all__ = [
     "AUDIT_ONLY_VERSION",
     "ORACLE_V2_FIXTURES",
+    "ORACLE_V3_FIXTURES",
+    "ORACLE_V3_GATE_VERSION",
     "SPRINT_PILOT_VERSION",
     "LoadedAuditOnlyKimiV52",
     "OracleV2Fixture",

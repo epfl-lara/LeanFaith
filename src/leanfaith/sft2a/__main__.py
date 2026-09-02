@@ -81,6 +81,11 @@ from leanfaith.sft2a.sprint_pilot_v52 import (
     sprint_pilot_health_v52,
     verify_sprint_pilot_sample_v52,
 )
+from leanfaith.sft2a.sprint_repair_v3 import (
+    freeze_sprint_canary_v3,
+    load_repair_plan_v3,
+    run_v3_repair_gates,
+)
 from leanfaith.sft2a.sprint_scale_v52 import (
     compact_sprint_shards,
     freeze_sprint_shards,
@@ -96,6 +101,7 @@ SPRINT_PILOT_COMMANDS = frozenset(
         "verify-sprint-pilot-sample",
         "run-malformed-injection-check",
         "run-oracle-v2-live-gate",
+        "run-oracle-v3-live-gate",
         "launch-sprint-pilot-v5-2",
         "resume-sprint-pilot-v5-2",
         "detached-sprint-pilot-v5-2-worker",
@@ -112,6 +118,7 @@ SPRINT_POOL_COMMANDS = frozenset(
         "compact-sprint-shards",
     }
 )
+REPAIR_V3_COMMANDS = frozenset({"freeze-sprint-canary-v3", "run-v3-repair-gates"})
 AUDIT_ONLY_COMMANDS = frozenset(
     {
         "run-audit-only-kimi-v5-2",
@@ -133,6 +140,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--provider-rehearsal-authorization", type=Path)
     parser.add_argument("--audit-only-config", type=Path)
     parser.add_argument("--sprint-pool-config", type=Path)
+    parser.add_argument("--sprint-repair-plan", type=Path)
     subcommands = parser.add_subparsers(dest="command", required=True)
     subcommands.add_parser("verify-config")
     subcommands.add_parser("verify-pilot-readiness")
@@ -183,7 +191,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     subcommands.add_parser("resume-provider-rehearsal-v5-2")
     subcommands.add_parser("provider-rehearsal-v5-2-health")
     subcommands.add_parser("detached-provider-rehearsal-v5-2-worker")
-    for name in sorted(SPRINT_PILOT_COMMANDS | AUDIT_ONLY_COMMANDS | SPRINT_POOL_COMMANDS):
+    for name in sorted(
+        SPRINT_PILOT_COMMANDS | AUDIT_ONLY_COMMANDS | SPRINT_POOL_COMMANDS | REPAIR_V3_COMMANDS
+    ):
         subcommands.add_parser(name)
     arguments = parser.parse_args(argv)
     loaded = load_sft2a_config(
@@ -292,6 +302,13 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
     if arguments.command in SPRINT_POOL_COMMANDS and pool_loaded is None:
         parser.error("--sprint-pool-config is required for sprint pool commands")
+    repair_plan = (
+        load_repair_plan_v3(arguments.sprint_repair_plan)
+        if arguments.command in REPAIR_V3_COMMANDS and arguments.sprint_repair_plan is not None
+        else None
+    )
+    if arguments.command in REPAIR_V3_COMMANDS and repair_plan is None:
+        parser.error("--sprint-repair-plan is required for v3 repair commands")
     if arguments.command == "verify-config":
         result: object = {
             "config_hash": loaded.config_hash,
@@ -419,6 +436,13 @@ def main(argv: Sequence[str] | None = None) -> int:
             provider_loaded.base,
             output_root=provider_loaded.output_root / "checks/oracle_v2_live_gate",
         )
+    elif arguments.command == "run-oracle-v3-live-gate":
+        assert provider_loaded is not None
+        result = run_oracle_v2_live_gate(
+            provider_loaded.base,
+            output_root=provider_loaded.output_root / "checks/oracle_v3_live_gate",
+            cache_version="v3",
+        )
     elif arguments.command == "launch-sprint-pilot-v5-2":
         assert provider_loaded is not None
         result = launch_sprint_pilot_v52(provider_loaded, resume=False)
@@ -463,6 +487,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         result = compact_sprint_shards(
             pool_loaded, quarantine_row_ids=quarantined_row_ids(pool_loaded.base.repo_root)
         )
+    elif arguments.command == "freeze-sprint-canary-v3":
+        assert repair_plan is not None
+        result = freeze_sprint_canary_v3(repair_plan)
+    elif arguments.command == "run-v3-repair-gates":
+        assert repair_plan is not None
+        result = run_v3_repair_gates(repair_plan)
     elif arguments.command == "verify-replay":
         result = verify_one_root_replay(loaded)
     elif arguments.command == "run-lemex-audit":
