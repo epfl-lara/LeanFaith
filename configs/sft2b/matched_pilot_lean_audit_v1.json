@@ -71,6 +71,15 @@
       "expected_replacements": 1
     }
   ],
+  "reference_carrier_overrides": [
+    {
+      "source_id": "sft2b_source:43978550ff394ce91dd2fe146da80a4d201f4404e892304d21f3d21a55c5d397",
+      "source_proposition_sha256": "6e1db5f5c6068750850d65023c9121fd2c4d83ffe6cbae700c03f45f20d57fe9",
+      "carrier": "∀ (l : Set (EuclideanSpace ℝ (Fin 2))) (v d : EuclideanSpace ℝ (Fin 2)) (hl : l = {x | x 1 = (-12 * x 0 + 74) / 5}) (hparam : {x | ∃ t : ℝ, x = v + t • d} = l) (hdist : ∀ x ∈ l, x 0 ≤ 7 → x = v + dist x !₂[7, -2] • d), d = !₂[-5 / 13, 12 / 13]",
+      "carrier_sha256": "581c3fbad6ce7cfec085ef5dec6ba2053649d64778174fcf174c84f3f0964758",
+      "reason": "euclidean_vector_notation_v1"
+    }
+  ],
   "output_parent": "/storage/milikic/leanfaith/value_first/sft2_autoformalizer_v1/matched_pilot_lean_audit_v1",
   "input_bundle": {
     "repo_id": "Lemmy00/leanfaith-sft2-autoformalizer-v1",

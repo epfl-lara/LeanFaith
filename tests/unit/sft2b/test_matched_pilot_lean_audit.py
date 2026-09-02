@@ -166,6 +166,7 @@ def _config(tmp_path: Path) -> audit.MatchedPilotLeanAuditConfig:
             "mathlib_named_reference_catalog_sha256": _HASH,
             "explicit_reference_theorem_ids": [],
             "reference_syntax_migrations": [],
+            "reference_carrier_overrides": [],
             "output_parent": tmp_path,
             "input_bundle": bundle,
             "output_bundle": bundle,
@@ -237,6 +238,29 @@ def test_pinned_sum_in_migration_is_hash_and_count_bound() -> None:
         audit._migrated_reference_carrier(
             source, migration.model_copy(update={"expected_replacements": 1})
         )
+
+
+def test_reference_carrier_override_is_hash_bound_and_routed() -> None:
+    source, _ = _source()
+    carrier = "True ∧ True"
+    override = audit.ReferenceCarrierOverride(
+        source_id=source.source_id,
+        source_proposition_sha256=source.reference_proposition_sha256,
+        carrier=carrier,
+        carrier_sha256=sha256_hex(carrier.encode()),
+        reason="euclidean_vector_notation_v1",
+    )
+    reference_input = audit.ReferenceElaborationInput(
+        method="pinned_reference_carrier_override_v1",
+        carrier=override.carrier,
+        raw_statement=source.reference_proposition,
+    )
+
+    assert audit._reference_proposition_for_audit(source, reference_input) == carrier
+    payload = override.model_dump(mode="json")
+    payload["carrier_sha256"] = _HASH
+    with pytest.raises(ValidationError):
+        audit.ReferenceCarrierOverride.model_validate(payload)
 
 
 def test_source_material_accepts_content_pinned_snapshot_symlink(tmp_path: Path) -> None:

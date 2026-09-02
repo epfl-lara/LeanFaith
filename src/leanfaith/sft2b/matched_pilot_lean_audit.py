@@ -128,6 +128,20 @@ class ReferenceSyntaxMigration(StrictModel):
     expected_replacements: Annotated[int, Field(ge=1)]
 
 
+class ReferenceCarrierOverride(StrictModel):
+    source_id: StableId
+    source_proposition_sha256: Sha256
+    carrier: Annotated[str, Field(min_length=1)]
+    carrier_sha256: Sha256
+    reason: Literal["euclidean_vector_notation_v1"]
+
+    @model_validator(mode="after")
+    def validate_carrier_hash(self) -> ReferenceCarrierOverride:
+        if sha256_hex(self.carrier.encode("utf-8")) != self.carrier_sha256:
+            raise ValueError("reference carrier override hash mismatch")
+        return self
+
+
 class MatchedPilotLeanAuditConfig(StrictModel):
     schema_version: Literal["sft2b_matched_pilot_lean_audit_v1"]
     owner_session: str
@@ -138,6 +152,7 @@ class MatchedPilotLeanAuditConfig(StrictModel):
     mathlib_named_reference_catalog_sha256: Sha256
     explicit_reference_theorem_ids: tuple[str, ...]
     reference_syntax_migrations: tuple[ReferenceSyntaxMigration, ...]
+    reference_carrier_overrides: tuple[ReferenceCarrierOverride, ...]
     output_parent: Path
     input_bundle: BundlePin
     output_bundle: BundlePin
@@ -151,6 +166,7 @@ class ReferenceElaborationInput(StrictModel):
     method: Literal[
         "source_signature_pp",
         "pinned_sum_in_syntax_migration_v1",
+        "pinned_reference_carrier_override_v1",
         "frozen_reference_signature_explicit",
         "frozen_reference_constant_type",
     ]
@@ -169,6 +185,7 @@ class SourceAuditTerminal(StrictModel):
     reference_elaboration_method: Literal[
         "source_signature_pp",
         "pinned_sum_in_syntax_migration_v1",
+        "pinned_reference_carrier_override_v1",
         "frozen_reference_signature_explicit",
         "frozen_reference_constant_type",
     ]
@@ -427,6 +444,7 @@ def _reference_elaboration_inputs(
     named_catalog_sha256: str,
     explicit_theorem_ids: frozenset[str],
     syntax_migrations: Sequence[ReferenceSyntaxMigration] = (),
+    carrier_overrides: Sequence[ReferenceCarrierOverride] = (),
 ) -> tuple[dict[str, ReferenceElaborationInput], dict[str, object]]:
     """Recover exact elaboration carriers without changing source records.
 
@@ -445,6 +463,13 @@ def _reference_elaboration_inputs(
     source_by_id = {item.source_id: item for item in sources}
     if not set(migrations_by_source).issubset(source_by_id):
         raise MatchedPilotLeanAuditError("reference syntax migration names an unselected source")
+    overrides_by_source = {item.source_id: item for item in carrier_overrides}
+    if len(overrides_by_source) != len(carrier_overrides):
+        raise MatchedPilotLeanAuditError("reference carrier overrides contain duplicate source IDs")
+    if not set(overrides_by_source).issubset(source_by_id):
+        raise MatchedPilotLeanAuditError("reference carrier override names an unselected source")
+    if set(overrides_by_source).intersection(migrations_by_source):
+        raise MatchedPilotLeanAuditError("reference source has multiple carrier exception routes")
 
     catalogs = source_manifest.get("source_catalogs")
     if not isinstance(catalogs, dict):
@@ -656,8 +681,19 @@ def _reference_elaboration_inputs(
                 raw_statement=raw_statement,
             )
         else:
+            override = overrides_by_source.get(source.source_id)
             migration = migrations_by_source.get(source.source_id)
-            if migration is None:
+            if override is not None:
+                if override.source_proposition_sha256 != source.reference_proposition_sha256:
+                    raise MatchedPilotLeanAuditError(
+                        f"reference carrier override source hash drifted: {source.source_id}"
+                    )
+                item = ReferenceElaborationInput(
+                    method="pinned_reference_carrier_override_v1",
+                    carrier=override.carrier,
+                    raw_statement=source.reference_proposition,
+                )
+            elif migration is None:
                 item = ReferenceElaborationInput(
                     method="source_signature_pp",
                     carrier=source.reference_proposition,
@@ -686,6 +722,15 @@ def _reference_elaboration_inputs(
                 "carrier_sha256": sha256_hex(result[item.source_id].carrier.encode("utf-8")),
             }
             for item in syntax_migrations
+        ],
+        "reference_carrier_overrides": [
+            {
+                "source_id": item.source_id,
+                "source_proposition_sha256": item.source_proposition_sha256,
+                "carrier_sha256": item.carrier_sha256,
+                "reason": item.reason,
+            }
+            for item in carrier_overrides
         ],
         "method_counts": dict(sorted(method_counts.items())),
     }
@@ -772,6 +817,7 @@ def prepare_preflight(
         named_catalog_sha256=config.mathlib_named_reference_catalog_sha256,
         explicit_theorem_ids=frozenset(config.explicit_reference_theorem_ids),
         syntax_migrations=config.reference_syntax_migrations,
+        carrier_overrides=config.reference_carrier_overrides,
     )
     helper_path = repo_root / config.helper_path
     pins = verify_runtime_pins(repo_root, helper_path=helper_path)
@@ -1211,6 +1257,7 @@ def _reference_proposition_for_audit(
     if reference_input.method in {
         "frozen_reference_signature_explicit",
         "pinned_sum_in_syntax_migration_v1",
+        "pinned_reference_carrier_override_v1",
     }:
         return reference_input.carrier
     return source.reference_proposition
@@ -1410,6 +1457,7 @@ def _load_inputs(
         named_catalog_sha256=config.mathlib_named_reference_catalog_sha256,
         explicit_theorem_ids=frozenset(config.explicit_reference_theorem_ids),
         syntax_migrations=config.reference_syntax_migrations,
+        carrier_overrides=config.reference_carrier_overrides,
     )
     return sources, candidates, source_classes, reference_inputs
 
