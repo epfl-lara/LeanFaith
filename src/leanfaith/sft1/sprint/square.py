@@ -204,8 +204,10 @@ class SquareRunner:
         roots: Sequence[Mapping[str, Any]],
         max_roots: int | None = None,
         owner_session: str = "claude-sft1-square",
+        use_cache: bool = True,
     ) -> None:
         self.base = SprintRunner(repo_root, loaded, run_id=run_id, owner_session=owner_session)
+        self.use_cache = use_cache
         self.repo_root = repo_root
         self.loaded = loaded
         self.config = loaded.config
@@ -330,6 +332,8 @@ class SquareRunner:
     # ---------------------------------------------------------------- cache
 
     def try_cache(self, root: Mapping[str, Any]) -> bool:
+        if not self.use_cache:
+            return False  # fixture gates must exercise the live engine
         name = str(root["name"])
         record = self.cache.get_root(self.square_root_key(name))
         if record is None:
@@ -528,6 +532,7 @@ class SquareRunner:
             "evidence": payload.get("evidence"),
             "elapsed_ms": payload.get("elapsed_ms"),
             "engine": self.base.identity.to_dict(),
+            "implementation_commit": self.base.implementation_commit,
             "process_request_hash": process_request_hash,
             "render": dict(render) if render is not None else None,
         }
@@ -679,14 +684,16 @@ class SquareRunner:
                     ],
                 },
                 "project": self.base.pins.to_dict(),
-                "engine": self.base.identity.to_dict(),
+                # the engine that generated the certificates, not the engine building the rows
+                "engine": record.get("engine") or self.base.identity.to_dict(),
                 "cache_key": self.cache_key(name, str(record["alpha"]["p"])),
                 "lean_request_hashes": {
                     "process": record.get("process_request_hash"),
                     "render": render.get("request_hash"),
                 },
                 "level_params": record.get("level_params"),
-                "implementation_commit": self.base.implementation_commit,
+                "implementation_commit": record.get("implementation_commit")
+                or self.base.implementation_commit,
                 "runner_source_sha256": hash_file(Path(__file__)),
                 "cache_schema": 2,
                 "proof_check_time": "original_generation",
@@ -979,7 +986,7 @@ def run_square_fixtures(
     stale_run_dir = RunPaths(Path(loaded.config.output.staging_root), run_id).run_dir
     if stale_run_dir.exists():
         shutil.rmtree(stale_run_dir)
-    runner = SquareRunner(repo_root, loaded, run_id=run_id, roots=roots)
+    runner = SquareRunner(repo_root, loaded, run_id=run_id, roots=roots, use_cache=False)
     runner.run()
     terminals: dict[str, dict[str, Any]] = {}
     for record in runner.journal.read():
