@@ -91,10 +91,10 @@ def validate_view(
     sources = list(retained_paths)
     if retained_path is not None:
         sources.append(retained_path)
-    retained: dict[str, dict[str, Any]] = {}
+    retained: dict[str, list[dict[str, Any]]] = {}
     for path in sources:
         for item in read_jsonl(path):
-            retained.setdefault(str(item["row"]["pair_id"]), item)
+            retained.setdefault(str(item["row"]["pair_id"]), []).append(item)
     shard_dirs = sorted(compacted_dir.glob("shard-*"))
     total_rows = 0
     seen_pairs: set[str] = set()
@@ -174,14 +174,25 @@ def validate_view(
             if key in seen_keys:
                 issue(f"duplicate_unordered_pair: {pair_id} vs {seen_keys[key]}")
             seen_keys[key] = pair_id
-            source_record = retained.get(pair_id)
-            if source_record is None:
+            candidates_for_pair = retained.get(pair_id, [])
+            if not candidates_for_pair:
                 issue(f"missing_from_retained: {pair_id}")
             else:
                 stored = _without_view_fields(sidecar)
-                original = _without_view_fields(source_record["sidecar"])
-                if original != stored:
+                # A pair may come from several source runs (overlapping roots); the
+                # stored copy must equal one of them exactly.
+                source_record = next(
+                    (
+                        item
+                        for item in candidates_for_pair
+                        if _without_view_fields(item["sidecar"]) == stored
+                    ),
+                    None,
+                )
+                if source_record is None:
                     issue(f"retained_record_mismatch: {pair_id}")
+                    source_record = candidates_for_pair[0]
+                original = _without_view_fields(source_record["sidecar"])
                 if hash_canonical(original) != hash_canonical(stored):
                     issue(f"sidecar_hash_mismatch: {pair_id}")
                 if sidecar.get("orientation") != "swapped" and source_record["row"] != row:
