@@ -31,6 +31,7 @@ from leanfaith.sft2a.lean_oracle import (
     SignatureOracle,
     SignatureOracleError,
     _signature_command,
+    elaborator_sha256,
     project_backend_context,
 )
 from leanfaith.sft2a.models import ExecutionCeilings
@@ -659,6 +660,9 @@ def test_v2_command_collects_sort_levels_and_assigns_distinct_canonical_universe
     assert "| .sort level => collectLevelMVars acc level" in command
     assert "collectExprLevelMVars" in command
     assert "assignCanonicalUniverses" in command
+    assert "isLevelMVarAssigned mvarId" in command
+    assert "assignLevelMVar mvarId" in command
+    assert ".isAssigned" not in command and "mvarId.assign" not in command
     assert 's!"u_{index}"' in command
     assert "universe u_0 u_1 u_2 u_3 u_4 u_5 u_6 u_7" in command
     assert command.count("Term.elabTerm") == 1
@@ -691,6 +695,8 @@ def test_v2_oracle_rebind_is_project_scoped_and_reports_v2_identity() -> None:
     oracle = SignatureOracle(base, backend=cast(Any, _Backend()), cache_version="v2")
     assert oracle.method_version == ORACLE_METHOD_VERSION_V2
     assert oracle.cache_version == "v2"
+    assert oracle.elaborator_sha256 == elaborator_sha256("v2")
+    assert elaborator_sha256("v2") != elaborator_sha256("v1")
     assert oracle.backend_context.open_context == ()
     root = base.config.root
     rebound_context = root.compile_context.model_copy(update={"open_context": ["Nat"]})

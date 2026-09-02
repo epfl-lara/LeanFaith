@@ -236,7 +236,13 @@ def _sprint_fixture(
     _RecordingProvider,
 ]:
     base = load_sft2a_config(_SPRINT_BASE)
-    config = base.config.model_copy(update={"staging_root": str(tmp_path / "staging")})
+    staging = str(tmp_path / "staging")
+    config = base.config.model_copy(
+        update={
+            "staging_root": staging,
+            "run_layout": base.config.run_layout.model_copy(update={"shared_cache_root": staging}),
+        }
+    )
     base = replace(base, config=config, config_hash=hash_canonical(config.model_dump(mode="json")))
     root_document = base.config.root.model_dump(mode="json")
     rows: list[dict[str, object]] = []
@@ -785,3 +791,80 @@ def test_cli_requires_the_matching_config_flag(monkeypatch: pytest.MonkeyPatch) 
     with pytest.raises(SystemExit) as missing_provider:
         sft2a_main.main(["sprint-pilot-v5-2-health"])
     assert missing_provider.value.code == 2
+
+
+def test_launch_requires_passed_canary_and_gate_receipts(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    loaded, _authorization, _proposer, _judge = _sprint_fixture(tmp_path, monkeypatch, roots=1)
+    monkeypatch.setattr(sprint_pilot_v52, "verify_sprint_pilot_sample_v52", lambda _l: {"ok": 1})
+    monkeypatch.setattr(sprint_pilot_v52, "_tmux_session_exists", lambda _s: False)
+    monkeypatch.setattr(sprint_pilot_v52, "list_reservations", lambda: [])
+    with pytest.raises(SprintPilotError, match="closure canary manifest"):
+        sprint_pilot_v52.launch_sprint_pilot_v52(loaded)
+    canary = sprint_pilot_v52.run_paths(loaded.base).one_root / "closure_canaries_v5/manifest.json"
+    canary.parent.mkdir(parents=True)
+    canary.write_text(json.dumps({"all_passed": True}))
+    with pytest.raises(SprintPilotError, match="oracle-v2 live gate receipt"):
+        sprint_pilot_v52.launch_sprint_pilot_v52(loaded)
+    gate = loaded.output_root / "checks/oracle_v2_live_gate/oracle_v2_live_gate_receipt.json"
+    gate.parent.mkdir(parents=True)
+    gate.write_text(json.dumps({"all_passed": False}))
+    with pytest.raises(SprintPilotError, match="oracle-v2 live gate receipt"):
+        sprint_pilot_v52.launch_sprint_pilot_v52(loaded)
+    gate.write_text(json.dumps({"all_passed": True}))
+    receipts = sprint_pilot_v52.require_sprint_prerequisite_receipts(loaded)
+    assert set(receipts) == {"closure_canaries_sha256", "oracle_v2_live_gate_sha256"}
+
+
+def test_oracle_gate_waits_for_capacity_before_claiming(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    attempts = {"count": 0}
+
+    def fake_claim(**kwargs: object) -> Any:
+        attempts["count"] += 1
+        if attempts["count"] < 2:
+            raise ReservationError("Lean worker cap exceeded: requested total 3, cap 2")
+        return SimpleNamespace(task=kwargs["task"])
+
+    released: list[str] = []
+    monkeypatch.setattr(sprint_pilot_v52, "claim_resources", fake_claim)
+    monkeypatch.setattr(sprint_pilot_v52, "list_reservations", lambda: [])
+    monkeypatch.setattr(
+        sprint_pilot_v52, "release_resources", lambda **kw: released.append(str(kw["task"]))
+    )
+    monkeypatch.setattr(sprint_pilot_v52.time, "sleep", lambda _s: None)
+
+    class _Oracle:
+        backend_context = SimpleNamespace(fingerprint="fp")
+
+        def __init__(self, base: Any, *, cache_version: str) -> None:
+            self.calls = 0
+
+        def rebind(self, loaded: Any) -> None:
+            return None
+
+        def elaborate(self, signature: str, *, endpoint_role: str) -> SignatureOracleResult:
+            self.calls += 1
+            return _valid_result("⊢ ∀ {α : Type u_0}, True", hash_canonical({"s": signature}))
+
+        def close(self) -> None:
+            return None
+
+    monkeypatch.setattr(sprint_pilot_v52, "SignatureOracle", _Oracle)
+    base = load_sft2a_config(_SPRINT_BASE)
+    fixtures = [
+        sprint_pilot_v52.OracleV2Fixture("only", "True", "valid", minimum_distinct_universes=1)
+    ]
+    receipt = sprint_pilot_v52.run_oracle_v2_live_gate(
+        base, output_root=tmp_path, fixtures=fixtures, capacity_poll_seconds=0.0
+    )
+    assert receipt["all_passed"] is True
+    assert cast(dict[str, object], receipt["resource_claim"])["waits"] == 1
+    assert released == ["SFT2A-SPRINT-ORACLE-V2-GATE"]
+    events = [
+        json.loads(line)
+        for line in (tmp_path / "oracle_v2_gate_stage_journal.jsonl").read_text().splitlines()
+    ]
+    assert [event["event"] for event in events] == ["waiting_for_lean_capacity", "resource_claimed"]

@@ -1022,6 +1022,7 @@ def run_one_root(
         "lean": {
             "method_version": getattr(proposition_oracle, "method_version", ORACLE_METHOD_VERSION),
             "cache_version": getattr(proposition_oracle, "cache_version", "v1"),
+            "elaborator_sha256": getattr(proposition_oracle, "elaborator_sha256", None),
             "oracle_source_sha256": (
                 hash_file(loaded.repo_root / "src/leanfaith/sft2a/lean_oracle.py")
                 if getattr(proposition_oracle, "cache_version", "v1") == "v1"

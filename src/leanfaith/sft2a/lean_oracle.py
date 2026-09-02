@@ -72,6 +72,13 @@ def compile_context(loaded: LoadedSFT2AConfig) -> CompileContext:
     )
 
 
+def elaborator_sha256(cache_version: Literal["v1", "v2"]) -> str:
+    """Content identity of the Lean elaborator body injected for one oracle version."""
+
+    body = _V1_NAMESPACE_BODY if cache_version == "v1" else _V2_NAMESPACE_BODY
+    return sha256_hex(body.encode("utf-8"))
+
+
 def project_backend_context(context: CompileContext) -> CompileContext:
     """Project-level backend identity: imports, preamble, and options without root scopes."""
 
@@ -259,8 +266,8 @@ private def assignCanonicalUniverses (proposition : Expr) : MetaM Expr := do
     throwError "signature requires more than the eight canonical universes"
   let mut index := 0
   for mvarId in pending do
-    unless (← mvarId.isAssigned) do
-      mvarId.assign (.param (Name.mkSimple s!"u_{index}"))
+    unless (← isLevelMVarAssigned mvarId) do
+      assignLevelMVar mvarId (.param (Name.mkSimple s!"u_{index}"))
     index := index + 1
   instantiateMVars proposition
 
@@ -376,6 +383,7 @@ class SignatureOracle:
         self.method_version = (
             ORACLE_METHOD_VERSION_V2 if cache_version == "v2" else ORACLE_METHOD_VERSION
         )
+        self.elaborator_sha256 = elaborator_sha256(cache_version)
         # v2 binds the persistent backend to the project-level context (imports, preamble,
         # options) so one initialized Lean process serves every root of that project; the
         # root-local namespace/open/scoped lines stay in the command, cache key, and sidecar.
@@ -464,6 +472,11 @@ class SignatureOracle:
         }
         if self.cache_version == "v1":
             key_payload["oracle_source_sha256"] = hash_file(Path(__file__))
+        else:
+            # v2 binds the Lean elaborator body (semantic identity) rather than this Python
+            # file's bytes, so unrelated Python edits keep the cache while any change to the
+            # elaboration semantics yields fresh keys.
+            key_payload["elaborator_sha256"] = self.elaborator_sha256
         cache_key = hash_canonical(key_payload)
         cache_path = self.cache_root / self.cache_version / cache_key[:2] / f"{cache_key}.json"
         cached = _load_cache(cache_path, cache_key)
@@ -611,6 +624,7 @@ __all__ = [
     "SignatureOracleError",
     "SignatureOracleResult",
     "compile_context",
+    "elaborator_sha256",
     "project_backend_context",
     "validate_signature_text",
 ]

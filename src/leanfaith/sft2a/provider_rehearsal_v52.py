@@ -32,6 +32,7 @@ from leanfaith.sft2a.lean_oracle import (
     ORACLE_METHOD_VERSION_V2,
     SignatureOracle,
     SignatureOracleResult,
+    elaborator_sha256,
 )
 from leanfaith.sft2a.legacy import _atomic_exact
 from leanfaith.sft2a.mechanisms import MechanismAssignment
@@ -882,6 +883,7 @@ class PooledOracle:
             ORACLE_METHOD_VERSION_V2 if pool._cache_version == "v2" else ORACLE_METHOD_VERSION
         )
         self.cache_version = pool._cache_version
+        self.elaborator_sha256 = elaborator_sha256(pool._cache_version)
 
     def elaborate(
         self, signature: str, *, endpoint_role: Literal["reference", "candidate"]

@@ -36,6 +36,7 @@ from leanfaith.host_resources import (
 )
 from leanfaith.sft2a.certified_sample_v52 import verify_sprint_pilot_sample
 from leanfaith.sft2a.config import LoadedSFT2AConfig
+from leanfaith.sft2a.layout import run_paths
 from leanfaith.sft2a.lean_oracle import (
     ORACLE_METHOD_VERSION_V2,
     SignatureOracle,
@@ -46,7 +47,7 @@ from leanfaith.sft2a.mechanisms import (
     PRESERVING_MECHANISMS,
     MechanismAssignment,
 )
-from leanfaith.sft2a.models import OneRootConfig
+from leanfaith.sft2a.models import OneRootConfig, SFT2AOpusConfig
 from leanfaith.sft2a.parallel_rehearsal import (
     AtomicProviderBudget,
     ParallelRehearsalError,
@@ -360,7 +361,13 @@ def run_malformed_injection_check(
     schema-invalid. It executes zero real provider calls and zero Lean requests.
     """
 
-    config = base.config.model_copy(update={"staging_root": str(output_root / "staging")})
+    staging = str(output_root / "staging")
+    update: dict[str, object] = {"staging_root": staging}
+    if isinstance(base.config, SFT2AOpusConfig):
+        update["run_layout"] = base.config.run_layout.model_copy(
+            update={"shared_cache_root": staging}
+        )
+    config = base.config.model_copy(update=update)
     loaded = replace(
         base, config=config, config_hash=hash_canonical(config.model_dump(mode="json"))
     )
@@ -892,6 +899,8 @@ def run_detached_sprint_pilot_v52(
             with (detached / "launch_history.jsonl").open("ab") as handle:
                 handle.write(canonical_json_bytes(launch_receipt) + b"\n")
             _atomic_replace_json(detached / "launch_receipt.json", launch_receipt)
+            prerequisites = require_sprint_prerequisite_receipts(loaded)
+            _append_stage(stage_path, {"event": "prerequisite_receipts", **prerequisites})
             injection = run_malformed_injection_check(
                 loaded.base, output_root=output_root / "checks/malformed_injection"
             )
@@ -1074,6 +1083,23 @@ def _git_head(repo_root: Path) -> str:
     return completed.stdout.strip() if completed.returncode == 0 else "unknown"
 
 
+def require_sprint_prerequisite_receipts(loaded: LoadedProviderRehearsalV52) -> dict[str, object]:
+    """Require the passed sprint-prompt closure canaries and the passed oracle-v2 live gate."""
+
+    canary_path = run_paths(loaded.base).one_root / "closure_canaries_v5/manifest.json"
+    if not canary_path.is_file() or _object(canary_path).get("all_passed") is not True:
+        raise SprintPilotError(
+            "sprint pilot requires the passed closure canary manifest for the sprint judge prompt"
+        )
+    gate_path = loaded.output_root / "checks/oracle_v2_live_gate/oracle_v2_live_gate_receipt.json"
+    if not gate_path.is_file() or _object(gate_path).get("all_passed") is not True:
+        raise SprintPilotError("sprint pilot requires the passed oracle-v2 live gate receipt")
+    return {
+        "closure_canaries_sha256": hash_file(canary_path),
+        "oracle_v2_live_gate_sha256": hash_file(gate_path),
+    }
+
+
 def launch_sprint_pilot_v52(
     loaded: LoadedProviderRehearsalV52, *, resume: bool = False, startup_timeout: float = 90.0
 ) -> dict[str, object]:
@@ -1082,6 +1108,7 @@ def launch_sprint_pilot_v52(
     if loaded.kind != "sprint":
         raise SprintPilotError("sprint pilot launch requires a sprint pilot config")
     verification = verify_sprint_pilot_sample_v52(loaded)
+    prerequisites = require_sprint_prerequisite_receipts(loaded)
     session = str(loaded.document["tmux_session"])
     if _tmux_session_exists(session):
         raise SprintPilotError(f"sprint pilot tmux session already exists: {session}")
@@ -1126,6 +1153,7 @@ def launch_sprint_pilot_v52(
         "session_started": True,
         "resume": resume,
         "sample_verification": verification,
+        "prerequisite_receipts": prerequisites,
         "capacity_recheck": capacity,
         "worker_will_wait_for_capacity": not bool(capacity["capacity_available_now"]),
         "health": health,
@@ -1502,6 +1530,8 @@ def run_oracle_v2_live_gate(
     resource_task: str = "SFT2A-SPRINT-ORACLE-V2-GATE",
     claim: bool = True,
     fixtures: Sequence[OracleV2Fixture] = ORACLE_V2_FIXTURES,
+    wait_for_capacity_seconds: float = 12 * 3600.0,
+    capacity_poll_seconds: float = 60.0,
 ) -> dict[str, object]:
     """Run the bounded live Lean fixtures through one persistent v2 oracle with rebind.
 
@@ -1512,16 +1542,45 @@ def run_oracle_v2_live_gate(
 
     reservation: dict[str, object] | None = None
     if claim:
-        claimed = claim_resources(
-            task=resource_task,
-            lean_workers=1,
-            lean_rss_gib=16.0,
-            gpu=False,
-            pid=os.getpid(),
-            owner_session="oracle-v2-live-gate",
-            worktree=base.repo_root,
+        waits = 0
+        deadline = time.monotonic() + wait_for_capacity_seconds
+        while True:
+            try:
+                claimed = claim_resources(
+                    task=resource_task,
+                    lean_workers=1,
+                    lean_rss_gib=16.0,
+                    gpu=False,
+                    pid=os.getpid(),
+                    owner_session="oracle-v2-live-gate",
+                    worktree=base.repo_root,
+                )
+            except ReservationError as exc:
+                if "cap exceeded" not in str(exc) or time.monotonic() >= deadline:
+                    raise
+                if waits % 10 == 0:
+                    _append_stage(
+                        output_root / "oracle_v2_gate_stage_journal.jsonl",
+                        {
+                            "event": "waiting_for_lean_capacity",
+                            "detail": str(exc),
+                            "capacity": sprint_capacity_check(lean_workers=1, lean_rss_gib=16.0),
+                        },
+                    )
+                waits += 1
+                time.sleep(capacity_poll_seconds)
+                continue
+            break
+        reservation = {
+            "task": claimed.task,
+            "lean_workers": 1,
+            "lean_rss_gib": 16.0,
+            "waits": waits,
+        }
+        _append_stage(
+            output_root / "oracle_v2_gate_stage_journal.jsonl",
+            {"event": "resource_claimed", "claim": reservation},
         )
-        reservation = {"task": claimed.task, "lean_workers": 1, "lean_rss_gib": 16.0}
     rows: list[dict[str, object]] = []
     started = time.monotonic()
     oracle: SignatureOracle | None = None
@@ -1605,6 +1664,7 @@ __all__ = [
     "launch_sprint_pilot_v52",
     "load_audit_only_kimi_v52",
     "measure_infrastructure_failures",
+    "require_sprint_prerequisite_receipts",
     "run_audit_only_kimi_v52",
     "run_detached_audit_only_kimi_v52",
     "run_detached_sprint_pilot_v52",
