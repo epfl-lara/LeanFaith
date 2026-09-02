@@ -867,3 +867,29 @@ def test_in_run_checkpoint_from_durable_root_artifacts(
     )
     broken = sprint_pilot_v52.in_run_checkpoint_v52(cast(Any, loaded), checkpoint_roots=2)
     assert "terminal_accounting_intact" in broken["failed_checks"]
+
+
+def test_replay_accepts_this_runs_historical_config_hashes(tmp_path: Path) -> None:
+    from types import SimpleNamespace
+
+    from leanfaith.sft2a.provider_rehearsal_v52 import _root_loaded, run_config_hashes
+
+    base = _loaded_with_prompt("x")
+    out = tmp_path / "run"
+    (out / "detached").mkdir(parents=True)
+    (out / "detached/launch_history.jsonl").write_text(
+        json.dumps({"provider_config_sha256": "old" * 21 + "0"})
+        + "\n"
+        + json.dumps({"provider_config_sha256": "new" * 21 + "0"})
+        + "\n"
+    )
+    loaded = SimpleNamespace(output_root=out, base=base, sha256="new" * 21 + "0")
+    assert run_config_hashes(cast(Any, loaded)) == {"old" * 21 + "0", "new" * 21 + "0"}
+    row = {"root": base.config.root.model_dump(mode="json")}
+    assert _root_loaded(cast(Any, loaded), row).config_hash == "new" * 21 + "0"
+    assert (
+        _root_loaded(cast(Any, loaded), row, config_hash="old" * 21 + "0").config_hash
+        == "old" * 21 + "0"
+    )
+    empty = SimpleNamespace(output_root=tmp_path / "none", base=base, sha256="s")
+    assert run_config_hashes(cast(Any, empty)) == {"s"}

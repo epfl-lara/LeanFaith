@@ -818,10 +818,38 @@ def certified_reference_result_v52(row: dict[str, object]) -> SignatureOracleRes
     )
 
 
-def _root_loaded(loaded: LoadedProviderRehearsalV52, row: dict[str, object]) -> LoadedSFT2AConfig:
+def _root_loaded(
+    loaded: LoadedProviderRehearsalV52,
+    row: dict[str, object],
+    *,
+    config_hash: str | None = None,
+) -> LoadedSFT2AConfig:
     root = OneRootConfig.model_validate(row["root"])
     config = loaded.base.config.model_copy(update={"root": root})
-    return replace(loaded.base, config=config, config_hash=loaded.sha256)
+    return replace(loaded.base, config=config, config_hash=config_hash or loaded.sha256)
+
+
+def run_config_hashes(loaded: LoadedProviderRehearsalV52) -> set[str]:
+    """Provider-config hashes this run has been launched or resumed with.
+
+    A run's provider config is a replaceable launch document (an authorized override such as
+    the in-run checkpoint may change it between a controlled stop and the resume); every
+    launch or resume appends its receipt to ``detached/launch_history.jsonl``. Root manifests
+    record the hash they were generated under, and a zero-call replay accepts any hash from
+    this run's own history while still refusing manifests from any other config.
+    """
+
+    hashes = {loaded.sha256}
+    history = loaded.output_root / "detached/launch_history.jsonl"
+    if history.is_file():
+        for line in history.read_text(encoding="utf-8").splitlines():
+            if not line.strip():
+                continue
+            receipt = json.loads(line)
+            sha = receipt.get("provider_config_sha256") if isinstance(receipt, dict) else None
+            if isinstance(sha, str) and sha:
+                hashes.add(sha)
+    return hashes
 
 
 def _mechanism_plan(row: dict[str, object]) -> dict[str, MechanismAssignment]:
@@ -1481,10 +1509,19 @@ def verify_provider_replay_v52(loaded: LoadedProviderRehearsalV52) -> dict[str, 
         and str(path.relative_to(loaded.output_root)) not in excluded
         and not str(path.relative_to(loaded.output_root)).startswith("audit_kimi/")
     }
+    allowed_hashes = run_config_hashes(loaded)
+    replayed_hashes: Counter[str] = Counter()
     for row in _sample_rows(loaded.sample_path):
         root = OneRootConfig.model_validate(row["root"])
+        root_output = _root_output(loaded, root.root_id)
+        manifest_path = root_output / "manifest.json"
+        recorded = _object(manifest_path).get("config_hash") if manifest_path.is_file() else None
+        replay_hash = (
+            recorded if isinstance(recorded, str) and recorded in allowed_hashes else loaded.sha256
+        )
+        replayed_hashes[replay_hash] += 1
         result = run_one_root(
-            _root_loaded(loaded, row), output_root=_root_output(loaded, root.root_id)
+            _root_loaded(loaded, row, config_hash=replay_hash), output_root=root_output
         )
         if not result.replayed:
             raise ProviderRehearsalV52Error("provider replay unexpectedly executed a root")
@@ -1499,6 +1536,7 @@ def verify_provider_replay_v52(loaded: LoadedProviderRehearsalV52) -> dict[str, 
     if before != after:
         raise ProviderRehearsalV52Error("provider zero-call replay changed durable artifacts")
     receipt: dict[str, object] = {
+        "provider_config_hashes_replayed": dict(replayed_hashes),
         "version": "leanfaith_sft2a_provider_replay_v5_2_corrected_v1",
         "provider_config_sha256": loaded.sha256,
         "sample_sha256": hash_file(loaded.sample_path),
