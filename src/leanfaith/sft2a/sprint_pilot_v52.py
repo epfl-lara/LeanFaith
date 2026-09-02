@@ -196,20 +196,32 @@ def verify_sprint_pilot_sample_v52(loaded: LoadedProviderRehearsalV52) -> dict[s
 
     if loaded.kind != "sprint":
         raise SprintPilotError("sprint sample verification requires a sprint pilot config")
+    receipt_path = loaded.output_root / "preflight/sprint_sample_verification.json"
+    if receipt_path.is_file():
+        existing = _object(receipt_path)
+        if (
+            existing.get("verified") is True
+            and existing.get("sample_sha256") == loaded.document["sample_sha256"]
+            and existing.get("provider_config_sha256") == loaded.sha256
+            and hash_file(loaded.sample_path) == loaded.document["sample_sha256"]
+        ):
+            return existing
     completed_paths = [
         Path(str(item))
         for item in cast(list[object], loaded.document.get("completed_root_sample_paths", []))
     ]
     _groups, blocked_hashes = _gold_blocklist(loaded.base)
+    mix = loaded.document.get("expected_source_mix")
     receipt = verify_sprint_pilot_sample(
         loaded.sample_path,
         expected_sha256=str(loaded.document["sample_sha256"]),
+        expected_source_mix=cast(dict[str, int], mix) if isinstance(mix, dict) else None,
         completed_sample_paths=completed_paths,
         blocked_signature_hashes=blocked_hashes,
         verify_certificates=True,
     )
     receipt["provider_config_sha256"] = loaded.sha256
-    _atomic_replace_json(loaded.output_root / "preflight/sprint_sample_verification.json", receipt)
+    _atomic_replace_json(receipt_path, receipt)
     return receipt
 
 
@@ -544,8 +556,13 @@ def evaluate_sprint_pilot_thresholds(
     resume_check: Mapping[str, object],
     root_manifests: Sequence[Mapping[str, object]] | None = None,
     infrastructure: Mapping[str, object] | None = None,
+    role: Literal["pilot", "shard"] = "pilot",
+    minimum_accepted_rows_per_minute: float = 8.0,
 ) -> dict[str, object]:
     """Evaluate the objective pilot thresholds from durable artifacts only.
+
+    A shard replaces the 30-minute wall bound with the long-run throughput bound (accepted rows
+    per minute of generation time) while keeping every other check.
 
     The pilot passes only when at least 70% of planned slots are accepted (56/80), fewer than
     25% of elaborated candidates are Lean-invalid (fewer than 20/80 planned slots), zero
@@ -605,12 +622,23 @@ def evaluate_sprint_pilot_thresholds(
             and resume_lean == 0
             and bool(resume_check.get("manifests_unchanged"))
         ),
-        "wall_time_at_most_30min": generation_wall_seconds <= PILOT_MAXIMUM_WALL_SECONDS,
         "all_roots_have_manifests": len(manifests) == len(sample_rows),
     }
+    throughput = accepted / (generation_wall_seconds / 60.0) if generation_wall_seconds > 0 else 0.0
+    if role == "pilot":
+        checks["wall_time_at_most_30min"] = generation_wall_seconds <= PILOT_MAXIMUM_WALL_SECONDS
+    else:
+        checks["accepted_throughput_at_least_minimum"] = (
+            throughput >= minimum_accepted_rows_per_minute
+        )
     passed = all(checks.values())
     return {
         "version": "leanfaith_sft2a_sprint_pilot_thresholds_v1",
+        "role": role,
+        "accepted_rows_per_minute": throughput,
+        "minimum_accepted_rows_per_minute": (
+            minimum_accepted_rows_per_minute if role == "shard" else None
+        ),
         "roots": len(sample_rows),
         "planned_slots": planned_slots,
         "accepted_rows": accepted,
@@ -914,8 +942,14 @@ def run_detached_sprint_pilot_v52(
             claimed = True
             _append_stage(stage_path, {"event": "resource_claimed", "claim": claim})
             generation_started = time.monotonic()
-            concurrency = _int_field(loaded.document, "provider_concurrency", 8)
-            stop_after = _int_field(loaded.document, "controlled_stop_after_completed_roots", 1)
+            role = str(loaded.document.get("sprint_role", "pilot"))
+            concurrency = _effective_concurrency(loaded, detached)
+            _append_stage(stage_path, {"event": "effective_concurrency", "value": concurrency})
+            stop_after = _int_field(
+                loaded.document,
+                "controlled_stop_after_completed_roots",
+                1 if role == "pilot" else 0,
+            )
             resume_check: dict[str, object]
             try:
                 already_complete = _completed_root_ids(loaded)
@@ -995,20 +1029,37 @@ def run_detached_sprint_pilot_v52(
                     stage_path,
                     {"event": "resource_released", "generation_wall_seconds": generation_wall},
                 )
+            total_generation_wall = sum(
+                float(cast(float, event.get("generation_wall_seconds", 0.0)))
+                for event in _stage_events(stage_path)
+                if event.get("event") == "resource_released"
+            )
             evaluation = evaluate_sprint_pilot_thresholds(
                 loaded,
                 compaction=compacted,
                 replay=replay,
-                generation_wall_seconds=generation_wall,
+                generation_wall_seconds=total_generation_wall,
                 malformed_injection=injection,
                 resume_check=resume_check,
+                role="shard" if role == "shard" else "pilot",
+                minimum_accepted_rows_per_minute=float(
+                    cast(float, loaded.document.get("minimum_accepted_rows_per_minute", 8.0))
+                ),
             )
+            evaluation["effective_provider_concurrency"] = concurrency
             _atomic_replace_json(detached / "evaluation_terminal.json", evaluation)
             _append_stage(
                 stage_path,
                 {"event": "evaluation_complete", "passed": evaluation["passed"]},
             )
-            kimi_rows = _int_field(loaded.document, "kimi_audit_rows", 8)
+            if role == "shard":
+                fraction = float(cast(float, loaded.document.get("kimi_audit_fraction", 0.1)))
+                kimi_rows = min(
+                    _int_field(loaded.document, "kimi_audit_rows_maximum", 80),
+                    -(-int(cast(int, compacted["accepted_rows"])) * int(fraction * 1000) // 1000),
+                )
+            else:
+                kimi_rows = _int_field(loaded.document, "kimi_audit_rows", 8)
             audit_terminal: dict[str, object]
             try:
                 audit = run_provider_kimi_audit_v52(
@@ -1070,10 +1121,106 @@ def run_detached_sprint_pilot_v52(
         raise
     _atomic_replace_json(terminal_path, terminal)
     _append_stage(stage_path, {"event": "worker_finished", "status": terminal["status"]})
+    try:
+        chain = chain_next_stage(loaded, terminal=terminal, evaluation=evaluation)
+    except Exception as exc:  # the finished stage stays durable even if chaining fails
+        chain = {"launched": False, "error_type": type(exc).__name__, "error": str(exc)[:1000]}
+    _atomic_replace_json(detached / "chain_receipt.json", chain)
+    _append_stage(stage_path, {"event": "chain_next_stage", **chain})
     print(json.dumps(terminal, sort_keys=True), flush=True)
     if keepalive is not None:
         os.close(keepalive)
     return terminal
+
+
+def _effective_concurrency(loaded: LoadedProviderRehearsalV52, detached: Path) -> int:
+    """Configured concurrency, or the durable override written by a throttling fallback."""
+
+    override_path = detached / "concurrency_override.json"
+    if override_path.is_file():
+        override = _object(override_path)
+        value = override.get("provider_concurrency")
+        if not isinstance(value, bool) and isinstance(value, int) and value >= 1:
+            return value
+    return _int_field(loaded.document, "provider_concurrency", 8)
+
+
+def chain_decision(
+    loaded: LoadedProviderRehearsalV52,
+    *,
+    terminal: Mapping[str, object],
+    evaluation: Mapping[str, object],
+) -> dict[str, object]:
+    """Decide the automatic next stage without launching anything.
+
+    A passing pilot chains to the 12K reference certification; a passing shard chains to the
+    next shard at the same concurrency; a shard whose only failed check is the infrastructure
+    bound chains to the next shard at the fallback concurrency once (sustained throttling);
+    any other failure stops the chain and is reported.
+    """
+
+    role = str(loaded.document.get("sprint_role", "pilot"))
+    failed = list(cast(list[str], evaluation.get("failed_checks", [])))
+    status = str(terminal.get("status"))
+    if role == "pilot":
+        target = loaded.document.get("next_stage_config_path")
+        if status == "complete" and isinstance(target, str):
+            return {
+                "action": "launch_pool_certification",
+                "target": target,
+                "reason": "pilot_passed",
+            }
+        return {"action": "stop", "reason": f"pilot_{status}", "failed_checks": failed}
+    target = loaded.document.get("next_shard_config_path")
+    if target is None:
+        return {"action": "stop", "reason": "last_shard", "failed_checks": failed}
+    if status == "complete":
+        return {"action": "launch_next_shard", "target": str(target), "reason": "shard_passed"}
+    if failed == ["infrastructure_failures_below_2pct"]:
+        current = int(cast(int, evaluation.get("effective_provider_concurrency", 16)))
+        fallback = _int_field(loaded.document, "fallback_provider_concurrency", 8)
+        if current > fallback:
+            return {
+                "action": "launch_next_shard",
+                "target": str(target),
+                "reason": "throttling_fallback",
+                "provider_concurrency_override": fallback,
+            }
+        return {"action": "stop", "reason": "repeated_infrastructure_fault_at_fallback"}
+    return {"action": "stop", "reason": f"shard_{status}", "failed_checks": failed}
+
+
+def chain_next_stage(
+    loaded: LoadedProviderRehearsalV52,
+    *,
+    terminal: Mapping[str, object],
+    evaluation: Mapping[str, object],
+) -> dict[str, object]:
+    """Launch the automatic next stage decided by ``chain_decision``."""
+
+    decision = chain_decision(loaded, terminal=terminal, evaluation=evaluation)
+    if decision["action"] == "stop":
+        return {**decision, "launched": False}
+    if decision["action"] == "launch_pool_certification":
+        from leanfaith.sft2a.sprint_scale_v52 import (
+            launch_sprint_pool_certification,
+            load_sprint_pool_config,
+        )
+
+        pool = load_sprint_pool_config(loaded.base.repo_root / str(decision["target"]))
+        return {**decision, "launched": True, "launch": launch_sprint_pool_certification(pool)}
+    next_loaded = load_provider_rehearsal_v52(Path(str(decision["target"])))
+    override = decision.get("provider_concurrency_override")
+    if isinstance(override, int):
+        _atomic_replace_json(
+            next_loaded.output_root / "detached/concurrency_override.json",
+            {
+                "provider_concurrency": override,
+                "reason": "throttling_fallback",
+                "from_shard": str(loaded.path),
+            },
+        )
+    return {**decision, "launched": True, "launch": launch_sprint_pilot_v52(next_loaded)}
 
 
 def _git_head(repo_root: Path) -> str:
@@ -1471,9 +1618,14 @@ ORACLE_V2_FIXTURES: tuple[OracleV2Fixture, ...] = (
     ),
     OracleV2Fixture(
         "explicit_declared_universes",
-        "∀ {α : Type u_3} {β : Type u_5}, (α → β) → α → β",
+        "∀ {α : Type u_3} {β : Type u_5} (f : α → β) (a : α), f a = f a",
         "valid",
         minimum_distinct_universes=2,
+    ),
+    OracleV2Fixture(
+        "non_prop_function_type_is_invalid",
+        "∀ {α : Type u_3} {β : Type u_5}, (α → β) → α → β",
+        "invalid",
     ),
     OracleV2Fixture(
         "explicit_undeclared_universe",
@@ -1482,7 +1634,7 @@ ORACLE_V2_FIXTURES: tuple[OracleV2Fixture, ...] = (
     ),
     OracleV2Fixture(
         "two_universe_metavariables_stay_distinct",
-        "∀ {α : Type _} {β : Type _}, (α → β) → α → β",
+        "∀ {α : Type _} {β : Type _} (f : α → β) (a : α), f a = f a",
         "valid",
         minimum_distinct_universes=2,
     ),
@@ -1658,6 +1810,8 @@ __all__ = [
     "OracleV2Fixture",
     "SprintPilotError",
     "audit_only_kimi_health_v52",
+    "chain_decision",
+    "chain_next_stage",
     "controlled_resume_receipt",
     "evaluate_sprint_pilot_thresholds",
     "launch_audit_only_kimi_v52",

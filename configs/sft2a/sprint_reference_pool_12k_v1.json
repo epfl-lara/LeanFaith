@@ -1,0 +1,55 @@
+{
+  "version": "leanfaith_sft2a_sprint_reference_pool_v1",
+  "sprint_authority": "plans/72h_sft_data_sprint_2026-09-01.md",
+  "base_config_path": "configs/sft2a/closure_aware_v5_2_sprint_v1.yaml",
+  "base_config_sha256": "2950dbf1882fbdaa08ba8226a77a593eec7acada58d39093eac7bdaccc565240",
+  "census_root": "/storage/milikic/leanfaith/value_first/sft2_llm_transforms_v1/runs/reference_certification_v5_2_recovery_v3/census",
+  "census_eligible_sha256": "45ae24c3d0c17f365b801b064e8ea42767e6620543262890b0608c237ce3cf7b",
+  "exclusion_sample_paths": [
+    "/storage/milikic/leanfaith/value_first/sft2_llm_transforms_v1/runs/reference_certification_v5_2_corrected_v4/certified_sample.jsonl",
+    "/storage/milikic/leanfaith/value_first/sft2_llm_transforms_v1/runs/reference_certification_v5_2_recovery_v3/certified_sample.jsonl",
+    "/storage/milikic/leanfaith/value_first/sft2_llm_transforms_v1/runs/sprint_pilot_20roots/certified_sample.jsonl"
+  ],
+  "pool_salt": "leanfaith-sft2a-sprint-12k-reference-pool-v1",
+  "allocations": {
+    "mathlib": 7500,
+    "physlib": 3000,
+    "cslib": 1400,
+    "compiler_data": 2000
+  },
+  "output_root": "/storage/milikic/leanfaith/value_first/sft2_llm_transforms_v1/runs/sprint_reference_certification_12k_v1",
+  "tmux_session": "leanfaith-sft2a-sprint-12k-certification",
+  "resource_task": "SFT2A-SPRINT-12K-CERTIFICATION",
+  "lean_workers": 2,
+  "lean_rss_gib": 40.0,
+  "provider_calls_allowed": 0,
+  "shards": {
+    "count": 10,
+    "roots_per_shard": 1000,
+    "salt": "leanfaith-sft2a-sprint-1k-shards-v1",
+    "output_root": "/storage/milikic/leanfaith/value_first/sft2_llm_transforms_v1/runs/sprint_shards_1k_v1",
+    "first_shard_provider_concurrency": 16,
+    "provider_config": {
+      "base_config_path": "configs/sft2a/closure_aware_v5_2_sprint_v1.yaml",
+      "base_config_sha256": "2950dbf1882fbdaa08ba8226a77a593eec7acada58d39093eac7bdaccc565240",
+      "labeling_defaults_policy_path": "policies/sft2_llm_labeling_defaults_v1.yaml",
+      "labeling_defaults_policy_sha256": "4554a071b06b1af9015b253b5e64b2a0a4d013630e5224ef7729bbf65757646f",
+      "provider_concurrency": 16,
+      "fallback_provider_concurrency": 8,
+      "kimi_audit_fraction": 0.1,
+      "kimi_audit_rows_maximum": 80,
+      "minimum_accepted_rows_per_minute": 8.0,
+      "ceilings": {
+        "maximum_roots": 1000,
+        "maximum_provider_calls": 36160,
+        "maximum_proposer_calls": 12000,
+        "maximum_opus_calls": 24000,
+        "maximum_lemex_calls": 160,
+        "maximum_attempts_per_slot": 3,
+        "maximum_reported_opus_spend_usd": 400.0,
+        "codex_cost_status": "unavailable",
+        "lemex_cost_status": "unavailable"
+      }
+    }
+  }
+}

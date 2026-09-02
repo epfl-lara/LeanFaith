@@ -48,5 +48,7 @@
   "publication_authorized": false,
   "scale_10k_authorized": false,
   "scale_50k_authorized": false,
-  "training_authorized": false
+  "training_authorized": false,
+  "sprint_role": "pilot",
+  "next_stage_config_path": "configs/sft2a/sprint_reference_pool_12k_v1.json"
 }

@@ -221,16 +221,71 @@ def load_provider_rehearsal_v52(path: Path) -> LoadedProviderRehearsalV52:
             or not (1 <= concurrency <= 64)
         ):
             raise ProviderRehearsalV52Error("sprint pilot provider_concurrency must be 1..64")
-        kimi_rows = document.get("kimi_audit_rows")
-        if isinstance(kimi_rows, bool) or not isinstance(kimi_rows, int) or not 0 <= kimi_rows <= 8:
-            raise ProviderRehearsalV52Error("sprint pilot Kimi telemetry is at most 8 rows")
-        if 2 * kimi_rows > ceilings.maximum_lemex_calls:
+        role = document.get("sprint_role", "pilot")
+        if role not in {"pilot", "shard"}:
+            raise ProviderRehearsalV52Error("sprint_role must be pilot or shard")
+        if role == "pilot":
+            kimi_rows = document.get("kimi_audit_rows")
+            if (
+                isinstance(kimi_rows, bool)
+                or not isinstance(kimi_rows, int)
+                or not 0 <= kimi_rows <= 8
+            ):
+                raise ProviderRehearsalV52Error("sprint pilot Kimi telemetry is at most 8 rows")
+            kimi_maximum = kimi_rows
+        else:
+            fraction = document.get("kimi_audit_fraction")
+            kimi_maximum_value = document.get("kimi_audit_rows_maximum")
+            fallback = document.get("fallback_provider_concurrency")
+            throughput = document.get("minimum_accepted_rows_per_minute")
+            if (
+                isinstance(fraction, bool)
+                or not isinstance(fraction, int | float)
+                or not 0.0 < float(fraction) <= 0.2
+                or isinstance(kimi_maximum_value, bool)
+                or not isinstance(kimi_maximum_value, int)
+                or not 1 <= kimi_maximum_value <= 400
+                or isinstance(fallback, bool)
+                or not isinstance(fallback, int)
+                or not 1 <= fallback <= concurrency
+                or isinstance(throughput, bool)
+                or not isinstance(throughput, int | float)
+                or float(throughput) <= 0.0
+            ):
+                raise ProviderRehearsalV52Error(
+                    "sprint shard requires kimi_audit_fraction (<=0.2), kimi_audit_rows_maximum "
+                    "(<=400), fallback_provider_concurrency, and minimum_accepted_rows_per_minute"
+                )
+            kimi_maximum = kimi_maximum_value
+            next_shard = document.get("next_shard_config_path")
+            if next_shard is not None and (
+                not isinstance(next_shard, str) or not Path(next_shard).is_file()
+            ):
+                raise ProviderRehearsalV52Error("next_shard_config_path must name an existing file")
+        if 2 * kimi_maximum > ceilings.maximum_lemex_calls:
             raise ProviderRehearsalV52Error(
-                "sprint pilot Kimi ceiling must allow one malformed retry per telemetry row"
+                "sprint Kimi ceiling must allow one malformed retry per telemetry row"
             )
-        stop_after = document.get("controlled_stop_after_completed_roots", 1)
+        stop_after = document.get(
+            "controlled_stop_after_completed_roots", 1 if role == "pilot" else 0
+        )
         if isinstance(stop_after, bool) or not isinstance(stop_after, int) or stop_after < 0:
             raise ProviderRehearsalV52Error("controlled stop count must be a non-negative integer")
+        mix = document.get("expected_source_mix")
+        if mix is not None and (
+            not isinstance(mix, dict)
+            or any(
+                isinstance(count, bool) or not isinstance(count, int) or count < 0
+                for count in mix.values()
+            )
+            or sum(cast(dict[str, int], mix).values()) != len(rows)
+        ):
+            raise ProviderRehearsalV52Error("expected_source_mix must sum to the sample size")
+        next_stage = document.get("next_stage_config_path")
+        if next_stage is not None and (
+            not isinstance(next_stage, str) or not _repo_path(repo_root, next_stage).is_file()
+        ):
+            raise ProviderRehearsalV52Error("next_stage_config_path must name a repository file")
         if any(
             document.get(flag) is not False
             for flag in (

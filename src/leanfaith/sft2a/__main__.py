@@ -80,6 +80,14 @@ from leanfaith.sft2a.sprint_pilot_v52 import (
     sprint_pilot_health_v52,
     verify_sprint_pilot_sample_v52,
 )
+from leanfaith.sft2a.sprint_scale_v52 import (
+    freeze_sprint_shards,
+    launch_sprint_pool_certification,
+    load_sprint_pool_config,
+    prepare_sprint_reference_pool,
+    run_detached_sprint_pool_certification_worker,
+    sprint_pool_certification_health,
+)
 
 SPRINT_PILOT_COMMANDS = frozenset(
     {
@@ -90,6 +98,15 @@ SPRINT_PILOT_COMMANDS = frozenset(
         "resume-sprint-pilot-v5-2",
         "detached-sprint-pilot-v5-2-worker",
         "sprint-pilot-v5-2-health",
+    }
+)
+SPRINT_POOL_COMMANDS = frozenset(
+    {
+        "prepare-sprint-reference-pool",
+        "launch-sprint-pool-certification",
+        "detached-sprint-pool-certification-worker",
+        "sprint-pool-certification-health",
+        "freeze-sprint-shards",
     }
 )
 AUDIT_ONLY_COMMANDS = frozenset(
@@ -112,6 +129,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--provider-rehearsal-config", type=Path)
     parser.add_argument("--provider-rehearsal-authorization", type=Path)
     parser.add_argument("--audit-only-config", type=Path)
+    parser.add_argument("--sprint-pool-config", type=Path)
     subcommands = parser.add_subparsers(dest="command", required=True)
     subcommands.add_parser("verify-config")
     subcommands.add_parser("verify-pilot-readiness")
@@ -162,7 +180,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     subcommands.add_parser("resume-provider-rehearsal-v5-2")
     subcommands.add_parser("provider-rehearsal-v5-2-health")
     subcommands.add_parser("detached-provider-rehearsal-v5-2-worker")
-    for name in sorted(SPRINT_PILOT_COMMANDS | AUDIT_ONLY_COMMANDS):
+    for name in sorted(SPRINT_PILOT_COMMANDS | AUDIT_ONLY_COMMANDS | SPRINT_POOL_COMMANDS):
         subcommands.add_parser(name)
     arguments = parser.parse_args(argv)
     loaded = load_sft2a_config(
@@ -264,6 +282,13 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
     if arguments.command in AUDIT_ONLY_COMMANDS and audit_only_loaded is None:
         parser.error("--audit-only-config is required for audit-only Kimi commands")
+    pool_loaded = (
+        load_sprint_pool_config(arguments.sprint_pool_config)
+        if arguments.command in SPRINT_POOL_COMMANDS and arguments.sprint_pool_config is not None
+        else None
+    )
+    if arguments.command in SPRINT_POOL_COMMANDS and pool_loaded is None:
+        parser.error("--sprint-pool-config is required for sprint pool commands")
     if arguments.command == "verify-config":
         result: object = {
             "config_hash": loaded.config_hash,
@@ -415,6 +440,21 @@ def main(argv: Sequence[str] | None = None) -> int:
     elif arguments.command == "audit-only-kimi-v5-2-health":
         assert audit_only_loaded is not None
         result = audit_only_kimi_health_v52(audit_only_loaded)
+    elif arguments.command == "prepare-sprint-reference-pool":
+        assert pool_loaded is not None
+        result = prepare_sprint_reference_pool(pool_loaded)
+    elif arguments.command == "launch-sprint-pool-certification":
+        assert pool_loaded is not None
+        result = launch_sprint_pool_certification(pool_loaded)
+    elif arguments.command == "detached-sprint-pool-certification-worker":
+        assert pool_loaded is not None
+        result = run_detached_sprint_pool_certification_worker(pool_loaded)
+    elif arguments.command == "sprint-pool-certification-health":
+        assert pool_loaded is not None
+        result = sprint_pool_certification_health(pool_loaded)
+    elif arguments.command == "freeze-sprint-shards":
+        assert pool_loaded is not None
+        result = freeze_sprint_shards(pool_loaded)
     elif arguments.command == "verify-replay":
         result = verify_one_root_replay(loaded)
     elif arguments.command == "run-lemex-audit":
