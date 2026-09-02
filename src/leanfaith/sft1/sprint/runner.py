@@ -501,7 +501,8 @@ class SprintRunner:
                 missing = self.missing_mask(name)
                 if missing == 0:
                     continue
-                if self.try_cache(name, missing):
+                missing = self.try_cache(name, missing)
+                if missing == 0:
                     continue
                 if require_zero_lean:
                     raise SprintRunnerError(f"replay would need Lean for root {name!r}")
@@ -524,43 +525,51 @@ class SprintRunner:
 
     # ------------------------------------------------------------- caching
 
-    def try_cache(self, name: str, missing: int) -> bool:
+    def try_cache(self, name: str, missing: int) -> int:
+        """Finalize every missing operation that has a cached record.
+
+        Returns the mask of operations that still need Lean.  Roots whose
+        cached record is a root-level failure need nothing further.
+        """
+
         root_record = self.cache.get_root(self.root_key(name))
         if root_record is None:
-            return False
+            return missing
         if root_record.get("root_status") != "ok":
             self.finalize_root_failure(name, root_record, source="cache")
-            return True
+            return 0
         op_keys = root_record.get("ops")
         if not isinstance(op_keys, dict):
-            return False
-        op_records: dict[str, dict[str, Any]] = {}
+            return missing
+        hits: dict[str, dict[str, Any]] = {}
+        remaining = 0
         for operation in operations_in_mask(missing):
             key = op_keys.get(operation)
-            if not isinstance(key, str):
-                return False
-            record = self.cache.get_op(key)
-            if record is None:
-                return False
-            if record.get("status") == "retained" and not isinstance(record.get("render"), dict):
-                # Rendered evidence is missing (an earlier render failure); redo the root.
-                return False
-            op_records[operation] = record
-        self.journal.append(
-            {
-                "kind": "root",
-                "root": name,
-                "root_status": "ok",
-                "reason": "",
-                "source": "cache",
-                "batch": self.batches,
-            }
-        )
-        self.roots_seen.add(name)
-        self.roots_cache += 1
-        for operation, record in op_records.items():
-            self.finalize_from_op_record(name, root_record, operation, record, source="cache")
-        return True
+            record = self.cache.get_op(key) if isinstance(key, str) else None
+            if record is None or (
+                record.get("status") == "retained" and not isinstance(record.get("render"), dict)
+            ):
+                remaining |= 1 << engine_module.OPERATION_BITS[operation]
+                continue
+            hits[operation] = record
+        if hits:
+            self.journal.append(
+                {
+                    "kind": "root",
+                    "root": name,
+                    "root_status": "ok",
+                    "reason": "",
+                    "source": "cache",
+                    "batch": self.batches,
+                    "cached_operations": sorted(hits),
+                }
+            )
+            if name not in self.roots_seen:
+                self.roots_seen.add(name)
+                self.roots_cache += 1
+            for operation, record in hits.items():
+                self.finalize_from_op_record(name, root_record, operation, record, source="cache")
+        return remaining
 
     def finalize_root_failure(
         self, name: str, root_payload: Mapping[str, Any], *, source: str
@@ -648,10 +657,12 @@ class SprintRunner:
                     "reason": "",
                     "source": "lean",
                     "batch": self.batches,
+                    "operations": list(operations_in_mask(mask)),
                 }
             )
-            self.roots_seen.add(name)
-            self.roots_lean += 1
+            if name not in self.roots_seen:
+                self.roots_seen.add(name)
+                self.roots_lean += 1
             reference_goal, reference_violation = self.reference_surface(
                 str(payload["reference_goal"])
             )

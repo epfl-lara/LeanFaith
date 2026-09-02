@@ -617,3 +617,20 @@ def test_run_screens_v2_reports_polarity_paired_families() -> None:
         "reference_only",
         "family_held_out",
     ]
+
+
+def test_cache_accepts_volatile_proof_fingerprint_differences(tmp_path: Path) -> None:
+    cache = store.SemanticCache(tmp_path / "cache")
+    base = {
+        "status": "retained",
+        "evidence": {"refutation": {"check": {"proof_expr_hash_u64": "1", "kernel_checked": True}}},
+        "engine": {"source_sha256": "a"},
+        "render": None,
+    }
+    cache.put_op("k" * 64, base)
+    changed = json.loads(json.dumps(base))
+    changed["evidence"]["refutation"]["check"]["proof_expr_hash_u64"] = "2"
+    cache.put_op("k" * 64, changed)  # fingerprint drift is tolerated
+    changed["evidence"]["refutation"]["check"]["kernel_checked"] = False
+    with pytest.raises(store.StoreError):
+        cache.put_op("k" * 64, changed)

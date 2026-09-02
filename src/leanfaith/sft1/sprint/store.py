@@ -6,11 +6,24 @@ import json
 import os
 from collections.abc import Iterator, Mapping, Sequence
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from leanfaith.config.hashing import canonical_json_bytes, hash_canonical
 
 PROVENANCE_FIELDS = frozenset({"render", "process_request_hash", "elapsed_ms", "engine"})
+# Proof-term fingerprints can differ across Lean sessions when tactics create
+# session-scoped auxiliary names; the checks themselves are deterministic.
+VOLATILE_KEYS = frozenset({"proof_expr_hash_u64", "value_expr_hash_u64"})
+
+
+def semantic_projection(value: object) -> object:
+    """Drop volatile fingerprint keys recursively for semantic comparison."""
+
+    if isinstance(value, dict):
+        return {k: semantic_projection(v) for k, v in value.items() if k not in VOLATILE_KEYS}
+    if isinstance(value, list):
+        return [semantic_projection(item) for item in value]
+    return value
 
 
 class StoreError(RuntimeError):
@@ -172,8 +185,18 @@ class SemanticCache:
             existing = read_json_object(path)
             if existing == dict(record):
                 return
-            semantic = {k: v for k, v in existing.items() if k not in PROVENANCE_FIELDS}
-            incoming = {k: v for k, v in record.items() if k not in PROVENANCE_FIELDS}
+            semantic = cast(
+                dict[str, Any],
+                semantic_projection(
+                    {k: v for k, v in existing.items() if k not in PROVENANCE_FIELDS}
+                ),
+            )
+            incoming = cast(
+                dict[str, Any],
+                semantic_projection(
+                    {k: v for k, v in record.items() if k not in PROVENANCE_FIELDS}
+                ),
+            )
             if semantic != incoming:
                 differing = sorted(
                     field
