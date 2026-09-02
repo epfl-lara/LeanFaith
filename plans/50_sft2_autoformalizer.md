@@ -1,13 +1,13 @@
 # SFT2B — autoformalization consistency data
 
 > **Task ID:** SFT2B
-> **Status:** active
+> **Status:** blocked
 > **Owner/session:** Codex `/root` — 2026-09-02 sprint-v3 scale activation
 > **Last updated:** 2026-09-02
 > **Dependencies:** REPR `goal_v1.0`; source-quality audit and frozen consistency/voting prompts
-> **Next gate:** commit and push the additive sprint-v3 scale activation, then on an exact
-> eight-A100/H100-80GB target pass inline same-run recovery in real shard `core_00` and continue
-> automatically through `core_01`--`core_03`; the 4,144-row tail remains disabled.
+> **Next gate:** run the already-authorized activation command on an exact eight-A100/H100-80GB
+> target; pass inline same-run recovery in real shard `core_00`, then continue automatically through
+> `core_01`--`core_03`. No further review is required; the 4,144-row tail remains disabled.
 > **Compute class:** source-freeze work is Lean/GPU-free; the completed matched pilot used eight
 > H100-80GB GPUs at DP=4/TP=2. Any future scale config records the actual A100/H100 host profile.
 > **Lean budget:** compile each novel formalization candidate once through persistent cached workers
@@ -1244,3 +1244,18 @@ authorization sentence, clean-tree receipt, or historical-artifact ceremony.
   configs/sft2b/reform_diverse_core_scale_sprint_v3.json activate`. Lean remains the bottleneck:
   cheap deterministic work is completed first, while downstream validation is bounded, persistent,
   cached, and separately resource-budgeted as each generation shard lands.
+- 2026-09-02 — committed and pushed the activation patch as
+  `1fd5e3465063bf43644a1ae80c9b5c51a53e55a9` on
+  `origin/milikic/sft2b-scale-sprint-v3`, then ran the exact activation entry point from that clean,
+  remote-matching revision. The hard preflight stopped with `target does not expose exactly eight
+  GPU indices 0 through 7`: this host has one RTX 4090, so the user-authorized real GPU allocation
+  failure stop condition applies. Port 8102 remains closed; no `leanfaith-sft2b-core-v3` or
+  `leanfaith-sft2b-scale-v3` tmux session, sprint-v3 supervisor/vLLM process, SFT2B resource claim,
+  sprint staging root, model snapshot, generation row, or downstream work item was created. The
+  unrelated existing `SFT1-SPRINT` claim and unrelated tmux sessions were left untouched. Status is
+  `blocked` only on access to the specified eight-GPU target, not on review or authorization. From
+  the pushed branch, resume with `uv run --with vllm==0.12.0 python -m
+  leanfaith.sft2b.scale_sprint_v3 --config
+  configs/sft2b/reform_diverse_core_scale_sprint_v3.json activate`; once the host preflight passes,
+  this command stages exact pinned snapshots, launches `core_00`, performs the same-run inline
+  recovery gate, leaves it running, and then supervises the remaining shards sequentially.
