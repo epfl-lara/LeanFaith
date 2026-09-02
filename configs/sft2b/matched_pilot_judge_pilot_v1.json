@@ -1,0 +1,22 @@
+{
+  "schema_version": "sft2b_matched_pilot_judge_pilot_v1",
+  "audit_config_path": "configs/sft2b/matched_pilot_lean_audit_v1.json",
+  "audit_run_id": "sft2b_matched_lean_audit:ade7abd96f09b9fff76d82996bcab3ae955d0ec9c27ee54b2c2f2161e5c699bb",
+  "audit_manifest_sha256": "1e8098b222b77b131e77d84eccdf5c116b5f083489515afa1e827332de9541f9",
+  "source_compilation_sha256": "a478f09074f94ce414c28aa2790d7ab2d1023767ffdd62a01ce7cc1cf258d321",
+  "candidate_compilation_sha256": "b6c62d2f88ccee1d5bd048c94d77b4fedbf970666bf84f6087e03bfad7233281",
+  "judges_config_path": "configs/sft2b/judges_sprint_defaults_v1.json",
+  "judges_config_sha256": "8c2363cd0940c97c2b10d218fe7138b90df13c3f4d3904946ca4b79a7ad531e3",
+  "labeling_policy_path": "policies/sft2_llm_labeling_defaults_v1.yaml",
+  "labeling_policy_sha256": "4554a071b06b1af9015b253b5e64b2a0a4d013630e5224ef7729bbf65757646f",
+  "module_path": "src/leanfaith/sft2b/matched_pilot_judge_pilot.py",
+  "module_sha256": "e52c07fd05fb866b152918cd0bb33d4cc6e729610d7de979943db68fbae3a671",
+  "selection_count": 100,
+  "maximum_provider_calls": 300,
+  "maximum_concurrency": 12,
+  "output_parent": "/storage/milikic/leanfaith/value_first/sft2_autoformalizer_v1/matched_pilot_judge_pilot_v1",
+  "thresholds": {
+    "maximum_unknown_fraction": 0.25,
+    "minimum_pairwise_agreement": 0.70
+  }
+}
