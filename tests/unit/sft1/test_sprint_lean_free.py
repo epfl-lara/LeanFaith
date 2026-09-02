@@ -1036,3 +1036,35 @@ def test_square_inspection_lists_every_row_grouped_by_root() -> None:
     assert "p_iff_p_prime:MK" in text and "c_refutation:FAIL(source_proof_contradiction)" in text
     a_block = text[text.index("## a") : text.index("## b")]
     assert a_block.index("p_prime_iff_p") < a_block.index("not_iff_p_prime_c_prime")
+
+
+def test_square_rows_attribute_generating_engine() -> None:
+    """Cache-served roots keep the engine identity and commit that generated their certificates."""
+    from leanfaith.sft1.sprint import square
+
+    runner = square.SquareRunner.__new__(square.SquareRunner)
+    runner.base = type("Base", (), {})()
+    runner.base.root_id = lambda name: f"root:{name}"
+    runner.base.pins = type("Pins", (), {"to_dict": lambda self: {"project_id": "mathlib"}})()
+    runner.base.identity = type(
+        "Identity", (), {"to_dict": lambda self: {"source_sha256": "current"}}
+    )()
+    runner.base.implementation_commit = "c" * 40
+    runner.statements = {}
+    payload = _square_payload("Nat.a")
+    base_record = {
+        "render": _square_render(payload),
+        "evidence": payload["evidence"],
+        "direction": payload["direction"],
+        "alpha": payload["alpha"],
+        "module": "Mathlib.Test",
+        "level_params": [],
+        "process_request_hash": "p" * 64,
+    }
+    cached = {**base_record, "engine": {"source_sha256": "old"}, "implementation_commit": "o" * 40}
+    rows = runner.build_rows("Nat.a", cached, {"source_run": "tenk", "source_pair_id": "pair:x"})
+    assert {row["sidecar"]["engine"]["source_sha256"] for row in rows} == {"old"}
+    assert {row["sidecar"]["implementation_commit"] for row in rows} == {"o" * 40}
+    fresh = runner.build_rows("Nat.a", base_record, {"source_run": "tenk"})
+    assert {row["sidecar"]["engine"]["source_sha256"] for row in fresh} == {"current"}
+    assert {row["sidecar"]["implementation_commit"] for row in fresh} == {"c" * 40}
