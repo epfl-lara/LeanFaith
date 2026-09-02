@@ -196,14 +196,29 @@ def test_freeze_shards_builds_disjoint_samples_and_chained_configs(
         "a b c : ℕ\n⊢ a ≤ b → b ≤ c → a ≤ c",
         {"k": "app", "fn": {"k": "const", "name": "LE.le"}, "arg": {"k": "bvar", "index": 0}},
     )
-    monkeypatch.setattr(
-        sprint_scale_v52, "verify_certified_reference_row", lambda row: {"ok": True}
-    )
+    from leanfaith.sft2a.certified_sample_v52 import CorrectedSampleError
+
+    def verify(row: dict[str, object]) -> dict[str, object]:
+        if str(cast(dict[str, object], row["root"])["root_id"]).endswith("000005"):
+            raise CorrectedSampleError("certification rendered goal differs from raw Expr payload")
+        return {"ok": True}
+
+    monkeypatch.setattr(sprint_scale_v52, "verify_certified_reference_row", verify)
     monkeypatch.setattr(sprint_scale_v52, "certified_shape", lambda certified: (shape, "h" * 64))
     manifest = freeze_sprint_shards(loaded)
     assert manifest["shard_count"] == 2 and manifest["roots_per_shard"] == 5
-    assert manifest["screen_rejections"] == {"term_elaboration_invalid": 1}
-    assert manifest["certified_usable_roots"] == 23
+    assert manifest["screen_rejections"] == {
+        "certificate_verification_failed": 1,
+        "term_elaboration_invalid": 1,
+    }
+    assert manifest["certified_usable_roots"] == 22
+    failures = [
+        json.loads(line)
+        for line in (loaded.shard_root / "certificate_verification_failures.jsonl")
+        .read_text()
+        .splitlines()
+    ]
+    assert len(failures) == 1 and failures[0]["root_id"].endswith("000005")
     shards = cast(list[dict[str, object]], manifest["shards"])
     ids: list[str] = []
     for receipt in shards:
