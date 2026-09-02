@@ -34,6 +34,7 @@ from leanfaith.host_resources import (
     list_reservations,
     release_resources,
 )
+from leanfaith.representations.views import signature_near_dup_hash
 from leanfaith.sft2a.certified_sample_v52 import verify_sprint_pilot_sample
 from leanfaith.sft2a.config import LoadedSFT2AConfig
 from leanfaith.sft2a.layout import run_paths
@@ -609,8 +610,15 @@ def evaluate_sprint_pilot_thresholds(
     role: Literal["pilot", "shard", "canary"] = "pilot",
     minimum_accepted_rows_per_minute: float = 8.0,
     attribution_gate: bool = False,
+    genuine_rate_blocking: bool = True,
+    accepted_contamination: int | None = None,
 ) -> dict[str, object]:
     """Evaluate the objective pilot thresholds from durable artifacts only.
+
+    ``genuine_rate_blocking=False`` (authorized for the v3 shards) reports the candidate-local
+    Lean-invalid rate as retry-cost telemetry instead of a blocking check; accepted rows still
+    required successful elaboration, frozen REPR, Opus agreement, contamination screens, and
+    deduplication. ``accepted_contamination`` adds the zero-accepted-contamination check.
 
     With ``attribution_gate`` (v3 oracle) the raw Lean-invalid rate is reported as nonblocking
     telemetry after failure attribution: the blocking checks are zero copied-inaccessible-name
@@ -694,9 +702,10 @@ def evaluate_sprint_pilot_thresholds(
     if attribution_gate:
         checks["zero_copied_inaccessible_name_failures"] = copied_name_failures == 0
         checks["zero_context_prelude_failures"] = prelude_failures == 0
-        checks["genuine_lean_invalid_below_25pct"] = (
-            genuine_rate < PILOT_MAXIMUM_LEAN_INVALID_FRACTION
-        )
+        if genuine_rate_blocking:
+            checks["genuine_lean_invalid_below_25pct"] = (
+                genuine_rate < PILOT_MAXIMUM_LEAN_INVALID_FRACTION
+            )
     else:
         checks["lean_invalid_below_25pct"] = lean_invalid_rate < PILOT_MAXIMUM_LEAN_INVALID_FRACTION
     throughput = accepted / (generation_wall_seconds / 60.0) if generation_wall_seconds > 0 else 0.0
@@ -706,11 +715,18 @@ def evaluate_sprint_pilot_thresholds(
         checks["accepted_throughput_at_least_minimum"] = (
             throughput >= minimum_accepted_rows_per_minute
         )
+    if accepted_contamination is not None:
+        checks["zero_accepted_contamination"] = accepted_contamination == 0
     passed = all(checks.values())
     return {
         "version": "leanfaith_sft2a_sprint_pilot_thresholds_v1",
         "role": role,
         "attribution_gate": attribution_gate,
+        "genuine_rate_blocking": genuine_rate_blocking,
+        "genuine_lean_invalid_below_25pct_telemetry": (
+            genuine_rate < PILOT_MAXIMUM_LEAN_INVALID_FRACTION
+        ),
+        "accepted_contamination": accepted_contamination,
         "accepted_rows_per_minute": throughput,
         "minimum_accepted_rows_per_minute": (
             minimum_accepted_rows_per_minute if role == "shard" else None
@@ -756,6 +772,164 @@ def evaluate_sprint_pilot_thresholds(
         "scale_10k_authorized": passed,
         "scale_50k_authorized": False,
     }
+
+
+def accepted_row_screen(
+    loaded: LoadedProviderRehearsalV52, root_ids: Sequence[str]
+) -> dict[str, object]:
+    """Screen the accepted rows of the given completed roots with zero Lean and zero provider
+    calls: self-pairs (candidate equals its reference by closed Expr or rendered goal),
+    cross-root duplicates (same rendered candidate or closed Expr), and gold contamination on
+    the raw candidate signature or rendered candidate goal."""
+
+    _groups, blocked = _gold_blocklist(loaded.base)
+    goals: set[str] = set()
+    exprs: set[str] = set()
+    accepted = self_pairs = duplicates = contamination = 0
+    for root_id in root_ids:
+        root_output = _root_output(loaded, root_id)
+        core = _sample_rows(root_output / "new_core/core.jsonl")
+        sidecars = _sample_rows(root_output / "new_core/sidecar.jsonl")
+        if len(core) != len(sidecars):
+            raise SprintPilotError(f"root {root_id} core/sidecar counts differ")
+        for core_row, sidecar in zip(core, sidecars, strict=True):
+            accepted += 1
+            candidate = str(core_row.get("candidate", ""))
+            reference = str(core_row.get("reference", ""))
+            expr_hash = str(sidecar.get("candidate_closed_expr_hash", ""))
+            reference_expr = str(sidecar.get("reference_closed_expr_hash", ""))
+            if candidate == reference or (expr_hash and expr_hash == reference_expr):
+                self_pairs += 1
+            if candidate in goals or (expr_hash and expr_hash in exprs):
+                duplicates += 1
+            raw = str(sidecar.get("raw_candidate_signature", ""))
+            if (raw and signature_near_dup_hash(raw) in blocked) or (
+                candidate and signature_near_dup_hash(candidate) in blocked
+            ):
+                contamination += 1
+            goals.add(candidate)
+            if expr_hash:
+                exprs.add(expr_hash)
+    return {
+        "roots": len(root_ids),
+        "accepted_rows": accepted,
+        "self_pairs": self_pairs,
+        "candidate_duplicates": duplicates,
+        "accepted_contamination": contamination,
+        "lean_requests_executed": 0,
+        "provider_calls_executed": 0,
+    }
+
+
+def in_run_checkpoint_v52(
+    loaded: LoadedProviderRehearsalV52, *, checkpoint_roots: int
+) -> dict[str, object]:
+    """Zero-Lean, zero-provider in-run checkpoint over the roots completed so far.
+
+    Blocking conditions (authorized for the v3 shards): accepted slots below 70% of the completed
+    roots' planned slots, any copied-inaccessible-name or context-prelude Lean failure, any
+    accepted self-pair, duplicate, or contamination hit, infrastructure failures at or above 2%,
+    or broken terminal accounting (a completed root without a manifest, or a manifest whose
+    hash differs from the durable root-state record).
+    """
+
+    states = ParallelRootStateMachine(
+        loaded.output_root / "root_state.jsonl", maximum_workers=READ_ONLY_MAXIMUM_WORKERS
+    ).snapshot()["roots"]
+    assert isinstance(states, dict)
+    completed = sorted(
+        root_id
+        for root_id, state in states.items()
+        if isinstance(state, dict) and state.get("status") == "complete"
+    )
+    manifests: list[dict[str, object]] = []
+    accounting_faults: list[str] = []
+    for root_id in completed:
+        manifest_path = _root_output(loaded, root_id) / "manifest.json"
+        if not manifest_path.is_file():
+            accounting_faults.append(f"{root_id}: manifest missing")
+            continue
+        recorded = cast(Mapping[str, object], states[root_id]).get("manifest_hash")
+        if isinstance(recorded, str) and recorded != hash_file(manifest_path):
+            accounting_faults.append(f"{root_id}: manifest hash differs from root state")
+        manifests.append(_object(manifest_path))
+    counts: Counter[str] = Counter()
+    candidate_requests = 0
+    for manifest in manifests:
+        for key in (
+            "accepted",
+            "lean_invalid_attempts",
+            "lean_invalid_context_prelude",
+            "lean_invalid_copied_inaccessible_name",
+            "lean_invalid_candidate_local",
+            "inaccessible_name_rejections",
+        ):
+            counts[key] += int(
+                cast(int, cast(Mapping[str, object], manifest.get("counts", {})).get(key, 0))
+            )
+        candidate_requests += int(
+            cast(
+                int,
+                cast(Mapping[str, object], manifest.get("lean", {})).get("candidate_requests", 0),
+            )
+        )
+    screen = accepted_row_screen(
+        loaded,
+        [
+            root_id
+            for root_id in completed
+            if not any(fault.startswith(root_id) for fault in accounting_faults)
+        ],
+    )
+    infra = measure_infrastructure_failures(loaded)
+    infra_rate = float(cast(float, infra.get("infrastructure_failure_rate", 0.0)))
+    planned_slots = len(completed) * 4
+    minimum_accepted = -(-planned_slots * 7 // 10)
+    accepted = int(cast(int, screen["accepted_rows"]))
+    checks: dict[str, bool] = {
+        "checkpoint_roots_reached": len(completed) >= checkpoint_roots,
+        "accepted_at_least_70pct": accepted >= minimum_accepted,
+        "zero_copied_inaccessible_name_failures": (
+            counts["lean_invalid_copied_inaccessible_name"] == 0
+        ),
+        "zero_context_prelude_failures": counts["lean_invalid_context_prelude"] == 0,
+        "zero_accepted_self_pairs": int(cast(int, screen["self_pairs"])) == 0,
+        "zero_accepted_duplicates": int(cast(int, screen["candidate_duplicates"])) == 0,
+        "zero_accepted_contamination": int(cast(int, screen["accepted_contamination"])) == 0,
+        "infrastructure_failures_below_2pct": (
+            infra_rate < PILOT_MAXIMUM_INFRASTRUCTURE_FAILURE_FRACTION
+        ),
+        "terminal_accounting_intact": not accounting_faults,
+    }
+    return {
+        "version": "leanfaith_sft2a_sprint_in_run_checkpoint_v1",
+        "taken_at": _now(),
+        "checkpoint_roots": checkpoint_roots,
+        "completed_roots": len(completed),
+        "planned_slots": planned_slots,
+        "minimum_accepted": minimum_accepted,
+        "accepted_rows": accepted,
+        "accepted_fraction": accepted / planned_slots if planned_slots else 0.0,
+        "counts": dict(counts),
+        "candidate_lean_requests": candidate_requests,
+        "genuine_lean_invalid_rate": (
+            counts["lean_invalid_candidate_local"] / candidate_requests
+            if candidate_requests
+            else 0.0
+        ),
+        "screen": screen,
+        "infrastructure": infra,
+        "accounting_faults": accounting_faults[:20],
+        "checks": checks,
+        "failed_checks": sorted(name for name, ok in checks.items() if not ok),
+        "passed": all(checks.values()),
+    }
+
+
+class _CheckpointFailed(SprintPilotError):
+    def __init__(self, checkpoint: Mapping[str, object]) -> None:
+        super().__init__(f"in-run checkpoint failed: {checkpoint.get('failed_checks')}")
+        self.checkpoint = dict(checkpoint)
 
 
 # --------------------------------------------------------------------------------------------
@@ -1093,6 +1267,30 @@ def run_detached_sprint_pilot_v52(
                     )
                 before = snapshot_completed_roots(loaded)
                 _atomic_replace_json(detached / "resume_snapshot_before.json", before)
+                checkpoint_roots = _int_field(loaded.document, "in_run_checkpoint_roots", 0)
+                if checkpoint_roots > 0 and phase_one:
+                    checkpoint = in_run_checkpoint_v52(loaded, checkpoint_roots=checkpoint_roots)
+                    _atomic_replace_json(detached / "checkpoint_terminal.json", checkpoint)
+                    _append_stage(
+                        stage_path,
+                        {
+                            "event": "in_run_checkpoint",
+                            "passed": checkpoint["passed"],
+                            "completed_roots": checkpoint["completed_roots"],
+                            "accepted_rows": checkpoint["accepted_rows"],
+                            "failed_checks": checkpoint["failed_checks"],
+                        },
+                    )
+                    if not bool(checkpoint["passed"]):
+                        _atomic_replace_json(
+                            detached / "generation_terminal.json",
+                            {
+                                "version": "leanfaith_sft2a_sprint_generation_stage_v1",
+                                "status": "stopped_checkpoint",
+                                "workers": phase_one,
+                            },
+                        )
+                        raise _CheckpointFailed(checkpoint)
                 _append_stage(stage_path, {"event": "generation_phase_started", "phase": 2})
                 phase_two = run_two_provider_workers_v52(
                     loaded,
@@ -1136,6 +1334,10 @@ def run_detached_sprint_pilot_v52(
                     },
                 )
                 _append_stage(stage_path, {"event": "replay_complete"})
+            except _CheckpointFailed as exc:
+                checkpoint_failure: dict[str, object] | None = exc.checkpoint
+            else:
+                checkpoint_failure = None
             finally:
                 generation_wall = time.monotonic() - generation_started
                 release_resources(task=resource_task)
@@ -1149,19 +1351,36 @@ def run_detached_sprint_pilot_v52(
                 for event in _stage_events(stage_path)
                 if event.get("event") == "resource_released"
             )
-            evaluation = evaluate_sprint_pilot_thresholds(
-                loaded,
-                compaction=compacted,
-                replay=replay,
-                generation_wall_seconds=total_generation_wall,
-                malformed_injection=injection,
-                resume_check=resume_check,
-                role=cast(Literal["pilot", "shard", "canary"], role),
-                minimum_accepted_rows_per_minute=float(
-                    cast(float, loaded.document.get("minimum_accepted_rows_per_minute", 8.0))
-                ),
-                attribution_gate=oracle_version == "v3",
-            )
+            if checkpoint_failure is not None:
+                evaluation = {
+                    **checkpoint_failure,
+                    "version": "leanfaith_sft2a_sprint_pilot_thresholds_v1",
+                    "role": role,
+                    "stopped_at_in_run_checkpoint": True,
+                    "generation_wall_seconds": total_generation_wall,
+                    "scale_10k_authorized": False,
+                    "scale_50k_authorized": False,
+                }
+                compacted = {"accepted_rows": checkpoint_failure["accepted_rows"]}
+            else:
+                genuine_blocking = loaded.document.get("genuine_lean_invalid_blocking", True)
+                screen = accepted_row_screen(loaded, _completed_root_ids(loaded))
+                evaluation = evaluate_sprint_pilot_thresholds(
+                    loaded,
+                    compaction=compacted,
+                    replay=replay,
+                    generation_wall_seconds=total_generation_wall,
+                    malformed_injection=injection,
+                    resume_check=resume_check,
+                    role=cast(Literal["pilot", "shard", "canary"], role),
+                    minimum_accepted_rows_per_minute=float(
+                        cast(float, loaded.document.get("minimum_accepted_rows_per_minute", 8.0))
+                    ),
+                    attribution_gate=oracle_version == "v3",
+                    genuine_rate_blocking=genuine_blocking is not False,
+                    accepted_contamination=int(cast(int, screen["accepted_contamination"])),
+                )
+                evaluation["accepted_row_screen"] = screen
             evaluation["effective_provider_concurrency"] = concurrency
             evaluation["oracle_cache_version"] = oracle_version
             _atomic_replace_json(detached / "evaluation_terminal.json", evaluation)
@@ -1169,6 +1388,48 @@ def run_detached_sprint_pilot_v52(
                 stage_path,
                 {"event": "evaluation_complete", "passed": evaluation["passed"]},
             )
+            if checkpoint_failure is not None:
+                audit_terminal_skipped: dict[str, object] = {
+                    "version": "leanfaith_sft2a_sprint_kimi_telemetry_stage_v1",
+                    "status": "skipped_checkpoint_failed",
+                    "held_lean_reservation": False,
+                }
+                _atomic_replace_json(detached / "audit_terminal.json", audit_terminal_skipped)
+                _atomic_replace_json(
+                    detached / "replay_terminal.json",
+                    {
+                        "version": "leanfaith_sft2a_sprint_replay_stage_v1",
+                        "status": "skipped_checkpoint_failed",
+                    },
+                )
+                terminal = {
+                    "version": "leanfaith_sft2a_sprint_pilot_terminal_v1",
+                    "status": "threshold_failed",
+                    "invocation": invocation,
+                    "generation_terminal_sha256": hash_file(detached / "generation_terminal.json"),
+                    "replay_terminal_sha256": hash_file(detached / "replay_terminal.json"),
+                    "evaluation_terminal_sha256": hash_file(detached / "evaluation_terminal.json"),
+                    "audit_terminal_sha256": hash_file(detached / "audit_terminal.json"),
+                    "accepted_rows": compacted["accepted_rows"],
+                    "generation_wall_seconds": generation_wall,
+                    "failed_checks": evaluation["failed_checks"],
+                    "stopped_at_in_run_checkpoint": True,
+                    "kimi_telemetry_status": "skipped_checkpoint_failed",
+                    "scale_10k_authorized": False,
+                    "scale_50k_authorized": False,
+                    "completed_at": _now(),
+                }
+                _atomic_replace_json(terminal_path, terminal)
+                _append_stage(
+                    stage_path, {"event": "worker_finished", "status": terminal["status"]}
+                )
+                chain = {"action": "stop", "reason": "in_run_checkpoint_failed", "launched": False}
+                _atomic_replace_json(detached / "chain_receipt.json", chain)
+                _append_stage(stage_path, {"event": "chain_next_stage", **chain})
+                print(json.dumps(terminal, sort_keys=True), flush=True)
+                if keepalive is not None:
+                    os.close(keepalive)
+                return terminal
             if role == "shard":
                 fraction = float(cast(float, loaded.document.get("kimi_audit_fraction", 0.1)))
                 kimi_rows = min(
@@ -2212,11 +2473,13 @@ __all__ = [
     "LoadedAuditOnlyKimiV52",
     "OracleV2Fixture",
     "SprintPilotError",
+    "accepted_row_screen",
     "audit_only_kimi_health_v52",
     "chain_decision",
     "chain_next_stage",
     "controlled_resume_receipt",
     "evaluate_sprint_pilot_thresholds",
+    "in_run_checkpoint_v52",
     "launch_audit_only_kimi_v52",
     "launch_sprint_pilot_v52",
     "load_audit_only_kimi_v52",

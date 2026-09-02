@@ -84,6 +84,7 @@ from leanfaith.sft2a.sprint_pilot_v52 import (
 from leanfaith.sft2a.sprint_repair_v3 import (
     freeze_sprint_canary_v3,
     load_repair_plan_v3,
+    regenerate_sprint_v3_shard_configs,
     run_v3_repair_gates,
 )
 from leanfaith.sft2a.sprint_scale_v52 import (
@@ -118,7 +119,9 @@ SPRINT_POOL_COMMANDS = frozenset(
         "compact-sprint-shards",
     }
 )
-REPAIR_V3_COMMANDS = frozenset({"freeze-sprint-canary-v3", "run-v3-repair-gates"})
+REPAIR_V3_COMMANDS = frozenset(
+    {"freeze-sprint-canary-v3", "run-v3-repair-gates", "regenerate-sprint-v3-shard-configs"}
+)
 AUDIT_ONLY_COMMANDS = frozenset(
     {
         "run-audit-only-kimi-v5-2",
@@ -493,6 +496,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     elif arguments.command == "run-v3-repair-gates":
         assert repair_plan is not None
         result = run_v3_repair_gates(repair_plan)
+    elif arguments.command == "regenerate-sprint-v3-shard-configs":
+        assert repair_plan is not None
+        result = regenerate_sprint_v3_shard_configs(repair_plan)
     elif arguments.command == "verify-replay":
         result = verify_one_root_replay(loaded)
     elif arguments.command == "run-lemex-audit":

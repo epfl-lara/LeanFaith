@@ -749,3 +749,121 @@ def test_signature_oracle_result_defaults_attribution_to_none() -> None:
     literal: Literal["candidate_local"] = "candidate_local"
     assert lean_oracle._attribution_literal(literal) == "candidate_local"
     assert lean_oracle._attribution_literal("bogus") is None
+
+
+# ---- in-run checkpoint and nonblocking candidate-local rate ---------------------------------------
+
+
+def test_nonblocking_genuine_rate_and_contamination_check(tmp_path: Path) -> None:
+    loaded = _loaded_doc(tmp_path, sprint_role="shard")
+    manifests = [_manifest(invalid=3, prelude=0, copied=0, local=3, requests=7)] * 20
+    evaluation = _evaluate(
+        loaded,
+        manifests,
+        role="canary",
+        attribution_gate=True,
+        genuine_rate_blocking=False,
+        accepted_contamination=0,
+    )
+    assert evaluation["passed"] is True
+    assert "genuine_lean_invalid_below_25pct" not in evaluation["checks"]
+    assert evaluation["genuine_lean_invalid_below_25pct_telemetry"] is False
+    assert evaluation["checks"]["zero_accepted_contamination"] is True
+    tainted = _evaluate(
+        loaded,
+        manifests,
+        role="canary",
+        attribution_gate=True,
+        genuine_rate_blocking=False,
+        accepted_contamination=1,
+    )
+    assert tainted["failed_checks"] == ["zero_accepted_contamination"]
+
+
+def test_in_run_checkpoint_from_durable_root_artifacts(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from types import SimpleNamespace
+
+    from leanfaith.config.hashing import hash_file
+    from leanfaith.sft2a.parallel_rehearsal import ParallelRootStateMachine
+    from leanfaith.sft2a.provider_rehearsal_v52 import _root_output
+
+    base = _loaded_with_prompt("x")
+    out = tmp_path / "run"
+    loaded = SimpleNamespace(
+        output_root=out,
+        base=base,
+        sample_path=tmp_path / "s.jsonl",
+        document={},
+        sha256="s",
+        ceilings=None,
+    )
+    (tmp_path / "s.jsonl").write_text(
+        "".join(json.dumps({"root": {"root_id": root_id}}) + "\n" for root_id in ("r1", "r2"))
+    )
+    states = ParallelRootStateMachine(out / "root_state.jsonl", maximum_workers=8)
+    rows: list[tuple[str, str, str]] = [
+        ("r1", "⊢ A", "h1"),
+        ("r1", "⊢ B", "h2"),
+        ("r1", "⊢ A1", "h1b"),
+        ("r2", "⊢ C", "h3"),
+        ("r2", "⊢ D", "h4"),
+        ("r2", "⊢ C1", "h3b"),
+    ]
+    for root_id in ("r1", "r2"):
+        states.claim(root_id=root_id, worker_id="w")
+        root_out = _root_output(cast(Any, loaded), root_id)
+        (root_out / "new_core").mkdir(parents=True)
+        core = [
+            json.dumps({"reference": "⊢ R", "candidate": goal, "label": True})
+            for r, goal, _h in rows
+            if r == root_id
+        ]
+        side = [
+            json.dumps(
+                {
+                    "row_id": h,
+                    "candidate_closed_expr_hash": h,
+                    "reference_closed_expr_hash": "ref",
+                    "raw_candidate_signature": goal,
+                }
+            )
+            for r, goal, h in rows
+            if r == root_id
+        ]
+        (root_out / "new_core/core.jsonl").write_text("".join(line + "\n" for line in core))
+        (root_out / "new_core/sidecar.jsonl").write_text("".join(line + "\n" for line in side))
+        manifest = {
+            "counts": {
+                "accepted": 3,
+                "lean_invalid_attempts": 1,
+                "lean_invalid_context_prelude": 0,
+                "lean_invalid_copied_inaccessible_name": 0,
+                "lean_invalid_candidate_local": 1,
+                "inaccessible_name_rejections": 0,
+                "candidate_attempts": 3,
+            },
+            "lean": {"candidate_requests": 3},
+            "llm": {"usage": []},
+        }
+        (root_out / "manifest.json").write_text(json.dumps(manifest))
+        states.complete(
+            root_id=root_id, worker_id="w", manifest_hash=hash_file(root_out / "manifest.json")
+        )
+    monkeypatch.setattr(
+        sprint_pilot_v52,
+        "measure_infrastructure_failures",
+        lambda _loaded: {"infrastructure_failure_rate": 0.0, "infrastructure_failures": 0},
+    )
+    checkpoint = sprint_pilot_v52.in_run_checkpoint_v52(cast(Any, loaded), checkpoint_roots=2)
+    assert checkpoint["completed_roots"] == 2 and checkpoint["accepted_rows"] == 6
+    assert checkpoint["passed"] is True, checkpoint["failed_checks"]
+    assert checkpoint["genuine_lean_invalid_rate"] == pytest.approx(1 / 3)
+    # Tamper with one manifest: terminal accounting must break the checkpoint.
+    root_out = _root_output(cast(Any, loaded), "r2")
+    (root_out / "manifest.json").write_text(
+        json.dumps({"counts": {}, "lean": {}, "llm": {"usage": []}})
+    )
+    broken = sprint_pilot_v52.in_run_checkpoint_v52(cast(Any, loaded), checkpoint_roots=2)
+    assert "terminal_accounting_intact" in broken["failed_checks"]

@@ -1,7 +1,7 @@
 {
   "version": "leanfaith_sft2a_sprint_repair_v3_plan_v1",
   "sprint_authority": "plans/72h_sft_data_sprint_2026-09-01.md",
-  "repair_authority": "user message 2026-09-02: focused v3 repair, bounded 20-root canary, then uninterrupted frozen shards 2-10",
+  "repair_authority": "user messages 2026-09-02: focused v3 repair; after the hostile canary, shards 2-10 authorized directly with the candidate-local rate as telemetry and a shard-2 100-root in-run checkpoint",
   "pool_config_path": "configs/sft2a/sprint_reference_pool_12k_v1.json",
   "base_config_path": "configs/sft2a/closure_aware_v5_2_sprint_v3_authoring.yaml",
   "base_config_sha256": "797e8cabd16420c6f4a22a54f645381346fced84e3ff20540018d5535450d972",
@@ -74,7 +74,20 @@
       "maximum_reported_opus_spend_usd": 400.0,
       "codex_cost_status": "unavailable",
       "lemex_cost_status": "unavailable"
-    }
+    },
+    "genuine_lean_invalid_blocking": false,
+    "in_run_checkpoint": {
+      "shard": 2,
+      "roots": 100
+    },
+    "stop_conditions": [
+      "accepted slots below 70% (final evaluation and the shard-2 100-root in-run checkpoint)",
+      "any copied-inaccessible-name or context-prelude Lean failure",
+      "any accepted self-pair, duplicate, or contamination hit",
+      "infrastructure failures at or above 2%",
+      "durable resume or terminal accounting breaks",
+      "candidate-local Lean-invalid rate is telemetry (retry cost), not a gate"
+    ]
   },
   "legacy_rejudge_authorized": false,
   "publication_authorized": false,

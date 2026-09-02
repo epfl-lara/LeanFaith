@@ -520,16 +520,32 @@ def freeze_sprint_v3_shard_configs(
     *,
     canary_sample_path: Path,
     shard_receipts: Sequence[Mapping[str, object]] | None = None,
+    regenerate: bool = False,
 ) -> dict[str, object]:
-    """Write the chained v3 provider configs for the frozen shards (never shard 1)."""
+    """Write the chained v3 provider configs for the frozen shards (never shard 1).
+
+    ``regenerate`` rewrites the configs and manifest from the plan when no shard run has
+    started (a config is a replaceable launch document, not a run artifact)."""
 
     receipts = (
         list(shard_receipts) if shard_receipts is not None else _historical_shard_samples(plan)
     )
     shard_root = Path(str(plan.shards_v3["output_root"]))
     manifest_path = shard_root / "shards_v3_manifest.json"
-    if manifest_path.is_file():
+    if manifest_path.is_file() and not regenerate:
         return _object(manifest_path)
+    started_shards: dict[int, int] = {}
+    if regenerate:
+        # A sample-verification receipt under run/preflight is not a run; a durable root-state
+        # journal, root outputs, or a detached stage directory is. A started shard keeps its
+        # launch document and receives only the plan's override fields (its worker re-reads
+        # the document on resume); unstarted shards are rewritten from the plan.
+        for started in sorted(shard_root.glob("shard_*/run")):
+            if any((started / name).exists() for name in ("root_state.jsonl", "roots", "detached")):
+                index = int(started.parent.name.split("_")[1])
+                started_shards[index] = _completed_root_count(started / "root_state.jsonl")
+        if manifest_path.is_file():
+            manifest_path.unlink()
     first = int(cast(int, plan.shards_v3["first_shard"]))
     last = int(cast(int, plan.shards_v3["last_shard"]))
     by_index = {int(cast(int, item["shard"])): item for item in receipts}
@@ -549,11 +565,41 @@ def freeze_sprint_v3_shard_configs(
     ceilings_template = dict(cast(Mapping[str, object], plan.shards_v3["ceilings"]))
     deadline = cast(dict[str, object], plan.pool.document["shards"]).get("sprint_deadline_utc")
     configs: list[dict[str, object]] = []
+    checkpoint_plan = plan.shards_v3.get("in_run_checkpoint")
     for index in range(last, first - 1, -1):
         receipt = by_index.get(index)
         if receipt is None:
             raise SprintRepairV3Error(f"historical shards manifest lacks shard {index}")
         roots = int(cast(int, receipt["roots"]))
+        if index in started_shards:
+            existing = _object(config_paths[index])
+            existing["genuine_lean_invalid_blocking"] = bool(
+                plan.shards_v3.get("genuine_lean_invalid_blocking", True)
+            )
+            if (
+                isinstance(checkpoint_plan, Mapping)
+                and int(cast(int, checkpoint_plan.get("shard", 0))) == index
+            ):
+                roots_at = int(cast(int, checkpoint_plan.get("roots", 0)))
+                existing["in_run_checkpoint_roots"] = roots_at
+                existing["controlled_stop_after_completed_roots"] = max(
+                    1, roots_at - started_shards[index]
+                )
+            existing["override_applied_at"] = _now()
+            existing["override_completed_roots_at_apply"] = started_shards[index]
+            _atomic_replace_json(config_paths[index], existing)
+            configs.append(
+                {
+                    "shard": index,
+                    "provider_config_path": str(config_paths[index]),
+                    "provider_config_sha256": hash_file(config_paths[index]),
+                    "sample_path": str(receipt["sample_path"]),
+                    "sample_sha256": str(receipt["sample_sha256"]),
+                    "roots": roots,
+                    "started_override": True,
+                }
+            )
+            continue
         ceilings = dict(ceilings_template)
         ceilings["maximum_roots"] = roots
         next_path = config_paths.get(index + 1)
@@ -588,8 +634,18 @@ def freeze_sprint_v3_shard_configs(
             "shared_candidate_registry_path": str(plan.shards_v3["shared_candidate_registry_path"]),
             "sprint_deadline_utc": deadline,
             "projection_blocking": False,
+            "genuine_lean_invalid_blocking": bool(
+                plan.shards_v3.get("genuine_lean_invalid_blocking", True)
+            ),
             "next_shard_config_path": None if next_path is None else str(next_path),
         }
+        if (
+            isinstance(checkpoint_plan, Mapping)
+            and int(cast(int, checkpoint_plan.get("shard", 0))) == index
+        ):
+            roots_at = int(cast(int, checkpoint_plan.get("roots", 0)))
+            document["controlled_stop_after_completed_roots"] = roots_at
+            document["in_run_checkpoint_roots"] = roots_at
         _atomic_replace_json(config_paths[index], document)
         configs.append(
             {
@@ -615,6 +671,29 @@ def freeze_sprint_v3_shard_configs(
     }
     _atomic_exact(manifest_path, canonical_json_bytes(manifest) + b"\n")
     return manifest
+
+
+def _completed_root_count(state_path: Path) -> int:
+    if not state_path.is_file():
+        return 0
+    completed: set[str] = set()
+    for line in state_path.read_text(encoding="utf-8").splitlines():
+        if not line.strip():
+            continue
+        record = json.loads(line)
+        if isinstance(record, dict) and record.get("phase") == "complete":
+            completed.add(str(record.get("root_id")))
+    return len(completed)
+
+
+def regenerate_sprint_v3_shard_configs(plan: LoadedRepairPlanV3) -> dict[str, object]:
+    """Rewrite the v3 shard configs from the plan (zero Lean, zero provider, no run started)."""
+
+    canary_root = Path(str(plan.canary["output_root"]))
+    manifest = _object(canary_root / "canary_manifest.json")
+    return freeze_sprint_v3_shard_configs(
+        plan, canary_sample_path=Path(str(manifest["sample_path"])), regenerate=True
+    )
 
 
 # --------------------------------------------------------------------------------------------
@@ -1089,6 +1168,7 @@ __all__ = [
     "freeze_sprint_v3_shard_configs",
     "is_open_rendering_failure",
     "load_repair_plan_v3",
+    "regenerate_sprint_v3_shard_configs",
     "run_v3_repair_gates",
     "select_adversarial_roots",
     "select_by_class",
