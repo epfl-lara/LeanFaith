@@ -1071,3 +1071,19 @@ rows/minute, and pilot quality bounds hold. Leave healthy long runs detached wit
   replay of the 75 completed roots, one worker/16 GiB beside SFT1's 24 GiB, concurrency 16).
   The chain continues automatically through shard 10 without further pauses; Kimi's 403 stays
   nonblocking telemetry per shard. Report only a blocking failure or final completion.
+- 2026-09-02 — shard 2 (v3) completed. Its in-run checkpoint at 19:06Z (132 roots, 450/528
+  accepted, zero copied-name/prelude failures, zero accepted self-pairs/duplicates/contamination,
+  infrastructure 0.23%, accounting intact) passed; generation finished at 21:54Z. The first
+  replay then refused the 75 manifests generated before the checkpoint override because they
+  record the run's earlier provider-config hash; fix at `7ce7dd3` (zero-call replay accepts any
+  provider-config hash from the run's own `launch_history.jsonl`, still refusing foreign
+  configs; receipt lists 75 + 925 manifests by hash). Resumed at 21:57Z: replay reproducible with
+  zero calls, evaluation `complete` with no failed check — 3,489/4,000 accepted (87.2%),
+  17.5 accepted rows/minute over 11,957 s of generation wall, raw and candidate-local
+  Lean-invalid 670/4,667 = 14.4% (telemetry, below 25%), zero copied-name and prelude failures,
+  zero pre-Lean dagger rejections, zero accepted self-pairs/duplicates/contamination,
+  infrastructure 6/9,686 calls (0.06%), authoring views validated for 856 roots (11
+  unavailable, 133 text references not applicable), Kimi telemetry `failed_resumable` (403,
+  nonblocking). Chain launched shard 3 at 21:59:14Z (`shard_passed_projection_nonblocking`,
+  tmux `leanfaith-sft2a-sprint-v3-shard-03`, one worker/16 GiB, concurrency 16; SFT1's claim had
+  been released by then).
