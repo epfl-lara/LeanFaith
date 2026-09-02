@@ -218,7 +218,7 @@ def build_core(
         "n31_cap_rows": n31_cap,
         "guard_pairs": guard_pairs,
         "core_rows": len(core),
-        "cells": _count_by(core, "core_cell") if core else {},
+        "cells": _count_by([item["sidecar"] for item in core], "core_cell") if core else {},
         "families": _count_by(core, "core_family") if core else {},
         "orientation": _count_by([item["sidecar"] for item in core], "orientation") if core else {},
     }
