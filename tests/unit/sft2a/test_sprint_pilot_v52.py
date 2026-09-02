@@ -815,6 +815,17 @@ def test_launch_requires_passed_canary_and_gate_receipts(
     gate.write_text(json.dumps({"all_passed": True}))
     receipts = sprint_pilot_v52.require_sprint_prerequisite_receipts(loaded)
     assert set(receipts) == {"closure_canaries_sha256", "oracle_v2_live_gate_sha256"}
+    # A shard names the pilot's gate receipt explicitly instead of its own output root.
+    shared_gate = tmp_path / "pilot_gate_receipt.json"
+    shared_gate.write_text(json.dumps({"all_passed": True}))
+    shard = replace(
+        loaded,
+        document={**loaded.document, "oracle_v2_gate_receipt_path": str(shared_gate)},
+        output_root=tmp_path / "shard_run",
+    )
+    assert sprint_pilot_v52.require_sprint_prerequisite_receipts(shard)[
+        "oracle_v2_live_gate_sha256"
+    ] == hash_file(shared_gate)
 
 
 def test_oracle_gate_waits_for_capacity_before_claiming(

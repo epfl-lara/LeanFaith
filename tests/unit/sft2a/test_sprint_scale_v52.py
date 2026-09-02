@@ -223,6 +223,9 @@ def test_freeze_shards_builds_disjoint_samples_and_chained_configs(
         assert config["ceilings"]["maximum_roots"] == 5
         assert config["expected_source_mix"] == receipt["source_mix"]
         assert config["scale_10k_authorized"] is False
+        assert (
+            config["oracle_v2_gate_receipt_path"] == loaded.document["oracle_v2_gate_receipt_path"]
+        )
     assert len(ids) == len(set(ids)) == 10
     first = json.loads(Path(str(shards[0]["provider_config_path"])).read_text())
     assert first["next_shard_config_path"] == shards[1]["provider_config_path"]

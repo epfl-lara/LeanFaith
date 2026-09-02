@@ -152,6 +152,9 @@ def load_sprint_pool_config(path: Path) -> LoadedSprintPoolConfig:
         value = shards.get(key)
         if isinstance(value, bool) or not isinstance(value, int) or value < 1:
             raise SprintScaleError(f"sprint shard contract field {key} is malformed")
+    gate_receipt = document.get("oracle_v2_gate_receipt_path")
+    if not isinstance(gate_receipt, str) or not gate_receipt:
+        raise SprintScaleError("sprint pool config must name the oracle-v2 gate receipt path")
     if (
         document.get("lean_workers") != 2
         or document.get("lean_rss_gib") != 40.0
@@ -595,6 +598,7 @@ def freeze_sprint_shards(loaded: LoadedSprintPoolConfig) -> dict[str, object]:
             "maximum_total_lean_workers": 2,
             "maximum_measured_rss_gib": 40.0,
             "controlled_stop_after_completed_roots": 0,
+            "oracle_v2_gate_receipt_path": str(loaded.document["oracle_v2_gate_receipt_path"]),
             "next_shard_config_path": None if next_path is None else str(next_path),
             "legacy_rejudge_authorized": False,
             "publication_authorized": False,

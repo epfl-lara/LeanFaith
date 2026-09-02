@@ -51,5 +51,6 @@
         "lemex_cost_status": "unavailable"
       }
     }
-  }
+  },
+  "oracle_v2_gate_receipt_path": "/storage/milikic/leanfaith/value_first/sft2_llm_transforms_v1/runs/sprint_pilot_20roots_run/checks/oracle_v2_live_gate/oracle_v2_live_gate_receipt.json"
 }

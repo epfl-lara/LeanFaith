@@ -1238,7 +1238,12 @@ def require_sprint_prerequisite_receipts(loaded: LoadedProviderRehearsalV52) -> 
         raise SprintPilotError(
             "sprint pilot requires the passed closure canary manifest for the sprint judge prompt"
         )
-    gate_path = loaded.output_root / "checks/oracle_v2_live_gate/oracle_v2_live_gate_receipt.json"
+    configured_gate = loaded.document.get("oracle_v2_gate_receipt_path")
+    gate_path = (
+        Path(str(configured_gate))
+        if isinstance(configured_gate, str)
+        else loaded.output_root / "checks/oracle_v2_live_gate/oracle_v2_live_gate_receipt.json"
+    )
     if not gate_path.is_file() or _object(gate_path).get("all_passed") is not True:
         raise SprintPilotError("sprint pilot requires the passed oracle-v2 live gate receipt")
     return {
