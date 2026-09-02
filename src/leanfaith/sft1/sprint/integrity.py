@@ -26,6 +26,13 @@ from leanfaith.sft1.sprint.screens import residue_violation, unordered_pair_key
 from leanfaith.sft1.sprint.store import read_json_object, write_atomic
 
 ROW_FIELDS = {"pair_id", "root_id", "reference", "candidate", "label", "operation_id"}
+VIEW_SIDECAR_FIELDS = {"orientation", "core_family", "core_cell"}
+
+
+def _without_view_fields(sidecar: Mapping[str, Any]) -> dict[str, Any]:
+    return {k: v for k, v in sidecar.items() if k not in VIEW_SIDECAR_FIELDS}
+
+
 REPLAY_SEMANTICS = (
     "journal_and_cache_replay_of_stored_terminals; proof checks occurred during original "
     "generation; no fresh kernel replay"
@@ -171,12 +178,19 @@ def validate_view(
             if source_record is None:
                 issue(f"missing_from_retained: {pair_id}")
             else:
-                if source_record["sidecar"] != sidecar or (
-                    sidecar.get("orientation") is None and source_record["row"] != row
-                ):
+                stored = _without_view_fields(sidecar)
+                original = _without_view_fields(source_record["sidecar"])
+                if original != stored:
                     issue(f"retained_record_mismatch: {pair_id}")
-                if hash_canonical(source_record["sidecar"]) != hash_canonical(sidecar):
+                if hash_canonical(original) != hash_canonical(stored):
                     issue(f"sidecar_hash_mismatch: {pair_id}")
+                if sidecar.get("orientation") != "swapped" and source_record["row"] != row:
+                    issue(f"retained_row_mismatch: {pair_id}")
+                if sidecar.get("orientation") == "swapped" and (
+                    source_record["row"]["reference"] != row["candidate"]
+                    or source_record["row"]["candidate"] != row["reference"]
+                ):
+                    issue(f"orientation_swap_mismatch: {pair_id}")
             records.append({"row": row, "sidecar": sidecar})
     if total_rows != int(manifest.get("retained_rows", -1)):
         issue("shard_conservation: total shard rows differ from manifest retained_rows")
@@ -242,7 +256,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--repo-root", type=Path, default=find_repo_root(Path.cwd()))
     parser.add_argument("--config", type=Path)
-    parser.add_argument("--run-id", required=True)
+    parser.add_argument("--run-id")
     parser.add_argument("--view", default="raw")
     parser.add_argument("--compacted-dir", type=Path)
     parser.add_argument("--label", help="validate a multi-run view under compacted/<label>")
@@ -266,6 +280,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         if report["issues"]:
             print("\n".join(report["issues"][:40]))
         return 0 if report["passed"] else 1
+    if not args.run_id:
+        parser.error("--run-id is required unless --label is given")
     paths = RunPaths(staging, args.run_id)
     compacted = args.compacted_dir or (
         paths.compacted
