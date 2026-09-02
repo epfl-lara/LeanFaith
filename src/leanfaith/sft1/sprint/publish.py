@@ -85,6 +85,24 @@ def _supersedes_lines(manifest: Mapping[str, Any]) -> list[str]:
     ]
 
 
+def _curriculum_lines(manifest: Mapping[str, Any], release: Mapping[str, Any] | None) -> list[str]:
+    if not manifest.get("curriculum_only"):
+        return []
+    baseline = (release or {}).get("outer_negation_xor_baseline") or {}
+    return [
+        "",
+        "## Curriculum-only auxiliary data (catalog N19 whole-claim negation)",
+        "",
+        "Negatives are whole-claim negations `¬A` of proved theorems `A`, closed by a certified",
+        "preserving transform. Every certificate is kernel-checked, but the pairs are an easy",
+        'pairwise pattern: the rule "equivalent iff both or neither goal starts with `¬`" reaches',
+        f"balanced accuracy {baseline.get('balanced_accuracy')} on this view"
+        " (`outer_negation_xor_baseline.json`).",
+        "Keep this dataset separate from the headline core and mix it at no more than 10% sampling",
+        "weight with richer data.",
+    ]
+
+
 def _square_accounting_lines(manifest: Mapping[str, Any]) -> list[str]:
     """Square-view build accounting, present only for certificate-closure square views."""
     if "duplicate_squares_dropped" not in manifest:
@@ -201,6 +219,7 @@ def dataset_card(run_id: str, manifest: dict[str, Any], release: dict[str, Any] 
             else ""
         ),
         *_square_accounting_lines(manifest),
+        *_curriculum_lines(manifest, release),
         "- operations:",
         *(f"  - `{name}`: {count}" for name, count in sorted(operations.items())),
         *_screen_lines(release),
@@ -275,6 +294,7 @@ def local_files(compacted: Path) -> list[Path]:
         "release_report.json",
         "integrity_report.json",
         "verdict.json",
+        "outer_negation_xor_baseline.json",
         "duplicate_squares.json",
         "permutation_control.json",
         "quarantined_roots.json",

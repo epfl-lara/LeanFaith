@@ -1237,14 +1237,24 @@ def squareOperationId : String := "SQUARE_N25_SYMMETRY_V1"
     for `≠`). -/
 structure SquareOp where
   id : String
-  neg : Op
+  /-- Identifier of the negative mechanism closed by the square. -/
+  negId : String
+  /-- Engine operation implementing the mechanism; `none` for the whole-claim negation
+      (catalog N19), which negates the closed proposition itself. -/
+  neg : Option Op
   transforms : Array Op
   deriving Inhabited, Repr
 
+def n19OperationId : String := "N19_WHOLE_CLAIM_NEGATION_V1"
+
 def squareOps : Array SquareOp := #[
-  { id := squareOperationId, neg := .n25, transforms := #[] },
-  { id := "SQUARE_N25_BINDER_V1", neg := .n25, transforms := #[.p14, .p23] },
-  { id := "SQUARE_N32_BINDER_V1", neg := .n32, transforms := #[.p14, .p23] }]
+  { id := squareOperationId, negId := (Op.n25).id, neg := some .n25, transforms := #[] },
+  { id := "SQUARE_N25_BINDER_V1", negId := (Op.n25).id, neg := some .n25,
+    transforms := #[.p14, .p23] },
+  { id := "SQUARE_N32_BINDER_V1", negId := (Op.n32).id, neg := some .n32,
+    transforms := #[.p14, .p23] },
+  { id := "SQUARE_N19_CURRICULUM_V1", negId := n19OperationId, neg := none,
+    transforms := #[.p14, .p23, .p18, .pne, .p15] }]
 
 def squareOp? (id : String) : Option SquareOp := squareOps.find? (·.id == id)
 
@@ -1309,18 +1319,33 @@ private def closeSquare (root rootC : Root) (sop : SquareOp) (direction : String
 /-- Rebuild the certified negative pair `(P, C)` for `sop.neg` and close the square with
     one preserving transform on both endpoints, requiring the exact typed diamond
     `T(N(P)) = N(T(P))`. -/
+/-- The certified negative of `reference` for `sop`: an engine operation, or the
+    whole-claim negation `Not reference` (catalog N19). -/
+private def squareNegate (root : Root) (sop : SquareOp) : MetaM (Expr × String) := do
+  match sop.neg with
+  | some op =>
+      let n ← applyOp root op
+      return (n.candidate, n.site.detail)
+  | none =>
+      unless ← isProp root.reference do throwNA "n19_reference_not_prop"
+      return (mkApp (mkConst ``Not) root.reference, "whole_claim")
+
 def buildSquare (root : Root) (sop : SquareOp) : MetaM SquareBuild := do
-  let n ← applyOp root sop.neg
-  let c ← checkedClosedProp false "candidate" n.candidate
-  let direction := n.site.detail
+  let (negated, direction) ← squareNegate root sop
+  let c ← checkedClosedProp false "candidate" negated
   let rootC : Root := { root with reference := c }
-  let (tP, tC, siteP, siteC, pPrimeRaw, cPrimeRaw) ← closeSquare root rootC sop direction
+  let (tP, tC, siteP, siteC, pPrimeRaw, cPrimeRaw) ←
+    if sop.neg.isSome then closeSquare root rootC sop direction
+    else do
+      -- T acts under the outer negation: T(¬P) := ¬T(P)
+      let (t, ap) ← firstApplicable root sop.transforms
+      return (t, t, ap.site, ap.site, ap.candidate, mkApp (mkConst ``Not) ap.candidate)
   let pPrime ← checkedClosedProp false "p_prime" pPrimeRaw
   let cPrime ← checkedClosedProp false "c_prime" cPrimeRaw
   let rootPPrime : Root := { root with reference := pPrime }
-  let nOfT ← applyOp rootPPrime sop.neg
-  unless Expr.equal nOfT.candidate cPrime do throwRej "square_diamond_expr_mismatch"
-  unless nOfT.site.detail == direction do throwRej "square_diamond_direction_mismatch"
+  let (nOfT, nOfTDirection) ← squareNegate rootPPrime sop
+  unless Expr.equal nOfT cPrime do throwRej "square_diamond_expr_mismatch"
+  unless nOfTDirection == direction do throwRej "square_diamond_direction_mismatch"
   if hasDuplicate [alphaHash root.reference, alphaHash c, alphaHash pPrime, alphaHash cPrime] then
     throwRej "square_self_pair"
   return { root, op := sop, direction, tP, tC, siteP, siteC,
@@ -1336,10 +1361,27 @@ private def squareIffProof (op : Op) (site : Site) (ref cand : Expr) : MetaM Exp
   | .p23 => p23IffProof ref cand site.index (Name.mkSimple site.detail)
   | _ => throwRej "square_transform_dispatch"
 
+/-- `Not (Not P)` from the loaded proof of `P`; the N19 refutation needs no grounding. -/
+private def n19Refute (root : Root) (cand : Expr) : MetaM NegativeEvidence := do
+  let cand0 := levelZeroInstantiate root.levelParams cand
+  let notCand := mkApp (mkConst ``Not) cand0
+  let proof ← withLocalDecl `h .default cand0 fun h => do
+    mkLambdaFVars #[h] (mkApp h (sourceConst root))
+  let refutation ← checkedProof "refutation" [] proof notCand
+  return {
+    refutation
+    grounding := { values := #[], descriptions := #[] }
+    refutationKind := "source_proof_double_negation"
+    boundary := none
+    tacticCalls := 0
+    proof
+  }
+
 private def squareRefute (sq : SquareBuild) : MetaM NegativeEvidence :=
   match sq.op.neg with
-  | .n25 => n25Refute sq.root sq.c sq.direction
-  | .n32 => n32Refute sq.root sq.c sq.direction
+  | some .n25 => n25Refute sq.root sq.c sq.direction
+  | some .n32 => n32Refute sq.root sq.c sq.direction
+  | none => n19Refute sq.root sq.c
   | _ => throwRej "square_negative_dispatch"
 
 /-- Direct Meta- and kernel-checked evidence for the four square rows. -/
@@ -1349,7 +1391,9 @@ def squareEvidence (sq : SquareBuild) : MetaM Json := do
   let checkPP' ← checkedProof "p_iff_p_prime" params iffPP' (iffExpr sq.p sq.pPrime)
   let iffP'P := mkApp3 (mkConst ``Iff.symm) sq.p sq.pPrime iffPP'
   let checkP'P ← checkedProof "p_prime_iff_p" params iffP'P (iffExpr sq.pPrime sq.p)
-  let iffCC' ← squareIffProof sq.tC sq.siteC sq.c sq.cPrime
+  let iffCC' ←
+    if sq.op.neg.isSome then squareIffProof sq.tC sq.siteC sq.c sq.cPrime
+    else pure (mkApp3 (mkConst ``not_congr) sq.p sq.pPrime iffPP')
   let checkCC' ← checkedProof "c_iff_c_prime" params iffCC' (iffExpr sq.c sq.cPrime)
   let p0 := squareLevelZero params sq.p
   let c0 := squareLevelZero params sq.c
@@ -1376,7 +1420,7 @@ def squareEvidence (sq : SquareBuild) : MetaM Json := do
     (mkApp (mkConst ``Not) (iffExpr p'0 c'0))
   return Json.mkObj [
     ("operation_id", Json.str sq.op.id),
-    ("negative_operation", Json.str sq.op.neg.id),
+    ("negative_operation", Json.str sq.op.negId),
     ("direction", Json.str sq.direction),
     ("t_p", Json.str sq.tP.id),
     ("t_c", Json.str sq.tC.id),
@@ -1413,8 +1457,8 @@ private def squareCore (root : Root) (sop : SquareOp) :
     | .error msg => throwRej s!"square_unrenderable:{msg}"
   -- rendered-goal diamond: T(N(P)) and N(T(P)) are the same Expr, so the same text
   let rootPPrime : Root := { root with reference := sq.pPrime }
-  let nOfT ← applyOp rootPPrime sop.neg
-  match ← prerender nOfT.candidate with
+  let (nOfT, _) ← squareNegate rootPPrime sop
+  match ← prerender nOfT with
   | .ok text => unless text == goals[3]! do throwRej "square_diamond_render_mismatch"
   | .error msg => throwRej s!"square_unrenderable:{msg}"
   let evidence ← squareEvidence sq
@@ -1425,7 +1469,7 @@ def processSquare (name : Name) (sop : SquareOp) : MetaM Unit := do
   let t0 ← IO.monoMsNow
   let base := [("schema_version", toJson 1), ("kind", Json.str "square"),
     ("operation_id", Json.str sop.id),
-    ("negative_operation", Json.str sop.neg.id),
+    ("negative_operation", Json.str sop.negId),
     ("engine_semantic_version", Json.str engineSemanticVersion),
     ("engine_operation_set_version", toJson engineOperationSetVersion),
     ("root", Json.str name.toString)]

@@ -82,12 +82,20 @@ SQUARE_OPERATIONS: dict[str, dict[str, str]] = {
         "census": "square_n32.json",
         "family": "square_n32",
     },
+    # catalog N19 whole-claim negation over every inventory theorem; curriculum-only
+    "SQUARE_N19_CURRICULUM_V1": {
+        "negative": "N19_WHOLE_CLAIM_NEGATION_V1",
+        "census": "square_n19.json",
+        "family": "square_n19",
+    },
 }
+INVENTORY_NEGATIVES = {"N19_WHOLE_CLAIM_NEGATION_V1"}
 TRANSFORM_SHORT = {
     "P18_SYMMETRIZE_EQUALITY_V1": "eq",
     "P_NE_SYMMETRIZE_V1": "ne",
     "P14_SWAP_INDEPENDENT_DATA_BINDERS_V1": "p14",
     "P23_CURRY_PROP_PAIR_V1": "p23",
+    "P15_SWAP_IFF_SIDES_V1": "p15",
 }
 
 
@@ -169,14 +177,38 @@ def eligible_roots(
     return roots
 
 
+def inventory_roots(repo_root: Path, loaded: LoadedConfig[SprintConfig]) -> list[dict[str, Any]]:
+    """Every inventory theorem in the sprint's deterministic pool order (N19 census)."""
+    base = SprintRunner(repo_root, loaded, run_id="square-n19-census")
+    return [
+        {
+            "name": name,
+            "direction": "whole_claim",
+            "reference_expr_hash": name,
+            "source_run": "inventory",
+            "pool": pool,
+        }
+        for name, pool in base.root_order()
+    ]
+
+
 def write_census(
-    loaded: LoadedConfig[SprintConfig], out: Path, operation_id: str = SQUARE_OPERATION
+    loaded: LoadedConfig[SprintConfig],
+    out: Path,
+    operation_id: str = SQUARE_OPERATION,
+    repo_root: Path | None = None,
 ) -> dict[str, Any]:
-    roots = eligible_roots(loaded, negative_operation=SQUARE_OPERATIONS[operation_id]["negative"])
+    negative = SQUARE_OPERATIONS[operation_id]["negative"]
+    if negative in INVENTORY_NEGATIVES:
+        if repo_root is None:
+            raise SquareError("inventory census needs the repository root")
+        roots = inventory_roots(repo_root, loaded)
+    else:
+        roots = eligible_roots(loaded, negative_operation=negative)
     payload = {
         "schema_version": 1,
         "operation_id": operation_id,
-        "negative_operation": SQUARE_OPERATIONS[operation_id]["negative"],
+        "negative_operation": negative,
         "source_runs": list(SOURCE_RUNS),
         "count": len(roots),
         "by_direction": _count_by(roots, "direction"),
@@ -408,7 +440,6 @@ class SquareRunner:
             "import_options_fingerprint": self.base.identity.import_options_fingerprint,
             "roots_sha256": hash_canonical([str(item["name"]) for item in self.roots]),
             "root_count": len(self.roots),
-            "max_roots": self.max_roots,
         }
 
     def write_run_manifest(self) -> None:
@@ -1388,6 +1419,9 @@ def build_square_view(
         "proof_check_time": "original_generation",
         "replay_semantics": "journal_and_cache_replay_of_stored_terminals_no_fresh_kernel_replay",
         "artifact_status": "candidate_square_release_pending_gate",
+        "curriculum_only": any(
+            str(item["sidecar"]["operation_id"]) == "SQUARE_N19_CURRICULUM_V1" for item in kept
+        ),
     }
     write_atomic(out / "manifest.json", canonical_json_bytes(manifest) + b"\n")
     write_atomic(
@@ -1441,6 +1475,10 @@ def build_square_view(
         }
         write_atomic(out / "rows_identity.json", canonical_json_bytes(identical_rows) + b"\n")
     serialized = shortcut.load_serialized_view(out)
+    xor_baseline = shortcut.outer_negation_xor_baseline(serialized)
+    write_atomic(
+        out / "outer_negation_xor_baseline.json", canonical_json_bytes(xor_baseline) + b"\n"
+    )
     screens = shortcut.run_screens_v3(serialized)
     control = shortcut.permutation_control(serialized)
     write_atomic(out / "permutation_control.json", canonical_json_bytes(control) + b"\n")
@@ -1518,6 +1556,7 @@ def build_square_view(
         "unchecked_rows": unchecked,
         "shortcut": screens,
         "permutation_control": {k: v for k, v in control.items() if k != "per_seed"},
+        "outer_negation_xor_baseline": xor_baseline,
         "proof_check_time": "original_generation",
         "replay_semantics": "journal_and_cache_replay_of_stored_terminals_no_fresh_kernel_replay",
         "checks": checks,
@@ -1631,6 +1670,15 @@ SQUARE_FIXTURES: dict[str, tuple[dict[str, str], ...]] = {
         },
         {
             "root": "Nat.factorial_succ",
+            "expect_status": "not_applicable",
+            "expect_reason_prefix": "square_no_applicable_transform",
+        },
+    ),
+    "SQUARE_N19_CURRICULUM_V1": (
+        {"root": "Nat.gcd_fib_add_self", "expect_status": "retained"},  # P14 under the negation
+        {"root": "Nat.factorial_succ", "expect_status": "retained"},  # P18 under the negation
+        {
+            "root": "Nat.succ_pos'",
             "expect_status": "not_applicable",
             "expect_reason_prefix": "square_no_applicable_transform",
         },
@@ -1751,7 +1799,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     loaded = load_sprint_config(repo_root, args.config.resolve() if args.config else None)
     staging = Path(loaded.config.output.staging_root)
     if args.command == "census":
-        report = write_census(loaded, census_path_for(staging, args.operation), args.operation)
+        report = write_census(
+            loaded, census_path_for(staging, args.operation), args.operation, repo_root=repo_root
+        )
         print(json.dumps(report, indent=1))
         return 0
     if args.command == "fixtures":

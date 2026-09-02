@@ -487,6 +487,37 @@ def permutation_control(
     }
 
 
+def _goal_target(text: str) -> str:
+    return text.rsplit("⊢", 1)[-1].strip()
+
+
+def outer_negation_xor_baseline(records: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
+    """Balanced accuracy of the rule "negative iff exactly one side's goal starts with ¬".
+
+    Whole-claim negation squares (catalog N19) are separable by this pairwise surface
+    rule, which is why they are curriculum-only data. The baseline is recorded so the
+    easiness is explicit; it is not a gate.
+    """
+    y_true: list[bool] = []
+    y_pred: list[bool] = []
+    for record in records:
+        row = record["row"]
+        ref_neg = _goal_target(str(row["reference"])).startswith("¬")
+        cand_neg = _goal_target(str(row["candidate"])).startswith("¬")
+        y_true.append(bool(row["label"]))
+        y_pred.append(ref_neg == cand_neg)  # same polarity -> predicted equivalent
+    if not y_true:
+        return {"rows": 0, "balanced_accuracy": None}
+    truth = np.array(y_true)
+    pred = np.array(y_pred)
+    return {
+        "rule": "label_true_iff_both_or_neither_goal_starts_with_not",
+        "rows": len(y_true),
+        "balanced_accuracy": round(float(balanced_accuracy(truth, pred)), 4),
+        "rows_with_outer_negation_on_exactly_one_side": int((~pred).sum()),
+    }
+
+
 def load_serialized_view(compacted_dir: Path) -> list[dict[str, Any]]:
     """Exactly the rows and sidecars written to a compacted view's shards."""
 
