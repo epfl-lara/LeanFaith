@@ -1811,3 +1811,41 @@ resource use, output paths, and exact remaining ETA. Do not run training.
     verified; indexed in `compacted/index.json` as an additive diverse release.
   - Limitations: only 558 of 1,737 eligible roots admit a binder transform; N32 squares are few
     (54); no new N32 discovery, N31 grounding, or unconstrained negative mutations were used.
+
+- 2026-09-02 — `aux_n19_square_curriculum` prepared as a separate curriculum-only scale dataset
+  (commits `5c738f9`, `61bae64`, `2deffea`). Operation `SQUARE_N19_CURRICULUM_V1` (catalog N19
+  whole-claim negation): for a proved inventory theorem `A`, `C := ¬A` (closed), the first
+  applicable certified preserving transform among P14, P23, P18, P_NE, P15 gives `P′ := T(A)`
+  and `C′ := ¬T(A)` (`T` acts under the outer negation, so the diamond holds by construction and
+  is still checked as closed `Expr` and rendered goal); certificates: `A ↔ A′` (transform
+  witness), `¬A ↔ ¬A′` via `not_congr`, the loaded proof of `A`, `¬¬A` from it (no grounding),
+  the transported proof of `A′`, `¬¬A′`, and the direct `¬(C ↔ P)`, `¬(P′ ↔ C′)`, each Meta- and
+  kernel-checked. Same four-row grouping and identical side marginals as the other squares.
+  - Census `targets/square_n19.json`: 180,400 inventory theorems/lemmas in the sprint's pool
+    order (roots sha `4f7cd2ae…`). Fixtures (live engine): retained `Nat.gcd_fib_add_self`
+    (P14), `Nat.factorial_succ` (P18), fail-closed `Nat.succ_pos'`.
+  - First 100-root forced-resume pilot exposed a dispatch gap (P15 listed as a transform but
+    absent from the square Iff-witness dispatch → 11 fail-closed `square_transform_dispatch`
+    rejections). Fixed; because such rejections are whitelisted cache terminals, N19 now carries
+    a per-operation cache revision (recorded in every sidecar cache block and recomputed by the
+    verifier) so the stale records are never served again.
+  - Pilot `n19_pilot_100c` (50 roots, forced resume to 100, zero-Lean replay, build
+    `aux_n19_pilot_100c`): 78 squares / 312 rows, 20 `not_applicable`, 2 fail-closed rendering
+    screens (`forbidden_rendered_placeholder`, `repr_surface`), zero certificate failures, zero
+    partial squares (78 `square_begin` / 78 terminals / 0 abandoned); families p14 84, eq 108,
+    p23 72, p15 44, ne 4 rows; all release checks pass; screens 0.50 / 0.50 / 0.51
+    (UB 0.56); **outer-negation-XOR baseline 0.9808 balanced accuracy** (rule: equivalent iff
+    both or neither goal starts with `¬`; 152/312 rows have the negation on exactly one side),
+    recorded in `outer_negation_xor_baseline.json`, the release report, and the card. Lean cost
+    0.20 s per root → projected 10.0 h Lean / 11.1 h wall for the full census (< 24 h).
+  - Full run launched automatically at 09:12:44Z in tmux `leanfaith-sft1-n19-full`
+    (`logs/n19_full_chain.sh`: run `n19_full` → zero-Lean replay → build
+    `aux_n19_square_curriculum`; journaled, resumable by rerunning the script; log
+    `logs/n19_full_chain.log`; one worker, 24 GiB claim `SFT1-SPRINT`). Publication under
+    `sprint_v1/aux_n19_square_curriculum` (private, fresh-download verified, card carrying the
+    XOR baseline) is the only remaining step once the chain ends; it needs no new engineering.
+  - Recommendation recorded: keep it separate from the headline core and mix at most 10%
+    sampling weight with richer data; it is an easy pairwise pattern by construction.
+  - SFT1 engineering stops here per instruction; effort returns to SFT2. Status stays
+    `pilot_passed` with `core_v3_square_v2` as the training-facing seed and
+    `core_v4_diverse_square` as the additive diverse release.
