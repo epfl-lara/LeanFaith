@@ -1,7 +1,7 @@
 # SFT1 — deterministic theorem-equivalence data at scale
 
 > **Task ID:** SFT1
-> **Status:** waiting_user
+> **Status:** pilot_passed
 > **Owner/session:** Claude Fable 5.1 sprint session on worktree `/localhome/milikic/LeanFaith-sft1-sprint`, branch `milikic/sft1-sprint-72h`
 > **Last updated:** 2026-09-02
 > **Active 72-hour sprint:** follow the compact execution path in
@@ -1747,3 +1747,36 @@ resource use, output paths, and exact remaining ETA. Do not run training.
     SFT1 is not declared complete or scaled. Open decision: adopt `core_v3_square` (6,196 rows)
     as the training-facing SFT1 view, and whether to grow it with P14/P23 typed diamonds or
     N32-based squares.
+
+- 2026-09-02 — corrective Lean-free release `core_v3_square_v2` (commits `e8b07f7`, `4a61868`;
+  no Lean run, `core_v3_square` prefix/revision untouched). Built from the same retained
+  evidence (`runs/square_full` journal terminals + cache records + stored raw responses):
+  - `reference_truth`/`candidate_truth` now derive from the square endpoints (P, P′ proved;
+    C, C′ refuted): `C ⇢ P` refuted reference / proved candidate, `P′ ⇢ C′` proved reference /
+    refuted candidate; validator checks every row kind exactly.
+  - Explicit square-root cache identity in every sidecar (`cache: {kind, schema 2, key, path}`)
+    replaces the nominal operation key; provenance loads each referenced cache file and
+    verifies root, engine, compile context, terminal status, request hashes, alpha hashes,
+    and commit (6,196/6,196 verified, 0 inconsistent); absent or inconsistent records fail the
+    build and the validator. Records written before the commit field existed (the 100 gate-run
+    roots) resolve their commit from the generating run manifest and record that source.
+  - Process alpha hashes reconciled against `rebuildSquares` hashes in the stored render
+    responses for all four endpoints of every root (1,549/1,549 matched, 0 quarantined).
+  - Card corrected (direct kernel-checked `Not (Iff reference candidate)`); now uploads
+    `duplicate_squares.json`, `permutation_control.json`, `quarantined_roots.json`,
+    `alpha_reconciliation.json`, `rows_identity.json` (30 files).
+  - Runner hardening for future runs: resume validates the run manifest (config hash, engine
+    source/semantic version/import fingerprint, root-list hash, root count, max_roots);
+    per-root `square_begin` → rows → `square_terminal` transaction with recovery on resume;
+    readers take terminals as the authority; explicit cacheable-status whitelist
+    (`ok`, `retained`, `rejected`, `not_applicable`).
+  - Result: 6,196 rows / 1,549 roots, `rows.jsonl` byte-identical per shard to `core_v3_square`
+    (`rows_identity.json`), 18/18 checks, unchanged screens (0.50 / 0.50 / 0.4545), integrity
+    6,196 rows zero issues, three truthful provenance segments (commits `c2e6d086` 392 rows,
+    `4a10a289` 5,800 rows, `337cdaf0` 4 rows).
+  - Published privately: `sprint_v1/core_v3_square_v2`, revision
+    `65f7a9192a45d43d663cf7393ee761d0f5ded78a` (parent `9808160042…`), fresh-download verified.
+    `sprint_v1/core_v3_square` is marked superseded here and in `compacted/index.json` only.
+  - Adopted `core_v3_square_v2` as the training-facing high-confidence SFT1 seed. Status
+    `pilot_passed` (not complete). Next: time-boxed P14/P23 diversity expansion
+    (`core_v4_diverse_square`), then `aux_n19_square_curriculum`, then return effort to SFT2.
