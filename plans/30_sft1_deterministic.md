@@ -1,7 +1,7 @@
 # SFT1 — deterministic theorem-equivalence data at scale
 
 > **Task ID:** SFT1
-> **Status:** scaling
+> **Status:** waiting_user
 > **Owner/session:** Claude Fable 5.1 sprint session on worktree `/localhome/milikic/LeanFaith-sft1-sprint`, branch `milikic/sft1-sprint-72h`
 > **Last updated:** 2026-09-01
 > **Active 72-hour sprint:** follow the compact execution path in
@@ -22,15 +22,15 @@
 > active sprint prerequisites.
 > **REPR predecessor:** `cbc933c3623d81ba649a1f9c5107ad404389d69f` was reviewed but is
 > superseded and not consumable by SFT1
-> **Next gate:** the detached 10,000-retained-pair run (`tenk`) completes; then `gate10k` runs
-> compaction into ancestry-grouped 1,000-pair shards, 100% proof-check verification,
-> duplicate/conflict rejection, the candidate-only/reference-only (< 0.60) and mechanism-held-out
-> (< 0.65) shortcut screens, and the measured full-wave completion projection. A pass launches the
-> full Mathlib wave in independently publishable shards; publication to the private Hub repository
-> follows the release manifest.
-> **Compute class:** one persistent Mathlib worker claimed as `SFT1-SPRINT` (1 worker / 24 GiB) by
-> the detached `tenk` run, python PID 2416707 inside tmux session `leanfaith-sft1-sprint-tenk`;
-> measured peak process-tree RSS 8.3 GB. The claim is released by the runner when the job exits.
+> **Next gate:** user decision on the 10K shortcut-screen failure. The 10K run is complete and
+> sound (10,001 pairs, 100% kernel/meta-checked evidence, zero duplicates/conflicts, zero-Lean
+> replay), but the candidate-only screen scores 0.90 on both the raw and the per-root balanced view
+> (threshold 0.60) because the negative mechanisms leave candidate-side signatures that no positive
+> operation produces. The sprint contract allows scale only when the screens pass, so the full wave
+> is not launched. Options for the user are listed in the 2026-09-02 log entry.
+> **Compute class:** no active claim. The `tenk` run used one persistent Mathlib worker
+> (`SFT1-SPRINT`, 1 worker / 24 GiB) across three launches with peak process-tree RSS 10.0 GB and
+> released it at exit; no tmux session is running.
 > Sprint outputs live under the staging root's `sprint_v1/` directory (`inventory/`, `cache/`,
 > `raw/`, `runs/<run_id>/`, `compacted/<run_id>/`, `logs/`).
 > **Lean budget:** the next gate may use one claimed persistent project worker with
@@ -1508,3 +1508,49 @@ resource use, output paths, and exact remaining ETA. Do not run training.
   (`fixtures-ff8f7dfaa3d4`). The resumable job was relaunched in the same tmux session
   `leanfaith-sft1-sprint-tenk` at 23:28:56Z (pane PID 2491224); completed terminals are skipped
   from the journal, so the restart repeats no finished Lean work.
+- 2026-09-01 — the second `tenk` process exited at 23:45:34Z with a semantic-cache conflict: two
+  Mathlib theorems with alpha-identical statements (aliases) shared the reference-hash operation
+  key while negative evidence cites the specific source constant. Fix at commit `cb535fc`: the root
+  name is bound into operation keys (cache schema 2). Relaunched at 23:47:56Z (pane PID 2559822).
+- 2026-09-02 — 10K run `tenk` complete at 23:51:07Z (2026-09-01): 10,001 retained pairs over
+  8,723 roots (8,618 via Lean, 105 from cache), 61,830 terminals (10,001 retained / 47,291 not
+  applicable / 3,524 rejected / 14 error), retained by operation P15 1,362, P18 3,832, P14 1,939,
+  P23 1,206, N25 1,236, N32 80, N31 346. Rejections: 2,909 `no_ground_assignment`, 412 reference
+  residue (`⋯`/dagger), 111 `no_boundary_refutation`, 69 render-route failures, 9 self-pair text,
+  5 duplicate-in-run, 5 candidate residue, 4 render-text mismatch; the 14 errors are two roots
+  whose guillemet-escaped names round-tripped differently. Measured throughput with the fixed
+  runner: 307 roots/min and 327 retained pairs/min on one worker (third process), peak RSS 10.0 GB.
+  Replay with the recorded limits issued 0 Lean requests and appended 0 rows. A 346-row all-N31
+  inspection sample was generated and 35 rows were read by hand with 0 wrong labels.
+- 2026-09-02 — 10K release gate (`gate10k`): raw view 10,001 rows (8,339 positive / 1,662
+  negative, 6,478 roots, 10 ancestry-grouped shards, 0 duplicates, 0 conflicts, 100% kernel- and
+  Meta-checked evidence, two useful negative mechanisms) and per-root balanced view 2,922 rows
+  (1,461 per label, 1,394 roots). Shortcut screens (hashed bag-of-bigrams logistic regression,
+  root-clustered 5-fold, 95% cluster-bootstrap upper bounds): raw candidate-only 0.899 (UB 0.907),
+  reference-only 0.805 (UB 0.815), mechanism-held-out 0.620 (UB 0.634, passes); balanced
+  candidate-only 0.899 (UB 0.909), reference-only 0.500, mechanism-held-out 0.235. Both views
+  therefore FAIL the candidate-only screen and the raw view also fails reference-only. Diagnosis:
+  negatives arise only where refutation is possible (84.8% of raw negatives from the `nat_int`
+  pool versus 42.1% of positives; 16% of negatives have generic `inst✝` locals versus 53% of
+  positives), which per-root balancing removes; but 71% of raw negatives (79% balanced) carry the
+  N25 `≠` toggle in the candidate versus about 1% of positives, and N31 candidates lack a guard
+  hypothesis that every same-root positive keeps, so a candidate-only classifier separates labels
+  without reading the reference. Excluding N25 `eq_to_ne` still leaves candidate-only 0.80 on the
+  balanced remainder (N31 dominates). Projection: the full wave (171,677 remaining roots) would
+  take about 9.3 h at the measured rate and fits the window, but the contract allows scale only
+  when the screens pass, so no full wave was launched. Both views were published as private gate
+  evidence, explicitly marked not-a-release in their cards: raw `sprint_v1/tenk` at
+  revision `37d8401a038184c5b40534c4f3e7644c346c5236`; balanced `sprint_v1/tenk_balanced` at revision `0a4bbc8eee89dd9b82883a203c6cf00d6059d566`.
+- 2026-09-02 — decision request (status `waiting_user`). The seven single-hop operations cannot
+  pass a 0.60 candidate-only bound because every negative except N32 has a candidate-side
+  signature with no positive twin. Options, cheapest first: (1) accept the 100%-checked 10K raw
+  and balanced artifacts as the sprint deliverable and record the screens as a known limitation of
+  single-hop symmetric operations; (2) add twin operations that neutralize the signatures, e.g. a
+  disequality-symmetry positive (`a ≠ b` ↔ `b ≠ a`, `Ne.symm` witness) with root-count balancing
+  between `=`-roots (P18 + N25 `eq_to_ne`) and `≠`-roots (twin + N25 `ne_to_eq`; the inventory
+  has 2,099 `≠` conclusions versus 86,907 `=`), plus a cap on N31's share, then re-run the 10K
+  gate; (3) redefine the shortcut screens for this data (e.g. candidate-only measured after the
+  50% orientation swap, which gives 0.69/0.69 on the balanced view) and, if accepted, launch the
+  full wave (about 9.3 h) with `compact-windows` and `publish --windows`. All runner, cache,
+  journal, compaction, and publisher tooling is committed and tested; the wave can start within
+  minutes of a decision.
