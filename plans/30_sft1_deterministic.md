@@ -22,12 +22,14 @@
 > active sprint prerequisites.
 > **REPR predecessor:** `cbc933c3623d81ba649a1f9c5107ad404389d69f` was reviewed but is
 > superseded and not consumable by SFT1
-> **Next gate:** user decision on the 10K shortcut-screen failure. The 10K run is complete and
-> sound (10,001 pairs, 100% kernel/meta-checked evidence, zero duplicates/conflicts, zero-Lean
-> replay), but the candidate-only screen scores 0.90 on both the raw and the per-root balanced view
-> (threshold 0.60) because the negative mechanisms leave candidate-side signatures that no positive
-> operation produces. The sprint contract allows scale only when the screens pass, so the full wave
-> is not launched. Options for the user are listed in the 2026-09-02 log entry.
+> **Next gate:** the shortcut-corrected v2 core view passes every shortcut threshold
+> (candidate-only 0.562 / upper bound 0.581 < 0.60; reference-only 0.551 / 0.570 < 0.60;
+> family-held-out 0.483 / 0.490 < 0.65) on 994 balanced rows, but the matched design is bounded by
+> the 212 disequality roots with grounded refutations in all of Mathlib, and the ≥100-rows-per-
+> negative-operation criterion is met only by N25 (424; N32 54, N31 19 by the requested cap).
+> A full Mathlib wave would not enlarge the matched core (all `≠` and `<` roots are already
+> processed), so it was not launched; the lever is grounding coverage for `≠` roots. The user
+> decides whether the 994-row core is the release and whether to fund grounding expansion.
 > **Compute class:** no active claim. The `tenk` run used one persistent Mathlib worker
 > (`SFT1-SPRINT`, 1 worker / 24 GiB) across three launches with peak process-tree RSS 10.0 GB and
 > released it at exit; no tmux session is running.
@@ -1592,3 +1594,51 @@ resource use, output paths, and exact remaining ETA. Do not run training.
     describes only that process. Replays now write `replay_status.json`.
   - Regressions: resumed runs with multiple valid engine/compile-context/cache-schema segments
     are accepted and recorded; mixed engine semantic versions are rejected.
+- 2026-09-02 — shortcut-corrected v2 (commits `63e764a`…`63c169f`, all pushed to
+  `origin/milikic/sft1-sprint-72h`). Engine operation-set version 2 adds `P_NE_SYMMETRIZE_V1`
+  (`a ≠ b ↔ b ≠ a`, `Ne.symm` witness, Meta- and kernel-checked) and the budgeted
+  `P_DROP_REDUNDANT_GUARD_PROOF_V1` (drop an explicit hypothesis only when
+  `assumption`/`omega`/`positivity`/`simp_all` proves it from the preceding context, complete
+  `Iff` constructed and kernel-checked). Existing operations are byte-identical in behaviour;
+  runs record their operation set and replay with it. Fixture gate: 17/17 with the
+  redundant-guard success fixture explicitly waived in config after its yield run.
+- 2026-09-02 — targeted additive runs (no regeneration of the 10K; cached operations reused
+  per operation): `v2_ne` over the 2,099 preidentified disequality roots with only
+  `P_NE_SYMMETRIZE_V1` and N25: 1,089 P_NE and 299 N25 `ne_to_eq` pairs in 802 s (168 Lean
+  requests), 754 N25 `no_ground_assignment` rejections; replay 0 Lean calls. `v2_lt` over the
+  3,874 strict-order roots with all nine operations: 2,332 pairs (N32 149, N31 92, N25 89, P14
+  366, P18 379, P23 1,256, P15 1) in 755 s across two processes; replay 0 Lean calls. The first
+  `v2_lt` process stopped on a cache conflict when a root shared with the 10K was recomputed in
+  full and its P18 proof-term fingerprint differed (session-scoped auxiliary names); fix at
+  `e6a21b1`: cached operations are reused individually and only missing operations go to Lean,
+  and evidence comparison ignores proof fingerprints while requiring identical check results.
+  `v2_guard` (redundant-guard positive over the 8,690 10K roots): 0 retained of 8,690 in 567 s
+  (`runs/v2_guard/budget_verdict.json`) → stopped under budget; the N31 cap stays.
+- 2026-09-02 — `core_v2` view (`compacted/core_v2`, sources `tenk`+`v2_ne`+`v2_lt`; 13,721
+  input records, 335 cross-run duplicates removed, 0 conflicts): deterministic matched 2x2 relation
+  design equalized by stable root hash — P18 Eq→Eq positive and N25 Eq→Ne negative from 212
+  equality roots, `P_NE` Ne→Ne positive and N25 Ne→Eq negative from 212 disequality roots
+  (212 = every disequality root with a grounded refutation; 1,291 equality roots were available)
+  — plus 54 N32 negatives with same-root surface-neutral positive twins (`order` family) and 19
+  N31 negatives with twins (`guard` family, 2% cap). 994 rows, 497 positive / 497 negative, 497
+  roots; orientation randomization stored in the rows (501 swapped / 493 original) and recorded
+  per sidecar. `aux_n31_core_v2` keeps all 389 certified N31 rows (not model-facing). Screens on
+  the stored view with side-tagged pair features and polarity-paired surface-family held-out
+  groups: candidate-only 0.562 (95% upper bound 0.581), reference-only 0.551 (0.570),
+  family-held-out 0.483 (0.490) — all pass. Integrity validator: 994/994 and 389/389 rows, zero
+  issues, provenance segments recorded (engines `274ea10f…`, `ff8f7dfa…`, `c81c2a60…`; cache
+  schemas 1 and 2). Manual reading of a 30-row family-stratified sample: 0 wrong labels
+  (`compacted/core_v2/verdict.json`); `runs/v2_ne/inspection/verdict.json` records 22 hand-read
+  rows with 0 wrong labels. The remaining unmet release criterion is the ≥100-rows-per-negative-
+  operation count (N25 424, N32 54, N31 19); no threshold was changed. The existing full wave
+  was not launched: every `≠` and `<` root is already processed, so a wave would not enlarge the
+  matched core; the lever is grounding coverage for disequality roots (754 ungrounded N25
+  attempts).
+- 2026-09-02 — private Hub state (`Lemmy00/leanfaith-sft1-deterministic-v1`, every card marked
+  "diagnostic gate evidence, not a training release" or "candidate model-facing view"): corrected
+  cards and top-level index at revision `f44d4b261492c1d112b3ac9f2a77c2df5114b2fe`;
+  `sprint_v1/core_v2` (994 rows, with `integrity_report.json` and `verdict.json`) at
+  `799c4ff8f13f5b55b6a58f700cf876e749b87dc8`; `sprint_v1/aux_n31_core_v2` (389 rows) at
+  `4e2571f7dd6b7708632e25087c817aadaf7d92ed`; refreshed cards/index at
+  `315b7988651d5ab3cae73ab24fc38a5314c79de3`. Every upload was verified by fresh download and
+  has a local receipt under its compacted directory.
