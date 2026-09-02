@@ -21,7 +21,8 @@ import os
 import shutil
 import sys
 import time
-from collections.abc import Mapping, Sequence
+from collections.abc import Collection, Mapping, Sequence
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, cast
 
@@ -747,6 +748,63 @@ class SquareRunner:
 # ------------------------------------------------------------------ view + gate
 
 
+@dataclass(frozen=True)
+class SquareSelection:
+    """Outcome of square-level selection: squares are accepted whole or dropped whole."""
+
+    kept: list[dict[str, Any]]
+    accepted_roots: list[str]
+    duplicate_squares: list[dict[str, str]]
+    degenerate_roots: list[str]
+    conflict_rows: int
+
+
+def select_squares(
+    screened: Sequence[Mapping[str, Any]], conflict_keys: Collection[str]
+) -> SquareSelection:
+    """Accept squares in the stable salted-hash order of their root id.
+
+    A square whose rendered unordered pair keys were already claimed by an earlier square
+    (Mathlib aliases and textually identical statements) is a duplicate and is dropped
+    whole, with its owner recorded. Squares touching a conflicting key, lacking exactly the
+    four row kinds, or colliding internally are degenerate and dropped fail-closed. Rows are
+    never dropped individually, so every accepted root keeps exactly four rows.
+    """
+    kind_order = {kind: index for index, (kind, *_rest) in enumerate(ROW_KINDS)}
+    by_root: dict[str, list[dict[str, Any]]] = {}
+    for record in screened:
+        by_root.setdefault(str(record["sidecar"]["root_id"]), []).append(dict(record))
+    ordered = sorted(by_root, key=lambda root: hash_canonical([SQUARE_SALT, root]))
+    conflicts = set(conflict_keys)
+    claimed: dict[str, str] = {}
+    kept: list[dict[str, Any]] = []
+    accepted: list[str] = []
+    duplicates: list[dict[str, str]] = []
+    degenerate: list[str] = []
+    conflict_rows = 0
+    for root in ordered:
+        items = sorted(
+            by_root[root],
+            key=lambda item: kind_order.get(str(item["sidecar"]["row_kind"]), len(kind_order)),
+        )
+        kinds = [str(item["sidecar"]["row_kind"]) for item in items]
+        keys = [str(item["unordered_pair_key"]) for item in items]
+        touching = sum(1 for key in keys if key in conflicts)
+        conflict_rows += touching
+        if touching or kinds != list(kind_order) or len(set(keys)) != len(keys):
+            degenerate.append(root)
+            continue
+        owner = next((claimed[key] for key in keys if key in claimed), None)
+        if owner is not None:
+            duplicates.append({"root_id": root, "duplicate_of": owner})
+            continue
+        for key in keys:
+            claimed[key] = root
+        accepted.append(root)
+        kept.extend(items)
+    return SquareSelection(kept, accepted, duplicates, degenerate, conflict_rows)
+
+
 def build_square_view(
     repo_root: Path,
     loaded: LoadedConfig[SprintConfig],
@@ -781,23 +839,30 @@ def build_square_view(
             rejections[reason] = rejections.get(reason, 0) + 1
         else:
             screened.append(record)
-    outcome = deduplicate(screened)
-    conflicting_rows = sum(
-        1 for record in screened if str(record["unordered_pair_key"]) in set(outcome.conflict_keys)
-    )
-    kept_records = cast(list[dict[str, Any]], outcome.kept)
+    outcome = deduplicate(screened)  # conflict detection: same unordered pair, different labels
+    selection = select_squares(screened, outcome.conflict_keys)
+    kept = selection.kept
+    complete_roots = set(selection.accepted_roots)
     by_root: dict[str, list[dict[str, Any]]] = {}
-    for record in kept_records:
+    for record in kept:
         by_root.setdefault(str(record["sidecar"]["root_id"]), []).append(record)
-    complete_roots = {root for root, items in by_root.items() if len(items) == 4}
-    incomplete = len(by_root) - len(complete_roots)
-    ordered_roots = sorted(complete_roots, key=lambda root: hash_canonical([SQUARE_SALT, root]))
-    kept: list[dict[str, Any]] = []
-    for root in ordered_roots:
-        kind_order = {kind: index for index, (kind, *_rest) in enumerate(ROW_KINDS)}
-        kept.extend(
-            sorted(by_root[root], key=lambda item: kind_order[str(item["sidecar"]["row_kind"])])
-        )
+    screened_by_root: dict[str, int] = {}
+    root_names: dict[str, str] = {}
+    for record in screened:
+        root_id = str(record["sidecar"]["root_id"])
+        screened_by_root[root_id] = screened_by_root.get(root_id, 0) + 1
+        root_names[root_id] = str(record["sidecar"].get("root_name"))
+    duplicate_rows = sum(screened_by_root[d["root_id"]] for d in selection.duplicate_squares)
+    degenerate_rows = sum(screened_by_root[root] for root in selection.degenerate_roots)
+    conservation = {
+        "screened_rows": len(screened),
+        "kept_rows": len(kept),
+        "duplicate_square_rows_dropped": duplicate_rows,
+        "degenerate_square_rows_dropped": degenerate_rows,
+        "holds": len(screened) == len(kept) + duplicate_rows + degenerate_rows,
+    }
+    incomplete = len(selection.degenerate_roots)
+    conflicting_rows = selection.conflict_rows
     out = Path(config.output.staging_root) / "compacted" / label
     if out.exists():
         raise SquareError(f"{out} already exists; square views are additive and immutable")
@@ -861,12 +926,13 @@ def build_square_view(
         "finalized": True,
         "input_records": len(records),
         "screen_rejections": rejections,
-        "duplicates_removed": outcome.duplicate_count,
+        "duplicate_rows_seen": outcome.duplicate_count,
+        "duplicate_squares_dropped": len(selection.duplicate_squares),
+        "degenerate_squares_dropped": incomplete,
         "conflicting_classes_rejected": outcome.conflict_count,
         "conflicting_rows_rejected": conflicting_rows,
-        "deduplicated_records": len(outcome.kept),
-        "incomplete_squares_dropped": incomplete,
-        "view_dropped": len(outcome.kept) - len(kept),
+        "conservation": conservation,
+        "view_dropped": len(screened) - len(kept),
         "retained_rows": len(kept),
         "labels": {
             "positive": sum(1 for item in kept if item["label"]),
@@ -889,6 +955,20 @@ def build_square_view(
         "artifact_status": "candidate_square_release_pending_gate",
     }
     write_atomic(out / "manifest.json", canonical_json_bytes(manifest) + b"\n")
+    write_atomic(
+        out / "duplicate_squares.json",
+        canonical_json_bytes(
+            [
+                {
+                    **item,
+                    "root_name": root_names.get(item["root_id"]),
+                    "duplicate_of_name": root_names.get(item["duplicate_of"]),
+                }
+                for item in selection.duplicate_squares
+            ]
+        )
+        + b"\n",
+    )
     serialized = shortcut.load_serialized_view(out)
     screens = shortcut.run_screens_v3(serialized)
     control = shortcut.permutation_control(serialized)
@@ -926,11 +1006,13 @@ def build_square_view(
         ),
         "four_rows_per_root": all(len(by_root[root]) == 4 for root in complete_roots)
         and len(kept) == 4 * len(complete_roots),
-        "zero_incomplete_squares": incomplete == 0,
+        "zero_incomplete_squares": incomplete == 0
+        and all(len(items) == 4 for items in by_root.values()),
         "labels_balanced": manifest["labels"]["positive"] == manifest["labels"]["negative"],
         "identical_marginals_across_labels": marginal_ok,
         "all_rows_kernel_and_meta_checked_at_generation": unchecked == 0,
-        "zero_duplicates": outcome.duplicate_count == 0,
+        "zero_duplicates": len({str(item["unordered_pair_key"]) for item in kept}) == len(kept),
+        "conservation_holds": bool(conservation["holds"]),
         "zero_conflicts": outcome.conflict_count == 0 and conflicting_rows == 0,
         "finalized_shards_complete": all(bool(s["complete"]) for s in manifest["shards"]),
         "candidate_only_screen": bool(screen_by_name["candidate_only"]["passed"]),

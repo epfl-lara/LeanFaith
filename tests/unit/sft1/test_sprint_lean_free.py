@@ -1082,3 +1082,48 @@ def test_square_rows_attribute_generating_engine() -> None:
     fresh = runner.build_rows("Nat.a", base_record, {"source_run": "tenk"})
     assert {row["sidecar"]["engine"]["source_sha256"] for row in fresh} == {"current"}
     assert {row["sidecar"]["implementation_commit"] for row in fresh} == {"c" * 40}
+
+
+def test_select_squares_drops_duplicate_squares_whole_and_conserves_rows() -> None:
+    import random
+
+    from leanfaith.sft1.sprint import square
+
+    kinds = [kind for kind, *_rest in square.ROW_KINDS]
+
+    def rows(root: str, p: str, c: str, p2: str, c2: str) -> list[dict[str, object]]:
+        pairs = {
+            "p_prime_iff_p": (p2, p),
+            "c_iff_c_prime": (c, c2),
+            "not_iff_c_p": (c, p),
+            "not_iff_p_prime_c_prime": (p2, c2),
+        }
+        return [
+            {
+                "sidecar": {"root_id": root, "row_kind": kind, "root_name": root},
+                "unordered_pair_key": "|".join(sorted(pairs[kind])),
+                "label": kind in {"p_prime_iff_p", "c_iff_c_prime"},
+                "row_hash": f"{root}:{kind}",
+            }
+            for kind in kinds
+        ]
+
+    a = rows("root:a", "x=y", "x≠y", "y=x", "y≠x")
+    b = rows("root:b", "y=x", "y≠x", "x=y", "x≠y")  # the same square seen from the other corner
+    c = rows("root:c", "u=v", "u≠v", "v=u", "v≠u")
+    selection = square.select_squares(a + b + c, ())
+    assert len(selection.kept) == 8 and selection.degenerate_roots == []
+    assert len(selection.duplicate_squares) == 1
+    dropped = selection.duplicate_squares[0]
+    assert {dropped["root_id"], dropped["duplicate_of"]} == {"root:a", "root:b"}
+    assert set(selection.accepted_roots) == {"root:c", dropped["duplicate_of"]}
+    assert [r["sidecar"]["row_kind"] for r in selection.kept[:4]] == kinds
+    shuffled = a + b + c
+    random.Random(3).shuffle(shuffled)
+    again = square.select_squares(shuffled, ())
+    assert [r["row_hash"] for r in again.kept] == [r["row_hash"] for r in selection.kept]
+    conflicted = square.select_squares(a + c, (a[0]["unordered_pair_key"],))
+    assert conflicted.degenerate_roots == ["root:a"] and conflicted.conflict_rows == 1
+    assert [r["sidecar"]["root_id"] for r in conflicted.kept] == ["root:c"] * 4
+    partial = square.select_squares(a[:3] + c, ())
+    assert partial.degenerate_roots == ["root:a"] and len(partial.kept) == 4
