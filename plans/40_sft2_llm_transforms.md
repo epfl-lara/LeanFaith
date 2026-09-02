@@ -1016,3 +1016,31 @@ rows/minute, and pilot quality bounds hold. Leave healthy long runs detached wit
   shard 1 overlay (re-elaborate cached open-only candidates, regenerate only dagger-affected
   slots, merge with accepted-only global dedup and conservation checks) is deferred so it
   cannot delay shards 2–10.
+- 2026-09-02 — the defect-class canary (`runs/sprint_canary_20roots_v3_run`, tmux
+  `leanfaith-sft2a-sprint-canary-20roots-v3`, one worker/16 GiB beside SFT1's 24 GiB claim,
+  concurrency 16) finished at 15:02Z with `threshold_failed` on exactly one check,
+  `genuine_lean_invalid_below_25pct`: 63 candidate-local Lean failures across 135 elaborations
+  (46.7%, 30 unique slots). Every other check passed: 65/80 accepted (minimum 56), zero copied
+  inaccessible-name failures, zero context-prelude failures, zero pre-Lean dagger rejections
+  (the v3 prompt alone stopped Terra from copying `✝` names), 15/20 authoring views validated,
+  zero self-pairs and duplicates, zero infrastructure failures, forced resume and zero-call
+  replay clean, 1,123 s of generation wall (3.5 rows/min with the stop/resume overhead; not a
+  gate). Kimi telemetry stayed `failed_resumable` (Lemex 403, nonblocking). The chain stopped
+  (`canary_threshold_failed`); shards 2–10 were not launched. Attribution of the 63: the
+  dagger-heavy class (the ten hardest unused roots, 12–29 daggers, manifold/bundle/measure
+  theory) accounts for 49/82 elaborations (59.8%) against 14/53 (26.4%) for the context class
+  and 0/9 for CSLib; five roots contribute 51 failures. Error classes: 14 `unknown universe level
+  u_8` (roots that already use all eight canonical universes leave no room for a candidate's
+  extra universe, a structural cap), 20 bundle/manifold/measure-space instance failures
+  (`TopologicalSpace (Bundle.TotalSpace …)`, `FiberBundle`, `MeasureSpace ?m` stuck, `Norm
+  (TangentSpace …)`), 9 parse errors, and 8 invented over-qualified names (`Manifold.
+  ModelWithCorners`, `MeasureTheory.OpensMeasurableSpace`) that the fully-qualified-name rule
+  plus the listed `open scoped Manifold` invited. Shard 1's natural-mix genuine rate was 9.1%
+  of elaborations, so the failed threshold reflects the adversarial sample rather than the
+  repaired path. Prepared with zero Lean and zero provider calls, not launched: a
+  representative natural-mix canary drawn by salted hash from the unused screened pool at the
+  shard proportions (12 Mathlib, 4 Physlib, 1 CSLib, 3 compiler-data; 0–14 daggers per root;
+  sample SHA `ae75e3ae…`, plan `configs/sft2a/sprint_repair_v3_plan_natural.json`, config
+  `configs/sft2a/sprint_canary_20roots_v3_natural.json`, same gates, chained to the frozen v3
+  shard 2 config). Decision required: run the natural-mix canary as the gate for shards 2–10,
+  optionally after a one-line prompt clarification against invented namespace prefixes.

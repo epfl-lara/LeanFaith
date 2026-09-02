@@ -142,7 +142,11 @@ def load_repair_plan_v3(path: Path) -> LoadedRepairPlanV3:
         value = canary.get(key)
         if isinstance(value, bool) or not isinstance(value, int) or value < 0:
             raise SprintRepairV3Error(f"repair plan canary field {key} is malformed")
-    if int(cast(int, canary["dagger_roots"])) + int(cast(int, canary["context_roots"])) != 20:
+    if canary.get("selection", "defect_classes") == "natural_mix":
+        natural_mix = canary.get("natural_source_mix")
+        if not isinstance(natural_mix, dict) or sum(natural_mix.values()) != 20:
+            raise SprintRepairV3Error("a natural-mix canary needs natural_source_mix summing to 20")
+    elif int(cast(int, canary["dagger_roots"])) + int(cast(int, canary["context_roots"])) != 20:
         raise SprintRepairV3Error("the canary is exactly 20 roots across both defect classes")
     for key in ("first_shard", "last_shard"):
         value = shards_v3.get(key)
@@ -328,31 +332,50 @@ def freeze_sprint_canary_v3(plan: LoadedRepairPlanV3) -> dict[str, object]:
         result = _object(_result_path(plan.pool.output_root, row))
         goals[root_id] = str(cast(dict[str, object], result["certification"])["goal_v1"])
     salt = str(plan.canary["salt"])
-    dagger_candidates = [
-        (root_id, str(row["source"]), float(dagger_count(goals[root_id])))
-        for root_id, row in by_root.items()
-    ]
-    dagger_chosen = select_by_class(
-        dagger_candidates,
-        count=int(cast(int, plan.canary["dagger_roots"])),
-        source_caps=cast(Mapping[str, int], plan.canary["dagger_source_caps"]),
-        salt=salt + ":dagger",
-        exclude=set(),
-    )
-    context_candidates = []
-    for root_id, row in by_root.items():
-        context = cast(Mapping[str, object], row["compile_context"])
-        risk = context_risk(context)
-        if not risk["namespace_context"] and not risk["scoped_context"]:
-            continue
-        context_candidates.append((root_id, str(row["source"]), float(cast(float, risk["score"]))))
-    context_chosen = select_by_class(
-        context_candidates,
-        count=int(cast(int, plan.canary["context_roots"])),
-        source_caps=cast(Mapping[str, int], plan.canary["context_source_caps"]),
-        salt=salt + ":context",
-        exclude=set(dagger_chosen),
-    )
+    selection_mode = str(plan.canary.get("selection", "defect_classes"))
+    dagger_chosen: list[str] = []
+    context_chosen: list[str] = []
+    if selection_mode == "natural_mix":
+        # Stratified salted-hash draw from the unused screened pool at the shard source
+        # proportions: the representative complement of the adversarial defect-class canary.
+        natural_mix = cast(Mapping[str, int], plan.canary["natural_source_mix"])
+        for source in _SOURCES:
+            quota = int(natural_mix.get(source, 0))
+            ranked = sorted(
+                (root_id for root_id, row in by_root.items() if str(row["source"]) == source),
+                key=lambda root_id: _rank_key(salt + ":natural", root_id),
+            )
+            if len(ranked) < quota:
+                raise SprintRepairV3Error(f"unused pool lacks {quota} {source} roots")
+            context_chosen.extend(ranked[:quota])
+    else:
+        dagger_candidates = [
+            (root_id, str(row["source"]), float(dagger_count(goals[root_id])))
+            for root_id, row in by_root.items()
+        ]
+        dagger_chosen = select_by_class(
+            dagger_candidates,
+            count=int(cast(int, plan.canary["dagger_roots"])),
+            source_caps=cast(Mapping[str, int], plan.canary["dagger_source_caps"]),
+            salt=salt + ":dagger",
+            exclude=set(),
+        )
+        context_candidates = []
+        for root_id, row in by_root.items():
+            context = cast(Mapping[str, object], row["compile_context"])
+            risk = context_risk(context)
+            if not risk["namespace_context"] and not risk["scoped_context"]:
+                continue
+            context_candidates.append(
+                (root_id, str(row["source"]), float(cast(float, risk["score"])))
+            )
+        context_chosen = select_by_class(
+            context_candidates,
+            count=int(cast(int, plan.canary["context_roots"])),
+            source_caps=cast(Mapping[str, int], plan.canary["context_source_caps"]),
+            salt=salt + ":context",
+            exclude=set(dagger_chosen),
+        )
     chosen_ids = [*dagger_chosen, *context_chosen]
     if len(set(chosen_ids)) != len(chosen_ids):
         raise SprintRepairV3Error("canary classes overlap")
@@ -382,7 +405,13 @@ def freeze_sprint_canary_v3(plan: LoadedRepairPlanV3) -> dict[str, object]:
         row["mechanism_plan"] = {
             slot: assignment.to_dict() for slot, assignment in sorted(rotation[root_id].items())
         }
-        row["canary_defect_class"] = "dagger_heavy" if root_id in dagger_chosen else "context"
+        row["canary_defect_class"] = (
+            "natural_mix"
+            if selection_mode == "natural_mix"
+            else "dagger_heavy"
+            if root_id in dagger_chosen
+            else "context"
+        )
         classes[root_id] = {
             "defect_class": row["canary_defect_class"],
             "dagger_count": dagger_count(goals[root_id]),
@@ -469,6 +498,7 @@ def freeze_sprint_canary_v3(plan: LoadedRepairPlanV3) -> dict[str, object]:
         "roots": len(sample_rows),
         "source_mix": source_mix,
         "defect_classes": classes,
+        "selection": selection_mode,
         "dagger_roots": dagger_chosen,
         "context_roots": context_chosen,
         "configured_family_fraction": fraction,
