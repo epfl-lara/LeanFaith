@@ -182,6 +182,80 @@ def run_screens(records: Sequence[dict[str, object]], *, folds: int = 5) -> dict
     }
 
 
+def featurize_side_tagged(pairs: Sequence[tuple[str, str]]) -> np.ndarray:
+    """Pair features where every token and bigram is tagged with its side."""
+
+    matrix = np.zeros((len(pairs), FEATURE_DIM), dtype=np.float32)
+    for row, (reference, candidate) in enumerate(pairs):
+        for tag, text in (("R", reference), ("C", candidate)):
+            toks = tokens(text)
+            grams = [f"{tag}:{t}" for t in toks] + [f"{tag}:{a} {b}" for a, b in pairwise(toks)]
+            for gram in grams:
+                matrix[row, _hash(gram)] += 1.0
+            matrix[row, _hash(f"{tag}:__len__{min(len(toks) // 5, 40)}")] += 1.0
+    norms = np.linalg.norm(matrix, axis=1, keepdims=True)
+    norms[norms == 0] = 1.0
+    return matrix / norms
+
+
+def run_screens_v2(records: Sequence[dict[str, object]], *, folds: int = 5) -> dict[str, object]:
+    """Screens for a stored (orientation-randomized) core view.
+
+    ``candidate_only`` and ``reference_only`` read the stored fields exactly as
+    a model would.  The held-out screen uses side-tagged pair features and
+    holds out polarity-paired surface families (``core_family``), so each
+    fold removes both the positive and the negative half of one family.
+    """
+
+    rows = [cast(dict[str, Any], record["row"]) for record in records]
+    sidecars = [cast(dict[str, Any], record["sidecar"]) for record in records]
+    labels = np.array([1 if row["label"] else 0 for row in rows], dtype=np.int8)
+    roots = np.array([str(row["root_id"]) for row in rows])
+    families = np.array([str(sidecar.get("core_family", "unassigned")) for sidecar in sidecars])
+    root_ids = {root: index for index, root in enumerate(sorted(set(roots)))}
+    clusters = np.array([root_ids[root] for root in roots])
+    fold_of_root = {root: index % folds for index, root in enumerate(sorted(root_ids))}
+    root_folds = np.array([fold_of_root[root] for root in roots])
+    candidate_only = featurize([str(row["candidate"]) for row in rows])
+    reference_only = featurize([str(row["reference"]) for row in rows])
+    pair_features = featurize_side_tagged(
+        [(str(row["reference"]), str(row["candidate"])) for row in rows]
+    )
+    results = [
+        _held_out_screen(
+            "candidate_only", candidate_only, labels, root_folds, clusters, threshold=0.60
+        ),
+        _held_out_screen(
+            "reference_only", reference_only, labels, root_folds, clusters, threshold=0.60
+        ),
+        _held_out_screen(
+            "family_held_out", pair_features, labels, families, clusters, threshold=0.65
+        ),
+    ]
+    per_family = {}
+    for family in sorted(set(families.tolist())):
+        mask = families == family
+        per_family[family] = {
+            "rows": int(mask.sum()),
+            "positives": int(labels[mask].sum()),
+            "negatives": int(mask.sum() - labels[mask].sum()),
+        }
+    return {
+        "rows": len(rows),
+        "positives": int(labels.sum()),
+        "negatives": int(len(labels) - labels.sum()),
+        "roots": len(root_ids),
+        "families": per_family,
+        "orientation": {
+            "swapped": sum(1 for s in sidecars if s.get("orientation") == "swapped"),
+            "original": sum(1 for s in sidecars if s.get("orientation") != "swapped"),
+        },
+        "feature_mode": "side_tagged_pairs; screens read stored orientation-randomized fields",
+        "screens": [result.to_dict() for result in results],
+        "passed": all(result.passed for result in results),
+    }
+
+
 def load_records(path: Path) -> list[dict[str, object]]:
     records: list[dict[str, object]] = []
     for line in path.read_text(encoding="utf-8").splitlines():
