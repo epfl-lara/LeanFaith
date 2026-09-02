@@ -223,6 +223,9 @@ def build_seed(
     records = load_runs(loaded, run_ids)
     screened, rejections = screen_records(records, gold)
     outcome = deduplicate(screened)
+    conflicting_rows = sum(
+        1 for record in screened if str(record["unordered_pair_key"]) in set(outcome.conflict_keys)
+    )
     core, core_report = build_core(outcome.kept, n31_cap_fraction=n31_cap_fraction)
     seeds = seed_records(core)
     joined = {
@@ -231,6 +234,7 @@ def build_seed(
         "screen_rejections": rejections,
         "duplicates_removed": outcome.duplicate_count,
         "conflicting_classes_rejected": outcome.conflict_count,
+        "conflicting_rows_rejected": conflicting_rows,
         "deduplicated_records": len(outcome.kept),
         "view_dropped": len(outcome.kept) - len(seeds),
         "gold_blocklist_sha256": gold.sha256,
@@ -248,6 +252,8 @@ def build_seed(
     out = Path(config.output.staging_root) / "compacted" / label
     serialized = shortcut.load_serialized_view(out)
     screens = shortcut.run_screens_v3(serialized)
+    control = shortcut.permutation_control(serialized)
+    write_atomic(out / "permutation_control.json", canonical_json_bytes(control) + b"\n")
     total = len(serialized)
     floor = diversity_floor(total)
     negatives_by_mechanism: dict[str, int] = {}
@@ -287,19 +293,16 @@ def build_seed(
             set(item["row"]) == {"reference", "candidate", "label"} for item in serialized
         ),
         "all_rows_kernel_and_meta_checked_at_generation": unchecked == 0,
-        "zero_conflicting_pairs": outcome.conflict_count == 0,
+        "zero_conflicting_pairs": outcome.conflict_count == 0 and conflicting_rows == 0,
         "labels_balanced": manifest["labels"]["positive"] == manifest["labels"]["negative"],
         "exact_half_orientation": swapped * 2 == total,
         "one_swapped_row_per_root": all(count == 1 for count in per_root_swaps.values())
         and len(per_root_swaps) == len(roots),
         "finalized_shards_complete": all(bool(s["complete"]) for s in manifest["shards"]),
         "negative_mechanism_diversity": len(qualifying) >= 2,
-        "candidate_only_upper_below_0_60": screen_by_name["candidate_only"]["upper_bound_95"]
-        < 0.60,
-        "reference_only_upper_below_0_60": screen_by_name["reference_only"]["upper_bound_95"]
-        < 0.60,
-        "family_held_out_upper_below_0_65": screen_by_name["family_held_out"]["upper_bound_95"]
-        < 0.65,
+        "candidate_only_screen": bool(screen_by_name["candidate_only"]["passed"]),
+        "reference_only_screen": bool(screen_by_name["reference_only"]["passed"]),
+        "family_held_out_screen": bool(screen_by_name["family_held_out"]["passed"]),
     }
     report = {
         "schema_version": 2,
@@ -323,6 +326,7 @@ def build_seed(
         },
         "unchecked_rows": unchecked,
         "shortcut": screens,
+        "permutation_control": {k: v for k, v in control.items() if k != "per_seed"},
         "proof_check_time": "original_generation",
         "replay_semantics": "journal_and_cache_replay_of_stored_terminals_no_fresh_kernel_replay",
         "checks": checks,

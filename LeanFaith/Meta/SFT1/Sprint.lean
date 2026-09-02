@@ -235,6 +235,7 @@ structure Root where
   levelParams : List Name
   reference : Expr
   proofValueHash : UInt64
+  deriving Inhabited
 
 private def rootNameExcluded (n : Name) : Bool :=
   n.isInternal || n.isInternalDetail || n.hasMacroScopes
@@ -927,6 +928,8 @@ structure NegativeEvidence where
   refutationKind : String
   boundary : Option Int
   tacticCalls : Nat
+  /-- The checked `Not candidate` proof at universe level zero. -/
+  proof : Expr
 
 private def sourceConst (root : Root) : Expr :=
   mkConst root.name (root.levelParams.map fun _ => Level.zero)
@@ -957,6 +960,7 @@ private def refuteViaSource (root : Root) (cand : Expr)
     refutationKind := "source_proof_contradiction"
     boundary := none
     tacticCalls := groundingTacticBudget - (← tacticBudget.get)
+    proof
   }
 
 private def n25Refute (root : Root) (cand : Expr) (direction : String) : MetaM NegativeEvidence :=
@@ -1001,6 +1005,7 @@ private def n31Refute (root : Root) (cand : Expr) (site : Site) : MetaM Negative
     refutationKind := s!"boundary_counterexample:{label}"
     boundary := some boundary
     tacticCalls := groundingTacticBudget - (← tacticBudget.get)
+    proof
   }
 
 /-! ## Per-operation driver -/
@@ -1221,5 +1226,194 @@ def emitRebuildReport (pairs : Array RebuiltPair) : MetaM Unit := do
     ("schema_version", toJson 1), ("kind", Json.str "rebuild"),
     ("engine_semantic_version", Json.str engineSemanticVersion),
     ("pairs", Json.arr entries)]
+
+/-! ## Certificate-closure squares around certified N25 negatives -/
+
+def squareOperationId : String := "SQUARE_N25_SYMMETRY_V1"
+
+structure SquareBuild where
+  root : Root
+  direction : String
+  tP : Op
+  tC : Op
+  p : Expr
+  c : Expr
+  pPrime : Expr
+  cPrime : Expr
+  deriving Inhabited
+
+private def symmetryFor (direction : String) : MetaM (Op × Op) := do
+  if direction == "eq_to_ne" then return (.p18, .pne)
+  else if direction == "ne_to_eq" then return (.pne, .p18)
+  else throwNA s!"square_direction_unsupported:{direction}"
+
+private def symmWitness (op : Op) : Expr → MetaM Expr :=
+  fun proof => match op with
+    | .p18 => mkEqSymm proof
+    | .pne => mkAppM ``Ne.symm #[proof]
+    | _ => throwRej "square_symmetry_dispatch"
+
+private def hasDuplicate (values : List UInt64) : Bool :=
+  match values with
+  | [] => false
+  | x :: rest => rest.contains x || hasDuplicate rest
+
+/-- Rebuild the certified N25 pair `(P, C)` and close the square with the
+    matching symmetry transform `T` on both endpoints, requiring the exact
+    typed diamond `T(N(P)) = N(T(P))`. -/
+def buildSquare (root : Root) : MetaM SquareBuild := do
+  let n25 ← applyOp root .n25
+  let c ← checkedClosedProp false "candidate" n25.candidate
+  let direction := n25.site.detail
+  let (tP, tC) ← symmetryFor direction
+  let pPrime ← checkedClosedProp false "p_prime" (← applyOp root tP).candidate
+  let rootC : Root := { root with reference := c }
+  let cPrime ← checkedClosedProp false "c_prime" (← applyOp rootC tC).candidate
+  let rootPPrime : Root := { root with reference := pPrime }
+  let nOfT ← applyOp rootPPrime .n25
+  unless Expr.equal nOfT.candidate cPrime do throwRej "square_diamond_expr_mismatch"
+  unless nOfT.site.detail == direction do throwRej "square_diamond_direction_mismatch"
+  if hasDuplicate [alphaHash root.reference, alphaHash c, alphaHash pPrime, alphaHash cPrime] then
+    throwRej "square_self_pair"
+  return { root, direction, tP, tC, p := root.reference, c, pPrime, cPrime }
+
+private def iffExpr (a b : Expr) : Expr := mkApp2 (mkConst ``Iff) a b
+
+/-- Direct Meta- and kernel-checked evidence for the four square rows. -/
+def squareEvidence (sq : SquareBuild) : MetaM Json := do
+  let params := sq.root.levelParams
+  let iffPP' ← finalTargetIffProof sq.p sq.pPrime (symmWitness sq.tP)
+  let checkPP' ← checkedProof "p_iff_p_prime" params iffPP' (iffExpr sq.p sq.pPrime)
+  let iffP'P := mkApp3 (mkConst ``Iff.symm) sq.p sq.pPrime iffPP'
+  let checkP'P ← checkedProof "p_prime_iff_p" params iffP'P (iffExpr sq.pPrime sq.p)
+  let iffCC' ← finalTargetIffProof sq.c sq.cPrime (symmWitness sq.tC)
+  let checkCC' ← checkedProof "c_iff_c_prime" params iffCC' (iffExpr sq.c sq.cPrime)
+  let p0 := levelZeroInstantiate params sq.p
+  let c0 := levelZeroInstantiate params sq.c
+  let p'0 := levelZeroInstantiate params sq.pPrime
+  let c'0 := levelZeroInstantiate params sq.cPrime
+  let iffPP'0 := levelZeroInstantiate params iffPP'
+  let iffCC'0 := levelZeroInstantiate params iffCC'
+  let source0 := sourceConst sq.root
+  let sourceCheck ← checkedProof "source" [] source0 p0
+  let neg ← n25Refute sq.root sq.c sq.direction
+  let notC0 := neg.proof
+  let proofP'0 := mkApp4 (mkConst ``Iff.mp) p0 p'0 iffPP'0 source0
+  let checkProofP' ← checkedProof "p_prime_transported_proof" [] proofP'0 p'0
+  let notC'0 ← withLocalDecl `h .default c'0 fun h => do
+    mkLambdaFVars #[h] (mkApp notC0 (mkApp4 (mkConst ``Iff.mpr) c0 c'0 iffCC'0 h))
+  let checkNotC' ← checkedProof "c_prime_refutation" [] notC'0 (mkApp (mkConst ``Not) c'0)
+  let notIffCP ← withLocalDecl `h .default (iffExpr c0 p0) fun h => do
+    mkLambdaFVars #[h] (mkApp notC0 (mkApp4 (mkConst ``Iff.mpr) c0 p0 h source0))
+  let checkNotIffCP ← checkedProof "not_iff_c_p" [] notIffCP
+    (mkApp (mkConst ``Not) (iffExpr c0 p0))
+  let notIffP'C' ← withLocalDecl `h .default (iffExpr p'0 c'0) fun h => do
+    mkLambdaFVars #[h] (mkApp notC'0 (mkApp4 (mkConst ``Iff.mp) p'0 c'0 h proofP'0))
+  let checkNotIffP'C' ← checkedProof "not_iff_p_prime_c_prime" [] notIffP'C'
+    (mkApp (mkConst ``Not) (iffExpr p'0 c'0))
+  return Json.mkObj [
+    ("direction", Json.str sq.direction),
+    ("t_p", Json.str sq.tP.id),
+    ("t_c", Json.str sq.tC.id),
+    ("diamond", Json.mkObj [
+      ("expr_equal", Json.bool true),
+      ("direction_equal", Json.bool true)
+    ]),
+    ("p_iff_p_prime", checkPP'.toJson),
+    ("p_prime_iff_p", checkP'P.toJson),
+    ("c_iff_c_prime", checkCC'.toJson),
+    ("source_proof", sourceProofJson sq.root),
+    ("source_proof_check", sourceCheck.toJson),
+    ("c_refutation", Json.mkObj [
+      ("kind", Json.str neg.refutationKind),
+      ("check", neg.refutation.toJson),
+      ("grounding", groundingJson neg.grounding (universeTag sq.root) neg.tacticCalls)
+    ]),
+    ("p_prime_transported_proof", checkProofP'.toJson),
+    ("c_prime_refutation", checkNotC'.toJson),
+    ("not_iff_c_p", checkNotIffCP.toJson),
+    ("not_iff_p_prime_c_prime", checkNotIffP'C'.toJson),
+    ("universe_instantiation", Json.str (universeTag sq.root))
+  ]
+
+private def squareCore (root : Root) : MetaM (SquareBuild × Json × Array String) := do
+  let sq ← buildSquare root
+  let mut goals : Array String := #[]
+  for e in [sq.p, sq.c, sq.pPrime, sq.cPrime] do
+    match ← prerender e with
+    | .ok text => goals := goals.push text
+    | .error msg => throwRej s!"square_unrenderable:{msg}"
+  -- rendered-goal diamond: T(N(P)) and N(T(P)) are the same Expr, so the same text
+  let rootPPrime : Root := { root with reference := sq.pPrime }
+  let nOfT ← applyOp rootPPrime .n25
+  match ← prerender nOfT.candidate with
+  | .ok text => unless text == goals[3]! do throwRej "square_diamond_render_mismatch"
+  | .error msg => throwRej s!"square_unrenderable:{msg}"
+  let evidence ← squareEvidence sq
+  return (sq, evidence, goals)
+
+/-- Process one certified N25 root into a square and emit one evidence line. -/
+def processSquare (name : Name) : MetaM Unit := do
+  let t0 ← IO.monoMsNow
+  let base := [("schema_version", toJson 1), ("kind", Json.str "square"),
+    ("operation_id", Json.str squareOperationId),
+    ("engine_semantic_version", Json.str engineSemanticVersion),
+    ("engine_operation_set_version", toJson engineOperationSetVersion),
+    ("root", Json.str name.toString)]
+  let outcome : Except String (SquareBuild × Json × Array String) ←
+    tryCatchRuntimeEx
+      (do
+        let root ← loadRoot name
+        return Except.ok (← withHeartbeatBudget opHeartbeatBudgetK (squareCore root)))
+      fun ex => do
+        if ex.isInterrupt then throw ex
+        return Except.error (← exceptionText ex)
+  match outcome with
+  | .error msg =>
+      let (status, reason) := classify msg
+      emitJson <| Json.mkObj (base ++ [
+        ("status", Json.str status), ("reason", Json.str reason),
+        ("elapsed_ms", toJson ((← IO.monoMsNow) - t0))])
+  | .ok (sq, evidence, goals) =>
+      emitJson <| Json.mkObj (base ++ [
+        ("status", Json.str "retained"),
+        ("reason", Json.str ""),
+        ("module", Json.str sq.root.module.toString),
+        ("level_params", Json.arr (sq.root.levelParams.toArray.map fun n => Json.str n.toString)),
+        ("direction", Json.str sq.direction),
+        ("alpha", Json.mkObj [
+          ("p", Json.str (toString (alphaHash sq.p))),
+          ("c", Json.str (toString (alphaHash sq.c))),
+          ("p_prime", Json.str (toString (alphaHash sq.pPrime))),
+          ("c_prime", Json.str (toString (alphaHash sq.cPrime)))]),
+        ("goals", Json.mkObj [
+          ("p", Json.str goals[0]!), ("c", Json.str goals[1]!),
+          ("p_prime", Json.str goals[2]!), ("c_prime", Json.str goals[3]!)]),
+        ("evidence", evidence),
+        ("elapsed_ms", toJson ((← IO.monoMsNow) - t0))])
+
+def processSquares (names : Array String) : MetaM Unit := do
+  for name in names do
+    processSquare (parseName name)
+
+def rebuildSquares (names : Array String) : MetaM (Array SquareBuild) := do
+  let mut result := #[]
+  for name in names do
+    result := result.push (← buildSquare (← loadRoot (parseName name)))
+  return result
+
+def emitSquareReport (squares : Array SquareBuild) : MetaM Unit := do
+  let entries := squares.mapIdx fun i sq =>
+    Json.mkObj [
+      ("index", toJson i),
+      ("p", Json.str (toString (alphaHash sq.p))),
+      ("c", Json.str (toString (alphaHash sq.c))),
+      ("p_prime", Json.str (toString (alphaHash sq.pPrime))),
+      ("c_prime", Json.str (toString (alphaHash sq.cPrime)))
+    ]
+  emitJson <| Json.mkObj [
+    ("schema_version", toJson 1), ("kind", Json.str "square_rebuild"),
+    ("engine_semantic_version", Json.str engineSemanticVersion),
+    ("squares", Json.arr entries)]
 
 end LeanFaith.SFT1.Sprint

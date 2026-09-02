@@ -35,6 +35,7 @@ VIEW_SIDECAR_FIELDS = {
     "stored_reference_is",
     "orientation_rule",
     "mechanism",
+    "group_id",
 }
 
 
@@ -58,8 +59,44 @@ def read_jsonl(path: Path) -> list[dict[str, Any]]:
     return values
 
 
+SQUARE_ROW_LABELS = {
+    "p_prime_iff_p": True,
+    "c_iff_c_prime": True,
+    "not_iff_c_p": False,
+    "not_iff_p_prime_c_prime": False,
+}
+
+
+def expected_label(operation: str, sidecar: Mapping[str, Any]) -> bool | None:
+    if operation == "SQUARE_N25_SYMMETRY_V1":
+        return SQUARE_ROW_LABELS.get(str(sidecar.get("row_kind")))
+    if operation in POSITIVE_OPERATIONS:
+        return True
+    if operation in NEGATIVE_OPERATIONS:
+        return False
+    return None
+
+
 def _check_evidence(sidecar: Mapping[str, Any], operation: str) -> str | None:
     evidence = sidecar.get("evidence") or {}
+    label = expected_label(operation, sidecar)
+    if operation == "SQUARE_N25_SYMMETRY_V1":
+        if label is True:
+            check = (evidence.get("equivalence_proof") or {}).get("check") or {}
+            if not (check.get("meta_checked") and check.get("kernel_checked")):
+                return "positive_without_checked_iff_witness"
+            return None
+        check = (evidence.get("refutation") or {}).get("check") or {}
+        source = evidence.get("source_proof_check") or {}
+        if (evidence.get("refutation") or {}).get("goal") != "Not (Iff reference candidate)":
+            return "negative_without_direct_not_iff_goal"
+        if not (check.get("meta_checked") and check.get("kernel_checked")):
+            return "negative_without_checked_not_iff"
+        if not (source.get("meta_checked") and source.get("kernel_checked")):
+            return "negative_without_checked_source_proof"
+        if evidence.get("candidate_truth") not in {"proved", "refuted"}:
+            return "negative_candidate_truth_mismatch"
+        return None
     if operation in POSITIVE_OPERATIONS or operation.startswith("P"):
         check = (evidence.get("equivalence_proof") or {}).get("check") or {}
         if not (check.get("meta_checked") and check.get("kernel_checked")):
@@ -138,10 +175,10 @@ def validate_view(
             label = bool(row["label"])
             if sidecar.get("mechanism") != mechanism_of(operation):
                 issue(f"mechanism_metadata: {pair_id}")
-            expected_label = operation in POSITIVE_OPERATIONS or (
-                operation.startswith("P") and operation not in NEGATIVE_OPERATIONS
-            )
-            if label != expected_label or bool(sidecar.get("label")) != label:
+            expected = expected_label(operation, sidecar)
+            if expected is None:
+                expected = operation.startswith("P") and operation not in NEGATIVE_OPERATIONS
+            if label != expected or bool(sidecar.get("label")) != label:
                 issue(f"label_polarity: {pair_id}")
             if sidecar.get("root_id") != row_root_id or sidecar.get("operation_id") != operation:
                 issue(f"sidecar_identity: {pair_id}")
@@ -164,15 +201,21 @@ def validate_view(
                 issue(f"reference_render_hash: {pair_id}")
             if candidate.get("rendered_goal_hash") != sha256_hex(candidate_text.encode("utf-8")):
                 issue(f"candidate_render_hash: {pair_id}")
-            expected_pair = make_id(
-                PAIR_PREFIX,
-                {
+            pair_payload: dict[str, Any] = {
+                "root_id": row_root_id,
+                "operation_id": operation,
+                "reference_expr_hash": (reference.get("provenance") or {}).get("expr_hash"),
+                "candidate_expr_hash": (candidate.get("provenance") or {}).get("expr_hash"),
+            }
+            if operation == "SQUARE_N25_SYMMETRY_V1":
+                pair_payload = {
                     "root_id": row_root_id,
                     "operation_id": operation,
-                    "reference_expr_hash": (reference.get("provenance") or {}).get("expr_hash"),
-                    "candidate_expr_hash": (candidate.get("provenance") or {}).get("expr_hash"),
-                },
-            )
+                    "row_kind": sidecar.get("row_kind"),
+                    "reference_expr_hash": pair_payload["reference_expr_hash"],
+                    "candidate_expr_hash": pair_payload["candidate_expr_hash"],
+                }
+            expected_pair = make_id(PAIR_PREFIX, pair_payload)
             if expected_pair != pair_id:
                 issue(f"pair_id_recompute: {pair_id}")
             if row["reference"] == row["candidate"]:

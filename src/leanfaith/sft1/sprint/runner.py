@@ -1729,10 +1729,11 @@ def release_report(
         )
     retained_rows = cast(int, manifest["retained_rows"])
     conflicting = cast(int, manifest["conflicting_classes_rejected"])
+    conflicting_rows = cast(int, manifest.get("conflicting_rows_rejected", 0))
     checks = {
         "retained_at_least_minimum": retained_rows >= minimum_rows,
         "all_rows_kernel_and_meta_checked_at_generation": unchecked == 0,
-        "zero_duplicate_or_conflicting_pairs": conflicting == 0,
+        "zero_duplicate_or_conflicting_pairs": conflicting == 0 and conflicting_rows == 0,
         "two_useful_negative_mechanisms": len(useful_negatives) >= 2,
         "shortcut_screens": bool(screens["passed"]),
     }

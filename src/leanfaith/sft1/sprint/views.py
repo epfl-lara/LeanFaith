@@ -335,12 +335,16 @@ def build_views(
     records = load_runs(loaded, run_ids)
     screened, rejections = screen_records(records, gold)
     outcome = deduplicate(screened)
+    conflicting_rows = sum(
+        1 for record in screened if str(record["unordered_pair_key"]) in set(outcome.conflict_keys)
+    )
     joined_stats = {
         "input_records": len(records),
         "input_by_run": _count_by(records, "source_run"),
         "screen_rejections": rejections,
         "duplicates_removed": outcome.duplicate_count,
         "conflicting_classes_rejected": outcome.conflict_count,
+        "conflicting_rows_rejected": conflicting_rows,
         "deduplicated_records": len(outcome.kept),
         "artifact_status": "candidate_model_facing_view",
         "gold_blocklist_sha256": gold.sha256,
@@ -397,7 +401,7 @@ def build_views(
     checks = {
         "core_nonempty": len(core) > 0,
         "all_rows_kernel_and_meta_checked_at_generation": unchecked == 0,
-        "zero_conflicting_pairs": outcome.conflict_count == 0,
+        "zero_conflicting_pairs": outcome.conflict_count == 0 and conflicting_rows == 0,
         "labels_balanced": core_manifest["labels"]["positive"]
         == core_manifest["labels"]["negative"],
         "two_useful_negative_mechanisms": len(useful) >= 2,

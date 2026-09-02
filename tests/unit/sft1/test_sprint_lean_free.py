@@ -844,3 +844,148 @@ def test_validator_compares_full_provenance_and_model_facing_rows(tmp_path: Path
     assert counts.get("manifest_provenance") == 1
     assert counts.get("finalized_shard_incomplete") == 1
     assert "row_schema" not in counts
+
+
+def _square_payload(name: str, direction: str = "eq_to_ne") -> dict[str, object]:
+    check = {"meta_checked": True, "kernel_checked": True, "proof_expr_hash_u64": "1"}
+    words = name.replace(".", " ")
+    return {
+        "status": "retained",
+        "reason": "",
+        "direction": direction,
+        "module": "Mathlib.Test",
+        "level_params": [],
+        "alpha": {"p": "1", "c": "2", "p_prime": "3", "c_prime": "4"},
+        "goals": {
+            "p": f"x : ℕ\n⊢ {words} = 0",
+            "c": f"x : ℕ\n⊢ {words} ≠ 0",
+            "p_prime": f"x : ℕ\n⊢ 0 = {words}",
+            "c_prime": f"x : ℕ\n⊢ 0 ≠ {words}",
+        },
+        "evidence": {
+            "direction": direction,
+            "t_p": "P18_SYMMETRIZE_EQUALITY_V1",
+            "t_c": "P_NE_SYMMETRIZE_V1",
+            "diamond": {"expr_equal": True, "direction_equal": True},
+            "p_iff_p_prime": check,
+            "p_prime_iff_p": check,
+            "c_iff_c_prime": check,
+            "source_proof": {"kind": "loaded_environment_constant", "constant": name},
+            "source_proof_check": check,
+            "c_refutation": {"kind": "source_proof_contradiction", "check": check},
+            "p_prime_transported_proof": check,
+            "c_prime_refutation": check,
+            "not_iff_c_p": check,
+            "not_iff_p_prime_c_prime": check,
+            "universe_instantiation": "none",
+        },
+        "elapsed_ms": 1,
+    }
+
+
+def _square_render(payload: dict[str, object]) -> dict[str, object]:
+    from leanfaith.config.hashing import sha256_hex
+
+    goals = payload["goals"]
+    assert isinstance(goals, dict)
+    render: dict[str, object] = {}
+    for endpoint, text in goals.items():
+        render[endpoint] = {
+            "record": {
+                "goal_v1": text,
+                "rendered_goal_hash": sha256_hex(str(text).encode("utf-8")),
+                "provenance": {"expr_hash": hash_canonical([endpoint, text])},
+                "spec_hash": "spec",
+                "implementation_identity": {"renderer_semantic_hash": "s"},
+            },
+            "source_material": {"kind": "constructed_expr_no_source_text"},
+        }
+    render["request_hash"] = "r" * 64
+    return render
+
+
+def test_square_rows_have_identical_marginals_and_four_kinds() -> None:
+    from leanfaith.sft1.sprint import square
+
+    runner = square.SquareRunner.__new__(square.SquareRunner)
+    runner.base = type("Base", (), {})()  # minimal stand-in for identity fields
+    runner.base.root_id = lambda name: f"root:{name}"
+    runner.base.pins = type(
+        "Pins",
+        (),
+        {
+            "to_dict": lambda self: {"project_id": "mathlib"},
+            "lean_version": "v4.31.0-rc1",
+            "project_revision": "r" * 40,
+        },
+    )()
+    runner.base.identity = type(
+        "Identity",
+        (),
+        {
+            "to_dict": lambda self: {"source_sha256": "e"},
+            "semantic_version": "sft1_sprint_engine_v1",
+            "import_options_fingerprint": "f" * 64,
+        },
+    )()
+    runner.base.implementation_commit = "c" * 40
+    runner.statements = {}
+    positives_ref: list[str] = []
+    negatives_ref: list[str] = []
+    positives_cand: list[str] = []
+    negatives_cand: list[str] = []
+    all_rows = []
+    for name in ("Nat.a", "Nat.b", "Int.c"):
+        payload = _square_payload(name)
+        record = {
+            "render": _square_render(payload),
+            "evidence": payload["evidence"],
+            "direction": payload["direction"],
+            "alpha": payload["alpha"],
+            "module": "Mathlib.Test",
+            "level_params": [],
+            "process_request_hash": "p" * 64,
+        }
+        rows = runner.build_rows(name, record, {"source_run": "tenk", "source_pair_id": "pair:x"})
+        assert [item["sidecar"]["row_kind"] for item in rows] == [k for k, *_ in square.ROW_KINDS]
+        assert [item["label"] for item in rows] == [True, True, False, False]
+        assert all(set(item["row"]) == {"reference", "candidate", "label"} for item in rows)
+        assert len({item["sidecar"]["pair_id"] for item in rows}) == 4
+        assert all(item["sidecar"]["group_id"] == f"root:{name}" for item in rows)
+        for item in rows:
+            (positives_ref if item["label"] else negatives_ref).append(item["row"]["reference"])
+            (positives_cand if item["label"] else negatives_cand).append(item["row"]["candidate"])
+        all_rows.extend(rows)
+    assert sorted(positives_ref) == sorted(negatives_ref)
+    assert sorted(positives_cand) == sorted(negatives_cand)
+    assert len({item["unordered_pair_key"] for item in all_rows}) == len(all_rows)
+    negatives = [item for item in all_rows if not item["label"]]
+    assert all(
+        item["sidecar"]["evidence"]["refutation"]["goal"] == "Not (Iff reference candidate)"
+        for item in negatives
+    )
+
+
+def test_square_process_and_render_bodies() -> None:
+    from leanfaith.sft1.sprint import square
+
+    body = square.process_body(["Nat.a", "Nat.b'"])
+    assert body.startswith("run_meta do") and '"Nat.b\'"' in body
+    render = square.render_body(["Nat.a", "Nat.b"], "scope:square")
+    assert render.count("LeanFaith.GoalV1.emitClosedProp") == 8
+    assert "(squares[1]!).cPrime" in render
+    inputs = square.render_inputs(["Nat.a"], {"Nat.a": "theorem a : 1 = 1"})
+    assert [item.endpoint_id for item in inputs] == ["0.p", "0.c", "0.p_prime", "0.c_prime"]
+    assert {item.endpoint_role for item in inputs} == {"reference", "candidate"}
+
+
+def test_permutation_control_is_reproducible() -> None:
+    from leanfaith.sft1.sprint import shortcut
+    from leanfaith.sft1.sprint.seed import seed_records
+
+    seeds = seed_records(_seed_core_records())
+    first = shortcut.permutation_control(seeds, seeds=(1,))
+    second = shortcut.permutation_control(list(reversed(seeds)), seeds=(1,))
+    assert first == second
+    assert first["actual"]["candidate_only"][0] == second["actual"]["candidate_only"][0]
+    assert "seed_1" in first["per_seed"]

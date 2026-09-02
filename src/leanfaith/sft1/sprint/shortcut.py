@@ -442,6 +442,51 @@ def run_screens_v3(records: Sequence[Mapping[str, Any]], *, folds: int = 5) -> d
     }
 
 
+def permutation_control(
+    records: Sequence[Mapping[str, Any]], *, seeds: Sequence[int] = (1, 2)
+) -> dict[str, Any]:
+    """Deterministic label-permutation control for the v3 screens.
+
+    Labels are permuted by a seeded shuffle over the canonically ordered rows
+    (so the control is order-invariant), the same screens are rerun, and the
+    actual screens are reported alongside for comparison.
+    """
+
+    import random
+
+    ordered = canonical_records(records)
+    actual = run_screens_v3(ordered)
+    per_seed: dict[str, Any] = {}
+    for seed in seeds:
+        permuted = [json.loads(json.dumps(item)) for item in ordered]
+        labels = [bool(item["row"]["label"]) for item in permuted]
+        random.Random(seed).shuffle(labels)
+        for item, label in zip(permuted, labels, strict=True):
+            item["row"]["label"] = label
+            item["sidecar"]["label"] = label
+        result = run_screens_v3(permuted)
+        per_seed[f"seed_{seed}"] = {
+            str(screen["name"]): [screen["balanced_accuracy"], screen["upper_bound_95"]]
+            for screen in cast(list[dict[str, Any]], result["screens"])
+        }
+    return {
+        "schema_version": 2,
+        "method": "seeded label shuffle over canonically ordered rows; run_screens_v3 rerun",
+        "seeds": list(seeds),
+        "values_are": "[balanced_accuracy, 95%_upper_bound]",
+        "actual": {
+            str(screen["name"]): [screen["balanced_accuracy"], screen["upper_bound_95"]]
+            for screen in cast(list[dict[str, Any]], actual["screens"])
+        },
+        "per_seed": per_seed,
+        "control_max_upper_bound": max(
+            value[1] for seed_values in per_seed.values() for value in seed_values.values()
+        )
+        if per_seed
+        else None,
+    }
+
+
 def load_serialized_view(compacted_dir: Path) -> list[dict[str, Any]]:
     """Exactly the rows and sidecars written to a compacted view's shards."""
 
