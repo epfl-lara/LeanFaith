@@ -911,3 +911,43 @@ rows/minute, and pilot quality bounds hold. Leave healthy long runs detached wit
   evidence. Shard 1 was resumed at 05:35Z in its named session (PID 2897350); the crashed root
   is reclaimed, completed roots replay with zero calls, and the accumulated generation wall
   time feeds the throughput gate and the sprint-window projection.
+- 2026-09-02 — shard 1 completed generation at 07:26:50Z after the second resume (PID 2902721;
+  the first resume failed because the malformed-injection check did not accept its own durable
+  replay, fixed at `03add6d`). Objective evaluation (`detached/evaluation_terminal.json`):
+  `passed: false` with exactly one failed check, `lean_invalid_below_25pct`. Evidence:
+  3,242/4,000 accepted (minimum 2,800); 14.37 accepted rows/minute over 13,535 s of accumulated
+  generation wall at effective concurrency 16 on one Lean worker (minimum 8; the ideal 16-way
+  projection from pilot v1 was 8.04); zero self-pairs and zero duplicate candidates;
+  infrastructure failures 2/10,368 provider calls (0.019%, including the redaction crash);
+  516 completed roots replayed with zero calls; all 1,000 manifests present; telemetry 80
+  universe-mismatch rejections, 38 lexical contradictions, 139 judge disagreements, 763 unknown
+  rows. Lean invalidity: 2,027 Lean-invalid attempts across 5,879 candidate elaborations
+  (34.5%, 1,171 unique slots) versus 21.0% in pilot v2; by source Mathlib 1,340/3,627 (36.9%),
+  Physlib 460/1,218 (37.8%), CSLib 220/460 (47.8%), compiler-data 7/574 (1.2%); 485 roots had
+  no invalid attempt and 16 roots had 12/12. Classified from the raw Lean responses:
+  (A) 1,143 attempts (56.4%, 796 slots) carry an inaccessible binder name (`inst✝`, `x✝`)
+  copied from the rendered reference — the frozen goal_v1 renderer prints inaccessible names
+  and 495 of the 1,000 shard references contain `✝`, which the v2 text elaborator cannot parse
+  (`expected token` at the binder); (B) 312 attempts (15.4%, 135 slots) fail only on the
+  command's `open` lines, which are rendered from the census `compile_context.open_context`, an
+  alphabetically sorted flat token set that lost source order and structure (`open
+  CategoryTheory Category` becomes `open Category` before `open CategoryTheory`; `open LinearMap
+  hiding id id_apply` becomes `open hiding`, `open id`); in sampled cases the elaboration
+  itself succeeded and emitted the payload, so these are pure template/ingestion faults; the
+  census `source_header` holds only the declaration text, so raw open lines would have to come
+  from the pinned source checkouts via `source_locator`; (C) 36 frozen REPR payload rejections
+  (22 slots); (D) 536 genuine elaboration faults (383 slots, 9.1% of elaborations: type
+  mismatches, stuck instances, unknown identifiers, coercion notation without an expected
+  type). Counterfactual rate without (A): 18.7%; without (A) and (B): 12.9%. No fix was
+  applied and nothing was relaunched: both repairs change the oracle command/prompt identity
+  bound by the prerequisite receipts, so they require a new live oracle gate and a fresh
+  decision. Kimi telemetry ended `failed_resumable` with 0/80 rows checkpointed: every Lemex
+  process exited 1 after five websocket connections to `wss://inference.rcp.epfl.ch/v1/responses`
+  answered 403 Forbidden at 07:27Z (the endpoint answers 401 without credentials, so the Lemex
+  credential or quota is the blocker; pilot v2's telemetry completed hours earlier at 7/8
+  agreement); it resumes from per-row checkpoints with zero Lean/Terra/Opus once access is
+  restored. Chain receipt: action `stop`, reason `shard_threshold_failed`, nothing launched;
+  shards 2–10 remain frozen and unlaunched, no SFT2A tmux session remains, the reservation
+  directory is empty, and shard 1's accepted rows stay durable under
+  `runs/sprint_shards_1k_v1/shard_01/run/compacted/`. Nothing was published, trained, or
+  scaled to 50K; historical runs are unchanged.
