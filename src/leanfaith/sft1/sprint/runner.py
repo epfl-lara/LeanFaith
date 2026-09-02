@@ -120,7 +120,7 @@ class EngineConfig(StrictModel):
     @model_validator(mode="after")
     def _operations(self) -> EngineConfig:
         if tuple(self.operations) != OPERATIONS:
-            raise ValueError("sprint config must list exactly the seven sprint operations in order")
+            raise ValueError("sprint config must list exactly the engine operations in order")
         return self
 
 
@@ -246,6 +246,7 @@ class SprintRunner:
         target_retained: int | None = None,
         explicit_roots: Sequence[str] | None = None,
         owner_session: str = "claude-sft1-sprint",
+        operations: Sequence[str] | None = None,
     ) -> None:
         self.repo_root = repo_root
         self.loaded = loaded
@@ -267,7 +268,9 @@ class SprintRunner:
             repo_root / self.config.screens.gold_blocklist_path,
             expected_sha256=self.config.screens.gold_blocklist_sha256,
         )
-        self.mask = operation_mask(self.config.engine.operations)
+        self.requested_operations = tuple(operations) if operations is not None else None
+        self.operations: tuple[str, ...] = tuple(self.config.engine.operations)
+        self.mask = operation_mask(self.operations)
         self.scope = render_scope_id(self.identity.semantic_version)
         self.implementation_commit = _git(repo_root, "rev-parse", "HEAD")
         self.runner_source_sha256 = hash_file(Path(__file__))
@@ -280,6 +283,7 @@ class SprintRunner:
         self.modules: dict[str, str] = {}
         self.pools: dict[str, str] = {}
         # durable state
+        self.observed_operations: set[str] = set()
         self.done: dict[tuple[str, str], str] = {}
         self.roots_seen: set[str] = set()
         self.retained_keys: set[str] = set()
@@ -344,6 +348,7 @@ class SprintRunner:
             if kind == "terminal":
                 key = (str(record["root"]), str(record["operation_id"]))
                 status = str(record["status"])
+                self.observed_operations.add(key[1])
                 if key in self.done:
                     continue
                 self.done[key] = status
@@ -447,10 +452,39 @@ class SprintRunner:
 
     # ------------------------------------------------------------- main loop
 
+    def resolve_operations(self) -> None:
+        """Operation set precedence: CLI request > run manifest > journal-observed > config."""
+
+        recorded: tuple[str, ...] | None = None
+        if self.paths.run_manifest.is_file():
+            value = read_json_object(self.paths.run_manifest).get("operations")
+            if isinstance(value, list) and value:
+                recorded = tuple(str(item) for item in value)
+        observed = tuple(op for op in OPERATIONS if op in self.observed_operations)
+        if self.requested_operations is not None:
+            chosen = self.requested_operations
+            if recorded is not None and set(recorded) != set(chosen):
+                raise SprintRunnerError(
+                    f"run {self.run_id!r} recorded operations {list(recorded)}; "
+                    f"refusing {list(chosen)}"
+                )
+        elif recorded is not None:
+            chosen = recorded
+        elif observed:
+            chosen = observed
+        else:
+            chosen = tuple(self.config.engine.operations)
+        unknown = [op for op in chosen if op not in OPERATIONS]
+        if unknown:
+            raise SprintRunnerError(f"unknown operations {unknown}")
+        self.operations = tuple(op for op in OPERATIONS if op in set(chosen))
+        self.mask = operation_mask(self.operations)
+
     def run(self, *, require_zero_lean: bool = False) -> dict[str, object]:
         self.replay_mode = require_zero_lean
         self.verify_pins()
         self.load_state()
+        self.resolve_operations()
         order = self.root_order()
         self.write_run_manifest(order_size=len(order))
         reservation: Reservation | None = None
@@ -1072,6 +1106,11 @@ class SprintRunner:
             "max_roots": self.max_roots,
             "target_retained": self.target_retained,
             "explicit_roots": self.explicit_roots,
+            "explicit_roots_sha256": (
+                hash_canonical(self.explicit_roots) if self.explicit_roots is not None else None
+            ),
+            "operations": list(self.operations),
+            "engine_operation_set_version": 2,
             "root_order_size": order_size,
             "argv": sys.argv,
         }
@@ -1701,6 +1740,63 @@ def release_report(
     return report
 
 
+# ------------------------------------------------------------------ targeting
+
+
+def conclusion_relation(statement: str) -> str:
+    """Cheap text classification of a statement's conclusion relation."""
+
+    import re
+
+    match = re.search(r"\)\s*:\s*(.*)$", statement) or re.search(r"\s:\s(.*)$", statement)
+    conclusion = match.group(1) if match else statement
+    for token, name in (("↔", "iff"), ("≠", "ne"), (" < ", "lt"), (" ≤ ", "le"), (" = ", "eq")):
+        if token in conclusion:
+            return name
+    return "other"
+
+
+def write_targets(
+    loaded: LoadedConfig[SprintConfig], *, relation: str, out: Path, limit: int | None = None
+) -> dict[str, object]:
+    config = loaded.config
+    inventory_dir = Path(config.inventory.root) / config.project.project_revision
+    rows = load_inventory(inventory_dir / "inventory.jsonl")
+    seen: set[str] = set()
+    names: list[str] = []
+    for row in rows:
+        name = str(row["name"])
+        if name in seen:
+            continue
+        seen.add(name)
+        if conclusion_relation(str(row["statement"])) == relation:
+            names.append(name)
+    names.sort(key=lambda name: hash_canonical([config.inventory.order_salt, relation, name]))
+    if limit is not None:
+        names = names[:limit]
+    payload = {
+        "schema_version": 1,
+        "relation": relation,
+        "inventory_sha256": hash_file(inventory_dir / "inventory.jsonl"),
+        "count": len(names),
+        "roots_sha256": hash_canonical(names),
+        "roots": names,
+    }
+    write_atomic(out, canonical_json_bytes(payload) + b"\n")
+    return {k: v for k, v in payload.items() if k != "roots"}
+
+
+def roots_from_run(loaded: LoadedConfig[SprintConfig], run_id: str) -> list[str]:
+    paths = RunPaths(Path(loaded.config.output.staging_root), run_id)
+    names: list[str] = []
+    seen: set[str] = set()
+    for record in Journal(paths.journal).read():
+        if record.get("kind") == "root" and str(record["root"]) not in seen:
+            seen.add(str(record["root"]))
+            names.append(str(record["root"]))
+    return names
+
+
 # ------------------------------------------------------------------ fixtures
 
 
@@ -1787,6 +1883,7 @@ def _parser() -> argparse.ArgumentParser:
             "gate100",
             "gate10k",
             "compact-windows",
+            "targets",
         ),
     )
     parser.add_argument("--repo-root", type=Path, default=find_repo_root(Path.cwd()))
@@ -1800,6 +1897,12 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--sprint-end-utc", default="2026-09-04T21:30:00+00:00")
     parser.add_argument("--roots-per-window", type=int, default=2000)
     parser.add_argument("--view", choices=("raw", "balanced"), default="raw")
+    parser.add_argument("--operations", help="comma-separated operation IDs for this run")
+    parser.add_argument("--roots-file", type=Path, help="JSON targets file with a roots list")
+    parser.add_argument("--roots-from-run", help="reuse the root list of an existing run")
+    parser.add_argument("--relation", default="ne", help="targets: conclusion relation")
+    parser.add_argument("--out", type=Path, help="targets: output JSON path")
+    parser.add_argument("--limit", type=int, help="targets: maximum roots")
     parser.add_argument("--minimum-rows", type=int, default=10000)
     return parser
 
@@ -1822,9 +1925,22 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
         )
         return 0 if report["passed"] else 1
+    if args.command == "targets":
+        out = (
+            args.out
+            or Path(loaded.config.output.staging_root) / "targets" / f"{args.relation}.json"
+        )
+        print(json.dumps(write_targets(loaded, relation=args.relation, out=out, limit=args.limit)))
+        return 0
     if args.command in {"run", "replay"}:
         max_roots = args.max_roots
         target_retained = args.target_retained
+        explicit: list[str] | None = None
+        if args.roots_file is not None:
+            explicit = [str(name) for name in read_json_object(args.roots_file)["roots"]]
+        elif args.roots_from_run:
+            explicit = roots_from_run(loaded, args.roots_from_run)
+        operations = args.operations.split(",") if args.operations else None
         run_manifest_path = RunPaths(
             Path(loaded.config.output.staging_root), args.run_id
         ).run_manifest
@@ -1841,6 +1957,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             max_roots=max_roots,
             target_retained=target_retained,
             owner_session=args.owner_session,
+            explicit_roots=explicit,
+            operations=operations,
         )
         before = len(read_retained(runner.paths.retained))
         summary = runner.run(require_zero_lean=args.command == "replay")

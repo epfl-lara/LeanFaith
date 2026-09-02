@@ -24,6 +24,9 @@ namespace LeanFaith.SFT1.Sprint
 open Lean Elab Meta
 
 def engineSemanticVersion : String := "sft1_sprint_engine_v1"
+/-- Operation-set version: 2 adds `P_NE_SYMMETRIZE_V1` and
+    `P_DROP_REDUNDANT_GUARD_PROOF_V1` without changing any earlier operation. -/
+def engineOperationSetVersion : Nat := 2
 def evidenceMarker : String := "LFSFT1SPRINTJSON "
 
 /-- Per-operation heartbeat budget in thousands of heartbeats. -/
@@ -34,10 +37,10 @@ def groundingBranchBudget : Nat := 400
 def groundingTacticBudget : Nat := 40
 
 inductive Op where
-  | p15 | p18 | p14 | p23 | n25 | n32 | n31
+  | p15 | p18 | p14 | p23 | n25 | n32 | n31 | pne | pdrg
   deriving BEq, Repr, Inhabited
 
-def Op.all : Array Op := #[.p15, .p18, .p14, .p23, .n25, .n32, .n31]
+def Op.all : Array Op := #[.p15, .p18, .p14, .p23, .n25, .n32, .n31, .pne, .pdrg]
 
 def Op.id : Op → String
   | .p15 => "P15_SWAP_IFF_SIDES_V1"
@@ -47,11 +50,13 @@ def Op.id : Op → String
   | .n25 => "N25_TOGGLE_EQ_NE_PROOF_V1"
   | .n32 => "N32_SWAP_ROLE_ORDER_PROOF_V1"
   | .n31 => "N31_DROP_REQUIRED_GUARD_PROOF_V1"
+  | .pne => "P_NE_SYMMETRIZE_V1"
+  | .pdrg => "P_DROP_REDUNDANT_GUARD_PROOF_V1"
 
 def Op.ofId? (s : String) : Option Op := Op.all.find? (·.id == s)
 
 def Op.positive : Op → Bool
-  | .p15 | .p18 | .p14 | .p23 => true
+  | .p15 | .p18 | .p14 | .p23 | .pne | .pdrg => true
   | .n25 | .n32 | .n31 => false
 
 def Op.bit : Op → Nat
@@ -62,6 +67,8 @@ def Op.bit : Op → Nat
   | .n25 => 4
   | .n32 => 5
   | .n31 => 6
+  | .pne => 7
+  | .pdrg => 8
 
 /-! ## Tagged failure classes -/
 
@@ -127,6 +134,19 @@ private def withHeartbeatBudget (budgetK : Nat) (x : MetaM α) : MetaM α := do
       (fun (ctx : Core.Context) =>
         { ctx with initHeartbeats := start, maxHeartbeats := budgetK * 1000 })
       (runInBase x)
+
+/-- Run `x` and restore the message log afterwards so failed tactic attempts
+    never leave error messages in the request. -/
+private def withRestoredMessages (x : MetaM α) : MetaM α := do
+  let saved ← Core.getMessageLog
+  tryCatchRuntimeEx
+    (do
+      let r ← x
+      Core.setMessageLog saved
+      return r)
+    fun ex => do
+      Core.setMessageLog saved
+      throw ex
 
 private def exceptionText (ex : Exception) : MetaM String := do
   let text ← ex.toMessageData.toString
@@ -354,6 +374,13 @@ private def toggleEqNe? (t : Expr) : Option (Expr × String) :=
       else none
   | _ => none
 
+private def swapNe? (t : Expr) : Option (Expr × String) :=
+  let args := t.getAppArgs
+  if headName? t == some ``Ne && args.size == 3 && !Expr.eqv args[1]! args[2]! then
+    some (mkApp3 t.getAppFn args[0]! args[2]! args[1]!, "swap")
+  else
+    none
+
 private def isNatOrInt (α : Expr) : Option String :=
   if α.isConstOf ``Nat then some "Nat" else if α.isConstOf ``Int then some "Int" else none
 
@@ -571,6 +598,61 @@ private def applyN31At (root : Root) (g : Nat) : MetaM Expr := do
     if body.containsFVar guard.fvarId! then throwNA "n31_guard_used_by_continuation"
     mkForallFVars (xs.extract 0 g) body
 
+/-- Tactic scripts allowed to discharge a redundant guard from the preceding
+    context.  Every produced term is abstracted and kernel-checked inside the
+    complete `Iff` witness. -/
+private def redundantGuardScripts : MetaM (Array (String × Syntax)) := do
+  return #[
+    ("assumption", ← `(by assumption)),
+    ("omega", ← `(by omega)),
+    ("positivity", ← `(by positivity)),
+    ("simp_all", ← `(by simp_all))
+  ]
+
+/-- Prove `goal` in the current local context with a bounded tactic script;
+    the proof may mention the context's fvars. -/
+private def proveInContext? (goal : Expr) : MetaM (Option (Expr × String)) := do
+  for (label, stx) in ← redundantGuardScripts do
+    let attempt ← withRestoredMessages <| tryCatchRuntimeEx
+      (do
+        let proof ← Term.TermElabM.run' <| Term.withoutErrToSorry do
+          let proof ← Term.elabTermEnsuringType stx (some goal)
+          Term.synthesizeSyntheticMVarsNoPostponing
+          instantiateMVars proof
+        if proof.hasExprMVar || proof.hasLevelMVar || proof.hasLooseBVars || proof.hasSorry then
+          return none
+        check proof
+        unless ← withoutModifyingMCtx (isDefEq (← inferType proof) goal) do return none
+        return some proof)
+      fun ex => do
+        if ex.isInterrupt then throw ex
+        return none
+    if let some proof := attempt then
+      return some (proof, label)
+  return none
+
+/-- First explicit proposition binder whose type is provable from the
+    preceding context and whose proof the continuation does not use. -/
+private def discoverRedundantGuard (root : Root) : MetaM (Nat × String) := do
+  let found ← IO.mkRef (none : Option String)
+  let site ← findBinderSite root.reference 0 #[] fun _ _ d bi b _ => do
+    unless bi == .default do return false
+    unless ← isProp d do return false
+    if b.hasLooseBVar 0 then return false
+    match ← proveInContext? d with
+    | some (_, label) => found.set (some label); return true
+    | none => return false
+  match site, ← found.get with
+  | some g, some label => return (g, label)
+  | _, _ => throwNA "pdrg_no_redundant_guard"
+
+private def applyDropGuardAt (root : Root) (g : Nat) : MetaM Expr := do
+  forallBoundedTelescope root.reference (some (g + 1)) fun xs body => do
+    unless xs.size == g + 1 do throwNA "pdrg_site_out_of_range"
+    let guard := xs[g]!
+    if body.containsFVar guard.fvarId! then throwNA "pdrg_guard_used_by_continuation"
+    mkForallFVars (xs.extract 0 g) body
+
 private def discoverN31 (root : Root) : MetaM (Nat × GuardMatch) := do
   let found ← IO.mkRef (none : Option GuardMatch)
   let site ← findBinderSite root.reference 0 #[] fun _ _ d bi b xs => do
@@ -591,6 +673,14 @@ def applyOp (root : Root) (op : Op) : MetaM Applied := do
   | .p18 => applyFinalTarget root "final_target_eq" swapEq?
   | .n25 => applyFinalTarget root "final_target_eq_ne" toggleEqNe?
   | .n32 => applyFinalTarget root "final_target_strict_lt" swapStrictLt?
+  | .pne => applyFinalTarget root "final_target_ne" swapNe?
+  | .pdrg =>
+      let (g, label) ← discoverRedundantGuard root
+      let candidate ← applyDropGuardAt root g
+      return {
+        candidate
+        site := { kind := "redundant_guard", index := g, detail := label }
+      }
   | .p14 =>
       let some i ← findBinderSite root.reference 0 #[] p14Pred
         | throwNA "p14_no_adjacent_independent_data_binders"
@@ -623,10 +713,11 @@ def applyOp (root : Root) (op : Op) : MetaM Applied := do
     the site alone determines the candidate. -/
 def replayOp (root : Root) (op : Op) (site : Site) : MetaM Expr := do
   match op with
-  | .p15 | .p18 | .n25 | .n32 =>
+  | .p15 | .p18 | .n25 | .n32 | .pne =>
       let applied ← applyOp root op
       unless applied.site == site do throwRej "replay_site_mismatch"
       return applied.candidate
+  | .pdrg => applyDropGuardAt root site.index
   | .p14 => applyP14At root site.index
   | .p23 =>
       let packName := freshPackName root.reference
@@ -677,6 +768,18 @@ private def p23IffProof (ref cand : Expr) (i : Nat) (packName : Name) : MetaM Ex
         mkLambdaFVars #[h] (← mkLambdaFVars xs (mkAppN h (prefixArgs.push pairProof)))
       return iffIntro ref cand mp mpr
 
+private def dropGuardIffProof (ref cand : Expr) (g : Nat) : MetaM (Expr × String) := do
+  forallBoundedTelescope ref (some (g + 1)) fun xs _ => do
+    let prefixArgs := xs.extract 0 g
+    let guardType ← inferType xs[g]!
+    let some (guardProof, label) ← proveInContext? guardType
+      | throwRej "pdrg_guard_proof_not_reproducible"
+    let mp ← withLocalDecl `h .default ref fun h => do
+      mkLambdaFVars #[h] (← mkLambdaFVars prefixArgs (mkAppN h (prefixArgs.push guardProof)))
+    let mpr ← withLocalDecl `h .default cand fun h => do
+      mkLambdaFVars #[h] (← mkLambdaFVars xs (mkAppN h prefixArgs))
+    return (iffIntro ref cand mp mpr, label)
+
 /-! ## Grounding search for negatives -/
 
 structure Grounding where
@@ -710,19 +813,6 @@ private def decideOutcome (p : Expr) : MetaM DecideOutcome := do
     fun ex => do
       if ex.isInterrupt then throw ex
       return .unknown
-
-/-- Run `x` and restore the message log afterwards so failed tactic attempts
-    never leave error messages in the request. -/
-private def withRestoredMessages (x : MetaM α) : MetaM α := do
-  let saved ← Core.getMessageLog
-  tryCatchRuntimeEx
-    (do
-      let r ← x
-      Core.setMessageLog saved
-      return r)
-    fun ex => do
-      Core.setMessageLog saved
-      throw ex
 
 private def tacticProof? (p : Expr) (stx : Syntax) : MetaM (Option Expr) := withRestoredMessages do
   tryCatchRuntimeEx
@@ -941,6 +1031,11 @@ private def certifyPositive (root : Root) (op : Op) (applied : Applied) : MetaM 
     | .p18 => finalTargetIffProof ref cand fun p => mkEqSymm p
     | .p14 => p14IffProof ref cand applied.site.index
     | .p23 => p23IffProof ref cand applied.site.index (Name.mkSimple applied.site.detail)
+    | .pne => finalTargetIffProof ref cand fun p => mkAppM ``Ne.symm #[p]
+    | .pdrg => do
+        let (proof, label) ← dropGuardIffProof ref cand applied.site.index
+        unless label == applied.site.detail do throwRej "pdrg_guard_proof_label_mismatch"
+        pure proof
     | _ => throwRej "positive_dispatch_mismatch"
   let goal := mkApp2 (mkConst ``Iff) ref cand
   let checkResult ← checkedProof "equivalence" root.levelParams proof goal
@@ -948,6 +1043,7 @@ private def certifyPositive (root : Root) (op : Op) (applied : Applied) : MetaM 
     ("label", Json.bool true),
     ("equivalence_proof", Json.mkObj [
       ("goal", Json.str "Iff reference candidate"),
+      ("guard_discharge", Json.str applied.site.detail),
       ("check", checkResult.toJson)
     ]),
     ("source_proof", sourceProofJson root),
@@ -1041,6 +1137,7 @@ def processRoot (name : Name) (mask : Nat) : MetaM Unit := do
   let t0 ← IO.monoMsNow
   let base := [("schema_version", toJson 1), ("kind", Json.str "root"),
     ("engine_semantic_version", Json.str engineSemanticVersion),
+    ("engine_operation_set_version", toJson engineOperationSetVersion),
     ("root", Json.str name.toString)]
   let root : Except String Root ← tryCatchRuntimeEx (do return Except.ok (← loadRoot name))
     fun ex => do

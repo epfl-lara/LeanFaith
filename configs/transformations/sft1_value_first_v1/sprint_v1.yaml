@@ -21,6 +21,8 @@ engine:
     - N25_TOGGLE_EQ_NE_PROOF_V1
     - N32_SWAP_ROLE_ORDER_PROOF_V1
     - N31_DROP_REQUIRED_GUARD_PROOF_V1
+    - P_NE_SYMMETRIZE_V1
+    - P_DROP_REDUNDANT_GUARD_PROOF_V1
 inventory:
   root: /storage/milikic/leanfaith/value_first/sft1_deterministic_v1/sprint_v1/inventory
   order_salt: sft1_sprint_v1_roots
@@ -61,3 +63,6 @@ fixtures:
   - {root: Nat.factorial_le, operation_id: N32_SWAP_ROLE_ORDER_PROOF_V1, expect_status: not_applicable, expect_reason_prefix: final_target_strict_lt_not_applicable}
   - {root: Nat.lt_factorial_self, operation_id: N31_DROP_REQUIRED_GUARD_PROOF_V1, expect_status: retained}
   - {root: Nat.div_right_comm, operation_id: N31_DROP_REQUIRED_GUARD_PROOF_V1, expect_status: not_applicable, expect_reason_prefix: n31_no_supported_guard}
+  - {root: Nat.factorial_ne_zero, operation_id: P_NE_SYMMETRIZE_V1, expect_status: retained}
+  - {root: PNat.gcd_comm, operation_id: P_NE_SYMMETRIZE_V1, expect_status: not_applicable, expect_reason_prefix: final_target_ne_not_applicable}
+  - {root: PNat.gcd_comm, operation_id: P_DROP_REDUNDANT_GUARD_PROOF_V1, expect_status: not_applicable, expect_reason_prefix: pdrg_no_redundant_guard}

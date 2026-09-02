@@ -41,10 +41,13 @@ OPERATIONS: tuple[str, ...] = (
     "N25_TOGGLE_EQ_NE_PROOF_V1",
     "N32_SWAP_ROLE_ORDER_PROOF_V1",
     "N31_DROP_REQUIRED_GUARD_PROOF_V1",
+    "P_NE_SYMMETRIZE_V1",
+    "P_DROP_REDUNDANT_GUARD_PROOF_V1",
 )
+SPRINT_V1_OPERATIONS: tuple[str, ...] = OPERATIONS[:7]
 OPERATION_BITS: dict[str, int] = {operation: index for index, operation in enumerate(OPERATIONS)}
-POSITIVE_OPERATIONS: frozenset[str] = frozenset(OPERATIONS[:4])
-NEGATIVE_OPERATIONS: frozenset[str] = frozenset(OPERATIONS[4:])
+POSITIVE_OPERATIONS: frozenset[str] = frozenset(op for op in OPERATIONS if op.startswith("P"))
+NEGATIVE_OPERATIONS: frozenset[str] = frozenset(op for op in OPERATIONS if op.startswith("N"))
 ALL_OPERATIONS_MASK = (1 << len(OPERATIONS)) - 1
 
 _SEMANTIC_VERSION = re.compile(r'^def engineSemanticVersion : String := "([^"]+)"', re.MULTILINE)
