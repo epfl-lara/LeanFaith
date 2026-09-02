@@ -2,11 +2,13 @@
 
 > **Task ID:** SFT2A
 > **Status:** active
-> **Owner/session:** Codex `codex://threads/01a0537f-14af-7e31-9f96-4a7514ccc527`
-> **Last updated:** 2026-09-01
+> **Owner/session:** Claude Fable 5.1 sprint session on worktree
+> `/localhome/milikic/LeanFaith-sft2a-72h-sprint`, branch `milikic/sft2a-72h-sprint`
+> **Last updated:** 2026-09-02
 > **Dependencies:** REPR `goal_v1.0`; shared rubric; roots may be selected independently of SFT1
-> **Next gate:** implement F5--F9, resume the cached row-checkpointed Kimi audit, and pass the
-> 20-root performance/resume pilot; a pass automatically launches ten independent 1K-root shards
+> **Next gate:** the detached 20-root/80-slot pilot (`leanfaith-sft2a-sprint-pilot-20roots`) must
+> pass its objective thresholds; a pass automatically certifies the ~12K reference pool and chains
+> the ten independent 1K-root shards
 > **Compute class:** external LLM/API plus CPU/RAM for Lean; large run may need explicit budget approval
 > **Lean budget:** compile each novel candidate once through cached persistent workers
 > **Local staging root:** `/storage/milikic/leanfaith/value_first/sft2_llm_transforms_v1/`
@@ -680,3 +682,80 @@ rows/minute, and pilot quality bounds hold. Leave healthy long runs detached wit
   verdicts with `confidence=low`. All 58 SFT2A tests pass; Ruff and strict Mypy clean. The stale
   `42cd0d6` brief archival checkpoint (`c7f6178`) was intentionally not cherry-picked. Began the
   cohesive F7--F9 + Kimi-audit-resume + 20-root-pilot track on this worktree.
+- 2026-09-02 — resumed from durable repository state after the Codex thread broke. Preserved the
+  interrupted draft exactly as found in two WIP checkpoints (`a5837ff` loader/detached runner,
+  `807ee74` unverified repair draft), then repaired it in `1ca3461`, `a1cf46e`, and `950df64`.
+  Repairs: Kimi audit futures map to result positions with one durable checkpoint per row and a
+  configurable count (40 historical, at most 8 pilot telemetry); the provider ledger loads its
+  journal once per process and appends under short locks (`journal_reads` proves load-once);
+  prior codex/lemex schema-violation attempts reconcile into immutable `schema_invalid`
+  terminals instead of duplicate calls; `OraclePool` is project-affine (a busy matching slot is
+  awaited, never replaced) and caps live backends at the claimed worker count; oracle v2
+  collects universe metavariables through `Expr.sort`, assigns distinct canonical `u_i`
+  parameters, binds the Lean elaborator body hash into its cache identity, and serves every
+  root of a project from one persistent backend via `rebind`; core labels are written from the
+  accepted Opus verdict and manifests report the v2 method/cache/elaborator identity; the sprint
+  judge prompt `prompts/sft2a/blinded_judge_sprint_v1.txt` states the strict verdict/confidence/
+  `error_type` contract for Opus and Kimi through additive base config
+  `configs/sft2a/closure_aware_v5_2_sprint_v1.yaml`; the malformed-output retry carries the exact
+  `pydantic.ValidationError` detail. Verification on the committed branch: 117 SFT2A unit tests
+  pass (one opt-in live-Lean test skipped), Ruff check/format clean, strict Mypy clean on 31
+  files, `git diff --check` clean. Tests were run under a minimal environment because this
+  agent shell exports a secret-named variable whose short value trips the capture redaction on
+  synthetic captures; the detached jobs inherit the tmux server environment instead.
+- 2026-09-02 — the additive sprint judge prompt passed all three closure canaries with Opus
+  high (`runs/sprint_v1_one_root/closure_canaries_v5`, 3 calls, $0.127231, no malformed output).
+  The first bounded oracle-v2 live gate found a real defect in the draft: its Lean elaborator
+  called `LMVarId.isAssigned`/`assign`, which do not exist in the pinned toolchain, so every v2
+  elaboration had been invalid. After switching to `isLevelMVarAssigned`/`assignLevelMVar` and
+  binding the elaborator hash into the cache key, the gate passed 10/10 fixtures on one
+  persistent Mathlib backend (`Type*`, declared `u_3`/`u_5` and two `Type _` universes rendered as
+  distinct `Type u_0`/`Type u_1`, `Sort _`, dependent binders, an unbound section variable and an
+  undeclared universe correctly invalid, a non-Prop function type correctly invalid, and a rebound
+  `open Nat` context on the same backend). Receipt:
+  `runs/sprint_pilot_20roots_run/checks/oracle_v2_live_gate/oracle_v2_live_gate_receipt.json`
+  (sha256 `07f70764481f6598d3e3558a03d86c9e91ad3af577c6beb4914acb002eeb3f8a`).
+- 2026-09-02 — completed the historical 40-row Kimi audit over the 284 accepted recovery-v5 rows
+  as the separate provider-only detached job `leanfaith-sft2a-audit-kimi-recovery-v5` under
+  `configs/sft2a/audit_only_kimi_recovery_v5.json`, using the run's existing authorization
+  receipt and ledger and the frozen v5 judge prompt so the outstanding reservation
+  `e39fed4de7b9fbbf909466d5701ee6c36f40be99b70076091aa73d2ede94fc82` reconciled through its
+  durable capture (schema-invalid terminal, one retry) instead of a duplicate call. Result:
+  40/40 rows judged with zero Terra, zero Opus, and zero Lean calls; ledger 1,124 finalized and
+  0 outstanding (52 Kimi calls added, 14 malformed retries); 35 agreements (87.5%), 4 genuine
+  disagreements (two Kimi `unknown`), 1 malformed-exhausted; the 5 non-agreeing rows are routed
+  to `unknown_review_exclude_core`, leaving 279 releasable rows
+  (`runs/rehearsal_closure_aware_v5_2_recovery_v5/audit_kimi/`, audit rows sha256
+  `88d73cec91a92d7717f37e9396320cbcb8517b98fdbab7bc0d583194c432c876`). The historical manifest
+  flags `systematic_disagreement`/`scale_blocked` under the frozen 95% agreement rule; the active
+  sprint contract treats Kimi as asynchronous telemetry that excludes disagreements from the
+  audited view without serializing generation, so the pilot proceeded. Generation was not rerun.
+- 2026-09-02 — launched the official 20-root/80-slot pilot at implementation `950df64` in tmux
+  `leanfaith-sft2a-sprint-pilot-20roots` (pane PID 2825075, started 2026-09-02T01:13:11Z) under
+  `configs/sft2a/sprint_pilot_20roots_v1.json` (sha256
+  `8aa21dad425753ab4dde4783ceffa9982c7484e429f73e9bfb9d3261aacf6249`), bound to sample
+  `c3359ef6175f8aee0f94edf63e6cb5d2437911ef4f8d0a65981667075b8fc4de`. The zero-Lean verifier
+  passed (20 unique rows, 8/5/4/3 mix, unique closed Exprs and goals, 20 certificates verified,
+  zero gold hits, zero overlap with 200 screened completed rows) and the in-process malformed
+  injection check passed with zero real calls. Output root `runs/sprint_pilot_20roots_run` with
+  `provider_budget.jsonl`, `root_state.jsonl`, `detached/stage_journal.jsonl`,
+  `detached/combined.log`, and per-stage terminals; ceilings 736 total / 240 Terra / 480 Opus /
+  16 Kimi / $40 Opus; provider concurrency 8; controlled stop after the first completed root,
+  then resume; exactly two persistent Lean workers and a truthful 2-worker/40 GiB claim taken
+  inside the worker. At launch the atomic ledger showed SFT1 (1 worker/24 GiB) and SFT2B
+  (1 worker/4 GiB) holding both workers, so the worker is waiting for capacity (polling every
+  60 s, journaling every 10 polls, 12-hour limit); generation wall time is measured from the
+  claim. Status: `uv run python -m leanfaith.sft2a --provider-rehearsal-config
+  configs/sft2a/sprint_pilot_20roots_v1.json sprint-pilot-v5-2-health`; attach:
+  `tmux attach -t leanfaith-sft2a-sprint-pilot-20roots`; resume after a failure:
+  `... resume-sprint-pilot-v5-2`. Pass requires at least 56/80 accepted slots, fewer than 25%
+  Lean-invalid candidates (and fewer than 20 of 80), zero accepted self-pairs/duplicates, the
+  malformed-injection check, infrastructure failures below 2%, zero provider/Lean calls for
+  completed roots on resume, and at most 30 minutes of generation wall time. Only the evaluation
+  terminal sets `scale_10k_authorized`; Kimi telemetry (at most 8 rows) runs after the claim is
+  released and cannot change the verdict. On a pass the worker automatically launches the 12K
+  reference certification (`configs/sft2a/sprint_reference_pool_12k_v1.json`, two persistent
+  project-grouped certifiers, zero provider calls), which freezes ten disjoint 1K-root shards
+  and chains shard 1 at provider concurrency 16; a shard that fails only the 2% infrastructure
+  bound chains the next shard once at concurrency 8, and any other failed threshold stops the
+  chain and is reported. 50K, legacy rejudging, publication, and training remain unauthorized.
