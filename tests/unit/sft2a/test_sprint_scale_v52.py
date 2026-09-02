@@ -446,3 +446,35 @@ def test_read_only_snapshots_tolerate_many_in_flight_roots(tmp_path: Path) -> No
     assert sprint_pilot_v52._completed_root_ids(loaded) == ["mathlib:t:0"]
     with pytest.raises(Exception, match="ceiling exceeded"):
         ParallelRootStateMachine(loaded.output_root / "root_state.jsonl").snapshot()
+
+
+def test_shard_rotation_relaxes_the_diversity_cap_only_as_far_as_needed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from leanfaith.sft2a.mechanisms import structured_signature_shape
+
+    shape = structured_signature_shape(
+        "a b c : ℕ\n⊢ a ≤ b → b ≤ c → a ≤ c",
+        {"k": "app", "fn": {"k": "const", "name": "LE.le"}, "arg": {"k": "bvar", "index": 0}},
+    )
+    attempted: list[float] = []
+
+    def planner(roots: Any, *, salt: str, maximum_family_fraction_per_polarity: float) -> Any:
+        attempted.append(maximum_family_fraction_per_polarity)
+        if maximum_family_fraction_per_polarity < 0.3:
+            raise ValueError("mechanism diversity cap leaves no structured family for r:preserve_0")
+        return {"r": {}}
+
+    monkeypatch.setattr(sprint_scale_v52, "plan_structured_mechanism_rotation", planner)
+    rotation, effective = sprint_scale_v52._plan_shard_rotation(
+        [("r", shape)], salt="s", configured_fraction=0.2
+    )
+    assert rotation == {"r": {}} and effective == 0.3
+    assert attempted == [0.2, 0.25, 0.3]
+
+    def broken(roots: Any, *, salt: str, maximum_family_fraction_per_polarity: float) -> Any:
+        raise ValueError("structured mechanism rotation contains duplicate root IDs")
+
+    monkeypatch.setattr(sprint_scale_v52, "plan_structured_mechanism_rotation", broken)
+    with pytest.raises(ValueError, match="duplicate root IDs"):
+        sprint_scale_v52._plan_shard_rotation([("r", shape)], salt="s", configured_fraction=0.2)

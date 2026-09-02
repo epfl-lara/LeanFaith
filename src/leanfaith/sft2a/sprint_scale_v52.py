@@ -41,6 +41,7 @@ from leanfaith.sft2a.certified_sample_v52 import (
 from leanfaith.sft2a.config import LoadedSFT2AConfig, load_sft2a_config
 from leanfaith.sft2a.legacy import _atomic_exact, _blocklist
 from leanfaith.sft2a.mechanisms import (
+    MechanismAssignment,
     SignatureShape,
     applicable_mechanisms,
     plan_structured_mechanism_rotation,
@@ -500,6 +501,39 @@ def _shard_quotas(available: Mapping[str, int], *, count: int, per_shard: int) -
     return quotas
 
 
+SHARD_FAMILY_FRACTION_LADDER = (0.2, 0.25, 0.3, 0.4, 0.5, 0.75, 1.0)
+
+
+def _plan_shard_rotation(
+    roots: Sequence[tuple[str, SignatureShape]],
+    *,
+    salt: str,
+    configured_fraction: float,
+) -> tuple[dict[str, dict[str, MechanismAssignment]], float]:
+    """Plan a shard's rotation at the tightest feasible per-family diversity cap.
+
+    The greedy structured planner can reach a root whose applicable families are all at the
+    configured cap. Rather than fail the whole shard, retry deterministically along a fixed
+    ladder of caps (never below the configured one) and report the effective cap so the
+    diversity that was actually achieved is visible in the manifest.
+    """
+
+    ladder = [value for value in SHARD_FAMILY_FRACTION_LADDER if value >= configured_fraction]
+    if not ladder or ladder[0] != configured_fraction:
+        ladder = [configured_fraction, *ladder]
+    last_error: ValueError | None = None
+    for fraction in ladder:
+        try:
+            return plan_structured_mechanism_rotation(
+                roots, salt=salt, maximum_family_fraction_per_polarity=fraction
+            ), fraction
+        except ValueError as exc:
+            last_error = exc
+            if "diversity cap" not in str(exc):
+                raise
+    raise SprintScaleError(f"shard rotation is infeasible at every cap: {last_error}")
+
+
 def freeze_sprint_shards(loaded: LoadedSprintPoolConfig) -> dict[str, object]:
     """Freeze ten disjoint 1K-root shard samples plus chained provider configs."""
 
@@ -549,10 +583,10 @@ def freeze_sprint_shards(loaded: LoadedSprintPoolConfig) -> dict[str, object]:
             root_id = str(cast(dict[str, object], row["root"])["root_id"])
             shapes[root_id] = certified_shape(cast(dict[str, object], row["certified_reference"]))
             sample_rows.append(row)
-        rotation = plan_structured_mechanism_rotation(
+        rotation, effective_fraction = _plan_shard_rotation(
             [(root_id, shape) for root_id, (shape, _hash) in shapes.items()],
             salt=f"{salt}:structured:{shard_index + 1:02d}",
-            maximum_family_fraction_per_polarity=fraction,
+            configured_fraction=fraction,
         )
         for row in sample_rows:
             root_id = str(cast(dict[str, object], row["root"])["root_id"])
@@ -586,6 +620,8 @@ def freeze_sprint_shards(loaded: LoadedSprintPoolConfig) -> dict[str, object]:
                 "sample_path": str(sample_path),
                 "sample_sha256": hash_file(sample_path),
                 "roots": len(sample_rows),
+                "configured_family_fraction": fraction,
+                "effective_family_fraction": effective_fraction,
                 "source_mix": dict(
                     sorted(
                         Counter(
