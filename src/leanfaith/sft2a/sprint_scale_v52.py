@@ -33,6 +33,7 @@ from leanfaith.representations.views import signature_near_dup_hash
 from leanfaith.sft2a.census import _has_slot_mechanism_coverage, _stratified_select
 from leanfaith.sft2a.certified_sample_v52 import (
     FORBIDDEN_MODEL_GOAL_MARKERS,
+    CorrectedSampleError,
     _replacement_row,
     certified_shape,
     verify_certified_reference_row,
@@ -426,6 +427,7 @@ def _screen_certified(
                 used_goals.add(str(certified.get("rendered_goal_hash")))
     accepted: dict[str, list[dict[str, object]]] = defaultdict(list)
     rejected: Counter[str] = Counter()
+    verification_failures: list[dict[str, object]] = []
     for row in rows:
         result_path = _result_path(loaded.output_root, row)
         if not result_path.is_file():
@@ -458,9 +460,23 @@ def _screen_certified(
         ):
             rejected["insufficient_mechanism_coverage"] += 1
             continue
+        # The frozen certificate verifier must accept the row exactly as a shard sample row
+        # would carry it; rows it refuses (for example long goals whose raw payload text is
+        # line-wrapped by the pretty-printer) are screened out rather than relaxing the verifier.
+        try:
+            verify_certified_reference_row(_replacement_row(row, result_path))
+        except CorrectedSampleError as exc:
+            rejected["certificate_verification_failed"] += 1
+            verification_failures.append({"root_id": str(row["root_id"]), "reason": str(exc)})
+            continue
         used_exprs.add(expr_text)
         used_goals.add(rendered_text)
         accepted[str(row["source"])].append(row)
+    if verification_failures:
+        _atomic_replace_json_bytes(
+            loaded.shard_root / "certificate_verification_failures.jsonl",
+            _jsonl_bytes(verification_failures),
+        )
     return accepted, rejected
 
 
@@ -530,7 +546,6 @@ def freeze_sprint_shards(loaded: LoadedSprintPoolConfig) -> dict[str, object]:
         shapes: dict[str, tuple[SignatureShape, str]] = {}
         for pool_row in chosen:
             row = _replacement_row(pool_row, _result_path(loaded.output_root, pool_row))
-            verify_certified_reference_row(row)
             root_id = str(cast(dict[str, object], row["root"])["root_id"])
             shapes[root_id] = certified_shape(cast(dict[str, object], row["certified_reference"]))
             sample_rows.append(row)
