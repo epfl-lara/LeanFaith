@@ -896,3 +896,18 @@ rows/minute, and pilot quality bounds hold. Leave healthy long runs detached wit
   if shard 1 passes and `remaining_shards × measured wall` fits before the deadline; the
   combined release view is produced by `compact-sprint-shards` with cross-shard
   deduplication, quarantine, and telemetry exclusions.
+- 2026-09-02 — shard 1 ran at about 15–16 accepted rows/minute (concurrency 16, one Lean
+  worker) until 05:27:45Z, when one Opus judge output was refused by the coordinator-owned
+  capture redactor: its generic token pattern matched inside the rationale text itself
+  (`provider capture required secret redaction; call rejected`, two matches in the JSON result,
+  none in the prompt). The root `mathlib:census:7e067560d73235e5cd89a00f` recorded a durable
+  crash and the worker stopped fail-closed after 516 of 1,000 roots (1,691 accepted rows,
+  3,420 Terra and 1,980 Opus calls finalized, one Opus reservation outstanding, 6,715 s of
+  generation wall time). Fix at `00e02fb` in SFT2A-owned code only: a provider-level rejection
+  of one call is now an attempt outcome, not a root crash — the judge call is retried once
+  immediately, then the slot records `judge_provider_rejected` and retries with a new
+  candidate; a rejected proposer call records `proposer_provider_rejected` and consumes only
+  that slot attempt; both are telemetry (`provider_rejections`) and infrastructure-failure
+  evidence. Shard 1 was resumed at 05:35Z in its named session (PID 2897350); the crashed root
+  is reclaimed, completed roots replay with zero calls, and the accumulated generation wall
+  time feeds the throughput gate and the sprint-window projection.
