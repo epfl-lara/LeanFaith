@@ -443,7 +443,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--repo-root", type=Path, default=find_repo_root(Path.cwd()))
     parser.add_argument("--config", type=Path)
-    parser.add_argument("--run-id", required=True)
+    parser.add_argument("--run-id")
     parser.add_argument("--repo-id", default=DEFAULT_REPO_ID)
     parser.add_argument("--remote-prefix")
     parser.add_argument("--windows", action="store_true", help="publish compacted root windows")
@@ -463,6 +463,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
         print(json.dumps(result, indent=1))
         return 0
+    if not args.run_id and args.update_cards is None:
+        parser.error("--run-id is required unless --update-cards is given")
     if args.windows:
         receipts = publish_windows(
             args.repo_root.resolve(),
