@@ -203,16 +203,26 @@ def test_freeze_shards_builds_disjoint_samples_and_chained_configs(
             raise CorrectedSampleError("certification rendered goal differs from raw Expr payload")
         return {"ok": True}
 
+    bare = structured_signature_shape("cn : SKI\n⊢ Red cn cn", {"k": "const", "name": "Red"})
+    assert sprint_scale_v52.structured_family_coverage(bare)["preserving"] < 2
+
+    def shape_for(certified: dict[str, object]) -> Any:
+        # One certified root has a structurally unplannable shape and must be screened out.
+        if str(certified["closed_expr_hash"]) == hash_canonical({"expr": "cslib:census:000002"}):
+            return (bare, "b" * 64)
+        return (shape, "h" * 64)
+
     monkeypatch.setattr(sprint_scale_v52, "verify_certified_reference_row", verify)
-    monkeypatch.setattr(sprint_scale_v52, "certified_shape", lambda certified: (shape, "h" * 64))
+    monkeypatch.setattr(sprint_scale_v52, "certified_shape", shape_for)
     manifest = freeze_sprint_shards(loaded)
     assert manifest["shard_count"] == 2 and manifest["roots_per_shard"] == 5
     # Both mathlib:...000005 and cslib:...000005 are refused by the mocked verifier.
     assert manifest["screen_rejections"] == {
         "certificate_verification_failed": 2,
+        "insufficient_structured_mechanism_coverage": 1,
         "term_elaboration_invalid": 1,
     }
-    assert manifest["certified_usable_roots"] == 21
+    assert manifest["certified_usable_roots"] == 20
     failures = [
         json.loads(line)
         for line in (loaded.shard_root / "certificate_verification_failures.jsonl")

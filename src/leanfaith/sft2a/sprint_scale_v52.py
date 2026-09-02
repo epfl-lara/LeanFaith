@@ -41,8 +41,11 @@ from leanfaith.sft2a.certified_sample_v52 import (
 from leanfaith.sft2a.config import LoadedSFT2AConfig, load_sft2a_config
 from leanfaith.sft2a.legacy import _atomic_exact, _blocklist
 from leanfaith.sft2a.mechanisms import (
+    BREAKING_MECHANISMS,
+    PRESERVING_MECHANISMS,
     MechanismAssignment,
     SignatureShape,
+    _applicable,
     applicable_mechanisms,
     plan_structured_mechanism_rotation,
     planning_signature_from_goal_v1,
@@ -417,9 +420,18 @@ def certify_sprint_pool(
 # --------------------------------------------------------------------------------------------
 
 
+def structured_family_coverage(shape: SignatureShape) -> dict[str, int]:
+    """Count structurally applicable mechanism families per polarity for one certified shape."""
+
+    return {
+        "preserving": sum(_applicable(spec, shape) for spec in PRESERVING_MECHANISMS),
+        "breaking": sum(_applicable(spec, shape) for spec in BREAKING_MECHANISMS),
+    }
+
+
 def _screen_certified(
     loaded: LoadedSprintPoolConfig, rows: Sequence[dict[str, object]]
-) -> tuple[dict[str, list[dict[str, object]]], Counter[str]]:
+) -> tuple[dict[str, list[dict[str, object]]], Counter[str], dict[str, tuple[SignatureShape, str]]]:
     _path, blocked = _blocklist(loaded.base)
     used_exprs: set[str] = set()
     used_goals: set[str] = set()
@@ -432,6 +444,7 @@ def _screen_certified(
     accepted: dict[str, list[dict[str, object]]] = defaultdict(list)
     rejected: Counter[str] = Counter()
     verification_failures: list[dict[str, object]] = []
+    shapes: dict[str, tuple[SignatureShape, str]] = {}
     for row in rows:
         result_path = _result_path(loaded.output_root, row)
         if not result_path.is_file():
@@ -468,11 +481,23 @@ def _screen_certified(
         # would carry it; rows it refuses (for example long goals whose raw payload text is
         # line-wrapped by the pretty-printer) are screened out rather than relaxing the verifier.
         try:
-            verify_certified_reference_row(_replacement_row(row, result_path))
+            sample_row = _replacement_row(row, result_path)
+            verify_certified_reference_row(sample_row)
+            shape, structure_hash = certified_shape(
+                cast(dict[str, object], sample_row["certified_reference"])
+            )
         except CorrectedSampleError as exc:
             rejected["certificate_verification_failed"] += 1
             verification_failures.append({"root_id": str(row["root_id"]), "reason": str(exc)})
             continue
+        # The structured planner assigns families from the certified Expr shape, which can be
+        # narrower than the text-based planning signature; require the v5 two-family minimum
+        # per polarity on the structured shape so every shard root is plannable.
+        coverage = structured_family_coverage(shape)
+        if coverage["preserving"] < 2 or coverage["breaking"] < 2:
+            rejected["insufficient_structured_mechanism_coverage"] += 1
+            continue
+        shapes[str(row["root_id"])] = (shape, structure_hash)
         used_exprs.add(expr_text)
         used_goals.add(rendered_text)
         accepted[str(row["source"])].append(row)
@@ -481,7 +506,7 @@ def _screen_certified(
             loaded.shard_root / "certificate_verification_failures.jsonl",
             _jsonl_bytes(verification_failures),
         )
-    return accepted, rejected
+    return accepted, rejected, shapes
 
 
 def _shard_quotas(available: Mapping[str, int], *, count: int, per_shard: int) -> dict[str, int]:
@@ -549,7 +574,7 @@ def freeze_sprint_shards(loaded: LoadedSprintPoolConfig) -> dict[str, object]:
     per_shard = int(cast(int, shards["roots_per_shard"]))
     salt = str(shards["salt"])
     rows = _jsonl(loaded.output_root / "pool.jsonl")
-    accepted, rejected = _screen_certified(loaded, rows)
+    accepted, rejected, screened_shapes = _screen_certified(loaded, rows)
     total_accepted = sum(len(items) for items in accepted.values())
     if total_accepted < count * per_shard:
         raise SprintScaleError(
@@ -584,7 +609,7 @@ def freeze_sprint_shards(loaded: LoadedSprintPoolConfig) -> dict[str, object]:
         for pool_row in chosen:
             row = _replacement_row(pool_row, _result_path(loaded.output_root, pool_row))
             root_id = str(cast(dict[str, object], row["root"])["root_id"])
-            shapes[root_id] = certified_shape(cast(dict[str, object], row["certified_reference"]))
+            shapes[root_id] = screened_shapes[root_id]
             sample_rows.append(row)
         rotation, effective_fraction = _plan_shard_rotation(
             [(root_id, shape) for root_id, (shape, _hash) in shapes.items()],
@@ -1067,4 +1092,5 @@ __all__ = [
     "prepare_sprint_reference_pool",
     "run_detached_sprint_pool_certification_worker",
     "sprint_pool_certification_health",
+    "structured_family_coverage",
 ]
