@@ -10,10 +10,11 @@
   "labeling_policy_path": "policies/sft2_llm_labeling_defaults_v1.yaml",
   "labeling_policy_sha256": "4554a071b06b1af9015b253b5e64b2a0a4d013630e5224ef7729bbf65757646f",
   "module_path": "src/leanfaith/sft2b/matched_pilot_judge_pilot.py",
-  "module_sha256": "e52c07fd05fb866b152918cd0bb33d4cc6e729610d7de979943db68fbae3a671",
+  "module_sha256": "0c150d2b5f0a01a6e0d31b9088467b2f64bfdb86848e934c469137c9bfec4cbd",
   "selection_count": 100,
   "maximum_provider_calls": 300,
   "maximum_concurrency": 12,
+  "required_environment_variables": ["LEMEX_API_KEY"],
   "output_parent": "/storage/milikic/leanfaith/value_first/sft2_autoformalizer_v1/matched_pilot_judge_pilot_v1",
   "thresholds": {
     "maximum_unknown_fraction": 0.25,

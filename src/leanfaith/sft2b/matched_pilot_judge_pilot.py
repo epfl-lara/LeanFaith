@@ -6,6 +6,7 @@ import argparse
 import concurrent.futures
 import itertools
 import json
+import os
 from collections import Counter
 from collections.abc import Sequence
 from pathlib import Path
@@ -78,6 +79,7 @@ class MatchedPilotJudgeConfig(StrictModel):
     selection_count: Annotated[int, Field(gt=0)]
     maximum_provider_calls: Annotated[int, Field(gt=0)]
     maximum_concurrency: Annotated[int, Field(gt=0, le=64)]
+    required_environment_variables: tuple[NonEmpty, ...]
     output_parent: Path
     thresholds: PilotThresholds
 
@@ -264,6 +266,13 @@ def prepare(
     *, repo_root: Path, config_path: Path, limit: int | None = None
 ) -> tuple[MatchedPilotJudgeConfig, LoadedJudges, tuple[SelectedCandidate, ...], str, Path]:
     config = load_config(repo_root, config_path)
+    missing_environment = [
+        name for name in config.required_environment_variables if not os.environ.get(name)
+    ]
+    if missing_environment:
+        raise MatchedPilotJudgeError(
+            "required judge environment is unavailable: " + ", ".join(missing_environment)
+        )
     audit_config_path = repo_root / config.audit_config_path
     audit_config, _ = load_audit_config(audit_config_path)
     run_root = _audit_root(config, audit_config.output_parent)
