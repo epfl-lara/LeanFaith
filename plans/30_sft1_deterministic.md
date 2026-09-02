@@ -1554,3 +1554,41 @@ resource use, output paths, and exact remaining ETA. Do not run training.
   full wave (about 9.3 h) with `compact-windows` and `publish --windows`. All runner, cache,
   journal, compaction, and publisher tooling is committed and tested; the wave can start within
   minutes of a decision.
+- 2026-09-02 — provenance and integrity corrections (commits `9c4b81f`…`93e58af`), applied
+  without touching the certified 10K rows:
+  - Compaction no longer copies the first-launch run manifest. It derives every engine source
+    SHA-256, compile-context identity, cache-key schema, and implementation segment from the
+    sidecars and refuses inconsistent identities. The 10K (`tenk`) legitimately spans three
+    segments: engine `274ea10f55b8…` / compile context `ctx:6934ba1b…` / cache schema 1 for
+    4,695 rows (2,699 roots; engine commit `0f6ab91`), engine `ff8f7dfaa3d4…` /
+    `ctx:cfe2c8f0…` / schema 1 for 4,269 rows (3,049 roots) and schema 2 for 1,037 rows
+    (730 roots; engine commit `bccfde4`). All rows share one engine semantic version
+    (`sft1_sprint_engine_v1`), one frozen REPR implementation identity, and one project pin set.
+    Runner commits are not durable per row for these segments (only the engine-commit range is);
+    new sidecars now carry `implementation_commit`, `runner_source_sha256`, and `cache_schema`.
+  - A Lean-free integrity validator (`leanfaith.sft1.sprint.integrity`) checks row/sidecar joins,
+    shard and record hashes, label polarity, evidence flags, render-hash and pair-id recomputation,
+    residue screens, unordered-pair uniqueness, shard conservation against the manifest and the
+    retained records, final run status, replay receipts, and sidecar-derived provenance. It passed
+    on `tenk` raw (10,001 rows, 10 shards), `tenk` balanced (2,922 rows), and `roots100` (147 rows)
+    with zero issues; reports live in each compacted directory as `integrity_report.json`.
+  - Proof checks occurred during original generation. The recorded zero-Lean-call replays are
+    journal/cache replays of stored terminals and cached artifacts, not fresh kernel replays; the
+    manifests, release reports, dataset cards, and validator now say so explicitly
+    (`proof_check_time: original_generation`,
+    `replay_semantics: journal_and_cache_replay_of_stored_terminals_no_fresh_kernel_replay`).
+  - The raw and balanced dataset cards are corrected to "diagnostic gate evidence, not a training
+    release" (`artifact_status: diagnostic_gate_evidence_not_a_training_release`), with the
+    segment table and the failing screen values on the card.
+  - Durable verdict for the inspected N31 sample: `runs/tenk/inspection/verdict.json` records the
+    346-row all-N31 sample hash, that rows 1–35 were read by hand with 0 wrong labels, and that
+    the remaining 311 rows rest on their kernel-checked refutations only.
+  - Overwritten performance evidence is marked unavailable rather than reconstructed:
+    `runs/roots100/performance_evidence.json` (the 100-root `status.json` was overwritten by a
+    replay before replay status was separated; `gate_report.json` now reports its wall time, Lean
+    request count, and RSS as null with `performance_evidence: unavailable_overwritten_status`).
+    `runs/tenk/status_provenance.json` records that `tenk/status.json` was restored verbatim
+    from the third process's own exit summary line in `logs/tenk.log` and that its throughput
+    describes only that process. Replays now write `replay_status.json`.
+  - Regressions: resumed runs with multiple valid engine/compile-context/cache-schema segments
+    are accepted and recorded; mixed engine semantic versions are rejected.
