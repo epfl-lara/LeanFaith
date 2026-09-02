@@ -575,6 +575,23 @@ def test_valid_closed_prop_with_forbidden_render_is_repr_invalid() -> None:
     assert observed.goal_v1 is None
 
 
+def test_valid_reference_with_forbidden_render_is_repr_invalid() -> None:
+    source, context = _source()
+    endpoint = audit._endpoints(source, ())[0]
+
+    observed = audit._valid_reference_record_or_repr_failure(
+        endpoint=endpoint,
+        source=source,
+        context=context,
+        pins=_pins(),
+        sidecar=_Sidecar("reference", "⊢ M ⋯ x"),
+    )
+
+    assert observed.status == CompileStatus.INVALID
+    assert observed.error_class == "trusted_reference_repr_invalid"
+    assert observed.goal_v1 is None
+
+
 def test_terminal_rejects_candidate_order_mismatch() -> None:
     source, context = _source()
     endpoint = PropositionEndpoint(

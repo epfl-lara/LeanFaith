@@ -1230,6 +1230,40 @@ def _valid_candidate_record_or_repr_failure(
         )
 
 
+def _valid_reference_record_or_repr_failure(
+    *,
+    endpoint: PropositionEndpoint,
+    source: SourceRecord,
+    context: CompileContext,
+    pins: RuntimePins,
+    sidecar: object,
+) -> EndpointCacheRecord:
+    """Keep trusted-reference elaboration distinct from strict render validity."""
+
+    try:
+        return _endpoint_record(
+            endpoint=endpoint,
+            source=source,
+            context=context,
+            pins=pins,
+            status=CompileStatus.VALID,
+            sidecar=sidecar,
+        )
+    except ValidationError:
+        return _endpoint_record(
+            endpoint=endpoint,
+            source=source,
+            context=context,
+            pins=pins,
+            status=CompileStatus.INVALID,
+            error_class="trusted_reference_repr_invalid",
+            detail=(
+                "trusted reference elaborated as one closed Prop, but its frozen GoalV1 "
+                "sidecar failed strict endpoint validation"
+            ),
+        )
+
+
 def _terminal_path(run_root: Path, source: SourceRecord) -> Path:
     return run_root / "terminals" / f"{source.source_id.split(':', 1)[1]}.json"
 
@@ -1348,12 +1382,11 @@ def _execute_source(
             raise MatchedPilotLeanAuditError(
                 "trusted reference has a REPR sidecar without elaboration evidence"
             )
-        reference = _endpoint_record(
+        reference = _valid_reference_record_or_repr_failure(
             endpoint=reference_endpoint,
             source=source,
             context=context,
             pins=pins,
-            status=CompileStatus.VALID,
             sidecar=sidecars["reference"],
         )
     else:
