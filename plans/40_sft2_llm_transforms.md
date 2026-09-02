@@ -797,4 +797,11 @@ rows/minute, and pilot quality bounds hold. Leave healthy long runs detached wit
   `runs/sprint_pilot_20roots_run_v2` on the same 20-root sample; the 12K pool config now points
   at the v2 base. Under the sprint stop policy a failed objective threshold ends automatic
   progression, so pilot v2 was prepared but not launched; 121 SFT2A tests, Ruff, and strict
-  Mypy pass on `014bfdb`.
+  Mypy pass on `014bfdb`. The repaired oracle command was verified live under the v2 pilot
+  config with zero provider calls: 11/11 fixtures passed on one persistent Mathlib backend with
+  11 fresh Lean requests (no stale cache reuse), including `namespace Real`/`open Angle`
+  resolving `toReal θ` (receipt
+  `runs/sprint_pilot_20roots_run_v2/checks/oracle_v2_live_gate/oracle_v2_live_gate_receipt.json`).
+  No SFT2A tmux session or Lean claim remains; relaunching pilot v2 is a user decision:
+  `uv run python -m leanfaith.sft2a --provider-rehearsal-config
+  configs/sft2a/sprint_pilot_20roots_v2.json launch-sprint-pilot-v5-2`.
