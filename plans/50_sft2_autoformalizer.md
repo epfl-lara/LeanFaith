@@ -5,10 +5,9 @@
 > **Owner/session:** Codex `/root` — 2026-09-01 72-hour SFT2B sprint execution
 > **Last updated:** 2026-09-01
 > **Dependencies:** REPR `goal_v1.0`; source-quality audit and frozen consistency/voting prompts
-> **Next gate:** compile all 1,242 matched-pilot candidates in persistent context-grouped tolerant
-> Lean sessions while hardening the generation consumer, then pass the 100-source kill/resume smoke
-> and automatically launch four contiguous 12,500-source corrected-core ReForm shards; no
-> additional authorization sentence or review gate intervenes.
+> **Next gate:** on an eight-A100/H100 host, pass the 100-source/400-cell vLLM-plus-supervisor
+> kill/resume smoke, then automatically launch four contiguous 12,500-source corrected-core ReForm
+> shards; no additional authorization sentence or review gate intervenes.
 > **Compute class:** source-freeze work is Lean/GPU-free; the completed matched pilot used eight
 > H100-80GB GPUs at DP=4/TP=2. Any future scale config records the actual A100/H100 host profile.
 > **Lean budget:** compile each novel formalization candidate once through persistent cached workers
@@ -1116,3 +1115,38 @@ authorization sentence, clean-tree receipt, or historical-artifact ceremony.
   passed the complete verifier and reproduced both manifest/checksum hashes. No Lean, model,
   provider, judge, generation, reservation, or detached job ran; the next active gate is the full
   1,242-candidate persistent-Lean audit plus generation-consumer resume hardening.
+- 2026-09-01 — hardened the additive full-source generation consumer at pushed commit `fdffa37`.
+  Semantic v2 run/request identities contain the provider/model revision and snapshot, ordered
+  source IDs, slots, prompt, decoding, and payload, while config/Git/authorization hashes remain
+  provenance rather than logical identity. Each cell has at most three durable transport-attempt
+  artifacts, successful attempts are reused, and one sliding request window spans lazy 128-source
+  chunks. Resume now reconciles only exact dead same-run runtime sessions, started-before-attempt
+  gaps, abandoned in-flight attempts, and stale exact same-run resource claims after proving the
+  recorded PID dead and port closed; live or foreign PID/worktree/run/port evidence fails closed.
+  The hash-frozen vLLM backend remains byte-identical at
+  `ce859852fcb5f9c81103ebb94fc69097014bf4bcaf2952c73d23306a878ce640`; the consumer pin is
+  `bce037f35e866c7204176f1b9cd6a2d41d9ee948aaced33293e246ac0ab4ef06`. The focused
+  consumer/backend suite passes 27/27, including crash boundaries, retry reuse, and cross-chunk
+  window tests.
+- 2026-09-01 — completed the full matched-pilot Lean gate from pushed commit `6659cef`. A bounded
+  one-worker/4-GiB oracle first proved all 27 newly reconstructed trusted-reference carriers in one
+  persistent request; the final source-hash-bound config SHA-256 is
+  `102cbf93a48fe4793803cfb744dad778b29ce3cce2425b1194d067311cea7d13`. The durable run
+  `sft2b_matched_lean_audit:ade7abd96f09b9fff76d82996bcab3ae955d0ec9c27ee54b2c2f2161e5c699bb`
+  then elaborated all 500/500 trusted references and 865/1,242 admitted candidates (69.65%), with
+  362/500 sources having a valid candidate, 779 valid unique signatures, and zero infrastructure
+  attempts. All six gate predicates pass. Total Lean elapsed time was 611,385 ms over 500
+  context-grouped requests, maximum per-source latency was 8,568 ms, and peak RSS was 959,156,224
+  bytes. Candidate/source artifact hashes are
+  `b6c62d2f88ccee1d5bd048c94d77b4fedbf970666bf84f6087e03bfad7233281` and
+  `a478f09074f94ce414c28aa2790d7ab2d1023767ffdd62a01ce7cc1cf258d321`; journal/terminal ledger
+  hashes are `18e1a31a8a0795b8c19035a7ed5baa4d43e6a0941a41971718062c04d5a8fa5a` and
+  `723a69f0472d9a1231785d3d70cc06197463b644a251501b0e25d78705bacc4c`. A zero-call replay
+  reproduced the same manifest. The complete 158-test SFT2B collection exits zero with 154 passed
+  and the four documented portability skips; focused Ruff/format and strict mypy checks pass.
+  Lean remains the bottleneck: all schema, filtering, provenance, joins, deduplication, hashing,
+  carrier reconstruction, and resume checks preceded the bounded persistent Lean audit, and the
+  shared reservation was released after durable compaction. This host exposes only one RTX 4090
+  and zero active LeanFaith reservations, so it cannot validly run the mandated eight-GPU
+  100-source/400-cell kill/resume smoke. No scale config was authorized, no provider/judge call ran,
+  and no detached generation job was launched; status remains `active` at that machine-bound gate.
