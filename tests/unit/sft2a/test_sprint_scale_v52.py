@@ -261,12 +261,16 @@ def test_shard_config_validation_requires_shard_fields(tmp_path: Path) -> None:
     document = json.loads(_PILOT_CONFIG.read_text())
     path = tmp_path / "shard.json"
     path.write_text(json.dumps({**document, "sprint_role": "shard"}))
+    with pytest.raises(ProviderRehearsalV52Error, match="16 GiB each"):
+        load_provider_rehearsal_v52(path)
+    shard_document = {**document, "maximum_measured_rss_gib": 32.0}
+    path.write_text(json.dumps({**shard_document, "sprint_role": "shard"}))
     with pytest.raises(ProviderRehearsalV52Error, match="kimi_audit_fraction"):
         load_provider_rehearsal_v52(path)
     path.write_text(
         json.dumps(
             {
-                **document,
+                **shard_document,
                 "sprint_role": "shard",
                 "kimi_audit_fraction": 0.1,
                 "kimi_audit_rows_maximum": 8,

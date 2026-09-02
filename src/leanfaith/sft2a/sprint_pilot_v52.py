@@ -836,8 +836,8 @@ def _claim_with_wait(
     role = str(loaded.document.get("sprint_role", "pilot"))
     if role == "pilot" and (lean_workers != 2 or lean_rss != 40.0):
         raise SprintPilotError("sprint pilot requires exactly two persistent Lean workers/40 GiB")
-    if role == "shard" and (lean_workers not in {1, 2} or lean_rss != 20.0 * lean_workers):
-        raise SprintPilotError("sprint shard claims one or two Lean workers at 20 GiB each")
+    if role == "shard" and (lean_workers not in {1, 2} or lean_rss != 16.0 * lean_workers):
+        raise SprintPilotError("sprint shard claims one or two Lean workers at 16 GiB each")
     deadline = time.monotonic() + wait_seconds
     waits = 0
     while True:

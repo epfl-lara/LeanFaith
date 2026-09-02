@@ -620,7 +620,7 @@ def test_shard_config_contract_allows_one_cooperative_worker(tmp_path: Path) -> 
         "minimum_accepted_rows_per_minute": 8.0,
         "maximum_root_workers": 1,
         "maximum_total_lean_workers": 1,
-        "maximum_measured_rss_gib": 20.0,
+        "maximum_measured_rss_gib": 16.0,
         "shared_candidate_registry_path": str(tmp_path / "registry.jsonl"),
         "sprint_deadline_utc": "2026-09-04T00:00:00+00:00",
     }
@@ -629,7 +629,7 @@ def test_shard_config_contract_allows_one_cooperative_worker(tmp_path: Path) -> 
     loaded = load_provider_rehearsal_v52(path)
     assert loaded.document["maximum_total_lean_workers"] == 1
     path.write_text(json.dumps({**shard, "maximum_measured_rss_gib": 40.0}))
-    with pytest.raises(ProviderRehearsalV52Error, match="20 GiB each"):
+    with pytest.raises(ProviderRehearsalV52Error, match="16 GiB each"):
         load_provider_rehearsal_v52(path)
     path.write_text(
         json.dumps(
@@ -637,7 +637,7 @@ def test_shard_config_contract_allows_one_cooperative_worker(tmp_path: Path) -> 
                 **document,
                 "maximum_total_lean_workers": 1,
                 "maximum_root_workers": 1,
-                "maximum_measured_rss_gib": 20.0,
+                "maximum_measured_rss_gib": 16.0,
             }
         )
     )

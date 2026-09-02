@@ -224,10 +224,10 @@ def load_provider_rehearsal_v52(path: Path) -> LoadedProviderRehearsalV52:
             isinstance(workers, bool)
             or workers not in {1, 2}
             or document.get("maximum_root_workers") != workers
-            or document.get("maximum_measured_rss_gib") != 20.0 * int(cast(int, workers))
+            or document.get("maximum_measured_rss_gib") != 16.0 * int(cast(int, workers))
         ):
             raise ProviderRehearsalV52Error(
-                "sprint shard requires one or two persistent Lean workers at 20 GiB each"
+                "sprint shard requires one or two persistent Lean workers at 16 GiB each"
             )
         registry_path = document.get("shared_candidate_registry_path")
         if registry_path is not None and (not isinstance(registry_path, str) or not registry_path):

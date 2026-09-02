@@ -77,6 +77,9 @@ from leanfaith.sft2a.sprint_pilot_v52 import (
 )
 
 POOL_CONFIG_VERSION = "leanfaith_sft2a_sprint_reference_pool_v1"
+# One persistent v2 Mathlib backend measured about 7 GiB RSS in the pilots; 16 GiB per worker
+# is a truthful ceiling that still lets one SFT2A worker coexist with a 24 GiB SFT1 claim.
+SHARD_LEAN_RSS_GIB_PER_WORKER = 16.0
 _SOURCES = ("mathlib", "physlib", "cslib", "compiler_data")
 
 
@@ -653,7 +656,7 @@ def freeze_sprint_shards(loaded: LoadedSprintPoolConfig) -> dict[str, object]:
             "resource_task": f"SFT2A-SPRINT-SHARD-{shard_index + 1:02d}",
             "maximum_root_workers": 1,
             "maximum_total_lean_workers": 1,
-            "maximum_measured_rss_gib": 20.0,
+            "maximum_measured_rss_gib": SHARD_LEAN_RSS_GIB_PER_WORKER,
             "lean_worker_policy": "single_cooperative_worker_leaves_one_for_sft1_sft2b",
             "controlled_stop_after_completed_roots": 0,
             "oracle_v2_gate_receipt_path": str(loaded.document["oracle_v2_gate_receipt_path"]),
@@ -857,7 +860,8 @@ def run_detached_sprint_pool_certification_worker(
             waits = 0
             deadline = time.monotonic() + wait_for_capacity_seconds
             claimed_workers = 0
-            while True:
+            certification_cached = (output / "certification_manifest.json").is_file()
+            while not certification_cached:
                 # Cooperative claim: take both workers only when both are free right now;
                 # otherwise take one so SFT1/SFT2B Lean work is never starved by certification.
                 claimed_workers = 0
@@ -866,7 +870,7 @@ def run_detached_sprint_pool_certification_worker(
                         claim_resources(
                             task=resource_task,
                             lean_workers=workers,
-                            lean_rss_gib=20.0 * workers,
+                            lean_rss_gib=SHARD_LEAN_RSS_GIB_PER_WORKER * workers,
                             gpu=False,
                             pid=os.getpid(),
                             owner_session=str(loaded.document["tmux_session"]),
@@ -887,22 +891,28 @@ def run_detached_sprint_pool_certification_worker(
                         stage_path,
                         {
                             "event": "waiting_for_lean_capacity",
-                            "capacity": sprint_capacity_check(lean_workers=1, lean_rss_gib=20.0),
+                            "capacity": sprint_capacity_check(
+                                lean_workers=1, lean_rss_gib=SHARD_LEAN_RSS_GIB_PER_WORKER
+                            ),
                         },
                     )
                 waits += 1
                 time.sleep(capacity_poll_seconds)
-            claimed = True
-            _append_stage(
-                stage_path,
-                {"event": "resource_claimed", "waits": waits, "lean_workers": claimed_workers},
-            )
-            try:
-                certification = certify_sprint_pool(loaded, lean_workers=claimed_workers)
-            finally:
-                release_resources(task=resource_task)
-                claimed = False
-                _append_stage(stage_path, {"event": "resource_released"})
+            if certification_cached:
+                _append_stage(stage_path, {"event": "certification_cached_no_claim"})
+                certification = certify_sprint_pool(loaded, lean_workers=1)
+            else:
+                claimed = True
+                _append_stage(
+                    stage_path,
+                    {"event": "resource_claimed", "waits": waits, "lean_workers": claimed_workers},
+                )
+                try:
+                    certification = certify_sprint_pool(loaded, lean_workers=claimed_workers)
+                finally:
+                    release_resources(task=resource_task)
+                    claimed = False
+                    _append_stage(stage_path, {"event": "resource_released"})
             _append_stage(
                 stage_path,
                 {
@@ -1004,7 +1014,9 @@ def launch_sprint_pool_certification(
         "version": "leanfaith_sft2a_sprint_pool_launch_v1",
         "session_started": True,
         "sanitized_command": shlex.join(command),
-        "capacity_recheck": sprint_capacity_check(lean_workers=1, lean_rss_gib=20.0),
+        "capacity_recheck": sprint_capacity_check(
+            lean_workers=1, lean_rss_gib=SHARD_LEAN_RSS_GIB_PER_WORKER
+        ),
         "health": health,
     }
 
