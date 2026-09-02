@@ -1950,6 +1950,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                 max_roots = int(recorded["max_roots"])
             if target_retained is None and isinstance(recorded.get("target_retained"), int):
                 target_retained = int(recorded["target_retained"])
+            if explicit is None and isinstance(recorded.get("explicit_roots"), list):
+                explicit = [str(name) for name in recorded["explicit_roots"]]
         runner = SprintRunner(
             repo_root,
             loaded,
