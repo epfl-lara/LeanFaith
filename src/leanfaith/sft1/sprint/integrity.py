@@ -115,6 +115,19 @@ def _check_evidence(sidecar: Mapping[str, Any], operation: str) -> str | None:
     return None
 
 
+def _pair_id(item: Mapping[str, Any]) -> str:
+    """Pair id of a retained record.
+
+    Five-field rows carry it in the row; three-field model-facing rows keep it in the sidecar.
+    """
+    row = item.get("row") or {}
+    if isinstance(row, Mapping) and row.get("pair_id") is not None:
+        return str(row["pair_id"])
+    sidecar = item["sidecar"]
+    assert isinstance(sidecar, Mapping)
+    return str(sidecar["pair_id"])
+
+
 def validate_view(
     *,
     repo_root: Path,
@@ -140,7 +153,7 @@ def validate_view(
     retained: dict[str, list[dict[str, Any]]] = {}
     for path in sources:
         for item in read_jsonl(path):
-            retained.setdefault(str(item["row"]["pair_id"]), []).append(item)
+            retained.setdefault(_pair_id(item), []).append(item)
     shard_dirs = sorted(compacted_dir.glob("shard-*"))
     total_rows = 0
     seen_pairs: set[str] = set()

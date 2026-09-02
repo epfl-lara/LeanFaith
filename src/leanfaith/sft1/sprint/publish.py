@@ -50,6 +50,26 @@ def _gate_summary(release: Mapping[str, Any] | None) -> list[str]:
     return lines
 
 
+def _square_accounting_lines(manifest: Mapping[str, Any]) -> list[str]:
+    """Square-view build accounting, present only for certificate-closure square views."""
+    if "duplicate_squares_dropped" not in manifest:
+        return []
+    conservation = manifest.get("conservation") or {}
+    return [
+        f"- grouping: {manifest.get('grouping')} (row kinds: "
+        + ", ".join(f"`{k}` {v}" for k, v in sorted((manifest.get("row_kinds") or {}).items()))
+        + ")",
+        f"- duplicate squares dropped whole (Mathlib aliases / identical statements): "
+        f"{manifest.get('duplicate_squares_dropped')} (listed in `duplicate_squares.json`)",
+        f"- degenerate squares dropped: {manifest.get('degenerate_squares_dropped')}",
+        f"- row conservation: screened {conservation.get('screened_rows')} = kept "
+        f"{conservation.get('kept_rows')} + duplicate-square rows "
+        f"{conservation.get('duplicate_square_rows_dropped')} + degenerate rows "
+        f"{conservation.get('degenerate_square_rows_dropped')} "
+        f"(holds: {conservation.get('holds')})",
+    ]
+
+
 def _screen_lines(release: Mapping[str, Any] | None) -> list[str]:
     if release is None:
         return []
@@ -139,12 +159,13 @@ def dataset_card(run_id: str, manifest: dict[str, Any], release: dict[str, Any] 
         f"- retained rows: {manifest.get('retained_rows')}",
         f"- labels: positive {labels.get('positive')}, negative {labels.get('negative')}",
         f"- roots: {manifest.get('roots')}",
-        f"- orientation: {manifest.get('orientation')}"
+        f"- orientation: {manifest.get('orientation') or manifest.get('orientation_rule')}"
         + (
             f" (rule `{manifest.get('orientation_rule')}`)"
-            if manifest.get("orientation_rule")
+            if manifest.get("orientation_rule") and manifest.get("orientation")
             else ""
         ),
+        *_square_accounting_lines(manifest),
         "- operations:",
         *(f"  - `{name}`: {count}" for name, count in sorted(operations.items())),
         *_screen_lines(release),

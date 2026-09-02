@@ -1127,3 +1127,15 @@ def test_select_squares_drops_duplicate_squares_whole_and_conserves_rows() -> No
     assert [r["sidecar"]["root_id"] for r in conflicted.kept] == ["root:c"] * 4
     partial = square.select_squares(a[:3] + c, ())
     assert partial.degenerate_roots == ["root:a"] and len(partial.kept) == 4
+
+
+def test_validator_pair_id_reads_row_then_sidecar() -> None:
+    from leanfaith.sft1.sprint import integrity
+
+    five_field = {"row": {"pair_id": "pair:row"}, "sidecar": {"pair_id": "pair:side"}}
+    three_field = {
+        "row": {"reference": "a", "candidate": "b", "label": True},
+        "sidecar": {"pair_id": "pair:side"},
+    }
+    assert integrity._pair_id(five_field) == "pair:row"
+    assert integrity._pair_id(three_field) == "pair:side"
