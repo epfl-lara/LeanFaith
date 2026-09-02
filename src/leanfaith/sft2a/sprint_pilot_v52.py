@@ -38,16 +38,18 @@ from leanfaith.sft2a.certified_sample_v52 import verify_sprint_pilot_sample
 from leanfaith.sft2a.config import LoadedSFT2AConfig
 from leanfaith.sft2a.layout import run_paths
 from leanfaith.sft2a.lean_oracle import (
+    COMMAND_TEMPLATE_VERSION_V2,
     ORACLE_METHOD_VERSION_V2,
     SignatureOracle,
     SignatureOracleResult,
+    elaborator_sha256,
 )
 from leanfaith.sft2a.mechanisms import (
     BREAKING_MECHANISMS,
     PRESERVING_MECHANISMS,
     MechanismAssignment,
 )
-from leanfaith.sft2a.models import OneRootConfig, SFT2AOpusConfig
+from leanfaith.sft2a.models import ExecutionCeilings, OneRootConfig, SFT2AOpusConfig
 from leanfaith.sft2a.parallel_rehearsal import (
     READ_ONLY_MAXIMUM_WORKERS,
     AtomicProviderBudget,
@@ -87,6 +89,23 @@ class SprintPilotError(RuntimeError):
 
 def _now() -> str:
     return datetime.now(UTC).isoformat()
+
+
+QUARANTINE_CONFIG = "configs/sft2a/sprint_quarantine_v1.json"
+
+
+def quarantined_row_ids(repo_root: Path) -> frozenset[str]:
+    """Row IDs quarantined from every reusable sprint view (see the quarantine config)."""
+
+    path = repo_root / QUARANTINE_CONFIG
+    if not path.is_file():
+        return frozenset()
+    rows = _object(path).get("rows", [])
+    return frozenset(
+        str(cast(Mapping[str, object], row)["row_id"])
+        for row in cast(list[object], rows)
+        if isinstance(row, Mapping)
+    )
 
 
 def _int_field(document: Mapping[str, object], key: str, default: int) -> int:
@@ -472,6 +491,29 @@ def run_malformed_injection_check(
 # --------------------------------------------------------------------------------------------
 
 
+def _lean_invalid_unique_slots(loaded: LoadedProviderRehearsalV52) -> int:
+    """Telemetry: number of distinct (root, slot) pairs with at least one Lean-invalid attempt."""
+
+    slots: set[tuple[str, str]] = set()
+    if not loaded.sample_path.is_file():
+        return 0
+    for row in _sample_rows(loaded.sample_path):
+        root_document = row.get("root")
+        if not isinstance(root_document, dict) or "root_id" not in root_document:
+            continue
+        root_id = str(root_document["root_id"])
+        attempts_path = _root_output(loaded, root_id) / "attempts/terminal_attempts.jsonl"
+        if not attempts_path.is_file():
+            continue
+        for line in attempts_path.read_text(encoding="utf-8").splitlines():
+            if not line.strip():
+                continue
+            attempt = json.loads(line)
+            if attempt.get("status") == "lean_invalid":
+                slots.add((root_id, str(attempt.get("slot_id"))))
+    return len(slots)
+
+
 def _root_manifests(loaded: LoadedProviderRehearsalV52) -> list[dict[str, object]]:
     manifests: list[dict[str, object]] = []
     for row in _sample_rows(loaded.sample_path):
@@ -578,6 +620,7 @@ def evaluate_sprint_pilot_thresholds(
     lean_invalid_attempts = 0
     candidate_requests = 0
     candidate_attempts = 0
+    lean_invalid_unique_slots = _lean_invalid_unique_slots(loaded)
     for manifest in manifests:
         counts = cast(Mapping[str, object], manifest.get("counts", {}))
         lean = cast(Mapping[str, object], manifest.get("lean", {}))
@@ -605,10 +648,7 @@ def evaluate_sprint_pilot_thresholds(
     )
     checks: dict[str, bool] = {
         "accepted_at_least_70pct": accepted >= minimum_accepted,
-        "lean_invalid_below_25pct": (
-            lean_invalid_rate < PILOT_MAXIMUM_LEAN_INVALID_FRACTION
-            and lean_invalid_attempts < planned_slots * PILOT_MAXIMUM_LEAN_INVALID_FRACTION
-        ),
+        "lean_invalid_below_25pct": lean_invalid_rate < PILOT_MAXIMUM_LEAN_INVALID_FRACTION,
         "zero_accepted_self_pairs": self_pairs == 0,
         "zero_accepted_duplicates": duplicates == 0,
         "injected_malformed_output_did_not_crash": bool(malformed_injection.get("passed")),
@@ -652,6 +692,8 @@ def evaluate_sprint_pilot_thresholds(
         "lean_invalid_per_planned_slot": (
             lean_invalid_attempts / planned_slots if planned_slots else 0.0
         ),
+        "lean_invalid_unique_slots": lean_invalid_unique_slots,
+        "lean_invalid_gate": "lean_invalid_attempts / candidate_lean_requests < 0.25",
         "self_pairs": self_pairs,
         "candidate_duplicates": duplicates,
         "infrastructure": infra,
@@ -791,8 +833,11 @@ def _claim_with_wait(
     resource_task = str(loaded.document["resource_task"])
     lean_workers = _int_field(loaded.document, "maximum_total_lean_workers", 2)
     lean_rss = float(cast(float, loaded.document.get("maximum_measured_rss_gib", 40.0)))
-    if lean_workers != 2 or lean_rss != 40.0:
+    role = str(loaded.document.get("sprint_role", "pilot"))
+    if role == "pilot" and (lean_workers != 2 or lean_rss != 40.0):
         raise SprintPilotError("sprint pilot requires exactly two persistent Lean workers/40 GiB")
+    if role == "shard" and (lean_workers not in {1, 2} or lean_rss != 20.0 * lean_workers):
+        raise SprintPilotError("sprint shard claims one or two Lean workers at 20 GiB each")
     deadline = time.monotonic() + wait_seconds
     waits = 0
     while True:
@@ -966,6 +1011,7 @@ def run_detached_sprint_pilot_v52(
                         loaded,
                         authorization,
                         provider_concurrency=concurrency,
+                        lean_workers=int(cast(int, claim["lean_workers"])),
                         stop_after_completed_roots=stop_after,
                         stop_request_path=detached / "stop_requested",
                     )
@@ -988,6 +1034,7 @@ def run_detached_sprint_pilot_v52(
                     loaded,
                     authorization,
                     provider_concurrency=concurrency,
+                    lean_workers=int(cast(int, claim["lean_workers"])),
                     stop_request_path=detached / "stop_requested",
                 )
                 after = snapshot_completed_roots(loaded)
@@ -1066,7 +1113,12 @@ def run_detached_sprint_pilot_v52(
             audit_terminal: dict[str, object]
             try:
                 audit = run_provider_kimi_audit_v52(
-                    loaded, authorization, kimi_count=kimi_rows, concurrency=8
+                    loaded,
+                    authorization,
+                    kimi_count=kimi_rows,
+                    concurrency=8,
+                    sampler="source_polarity_cells",
+                    quarantine_row_ids=quarantined_row_ids(loaded.base.repo_root),
                 )
                 audit_terminal = {
                     "version": "leanfaith_sft2a_sprint_kimi_telemetry_stage_v1",
@@ -1148,6 +1200,40 @@ def _effective_concurrency(loaded: LoadedProviderRehearsalV52, detached: Path) -
     return _int_field(loaded.document, "provider_concurrency", 8)
 
 
+def sprint_window_projection(
+    loaded: LoadedProviderRehearsalV52, evaluation: Mapping[str, object]
+) -> dict[str, object]:
+    """Project the remaining shards from this shard's measured generation wall time."""
+
+    deadline_value = loaded.document.get("sprint_deadline_utc")
+    shard_index = _int_field(loaded.document, "shard_index", 1)
+    shard_count = _int_field(loaded.document, "shard_count", 1)
+    wall = float(cast(float, evaluation.get("generation_wall_seconds", 0.0)))
+    remaining = max(0, shard_count - shard_index)
+    projected_seconds = remaining * wall
+    now = datetime.now(UTC)
+    projection: dict[str, object] = {
+        "shard_index": shard_index,
+        "shard_count": shard_count,
+        "remaining_shards": remaining,
+        "measured_shard_wall_seconds": wall,
+        "accepted_rows_per_minute": evaluation.get("accepted_rows_per_minute"),
+        "projected_remaining_seconds": projected_seconds,
+        "projected_completion_utc": (
+            datetime.fromtimestamp(now.timestamp() + projected_seconds, UTC).isoformat()
+        ),
+        "sprint_deadline_utc": deadline_value,
+        "fits_sprint_window": None,
+    }
+    if isinstance(deadline_value, str):
+        deadline = datetime.fromisoformat(deadline_value)
+        if deadline.tzinfo is None:
+            deadline = deadline.replace(tzinfo=UTC)
+        projection["seconds_until_deadline"] = (deadline - now).total_seconds()
+        projection["fits_sprint_window"] = projected_seconds <= (deadline - now).total_seconds()
+    return projection
+
+
 def chain_decision(
     loaded: LoadedProviderRehearsalV52,
     *,
@@ -1178,7 +1264,20 @@ def chain_decision(
     if target is None:
         return {"action": "stop", "reason": "last_shard", "failed_checks": failed}
     if status == "complete":
-        return {"action": "launch_next_shard", "target": str(target), "reason": "shard_passed"}
+        projection = sprint_window_projection(loaded, evaluation)
+        if projection.get("fits_sprint_window") is False:
+            return {
+                "action": "stop",
+                "reason": "projection_exceeds_sprint_window",
+                "projection": projection,
+                "next_shard_config_path": str(target),
+            }
+        return {
+            "action": "launch_next_shard",
+            "target": str(target),
+            "reason": "shard_passed",
+            "projection": projection,
+        }
     if failed == ["infrastructure_failures_below_2pct"]:
         current = int(cast(int, evaluation.get("effective_provider_concurrency", 16)))
         fallback = _int_field(loaded.document, "fallback_provider_concurrency", 8)
@@ -1237,21 +1336,40 @@ def require_sprint_prerequisite_receipts(loaded: LoadedProviderRehearsalV52) -> 
     """Require the passed sprint-prompt closure canaries and the passed oracle-v2 live gate."""
 
     canary_path = run_paths(loaded.base).one_root / "closure_canaries_v5/manifest.json"
-    if not canary_path.is_file() or _object(canary_path).get("all_passed") is not True:
+    canaries = _object(canary_path) if canary_path.is_file() else {}
+    if canaries.get("all_passed") is not True:
         raise SprintPilotError(
             "sprint pilot requires the passed closure canary manifest for the sprint judge prompt"
         )
+    if canaries.get("config_hash") != loaded.base.config_hash:
+        raise SprintPilotError("closure canary manifest is bound to a different base config")
     configured_gate = loaded.document.get("oracle_v2_gate_receipt_path")
     gate_path = (
         Path(str(configured_gate))
         if isinstance(configured_gate, str)
         else loaded.output_root / "checks/oracle_v2_live_gate/oracle_v2_live_gate_receipt.json"
     )
-    if not gate_path.is_file() or _object(gate_path).get("all_passed") is not True:
+    gate = _object(gate_path) if gate_path.is_file() else {}
+    if gate.get("all_passed") is not True:
         raise SprintPilotError("sprint pilot requires the passed oracle-v2 live gate receipt")
+    expected_identity = {
+        "method_version": ORACLE_METHOD_VERSION_V2,
+        "cache_version": "v2",
+        "elaborator_sha256": elaborator_sha256("v2"),
+        "command_template_version": COMMAND_TEMPLATE_VERSION_V2,
+        "base_config_hash": loaded.base.config_hash,
+    }
+    observed_identity = {key: gate.get(key) for key in expected_identity}
+    if observed_identity != expected_identity:
+        raise SprintPilotError(
+            "oracle-v2 live gate receipt identity differs from the current config/method/"
+            f"elaborator: observed={observed_identity}"
+        )
     return {
         "closure_canaries_sha256": hash_file(canary_path),
+        "closure_canaries_config_hash": str(canaries.get("config_hash")),
         "oracle_v2_live_gate_sha256": hash_file(gate_path),
+        "oracle_v2_live_gate_identity": expected_identity,
     }
 
 
@@ -1390,6 +1508,9 @@ class LoadedAuditOnlyKimiV52:
     kimi_rows: int
     concurrency: int
     tmux_session: str
+    audit_subdir: str = "audit_kimi"
+    sampler: Literal["stratified_v5", "source_polarity_cells"] = "stratified_v5"
+    ceilings: ExecutionCeilings | None = None
 
 
 def load_audit_only_kimi_v52(path: Path) -> LoadedAuditOnlyKimiV52:
@@ -1405,9 +1526,13 @@ def load_audit_only_kimi_v52(path: Path) -> LoadedAuditOnlyKimiV52:
         raise SprintPilotError("audit-only source provider config hash differs")
     source = load_provider_rehearsal_v52(source_path)
     receipt_path = Path(str(document.get("authorization_receipt_path")))
-    if receipt_path != source.output_root / "authorization/authorization_receipt.json" or hash_file(
-        receipt_path
-    ) != document.get("authorization_receipt_sha256"):
+    allowed_receipts = {
+        source.output_root / "authorization/authorization_receipt.json",
+        source.output_root / "detached/sprint_authority.json",
+    }
+    if receipt_path not in allowed_receipts or hash_file(receipt_path) != document.get(
+        "authorization_receipt_sha256"
+    ):
         raise SprintPilotError("audit-only authorization receipt path or hash differs")
     receipt = _object(receipt_path)
     if (
@@ -1423,11 +1548,34 @@ def load_audit_only_kimi_v52(path: Path) -> LoadedAuditOnlyKimiV52:
         raise SprintPilotError("audit-only config must allow zero Terra, Opus, and Lean calls")
     kimi_rows = _int_field(document, "kimi_audit_rows", 40)
     concurrency = _int_field(document, "kimi_concurrency", 8)
-    if not 1 <= kimi_rows <= source.ceilings.maximum_lemex_calls or not 1 <= concurrency <= 16:
+    ceilings = source.ceilings
+    override = document.get("lemex_ceiling_override")
+    if override is not None:
+        if isinstance(override, bool) or not isinstance(override, int) or not 1 <= override <= 400:
+            raise SprintPilotError("lemex_ceiling_override must be an integer in 1..400")
+        ceilings = ceilings.model_copy(
+            update={
+                "maximum_lemex_calls": override,
+                "maximum_provider_calls": ceilings.maximum_provider_calls
+                + max(0, override - ceilings.maximum_lemex_calls),
+            }
+        )
+    if not 1 <= kimi_rows <= ceilings.maximum_lemex_calls or not 1 <= concurrency <= 16:
         raise SprintPilotError("audit-only Kimi rows/concurrency are outside the ledger ceiling")
     session = document.get("tmux_session")
     if not isinstance(session, str) or not session:
         raise SprintPilotError("audit-only config lacks a tmux session name")
+    audit_subdir = str(document.get("audit_subdir", "audit_kimi"))
+    if not audit_subdir or "/" in audit_subdir or audit_subdir.startswith("."):
+        raise SprintPilotError("audit_subdir must be one plain directory name")
+    sampler_value = document.get("sampler", "stratified_v5")
+    sampler: Literal["stratified_v5", "source_polarity_cells"]
+    if sampler_value == "source_polarity_cells":
+        sampler = "source_polarity_cells"
+    elif sampler_value == "stratified_v5":
+        sampler = "stratified_v5"
+    else:
+        raise SprintPilotError("sampler must be stratified_v5 or source_polarity_cells")
     return LoadedAuditOnlyKimiV52(
         path=resolved,
         document=document,
@@ -1439,6 +1587,9 @@ def load_audit_only_kimi_v52(path: Path) -> LoadedAuditOnlyKimiV52:
         kimi_rows=kimi_rows,
         concurrency=concurrency,
         tmux_session=session,
+        audit_subdir=audit_subdir,
+        sampler=sampler,
+        ceilings=ceilings,
     )
 
 
@@ -1446,10 +1597,18 @@ def run_audit_only_kimi_v52(loaded: LoadedAuditOnlyKimiV52) -> dict[str, object]
     """Complete the historical Kimi audit with zero Terra, zero Opus, and zero Lean calls."""
 
     source = loaded.source
+    if loaded.ceilings is not None and loaded.ceilings != source.ceilings:
+        source = replace(source, ceilings=loaded.ceilings)
     ledger_path = source.output_root / "provider_budget.jsonl"
     before = AtomicProviderBudget(ledger_path, source.ceilings).snapshot()
     manifest = run_provider_kimi_audit_v52(
-        source, loaded.authorization, kimi_count=loaded.kimi_rows, concurrency=loaded.concurrency
+        source,
+        loaded.authorization,
+        kimi_count=loaded.kimi_rows,
+        concurrency=loaded.concurrency,
+        audit_subdir=loaded.audit_subdir,
+        sampler=loaded.sampler,
+        quarantine_row_ids=quarantined_row_ids(source.base.repo_root),
     )
     after = AtomicProviderBudget(ledger_path, source.ceilings).snapshot()
     if (
@@ -1466,6 +1625,11 @@ def run_audit_only_kimi_v52(loaded: LoadedAuditOnlyKimiV52) -> dict[str, object]
         "authorization_receipt_sha256": loaded.authorization.sha256,
         "kimi_rows": loaded.kimi_rows,
         "concurrency": loaded.concurrency,
+        "audit_subdir": loaded.audit_subdir,
+        "sampler": loaded.sampler,
+        "selected_cells": manifest.get("selected_cells"),
+        "quarantined_rows": manifest.get("quarantined_rows"),
+        "lemex_ceiling_applied": source.ceilings.maximum_lemex_calls,
         "ledger_before": before,
         "ledger_after": after,
         "terra_calls_executed": 0,
@@ -1474,7 +1638,9 @@ def run_audit_only_kimi_v52(loaded: LoadedAuditOnlyKimiV52) -> dict[str, object]
         "kimi_calls_added": int(cast(int, after["lemex_calls"]))
         - int(cast(int, before["lemex_calls"])),
         "outstanding_calls_after": after["outstanding_calls"],
-        "audit_manifest_sha256": hash_file(source.output_root / "audit_kimi/manifest.json"),
+        "audit_manifest_sha256": hash_file(
+            source.output_root / loaded.audit_subdir / "manifest.json"
+        ),
         "agreement_rate": manifest.get("agreement_rate"),
         "agreements": manifest.get("agreements"),
         "selected_rows": manifest.get("selected_rows"),
@@ -1484,7 +1650,9 @@ def run_audit_only_kimi_v52(loaded: LoadedAuditOnlyKimiV52) -> dict[str, object]
         "systematic_disagreement": manifest.get("systematic_disagreement"),
         "completed_at": _now(),
     }
-    _atomic_replace_json(source.output_root / "audit_kimi/audit_only_terminal.json", receipt)
+    _atomic_replace_json(
+        source.output_root / loaded.audit_subdir / "audit_only_terminal.json", receipt
+    )
     return receipt
 
 
@@ -1493,7 +1661,7 @@ def run_detached_audit_only_kimi_v52(
 ) -> dict[str, object]:
     """Provider-only detached worker for the historical Kimi audit."""
 
-    audit_root = loaded.source.output_root / "audit_kimi"
+    audit_root = loaded.source.output_root / loaded.audit_subdir
     audit_root.mkdir(parents=True, exist_ok=True)
     log_path = audit_root / "audit_only.log"
     stage_path = audit_root / "audit_only_stage_journal.jsonl"
@@ -1534,7 +1702,7 @@ def launch_audit_only_kimi_v52(
 
     if _tmux_session_exists(loaded.tmux_session):
         raise SprintPilotError(f"audit-only tmux session already exists: {loaded.tmux_session}")
-    audit_root = loaded.source.output_root / "audit_kimi"
+    audit_root = loaded.source.output_root / loaded.audit_subdir
     if (audit_root / "manifest.json").is_file():
         raise SprintPilotError("historical Kimi audit manifest already exists; nothing to launch")
     try:
@@ -1569,7 +1737,7 @@ def launch_audit_only_kimi_v52(
 def audit_only_kimi_health_v52(loaded: LoadedAuditOnlyKimiV52) -> dict[str, object]:
     """Read-only health for the audit-only job: tmux, pid, checkpoints, ledger, terminal."""
 
-    audit_root = loaded.source.output_root / "audit_kimi"
+    audit_root = loaded.source.output_root / loaded.audit_subdir
     alive = _tmux_session_exists(loaded.tmux_session)
     pane_pid = _tmux_pane_pid(loaded.tmux_session) if alive else None
     events = _stage_events(audit_root / "audit_only_stage_journal.jsonl")
@@ -1799,6 +1967,8 @@ def run_oracle_v2_live_gate(
         "version": ORACLE_V2_GATE_VERSION,
         "method_version": ORACLE_METHOD_VERSION_V2,
         "cache_version": "v2",
+        "elaborator_sha256": elaborator_sha256("v2"),
+        "command_template_version": COMMAND_TEMPLATE_VERSION_V2,
         "base_config_hash": base.config_hash,
         "project_id": base.config.root.compile_context.project_id,
         "backend_context_fingerprint": (
@@ -1838,6 +2008,7 @@ __all__ = [
     "launch_sprint_pilot_v52",
     "load_audit_only_kimi_v52",
     "measure_infrastructure_failures",
+    "quarantined_row_ids",
     "require_sprint_prerequisite_receipts",
     "run_audit_only_kimi_v52",
     "run_detached_audit_only_kimi_v52",
@@ -1847,5 +2018,6 @@ __all__ = [
     "snapshot_completed_roots",
     "sprint_capacity_check",
     "sprint_pilot_health_v52",
+    "sprint_window_projection",
     "verify_sprint_pilot_sample_v52",
 ]

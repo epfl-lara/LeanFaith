@@ -72,6 +72,7 @@ from leanfaith.sft2a.sprint_pilot_v52 import (
     launch_audit_only_kimi_v52,
     launch_sprint_pilot_v52,
     load_audit_only_kimi_v52,
+    quarantined_row_ids,
     run_audit_only_kimi_v52,
     run_detached_audit_only_kimi_v52,
     run_detached_sprint_pilot_v52,
@@ -81,6 +82,7 @@ from leanfaith.sft2a.sprint_pilot_v52 import (
     verify_sprint_pilot_sample_v52,
 )
 from leanfaith.sft2a.sprint_scale_v52 import (
+    compact_sprint_shards,
     freeze_sprint_shards,
     launch_sprint_pool_certification,
     load_sprint_pool_config,
@@ -107,6 +109,7 @@ SPRINT_POOL_COMMANDS = frozenset(
         "detached-sprint-pool-certification-worker",
         "sprint-pool-certification-health",
         "freeze-sprint-shards",
+        "compact-sprint-shards",
     }
 )
 AUDIT_ONLY_COMMANDS = frozenset(
@@ -455,6 +458,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     elif arguments.command == "freeze-sprint-shards":
         assert pool_loaded is not None
         result = freeze_sprint_shards(pool_loaded)
+    elif arguments.command == "compact-sprint-shards":
+        assert pool_loaded is not None
+        result = compact_sprint_shards(
+            pool_loaded, quarantine_row_ids=quarantined_row_ids(pool_loaded.base.repo_root)
+        )
     elif arguments.command == "verify-replay":
         result = verify_one_root_replay(loaded)
     elif arguments.command == "run-lemex-audit":

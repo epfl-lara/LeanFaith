@@ -1,4 +1,4 @@
-"""Closure-aware judge parsing and one-retry malformed-output taxonomy for v5."""
+"""Closure-aware judge parsing: schema-only single retry; lexical checks are telemetry."""
 
 from __future__ import annotations
 
@@ -34,6 +34,7 @@ class ConsistentJudgeResult:
     calls: tuple[ProviderCallResult, ...]
     malformed_attempts: tuple[dict[str, object], ...]
     final_prompt: str
+    lexical_contradiction: str | None = None
 
     @property
     def malformed_retries(self) -> int:
@@ -41,7 +42,12 @@ class ConsistentJudgeResult:
 
 
 def verdict_rationale_contradiction(judgment: JudgeOutput | JudgeOutputV5) -> str | None:
-    """Detect explicit verdict/rationale polarity contradictions, not mere uncertainty."""
+    """Telemetry-only lexical check for verdict/rationale polarity contradictions.
+
+    The structured schema and verdict are authoritative. This regex signal is recorded in the
+    sidecar for later inspection and never triggers a paid retry; phrases such as "do not
+    express the same claim" are exactly the kind of negated wording it cannot parse reliably.
+    """
 
     rationale = " ".join(judgment.rationale.split())
     if judgment.verdict == "equivalent" and _NEGATIVE_RATIONALE.search(rationale):
@@ -64,7 +70,11 @@ def call_consistent_judge(
     closure_aware: bool,
     malformed_retries: int,
 ) -> ConsistentJudgeResult:
-    """Retry only malformed schema/contradiction output; never relabel a disagreement."""
+    """Retry only schema-invalid output, at most ``malformed_retries`` times.
+
+    A judgment that validates against the strict schema is accepted as returned; a lexical
+    verdict/rationale contradiction is attached as telemetry, never relabeled or retried.
+    """
 
     calls: list[ProviderCallResult] = []
     malformed: list[dict[str, object]] = []
@@ -75,8 +85,6 @@ def call_consistent_judge(
             input_ids=(*input_ids, f"malformed_retry:{retry_index}"),
         )
         calls.append(call)
-        reason: str | None = None
-        judgment: JudgeOutput | JudgeOutputV5 | None = None
         try:
             judgment = _parse(call.structured, closure_aware=closure_aware)
         except ValidationError as exc:
@@ -85,14 +93,13 @@ def call_consistent_judge(
                 for err in exc.errors(include_input=False, include_url=False)
             )
             reason = f"schema:{type(exc).__name__}:{details}"
-        if judgment is not None:
-            reason = verdict_rationale_contradiction(judgment)
-        if reason is None:
+        else:
             return ConsistentJudgeResult(
                 judgment=judgment,
                 calls=tuple(calls),
                 malformed_attempts=tuple(malformed),
                 final_prompt=active_prompt,
+                lexical_contradiction=verdict_rationale_contradiction(judgment),
             )
         malformed.append(
             {
@@ -117,6 +124,7 @@ def call_consistent_judge(
         calls=tuple(calls),
         malformed_attempts=tuple(malformed),
         final_prompt=active_prompt,
+        lexical_contradiction=None,
     )
 
 

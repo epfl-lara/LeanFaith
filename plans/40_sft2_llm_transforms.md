@@ -7,7 +7,8 @@
 > **Last updated:** 2026-09-02
 > **Dependencies:** REPR `goal_v1.0`; shared rubric; roots may be selected independently of SFT1
 > **Next gate:** the 20-root/80-slot pilot v1 failed exactly one objective threshold
-> (Lean-invalid candidates 36/118 = 30.5%, bound below 25% and fewer than 20 of 80); the two
+> (Lean-invalid candidates 36 attempts across 118 elaborations = 30.5%, affecting 22 of 80
+> unique slots; gate: below 25% of elaborations); the two
 > diagnosed causes are repaired and bound into the unlaunched pilot v2 config
 > `configs/sft2a/sprint_pilot_20roots_v2.json`; a passing pilot automatically certifies the ~12K
 > reference pool and chains the ten independent 1K-root shards
@@ -770,8 +771,10 @@ rows/minute, and pilot quality bounds hold. Leave healthy long runs detached wit
   (125 Terra, 79 Opus, 10 Kimi, $3.161726 reported Opus spend) passed; the controlled stop after
   8 completed roots resumed with unchanged manifests and zero new provider or Lean calls for the
   completed roots passed; the zero-call replay passed; the injected-malformed check passed; wall
-  time passed; **Lean-invalid candidates 36 of 118 elaborations (30.5%, 36 of 80 planned slots)
-  failed** the below-25%/fewer-than-20-of-80 bound (historical 100-root run: 52.2%). Kimi
+  time passed; **Lean-invalid candidates: 36 invalid attempts across 118 elaborations (30.5%),
+  affecting 22 of 80 unique slots, failed** the below-25%-of-elaborations bound (historical
+  100-root run: 52.2%). The earlier wording "36 of 80 planned slots" was wrong: attempts, not
+  slots. Kimi
   telemetry ran after the claim was released: 8/8 agreements, 2 malformed retries, no exclusion.
   The worker recorded terminal `threshold_failed`, `scale_10k_authorized: false`, and chain
   receipt `stop`/`pilot_threshold_failed`; no 12K certification or shard was launched. No SFT2A

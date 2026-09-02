@@ -163,6 +163,12 @@ def load_sprint_pool_config(path: Path) -> LoadedSprintPoolConfig:
         raise SprintScaleError(
             "sprint certification requires two workers/40 GiB and zero provider calls"
         )
+    deadline = shards.get("sprint_deadline_utc")
+    if deadline is not None:
+        try:
+            datetime.fromisoformat(str(deadline))
+        except ValueError as exc:
+            raise SprintScaleError("shards.sprint_deadline_utc is not ISO-8601") from exc
     return LoadedSprintPoolConfig(
         path=resolved,
         document=document,
@@ -594,11 +600,14 @@ def freeze_sprint_shards(loaded: LoadedSprintPoolConfig) -> dict[str, object]:
             "provider_output_root": str(config_path.parent / "run"),
             "tmux_session": f"leanfaith-sft2a-sprint-shard-{shard_index + 1:02d}",
             "resource_task": f"SFT2A-SPRINT-SHARD-{shard_index + 1:02d}",
-            "maximum_root_workers": 2,
-            "maximum_total_lean_workers": 2,
-            "maximum_measured_rss_gib": 40.0,
+            "maximum_root_workers": 1,
+            "maximum_total_lean_workers": 1,
+            "maximum_measured_rss_gib": 20.0,
+            "lean_worker_policy": "single_cooperative_worker_leaves_one_for_sft1_sft2b",
             "controlled_stop_after_completed_roots": 0,
             "oracle_v2_gate_receipt_path": str(loaded.document["oracle_v2_gate_receipt_path"]),
+            "shared_candidate_registry_path": str(shard_root / "candidate_registry_shared.jsonl"),
+            "sprint_deadline_utc": shards.get("sprint_deadline_utc"),
             "next_shard_config_path": None if next_path is None else str(next_path),
             "legacy_rejudge_authorized": False,
             "publication_authorized": False,
@@ -628,6 +637,138 @@ def freeze_sprint_shards(loaded: LoadedSprintPoolConfig) -> dict[str, object]:
     for config_path in config_paths:
         load_provider_rehearsal_v52(config_path)
     return manifest
+
+
+# --------------------------------------------------------------------------------------------
+# Deterministic combined compaction with cross-shard deduplication
+# --------------------------------------------------------------------------------------------
+
+
+def _dedup_keys(sidecar: Mapping[str, object]) -> tuple[str, str, str]:
+    raw = " ".join(str(sidecar.get("raw_candidate_signature", "")).split())
+    candidate_record = cast(Mapping[str, object], sidecar.get("candidate_repr") or {}).get("record")
+    rendered = (
+        str(cast(Mapping[str, object], candidate_record).get("goal_v1", ""))
+        if isinstance(candidate_record, Mapping)
+        else ""
+    )
+    return (
+        "raw:" + hash_canonical(raw),
+        "rendered:" + signature_near_dup_hash(rendered),
+        "closed_expr:" + str(sidecar.get("candidate_closed_expr_hash")),
+    )
+
+
+def compact_sprint_shards(
+    loaded: LoadedSprintPoolConfig, *, quarantine_row_ids: frozenset[str] = frozenset()
+) -> dict[str, object]:
+    """Merge every completed shard into one deduplicated, deterministic release view.
+
+    Rows are taken shard by shard in shard order; a row whose raw signature, rendered goal
+    near-duplicate key, or closed Expr hash was already seen in an earlier shard (or earlier in
+    the same shard) is dropped as a cross-shard duplicate. Rows quarantined by
+    ``configs/sft2a/sprint_quarantine_v1.json`` and rows excluded by each shard's Kimi
+    telemetry are removed from the releasable view. Zero Lean and zero provider calls.
+    """
+
+    shard_root = loaded.shard_root
+    shards_manifest = _object(shard_root / "shards_manifest.json")
+    core_rows: list[dict[str, object]] = []
+    sidecar_rows: list[dict[str, object]] = []
+    seen: dict[str, str] = {}
+    per_shard: list[dict[str, object]] = []
+    duplicates: list[dict[str, object]] = []
+    excluded_quarantine = 0
+    excluded_audit = 0
+    for receipt in cast(list[dict[str, object]], shards_manifest["shards"]):
+        run_root = Path(str(receipt["provider_config_path"])).parent / "run"
+        compacted = run_root / "compacted"
+        if not (compacted / "manifest.json").is_file():
+            per_shard.append({"shard": receipt["shard"], "status": "incomplete", "rows": 0})
+            continue
+        audit_excluded: set[str] = set()
+        audit_rows_path = run_root / "audit_kimi/audit_rows.jsonl"
+        if audit_rows_path.is_file():
+            for row in _jsonl(audit_rows_path):
+                if row.get("action") != "retain":
+                    audit_excluded.add(str(row["row_id"]))
+        core = _jsonl(compacted / "new_core/core.jsonl")
+        sidecars = _jsonl(compacted / "new_core/sidecar.jsonl")
+        kept = 0
+        for core_row, sidecar in zip(core, sidecars, strict=True):
+            row_id = str(sidecar["row_id"])
+            if row_id in quarantine_row_ids:
+                excluded_quarantine += 1
+                continue
+            if row_id in audit_excluded:
+                excluded_audit += 1
+                continue
+            keys = _dedup_keys(sidecar)
+            prior = next((seen[key] for key in keys if key in seen), None)
+            if prior is not None:
+                duplicates.append(
+                    {"row_id": row_id, "duplicate_of": prior, "shard": receipt["shard"]}
+                )
+                continue
+            for key in keys:
+                seen[key] = row_id
+            core_rows.append(dict(core_row))
+            sidecar_rows.append({**sidecar, "sprint_shard": receipt["shard"]})
+            kept += 1
+        per_shard.append(
+            {
+                "shard": receipt["shard"],
+                "status": "complete",
+                "rows": len(core),
+                "kept": kept,
+                "audit_excluded": len(audit_excluded),
+            }
+        )
+    order = sorted(range(len(sidecar_rows)), key=lambda index: str(sidecar_rows[index]["row_id"]))
+    core_rows = [core_rows[index] for index in order]
+    sidecar_rows = [sidecar_rows[index] for index in order]
+    output = shard_root / "combined"
+    output.mkdir(parents=True, exist_ok=True)
+    _atomic_replace_json_bytes(output / "core.jsonl", _jsonl_bytes(core_rows))
+    _atomic_replace_json_bytes(output / "sidecar.jsonl", _jsonl_bytes(sidecar_rows))
+    _atomic_replace_json_bytes(output / "cross_shard_duplicates.jsonl", _jsonl_bytes(duplicates))
+    manifest: dict[str, object] = {
+        "version": "leanfaith_sft2a_sprint_combined_compaction_v1",
+        "pool_config_sha256": loaded.sha256,
+        "shards": per_shard,
+        "completed_shards": sum(item["status"] == "complete" for item in per_shard),
+        "rows_before_dedup": sum(int(cast(int, item.get("rows", 0))) for item in per_shard),
+        "cross_shard_duplicates": len(duplicates),
+        "excluded_quarantined": excluded_quarantine,
+        "excluded_by_kimi_telemetry": excluded_audit,
+        "rows": len(core_rows),
+        "positive_rows": sum(bool(row["label"]) for row in core_rows),
+        "negative_rows": sum(not bool(row["label"]) for row in core_rows),
+        "core_sha256": hash_file(output / "core.jsonl"),
+        "sidecar_sha256": hash_file(output / "sidecar.jsonl"),
+        "deterministic": True,
+        "lean_requests_executed": 0,
+        "provider_calls_executed": 0,
+        "published": False,
+    }
+    _atomic_replace_json(output / "manifest.json", manifest)
+    return manifest
+
+
+def _atomic_replace_json_bytes(path: Path, payload: bytes) -> None:
+    import tempfile
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    descriptor, temporary = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
+    try:
+        with os.fdopen(descriptor, "wb") as handle:
+            handle.write(payload)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temporary, path)
+    finally:
+        if os.path.exists(temporary):
+            os.unlink(temporary)
 
 
 # --------------------------------------------------------------------------------------------
@@ -664,38 +805,49 @@ def run_detached_sprint_pool_certification_worker(
             _append_stage(stage_path, {"event": "pool_prepared", "roots": pool["root_count"]})
             waits = 0
             deadline = time.monotonic() + wait_for_capacity_seconds
+            claimed_workers = 0
             while True:
-                try:
-                    claim_resources(
-                        task=resource_task,
-                        lean_workers=2,
-                        lean_rss_gib=40.0,
-                        gpu=False,
-                        pid=os.getpid(),
-                        owner_session=str(loaded.document["tmux_session"]),
-                        worktree=loaded.base.repo_root,
-                    )
-                except ReservationError as exc:
-                    if "cap exceeded" not in str(exc) or time.monotonic() >= deadline:
-                        raise
-                    if waits % 10 == 0:
-                        _append_stage(
-                            stage_path,
-                            {
-                                "event": "waiting_for_lean_capacity",
-                                "capacity": sprint_capacity_check(
-                                    lean_workers=2, lean_rss_gib=40.0
-                                ),
-                            },
+                # Cooperative claim: take both workers only when both are free right now;
+                # otherwise take one so SFT1/SFT2B Lean work is never starved by certification.
+                claimed_workers = 0
+                for workers in (2, 1):
+                    try:
+                        claim_resources(
+                            task=resource_task,
+                            lean_workers=workers,
+                            lean_rss_gib=20.0 * workers,
+                            gpu=False,
+                            pid=os.getpid(),
+                            owner_session=str(loaded.document["tmux_session"]),
+                            worktree=loaded.base.repo_root,
                         )
-                    waits += 1
-                    time.sleep(capacity_poll_seconds)
-                    continue
-                break
+                    except ReservationError as exc:
+                        if "cap exceeded" not in str(exc):
+                            raise
+                        continue
+                    claimed_workers = workers
+                    break
+                if claimed_workers:
+                    break
+                if time.monotonic() >= deadline:
+                    raise SprintScaleError("Lean capacity unavailable for the certification")
+                if waits % 10 == 0:
+                    _append_stage(
+                        stage_path,
+                        {
+                            "event": "waiting_for_lean_capacity",
+                            "capacity": sprint_capacity_check(lean_workers=1, lean_rss_gib=20.0),
+                        },
+                    )
+                waits += 1
+                time.sleep(capacity_poll_seconds)
             claimed = True
-            _append_stage(stage_path, {"event": "resource_claimed", "waits": waits})
+            _append_stage(
+                stage_path,
+                {"event": "resource_claimed", "waits": waits, "lean_workers": claimed_workers},
+            )
             try:
-                certification = certify_sprint_pool(loaded, lean_workers=2)
+                certification = certify_sprint_pool(loaded, lean_workers=claimed_workers)
             finally:
                 release_resources(task=resource_task)
                 claimed = False
@@ -801,7 +953,7 @@ def launch_sprint_pool_certification(
         "version": "leanfaith_sft2a_sprint_pool_launch_v1",
         "session_started": True,
         "sanitized_command": shlex.join(command),
-        "capacity_recheck": sprint_capacity_check(lean_workers=2, lean_rss_gib=40.0),
+        "capacity_recheck": sprint_capacity_check(lean_workers=1, lean_rss_gib=20.0),
         "health": health,
     }
 
@@ -845,6 +997,7 @@ __all__ = [
     "LoadedSprintPoolConfig",
     "SprintScaleError",
     "certify_sprint_pool",
+    "compact_sprint_shards",
     "freeze_sprint_shards",
     "launch_sprint_pool_certification",
     "load_sprint_pool_config",

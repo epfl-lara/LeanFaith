@@ -879,11 +879,13 @@ def test_sprint_v2_config_binds_closure_rule_proposer_prompt() -> None:
     from leanfaith.sft2a.models import SlotConfig
     from leanfaith.sft2a.prompts import render_proposer_prompt
 
-    loaded = load_sft2a_config(Path("configs/sft2a/closure_aware_v5_2_sprint_v2.yaml"))
-    assert loaded.config.prompts.codex_proposer.path == "prompts/sft2a/codex_proposer_sprint_v1.txt"
+    loaded = load_sft2a_config(Path("configs/sft2a/closure_aware_v5_2_sprint_v3.yaml"))
+    assert loaded.config.prompts.codex_proposer.path == "prompts/sft2a/codex_proposer_sprint_v2.txt"
     assert loaded.config.prompts.blinded_claude_judge.path == (
-        "prompts/sft2a/blinded_judge_sprint_v1.txt"
+        "prompts/sft2a/blinded_judge_sprint_v2.txt"
     )
+    assert "universe specialization or generalization changes the claim" in loaded.proposer_prompt
+    assert "Universe specialization or generalization changes the claim" in loaded.judge_prompt
     assert "CLOSURE RULES" in loaded.proposer_prompt
     assert "u_0" in loaded.proposer_prompt and "coercion" in loaded.proposer_prompt
     slot = SlotConfig(
@@ -898,5 +900,5 @@ def test_sprint_v2_config_binds_closure_rule_proposer_prompt() -> None:
     assert "x : ℕ" in rendered and "{{" not in rendered
     pilot = load_provider_rehearsal_v52(Path("configs/sft2a/sprint_pilot_20roots_v2.json"))
     assert pilot.kind == "sprint"
-    assert pilot.base.path.name == "closure_aware_v5_2_sprint_v2.yaml"
+    assert pilot.base.path.name == "closure_aware_v5_2_sprint_v3.yaml"
     assert pilot.output_root.name == "sprint_pilot_20roots_run_v2"

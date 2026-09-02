@@ -278,6 +278,36 @@ def _attempt_record(
     }
 
 
+def _canonical_level_params(result: SignatureOracleResult) -> tuple[str, ...]:
+    """Canonical universe profile of a rendered REPR result (empty when not recorded)."""
+
+    sidecar = result.sidecar
+    record = None if sidecar is None else sidecar.get("record")
+    provenance = record.get("provenance") if isinstance(record, dict) else None
+    levels = provenance.get("canonical_level_params") if isinstance(provenance, dict) else None
+    if levels is None:
+        return ()
+    if not isinstance(levels, list) or any(not isinstance(level, str) for level in levels):
+        raise OneRootPipelineError("REPR canonical_level_params is malformed")
+    return tuple(levels)
+
+
+def universe_profile_mismatch(
+    reference: SignatureOracleResult, candidate: SignatureOracleResult
+) -> str | None:
+    """Detail text when a candidate changes the reference's canonical universe profile."""
+
+    reference_levels = _canonical_level_params(reference)
+    candidate_levels = _canonical_level_params(candidate)
+    if reference_levels == candidate_levels:
+        return None
+    return (
+        "preserving candidate changed the universe profile: "
+        f"reference={list(reference_levels)} candidate={list(candidate_levels)}; universe "
+        "specialization or generalization changes the claim and is not representational"
+    )
+
+
 def _closed_expr_hash(result: SignatureOracleResult) -> str:
     sidecar = result.sidecar
     record = None if sidecar is None else sidecar.get("record")
@@ -619,6 +649,37 @@ def run_one_root(
                         feedback = _feedback("self_pair_rejected", detail)
                         continue
 
+                if closure_aware and slot.requested_polarity == "preserving":
+                    universe_detail = universe_profile_mismatch(reference, lean)
+                    if universe_detail is not None:
+                        record = _attempt_record(
+                            root_id=loaded.config.root.root_id,
+                            slot=slot,
+                            attempt_number=attempt_number,
+                            status="universe_mismatch_rejected",
+                            proposer_call=proposer_call,
+                            proposer=proposal,
+                            lean=lean,
+                            judge_call=None,
+                            judge=None,
+                            detail=universe_detail,
+                        )
+                        record["proposer_prompt_hash"] = prompt_hash(proposer_prompt)
+                        record["reference_canonical_level_params"] = list(
+                            _canonical_level_params(reference)
+                        )
+                        record["candidate_canonical_level_params"] = list(
+                            _canonical_level_params(lean)
+                        )
+                        record["planned_mechanism"] = (
+                            None if assignment is None else assignment.to_dict()
+                        )
+                        attempts.append(record)
+                        invalid_rows.append(record)
+                        _append_event(journal_path, record)
+                        feedback = _feedback("universe_mismatch_rejected", universe_detail)
+                        continue
+
                 rendered_candidate_hit, rendered_candidate_hash = _gold_signature_hit(
                     lean.goal_v1, blocked_hashes
                 )
@@ -653,6 +714,7 @@ def run_one_root(
                     statement_b=lean.goal_v1,
                 )
                 judge_malformed: list[dict[str, object]] = []
+                judge_lexical: str | None = None
                 if closure_aware:
                     consistent = call_consistent_judge(
                         judge_client,
@@ -667,6 +729,7 @@ def run_one_root(
                     )
                     all_provider_calls.extend(consistent.calls)
                     judge_malformed = list(consistent.malformed_attempts)
+                    judge_lexical = consistent.lexical_contradiction
                     if consistent.judgment is None:
                         detail = "Claude returned malformed output twice"
                         record = _attempt_record(
@@ -822,6 +885,7 @@ def run_one_root(
                 record["judge_prompt_hash"] = prompt_hash(judge_prompt)
                 record["row_id"] = row_id
                 record["judge_malformed_attempts"] = judge_malformed
+                record["judge_lexical_contradiction"] = judge_lexical
                 record["planned_mechanism"] = None if assignment is None else assignment.to_dict()
                 if mechanism_mismatch is not None:
                     record["mechanism_mismatch"] = mechanism_mismatch
@@ -856,6 +920,7 @@ def run_one_root(
                             _closed_expr_hash(lean) if closure_aware else None
                         ),
                         "judge_malformed_attempts": judge_malformed,
+                        "judge_lexical_contradiction": judge_lexical,
                     }
                 )
                 _append_event(journal_path, record)
@@ -948,6 +1013,12 @@ def run_one_root(
             {
                 "self_pairs_rejected": sum(
                     row.get("status") == "self_pair_rejected" for row in invalid_rows
+                ),
+                "universe_mismatch_rejections": sum(
+                    row.get("status") == "universe_mismatch_rejected" for row in invalid_rows
+                ),
+                "judge_lexical_contradictions": sum(
+                    isinstance(row.get("judge_lexical_contradiction"), str) for row in attempts
                 ),
                 "shortcut_rejections": sum(
                     row.get("status") == "shortcut_rejected" for row in invalid_rows

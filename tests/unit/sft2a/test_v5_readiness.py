@@ -327,9 +327,32 @@ def test_malformed_verdict_rationale_retries_once_but_disagreement_does_not(
         closure_aware=True,
         malformed_retries=1,
     )
+    # The structured verdict is authoritative: a lexical verdict/rationale contradiction is
+    # recorded as telemetry and never buys a paid retry.
     assert recovered.judgment is not None
-    assert len(recovered.calls) == 2
-    assert len(recovered.malformed_attempts) == 1
+    assert len(recovered.calls) == 1
+    assert recovered.malformed_attempts == ()
+    assert recovered.lexical_contradiction == "equivalent_verdict_with_non_equivalent_rationale"
+
+    schema_invalid = ScriptedProvider(
+        tmp_path,
+        "judge",
+        [
+            {**_judge("equivalent", "They are logically equivalent."), "confidence": "low"},
+            _judge("equivalent", "They are logically equivalent over the full closure."),
+        ],
+    )
+    retried = call_consistent_judge(
+        schema_invalid,
+        prompt="judge",
+        input_ids=("row",),
+        closure_aware=True,
+        malformed_retries=1,
+    )
+    assert retried.judgment is not None
+    assert len(retried.calls) == 2
+    assert len(retried.malformed_attempts) == 1
+    assert retried.lexical_contradiction is None
 
     disagreement = ScriptedProvider(
         tmp_path,

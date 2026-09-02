@@ -10,7 +10,7 @@ import sys
 import tempfile
 import threading
 from collections import Counter, defaultdict
-from collections.abc import Callable, Iterator, Mapping
+from collections.abc import Callable, Iterator, Mapping, Sequence
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from contextlib import contextmanager
 from dataclasses import dataclass, replace
@@ -207,14 +207,37 @@ def load_provider_rehearsal_v52(path: Path) -> LoadedProviderRehearsalV52:
             raise ProviderRehearsalV52Error(
                 "sprint pilot ceiling maximum_roots must match sample size"
             )
-        if (
-            document.get("maximum_root_workers") != 2
-            or document.get("maximum_total_lean_workers") != 2
-            or document.get("maximum_measured_rss_gib") != 40.0
+        role = document.get("sprint_role", "pilot")
+        if role not in {"pilot", "shard"}:
+            raise ProviderRehearsalV52Error("sprint_role must be pilot or shard")
+        workers = document.get("maximum_total_lean_workers")
+        if role == "pilot":
+            if (
+                document.get("maximum_root_workers") != 2
+                or workers != 2
+                or document.get("maximum_measured_rss_gib") != 40.0
+            ):
+                raise ProviderRehearsalV52Error(
+                    "sprint pilot requires exactly two persistent Lean workers and 40 GiB RSS"
+                )
+        elif (
+            isinstance(workers, bool)
+            or workers not in {1, 2}
+            or document.get("maximum_root_workers") != workers
+            or document.get("maximum_measured_rss_gib") != 20.0 * int(cast(int, workers))
         ):
             raise ProviderRehearsalV52Error(
-                "sprint pilot requires exactly two persistent Lean workers and 40 GiB RSS"
+                "sprint shard requires one or two persistent Lean workers at 20 GiB each"
             )
+        registry_path = document.get("shared_candidate_registry_path")
+        if registry_path is not None and (not isinstance(registry_path, str) or not registry_path):
+            raise ProviderRehearsalV52Error("shared_candidate_registry_path must be a path")
+        deadline = document.get("sprint_deadline_utc")
+        if deadline is not None:
+            try:
+                datetime.fromisoformat(str(deadline))
+            except ValueError as exc:
+                raise ProviderRehearsalV52Error("sprint_deadline_utc is not ISO-8601") from exc
         concurrency = document.get("provider_concurrency")
         if (
             isinstance(concurrency, bool)
@@ -222,9 +245,6 @@ def load_provider_rehearsal_v52(path: Path) -> LoadedProviderRehearsalV52:
             or not (1 <= concurrency <= 64)
         ):
             raise ProviderRehearsalV52Error("sprint pilot provider_concurrency must be 1..64")
-        role = document.get("sprint_role", "pilot")
-        if role not in {"pilot", "shard"}:
-            raise ProviderRehearsalV52Error("sprint_role must be pilot or shard")
         if role == "pilot":
             kimi_rows = document.get("kimi_audit_rows")
             if (
@@ -1054,6 +1074,7 @@ def run_two_provider_workers_v52(
     stop_after_completed_roots: int | None = None,
     stop_request_path: Path | None = None,
     enforce_closure_canaries: bool = True,
+    registry_path: Path | None = None,
 ) -> list[dict[str, object]]:
     """Dynamic as_completed root queue over exactly ``lean_workers`` persistent oracles.
 
@@ -1093,7 +1114,14 @@ def run_two_provider_workers_v52(
         ),
         reclaim_from_worker=worker_tag,
     )
-    registry = PersistentCandidateRegistry(loaded.output_root / "candidate_registry.jsonl")
+    configured_registry = loaded.document.get("shared_candidate_registry_path")
+    registry = PersistentCandidateRegistry(
+        registry_path
+        if registry_path is not None
+        else Path(str(configured_registry))
+        if isinstance(configured_registry, str) and configured_registry
+        else loaded.output_root / "candidate_registry.jsonl"
+    )
     states = ParallelRootStateMachine(
         loaded.output_root / "root_state.jsonl", maximum_workers=provider_concurrency
     )
@@ -1222,9 +1250,77 @@ def run_two_provider_workers_v52(
             "oracle_pool": dict(oracle_pool.stats),
             "provider_budget": ledger.snapshot(),
             "candidate_registry": registry.snapshot(),
+            "candidate_registry_path": str(registry.path),
             "authorization_receipt_sha256": authorization.sha256,
         }
     ]
+
+
+def sprint_audit_selection(
+    sidecars: Sequence[Mapping[str, object]],
+    count: int,
+    *,
+    salt: str = "sft2a-sprint-kimi-source-polarity-cells-v1",
+) -> list[int]:
+    """Deterministic source-by-polarity cell sampler for sprint Kimi telemetry.
+
+    Rows are grouped into the eight cells Mathlib/Physlib/CSLib/compiler-data by preserving/
+    breaking. The sampler walks the cells round-robin in that fixed order, so an eight-row audit
+    takes exactly one row from every non-empty cell; larger audits keep the per-cell balance and
+    diversify by planned mechanism family inside each cell (families and rows are ordered by a
+    salted hash of the row ID). Returns positions into ``sidecars``.
+    """
+
+    if count < 0:
+        raise ProviderRehearsalV52Error("Kimi audit count must be non-negative")
+    families_by_cell: dict[tuple[str, str], dict[str, list[tuple[str, int]]]] = {}
+    for index, row in enumerate(sidecars):
+        source = str(row["root_id"]).split(":", maxsplit=1)[0]
+        polarity = str(row["requested_polarity"])
+        planned = row.get("planned_mechanism")
+        family = str(planned.get("family")) if isinstance(planned, dict) else "missing"
+        rank = hash_canonical({"salt": salt, "row_id": row["row_id"]})
+        families_by_cell.setdefault((source, polarity), {}).setdefault(family, []).append(
+            (rank, index)
+        )
+    sequences: dict[tuple[str, str], list[int]] = {}
+    for cell, families in families_by_cell.items():
+        for ranked in families.values():
+            ranked.sort()
+        family_order = sorted(families, key=lambda name: (families[name][0][0], name))
+        sequence: list[int] = []
+        cursor = 0
+        while True:
+            progressed = False
+            for name in family_order:
+                if cursor < len(families[name]):
+                    sequence.append(families[name][cursor][1])
+                    progressed = True
+            if not progressed:
+                break
+            cursor += 1
+        sequences[cell] = sequence
+    cell_order = [
+        (source, polarity)
+        for source in ("mathlib", "physlib", "cslib", "compiler_data")
+        for polarity in ("preserving", "breaking")
+    ]
+    cell_order.extend(sorted(cell for cell in sequences if cell not in cell_order))
+    selected: list[int] = []
+    cursor = 0
+    while len(selected) < count:
+        progressed = False
+        for cell in cell_order:
+            sequence = sequences.get(cell, [])
+            if cursor < len(sequence):
+                selected.append(sequence[cursor])
+                progressed = True
+                if len(selected) == count:
+                    break
+        if not progressed:
+            raise ProviderRehearsalV52Error("accepted rows cannot fill the Kimi audit count")
+        cursor += 1
+    return selected
 
 
 def compact_provider_rehearsal_v52(loaded: LoadedProviderRehearsalV52) -> dict[str, object]:
@@ -1361,8 +1457,11 @@ def run_provider_kimi_audit_v52(
     *,
     kimi_count: int = 40,
     concurrency: int = 8,
+    audit_subdir: str = "audit_kimi",
+    sampler: Literal["stratified_v5", "source_polarity_cells"] = "stratified_v5",
+    quarantine_row_ids: frozenset[str] = frozenset(),
 ) -> dict[str, object]:
-    """Run the stratified Kimi audit with one durable checkpoint per row.
+    """Run the Kimi audit with one durable checkpoint per row.
 
     ``kimi_count`` is 40 for the historical audit and at most 8 for pilot telemetry. Futures
     map to result positions, never to sidecar indices, so a non-contiguous stratified selection
@@ -1377,13 +1476,19 @@ def run_provider_kimi_audit_v52(
     replay_path = loaded.output_root / "replay/reproducibility_receipt.json"
     if not replay_path.is_file() or _object(replay_path).get("reproducible") is not True:
         raise ProviderRehearsalV52Error("Kimi audit requires the successful zero-call replay")
-    manifest_path = loaded.output_root / "audit_kimi/manifest.json"
+    audit_root = loaded.output_root / audit_subdir
+    manifest_path = audit_root / "manifest.json"
     if manifest_path.is_file():
         return _object(manifest_path)
     compacted = loaded.output_root / "compacted/new_core"
     core = _sample_rows(compacted / "core.jsonl")
     sidecars = _sample_rows(compacted / "sidecar.jsonl")
-    selected = _audit_selection(sidecars, kimi_count) if kimi_count else []
+    if not kimi_count:
+        selected: list[int] = []
+    elif sampler == "source_polarity_cells":
+        selected = sprint_audit_selection(sidecars, kimi_count)
+    else:
+        selected = _audit_selection(sidecars, kimi_count)
     ledger = AtomicProviderBudget(loaded.output_root / "provider_budget.jsonl", loaded.ceilings)
     client = AtomicBudgetedProvider(
         lemex_audit_provider(loaded.base),
@@ -1392,7 +1497,6 @@ def run_provider_kimi_audit_v52(
         worker_id="audit-kimi",
         reclaim_from_worker="audit-kimi",
     )
-    audit_root = loaded.output_root / "audit_kimi"
     checkpoint_root = audit_root / "checkpoints"
     checkpoint_root.mkdir(parents=True, exist_ok=True)
 
@@ -1512,7 +1616,9 @@ def run_provider_kimi_audit_v52(
     ]
     _atomic_exact(audit_root / "audit_rows.jsonl", _jsonl_bytes(persisted_rows))
     unknown_ids = {str(row["row_id"]) for row in audit_rows if not bool(row["agrees"])}
-    released = exclude_audit_unknowns(core, sidecars, unknown_ids)
+    observed_ids = {str(sidecar.get("row_id")) for sidecar in sidecars}
+    quarantined = {row_id for row_id in quarantine_row_ids if row_id in observed_ids}
+    released = exclude_audit_unknowns(core, sidecars, unknown_ids | quarantined)
     _atomic_exact(audit_root / "releasable_core.jsonl", _jsonl_bytes(released))
     agreements = sum(bool(row["agrees"]) for row in audit_rows)
     strata: Counter[tuple[str, str]] = Counter()
@@ -1534,8 +1640,19 @@ def run_provider_kimi_audit_v52(
         "kimi_count_requested": kimi_count,
         "kimi_concurrency": concurrency,
         "worker_id": "audit-kimi",
+        "audit_subdir": audit_subdir,
+        "sampler": sampler,
         "selected_rows": len(selected),
         "selected_sidecar_indices": list(selected),
+        "selected_cells": {
+            f"{source}/{polarity}": count
+            for (source, polarity), count in sorted(
+                Counter(
+                    (str(row["source"]), str(row["requested_polarity"])) for row in audit_rows
+                ).items()
+            )
+        },
+        "quarantined_rows": sorted(quarantined),
         "checkpoint_hits": checkpoint_hits,
         "agreements": agreements,
         "agreement_rate": agreement_rate,
@@ -1810,5 +1927,6 @@ __all__ = [
     "run_provider_kimi_audit_v52",
     "run_provider_worker_v52",
     "run_two_provider_workers_v52",
+    "sprint_audit_selection",
     "verify_provider_replay_v52",
 ]

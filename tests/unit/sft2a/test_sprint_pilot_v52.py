@@ -19,7 +19,12 @@ from leanfaith.host_resources import ReservationError
 from leanfaith.sft2a import __main__ as sft2a_main
 from leanfaith.sft2a import provider_rehearsal_v52, sprint_pilot_v52
 from leanfaith.sft2a.config import LoadedSFT2AConfig, load_sft2a_config
-from leanfaith.sft2a.lean_oracle import ORACLE_METHOD_VERSION_V2, SignatureOracleResult
+from leanfaith.sft2a.lean_oracle import (
+    COMMAND_TEMPLATE_VERSION_V2,
+    ORACLE_METHOD_VERSION_V2,
+    SignatureOracleResult,
+    elaborator_sha256,
+)
 from leanfaith.sft2a.mechanisms import BREAKING_MECHANISMS, PRESERVING_MECHANISMS
 from leanfaith.sft2a.models import ExecutionCeilings
 from leanfaith.sft2a.provider_rehearsal_v52 import (
@@ -589,13 +594,13 @@ def test_thresholds_pass_only_when_every_objective_check_holds(tmp_path: Path) -
         assert check in cast(list[str], result["failed_checks"]), check
 
 
-def test_lean_invalid_threshold_uses_both_rate_and_planned_slot_count(tmp_path: Path) -> None:
-    # 19 invalid of 100 elaborations passes both bounds; exactly 20 is not "fewer than 20/80".
+def test_lean_invalid_threshold_is_rate_only(tmp_path: Path) -> None:
+    # 19 or 20 invalid of 100 elaborations both pass the rate-only bound (below 25%).
     assert _evaluate(tmp_path, root_manifests=[_manifest(1, 5)] * 19 + [_manifest(0, 5)])["passed"]
     exact = _evaluate(tmp_path, root_manifests=[_manifest(1, 5)] * 20)
-    assert exact["passed"] is False
+    assert exact["passed"] is True
     assert exact["lean_invalid_rate"] == 0.2
-    assert "lean_invalid_below_25pct" in cast(list[str], exact["failed_checks"])
+    assert exact["lean_invalid_per_planned_slot"] == 0.25  # telemetry only
     # 19 invalid of 60 elaborations passes the count bound but fails the 25% rate bound.
     rate = _evaluate(tmp_path, root_manifests=[_manifest(1, 3)] * 19 + [_manifest(0, 3)])
     assert rate["passed"] is False
@@ -804,7 +809,7 @@ def test_launch_requires_passed_canary_and_gate_receipts(
         sprint_pilot_v52.launch_sprint_pilot_v52(loaded)
     canary = sprint_pilot_v52.run_paths(loaded.base).one_root / "closure_canaries_v5/manifest.json"
     canary.parent.mkdir(parents=True)
-    canary.write_text(json.dumps({"all_passed": True}))
+    canary.write_text(json.dumps({"all_passed": True, "config_hash": loaded.base.config_hash}))
     with pytest.raises(SprintPilotError, match="oracle-v2 live gate receipt"):
         sprint_pilot_v52.launch_sprint_pilot_v52(loaded)
     gate = loaded.output_root / "checks/oracle_v2_live_gate/oracle_v2_live_gate_receipt.json"
@@ -812,12 +817,25 @@ def test_launch_requires_passed_canary_and_gate_receipts(
     gate.write_text(json.dumps({"all_passed": False}))
     with pytest.raises(SprintPilotError, match="oracle-v2 live gate receipt"):
         sprint_pilot_v52.launch_sprint_pilot_v52(loaded)
-    gate.write_text(json.dumps({"all_passed": True}))
+    identity = {
+        "all_passed": True,
+        "method_version": ORACLE_METHOD_VERSION_V2,
+        "cache_version": "v2",
+        "elaborator_sha256": elaborator_sha256("v2"),
+        "command_template_version": COMMAND_TEMPLATE_VERSION_V2,
+        "base_config_hash": loaded.base.config_hash,
+    }
+    gate.write_text(json.dumps(identity))
     receipts = sprint_pilot_v52.require_sprint_prerequisite_receipts(loaded)
-    assert set(receipts) == {"closure_canaries_sha256", "oracle_v2_live_gate_sha256"}
+    assert set(receipts) == {
+        "closure_canaries_sha256",
+        "closure_canaries_config_hash",
+        "oracle_v2_live_gate_sha256",
+        "oracle_v2_live_gate_identity",
+    }
     # A shard names the pilot's gate receipt explicitly instead of its own output root.
     shared_gate = tmp_path / "pilot_gate_receipt.json"
-    shared_gate.write_text(json.dumps({"all_passed": True}))
+    shared_gate.write_text(json.dumps(identity))
     shard = replace(
         loaded,
         document={**loaded.document, "oracle_v2_gate_receipt_path": str(shared_gate)},

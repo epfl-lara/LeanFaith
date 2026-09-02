@@ -3,8 +3,8 @@
   "status": "sprint_authorized",
   "authorized": true,
   "sprint_authority": "plans/72h_sft_data_sprint_2026-09-01.md",
-  "base_config_path": "configs/sft2a/closure_aware_v5_2_sprint_v2.yaml",
-  "base_config_sha256": "824f9f370ed4e70cb4891a195cff7f6a4048117eb747113daad008a546203717",
+  "base_config_path": "configs/sft2a/closure_aware_v5_2_sprint_v3.yaml",
+  "base_config_sha256": "a53e645f639d9c52eb9f0d4701fdfe8155a0c26d14844742786ca028b1f43a00",
   "labeling_defaults_policy_path": "policies/sft2_llm_labeling_defaults_v1.yaml",
   "labeling_defaults_policy_sha256": "4554a071b06b1af9015b253b5e64b2a0a4d013630e5224ef7729bbf65757646f",
   "sample_path": "/storage/milikic/leanfaith/value_first/sft2_llm_transforms_v1/runs/sprint_pilot_20roots/certified_sample.jsonl",
@@ -52,6 +52,7 @@
   "sprint_role": "pilot",
   "next_stage_config_path": "configs/sft2a/sprint_reference_pool_12k_v1.json",
   "supersedes_pilot_run": "/storage/milikic/leanfaith/value_first/sft2_llm_transforms_v1/runs/sprint_pilot_20roots_run",
-  "supersedes_reason": "pilot v1 failed only lean_invalid_below_25pct (36/118); v2 fixes oracle scope order and proposer closure rules",
-  "oracle_v2_gate_receipt_path": "/storage/milikic/leanfaith/value_first/sft2_llm_transforms_v1/runs/sprint_pilot_20roots_run_v2/checks/oracle_v2_live_gate/oracle_v2_live_gate_receipt.json"
+  "supersedes_reason": "pilot v1 failed only lean_invalid_below_25pct (36/118 elaborations, 22/80 unique slots); v2 fixes oracle scope order, proposer closure rules, universe guard, cell-balanced Kimi sampling, and schema-only judge retries",
+  "oracle_v2_gate_receipt_path": "/storage/milikic/leanfaith/value_first/sft2_llm_transforms_v1/runs/sprint_pilot_20roots_run_v2/checks/oracle_v2_live_gate/oracle_v2_live_gate_receipt.json",
+  "universe_guard": "preserving candidates must keep the reference canonical_level_params exactly"
 }

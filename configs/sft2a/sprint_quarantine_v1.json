@@ -1,0 +1,17 @@
+{
+  "version": "leanfaith_sft2a_sprint_quarantine_v1",
+  "purpose": "row IDs excluded from every reusable sprint view; historical run artifacts are not modified",
+  "rows": [
+    {
+      "row_id": "sft2a-new:35707756dbe6d253f3eb500adf71e1d56435308a86cbe836f03eb8fea19b153d",
+      "run": "/storage/milikic/leanfaith/value_first/sft2_llm_transforms_v1/runs/sprint_pilot_20roots_run",
+      "root_id": "mathlib:census:2e6ad859a62191a0d0ea2056",
+      "slot_id": "preserve_1",
+      "reason": "preserving candidate narrowed the reference universe profile Type u_0 to Type; universe specialization changes the claim and is not representational; Opus accepted it as equivalent",
+      "reference_canonical_level_params": [
+        "u_0"
+      ],
+      "candidate_canonical_level_params": []
+    }
+  ]
+}

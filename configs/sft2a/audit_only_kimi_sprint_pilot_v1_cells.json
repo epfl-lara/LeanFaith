@@ -1,0 +1,18 @@
+{
+  "version": "leanfaith_sft2a_audit_only_kimi_v5_2_v1",
+  "purpose": "additive eight-row cell-balanced Kimi telemetry over the cached pilot v1 rows; zero Terra, Opus, Lean",
+  "source_provider_config_path": "configs/sft2a/sprint_pilot_20roots_v1.json",
+  "source_provider_config_sha256": "8aa21dad425753ab4dde4783ceffa9982c7484e429f73e9bfb9d3261aacf6249",
+  "authorization_receipt_path": "/storage/milikic/leanfaith/value_first/sft2_llm_transforms_v1/runs/sprint_pilot_20roots_run/detached/sprint_authority.json",
+  "authorization_receipt_sha256": "7267d9223eda4b347f4702f01426eece6c28774fa3687f09627b68ebd8d4c12e",
+  "kimi_audit_rows": 8,
+  "kimi_concurrency": 8,
+  "audit_subdir": "audit_kimi_cells_v1",
+  "sampler": "source_polarity_cells",
+  "lemex_ceiling_override": 40,
+  "tmux_session": "leanfaith-sft2a-audit-kimi-pilot-v1-cells",
+  "terra_calls_allowed": 0,
+  "opus_calls_allowed": 0,
+  "lean_requests_allowed": 0,
+  "historical_generation_rerun_allowed": false
+}
