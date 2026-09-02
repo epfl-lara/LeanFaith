@@ -1041,10 +1041,81 @@ SQUARE_FIXTURES: tuple[dict[str, str], ...] = (
 )
 
 
+# ------------------------------------------------------------------ inspection
+SQUARE_ROW_ORDER: dict[str, int] = {kind[0]: index for index, kind in enumerate(ROW_KINDS)}
+
+
+def _check_flag(value: Any) -> str | None:
+    """Summarise one certificate check object as MK (meta+kernel) or FAIL."""
+    check = value.get("check", value) if isinstance(value, dict) else None
+    if not isinstance(check, dict):
+        return None
+    meta = check.get("metaChecked", check.get("meta_checked"))
+    kernel = check.get("kernelChecked", check.get("kernel_checked"))
+    if meta is None and kernel is None:
+        return None
+    return "MK" if bool(meta) and bool(kernel) else "FAIL"
+
+
+def square_inspection_lines(records: Sequence[Mapping[str, Any]]) -> list[str]:
+    """Every retained square row grouped by root, four rows per root, with check flags."""
+    by_root: dict[str, list[Mapping[str, Any]]] = {}
+    for record in records:
+        by_root.setdefault(str(record["sidecar"]["root_name"]), []).append(record)
+    lines = [
+        "# core_v3_square inspection",
+        "",
+        f"- roots: {len(by_root)}",
+        f"- rows: {len(records)}",
+        "",
+    ]
+    for name in sorted(by_root):
+        recs = sorted(by_root[name], key=lambda r: SQUARE_ROW_ORDER[str(r["sidecar"]["row_kind"])])
+        first = cast(dict[str, Any], recs[0]["sidecar"])
+        square = cast(dict[str, Any], first.get("square", {}))
+        evidence = cast(
+            dict[str, Any], cast(dict[str, Any], first.get("evidence", {})).get("square", {})
+        )
+        flags = []
+        for key, value in evidence.items():
+            flag = _check_flag(value)
+            if flag is not None:
+                kind = value.get("kind") if isinstance(value, dict) else None
+                flags.append(f"{key}:{flag}" + (f"({kind})" if kind else ""))
+        lines += [
+            f"## {name}",
+            "",
+            f"- module: `{first.get('module')}`",
+            f"- direction: {square.get('direction')} "
+            f"(T_P={square.get('t_p')}, T_C={square.get('t_c')})",
+            f"- statement: `{first.get('statement')}`",
+            f"- checks: {' '.join(flags) if flags else 'none recorded'}",
+            "",
+        ]
+        for record in recs:
+            row = cast(dict[str, Any], record["row"])
+            kind = str(cast(dict[str, Any], record["sidecar"])["row_kind"])
+            lines += [
+                f"### {kind} (label {row['label']})",
+                "",
+                f"- reference: `{row['reference']}`",
+                f"- candidate: `{row['candidate']}`",
+                "",
+            ]
+    return lines
+
+
+def write_square_inspection(paths: RunPaths, records: Sequence[Mapping[str, Any]]) -> Path:
+    paths.inspection.mkdir(parents=True, exist_ok=True)
+    out = paths.inspection / "sample.md"
+    write_atomic(out, ("\n".join(square_inspection_lines(records)) + "\n").encode("utf-8"))
+    return out
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
-        "command", choices=("census", "fixtures", "run", "replay", "build", "status")
+        "command", choices=("census", "fixtures", "run", "replay", "build", "status", "inspect")
     )
     parser.add_argument("--repo-root", type=Path, default=find_repo_root(Path.cwd()))
     parser.add_argument("--config", type=Path)
@@ -1101,6 +1172,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 0
     if args.command == "status":
         print(json.dumps(read_json_object(RunPaths(staging, args.run_id).status), indent=1))
+        return 0
+    if args.command == "inspect":
+        paths = RunPaths(staging, args.run_id)
+        records = read_retained(paths.retained)
+        out = write_square_inspection(paths, records)
+        print(json.dumps({"run_id": args.run_id, "rows": len(records), "path": str(out)}))
         return 0
     report = build_square_view(repo_root, loaded, run_id=args.run_id, label=args.label)
     print(

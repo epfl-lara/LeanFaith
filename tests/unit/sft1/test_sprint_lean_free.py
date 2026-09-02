@@ -996,3 +996,43 @@ def test_error_terminals_are_never_cacheable() -> None:
     assert not engine.cacheable_status("error")
     for status in ("retained", "rejected", "not_applicable", "ok", "failed"):
         assert engine.cacheable_status(status)
+
+
+def test_square_inspection_lists_every_row_grouped_by_root() -> None:
+    from leanfaith.sft1.sprint import square
+
+    def rec(root: str, kind: str, label: bool, ref: str, cand: str) -> dict[str, object]:
+        return {
+            "row": {"reference": ref, "candidate": cand, "label": label},
+            "sidecar": {
+                "root_name": root,
+                "module": "M",
+                "statement": f"theorem {root}",
+                "row_kind": kind,
+                "square": {"direction": "eq_to_ne", "t_p": "P18", "t_c": "P_NE"},
+                "evidence": {
+                    "square": {
+                        "p_iff_p_prime": {"metaChecked": True, "kernelChecked": True},
+                        "c_refutation": {
+                            "kind": "source_proof_contradiction",
+                            "check": {"metaChecked": True, "kernelChecked": False},
+                        },
+                        "direction": "eq_to_ne",
+                    }
+                },
+            },
+        }
+
+    records = [
+        rec("b", "not_iff_c_p", False, "c", "p"),
+        rec("a", "p_prime_iff_p", True, "p'", "p"),
+        rec("b", "p_prime_iff_p", True, "p'", "p"),
+        rec("a", "not_iff_p_prime_c_prime", False, "p'", "c'"),
+    ]
+    lines = square.square_inspection_lines(records)
+    text = "\n".join(lines)
+    assert text.index("## a") < text.index("## b")
+    assert lines.count("### p_prime_iff_p (label True)") == 2
+    assert "p_iff_p_prime:MK" in text and "c_refutation:FAIL(source_proof_contradiction)" in text
+    a_block = text[text.index("## a") : text.index("## b")]
+    assert a_block.index("p_prime_iff_p") < a_block.index("not_iff_p_prime_c_prime")
