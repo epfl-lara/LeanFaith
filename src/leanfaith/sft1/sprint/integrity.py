@@ -77,10 +77,41 @@ def expected_label(operation: str, sidecar: Mapping[str, Any]) -> bool | None:
     return None
 
 
+SQUARE_ROW_TRUTHS: dict[str, tuple[str, str]] = {
+    # row kind -> (reference truth, candidate truth), derived from the square endpoints:
+    # P and P' are proved (loaded theorem, transported proof), C and C' are refuted.
+    "p_prime_iff_p": ("proved", "proved"),
+    "c_iff_c_prime": ("refuted", "refuted"),
+    "not_iff_c_p": ("refuted", "proved"),
+    "not_iff_p_prime_c_prime": ("proved", "refuted"),
+}
+
+
+def _check_square_truths(sidecar: Mapping[str, Any], evidence: Mapping[str, Any]) -> str | None:
+    expected = SQUARE_ROW_TRUTHS.get(str(sidecar.get("row_kind")))
+    if expected is None:
+        return "square_row_kind_unknown"
+    reference_truth, candidate_truth = expected
+    if (
+        evidence.get("reference_truth") != reference_truth
+        or evidence.get("candidate_truth") != candidate_truth
+    ):
+        return "square_truths_not_derived_from_endpoints"
+    if (
+        sidecar.get("reference_truth") != reference_truth
+        or sidecar.get("candidate_truth") != candidate_truth
+    ):
+        return "square_sidecar_truths_mismatch"
+    return None
+
+
 def _check_evidence(sidecar: Mapping[str, Any], operation: str) -> str | None:
     evidence = sidecar.get("evidence") or {}
     label = expected_label(operation, sidecar)
     if operation == "SQUARE_N25_SYMMETRY_V1":
+        truth_issue = _check_square_truths(sidecar, evidence)
+        if truth_issue:
+            return truth_issue
         if label is True:
             check = (evidence.get("equivalence_proof") or {}).get("check") or {}
             if not (check.get("meta_checked") and check.get("kernel_checked")):
@@ -94,8 +125,6 @@ def _check_evidence(sidecar: Mapping[str, Any], operation: str) -> str | None:
             return "negative_without_checked_not_iff"
         if not (source.get("meta_checked") and source.get("kernel_checked")):
             return "negative_without_checked_source_proof"
-        if evidence.get("candidate_truth") not in {"proved", "refuted"}:
-            return "negative_candidate_truth_mismatch"
         return None
     if operation in POSITIVE_OPERATIONS or operation.startswith("P"):
         check = (evidence.get("equivalence_proof") or {}).get("check") or {}
@@ -150,6 +179,13 @@ def validate_view(
     sources = list(retained_paths)
     if retained_path is not None:
         sources.append(retained_path)
+    recorded_sources = manifest.get("source_retained_paths")
+    if isinstance(recorded_sources, list) and recorded_sources:
+        # regenerated views name the exact retained files they were built from
+        sources = [staging_root / str(item) for item in recorded_sources]
+        for path in sources:
+            if not path.is_file():
+                issue(f"source_retained_missing: {path}")
     retained: dict[str, list[dict[str, Any]]] = {}
     for path in sources:
         for item in read_jsonl(path):

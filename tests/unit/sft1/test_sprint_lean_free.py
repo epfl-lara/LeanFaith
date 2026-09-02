@@ -991,11 +991,12 @@ def test_permutation_control_is_reproducible() -> None:
     assert "seed_1" in first["per_seed"]
 
 
-def test_error_terminals_are_never_cacheable() -> None:
-    """Request failures must not be written to or served from the semantic cache."""
-    assert not engine.cacheable_status("error")
-    for status in ("retained", "rejected", "not_applicable", "ok", "failed"):
+def test_cacheable_status_is_an_explicit_whitelist() -> None:
+    """Only whitelisted deterministic terminals may enter or leave the semantic cache."""
+    for status in ("ok", "retained", "rejected", "not_applicable"):
         assert engine.cacheable_status(status)
+    for status in ("error", "", "failed", "unknown", None, 3):
+        assert not engine.cacheable_status(status)
 
 
 def test_square_inspection_lists_every_row_grouped_by_root() -> None:
@@ -1139,3 +1140,310 @@ def test_validator_pair_id_reads_row_then_sidecar() -> None:
     }
     assert integrity._pair_id(five_field) == "pair:row"
     assert integrity._pair_id(three_field) == "pair:side"
+
+
+def _square_runner_stub(source_sha256: str = "e") -> object:
+    from leanfaith.sft1.sprint import square
+
+    runner = square.SquareRunner.__new__(square.SquareRunner)
+    runner.base = type("Base", (), {})()
+    runner.base.root_id = lambda name: f"root:{name}"
+    runner.base.pins = type(
+        "Pins",
+        (),
+        {
+            "to_dict": lambda self: {"project_id": "mathlib"},
+            "lean_version": "v4.31.0-rc1",
+            "project_revision": "r" * 40,
+        },
+    )()
+    runner.base.identity = type(
+        "Identity",
+        (),
+        {
+            "to_dict": lambda self: {
+                "source_sha256": self.source_sha256,
+                "semantic_version": self.semantic_version,
+                "import_options_fingerprint": self.import_options_fingerprint,
+            },
+            "source_sha256": source_sha256,
+            "semantic_version": "sft1_sprint_engine_v1",
+            "import_options_fingerprint": "f" * 64,
+        },
+    )()
+    runner.base.implementation_commit = "c" * 40
+    runner.statements = {}
+    return runner
+
+
+def test_square_truths_and_cache_identity_for_every_row_kind() -> None:
+    from leanfaith.sft1.sprint import integrity
+
+    runner = _square_runner_stub()
+    payload = _square_payload("Nat.a")
+    record = {
+        "render": _square_render(payload),
+        "evidence": payload["evidence"],
+        "direction": payload["direction"],
+        "alpha": payload["alpha"],
+        "module": "Mathlib.Test",
+        "level_params": [],
+        "process_request_hash": "p" * 64,
+    }
+    rows = runner.build_rows(
+        "Nat.a", record, {"source_run": "tenk"}, reconciliation={"matches": True}
+    )
+    assert len(rows) == 4
+    for item in rows:
+        sidecar = item["sidecar"]
+        kind = sidecar["row_kind"]
+        expected = integrity.SQUARE_ROW_TRUTHS[kind]
+        assert (sidecar["reference_truth"], sidecar["candidate_truth"]) == expected
+        evidence = sidecar["evidence"]
+        assert (evidence["reference_truth"], evidence["candidate_truth"]) == expected
+        if item["label"]:
+            assert evidence["reference_truth"] == evidence["candidate_truth"]
+        else:
+            assert evidence["reference_truth"] != evidence["candidate_truth"]
+            assert evidence["refutation"]["goal"] == "Not (Iff reference candidate)"
+        assert integrity._check_evidence(sidecar, "SQUARE_N25_SYMMETRY_V1") is None
+        swapped = dict(sidecar)
+        swapped["reference_truth"], swapped["candidate_truth"] = expected[1], expected[0]
+        if expected[0] != expected[1]:
+            assert integrity._check_evidence(swapped, "SQUARE_N25_SYMMETRY_V1") is not None
+        cache = sidecar["cache"]
+        key = runner.square_root_key("Nat.a")
+        assert cache == {
+            "kind": "square_root",
+            "schema": 2,
+            "key": key,
+            "path": f"roots/{key[:2]}/{key}.json",
+        }
+        assert "cache_key" not in sidecar
+        assert sidecar["square"]["alpha"] == payload["alpha"]
+        assert sidecar["square"]["alpha_reconciliation"] == {"matches": True}
+    kinds = {item["sidecar"]["row_kind"]: item for item in rows}
+    assert kinds["not_iff_c_p"]["sidecar"]["reference_truth"] == "refuted"
+    assert kinds["not_iff_c_p"]["sidecar"]["candidate_truth"] == "proved"
+    assert kinds["not_iff_p_prime_c_prime"]["sidecar"]["reference_truth"] == "proved"
+    assert kinds["not_iff_p_prime_c_prime"]["sidecar"]["candidate_truth"] == "refuted"
+
+
+def test_reconcile_square_alpha_against_stored_render_response(tmp_path: Path) -> None:
+    import json
+
+    from leanfaith.sft1.sprint import square
+
+    request_hash = "a" * 64
+    entries = [
+        {"index": 0, "p": "1", "c": "2", "p_prime": "3", "c_prime": "4"},
+        {"index": 1, "p": "5", "c": "6", "p_prime": "7", "c_prime": "8"},
+    ]
+    raw = {
+        "request_hash": request_hash,
+        "request": {
+            "code": 'run_meta do\n  let squares ← LeanFaith.SFT1.Sprint.rebuildSquares #["Nat.a", "Nat.b"]\n  emit'
+        },
+        "response": {
+            "messages": [
+                {
+                    "data": "LFSFT1SPRINTJSON "
+                    + json.dumps({"kind": "square_rebuild", "squares": entries})
+                    + "\n"
+                }
+            ]
+        },
+    }
+    raw_dir = tmp_path / "raw"
+    raw_dir.mkdir()
+    (raw_dir / f"{request_hash}.abcd1234.json").write_text(json.dumps(raw), encoding="utf-8")
+    record = {
+        "root": "Nat.b",
+        "alpha": {"p": "5", "c": "6", "p_prime": "7", "c_prime": "8"},
+        "render": {"request_hash": request_hash, "p": {"record": {"endpoint_id": "1.p"}}},
+    }
+    result = square.reconcile_square_alpha(record, raw_dir)
+    assert result["matches"] and result["chunk_index"] == 1 and result["raw_files"] == 1
+    assert result["rebuild"] == record["alpha"]
+    wrong = {**record, "alpha": {**record["alpha"], "c": "x"}}
+    result = square.reconcile_square_alpha(wrong, raw_dir)
+    assert not result["matches"] and result["reason"] == "alpha_mismatch:c"
+    misnamed = {**record, "root": "Nat.c"}
+    assert square.reconcile_square_alpha(misnamed, raw_dir)["reason"] == "chunk_name_mismatch"
+    missing = {**record, "render": {**record["render"], "request_hash": "b" * 64}}
+    assert (
+        square.reconcile_square_alpha(missing, raw_dir)["reason"] == "raw_render_response_missing"
+    )
+    # a second stored response for the same request must agree
+    disagreeing = json.loads(json.dumps(raw))
+    disagreeing["response"]["messages"][0]["data"] = "LFSFT1SPRINTJSON " + json.dumps(
+        {"kind": "square_rebuild", "squares": [entries[0], {**entries[1], "p": "9"}]}
+    )
+    (raw_dir / f"{request_hash}.abcd1234.response-ffff.json").write_text(
+        json.dumps(disagreeing), encoding="utf-8"
+    )
+    assert square.reconcile_square_alpha(record, raw_dir)["reason"] == "raw_responses_disagree"
+
+
+def test_load_square_retained_ignores_orphans_and_duplicates(tmp_path: Path) -> None:
+    import json
+
+    from leanfaith.sft1.sprint import square
+    from leanfaith.sft1.sprint.runner import RunPaths
+
+    paths = RunPaths(tmp_path, "run")
+    paths.run_dir.mkdir(parents=True)
+    journal = [
+        {"kind": "square_begin", "root": "a", "pair_ids": ["a1", "a2"]},
+        {"kind": "square_terminal", "root": "a", "status": "retained", "pair_ids": ["a1", "a2"]},
+        {"kind": "square_begin", "root": "b", "pair_ids": ["b1", "b2"]},
+    ]
+    paths.journal.write_text("".join(json.dumps(r) + "\n" for r in journal), encoding="utf-8")
+
+    def rec(pair_id: str, root: str) -> dict[str, object]:
+        return {
+            "row": {"reference": "x", "candidate": "y", "label": True},
+            "sidecar": {"pair_id": pair_id, "root_name": root},
+        }
+
+    rows = [rec("a1", "a"), rec("a2", "a"), rec("b1", "b"), rec("a1", "a")]
+    paths.retained.write_text("".join(json.dumps(r) + "\n" for r in rows), encoding="utf-8")
+    kept = square.load_square_retained(paths)
+    assert [r["sidecar"]["pair_id"] for r in kept] == ["a1", "a2"]
+    assert square.terminal_pair_ids(paths.journal) == {"a": ["a1", "a2"]}
+
+
+def test_verify_square_cache_record(tmp_path: Path) -> None:
+    import json
+
+    from leanfaith.config.hashing import hash_canonical
+    from leanfaith.sft1.sprint import provenance
+
+    engine_block = {
+        "source_sha256": "e" * 64,
+        "compile_context_id": "ctx:1",
+        "semantic_version": "sft1_sprint_engine_v1",
+        "import_options_fingerprint": "f" * 64,
+    }
+    project = {"project_revision": "r" * 40, "lean_version": "v4.31.0-rc1"}
+    key = hash_canonical(
+        {
+            "kind": "square_root",
+            "cache_schema": 2,
+            "operation_id": "SQUARE_N25_SYMMETRY_V1",
+            "name": "Nat.a",
+            "engine_semantic_version": engine_block["semantic_version"],
+            "project_revision": project["project_revision"],
+            "lean_version": project["lean_version"],
+            "import_options_fingerprint": engine_block["import_options_fingerprint"],
+        }
+    )
+    alpha = {"p": "1", "c": "2", "p_prime": "3", "c_prime": "4"}
+    sidecar = {
+        "root_name": "Nat.a",
+        "operation_id": "SQUARE_N25_SYMMETRY_V1",
+        "engine": engine_block,
+        "project": project,
+        "lean_request_hashes": {"process": "p" * 64, "render": "q" * 64},
+        "square": {"alpha": alpha},
+        "implementation_commit": "c" * 40,
+        "cache": {
+            "kind": "square_root",
+            "schema": 2,
+            "key": key,
+            "path": f"roots/{key[:2]}/{key}.json",
+        },
+    }
+    record = {
+        "root": "Nat.a",
+        "status": "retained",
+        "operation_id": "SQUARE_N25_SYMMETRY_V1",
+        "engine": engine_block,
+        "process_request_hash": "p" * 64,
+        "render": {"request_hash": "q" * 64},
+        "alpha": alpha,
+        "implementation_commit": "c" * 40,
+    }
+    cache_root = tmp_path / "cache"
+    path = cache_root / f"roots/{key[:2]}/{key}.json"
+    path.parent.mkdir(parents=True)
+    path.write_text(json.dumps(record), encoding="utf-8")
+    assert provenance.verify_square_cache(sidecar, cache_root) == (2, [])
+    tampered = dict(record, engine={**engine_block, "source_sha256": "0" * 64})
+    path.write_text(json.dumps(tampered), encoding="utf-8")
+    _schema, issues = provenance.verify_square_cache(sidecar, cache_root)
+    assert issues == ["cache record engine source_sha256 differs"]
+    path.unlink()
+    assert provenance.verify_square_cache(sidecar, cache_root)[1] == ["cache record absent"]
+    bad_key = dict(
+        sidecar,
+        cache={**sidecar["cache"], "key": "0" * 64, "path": "roots/00/" + "0" * 64 + ".json"},
+    )
+    assert (
+        "cache key does not match the square-root identity"
+        in provenance.verify_square_cache(bad_key, cache_root)[1]
+    )
+
+
+def test_square_resume_validates_run_manifest(tmp_path: Path) -> None:
+    from leanfaith.sft1.sprint import square
+    from leanfaith.sft1.sprint.runner import RunPaths
+
+    runner = _square_runner_stub()
+    runner.paths = RunPaths(tmp_path, "run")
+    runner.paths.run_dir.mkdir(parents=True)
+    runner.loaded = type("Loaded", (), {"config_hash": "h" * 64})()
+    runner.config = type("Config", (), {"sprint_id": "sft1"})()
+    runner.repo_root = Path(__file__).resolve().parents[3]
+    runner.run_id = "run"
+    runner.roots = [{"name": "Nat.a"}, {"name": "Nat.b"}]
+    runner.max_roots = None
+    runner.write_run_manifest()
+    runner.write_run_manifest()  # identical identity resumes silently
+    runner.roots = [{"name": "Nat.a"}]
+    try:
+        runner.write_run_manifest()
+    except square.SquareError as exc:
+        assert "roots_sha256" in str(exc) and "root_count" in str(exc)
+    else:
+        raise AssertionError("resume with a different root list must fail")
+    runner.roots = [{"name": "Nat.a"}, {"name": "Nat.b"}]
+    runner.base.identity.source_sha256 = "other"
+    try:
+        runner.write_run_manifest()
+    except square.SquareError as exc:
+        assert "engine_source_sha256" in str(exc)
+    else:
+        raise AssertionError("resume with a different engine must fail")
+
+
+def test_square_card_states_direct_not_iff_evidence_and_supersession() -> None:
+    from leanfaith.sft1.sprint.publish import dataset_card
+
+    manifest = {
+        "retained_rows": 8,
+        "labels": {"positive": 4, "negative": 4},
+        "roots": 2,
+        "orientation_rule": "square_fixed_marginals",
+        "grouping": "four_rows_per_root_same_shard",
+        "row_kinds": {"p_prime_iff_p": 2},
+        "duplicate_squares_dropped": 0,
+        "degenerate_squares_dropped": 0,
+        "conservation": {
+            "screened_rows": 8,
+            "kept_rows": 8,
+            "duplicate_square_rows_dropped": 0,
+            "degenerate_square_rows_dropped": 0,
+            "holds": True,
+        },
+        "operations": {"SQUARE_N25_SYMMETRY_V1": 8},
+        "provenance": {"engine_semantic_versions": ["v"], "segments": []},
+        "supersedes": "core_v3_square",
+        "artifact_status": "x",
+    }
+    card = dataset_card("core_v3_square_v2", manifest, None)
+    assert "`Not (Iff reference candidate)`" in card
+    assert "complete ground assignment" not in card
+    assert "supersedes `sprint_v1/core_v3_square`" in card
+    plain = dataset_card("tenk", {**manifest, "orientation_rule": None, "supersedes": None}, None)
+    assert "complete ground assignment" in plain and "supersedes" not in plain

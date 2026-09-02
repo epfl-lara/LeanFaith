@@ -50,6 +50,41 @@ def _gate_summary(release: Mapping[str, Any] | None) -> list[str]:
     return lines
 
 
+def _is_square_view(manifest: Mapping[str, Any]) -> bool:
+    return manifest.get("orientation_rule") == "square_fixed_marginals"
+
+
+def _negative_evidence_lines(manifest: Mapping[str, Any]) -> list[str]:
+    if _is_square_view(manifest):
+        return [
+            "`false` only when a direct Meta- and kernel-checked `Not (Iff reference candidate)`",
+            "certificate was constructed during original generation. Each root contributes one",
+            "certificate-closure square (two positive and two negative rows) whose proved",
+            "endpoints carry the loaded Mathlib proof or its transported copy and whose refuted",
+            "endpoints carry a kernel-checked `Not` refutation; per row, `reference_truth` and",
+            "`candidate_truth` in the sidecar name which endpoint is proved and which is refuted,",
+            'so a negative row is not universally "proved reference plus refuted candidate" — the',
+            "row `C ⇢ P` has a refuted reference and a proved candidate. Checks occurred during",
+        ]
+    return [
+        "`false` only when the loaded Mathlib proof of the reference and a kernel-checked",
+        "`Not candidate` refutation under a complete ground assignment were constructed during",
+    ]
+
+
+def _supersedes_lines(manifest: Mapping[str, Any]) -> list[str]:
+    superseded = manifest.get("supersedes")
+    if not superseded:
+        return []
+    return [
+        "",
+        f"This view supersedes `sprint_v1/{superseded}`: the model-facing rows are byte-identical;",
+        "sidecar truths, cache provenance, alpha reconciliation, and this card are corrected. The",
+        "superseded prefix is left unchanged on the Hub and is marked superseded in the brief",
+        "only.",
+    ]
+
+
 def _square_accounting_lines(manifest: Mapping[str, Any]) -> list[str]:
     """Square-view build accounting, present only for certificate-closure square views."""
     if "duplicate_squares_dropped" not in manifest:
@@ -143,11 +178,11 @@ def dataset_card(run_id: str, manifest: dict[str, Any], release: dict[str, Any] 
         " `reference` and `candidate` are `goal_v1.0` renderings of two closed",
         "propositions. `label` is `true` only when a Meta- and kernel-checked",
         "`Iff reference candidate` witness was constructed during original generation, and",
-        "`false` only when the loaded Mathlib proof of the reference and a kernel-checked",
-        "`Not candidate` refutation under a complete ground assignment were constructed during",
+        *_negative_evidence_lines(manifest),
         "original generation. No label uses an LLM or a rubric-only mutation. Identifiers,",
         "operation, mechanism, orientation, evidence, and REPR records live in the line-aligned",
         "sidecars.",
+        *_supersedes_lines(manifest),
         "",
         "## Replay semantics",
         "",
@@ -235,7 +270,17 @@ def local_files(compacted: Path) -> list[Path]:
             if not path.is_file():
                 raise PublishError(f"shard file missing: {path}")
             files.append(path)
-    for name in ("manifest.json", "release_report.json", "integrity_report.json", "verdict.json"):
+    for name in (
+        "manifest.json",
+        "release_report.json",
+        "integrity_report.json",
+        "verdict.json",
+        "duplicate_squares.json",
+        "permutation_control.json",
+        "quarantined_roots.json",
+        "alpha_reconciliation.json",
+        "rows_identity.json",
+    ):
         path = compacted / name
         if path.is_file():
             files.append(path)

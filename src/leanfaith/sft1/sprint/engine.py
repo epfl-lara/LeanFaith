@@ -61,13 +61,16 @@ OPERATION_MECHANISM: dict[str, str] = {
 }
 
 
-def cacheable_status(status: object) -> bool:
-    """Only deterministic terminals may enter the semantic cache.
+CACHEABLE_STATUSES: frozenset[str] = frozenset({"ok", "retained", "rejected", "not_applicable"})
 
-    Request failures (``error``) depend on the engine text, the worker, and host
-    state, so they are never written to nor served from the cache.
+
+def cacheable_status(status: object) -> bool:
+    """Only whitelisted deterministic terminals may enter or leave the semantic cache.
+
+    Request failures (``error``), empty statuses, and anything unknown are never written
+    to nor served from the cache.
     """
-    return status != "error"
+    return isinstance(status, str) and status in CACHEABLE_STATUSES
 
 
 def mechanism_of(operation: str) -> str:

@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Any
 
 from leanfaith.config.hashing import hash_canonical, sha256_hex
-from leanfaith.sft1.sprint.store import SemanticCache
+from leanfaith.sft1.sprint.store import SemanticCache, read_json_object
 
 ENGINE_RELATIVE_PATH = "LeanFaith/Meta/SFT1/Sprint.lean"
 CACHE_SCHEMA_LEGACY = 1
@@ -156,6 +156,75 @@ class CacheSchemaResolver:
         return None
 
 
+SQUARE_ENGINE_FIELDS = (
+    "source_sha256",
+    "compile_context_id",
+    "semantic_version",
+    "import_options_fingerprint",
+)
+
+
+def verify_square_cache(
+    sidecar: Mapping[str, Any], cache_root: Path
+) -> tuple[int | None, list[str]]:
+    """Load the explicit square-root cache record a sidecar points at and verify it.
+
+    Returns the cache schema and the list of inconsistencies (empty when verified). The
+    record must exist at the recorded path, be keyed by the recomputed square-root
+    identity, and agree with the sidecar on root, engine, compile context, terminal
+    status, request hashes, and the four alpha hashes.
+    """
+    issues: list[str] = []
+    block = sidecar.get("cache")
+    if not isinstance(block, Mapping):
+        return None, ["cache block missing"]
+    key = str(block.get("key", ""))
+    schema = block.get("schema")
+    engine = sidecar.get("engine") or {}
+    project = sidecar.get("project") or {}
+    expected_key = hash_canonical(
+        {
+            "kind": "square_root",
+            "cache_schema": schema,
+            "operation_id": str(sidecar.get("operation_id")),
+            "name": str(sidecar.get("root_name")),
+            "engine_semantic_version": str(engine.get("semantic_version")),
+            "project_revision": str(project.get("project_revision")),
+            "lean_version": str(project.get("lean_version")),
+            "import_options_fingerprint": str(engine.get("import_options_fingerprint")),
+        }
+    )
+    if key != expected_key:
+        issues.append("cache key does not match the square-root identity")
+    path = cache_root / str(block.get("path", ""))
+    if str(block.get("path", "")) != f"roots/{key[:2]}/{key}.json":
+        issues.append("cache path does not match the cache key")
+    if not path.is_file():
+        issues.append("cache record absent")
+        return (int(schema) if isinstance(schema, int) else None), issues
+    record = read_json_object(path)
+    if record.get("root") != sidecar.get("root_name"):
+        issues.append("cache record root differs")
+    if record.get("status") != "retained":
+        issues.append(f"cache record status {record.get('status')!r} is not retained")
+    if record.get("operation_id") != sidecar.get("operation_id"):
+        issues.append("cache record operation differs")
+    record_engine = record.get("engine") or {}
+    for field in SQUARE_ENGINE_FIELDS:
+        if record_engine.get(field) != engine.get(field):
+            issues.append(f"cache record engine {field} differs")
+    hashes = sidecar.get("lean_request_hashes") or {}
+    if record.get("process_request_hash") != hashes.get("process"):
+        issues.append("cache record process request hash differs")
+    if (record.get("render") or {}).get("request_hash") != hashes.get("render"):
+        issues.append("cache record render request hash differs")
+    if dict(record.get("alpha") or {}) != dict((sidecar.get("square") or {}).get("alpha") or {}):
+        issues.append("cache record alpha hashes differ")
+    if record.get("implementation_commit") != sidecar.get("implementation_commit"):
+        issues.append("cache record implementation commit differs")
+    return (int(schema) if isinstance(schema, int) else None), issues
+
+
 def segment_key(sidecar: Mapping[str, Any], cache_schema: int | None) -> tuple[str, ...]:
     engine = sidecar["engine"]
     return (
@@ -184,9 +253,20 @@ def derive_provenance(
     repr_identities: set[str] = set()
     project_pins: set[str] = set()
     spec_hashes: set[str] = set()
+    square_verified = 0
+    cache_issues: dict[str, str] = {}
     for record in records:
         sidecar = record["sidecar"]
-        schema = resolver.schema(sidecar)
+        cache_block = sidecar.get("cache")
+        if isinstance(cache_block, Mapping) and cache_block.get("kind") == "square_root":
+            schema, record_issues = verify_square_cache(sidecar, cache_root)
+            if record_issues:
+                schema = None
+                cache_issues.setdefault(str(sidecar.get("root_name")), "; ".join(record_issues))
+            else:
+                square_verified += 1
+        else:
+            schema = resolver.schema(sidecar)
         key = segment_key(sidecar, schema)
         segment = segments.setdefault(
             key,
@@ -221,6 +301,10 @@ def derive_provenance(
         segment["operations"] = dict(sorted(segment["operations"].items()))
         segment_list.append(segment)
     issues: list[str] = []
+    for root_name, text in sorted(cache_issues.items())[:50]:
+        issues.append(f"square cache record for {root_name}: {text}")
+    if len(cache_issues) > 50:
+        issues.append(f"{len(cache_issues) - 50} more square cache record inconsistencies")
     if len(semantic_versions) != 1:
         issues.append(f"multiple engine semantic versions: {sorted(semantic_versions)}")
     if len(repr_identities) != 1:
@@ -250,6 +334,8 @@ def derive_provenance(
         ),
         "repr_implementation_identity_count": len(repr_identities),
         "project_pin_set_count": len(project_pins),
+        "square_cache_records_verified": square_verified,
+        "square_cache_records_inconsistent": len(cache_issues),
         "segments": segment_list,
         "consistent": not issues,
         "issues": issues,

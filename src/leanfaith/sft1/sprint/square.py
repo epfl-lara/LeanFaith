@@ -18,6 +18,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import shutil
 import sys
 import time
@@ -61,7 +62,7 @@ from leanfaith.sft1.sprint.screens import (
     residue_violation,
     unordered_pair_key,
 )
-from leanfaith.sft1.sprint.store import SemanticCache, read_json_object, write_atomic
+from leanfaith.sft1.sprint.store import read_json_object, write_atomic
 
 SQUARE_OPERATION = "SQUARE_N25_SYMMETRY_V1"
 SQUARE_SALT = "sft1_sprint_core_v3_square"
@@ -74,6 +75,14 @@ ENDPOINT_ORIGIN = {
     "c_prime": "sft1_transformed_expr",
 }
 # (row kind, label, reference endpoint, candidate endpoint, evidence key)
+ENDPOINT_TRUTH: dict[str, str] = {
+    "p": "proved",  # the loaded Mathlib theorem
+    "p_prime": "proved",  # transported along the checked P-iff-P'
+    "c": "refuted",  # the certified N25 negative of `P`
+    "c_prime": "refuted",  # derived from `¬C` along the checked C-iff-C'
+}
+SQUARE_CACHE_KIND = "square_root"
+SQUARE_CACHE_SCHEMA = 2
 ROW_KINDS: tuple[tuple[str, bool, str, str, str], ...] = (
     ("p_prime_iff_p", True, "p_prime", "p", "p_prime_iff_p"),
     ("c_iff_c_prime", True, "c", "c_prime", "c_iff_c_prime"),
@@ -230,33 +239,68 @@ class SquareRunner:
     # ---------------------------------------------------------------- state
 
     def load_state(self) -> None:
+        begun: dict[str, dict[str, Any]] = {}
         for record in self.journal.read():
-            if record.get("kind") == "square_terminal":
-                name = str(record["root"])
-                if name in self.done:
-                    continue
-                self.done[name] = str(record["status"])
-                self.counts[self.done[name]] = self.counts.get(self.done[name], 0) + 1
-                if self.done[name] == "retained":
-                    self.retained += 1
-                if record.get("source") == "cache":
-                    self.cache_roots += 1
-                else:
-                    self.lean_roots += 1
+            kind = record.get("kind")
+            if kind == "square_begin":
+                begun[str(record["root"])] = record
+                continue
+            if kind != "square_terminal":
+                continue
+            name = str(record["root"])
+            begun.pop(name, None)
+            if name in self.done:
+                continue
+            self.done[name] = str(record["status"])
+            self.counts[self.done[name]] = self.counts.get(self.done[name], 0) + 1
+            if self.done[name] == "retained":
+                self.retained += 1
+            if record.get("source") == "cache":
+                self.cache_roots += 1
+            else:
+                self.lean_roots += 1
+        if begun:
+            self.recover_in_flight(begun)
         inventory_dir = Path(self.config.inventory.root) / self.config.project.project_revision
         for row in load_inventory(inventory_dir / "inventory.jsonl"):
             self.statements.setdefault(str(row["name"]), str(row["statement"]))
 
-    def cache_key(self, name: str, reference_alpha_hash: str) -> str:
-        return SemanticCache.op_key(
-            reference_alpha_hash=reference_alpha_hash,
-            operation_id=SQUARE_OPERATION,
-            engine_semantic_version=self.base.identity.semantic_version,
-            lean_version=self.base.pins.lean_version,
-            project_revision=self.base.pins.project_revision,
-            import_options_fingerprint=self.base.identity.import_options_fingerprint,
-            name=name,
-        )
+    def recover_in_flight(self, begun: Mapping[str, Mapping[str, Any]]) -> None:
+        """Close per-root transactions interrupted between the row append and the terminal.
+
+        A root whose ``square_begin`` promised rows that are all present in the retained
+        file gets its terminal written now; otherwise its orphaned rows are ignored by
+        every reader (terminals are the authority) and the root is processed again.
+        """
+        present: dict[str, set[str]] = {}
+        wanted = {str(root) for root in begun}
+        for item in read_retained(self.paths.retained):
+            sidecar = cast(dict[str, Any], item["sidecar"])
+            root = str(sidecar.get("root_name"))
+            if root in wanted:
+                present.setdefault(root, set()).add(str(sidecar.get("pair_id")))
+        for root, record in begun.items():
+            expected = {str(pair) for pair in record.get("pair_ids", [])}
+            if expected and expected <= present.get(root, set()):
+                self.journal.append(
+                    {
+                        "kind": "square_terminal",
+                        "root": root,
+                        "status": "retained",
+                        "reason": "",
+                        "source": "recovered",
+                        "batch": int(record.get("batch", 0)),
+                        "pair_ids": sorted(expected),
+                    }
+                )
+                self.done[root] = "retained"
+                self.counts["retained"] = self.counts.get("retained", 0) + 1
+                self.retained += 1
+                self.lean_roots += 1
+            else:
+                self.journal.append(
+                    {"kind": "square_abandoned", "root": root, "pair_ids": sorted(expected)}
+                )
 
     def square_root_key(self, name: str) -> str:
         return hash_canonical(
@@ -309,8 +353,40 @@ class SquareRunner:
             if reservation is not None:
                 self.base.release(reservation)
 
+    def manifest_identity(self) -> dict[str, Any]:
+        return {
+            "config_semantic_hash": self.loaded.config_hash,
+            "engine_source_sha256": self.base.identity.source_sha256,
+            "engine_semantic_version": self.base.identity.semantic_version,
+            "import_options_fingerprint": self.base.identity.import_options_fingerprint,
+            "roots_sha256": hash_canonical([str(item["name"]) for item in self.roots]),
+            "root_count": len(self.roots),
+            "max_roots": self.max_roots,
+        }
+
     def write_run_manifest(self) -> None:
         if self.paths.run_manifest.is_file():
+            recorded = read_json_object(self.paths.run_manifest)
+            mismatches = []
+            for key, value in self.manifest_identity().items():
+                stored = (
+                    recorded.get(key)
+                    if key
+                    not in {
+                        "engine_source_sha256",
+                        "engine_semantic_version",
+                        "import_options_fingerprint",
+                    }
+                    else (recorded.get("engine") or {}).get(key.removeprefix("engine_"))
+                )
+                if stored != value:
+                    mismatches.append(f"{key}: manifest {stored!r} != current {value!r}")
+            if mismatches:
+                raise SquareError(
+                    f"run {self.run_id!r} cannot resume: run manifest mismatch; "
+                    + "; ".join(mismatches)
+                    + ". Use a new run id for a different config, engine, or root list."
+                )
             return
         manifest = {
             "schema_version": 1,
@@ -563,6 +639,15 @@ class SquareRunner:
                 self.lean_roots += 1
             return
         rows = self.build_rows(name, record, root)
+        self.journal.append(
+            {
+                "kind": "square_begin",
+                "root": name,
+                "batch": self.batches,
+                "pair_ids": [item["sidecar"]["pair_id"] for item in rows],
+                "row_hashes": [item["row_hash"] for item in rows],
+            }
+        )
         with self.paths.retained.open("ab") as handle:
             for row_record in rows:
                 handle.write(canonical_json_bytes(row_record) + b"\n")
@@ -588,12 +673,23 @@ class SquareRunner:
             self.lean_roots += 1
 
     def build_rows(
-        self, name: str, record: Mapping[str, Any], root: Mapping[str, Any]
+        self,
+        name: str,
+        record: Mapping[str, Any],
+        root: Mapping[str, Any],
+        reconciliation: Mapping[str, Any] | None = None,
     ) -> list[dict[str, Any]]:
         render = cast(dict[str, Any], record["render"])
         evidence = cast(dict[str, Any], record["evidence"])
         direction = str(record["direction"])
         root_id = self.base.root_id(name)
+        cache_key = self.square_root_key(name)
+        cache_block = {
+            "kind": SQUARE_CACHE_KIND,
+            "schema": SQUARE_CACHE_SCHEMA,
+            "key": cache_key,
+            "path": f"roots/{cache_key[:2]}/{cache_key}.json",
+        }
         rows: list[dict[str, Any]] = []
         for kind, label, ref_ep, cand_ep, evidence_key in ROW_KINDS:
             reference = cast(dict[str, Any], render[ref_ep])["record"]
@@ -615,21 +711,26 @@ class SquareRunner:
                 },
             )
             check = cast(dict[str, Any], evidence[evidence_key])
+            reference_truth = ENDPOINT_TRUTH[ref_ep]
+            candidate_truth = ENDPOINT_TRUTH[cand_ep]
             if label:
+                assert reference_truth == candidate_truth
                 row_evidence: dict[str, Any] = {
                     "label": True,
                     "equivalence_proof": {"goal": "Iff reference candidate", "check": check},
                     "source_proof": evidence["source_proof"],
-                    "candidate_truth": "proved_equivalent_to_reference",
+                    "reference_truth": reference_truth,
+                    "candidate_truth": candidate_truth,
                 }
             else:
+                assert reference_truth != candidate_truth
                 row_evidence = {
                     "label": False,
                     "refutation": {"goal": "Not (Iff reference candidate)", "check": check},
                     "source_proof": evidence["source_proof"],
                     "source_proof_check": evidence["source_proof_check"],
-                    "candidate_truth": "proved" if cand_ep == "p" else "refuted",
-                    "reference_truth": "refuted",
+                    "reference_truth": reference_truth,
+                    "candidate_truth": candidate_truth,
                 }
             row_evidence["square"] = evidence
             evidence_hash = hash_canonical(row_evidence)
@@ -663,6 +764,8 @@ class SquareRunner:
                 "core_cell": kind,
                 "square": {
                     "direction": direction,
+                    "alpha": dict(cast(Mapping[str, Any], record.get("alpha") or {})),
+                    "alpha_reconciliation": dict(reconciliation) if reconciliation else None,
                     "t_p": evidence["t_p"],
                     "t_c": evidence["t_c"],
                     "reference_endpoint": ref_ep,
@@ -673,7 +776,8 @@ class SquareRunner:
                 "site": {"kind": "square", "detail": direction},
                 "evidence": row_evidence,
                 "evidence_hash": evidence_hash,
-                "candidate_truth": row_evidence["candidate_truth"],
+                "reference_truth": reference_truth,
+                "candidate_truth": candidate_truth,
                 "repr": {
                     "reference": reference,
                     "candidate": candidate,
@@ -687,7 +791,7 @@ class SquareRunner:
                 "project": self.base.pins.to_dict(),
                 # the engine that generated the certificates, not the engine building the rows
                 "engine": record.get("engine") or self.base.identity.to_dict(),
-                "cache_key": self.cache_key(name, str(record["alpha"]["p"])),
+                "cache": cache_block,
                 "lean_request_hashes": {
                     "process": record.get("process_request_hash"),
                     "render": render.get("request_hash"),
@@ -746,6 +850,172 @@ class SquareRunner:
 
 
 # ------------------------------------------------------------------ view + gate
+
+
+# ------------------------------------------------------------------ retained evidence
+def terminal_pair_ids(journal_path: Path) -> dict[str, list[str]]:
+    """Retained roots in journal order with the pair ids their terminal promised."""
+    result: dict[str, list[str]] = {}
+    if not journal_path.is_file():
+        return result
+    with journal_path.open("r", encoding="utf-8") as handle:
+        for line in handle:
+            if not line.strip():
+                continue
+            record = json.loads(line)
+            if record.get("kind") == "square_terminal" and record.get("status") == "retained":
+                result.setdefault(str(record["root"]), [str(x) for x in record.get("pair_ids", [])])
+    return result
+
+
+def load_square_retained(
+    paths: RunPaths, retained_path: Path | None = None
+) -> list[dict[str, Any]]:
+    """Retained rows whose root terminal promised their pair id; terminals are the authority.
+
+    Rows appended by a per-root transaction that never reached its terminal are orphaned
+    and ignored; a pair id is kept once even if the file carries it twice.
+    """
+    allowed = {pair for pairs in terminal_pair_ids(paths.journal).values() for pair in pairs}
+    seen: set[str] = set()
+    rows: list[dict[str, Any]] = []
+    for item in read_retained(retained_path or paths.retained):
+        pair_id = str(cast(dict[str, Any], item["sidecar"]).get("pair_id"))
+        if pair_id in allowed and pair_id not in seen:
+            seen.add(pair_id)
+            rows.append(item)
+    return rows
+
+
+_REBUILD_CALL = re.compile(r"rebuildSquares #\[(.*?)\]\n")
+_STRING_LITERAL = re.compile(r'"(?:[^"\\]|\\.)*"')
+
+
+def _square_rebuild_entries(raw: Mapping[str, Any]) -> dict[int, dict[str, str]] | None:
+    decoder = json.JSONDecoder()
+    response = raw.get("response") or {}
+    for message in cast(list[dict[str, Any]], response.get("messages") or []):
+        data = str(message.get("data", ""))
+        if '"square_rebuild"' not in data:
+            continue
+        start = data.find("{")
+        if start < 0:
+            continue
+        payload, _ = decoder.raw_decode(data[start:])
+        if payload.get("kind") != "square_rebuild":
+            continue
+        return {
+            int(entry["index"]): {ep: str(entry[ep]) for ep in ("p", "c", "p_prime", "c_prime")}
+            for entry in payload.get("squares", [])
+        }
+    return None
+
+
+def reconcile_square_alpha(record: Mapping[str, Any], raw_dir: Path) -> dict[str, Any]:
+    """Compare the persisted process alpha hashes with the structural hashes that
+    ``rebuildSquares`` emitted in the stored render response for the same root.
+
+    Fail-closed: any missing raw file, unparsable call, index or name disagreement, or
+    hash difference on any of the four endpoints reports ``matches == False``.
+    """
+    render = cast(dict[str, Any], record.get("render") or {})
+    request_hash = str(render.get("request_hash") or "")
+    process = {ep: str(v) for ep, v in cast(dict[str, Any], record.get("alpha") or {}).items()}
+    result: dict[str, Any] = {
+        "render_request_hash": request_hash,
+        "chunk_index": None,
+        "process": process,
+        "rebuild": None,
+        "raw_files": 0,
+        "matches": False,
+        "reason": None,
+    }
+    endpoint_id = str(
+        cast(dict[str, Any], render.get("p") or {}).get("record", {}).get("endpoint_id", "")
+    )
+    if not request_hash or "." not in endpoint_id:
+        result["reason"] = "render_record_incomplete"
+        return result
+    chunk_index = int(endpoint_id.split(".", 1)[0])
+    result["chunk_index"] = chunk_index
+    files = sorted(raw_dir.glob(f"{request_hash}.*.json"))
+    result["raw_files"] = len(files)
+    if not files:
+        result["reason"] = "raw_render_response_missing"
+        return result
+    rebuilds: list[dict[str, str]] = []
+    for path in files:
+        raw = read_json_object(path)
+        if raw.get("request_hash") != request_hash:
+            result["reason"] = "raw_file_request_hash_mismatch"
+            return result
+        code = str(cast(dict[str, Any], raw.get("request") or {}).get("code") or "")
+        call = _REBUILD_CALL.search(code)
+        if call is None:
+            result["reason"] = "rebuild_call_not_found"
+            return result
+        names = [json.loads(literal) for literal in _STRING_LITERAL.findall(call.group(1))]
+        if chunk_index >= len(names) or names[chunk_index] != record.get("root"):
+            result["reason"] = "chunk_name_mismatch"
+            return result
+        entries = _square_rebuild_entries(raw)
+        if entries is None or chunk_index not in entries:
+            result["reason"] = "square_rebuild_report_missing"
+            return result
+        rebuilds.append(entries[chunk_index])
+    if any(item != rebuilds[0] for item in rebuilds[1:]):
+        result["reason"] = "raw_responses_disagree"
+        return result
+    result["rebuild"] = rebuilds[0]
+    if set(process) != {"p", "c", "p_prime", "c_prime"}:
+        result["reason"] = "process_alpha_incomplete"
+        return result
+    result["matches"] = process == rebuilds[0]
+    if not result["matches"]:
+        result["reason"] = "alpha_mismatch:" + ",".join(
+            ep for ep in ("p", "c", "p_prime", "c_prime") if process.get(ep) != rebuilds[0].get(ep)
+        )
+    return result
+
+
+def regenerate_records(
+    runner: SquareRunner, *, raw_dir: Path, roots_by_name: Mapping[str, Mapping[str, Any]]
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """Rebuild retained rows from the journal's retained terminals and the cache records.
+
+    Every root must have a retained cache record with a render, an alpha reconciliation
+    against its stored render response, and regenerated pair ids equal to the ones its
+    terminal promised; otherwise the root is quarantined (never silently dropped).
+    """
+    rows: list[dict[str, Any]] = []
+    quarantined: list[dict[str, Any]] = []
+    for name, promised in terminal_pair_ids(runner.paths.journal).items():
+        record = runner.cache.get_root(runner.square_root_key(name))
+        if (
+            record is None
+            or record.get("status") != "retained"
+            or not isinstance(record.get("render"), dict)
+            or record.get("root") != name
+        ):
+            quarantined.append({"root": name, "reason": "cache_record_missing_or_not_retained"})
+            continue
+        reconciliation = reconcile_square_alpha(record, raw_dir)
+        if not reconciliation["matches"]:
+            quarantined.append(
+                {
+                    "root": name,
+                    "reason": f"alpha_unreconciled:{reconciliation['reason']}",
+                    "reconciliation": reconciliation,
+                }
+            )
+            continue
+        root = roots_by_name.get(name, {"name": name})
+        built = runner.build_rows(name, record, root, reconciliation=reconciliation)
+        if [str(item["sidecar"]["pair_id"]) for item in built] != promised:
+            quarantined.append({"root": name, "reason": "pair_ids_differ_from_terminal"})
+            continue
+        rows.extend(built)
+    return rows, quarantined
 
 
 @dataclass(frozen=True)
@@ -811,12 +1081,40 @@ def build_square_view(
     *,
     run_id: str,
     label: str = "core_v3_square",
+    regenerate: bool = True,
+    supersedes: str | None = None,
+    require_identical_rows: str | None = None,
 ) -> dict[str, Any]:
     from leanfaith.sft1.sprint import shortcut
 
     config = loaded.config
-    paths = RunPaths(Path(config.output.staging_root), run_id)
-    records = read_retained(paths.retained)
+    staging = Path(config.output.staging_root)
+    paths = RunPaths(staging, run_id)
+    out = staging / "compacted" / label
+    if out.exists():
+        raise SquareError(f"{out} already exists; square views are additive and immutable")
+    quarantined: list[dict[str, Any]] = []
+    source_retained_paths: list[str]
+    if regenerate:
+        census = read_json_object(staging / "targets" / "square_n25.json")
+        census_roots = cast(list[dict[str, Any]], census["roots"])
+        runner = SquareRunner(repo_root, loaded, run_id=run_id, roots=census_roots)
+        runner.load_state()
+        records, quarantined = regenerate_records(
+            runner,
+            raw_dir=paths.raw,
+            roots_by_name={str(item["name"]): item for item in census_roots},
+        )
+        regenerated_path = paths.run_dir / f"retained_{label}.jsonl"
+        if regenerated_path.exists():
+            raise SquareError(f"{regenerated_path} already exists; regenerated files are additive")
+        write_atomic(
+            regenerated_path, b"".join(canonical_json_bytes(item) + b"\n" for item in records)
+        )
+        source_retained_paths = [str(regenerated_path.relative_to(staging))]
+    else:
+        records = load_square_retained(paths)
+        source_retained_paths = [str(paths.retained.relative_to(staging))]
     gold = GoldBlocklist.load(
         repo_root / config.screens.gold_blocklist_path,
         expected_sha256=config.screens.gold_blocklist_sha256,
@@ -863,9 +1161,6 @@ def build_square_view(
     }
     incomplete = len(selection.degenerate_roots)
     conflicting_rows = selection.conflict_rows
-    out = Path(config.output.staging_root) / "compacted" / label
-    if out.exists():
-        raise SquareError(f"{out} already exists; square views are additive and immutable")
     out.mkdir(parents=True)
     provenance = derive_provenance(
         kept, repo_root=repo_root, cache_root=Path(config.output.staging_root) / "cache"
@@ -922,6 +1217,10 @@ def build_square_view(
         "run_id": label,
         "view": label,
         "source_runs": [run_id],
+        "source_retained_paths": source_retained_paths,
+        "regenerated_from_cache": regenerate,
+        "quarantined_roots": len(quarantined),
+        "supersedes": supersedes,
         "compacted_at": utc_now(),
         "finalized": True,
         "input_records": len(records),
@@ -969,6 +1268,41 @@ def build_square_view(
         )
         + b"\n",
     )
+    write_atomic(out / "quarantined_roots.json", canonical_json_bytes(quarantined) + b"\n")
+    reconciliations = [
+        cast(dict[str, Any], item["sidecar"])["square"].get("alpha_reconciliation") for item in kept
+    ]
+    reconciliation_summary = {
+        "roots": len(complete_roots),
+        "rows_with_reconciliation": sum(1 for r in reconciliations if r),
+        "rows_matched": sum(1 for r in reconciliations if r and r.get("matches")),
+        "quarantined_roots": quarantined,
+    }
+    write_atomic(
+        out / "alpha_reconciliation.json", canonical_json_bytes(reconciliation_summary) + b"\n"
+    )
+    identical_rows: dict[str, Any] | None = None
+    if require_identical_rows is not None:
+        reference_dir = staging / "compacted" / require_identical_rows
+        reference_shards = sorted(reference_dir.glob("shard-*"))
+        new_shards = sorted(out.glob("shard-*"))
+        per_shard = []
+        for a, b in zip(reference_shards, new_shards, strict=False):
+            per_shard.append(
+                {
+                    "shard": b.name,
+                    "identical": (a / "rows.jsonl").read_bytes() == (b / "rows.jsonl").read_bytes(),
+                    "rows_sha256": hash_file(b / "rows.jsonl"),
+                }
+            )
+        identical_rows = {
+            "reference_label": require_identical_rows,
+            "shard_count_equal": len(reference_shards) == len(new_shards),
+            "shards": per_shard,
+            "identical": len(reference_shards) == len(new_shards)
+            and all(item["identical"] for item in per_shard),
+        }
+        write_atomic(out / "rows_identity.json", canonical_json_bytes(identical_rows) + b"\n")
     serialized = shortcut.load_serialized_view(out)
     screens = shortcut.run_screens_v3(serialized)
     control = shortcut.permutation_control(serialized)
@@ -1013,6 +1347,16 @@ def build_square_view(
         "all_rows_kernel_and_meta_checked_at_generation": unchecked == 0,
         "zero_duplicates": len({str(item["unordered_pair_key"]) for item in kept}) == len(kept),
         "conservation_holds": bool(conservation["holds"]),
+        "zero_quarantined_roots": not quarantined,
+        "alpha_reconciled_every_row": not regenerate
+        or (
+            reconciliation_summary["rows_with_reconciliation"] == len(kept)
+            and reconciliation_summary["rows_matched"] == len(kept)
+        ),
+        "cache_records_verified": bool(provenance.get("consistent"))
+        and int(provenance.get("square_cache_records_verified", 0)) == len(kept),
+        "rows_byte_identical_to_reference": identical_rows is None
+        or bool(identical_rows["identical"]),
         "zero_conflicts": outcome.conflict_count == 0 and conflicting_rows == 0,
         "finalized_shards_complete": all(bool(s["complete"]) for s in manifest["shards"]),
         "candidate_only_screen": bool(screen_by_name["candidate_only"]["passed"]),
@@ -1214,6 +1558,16 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--max-roots", type=int)
     parser.add_argument("--label", default="core_v3_square")
     parser.add_argument("--owner-session", default="claude-sft1-square")
+    parser.add_argument("--supersedes", help="label this view supersedes (recorded, not modified)")
+    parser.add_argument(
+        "--require-identical-rows",
+        help="label whose model-facing rows.jsonl shards must be byte-identical",
+    )
+    parser.add_argument(
+        "--no-regenerate",
+        action="store_true",
+        help="build from the run's retained file instead of regenerating from cache records",
+    )
     args = parser.parse_args(argv)
     repo_root = args.repo_root.resolve()
     loaded = load_sprint_config(repo_root, args.config.resolve() if args.config else None)
@@ -1270,7 +1624,15 @@ def main(argv: Sequence[str] | None = None) -> int:
         out = write_square_inspection(paths, records)
         print(json.dumps({"run_id": args.run_id, "rows": len(records), "path": str(out)}))
         return 0
-    report = build_square_view(repo_root, loaded, run_id=args.run_id, label=args.label)
+    report = build_square_view(
+        repo_root,
+        loaded,
+        run_id=args.run_id,
+        label=args.label,
+        regenerate=not args.no_regenerate,
+        supersedes=args.supersedes,
+        require_identical_rows=args.require_identical_rows,
+    )
     print(
         json.dumps(
             {k: v for k, v in report.items() if k not in {"shortcut"}}, ensure_ascii=False, indent=1
