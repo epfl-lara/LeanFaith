@@ -1241,6 +1241,7 @@ def test_square_truths_and_cache_identity_for_every_row_kind() -> None:
         assert cache == {
             "kind": "square_root",
             "schema": 2,
+            "revision": 0,
             "key": key,
             "path": f"roots/{key[:2]}/{key}.json",
         }
@@ -1532,3 +1533,31 @@ def test_square_card_states_direct_not_iff_evidence_and_supersession() -> None:
     assert "supersedes `sprint_v1/core_v3_square`" in card
     plain = dataset_card("tenk", {**manifest, "orientation_rule": None, "supersedes": None}, None)
     assert "complete ground assignment" in plain and "supersedes" not in plain
+
+
+def test_operation_cache_revision_only_changes_revised_keys() -> None:
+    from leanfaith.sft1.sprint import square
+
+    common = {
+        "name": "Nat.a",
+        "engine_semantic_version": "sft1_sprint_engine_v1",
+        "project_revision": "r" * 40,
+        "lean_version": "v4.31.0-rc1",
+        "import_options_fingerprint": "f" * 64,
+    }
+    assert square.operation_cache_revision("SQUARE_N25_SYMMETRY_V1") == 0
+    assert square.operation_cache_revision("SQUARE_N19_CURRICULUM_V1") == 1
+    legacy = square.square_cache_key(operation_id="SQUARE_N25_SYMMETRY_V1", revision=0, **common)
+    from leanfaith.config.hashing import hash_canonical
+
+    assert legacy == hash_canonical(
+        {
+            "kind": "square_root",
+            "cache_schema": 2,
+            "operation_id": "SQUARE_N25_SYMMETRY_V1",
+            **common,
+        }
+    )
+    r0 = square.square_cache_key(operation_id="SQUARE_N19_CURRICULUM_V1", revision=0, **common)
+    r1 = square.square_cache_key(operation_id="SQUARE_N19_CURRICULUM_V1", revision=1, **common)
+    assert r0 != r1

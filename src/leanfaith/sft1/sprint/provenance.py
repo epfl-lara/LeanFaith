@@ -209,18 +209,20 @@ def verify_square_cache(
     schema = block.get("schema")
     engine = sidecar.get("engine") or {}
     project = sidecar.get("project") or {}
-    expected_key = hash_canonical(
-        {
-            "kind": "square_root",
-            "cache_schema": schema,
-            "operation_id": str(sidecar.get("operation_id")),
-            "name": str(sidecar.get("root_name")),
-            "engine_semantic_version": str(engine.get("semantic_version")),
-            "project_revision": str(project.get("project_revision")),
-            "lean_version": str(project.get("lean_version")),
-            "import_options_fingerprint": str(engine.get("import_options_fingerprint")),
-        }
-    )
+    identity: dict[str, Any] = {
+        "kind": "square_root",
+        "cache_schema": schema,
+        "operation_id": str(sidecar.get("operation_id")),
+        "name": str(sidecar.get("root_name")),
+        "engine_semantic_version": str(engine.get("semantic_version")),
+        "project_revision": str(project.get("project_revision")),
+        "lean_version": str(project.get("lean_version")),
+        "import_options_fingerprint": str(engine.get("import_options_fingerprint")),
+    }
+    revision = block.get("revision", 0)
+    if isinstance(revision, int) and revision > 0:
+        identity["operation_revision"] = revision
+    expected_key = hash_canonical(identity)
     if key != expected_key:
         issues.append("cache key does not match the square-root identity")
     path = cache_root / str(block.get("path", ""))

@@ -87,8 +87,42 @@ SQUARE_OPERATIONS: dict[str, dict[str, str]] = {
         "negative": "N19_WHOLE_CLAIM_NEGATION_V1",
         "census": "square_n19.json",
         "family": "square_n19",
+        # cache revision 1: records written before the P15 witness dispatch existed are stale
+        "cache_revision": "1",
     },
 }
+
+
+def operation_cache_revision(operation_id: str) -> int:
+    """Per-operation cache revision; 0 keeps the historical key composition unchanged."""
+    return int(SQUARE_OPERATIONS[operation_id].get("cache_revision", "0"))
+
+
+def square_cache_key(
+    *,
+    operation_id: str,
+    name: str,
+    engine_semantic_version: str,
+    project_revision: str,
+    lean_version: str,
+    import_options_fingerprint: str,
+    revision: int,
+) -> str:
+    identity: dict[str, Any] = {
+        "kind": SQUARE_CACHE_KIND,
+        "cache_schema": SQUARE_CACHE_SCHEMA,
+        "operation_id": operation_id,
+        "name": name,
+        "engine_semantic_version": engine_semantic_version,
+        "project_revision": project_revision,
+        "lean_version": lean_version,
+        "import_options_fingerprint": import_options_fingerprint,
+    }
+    if revision > 0:
+        identity["operation_revision"] = revision
+    return hash_canonical(identity)
+
+
 INVENTORY_NEGATIVES = {"N19_WHOLE_CLAIM_NEGATION_V1"}
 TRANSFORM_SHORT = {
     "P18_SYMMETRIZE_EQUALITY_V1": "eq",
@@ -381,17 +415,14 @@ class SquareRunner:
                 )
 
     def square_root_key(self, name: str) -> str:
-        return hash_canonical(
-            {
-                "kind": "square_root",
-                "cache_schema": 2,
-                "operation_id": self.operation_id,
-                "name": name,
-                "engine_semantic_version": self.base.identity.semantic_version,
-                "project_revision": self.base.pins.project_revision,
-                "lean_version": self.base.pins.lean_version,
-                "import_options_fingerprint": self.base.identity.import_options_fingerprint,
-            }
+        return square_cache_key(
+            operation_id=self.operation_id,
+            name=name,
+            engine_semantic_version=self.base.identity.semantic_version,
+            project_revision=self.base.pins.project_revision,
+            lean_version=self.base.pins.lean_version,
+            import_options_fingerprint=self.base.identity.import_options_fingerprint,
+            revision=operation_cache_revision(self.operation_id),
         )
 
     # ---------------------------------------------------------------- run
@@ -784,6 +815,7 @@ class SquareRunner:
         cache_block = {
             "kind": SQUARE_CACHE_KIND,
             "schema": SQUARE_CACHE_SCHEMA,
+            "revision": operation_cache_revision(operation_id),
             "key": cache_key,
             "path": f"roots/{cache_key[:2]}/{cache_key}.json",
         }

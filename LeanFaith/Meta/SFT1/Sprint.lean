@@ -1354,6 +1354,7 @@ private def iffExpr (a b : Expr) : Expr := mkApp2 (mkConst ``Iff) a b
 
 private def squareIffProof (op : Op) (site : Site) (ref cand : Expr) : MetaM Expr :=
   match op with
+  | .p15 => finalTargetIffProof ref cand fun p => mkAppM ``Iff.symm #[p]
   | .p18 => finalTargetIffProof ref cand fun p => mkEqSymm p
   | .pne => finalTargetIffProof ref cand fun p => mkAppM ``Ne.symm #[p]
   | .p14 => p14IffProof ref cand site.index
