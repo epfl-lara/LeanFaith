@@ -1205,6 +1205,17 @@ def _rss_high_water_bytes() -> int:
     )
 
 
+def _reference_proposition_for_audit(
+    source: SourceRecord, reference_input: ReferenceElaborationInput
+) -> str:
+    if reference_input.method in {
+        "frozen_reference_signature_explicit",
+        "pinned_sum_in_syntax_migration_v1",
+    }:
+        return reference_input.carrier
+    return source.reference_proposition
+
+
 def _read_terminal(path: Path) -> SourceAuditTerminal:
     try:
         return SourceAuditTerminal.model_validate(_json_object(path))
@@ -1226,11 +1237,7 @@ def _execute_source(
     run_id: str,
     run_root: Path,
 ) -> tuple[SourceAuditTerminal | None, int]:
-    reference_proposition = (
-        reference_input.carrier
-        if reference_input.method == "frozen_reference_signature_explicit"
-        else source.reference_proposition
-    )
+    reference_proposition = _reference_proposition_for_audit(source, reference_input)
     endpoints = _endpoints(source, candidates, reference_proposition=reference_proposition)
     reference_constant_name = (
         reference_input.carrier

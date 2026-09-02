@@ -225,6 +225,14 @@ def test_pinned_sum_in_migration_is_hash_and_count_bound() -> None:
     assert audit._migrated_reference_carrier(source, migration) == (
         "(∑ i ∈ Finset.range 3, i) = ∑ j ∈ Finset.range 3, j"
     )
+    reference_input = audit.ReferenceElaborationInput(
+        method="pinned_sum_in_syntax_migration_v1",
+        carrier=audit._migrated_reference_carrier(source, migration),
+        raw_statement=source.reference_proposition,
+    )
+    assert audit._reference_proposition_for_audit(source, reference_input) == (
+        "(∑ i ∈ Finset.range 3, i) = ∑ j ∈ Finset.range 3, j"
+    )
     with pytest.raises(audit.MatchedPilotLeanAuditError):
         audit._migrated_reference_carrier(
             source, migration.model_copy(update={"expected_replacements": 1})
