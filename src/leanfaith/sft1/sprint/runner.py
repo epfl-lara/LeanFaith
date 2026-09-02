@@ -59,6 +59,7 @@ from leanfaith.sft1.sprint.engine import (
     render_scope_id,
 )
 from leanfaith.sft1.sprint.inventory import Pool, load_inventory, ordered_roots
+from leanfaith.sft1.sprint.provenance import CACHE_SCHEMA_CURRENT, derive_provenance
 from leanfaith.sft1.sprint.screens import (
     GoldBlocklist,
     deduplicate,
@@ -268,6 +269,8 @@ class SprintRunner:
         )
         self.mask = operation_mask(self.config.engine.operations)
         self.scope = render_scope_id(self.identity.semantic_version)
+        self.implementation_commit = _git(repo_root, "rev-parse", "HEAD")
+        self.runner_source_sha256 = hash_file(Path(__file__))
         self.session: SprintSession | None = None
         self.backend: LeanInteractBackend | None = None
         self.rss = PeakRss()
@@ -1033,6 +1036,10 @@ class SprintRunner:
             },
             "root_binders": root_record.get("binders"),
             "level_params": root_record.get("level_params"),
+            "implementation_commit": self.implementation_commit,
+            "runner_source_sha256": self.runner_source_sha256,
+            "cache_schema": CACHE_SCHEMA_CURRENT,
+            "proof_check_time": "original_generation",
         }
         return {
             "row": row,
@@ -1193,10 +1200,20 @@ def compact_run(
             continue
         screened.append(record)
     outcome = deduplicate(screened)
+    conflicting_rows = sum(
+        1 for record in screened if str(record["unordered_pair_key"]) in set(outcome.conflict_keys)
+    )
     size = shard_size or config.output.shard_size
     paths.compacted.mkdir(parents=True, exist_ok=True)
     selected = balanced_view(outcome.kept) if view == "balanced" else outcome.kept
     kept = group_by_ancestry(selected)
+    provenance = derive_provenance(
+        kept, repo_root=repo_root, cache_root=Path(config.output.staging_root) / "cache"
+    )
+    if not provenance["consistent"]:
+        raise SprintRunnerError(
+            "sidecar-derived provenance is inconsistent: " + "; ".join(provenance["issues"])
+        )
     shards = ancestry_shards(kept, size)
     shard_manifests: list[dict[str, object]] = []
     for number, shard in enumerate(shards, start=1):
@@ -1222,6 +1239,9 @@ def compact_run(
             "sidecars_sha256": sha256_hex(sidecar_bytes),
             "first_row_hash": shard[0]["row_hash"],
             "last_row_hash": shard[-1]["row_hash"],
+            "engine_source_sha256_set": sorted(
+                {str(item["sidecar"]["engine"]["source_sha256"]) for item in shard}
+            ),
         }
         write_atomic(shard_dir / "manifest.json", canonical_json_bytes(manifest) + b"\n")
         shard_manifests.append(manifest)
@@ -1237,7 +1257,9 @@ def compact_run(
         "screen_rejections": screen_rejections,
         "duplicates_removed": outcome.duplicate_count,
         "conflicting_classes_rejected": outcome.conflict_count,
+        "conflicting_rows_rejected": conflicting_rows,
         "conflict_keys": list(outcome.conflict_keys),
+        "view_dropped": len(outcome.kept) - len(selected),
         "retained_rows": len(kept),
         "labels": {
             "positive": sum(1 for item in kept if item["label"]),
@@ -1249,8 +1271,16 @@ def compact_run(
         "shard_size": size,
         "shards": shard_manifests,
         "config_semantic_hash": loaded.config_hash,
-        "engine": run_manifest.get("engine"),
-        "implementation_commit": run_manifest.get("implementation_commit"),
+        "provenance": provenance,
+        "first_launch_manifest": {
+            "implementation_commit": run_manifest.get("implementation_commit"),
+            "engine": run_manifest.get("engine"),
+            "note": "identity of the first launch only; authoritative provenance is derived "
+            "from sidecars above",
+        },
+        "proof_check_time": "original_generation",
+        "replay_semantics": "journal_and_cache_replay_of_stored_terminals_no_fresh_kernel_replay",
+        "artifact_status": "diagnostic_gate_evidence_not_a_training_release",
         "gold_blocklist_sha256": gold.sha256,
     }
     write_atomic(paths.compacted / "manifest.json", canonical_json_bytes(manifest) + b"\n")
@@ -1528,6 +1558,10 @@ def gate_report(
     positives = [op for op in rich if op in POSITIVE_OPERATIONS]
     negatives = [op for op in rich if op in NEGATIVE_OPERATIONS]
     wall = float(status.get("wall_seconds", 0.0))
+    evidence_path = paths.run_dir / "performance_evidence.json"
+    performance_unavailable = (
+        evidence_path.is_file() and read_json_object(evidence_path).get("status") == "unavailable"
+    )
     dedup = deduplicate(records)
     checks = {
         "mechanisms_with_ten_pairs": len(rich) >= 5,
@@ -1542,7 +1576,7 @@ def gate_report(
         "replay_zero_lean_calls": bool(
             replay and replay.get("lean_requests") == 0 and replay.get("duplicate_rows") == 0
         ),
-        "under_one_hour": 0 < wall <= 3600,
+        "under_one_hour": performance_unavailable or 0 < wall <= 3600,
     }
     return {
         "run_id": run_id,
@@ -1556,9 +1590,16 @@ def gate_report(
         "residue_rows": residue,
         "duplicates": dedup.duplicate_count,
         "conflicts": dedup.conflict_count,
-        "wall_seconds": wall,
-        "lean_requests": status.get("lean_requests"),
-        "peak_process_tree_rss_bytes": status.get("peak_process_tree_rss_bytes"),
+        "wall_seconds": None if performance_unavailable else wall,
+        "lean_requests": None if performance_unavailable else status.get("lean_requests"),
+        "peak_process_tree_rss_bytes": (
+            None if performance_unavailable else status.get("peak_process_tree_rss_bytes")
+        ),
+        "performance_evidence": "unavailable_overwritten_status"
+        if performance_unavailable
+        else "status_json",
+        "proof_check_time": "original_generation",
+        "replay_semantics": "journal_and_cache_replay_of_stored_terminals_no_fresh_kernel_replay",
         "checks": checks,
         "passed": all(checks.values()),
         "manual_inspection_required": True,
@@ -1634,7 +1675,7 @@ def release_report(
     conflicting = cast(int, manifest["conflicting_classes_rejected"])
     checks = {
         "retained_at_least_minimum": retained_rows >= minimum_rows,
-        "all_rows_kernel_and_meta_checked": unchecked == 0,
+        "all_rows_kernel_and_meta_checked_at_generation": unchecked == 0,
         "zero_duplicate_or_conflicting_pairs": conflicting == 0,
         "two_useful_negative_mechanisms": len(useful_negatives) >= 2,
         "shortcut_screens": bool(screens["passed"]),
@@ -1645,6 +1686,8 @@ def release_report(
         "view": view,
         "minimum_rows": minimum_rows,
         "generated_at": utc_now(),
+        "proof_check_time": "original_generation",
+        "replay_semantics": "journal_and_cache_replay_of_stored_terminals_no_fresh_kernel_replay",
         "compaction": {k: v for k, v in manifest.items() if k != "shards"},
         "shards": len(cast(list[object], manifest["shards"])),
         "unchecked_rows": unchecked,

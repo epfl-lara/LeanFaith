@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from leanfaith.config.hashing import hash_canonical
+from leanfaith.config.hashing import hash_canonical, hash_file
 from leanfaith.representations.goal_v1 import _closed_expr_command
 from leanfaith.sft1.sprint import engine, inventory, screens, store
 from leanfaith.sft1.sprint.runner import (
@@ -380,3 +380,150 @@ def test_balanced_view_equalizes_labels_per_root() -> None:
             1 for item in subset if not item["label"]
         )
     assert not any(item["root_name"] == "c" for item in kept)
+
+
+def _segment_record(
+    *,
+    root: str,
+    operation: str,
+    engine_sha: str,
+    context: str,
+    cache_schema: int,
+    cache_root: Path,
+    semantic_version: str = "sft1_sprint_engine_v1",
+) -> dict[str, object]:
+    from leanfaith.sft1.sprint.provenance import legacy_op_key, legacy_root_key
+
+    fingerprint = "f" * 64
+    project = {
+        "project_id": "mathlib",
+        "project_dir": "/x",
+        "project_revision": "r" * 40,
+        "lean_version": "v4.31.0-rc1",
+        "lean_interact_version": "0.11.4",
+        "repl_revision": "repl",
+        "import_header": "import Mathlib",
+        "options": {"Elab.async": False},
+    }
+    alpha = f"alpha-{root}"
+    common = {
+        "project_revision": project["project_revision"],
+        "lean_version": project["lean_version"],
+        "import_options_fingerprint": fingerprint,
+        "engine_semantic_version": semantic_version,
+        "name": root,
+    }
+    cache = store.SemanticCache(cache_root)
+    root_key = (
+        store.SemanticCache.root_key(**common) if cache_schema == 2 else legacy_root_key(**common)
+    )
+    cache.put_root(root_key, {"name": root, "reference_alpha_hash": alpha})
+    op_common = {
+        "reference_alpha_hash": alpha,
+        "operation_id": operation,
+        "engine_semantic_version": semantic_version,
+        "lean_version": project["lean_version"],
+        "project_revision": project["project_revision"],
+        "import_options_fingerprint": fingerprint,
+    }
+    cache_key = (
+        store.SemanticCache.op_key(**op_common, name=root)
+        if cache_schema == 2
+        else legacy_op_key(**op_common)
+    )
+    identity = {"renderer_semantic_hash": "s", "implementation_set_hash": "i"}
+    return {
+        "row": {"pair_id": f"pair:{root}", "root_id": f"root:{root}", "label": True},
+        "sidecar": {
+            "root_name": root,
+            "operation_id": operation,
+            "engine": {
+                "source_sha256": engine_sha,
+                "compile_context_id": context,
+                "semantic_version": semantic_version,
+                "import_options_fingerprint": fingerprint,
+            },
+            "project": project,
+            "cache_key": cache_key,
+            "repr": {
+                "reference": {"implementation_identity": identity, "spec_hash": "spec"},
+                "candidate": {"implementation_identity": identity, "spec_hash": "spec"},
+            },
+        },
+        "row_hash": f"h-{root}",
+        "label": True,
+    }
+
+
+def test_provenance_records_multiple_engine_segments_and_cache_schemas(tmp_path: Path) -> None:
+    from leanfaith.sft1.sprint.provenance import derive_provenance, engine_commit_map
+
+    commit_map = engine_commit_map(ROOT)
+    current = hash_file(ROOT / "LeanFaith/Meta/SFT1/Sprint.lean")
+    assert current in commit_map
+    older = next(sha for sha in commit_map if sha != current)
+    cache_root = tmp_path / "cache"
+    records = [
+        _segment_record(
+            root="Nat.a",
+            operation="P18_SYMMETRIZE_EQUALITY_V1",
+            engine_sha=older,
+            context="ctx:one",
+            cache_schema=1,
+            cache_root=cache_root,
+        ),
+        _segment_record(
+            root="Nat.b",
+            operation="P18_SYMMETRIZE_EQUALITY_V1",
+            engine_sha=current,
+            context="ctx:two",
+            cache_schema=1,
+            cache_root=cache_root,
+        ),
+        _segment_record(
+            root="Nat.c",
+            operation="N31_DROP_REQUIRED_GUARD_PROOF_V1",
+            engine_sha=current,
+            context="ctx:two",
+            cache_schema=2,
+            cache_root=cache_root,
+        ),
+    ]
+    provenance = derive_provenance(records, repo_root=ROOT, cache_root=cache_root)
+    assert provenance["consistent"], provenance["issues"]
+    assert provenance["engine_source_sha256_set"] == sorted({older, current})
+    assert provenance["cache_schemas"] == [1, 2]
+    segments = {
+        (s["engine_source_sha256"], s["cache_schema"]): s["rows"] for s in provenance["segments"]
+    }
+    assert segments == {(older, 1): 1, (current, 1): 1, (current, 2): 1}
+    assert all(segment["engine_commits"] for segment in provenance["segments"])
+
+
+def test_provenance_flags_mixed_semantic_versions(tmp_path: Path) -> None:
+    from leanfaith.sft1.sprint.provenance import derive_provenance
+
+    cache_root = tmp_path / "cache"
+    current = hash_file(ROOT / "LeanFaith/Meta/SFT1/Sprint.lean")
+    records = [
+        _segment_record(
+            root="Nat.a",
+            operation="P18_SYMMETRIZE_EQUALITY_V1",
+            engine_sha=current,
+            context="ctx:two",
+            cache_schema=2,
+            cache_root=cache_root,
+        ),
+        _segment_record(
+            root="Nat.b",
+            operation="P18_SYMMETRIZE_EQUALITY_V1",
+            engine_sha=current,
+            context="ctx:two",
+            cache_schema=2,
+            cache_root=cache_root,
+            semantic_version="sft1_sprint_engine_v9",
+        ),
+    ]
+    provenance = derive_provenance(records, repo_root=ROOT, cache_root=cache_root)
+    assert provenance["consistent"] is False
+    assert any("semantic versions" in issue for issue in provenance["issues"])
