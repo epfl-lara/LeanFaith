@@ -1560,10 +1560,13 @@ def _compact(
         for item in candidate_rows
         if item["elaboration_status"] != CompileStatus.VALID.value
     )
+    reference_elaboration_failure_histogram = Counter(
+        item.reference.error_class for item in terminals if not item.reference_elaborated
+    )
     reference_representation_failure_histogram = Counter(
         item.reference.error_class
         for item in terminals
-        if item.reference.status != CompileStatus.VALID
+        if item.reference_elaborated and item.reference.status != CompileStatus.VALID
     )
     thresholds = config.thresholds
     gate_checks = {
@@ -1605,6 +1608,7 @@ def _compact(
             "sources": len(sources),
             "candidates": len(candidates),
             "valid_references": valid_references,
+            "invalid_references": len(terminals) - valid_references,
             "representation_valid_references": representation_valid_references,
             "valid_candidates": valid_candidates,
             "invalid_candidates": invalid_candidates,
@@ -1639,6 +1643,9 @@ def _compact(
         ),
         "reference_representation_failure_histogram": dict(
             sorted(reference_representation_failure_histogram.items())
+        ),
+        "reference_elaboration_failure_histogram": dict(
+            sorted(reference_elaboration_failure_histogram.items())
         ),
         "extractor_histogram": _json_object(run_root / "preflight.json")["extractor_histogram"],
         "performance": {
@@ -1747,10 +1754,9 @@ def run_audit(
                     terminal_key=f"matched-pilot-render:{source.source_id}",
                     artifact_path=terminal_path,
                 )
-                if not terminal.reference_elaborated:
-                    raise MatchedPilotLeanAuditError(
-                        f"trusted reference failed deterministically: {source.source_id}"
-                    )
+                # Cache deterministic authority failures and continue the bounded
+                # audit so one pass yields a complete failure census.  The final
+                # every-reference gate remains false and blocks all downstream use.
         finally:
             if backend is not None:
                 backend.close()
