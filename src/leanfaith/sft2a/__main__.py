@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+from collections.abc import Sequence
 from pathlib import Path
 
 from leanfaith.config.hashing import hash_file
@@ -35,7 +36,6 @@ from leanfaith.sft2a.pipeline import run_lemex_audit, run_one_root, verify_one_r
 from leanfaith.sft2a.provider_rehearsal_v52 import (
     authorization_sentence_v52,
     launch_provider_rehearsal_v52,
-    launch_sprint_pilot_v52,
     load_provider_authorization_v52,
     load_provider_rehearsal_v52,
     materialize_provider_authorization_v52,
@@ -43,11 +43,7 @@ from leanfaith.sft2a.provider_rehearsal_v52 import (
     prepare_provider_readiness_v52,
     provider_readiness_path_v52,
     provider_rehearsal_health_v52,
-    run_audit_only_kimi_v52,
     run_detached_provider_rehearsal_v52,
-    run_detached_sprint_pilot_v52,
-    sprint_pilot_health_v52,
-    verify_sprint_pilot_sample_v52,
 )
 from leanfaith.sft2a.readiness import load_pilot_readiness
 from leanfaith.sft2a.reference_certification import (
@@ -71,9 +67,42 @@ from leanfaith.sft2a.rehearsal import (
     verify_rehearsal_replay,
 )
 from leanfaith.sft2a.release import compare_fable_and_opus, materialize_post_audit_core
+from leanfaith.sft2a.sprint_pilot_v52 import (
+    audit_only_kimi_health_v52,
+    launch_audit_only_kimi_v52,
+    launch_sprint_pilot_v52,
+    load_audit_only_kimi_v52,
+    run_audit_only_kimi_v52,
+    run_detached_audit_only_kimi_v52,
+    run_detached_sprint_pilot_v52,
+    run_malformed_injection_check,
+    run_oracle_v2_live_gate,
+    sprint_pilot_health_v52,
+    verify_sprint_pilot_sample_v52,
+)
+
+SPRINT_PILOT_COMMANDS = frozenset(
+    {
+        "verify-sprint-pilot-sample",
+        "run-malformed-injection-check",
+        "run-oracle-v2-live-gate",
+        "launch-sprint-pilot-v5-2",
+        "resume-sprint-pilot-v5-2",
+        "detached-sprint-pilot-v5-2-worker",
+        "sprint-pilot-v5-2-health",
+    }
+)
+AUDIT_ONLY_COMMANDS = frozenset(
+    {
+        "run-audit-only-kimi-v5-2",
+        "launch-audit-only-kimi-v5-2",
+        "detached-audit-only-kimi-v5-2-worker",
+        "audit-only-kimi-v5-2-health",
+    }
+)
 
 
-def main() -> int:
+def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--config", type=Path)
     parser.add_argument("--pilot-config", type=Path)
@@ -82,6 +111,7 @@ def main() -> int:
     parser.add_argument("--reference-certification-authorization", type=Path)
     parser.add_argument("--provider-rehearsal-config", type=Path)
     parser.add_argument("--provider-rehearsal-authorization", type=Path)
+    parser.add_argument("--audit-only-config", type=Path)
     subcommands = parser.add_subparsers(dest="command", required=True)
     subcommands.add_parser("verify-config")
     subcommands.add_parser("verify-pilot-readiness")
@@ -132,12 +162,9 @@ def main() -> int:
     subcommands.add_parser("resume-provider-rehearsal-v5-2")
     subcommands.add_parser("provider-rehearsal-v5-2-health")
     subcommands.add_parser("detached-provider-rehearsal-v5-2-worker")
-    subcommands.add_parser("verify-sprint-pilot-sample")
-    subcommands.add_parser("launch-sprint-pilot-v5-2")
-    subcommands.add_parser("detached-sprint-pilot-v5-2-worker")
-    subcommands.add_parser("sprint-pilot-v5-2-health")
-    subcommands.add_parser("run-audit-only-kimi-v5-2")
-    arguments = parser.parse_args()
+    for name in sorted(SPRINT_PILOT_COMMANDS | AUDIT_ONLY_COMMANDS):
+        subcommands.add_parser(name)
+    arguments = parser.parse_args(argv)
     loaded = load_sft2a_config(
         arguments.config,
         verify_binaries=arguments.command
@@ -206,11 +233,7 @@ def main() -> int:
         "resume-provider-rehearsal-v5-2",
         "provider-rehearsal-v5-2-health",
         "detached-provider-rehearsal-v5-2-worker",
-        "verify-sprint-pilot-sample",
-        "launch-sprint-pilot-v5-2",
-        "detached-sprint-pilot-v5-2-worker",
-        "sprint-pilot-v5-2-health",
-        "run-audit-only-kimi-v5-2",
+        *SPRINT_PILOT_COMMANDS,
     }
     provider_loaded = (
         load_provider_rehearsal_v52(arguments.provider_rehearsal_config)
@@ -234,6 +257,13 @@ def main() -> int:
     )
     if arguments.command in provider_authorized_commands and provider_authorization is None:
         parser.error("--provider-rehearsal-authorization is required for launch/worker commands")
+    audit_only_loaded = (
+        load_audit_only_kimi_v52(arguments.audit_only_config)
+        if arguments.command in AUDIT_ONLY_COMMANDS and arguments.audit_only_config is not None
+        else None
+    )
+    if arguments.command in AUDIT_ONLY_COMMANDS and audit_only_loaded is None:
+        parser.error("--audit-only-config is required for audit-only Kimi commands")
     if arguments.command == "verify-config":
         result: object = {
             "config_hash": loaded.config_hash,
@@ -349,9 +379,24 @@ def main() -> int:
     elif arguments.command == "verify-sprint-pilot-sample":
         assert provider_loaded is not None
         result = verify_sprint_pilot_sample_v52(provider_loaded)
+    elif arguments.command == "run-malformed-injection-check":
+        assert provider_loaded is not None
+        result = run_malformed_injection_check(
+            provider_loaded.base,
+            output_root=provider_loaded.output_root / "checks/malformed_injection",
+        )
+    elif arguments.command == "run-oracle-v2-live-gate":
+        assert provider_loaded is not None
+        result = run_oracle_v2_live_gate(
+            provider_loaded.base,
+            output_root=provider_loaded.output_root / "checks/oracle_v2_live_gate",
+        )
     elif arguments.command == "launch-sprint-pilot-v5-2":
         assert provider_loaded is not None
-        result = launch_sprint_pilot_v52(provider_loaded)
+        result = launch_sprint_pilot_v52(provider_loaded, resume=False)
+    elif arguments.command == "resume-sprint-pilot-v5-2":
+        assert provider_loaded is not None
+        result = launch_sprint_pilot_v52(provider_loaded, resume=True)
     elif arguments.command == "detached-sprint-pilot-v5-2-worker":
         assert provider_loaded is not None
         result = run_detached_sprint_pilot_v52(provider_loaded)
@@ -359,8 +404,17 @@ def main() -> int:
         assert provider_loaded is not None
         result = sprint_pilot_health_v52(provider_loaded)
     elif arguments.command == "run-audit-only-kimi-v5-2":
-        assert provider_loaded is not None
-        result = run_audit_only_kimi_v52(provider_loaded)
+        assert audit_only_loaded is not None
+        result = run_audit_only_kimi_v52(audit_only_loaded)
+    elif arguments.command == "launch-audit-only-kimi-v5-2":
+        assert audit_only_loaded is not None
+        result = launch_audit_only_kimi_v52(audit_only_loaded)
+    elif arguments.command == "detached-audit-only-kimi-v5-2-worker":
+        assert audit_only_loaded is not None
+        result = run_detached_audit_only_kimi_v52(audit_only_loaded)
+    elif arguments.command == "audit-only-kimi-v5-2-health":
+        assert audit_only_loaded is not None
+        result = audit_only_kimi_health_v52(audit_only_loaded)
     elif arguments.command == "verify-replay":
         result = verify_one_root_replay(loaded)
     elif arguments.command == "run-lemex-audit":

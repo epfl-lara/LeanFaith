@@ -69,7 +69,7 @@ def test_v2_command_uses_lfSft2aSignatureV2_keyword_and_universes() -> None:
     )
     assert "lfSft2aSignatureV2 " in command
     assert "universe u_0 u_1 u_2 u_3 u_4 u_5 u_6 u_7" in command
-    assert "assignUnivMVars" in command
+    assert "assignCanonicalUniverses" in command
 
 
 def test_v2_cache_key_excludes_oracle_source_sha256() -> None:
@@ -126,10 +126,12 @@ def test_parallel_root_state_machine_accepts_higher_concurrency(tmp_path: Path) 
     assert states.claim(root_id="root-c", worker_id="w-2") == "claimed"
 
 
-def test_oracle_pool_creates_and_reuses_oracles() -> None:
+def test_oracle_pool_starts_empty_and_closes_cleanly() -> None:
     from leanfaith.sft2a.provider_rehearsal_v52 import OraclePool
 
-    pool = OraclePool(cache_version="v2")
-    assert pool._oracles == [None, None]
+    pool = OraclePool(cache_version="v2", workers=2)
+    assert pool.workers == 2
+    assert pool.active_backend_count() == 0
     pool.close()
-    assert pool._oracles == [None, None]
+    assert pool.active_backend_count() == 0
+    assert pool.stats["created_backends"] == 0

@@ -72,6 +72,22 @@ def compile_context(loaded: LoadedSFT2AConfig) -> CompileContext:
     )
 
 
+def project_backend_context(context: CompileContext) -> CompileContext:
+    """Project-level backend identity: imports, preamble, and options without root scopes."""
+
+    return CompileContext(
+        project_id=context.project_id,
+        project_revision=context.project_revision,
+        lean_version=context.lean_version,
+        import_header=context.import_header,
+        command_preamble=context.command_preamble,
+        namespace_context=(),
+        open_context=(),
+        scoped_context=(),
+        options=dict(context.options),
+    )
+
+
 def validate_signature_text(signature: str) -> str:
     """Apply the same strict proof/placeholder preflight to any signature source."""
 
@@ -211,46 +227,51 @@ private partial def canonicalizeBinderMetadata (used : Array String) : Expr → 
   | .mdata data body => .mdata data (canonicalizeBinderMetadata used body)
   | e => e
 
-/-- Assign any remaining universe level metavariables to a canonical parameter
-    so that the frozen REPR renderer never sees an unresolved universe mvar. -/
-private def assignLevelMVars (canonical : Level) : Level → MetaM Level
-  | .succ level => return .succ (← assignLevelMVars canonical level)
-  | .max a b => return .max (← assignLevelMVars canonical a) (← assignLevelMVars canonical b)
-  | .imax a b => return .imax (← assignLevelMVars canonical a) (← assignLevelMVars canonical b)
-  | .mvar mvarId =>
-    unless (← mvarId.isAssigned) do
-      mvarId.assign canonical
-    pure (.mvar mvarId)
-  | level => pure level
+/-- Collect unassigned universe level metavariables in first-occurrence order. -/
+private partial def collectLevelMVars (acc : Array LMVarId) : Level → Array LMVarId
+  | .succ level => collectLevelMVars acc level
+  | .max a b => collectLevelMVars (collectLevelMVars acc a) b
+  | .imax a b => collectLevelMVars (collectLevelMVars acc a) b
+  | .mvar mvarId => if acc.contains mvarId then acc else acc.push mvarId
+  | _ => acc
 
-private partial def assignUnivMVars (canonical : Level) : Expr → MetaM Expr
-  | .const declName levels =>
-    let newLevels ← levels.mapM (assignLevelMVars canonical)
-    pure (.const declName newLevels)
-  | .sort level => return .sort (← assignLevelMVars canonical level)
-  | .app f arg =>
-    return .app (← assignUnivMVars canonical f) (← assignUnivMVars canonical arg)
-  | .forallE n d b bi =>
-    return .forallE n (← assignUnivMVars canonical d) (← assignUnivMVars canonical b) bi
-  | .lam n d b bi =>
-    return .lam n (← assignUnivMVars canonical d) (← assignUnivMVars canonical b) bi
-  | .letE n t v b nd =>
-    return .letE n (← assignUnivMVars canonical t) (← assignUnivMVars canonical v)
-                 (← assignUnivMVars canonical b) nd
-  | .proj t i b => return .proj t i (← assignUnivMVars canonical b)
-  | .mdata m b => return .mdata m (← assignUnivMVars canonical b)
-  | e => pure e
+/-- Traverse every Expr node that carries universe levels, including `Expr.sort`. -/
+private partial def collectExprLevelMVars (acc : Array LMVarId) : Expr → Array LMVarId
+  | .const _ levels => levels.foldl collectLevelMVars acc
+  | .sort level => collectLevelMVars acc level
+  | .app f a => collectExprLevelMVars (collectExprLevelMVars acc f) a
+  | .forallE _ d b _ => collectExprLevelMVars (collectExprLevelMVars acc d) b
+  | .lam _ d b _ => collectExprLevelMVars (collectExprLevelMVars acc d) b
+  | .letE _ t v b _ =>
+      collectExprLevelMVars (collectExprLevelMVars (collectExprLevelMVars acc t) v) b
+  | .proj _ _ b => collectExprLevelMVars acc b
+  | .mdata _ b => collectExprLevelMVars acc b
+  | _ => acc
+
+/-- Assign each remaining universe metavariable to a distinct canonical parameter
+    `u_0`, `u_1`, ... in first-occurrence order. The frozen REPR renderer then never
+    sees an unresolved universe metavariable, and independent universes stay distinct
+    instead of collapsing into one level. -/
+private def assignCanonicalUniverses (proposition : Expr) : MetaM Expr := do
+  let proposition ← instantiateMVars proposition
+  let pending := collectExprLevelMVars #[] proposition
+  if pending.size > 8 then
+    throwError "signature requires more than the eight canonical universes"
+  let mut index := 0
+  for mvarId in pending do
+    unless (← mvarId.isAssigned) do
+      mvarId.assign (.param (Name.mkSimple s!"u_{index}"))
+    index := index + 1
+  instantiateMVars proposition
 
 /-- Elaborate one proof-free proposition term exactly once, assign remaining
-    universe metavariables to canonical parameters, then pass that same
+    universe metavariables to distinct canonical parameters, then pass that same
     structural Expr to the frozen REPR payload emitter. -/
 elab "lfSft2aSignatureV2" endpoint:str scope:str ":" signature:term : command => do
   liftTermElabM do
     let proposition ← Term.elabTerm signature (some (mkSort .zero))
     Term.synthesizeSyntheticMVarsNoPostponing
-    let proposition ← instantiateMVars proposition
-    let proposition ← assignUnivMVars (.param `u_0) proposition
-    let proposition ← instantiateMVars proposition
+    let proposition ← assignCanonicalUniverses proposition
     let proposition := canonicalizeBinderMetadata #[] proposition
     LeanFaith.GoalV1.emitClosedProp
       endpoint.getString scope.getString "term_elaborated_proposition" proposition
@@ -355,6 +376,12 @@ class SignatureOracle:
         self.method_version = (
             ORACLE_METHOD_VERSION_V2 if cache_version == "v2" else ORACLE_METHOD_VERSION
         )
+        # v2 binds the persistent backend to the project-level context (imports, preamble,
+        # options) so one initialized Lean process serves every root of that project; the
+        # root-local namespace/open/scoped lines stay in the command, cache key, and sidecar.
+        self.backend_context = (
+            project_backend_context(self.context) if cache_version == "v2" else self.context
+        )
         self._owns_backend = backend is None
         self._backend = backend or self._make_backend()
 
@@ -377,7 +404,7 @@ class SignatureOracle:
         return LeanInteractBackend(
             BackendSettings(
                 project_dir=project_dir,
-                context_fingerprint=self.context.fingerprint,
+                context_fingerprint=self.backend_context.fingerprint,
                 environment_schema_version=source.environment_schema_version,
                 raw_response_dir=self.staging_root / "lean_raw_responses",
                 workers=source.workers,
@@ -401,8 +428,18 @@ class SignatureOracle:
         )
         if any(getattr(current, field) != getattr(target, field) for field in identity_fields):
             raise SignatureOracleError("cannot rebind a persistent oracle across Lean projects")
+        target_context = compile_context(loaded)
+        if (
+            self.cache_version == "v2"
+            and project_backend_context(target_context) != self.backend_context
+        ):
+            raise SignatureOracleError(
+                "cannot rebind a persistent v2 oracle across import/option contexts"
+            )
+        if self.cache_version != "v2" and target_context != self.context:
+            raise SignatureOracleError("v1 oracles bind one exact compile context per backend")
         self.loaded = loaded
-        self.context = compile_context(loaded)
+        self.context = target_context
 
     def close(self) -> None:
         if self._owns_backend:
@@ -472,7 +509,7 @@ class SignatureOracle:
         )
         request = LeanRequest(
             request_id=f"sft2a:{endpoint_role}:{signature_sha256}",
-            context_id=self.context.compile_context_id,
+            context_id=self.backend_context.compile_context_id,
             code=command,
             allow_sorry=False,
             timeout_seconds=300.0,
@@ -574,5 +611,6 @@ __all__ = [
     "SignatureOracleError",
     "SignatureOracleResult",
     "compile_context",
+    "project_backend_context",
     "validate_signature_text",
 ]

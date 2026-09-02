@@ -899,7 +899,8 @@ def run_one_root(
         for call in all_provider_calls
         if call.provider_id == loaded.config.claude_judge.provider_id
     ]
-    candidate_lean = all_lean_results[1:]
+    # A certified reference never enters ``all_lean_results``; only an elaborated reference does.
+    candidate_lean = all_lean_results if certified_reference is not None else all_lean_results[1:]
     executed_lean = [result for result in candidate_lean if not result.cache_hit]
     lean_seconds = sum(result.elapsed_ms for result in executed_lean) / 1000
 
@@ -1020,6 +1021,7 @@ def run_one_root(
         },
         "lean": {
             "method_version": getattr(proposition_oracle, "method_version", ORACLE_METHOD_VERSION),
+            "cache_version": getattr(proposition_oracle, "cache_version", "v1"),
             "oracle_source_sha256": (
                 hash_file(loaded.repo_root / "src/leanfaith/sft2a/lean_oracle.py")
                 if getattr(proposition_oracle, "cache_version", "v1") == "v1"

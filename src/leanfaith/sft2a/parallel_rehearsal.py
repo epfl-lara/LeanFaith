@@ -92,9 +92,10 @@ def _number(value: object, *, field: str) -> float:
 class AtomicProviderBudget:
     """Reserve before a call and finalize afterward under one cross-process file lock.
 
-    Events are loaded once per process into an in-memory cache; subsequent
-    operations use the cache and append new events under a short threading
-    lock plus an fcntl append for cross-process durability.
+    The journal is physically read at most once per process. Every later operation uses the
+    synchronized in-memory event list plus an incrementally maintained per-call state map; new
+    events are appended under a short threading lock plus an fcntl append for cross-process
+    durability. ``journal_reads`` counts physical journal loads so tests can prove load-once.
     """
 
     def __init__(self, path: Path, ceilings: ExecutionCeilings) -> None:
@@ -102,16 +103,29 @@ class AtomicProviderBudget:
         self.ceilings = ceilings
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self._cached_events: list[dict[str, object]] | None = None
+        self._cached_states: dict[str, dict[str, object]] | None = None
         self._thread_lock = threading.RLock()
+        self.journal_reads = 0
 
     def _events_locked(self) -> list[dict[str, object]]:
         if self._cached_events is None:
-            self._cached_events = _events(self.path)
+            self.journal_reads += 1
+            events = _events(self.path)
+            self._cached_states = self._states(events)
+            self._cached_events = events
         return self._cached_events
+
+    def _states_locked(self) -> dict[str, dict[str, object]]:
+        self._events_locked()
+        assert self._cached_states is not None
+        return self._cached_states
 
     def _append_event_locked(self, event: Mapping[str, object]) -> None:
         record = {"event_id": "sft2a-parallel:" + hash_canonical(event), **event}
         payload = canonical_json_bytes(record) + b"\n"
+        states = self._states_locked()
+        trial = dict(states)
+        self._apply_event(trial, record)
         with self.path.open("a+b") as handle:
             fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
             try:
@@ -123,44 +137,55 @@ class AtomicProviderBudget:
                 fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
         assert self._cached_events is not None
         self._cached_events.append(dict(record))
+        call_key = str(record["call_key"])
+        states[call_key] = trial[call_key]
+
+    @staticmethod
+    def _apply_event(states: dict[str, dict[str, object]], event: Mapping[str, object]) -> None:
+        call_key = event.get("call_key")
+        phase = event.get("phase")
+        if not isinstance(call_key, str) or phase not in {
+            "reserved",
+            "reclaimed",
+            "finalized",
+        }:
+            raise ParallelRehearsalError("parallel budget event is malformed")
+        current = states.get(call_key)
+        if phase == "reserved":
+            if current is not None:
+                if current.get("reservation_id") != event.get("reservation_id"):
+                    raise ParallelRehearsalError("parallel call key was reserved twice")
+                return
+            states[call_key] = dict(event)
+        elif phase == "reclaimed":
+            if current is None or current.get("phase") == "finalized":
+                raise ParallelRehearsalError("parallel reclaim lacks an unfinished reservation")
+            if event.get("prior_reservation_id") != current.get("reservation_id"):
+                raise ParallelRehearsalError("parallel reclaim predecessor differs")
+            states[call_key] = dict(event)
+        else:
+            if current is None or current.get("phase") == "finalized":
+                raise ParallelRehearsalError("parallel finalization lacks one reservation")
+            if current.get("reservation_id") != event.get("reservation_id"):
+                raise ParallelRehearsalError("parallel reservation/finalization identity differs")
+            states[call_key] = dict(event)
 
     def _states(self, events: Iterable[Mapping[str, object]]) -> dict[str, dict[str, object]]:
         states: dict[str, dict[str, object]] = {}
         for event in events:
-            call_key = event.get("call_key")
-            phase = event.get("phase")
-            if not isinstance(call_key, str) or phase not in {
-                "reserved",
-                "reclaimed",
-                "finalized",
-            }:
-                raise ParallelRehearsalError("parallel budget event is malformed")
-            current = states.get(call_key)
-            if phase == "reserved":
-                if current is not None:
-                    if current.get("reservation_id") != event.get("reservation_id"):
-                        raise ParallelRehearsalError("parallel call key was reserved twice")
-                    continue
-                states[call_key] = dict(event)
-            elif phase == "reclaimed":
-                if current is None or current.get("phase") == "finalized":
-                    raise ParallelRehearsalError("parallel reclaim lacks an unfinished reservation")
-                if event.get("prior_reservation_id") != current.get("reservation_id"):
-                    raise ParallelRehearsalError("parallel reclaim predecessor differs")
-                states[call_key] = dict(event)
-            else:
-                if current is None or current.get("phase") == "finalized":
-                    raise ParallelRehearsalError("parallel finalization lacks one reservation")
-                if current.get("reservation_id") != event.get("reservation_id"):
-                    raise ParallelRehearsalError(
-                        "parallel reservation/finalization identity differs"
-                    )
-                states[call_key] = dict(event)
+            self._apply_event(states, event)
         return states
+
+    def state_of(self, call_key: str) -> dict[str, object] | None:
+        """Return a copy of one call's current ledger state from the cached journal."""
+
+        with self._thread_lock:
+            state = self._states_locked().get(call_key)
+            return None if state is None else dict(state)
 
     def snapshot(self) -> dict[str, object]:
         with self._thread_lock:
-            states = self._states(self._events_locked())
+            states = dict(self._states_locked())
         counts = Counter(str(state["kind"]) for state in states.values())
         finalized = sum(state.get("phase") == "finalized" for state in states.values())
         spend = sum(
@@ -196,7 +221,7 @@ class AtomicProviderBudget:
         if not call_key or not worker_id or maximum_charge_usd < 0:
             raise ParallelRehearsalError("invalid provider reservation")
         with self._thread_lock:
-            states = self._states(self._events_locked())
+            states = self._states_locked()
             existing = states.get(call_key)
             reservation_id = hash_canonical(
                 {"call_key": call_key, "kind": kind, "worker_id": worker_id}
@@ -250,7 +275,7 @@ class AtomicProviderBudget:
         reported_cost_usd: float | None,
     ) -> dict[str, object]:
         with self._thread_lock:
-            states = self._states(self._events_locked())
+            states = self._states_locked()
             state = states.get(call_key)
             if state is None or state.get("reservation_id") != reservation_id:
                 raise ParallelRehearsalError("provider finalization lacks its reservation")
@@ -308,7 +333,7 @@ class AtomicProviderBudget:
         if terminal_path.exists():
             raise ParallelRehearsalError("provider terminal exists; reconcile instead of reclaim")
         with self._thread_lock:
-            states = self._states(self._events_locked())
+            states = self._states_locked()
             state = states.get(call_key)
             if state is None or state.get("phase") == "finalized":
                 raise ParallelRehearsalError("provider reclaim lacks unfinished reservation")
@@ -338,9 +363,7 @@ class AtomicProviderBudget:
         terminal = json.loads(terminal_path.read_text(encoding="utf-8"))
         if not isinstance(terminal, dict) or terminal.get("call_key") != call_key:
             raise ParallelRehearsalError("provider terminal identity differs during reconciliation")
-        with self._thread_lock:
-            states = self._states(self._events_locked())
-        state = states.get(call_key)
+        state = self.state_of(call_key)
         if state is None:
             raise ParallelRehearsalError("provider terminal has no atomic reservation")
         return self.finalize(
@@ -384,9 +407,7 @@ class AtomicBudgetedProvider:
         call_key, terminal_path, _request = preview(prompt=prompt, input_ids=input_ids)
         if not isinstance(call_key, str) or not isinstance(terminal_path, Path):
             raise ParallelRehearsalError("budgeted provider preview is malformed")
-        with self.ledger._thread_lock:
-            states = self.ledger._states(self.ledger._events_locked())
-        prior = states.get(call_key)
+        prior = self.ledger.state_of(call_key)
         if prior is not None and terminal_path.is_file():
             self.ledger.reconcile_terminal(call_key=call_key, terminal_path=terminal_path)
             result = invoke(prompt=prompt, input_ids=input_ids)

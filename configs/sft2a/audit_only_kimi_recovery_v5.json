@@ -1,0 +1,16 @@
+{
+  "version": "leanfaith_sft2a_audit_only_kimi_v5_2_v1",
+  "purpose": "complete the historical 40-row Kimi audit over the 284 accepted recovery-v5 rows",
+  "source_provider_config_path": "configs/sft2a/provider_rehearsal_v5_2_recovery_v5.json",
+  "source_provider_config_sha256": "5130e73b58177205b16faa315b3694f913f50e0ec0de2acc40a017b2924d7269",
+  "authorization_receipt_path": "/storage/milikic/leanfaith/value_first/sft2_llm_transforms_v1/runs/rehearsal_closure_aware_v5_2_recovery_v5/authorization/authorization_receipt.json",
+  "authorization_receipt_sha256": "32950e749399923f848d82b2aada189bc308915d8b4d24b66730a119873f45c0",
+  "outstanding_kimi_call_key": "e39fed4de7b9fbbf909466d5701ee6c36f40be99b70076091aa73d2ede94fc82",
+  "kimi_audit_rows": 40,
+  "kimi_concurrency": 8,
+  "tmux_session": "leanfaith-sft2a-audit-kimi-recovery-v5",
+  "terra_calls_allowed": 0,
+  "opus_calls_allowed": 0,
+  "lean_requests_allowed": 0,
+  "historical_generation_rerun_allowed": false
+}

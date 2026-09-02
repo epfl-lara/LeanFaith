@@ -227,6 +227,98 @@ class CliStructuredProvider:
         terminal_path = call_dir / "terminal.json"
         return call_key, terminal_path, request_payload
 
+    def _recover_schema_violation_attempt(
+        self,
+        *,
+        call_key: str,
+        request_payload: dict[str, object],
+        prior: Path,
+        terminal_path: Path,
+    ) -> ProviderCallResult | None:
+        """Persist a prior schema-violation attempt as a terminal instead of calling again.
+
+        Historical attempts recorded a schema violation as a failure without a terminal. The
+        provider output itself is durable in the redacted capture, so the call is reconciled
+        from those bytes: valid output becomes a normal terminal and semantically invalid output
+        becomes an immutable ``schema_invalid`` terminal for the judge layer's single retry.
+        Infrastructure failures return ``None`` and keep the bounded retry policy.
+        """
+
+        failure = _strict_object((prior / "failure.json").read_bytes(), label="prior failure")
+        detail = failure.get("detail")
+        if not isinstance(detail, str) or not detail.startswith(
+            "provider output schema violation:"
+        ):
+            return None
+        capture_hashes = failure.get("capture_hashes")
+        if not isinstance(capture_hashes, dict):
+            raise StructuredProviderError("provider prior failure lacks capture hashes")
+        cost_usd: float | None = None
+        elapsed = 0.0
+        if self.pin.cli == "claude":
+            wrapper = _strict_object(
+                (prior / "stdout.txt").read_bytes(), label="Claude prior result wrapper"
+            )
+            structured_value = wrapper.get("structured_output")
+            if not isinstance(structured_value, dict):
+                raise StructuredProviderError("Claude prior result wrapper lacks structured_output")
+            usage_value = wrapper.get("usage")
+            usage = usage_value if isinstance(usage_value, dict) else {}
+            cost_value = wrapper.get("total_cost_usd")
+            cost_usd = float(cost_value) if isinstance(cost_value, int | float) else None
+            duration_ms = wrapper.get("duration_ms")
+            elapsed = float(duration_ms) / 1000 if isinstance(duration_ms, int | float) else 0.0
+        else:
+            structured_value = _strict_object(
+                (prior / "final_message.txt").read_bytes(),
+                label=f"{self.pin.cli} prior final message",
+            )
+            stdout_path = prior / "stdout.jsonl"
+            usage = _codex_usage(stdout_path.read_bytes()) if stdout_path.is_file() else {}
+        terminal: dict[str, object] = {
+            "version": "leanfaith_sft2a_provider_terminal_v1",
+            "call_key": call_key,
+            "attempt_number": int(prior.name),
+            "request": request_payload,
+            "transport_schema_sha256": failure.get("transport_schema_sha256"),
+            "transport_schema_transform": failure.get("transport_schema_transform"),
+            "usage": usage,
+            "cost_usd": cost_usd,
+            "elapsed_seconds": elapsed,
+            "redaction_report_sha256": failure.get("redaction_report_sha256"),
+            "capture_hashes": capture_hashes,
+            "recovered_from_schema_dispatch_failure": True,
+        }
+        try:
+            structured = _model_validate(structured_value, response_kind=self.response_kind)
+        except StructuredProviderError as exc:
+            terminal["structured"] = structured_value
+            terminal["schema_invalid"] = True
+            terminal["schema_invalid_detail"] = str(exc)
+            _atomic(terminal_path, canonical_json_bytes(terminal) + b"\n")
+            return ProviderCallResult(
+                call_key=call_key,
+                provider_id=self.pin.provider_id,
+                structured=structured_value,
+                usage=usage,
+                cost_usd=cost_usd,
+                elapsed_seconds=elapsed,
+                cache_hit=False,
+                terminal_path=terminal_path,
+            )
+        terminal["structured"] = structured
+        _atomic(terminal_path, canonical_json_bytes(terminal) + b"\n")
+        return ProviderCallResult(
+            call_key=call_key,
+            provider_id=self.pin.provider_id,
+            structured=structured,
+            usage=usage,
+            cost_usd=cost_usd,
+            elapsed_seconds=elapsed,
+            cache_hit=False,
+            terminal_path=terminal_path,
+        )
+
     def call(self, *, prompt: str, input_ids: Sequence[str]) -> ProviderCallResult:
         call_key, terminal_path, request_payload = self.preview_call(
             prompt=prompt, input_ids=input_ids
@@ -286,57 +378,15 @@ class CliStructuredProvider:
             raise StructuredProviderError(
                 f"provider call has an incomplete infrastructure attempt: {call_key}"
             )
-        if prior_attempts and self.pin.cli == "claude":
-            prior = prior_attempts[-1]
-            failure = _strict_object(
-                (prior / "failure.json").read_bytes(), label="provider prior failure"
+        if prior_attempts:
+            recovered = self._recover_schema_violation_attempt(
+                call_key=call_key,
+                request_payload=request_payload,
+                prior=prior_attempts[-1],
+                terminal_path=terminal_path,
             )
-            detail = failure.get("detail")
-            if isinstance(detail, str) and detail.startswith("provider output schema violation:"):
-                wrapper = _strict_object(
-                    (prior / "stdout.txt").read_bytes(), label="Claude prior result wrapper"
-                )
-                structured_value = wrapper.get("structured_output")
-                if not isinstance(structured_value, dict):
-                    raise StructuredProviderError(
-                        "Claude prior result wrapper lacks structured_output"
-                    )
-                structured = _model_validate(structured_value, response_kind=self.response_kind)
-                usage_value = wrapper.get("usage")
-                usage = usage_value if isinstance(usage_value, dict) else {}
-                cost_value = wrapper.get("total_cost_usd")
-                cost_usd = float(cost_value) if isinstance(cost_value, int | float) else None
-                duration_ms = wrapper.get("duration_ms")
-                elapsed = float(duration_ms) / 1000 if isinstance(duration_ms, int | float) else 0.0
-                capture_hashes = failure.get("capture_hashes")
-                if not isinstance(capture_hashes, dict):
-                    raise StructuredProviderError("provider prior failure lacks capture hashes")
-                terminal = {
-                    "version": "leanfaith_sft2a_provider_terminal_v1",
-                    "call_key": call_key,
-                    "attempt_number": int(prior.name),
-                    "request": request_payload,
-                    "transport_schema_sha256": failure.get("transport_schema_sha256"),
-                    "transport_schema_transform": failure.get("transport_schema_transform"),
-                    "structured": structured,
-                    "usage": usage,
-                    "cost_usd": cost_usd,
-                    "elapsed_seconds": elapsed,
-                    "redaction_report_sha256": failure.get("redaction_report_sha256"),
-                    "capture_hashes": capture_hashes,
-                    "recovered_from_schema_dispatch_failure": True,
-                }
-                _atomic(terminal_path, canonical_json_bytes(terminal) + b"\n")
-                return ProviderCallResult(
-                    call_key=call_key,
-                    provider_id=self.pin.provider_id,
-                    structured=structured,
-                    usage=usage,
-                    cost_usd=cost_usd,
-                    elapsed_seconds=elapsed,
-                    cache_hit=False,
-                    terminal_path=terminal_path,
-                )
+            if recovered is not None:
+                return recovered
         if len(prior_attempts) >= _MAX_INFRASTRUCTURE_ATTEMPTS:
             raise StructuredProviderError(
                 f"provider call exhausted {_MAX_INFRASTRUCTURE_ATTEMPTS} infrastructure attempts"

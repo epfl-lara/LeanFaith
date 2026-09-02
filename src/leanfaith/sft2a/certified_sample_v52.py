@@ -4,12 +4,13 @@ from __future__ import annotations
 
 import json
 from collections import Counter, defaultdict
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import asdict
 from pathlib import Path
 from typing import cast
 
 from leanfaith.config.hashing import canonical_json_bytes, hash_canonical, hash_file
+from leanfaith.representations.views import signature_near_dup_hash
 from leanfaith.sft2a.legacy import _atomic_exact
 from leanfaith.sft2a.mechanisms import (
     SignatureShape,
@@ -484,18 +485,17 @@ def verify_sprint_pilot_sample(
     *,
     expected_sha256: str,
     expected_source_mix: Mapping[str, int] | None = None,
-    completed_100_sample_path: Path | None = None,
+    completed_sample_paths: Sequence[Path] = (),
+    blocked_signature_hashes: set[str] | None = None,
+    verify_certificates: bool = True,
 ) -> dict[str, object]:
-    """Zero-Lean sprint verifier: pin the sample SHA and check structural invariants.
+    """Zero-Lean sprint verifier pinned to the declared sample SHA-256.
 
-    Checks:
-    - exactly the declared number of unique rows (default 20);
-    - exact 8 Mathlib / 5 Physlib / 4 CSLib / 3 compiler-data source mix;
-    - unique closed Exprs and rendered goals;
-    - no placeholders or gold contamination;
-    - zero overlap with the completed 100 roots.
-
-    Executes zero Lean and zero provider calls.
+    Checks exactly the expected number of unique rows, the exact source mix, unique closed Exprs
+    and rendered goals, no placeholder markers, no gold contamination on the raw reference
+    signature or rendered goal, every certificate's cache/Expr lineage (file reads only), and
+    zero overlap with every completed-root sample by root ID, closed Expr, and rendered goal.
+    It executes zero Lean requests and zero provider calls and never recertifies a root.
     """
 
     if expected_source_mix is None:
@@ -508,62 +508,83 @@ def verify_sprint_pilot_sample(
         raise CorrectedSampleError(
             f"sprint pilot sample is not exactly {expected_count} rows: got {len(rows)}"
         )
-    root_ids = {str(cast(dict[str, object], row["root"])["root_id"]) for row in rows}
+    roots = [cast(dict[str, object], row["root"]) for row in rows]
+    certified = [cast(dict[str, object], row["certified_reference"]) for row in rows]
+    root_ids = {str(root["root_id"]) for root in roots}
     if len(root_ids) != expected_count:
         raise CorrectedSampleError("sprint pilot sample has duplicate root IDs")
-    sources = Counter(str(cast(dict[str, object], row["root"])["source"]) for row in rows)
+    sources = Counter(str(root["source"]) for root in roots)
     if dict(sources) != dict(expected_source_mix):
         raise CorrectedSampleError(
             f"sprint pilot source mix differs: {dict(sources)} != {dict(expected_source_mix)}"
         )
-    closed_exprs = {
-        str(cast(dict[str, object], row["certified_reference"])["closed_expr_hash"]) for row in rows
-    }
-    rendered_goals = {
-        str(cast(dict[str, object], row["certified_reference"])["rendered_goal_hash"])
-        for row in rows
-    }
+    closed_exprs = {str(item["closed_expr_hash"]) for item in certified}
+    rendered_goals = {str(item["rendered_goal_hash"]) for item in certified}
     if len(closed_exprs) != expected_count:
         raise CorrectedSampleError("sprint pilot sample has duplicate closed Expr hashes")
     if len(rendered_goals) != expected_count:
         raise CorrectedSampleError("sprint pilot sample has duplicate rendered goal hashes")
-    for row in rows:
-        goal = str(cast(dict[str, object], row["certified_reference"]).get("goal_v1", ""))
+    gold_hits = 0
+    for root, item in zip(roots, certified, strict=True):
+        goal = str(item.get("goal_v1", ""))
         for marker in FORBIDDEN_MODEL_GOAL_MARKERS:
             if marker in goal:
                 raise CorrectedSampleError(
                     f"sprint pilot sample contains placeholder marker {marker!r}"
                 )
+        if blocked_signature_hashes is not None:
+            for field in (str(root.get("reference_signature", "")), goal):
+                if field and signature_near_dup_hash(field) in blocked_signature_hashes:
+                    gold_hits += 1
+    if gold_hits:
+        raise CorrectedSampleError(f"sprint pilot sample has {gold_hits} gold contamination hits")
+    certificates_verified = 0
+    if verify_certificates:
+        for row in rows:
+            verify_certified_reference_row(row)
+            certificates_verified += 1
     overlap_root_ids = 0
     overlap_closed_exprs = 0
-    if completed_100_sample_path is not None:
-        completed = _rows(completed_100_sample_path)
-        completed_root_ids = {str(cast(dict[str, object], r["root"])["root_id"]) for r in completed}
-        completed_closed = {
-            str(cast(dict[str, object], r["certified_reference"])["closed_expr_hash"])
-            for r in completed
-        }
-        overlap_root_ids = len(root_ids & completed_root_ids)
-        overlap_closed_exprs = len(closed_exprs & completed_closed)
-        if overlap_root_ids or overlap_closed_exprs:
-            raise CorrectedSampleError(
-                f"sprint pilot sample overlaps completed 100 roots: "
-                f"ids={overlap_root_ids}, exprs={overlap_closed_exprs}"
-            )
+    overlap_rendered_goals = 0
+    completed_rows_seen = 0
+    for completed_path in completed_sample_paths:
+        completed = _rows(completed_path)
+        completed_rows_seen += len(completed)
+        completed_roots = [cast(dict[str, object], r["root"]) for r in completed]
+        completed_certified = [cast(dict[str, object], r["certified_reference"]) for r in completed]
+        overlap_root_ids += len(root_ids & {str(r["root_id"]) for r in completed_roots})
+        overlap_closed_exprs += len(
+            closed_exprs & {str(c["closed_expr_hash"]) for c in completed_certified}
+        )
+        overlap_rendered_goals += len(
+            rendered_goals & {str(c["rendered_goal_hash"]) for c in completed_certified}
+        )
+    if overlap_root_ids or overlap_closed_exprs or overlap_rendered_goals:
+        raise CorrectedSampleError(
+            "sprint pilot sample overlaps completed 100 roots: "
+            f"ids={overlap_root_ids}, exprs={overlap_closed_exprs}, goals={overlap_rendered_goals}"
+        )
     receipt: dict[str, object] = {
         "version": "leanfaith_sft2a_sprint_pilot_sample_verifier_v1",
         "sample_path": str(sample_path),
         "sample_sha256": hash_file(sample_path),
         "rows": len(rows),
         "unique_root_ids": len(root_ids),
-        "source_mix": dict(sources),
+        "source_mix": dict(sorted(sources.items())),
         "unique_closed_expr_hashes": len(closed_exprs),
         "unique_rendered_goal_hashes": len(rendered_goals),
         "placeholder_markers": 0,
-        "overlap_with_completed_100_root_ids": overlap_root_ids,
-        "overlap_with_completed_100_closed_exprs": overlap_closed_exprs,
+        "gold_contamination_hits": 0,
+        "gold_screen_applied": blocked_signature_hashes is not None,
+        "certificates_verified": certificates_verified,
+        "completed_sample_paths": [str(path) for path in completed_sample_paths],
+        "completed_rows_screened": completed_rows_seen,
+        "overlap_with_completed_root_ids": 0,
+        "overlap_with_completed_closed_exprs": 0,
+        "overlap_with_completed_rendered_goals": 0,
         "lean_requests_executed": 0,
         "provider_calls_executed": 0,
+        "recertified_roots": 0,
         "verified": True,
     }
     return receipt
