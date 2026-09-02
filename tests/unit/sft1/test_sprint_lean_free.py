@@ -989,3 +989,10 @@ def test_permutation_control_is_reproducible() -> None:
     assert first == second
     assert first["actual"]["candidate_only"][0] == second["actual"]["candidate_only"][0]
     assert "seed_1" in first["per_seed"]
+
+
+def test_error_terminals_are_never_cacheable() -> None:
+    """Request failures must not be written to or served from the semantic cache."""
+    assert not engine.cacheable_status("error")
+    for status in ("retained", "rejected", "not_applicable", "ok", "failed"):
+        assert engine.cacheable_status(status)

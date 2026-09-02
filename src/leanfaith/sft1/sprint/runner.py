@@ -54,6 +54,7 @@ from leanfaith.sft1.sprint.engine import (
     EngineIdentity,
     ProjectPins,
     SprintSession,
+    cacheable_status,
     operation_mask,
     operations_in_mask,
     render_scope_id,
@@ -541,8 +542,8 @@ class SprintRunner:
         root_record = self.cache.get_root(self.root_key(name))
         if root_record is None:
             return missing
-        if root_record.get("root_status") == "error":
-            return missing  # request failures are not deterministic terminals
+        if not cacheable_status(root_record.get("root_status")):
+            return missing
         if root_record.get("root_status") != "ok":
             self.finalize_root_failure(name, root_record, source="cache")
             return 0
@@ -655,7 +656,7 @@ class SprintRunner:
             payload = result.roots[name]
             if payload.get("root_status") != "ok":
                 self.finalize_root_failure(name, payload, source="lean")
-                if payload.get("root_status") != "error":
+                if cacheable_status(payload.get("root_status")):
                     self.cache.put_root(
                         self.root_key(name), self.root_cache_record(name, payload, {})
                     )

@@ -39,7 +39,7 @@ from leanfaith.representations.goal_v1 import (
 )
 from leanfaith.schemas.ids import PAIR_PREFIX, make_id
 from leanfaith.sft1.sprint import engine as engine_module
-from leanfaith.sft1.sprint.engine import lean_string_literal, parse_evidence_lines
+from leanfaith.sft1.sprint.engine import cacheable_status, lean_string_literal, parse_evidence_lines
 from leanfaith.sft1.sprint.inventory import load_inventory
 from leanfaith.sft1.sprint.provenance import derive_provenance
 from leanfaith.sft1.sprint.runner import (
@@ -334,8 +334,8 @@ class SquareRunner:
         record = self.cache.get_root(self.square_root_key(name))
         if record is None:
             return False
-        if record.get("status") == "error":
-            return False  # request failures are not deterministic terminals
+        if not cacheable_status(record.get("status")):
+            return False
         if record.get("status") == "retained" and not isinstance(record.get("render"), dict):
             return False
         self.finalize(name, record, source="cache", root=root)
@@ -386,7 +386,7 @@ class SquareRunner:
                 }
             if payload.get("status") != "retained":
                 record = self.cache_record(name, payload, None, result.request_hash)
-                if payload.get("status") != "error":
+                if cacheable_status(payload.get("status")):
                     self.cache.put_root(self.square_root_key(name), record)
                 self.finalize(name, record, source="lean", root=root)
                 continue

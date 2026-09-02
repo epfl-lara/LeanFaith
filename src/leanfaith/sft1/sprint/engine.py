@@ -61,6 +61,15 @@ OPERATION_MECHANISM: dict[str, str] = {
 }
 
 
+def cacheable_status(status: object) -> bool:
+    """Only deterministic terminals may enter the semantic cache.
+
+    Request failures (``error``) depend on the engine text, the worker, and host
+    state, so they are never written to nor served from the cache.
+    """
+    return status != "error"
+
+
 def mechanism_of(operation: str) -> str:
     """Mechanism label of an operation; exact table, never a prefix split."""
 
