@@ -10,6 +10,7 @@ recomputing both known key layouts against the cache's root records.
 
 from __future__ import annotations
 
+import json
 import subprocess
 from collections.abc import Mapping, Sequence
 from pathlib import Path
@@ -164,8 +165,34 @@ SQUARE_ENGINE_FIELDS = (
 )
 
 
+def _generating_run_verifies(
+    runs_root: Path | None, run_name: str, root_name: str, commit: object
+) -> str | None:
+    """Check that ``runs/<run_name>`` recorded ``commit`` and processed ``root_name`` via Lean."""
+    if runs_root is None:
+        return "generating run manifest unavailable"
+    manifest_path = runs_root / run_name / "run.json"
+    journal_path = runs_root / run_name / "journal.jsonl"
+    if not manifest_path.is_file() or not journal_path.is_file():
+        return f"generating run {run_name} manifest or journal absent"
+    if read_json_object(manifest_path).get("implementation_commit") != commit:
+        return f"generating run {run_name} recorded a different implementation commit"
+    with journal_path.open("r", encoding="utf-8") as handle:
+        for line in handle:
+            if '"square_terminal"' not in line:
+                continue
+            record = json.loads(line)
+            if (
+                record.get("kind") == "square_terminal"
+                and record.get("root") == root_name
+                and record.get("source") == "lean"
+            ):
+                return None
+    return f"generating run {run_name} has no Lean terminal for the root"
+
+
 def verify_square_cache(
-    sidecar: Mapping[str, Any], cache_root: Path
+    sidecar: Mapping[str, Any], cache_root: Path, runs_root: Path | None = None
 ) -> tuple[int | None, list[str]]:
     """Load the explicit square-root cache record a sidecar points at and verify it.
 
@@ -220,8 +247,23 @@ def verify_square_cache(
         issues.append("cache record render request hash differs")
     if dict(record.get("alpha") or {}) != dict((sidecar.get("square") or {}).get("alpha") or {}):
         issues.append("cache record alpha hashes differ")
-    if record.get("implementation_commit") != sidecar.get("implementation_commit"):
-        issues.append("cache record implementation commit differs")
+    source = str(sidecar.get("implementation_commit_source") or "cache_record")
+    if record.get("implementation_commit"):
+        if source != "cache_record":
+            issues.append("implementation commit source must be the cache record")
+        if record.get("implementation_commit") != sidecar.get("implementation_commit"):
+            issues.append("cache record implementation commit differs")
+    elif source.startswith("generating_run_manifest:"):
+        problem = _generating_run_verifies(
+            runs_root,
+            source.split(":", 1)[1],
+            str(sidecar.get("root_name")),
+            sidecar.get("implementation_commit"),
+        )
+        if problem:
+            issues.append(problem)
+    else:
+        issues.append("cache record lacks an implementation commit and no generating run is named")
     return (int(schema) if isinstance(schema, int) else None), issues
 
 
@@ -259,7 +301,9 @@ def derive_provenance(
         sidecar = record["sidecar"]
         cache_block = sidecar.get("cache")
         if isinstance(cache_block, Mapping) and cache_block.get("kind") == "square_root":
-            schema, record_issues = verify_square_cache(sidecar, cache_root)
+            schema, record_issues = verify_square_cache(
+                sidecar, cache_root, runs_root=cache_root.parent / "runs"
+            )
             if record_issues:
                 schema = None
                 cache_issues.setdefault(str(sidecar.get("root_name")), "; ".join(record_issues))

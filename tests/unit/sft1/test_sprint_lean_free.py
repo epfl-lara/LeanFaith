@@ -287,7 +287,9 @@ def test_new_non_test_implementation_stays_compact() -> None:
         *(ROOT / "src/leanfaith/sft1/sprint").glob("*.py"),
     ]
     total = sum(len(path.read_text(encoding="utf-8").splitlines()) for path in paths)
-    assert total < 9000, total
+    # 9,000 covered the sprint engine and runner; the corrective square release added
+    # cache verification, alpha reconciliation, and per-root transactions (2026-09-02).
+    assert total < 9500, total
     assert json.loads(json.dumps({"ok": True}))["ok"]
 
 
@@ -1082,7 +1084,19 @@ def test_square_rows_attribute_generating_engine() -> None:
     assert {row["sidecar"]["implementation_commit"] for row in rows} == {"o" * 40}
     fresh = runner.build_rows("Nat.a", base_record, {"source_run": "tenk"})
     assert {row["sidecar"]["engine"]["source_sha256"] for row in fresh} == {"current"}
-    assert {row["sidecar"]["implementation_commit"] for row in fresh} == {"c" * 40}
+    # a record without a commit never gets one fabricated from the current checkout
+    assert {row["sidecar"]["implementation_commit"] for row in fresh} == {None}
+    assert {row["sidecar"]["implementation_commit_source"] for row in fresh} == {"cache_record"}
+    resolved = {
+        **base_record,
+        "implementation_commit": "g" * 40,
+        "implementation_commit_source": "generating_run_manifest:square_20",
+    }
+    rows = runner.build_rows("Nat.a", resolved, {"source_run": "tenk"})
+    assert {row["sidecar"]["implementation_commit"] for row in rows} == {"g" * 40}
+    assert {row["sidecar"]["implementation_commit_source"] for row in rows} == {
+        "generating_run_manifest:square_20"
+    }
 
 
 def test_select_squares_drops_duplicate_squares_whole_and_conserves_rows() -> None:
@@ -1383,6 +1397,62 @@ def test_verify_square_cache_record(tmp_path: Path) -> None:
         "cache key does not match the square-root identity"
         in provenance.verify_square_cache(bad_key, cache_root)[1]
     )
+    # a record that predates the commit field verifies through its generating run
+    path.write_text(json.dumps({**record, "implementation_commit": None}), encoding="utf-8")
+    runs_root = tmp_path / "runs"
+    (runs_root / "square_20").mkdir(parents=True)
+    (runs_root / "square_20" / "run.json").write_text(
+        json.dumps({"operation_id": "SQUARE_N25_SYMMETRY_V1", "implementation_commit": "c" * 40}),
+        encoding="utf-8",
+    )
+    (runs_root / "square_20" / "journal.jsonl").write_text(
+        json.dumps(
+            {"kind": "square_terminal", "root": "Nat.a", "status": "retained", "source": "lean"}
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    resolved = dict(sidecar, implementation_commit_source="generating_run_manifest:square_20")
+    assert provenance.verify_square_cache(resolved, cache_root, runs_root=runs_root) == (2, [])
+    assert provenance.verify_square_cache(sidecar, cache_root, runs_root=runs_root)[1] == [
+        "cache record lacks an implementation commit and no generating run is named"
+    ]
+    other_run = dict(resolved, implementation_commit="d" * 40)
+    assert provenance.verify_square_cache(other_run, cache_root, runs_root=runs_root)[1] == [
+        "generating run square_20 recorded a different implementation commit"
+    ]
+
+
+def test_generating_run_commits_maps_lean_terminals(tmp_path: Path) -> None:
+    import json
+
+    from leanfaith.sft1.sprint import square
+
+    runs_root = tmp_path / "runs"
+    for name, commit, rows in (
+        ("square_20", "a" * 40, [("Nat.x", "lean"), ("Nat.y", "cache")]),
+        ("square_100", "b" * 40, [("Nat.x", "cache"), ("Nat.y", "lean")]),
+        ("other_op", "c" * 40, [("Nat.z", "lean")]),
+    ):
+        (runs_root / name).mkdir(parents=True)
+        op = "SQUARE_N25_SYMMETRY_V1" if name != "other_op" else "N25"
+        (runs_root / name / "run.json").write_text(
+            json.dumps({"operation_id": op, "implementation_commit": commit}), encoding="utf-8"
+        )
+        (runs_root / name / "journal.jsonl").write_text(
+            "".join(
+                json.dumps(
+                    {"kind": "square_terminal", "root": r, "status": "retained", "source": s}
+                )
+                + "\n"
+                for r, s in rows
+            ),
+            encoding="utf-8",
+        )
+    assert square.generating_run_commits(runs_root) == {
+        "Nat.x": ("square_20", "a" * 40),
+        "Nat.y": ("square_100", "b" * 40),
+    }
 
 
 def test_square_resume_validates_run_manifest(tmp_path: Path) -> None:

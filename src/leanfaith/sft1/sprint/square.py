@@ -797,8 +797,10 @@ class SquareRunner:
                     "render": render.get("request_hash"),
                 },
                 "level_params": record.get("level_params"),
-                "implementation_commit": record.get("implementation_commit")
-                or self.base.implementation_commit,
+                "implementation_commit": record.get("implementation_commit"),
+                "implementation_commit_source": record.get(
+                    "implementation_commit_source", "cache_record"
+                ),
                 "runner_source_sha256": hash_file(Path(__file__)),
                 "cache_schema": 2,
                 "proof_check_time": "original_generation",
@@ -978,6 +980,36 @@ def reconcile_square_alpha(record: Mapping[str, Any], raw_dir: Path) -> dict[str
     return result
 
 
+def generating_run_commits(
+    runs_root: Path, operation_id: str = SQUARE_OPERATION
+) -> dict[str, tuple[str, str]]:
+    """Root -> (run id, implementation commit) for roots a square run processed through Lean.
+
+    Used when a cache record predates the ``implementation_commit`` field: the generating
+    run's manifest is the only truthful source of that commit.
+    """
+    result: dict[str, tuple[str, str]] = {}
+    for run_dir in sorted(runs_root.glob("*")):
+        manifest_path = run_dir / "run.json"
+        journal_path = run_dir / "journal.jsonl"
+        if not manifest_path.is_file() or not journal_path.is_file():
+            continue
+        manifest = read_json_object(manifest_path)
+        if manifest.get("operation_id") != operation_id:
+            continue
+        commit = manifest.get("implementation_commit")
+        if not isinstance(commit, str) or not commit:
+            continue
+        with journal_path.open("r", encoding="utf-8") as handle:
+            for line in handle:
+                if '"square_terminal"' not in line:
+                    continue
+                record = json.loads(line)
+                if record.get("kind") == "square_terminal" and record.get("source") == "lean":
+                    result.setdefault(str(record["root"]), (run_dir.name, commit))
+    return result
+
+
 def regenerate_records(
     runner: SquareRunner, *, raw_dir: Path, roots_by_name: Mapping[str, Mapping[str, Any]]
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
@@ -989,6 +1021,7 @@ def regenerate_records(
     """
     rows: list[dict[str, Any]] = []
     quarantined: list[dict[str, Any]] = []
+    generating = generating_run_commits(runner.paths.run_dir.parent)
     for name, promised in terminal_pair_ids(runner.paths.journal).items():
         record = runner.cache.get_root(runner.square_root_key(name))
         if (
@@ -999,6 +1032,17 @@ def regenerate_records(
         ):
             quarantined.append({"root": name, "reason": "cache_record_missing_or_not_retained"})
             continue
+        if not record.get("implementation_commit"):
+            resolved = generating.get(name)
+            if resolved is None:
+                quarantined.append({"root": name, "reason": "implementation_commit_unresolvable"})
+                continue
+            run_name, commit = resolved
+            record = {
+                **record,
+                "implementation_commit": commit,
+                "implementation_commit_source": f"generating_run_manifest:{run_name}",
+            }
         reconciliation = reconcile_square_alpha(record, raw_dir)
         if not reconciliation["matches"]:
             quarantined.append(
@@ -1108,9 +1152,6 @@ def build_square_view(
         regenerated_path = paths.run_dir / f"retained_{label}.jsonl"
         if regenerated_path.exists():
             raise SquareError(f"{regenerated_path} already exists; regenerated files are additive")
-        write_atomic(
-            regenerated_path, b"".join(canonical_json_bytes(item) + b"\n" for item in records)
-        )
         source_retained_paths = [str(regenerated_path.relative_to(staging))]
     else:
         records = load_square_retained(paths)
@@ -1161,12 +1202,16 @@ def build_square_view(
     }
     incomplete = len(selection.degenerate_roots)
     conflicting_rows = selection.conflict_rows
-    out.mkdir(parents=True)
     provenance = derive_provenance(
         kept, repo_root=repo_root, cache_root=Path(config.output.staging_root) / "cache"
     )
     if not provenance["consistent"]:
         raise SquareError("provenance inconsistent: " + "; ".join(provenance["issues"]))
+    if regenerate:
+        write_atomic(
+            regenerated_path, b"".join(canonical_json_bytes(item) + b"\n" for item in records)
+        )
+    out.mkdir(parents=True)
     size = config.output.shard_size
     shards: list[list[dict[str, Any]]] = []
     current: list[dict[str, Any]] = []
