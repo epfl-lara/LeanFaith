@@ -133,7 +133,7 @@ class ReferenceCarrierOverride(StrictModel):
     source_proposition_sha256: Sha256
     carrier: Annotated[str, Field(min_length=1)]
     carrier_sha256: Sha256
-    reason: Literal["euclidean_vector_notation_v1"]
+    reason: Literal["euclidean_vector_notation_v1", "source_carrier_repair_v1"]
 
     @model_validator(mode="after")
     def validate_carrier_hash(self) -> ReferenceCarrierOverride:

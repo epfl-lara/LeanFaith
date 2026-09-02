@@ -78,6 +78,195 @@
       "carrier": "∀ (l : Set (EuclideanSpace ℝ (Fin 2))) (v d : EuclideanSpace ℝ (Fin 2)) (hl : l = {x | x 1 = (-12 * x 0 + 74) / 5}) (hparam : {x | ∃ t : ℝ, x = v + t • d} = l) (hdist : ∀ x ∈ l, x 0 ≤ 7 → x = v + dist x !₂[7, -2] • d), d = !₂[-5 / 13, 12 / 13]",
       "carrier_sha256": "581c3fbad6ce7cfec085ef5dec6ba2053649d64778174fcf174c84f3f0964758",
       "reason": "euclidean_vector_notation_v1"
+    },
+    {
+      "source_id": "sft2b_source:1daffcc95b9027173889aa53cfc580a0b878577f5e488dc9f5739bbb83b65959",
+      "source_proposition_sha256": "10fd4368e56bb6b8bd07416725033e55b6681d23bb8d1cddd0a480efa3ce9eb7",
+      "carrier": "∀ (fstqt sndqt trdqt : ℚ) (hfst : fstqt = 1 / 4) (hsnd : sndqt = (1000 / 4) / 900) (htrd : trdqt = (1000 / 4) / 800) (m : ℕ), (fstqt + sndqt + trdqt + (1000 / 4) / (800 + m) ≤ 1) ↔ 766 ≤ m",
+      "carrier_sha256": "2bae2ed85099963a00aef1450fee773a0dc943f66e853bca2eec4ca74d9b8f29",
+      "reason": "source_carrier_repair_v1"
+    },
+    {
+      "source_id": "sft2b_source:e9e09b5d79859e414c809f739e6457006c4f4f68157f3d26b66dcc889d45c141",
+      "source_proposition_sha256": "9eda8861fe0596360dfc5b0e9387e26269548009081d776085b9e9533006eb25",
+      "carrier": "∃! α : ℝ, ∃ c : ℝ, Real.exp c = α * c ^ 2 ∧ deriv (fun x : ℝ => Real.exp x) c = deriv (fun x : ℝ => α * x ^ 2) c",
+      "carrier_sha256": "9e785a8375f68a52239516a59630e51fa665f4895c1e25922df682bd2cd8a563",
+      "reason": "source_carrier_repair_v1"
+    },
+    {
+      "source_id": "sft2b_source:d6e9538be94b1d0fb4f80328a6a0036c5042fc72d5570f6d2c0e276895cc24e1",
+      "source_proposition_sha256": "3035d260534bb7061bf1c02659dffbfbf562fa2d60eee8a5fa2d999e4481e061",
+      "carrier": "∀ (a b c r : ℝ) (ha_pos : 0 < a) (a_ne_1 : a ≠ 1) (radius : r = Real.log (a ^ 2) / Real.log 10) (circumf : c = Real.log (b ^ 4) / Real.log 10) (circumf_formula : c = 2 * Real.pi * r), Real.log b / Real.log a = Real.pi",
+      "carrier_sha256": "f1d741fd06b4a57837fd7e85ba19e2f67535b08e62385708b33c2b617d96620e",
+      "reason": "source_carrier_repair_v1"
+    },
+    {
+      "source_id": "sft2b_source:caf898b93f623ce8fb05a5946ee32dc0349e3e99f1716287c62203f5e929613d",
+      "source_proposition_sha256": "385e0d2217b7f2a563896c2f7fdb7c039805b76f5fcf7a76861571a96428d78c",
+      "carrier": "∀ (P : ℝ × ℝ) (hP : P = (-3, 2)), let B := (P.2, -P.1); let C := (B.2, B.1); C = (3, 2)",
+      "carrier_sha256": "abf05c03bb631211500496809601c9138cde0ca80a8497ceb7bcf3f46aee9191",
+      "reason": "source_carrier_repair_v1"
+    },
+    {
+      "source_id": "sft2b_source:805f76715206a2a86364ecca89d60630b2bb4d5aa52fe6c946a48443cd882856",
+      "source_proposition_sha256": "5c3587784660e83ea1af9ed7d82051b10ff430898d1f5ce1ddc8a02d55f1425a",
+      "carrier": "∀ (A B : ℂ) (l : ℂ → ℂ) (hl : l = fun z => A * z + B) (M : ℝ) (hM : IsLUB {r : ℝ | ∃ p ∈ Set.Icc (-1 : ℝ) 1, r = ‖l (p : ℂ)‖} M) (z : ℂ), ‖l z‖ ≤ M * (‖z - 1‖ + ‖z + 1‖)",
+      "carrier_sha256": "ae7225b69a8943b9e6b666b3848e552cd4ccb2f0f6ed485652a572715d7e5f05",
+      "reason": "source_carrier_repair_v1"
+    },
+    {
+      "source_id": "sft2b_source:4469941464b20b02ee96592efcbffd66da862bcb8fd13b2501f4f459253efc82",
+      "source_proposition_sha256": "7434ca8c0c22b873b408da863e13de86335902d32726a1cda91808f1d5abb483",
+      "carrier": "∀ (p : ℕ → ℕ) (n : ℕ) (hp : ∀ n, Odd (p n) ∧ p n ∣ n ∧ ∀ m, m ∣ n → Odd m → m ≤ p n), (∑ k ∈ Finset.Icc 1 (2 ^ n), (p k : ℝ) / (k : ℝ)) / (2 ^ n : ℝ) > 2 / 3",
+      "carrier_sha256": "9ffcf48ede3af6d6050cce04e8af2ab1932d0546477904764fdfec42a02e58a7",
+      "reason": "source_carrier_repair_v1"
+    },
+    {
+      "source_id": "sft2b_source:7cc3ce897d9fbc1c5869cda00c9905001b0503eb64884af1a87a946c4c0006ed",
+      "source_proposition_sha256": "9eb443b6d8d9eeb1da8c008f0eab2cdabe984e8be1c219419fcc2a8c7fb085b3",
+      "carrier": "∀ (a b : ℝ × ℝ) (hb : b = (1, -3)) (h : a.1 * b.1 + a.2 * b.2 = 2), let c := (a.1 * b.1 + a.2 * b.2) / (b.1 ^ 2 + b.2 ^ 2); (c * b.1, c * b.2) = (1 / 5, -3 / 5)",
+      "carrier_sha256": "1630e2f7d1916e576fd7e4d78a290183193530716036822e66a81ff1d57c4f97",
+      "reason": "source_carrier_repair_v1"
+    },
+    {
+      "source_id": "sft2b_source:31b7d3ec4af5ca7ff117c06d43f6de18f7d87ca8266fd256a149abb5d8944831",
+      "source_proposition_sha256": "75ac81faf3a6bb1cb62fadf3150d8d30e7c79525a6d76238a0f3420d110e8e0d",
+      "carrier": "∀ {P A x : ℕ} (hP : P = 226504825) (hA : A = 3615122) (h : A * 5280 ^ 2 = x * P), x = 500000",
+      "carrier_sha256": "3e68f7eefd3ae861fc430d9e97caa4e2aa6d12aac2e5622fcd084d53bdbba15b",
+      "reason": "source_carrier_repair_v1"
+    },
+    {
+      "source_id": "sft2b_source:94300be7a098b6c9dd57ffda37027e4fb219b78e45ba856d33b09efa89a19e93",
+      "source_proposition_sha256": "f18a596c1db53a418dd0a1942f17bfd9f39eec9fb5d69509999b912f55cdfd21",
+      "carrier": "∀ (a : ℕ → ℝ) (a0 : ℝ) (n : ℕ) (ha : a = fun k => Real.cos (a (k - 1))), ∃ x : ℝ, a n = x",
+      "carrier_sha256": "3ce7b3887af7549514cf35f0a2aef5268867908b1dfa66358dc69410d8ca4440",
+      "reason": "source_carrier_repair_v1"
+    },
+    {
+      "source_id": "sft2b_source:1d5d5363e359be623271c6dac69b62715358aff02a67f06dbb408e86554aedf8",
+      "source_proposition_sha256": "a35651c086b09d73b09a1b488522b3e0f3c98360a41dd9531533c826673bbdc9",
+      "carrier": "∀ (a b c : ℝ) (hx : a > 0 ∧ b > 0 ∧ c > 0) (hab : a + b > c) (hbc : b + c > a) (hca : a + c > b), (a + b) * (a + c) * (b + c) ≥ 8 * (a + b - c) * (a + c - b) * (b + c - a)",
+      "carrier_sha256": "d9ae48943c59308a96114ecceb1c36c84d52a2efd87aa397f02f21a50f3e10a8",
+      "reason": "source_carrier_repair_v1"
+    },
+    {
+      "source_id": "sft2b_source:891b07ecf76d43f03182a36e1affebdeacfe80c934df87a56b652680b1132d2f",
+      "source_proposition_sha256": "605abdbb448c2cddf514055ce4502be37cd60b595138c92e202bc0da1c6d5bf1",
+      "carrier": "Nat.factorial 8 / (Nat.factorial 2 * Nat.factorial 2) = 10080",
+      "carrier_sha256": "0a0dda897de04cb1f73b99c1dfafb07e46a08e828faed7f9a7ecea9b36617d75",
+      "reason": "source_carrier_repair_v1"
+    },
+    {
+      "source_id": "sft2b_source:2357cc1657671d987a8487ff1647b57aa1f3cb645f36c1f2ba35eb02cdf557a5",
+      "source_proposition_sha256": "d3b92cc4c7f09a8b49a03383033b320011cc49b14b48daeb64dcefa93dd084ef",
+      "carrier": "∀ (α θ : ℝ) (h₁ : Real.cos (2 * α) = 7 / 25) (h₂ : Real.sin (2 * α) = 24 / 25), Real.cos (2 * α + 2 * θ) = (7 * Real.cos (2 * θ) - 24 * Real.sin (2 * θ)) / 25",
+      "carrier_sha256": "954109fbbc6a317753b8114171ff7bbe4bcbabc5079ade157ee24c77ff55a07d",
+      "reason": "source_carrier_repair_v1"
+    },
+    {
+      "source_id": "sft2b_source:95cc286a6a33a33db03584a3a52bddcc0135e0affe894eb6404f35b4a8462ad4",
+      "source_proposition_sha256": "67e47b4efec85d2a7d6d56aa9b5a0b032b5e74b51c01010a46d06822693a9288",
+      "carrier": "Nat.fib 14 = 377",
+      "carrier_sha256": "48ff10d5c4ffd9d7c81cad6c75643bb41e6bbcdf086a69fdebec8e0da0067c08",
+      "reason": "source_carrier_repair_v1"
+    },
+    {
+      "source_id": "sft2b_source:96da04c1277b859b79e6835b654c9c97732f1e5dd425de866a1af8041851164b",
+      "source_proposition_sha256": "b68470ea51f38afe0be136675bf09728f2500dbec1008e9a403971f94b4ff166",
+      "carrier": "∀ (A B C : ℝ) (hx : A > 0 ∧ B > 0 ∧ C > 0) (hab : A + B + C = Real.pi), Real.rpow (1 - Real.sin A * Real.sin B) (1 / 3) + Real.rpow (1 - Real.sin B * Real.sin C) (1 / 3) + Real.rpow (1 - Real.sin C * Real.sin A) (1 / 3) ≥ (3 / 2) * Real.rpow 2 (1 / 3)",
+      "carrier_sha256": "84351a5a3bb51de843e21e28954113ce931fe6f4717e447b18dd080404bec45e",
+      "reason": "source_carrier_repair_v1"
+    },
+    {
+      "source_id": "sft2b_source:dfcf6e6ecc5192d02c784ac78a5295f112a5290f4b5baf6a80e9d8fdf99980aa",
+      "source_proposition_sha256": "fe19126b7f402932f90a7842bb565221fd98d9c329a5193a70f83dc0d6d7eb20",
+      "carrier": "∀ (n r : ℕ), ∃ k : ℕ, (k : ℚ) = Nat.choose n r",
+      "carrier_sha256": "63a44db8913469a87415026960c8a2b395082c1e027568c5e4c2b008992f52cc",
+      "reason": "source_carrier_repair_v1"
+    },
+    {
+      "source_id": "sft2b_source:2a3a70f05809133931457f60320a6b1c780ef3b3ec92de61611e38d456f3080f",
+      "source_proposition_sha256": "d22e45c6ca33f5aad43631e165b7850d25b7e391561768ab386089af5a03a3a6",
+      "carrier": "∀ (a b c wa ha wb hb wc hc : ℝ), a > 0 ∧ b > 0 ∧ c > 0 ∧ a + b > c ∧ a + c > b ∧ b + c > a → (wa / ha + ha / wa) * (wb / hb + hb / wb) * (wc / hc + hc / wc) ≥ 8 / 9 * (wa / ha + wb / hb + wc / hc) * (ha / wa + hb / hb + hc / wc)",
+      "carrier_sha256": "4c80bfe7fe91fcdd82af7524416a0653a9e5cd68ef9a4c993aa85070191a3169",
+      "reason": "source_carrier_repair_v1"
+    },
+    {
+      "source_id": "sft2b_source:0c0fc102ea65c3f9c3f7aea4101b4bbd24255294c6f20f980d5be0d754e5b8a1",
+      "source_proposition_sha256": "2c07a4916098d89e935c226af21269a904f34735b81e33eef4688bb241fc64ce",
+      "carrier": "12 * 10 * 8 * 6 * 4 / Nat.factorial 5 = 192",
+      "carrier_sha256": "b094127feea8bcfa5fa11b51147c3bd1f571dba47d5bfc9f1252f08ec01380b5",
+      "reason": "source_carrier_repair_v1"
+    },
+    {
+      "source_id": "sft2b_source:5083ca4bf2a28e06a9ec2282a3e278bab08e41ed3fdd8f14b736b36fd3ebc5f3",
+      "source_proposition_sha256": "f211ffc321f5f23fbe32a11262cfd34ec04dfdd7349ab1253786b0310c0f1749",
+      "carrier": "∀ (x : ℝ) (hx : x ≠ 0), ∃ ε : ℝ, 0 < ε ∧ abs (Real.sin x / x - 1) < ε",
+      "carrier_sha256": "ae7b8a80428f7eaa000a3f22411d9f748a0f76972e929060df898fcc0314bcac",
+      "reason": "source_carrier_repair_v1"
+    },
+    {
+      "source_id": "sft2b_source:eaa2ac8d801fb4e591a6101e2920905cf7a8e97d8208bb4ef1afd38f117669de",
+      "source_proposition_sha256": "7e895253ff3cd019a592a843f9872e9ca9733ad52275ad0fe98d00f261e0ecb7",
+      "carrier": "∀ (P Q : ℝ → ℝ) (b c d e : ℝ) (hP : P = fun x => 2 * x ^ 2 + b * x + c) (hQ : Q = fun x => -2 * x ^ 2 + d * x + e) (hPvals : P 16 = 54 ∧ P 20 = 53) (hQvals : Q 16 = 54 ∧ Q 20 = 53), P 0 + Q 0 = 116",
+      "carrier_sha256": "f4bf22f240d554925b681f12eb8673498e4bcd64053877b03ff1d3f365102528",
+      "reason": "source_carrier_repair_v1"
+    },
+    {
+      "source_id": "sft2b_source:6fd4e4046c62dee59a56bea26f8f66ac695ee5908bf64017af15b03bc3e165c2",
+      "source_proposition_sha256": "1ca97a43cae7bf02ddd4b424717b36b6f29590ab5f9dcda345767fc84a2970da",
+      "carrier": "∀ (n k : ℕ) (h1 : 5 ^ k ∣ n) (h2 : 0 ∉ Nat.digits 10 n), ∃ m : ℕ, 5 ^ (k + 1) ∣ m ∧ 0 ∉ Nat.digits 10 m",
+      "carrier_sha256": "c302b7cd0771a25f9a14e93c13071fe2833edf938901ed018cabeab1369777b1",
+      "reason": "source_carrier_repair_v1"
+    },
+    {
+      "source_id": "sft2b_source:2519bab85de1db645a206fb51cb1cc91ca29ccc03457f0777ac24915c3e716b7",
+      "source_proposition_sha256": "901039f014702c145afeb10aac95d39fd6bf48ec3151958aa4d7a956a622e57c",
+      "carrier": "∀ x : ℝ, Real.cos (4 * x) = 2 * Real.cos (2 * x) ^ 2 - 1",
+      "carrier_sha256": "4881519c9e3465bddd3377a922549713c6ee09dc22317c19709cc9746e0aff9b",
+      "reason": "source_carrier_repair_v1"
+    },
+    {
+      "source_id": "sft2b_source:b7742460f7f6d9ec0c36de2579933bb461590c2600fb91bb09e9a398971390a4",
+      "source_proposition_sha256": "ad8440077f38884ebdfad4ecf382d7ab61973ad03824dbcac5114d3de1374664",
+      "carrier": "∀ (x : ℝ) (h₀ : Real.cos x ≠ 0), Real.sin (2 * x) / Real.cos x = 2 * Real.sin x",
+      "carrier_sha256": "6e198b13c9e145dd9bdbc543615b4eefe5e9ea69f60f54ed8ae324ab805bc869",
+      "reason": "source_carrier_repair_v1"
+    },
+    {
+      "source_id": "sft2b_source:5052b7ed4e52096d90f2cb4f3258b9f0be5febff3e8728809506071478fa0c4c",
+      "source_proposition_sha256": "be82a7975792215e811e6e8c4ab1a2c692a7ce561a72ade3788ac7e67fa56293",
+      "carrier": "∀ (A B : ℝ), Real.sin (A + B) = Real.sin A * Real.cos B + Real.cos A * Real.sin B",
+      "carrier_sha256": "3ff2b586041f482aedb5582b0b2cbc1a5594245df6bf3d5078d043f402878527",
+      "reason": "source_carrier_repair_v1"
+    },
+    {
+      "source_id": "sft2b_source:50c0b3bb806ca2c3b80ed0ab5768d8c4949666b6dc1459cc12f482c4a40dd238",
+      "source_proposition_sha256": "da4bd3f7ed273d21963eedb1887288c4efef6fa36e06cb6a30254ae5a15fa0cf",
+      "carrier": "∀ (a b c : ℝ), (a^4 + b^4 + c^4) * (b * c + a * c + a * b) - (a^2 * b^2 + b^2 * c^2 + a^2 * c^2) * (b^2 + c^2 + a^2) = (a - b)^2 * (a * b^3 + a^2 * b^2 + a^3 * b + (3 / 4) * b * c^2 * a) + (b - c)^2 * (b * c^3 + b^2 * c^2 + b^3 * c + (3 / 4) * c * a^2 * b) + (c - a)^2 * (c * a^3 + a^2 * c^2 + c^3 * a + (3 / 4) * a * b^2 * c) + (1 / 4) * (2 * a - b - c)^2 * c * a^2 * b + (1 / 4) * (2 * b - a - c)^2 * a * b^2 * c + (1 / 4) * (2 * c - a - b)^2 * b * c^2 * a",
+      "carrier_sha256": "647a2091466307f37bc6c6ac2f7af61a21c839ab3255b9bbcd6f8ddc00fb37fe",
+      "reason": "source_carrier_repair_v1"
+    },
+    {
+      "source_id": "sft2b_source:a0e0dc62e682536abd5645b05168108e5650e363e0dd9b6d6c9355996c1fd834",
+      "source_proposition_sha256": "29cf5d723f9fbe5f0d86cfd12783fec3203751eb578b4aee0e8e48e933c7791e",
+      "carrier": "∀ (y : ℕ → ℝ) (y_0 : ℝ) (n : ℕ) (h₀ : y 0 = y_0) (h₁ : ∀ k, y (k + 1) - 2 * y k = k), y n = (1 + y 0) * 2 ^ n - n - 1",
+      "carrier_sha256": "2ddae8ecc705c8ef1e5b71a05be1156c7be2a7a487110651759fdc682c2ef6eb",
+      "reason": "source_carrier_repair_v1"
+    },
+    {
+      "source_id": "sft2b_source:5051639a492adf423917ee26ffd9267aac2169ddfaa26db4efca2866501a7004",
+      "source_proposition_sha256": "42ecef5e25e835520471e31bba938649ac5b25eaf8cac4ec6961ba7d0d3230e8",
+      "carrier": "∀ (M G m r T : ℝ), (r ^ 3 / T ^ 2 = G * M / 4 * Real.pi ^ 2) ↔ (r ^ 3 / T ^ 2 = G * M / 4 * Real.pi ^ 2)",
+      "carrier_sha256": "04772e1138d0075688c4e00db7573cc392570c51ae6ceb61f701928842be70f2",
+      "reason": "source_carrier_repair_v1"
+    },
+    {
+      "source_id": "sft2b_source:dccf934379c1a9e45b325f81c725058f85dc1189b6055422b9498b5c33a9ece7",
+      "source_proposition_sha256": "f8260e1af6ad3e03b4c092aebd9b771538c800eb753617640621f293119c2c2d",
+      "carrier": "∀ (a b c d x y z u : ℝ), ((a * x + b * y + c * z + d * u)^2 + (b * x + c * y + d * z + a * u)^2 + (c * x + d * y + a * z + b * u)^2 + (d * x + a * y + b * z + c * u)^2) = ((d * x + c * y + b * z + a * u)^2 + (c * x + b * y + a * z + d * u)^2 + (b * x + a * y + d * z + c * u)^2 + (a * x + d * y + c * z + b * u)^2)",
+      "carrier_sha256": "e65279d29dcf49129c305fc15b87530b750785624f7f998a2801d62d2045cdfe",
+      "reason": "source_carrier_repair_v1"
     }
   ],
   "output_parent": "/storage/milikic/leanfaith/value_first/sft2_autoformalizer_v1/matched_pilot_lean_audit_v1",
