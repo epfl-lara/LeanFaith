@@ -165,6 +165,7 @@ def _config(tmp_path: Path) -> audit.MatchedPilotLeanAuditConfig:
             "mathlib_named_reference_catalog_path": tmp_path / "named.jsonl",
             "mathlib_named_reference_catalog_sha256": _HASH,
             "explicit_reference_theorem_ids": [],
+            "reference_syntax_migrations": [],
             "output_parent": tmp_path,
             "input_bundle": bundle,
             "output_bundle": bundle,
@@ -204,6 +205,30 @@ def test_inline_compile_context_replays_frozen_render_identity() -> None:
 
 def test_audit_level_names_include_explicit_constant_universe() -> None:
     assert audit._audit_level_names("CommRingCat.{u_1}") == ("u_1",)
+
+
+def test_pinned_sum_in_migration_is_hash_and_count_bound() -> None:
+    source, _ = _source()
+    proposition = "(∑ i in Finset.range 3, i) = ∑ j in Finset.range 3, j"
+    source = source.model_copy(
+        update={
+            "reference_proposition": proposition,
+            "reference_proposition_sha256": sha256_hex(proposition.encode()),
+        }
+    )
+    migration = audit.ReferenceSyntaxMigration(
+        source_id=source.source_id,
+        source_proposition_sha256=source.reference_proposition_sha256,
+        expected_replacements=2,
+    )
+
+    assert audit._migrated_reference_carrier(source, migration) == (
+        "(∑ i ∈ Finset.range 3, i) = ∑ j ∈ Finset.range 3, j"
+    )
+    with pytest.raises(audit.MatchedPilotLeanAuditError):
+        audit._migrated_reference_carrier(
+            source, migration.model_copy(update={"expected_replacements": 1})
+        )
 
 
 def test_source_material_accepts_content_pinned_snapshot_symlink(tmp_path: Path) -> None:

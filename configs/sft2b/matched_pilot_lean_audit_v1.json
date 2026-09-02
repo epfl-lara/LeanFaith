@@ -9,6 +9,68 @@
   "explicit_reference_theorem_ids": [
     "thm:2042b3e2a5b63db28a36c41274e21d34a6b4a6cd57020776891fe47f9b35dd83"
   ],
+  "reference_syntax_migrations": [
+    {
+      "source_id": "sft2b_source:11b77718939feea0164d3979ab2c1e9206f5b1b7c4366edb7af6bcd9c53f5423",
+      "source_proposition_sha256": "085e691d32b7c61729499403092d0bd8939e95bcb4fe9943890cb73a6bb2dff6",
+      "expected_replacements": 1
+    },
+    {
+      "source_id": "sft2b_source:04845a091d2025f369c3aebc05f8e6d46d174fb0c9d0058a6f8a2cdfd0c9d264",
+      "source_proposition_sha256": "2194ac9ee69d06f3186dcc0831446f4616f2ba64931e38e9f779d5968f9011c1",
+      "expected_replacements": 2
+    },
+    {
+      "source_id": "sft2b_source:35b78647c24257f405113351bcfa7e13a47268147a1f9e4a6aa4296252fa95fd",
+      "source_proposition_sha256": "21de6ceed59a03d6c04f118b5e6fd4e44d54746147f8fc1d9cfc5b14ce5e6965",
+      "expected_replacements": 1
+    },
+    {
+      "source_id": "sft2b_source:817249e3810f359b198f2aa929c759feb58afa00c7b8290405e3b7614cf741bb",
+      "source_proposition_sha256": "c125cfab93f075b1499c738ed869efab92ed6c04baa30a28885e624b16100212",
+      "expected_replacements": 1
+    },
+    {
+      "source_id": "sft2b_source:7c4a8bf5c32ae26e6aff1da45a64fe7e3956e2ee847aa4987b92493538329680",
+      "source_proposition_sha256": "447622b171a78e24de7e5064d86034993b1f9413c33a84505586e55b2a0ef19f",
+      "expected_replacements": 1
+    },
+    {
+      "source_id": "sft2b_source:3f54ea6860e8b4ecec2a4b4ce7fcafeca9749fd288e89b8f33d3795fd96d4e54",
+      "source_proposition_sha256": "7ad807f7ff623bccdaa45d395192a343e70d03f2b024e75201e7c45dd8d964c3",
+      "expected_replacements": 2
+    },
+    {
+      "source_id": "sft2b_source:a5cac61a77d0d5e3c227eb75cc6784a77bdfee7cf7e4f0412d0cba042b669cba",
+      "source_proposition_sha256": "9dca6e56b664a9ba1a356173cfa39f189655ba01dc4c6ae5062990ed21a95f11",
+      "expected_replacements": 2
+    },
+    {
+      "source_id": "sft2b_source:1bbccb596b7f746eae210a33d7c4c9d5c4c78b451cbb6f9ce7f4b926dea6095b",
+      "source_proposition_sha256": "dcba7b51b72de1076ee15a6451054adc19a095ea874f6a42e7871205ebb811df",
+      "expected_replacements": 3
+    },
+    {
+      "source_id": "sft2b_source:ddf3cde6c7e53b828cf53c8e530d0b46341fbe0d204e9ed005bfbddb3c6a50c9",
+      "source_proposition_sha256": "91a965dabac5254dba935608993206661098dd1901c5b3d7908f9ad00754dcdc",
+      "expected_replacements": 4
+    },
+    {
+      "source_id": "sft2b_source:ed79f195ca918ef8dd765ee293131d192ecea84b5144d47920100e94c02f655d",
+      "source_proposition_sha256": "9bd610caa5867c303b57b19ca7a10885111dff436eac4ed4b802f6bcd0ff430d",
+      "expected_replacements": 2
+    },
+    {
+      "source_id": "sft2b_source:ac3866a9e1fa55386252165263caeb26cad9c724b7417383e7720570dba13171",
+      "source_proposition_sha256": "9b79fb629c52de05a5be3c5cb116fba2b53ec89103f56b12560e21aa404ea4f0",
+      "expected_replacements": 2
+    },
+    {
+      "source_id": "sft2b_source:8ca5efccd5219e4f65b98784dc86745f9f3dd4a3dbbf32aed32bee6f4c649a18",
+      "source_proposition_sha256": "611322696c95eadb36ced834be8aa6452513b6b730437e485d1efd001f7afb31",
+      "expected_replacements": 1
+    }
+  ],
   "output_parent": "/storage/milikic/leanfaith/value_first/sft2_autoformalizer_v1/matched_pilot_lean_audit_v1",
   "input_bundle": {
     "repo_id": "Lemmy00/leanfaith-sft2-autoformalizer-v1",

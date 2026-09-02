@@ -85,6 +85,7 @@ _INFRASTRUCTURE_STATUSES = {
     LeanStatus.INTERNAL_ERROR,
 }
 _FROZEN_EXPLICIT_LEVEL = re.compile(r"\bu_[0-9]+\b")
+_LEGACY_FINSET_SUM_IN = re.compile(r"(?P<head>∑\s+[A-Za-z_][A-Za-z0-9_']*\s+)in(?=\s+)")
 
 
 class MatchedPilotLeanAuditError(RuntimeError):
@@ -121,6 +122,12 @@ class AuditThresholds(StrictModel):
     maximum_infrastructure_failure_fraction: Annotated[float, Field(gt=0.0, le=0.02)]
 
 
+class ReferenceSyntaxMigration(StrictModel):
+    source_id: StableId
+    source_proposition_sha256: Sha256
+    expected_replacements: Annotated[int, Field(ge=1)]
+
+
 class MatchedPilotLeanAuditConfig(StrictModel):
     schema_version: Literal["sft2b_matched_pilot_lean_audit_v1"]
     owner_session: str
@@ -130,6 +137,7 @@ class MatchedPilotLeanAuditConfig(StrictModel):
     mathlib_named_reference_catalog_path: Path
     mathlib_named_reference_catalog_sha256: Sha256
     explicit_reference_theorem_ids: tuple[str, ...]
+    reference_syntax_migrations: tuple[ReferenceSyntaxMigration, ...]
     output_parent: Path
     input_bundle: BundlePin
     output_bundle: BundlePin
@@ -142,6 +150,7 @@ class MatchedPilotLeanAuditConfig(StrictModel):
 class ReferenceElaborationInput(StrictModel):
     method: Literal[
         "source_signature_pp",
+        "pinned_sum_in_syntax_migration_v1",
         "frozen_reference_signature_explicit",
         "frozen_reference_constant_type",
     ]
@@ -159,6 +168,7 @@ class SourceAuditTerminal(StrictModel):
     render_compile_context_id: str
     reference_elaboration_method: Literal[
         "source_signature_pp",
+        "pinned_sum_in_syntax_migration_v1",
         "frozen_reference_signature_explicit",
         "frozen_reference_constant_type",
     ]
@@ -393,6 +403,21 @@ def _verify_source_material(sources: Sequence[SourceRecord], repo_root: Path) ->
     return observed
 
 
+def _migrated_reference_carrier(source: SourceRecord, migration: ReferenceSyntaxMigration) -> str:
+    if migration.source_id != source.source_id:
+        raise MatchedPilotLeanAuditError("reference syntax migration source identity drifted")
+    if migration.source_proposition_sha256 != source.reference_proposition_sha256:
+        raise MatchedPilotLeanAuditError(
+            f"reference syntax migration source hash drifted: {source.source_id}"
+        )
+    carrier, replacements = _LEGACY_FINSET_SUM_IN.subn(r"\g<head>∈", source.reference_proposition)
+    if replacements != migration.expected_replacements:
+        raise MatchedPilotLeanAuditError(
+            f"reference syntax migration count drifted: {source.source_id}"
+        )
+    return carrier
+
+
 def _reference_elaboration_inputs(
     sources: Sequence[SourceRecord],
     source_classes: Sequence[str],
@@ -401,6 +426,7 @@ def _reference_elaboration_inputs(
     named_catalog_path: Path,
     named_catalog_sha256: str,
     explicit_theorem_ids: frozenset[str],
+    syntax_migrations: Sequence[ReferenceSyntaxMigration] = (),
 ) -> tuple[dict[str, ReferenceElaborationInput], dict[str, object]]:
     """Recover exact elaboration carriers without changing source records.
 
@@ -412,6 +438,13 @@ def _reference_elaboration_inputs(
     from the exact project revision without re-elaborating either text view.
     Other source classes retain their source text.
     """
+
+    migrations_by_source = {item.source_id: item for item in syntax_migrations}
+    if len(migrations_by_source) != len(syntax_migrations):
+        raise MatchedPilotLeanAuditError("reference syntax migrations contain duplicate source IDs")
+    source_by_id = {item.source_id: item for item in sources}
+    if not set(migrations_by_source).issubset(source_by_id):
+        raise MatchedPilotLeanAuditError("reference syntax migration names an unselected source")
 
     catalogs = source_manifest.get("source_catalogs")
     if not isinstance(catalogs, dict):
@@ -623,11 +656,19 @@ def _reference_elaboration_inputs(
                 raw_statement=raw_statement,
             )
         else:
-            item = ReferenceElaborationInput(
-                method="source_signature_pp",
-                carrier=source.reference_proposition,
-                raw_statement=source.reference_proposition,
-            )
+            migration = migrations_by_source.get(source.source_id)
+            if migration is None:
+                item = ReferenceElaborationInput(
+                    method="source_signature_pp",
+                    carrier=source.reference_proposition,
+                    raw_statement=source.reference_proposition,
+                )
+            else:
+                item = ReferenceElaborationInput(
+                    method="pinned_sum_in_syntax_migration_v1",
+                    carrier=_migrated_reference_carrier(source, migration),
+                    raw_statement=source.reference_proposition,
+                )
         result[source.source_id] = item
         method_counts[item.method] += 1
     return result, {
@@ -639,6 +680,13 @@ def _reference_elaboration_inputs(
         },
         "selected_mathlib_rows": len(mathlib_ids),
         "explicit_reference_theorem_ids": sorted(explicit_theorem_ids),
+        "reference_syntax_migrations": [
+            {
+                **item.model_dump(mode="json"),
+                "carrier_sha256": sha256_hex(result[item.source_id].carrier.encode("utf-8")),
+            }
+            for item in syntax_migrations
+        ],
         "method_counts": dict(sorted(method_counts.items())),
     }
 
@@ -723,6 +771,7 @@ def prepare_preflight(
         named_catalog_path=config.mathlib_named_reference_catalog_path,
         named_catalog_sha256=config.mathlib_named_reference_catalog_sha256,
         explicit_theorem_ids=frozenset(config.explicit_reference_theorem_ids),
+        syntax_migrations=config.reference_syntax_migrations,
     )
     helper_path = repo_root / config.helper_path
     pins = verify_runtime_pins(repo_root, helper_path=helper_path)
@@ -1353,6 +1402,7 @@ def _load_inputs(
         named_catalog_path=config.mathlib_named_reference_catalog_path,
         named_catalog_sha256=config.mathlib_named_reference_catalog_sha256,
         explicit_theorem_ids=frozenset(config.explicit_reference_theorem_ids),
+        syntax_migrations=config.reference_syntax_migrations,
     )
     return sources, candidates, source_classes, reference_inputs
 
