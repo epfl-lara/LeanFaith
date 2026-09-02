@@ -6,9 +6,11 @@
 > `/localhome/milikic/LeanFaith-sft2a-72h-sprint`, branch `milikic/sft2a-72h-sprint`
 > **Last updated:** 2026-09-02
 > **Dependencies:** REPR `goal_v1.0`; shared rubric; roots may be selected independently of SFT1
-> **Next gate:** the detached 20-root/80-slot pilot (`leanfaith-sft2a-sprint-pilot-20roots`) must
-> pass its objective thresholds; a pass automatically certifies the ~12K reference pool and chains
-> the ten independent 1K-root shards
+> **Next gate:** the 20-root/80-slot pilot v1 failed exactly one objective threshold
+> (Lean-invalid candidates 36/118 = 30.5%, bound below 25% and fewer than 20 of 80); the two
+> diagnosed causes are repaired and bound into the unlaunched pilot v2 config
+> `configs/sft2a/sprint_pilot_20roots_v2.json`; a passing pilot automatically certifies the ~12K
+> reference pool and chains the ten independent 1K-root shards
 > **Compute class:** external LLM/API plus CPU/RAM for Lean; large run may need explicit budget approval
 > **Lean budget:** compile each novel candidate once through cached persistent workers
 > **Local staging root:** `/storage/milikic/leanfaith/value_first/sft2_llm_transforms_v1/`
@@ -759,3 +761,40 @@ rows/minute, and pilot quality bounds hold. Leave healthy long runs detached wit
   and chains shard 1 at provider concurrency 16; a shard that fails only the 2% infrastructure
   bound chains the next shard once at concurrency 8, and any other failed threshold stops the
   chain and is reported. 50K, legacy rejudging, publication, and training remain unauthorized.
+- 2026-09-02 — the official pilot claimed both Lean workers at 01:30:11Z after 17 minutes of
+  waiting, completed all 20 roots/80 slots in 985 s of generation wall time (two persistent v2
+  backends, at most two live backends, 46 pool reuses), and stopped fail-closed on exactly one
+  objective threshold. Evidence (`runs/sprint_pilot_20roots_run/detached/evaluation_terminal.json`):
+  accepted 66/80 (33 positive, 33 negative; minimum 56) passed; zero accepted self-pairs or
+  duplicates passed; zero provider or Lean infrastructure failures over 214 finalized calls
+  (125 Terra, 79 Opus, 10 Kimi, $3.161726 reported Opus spend) passed; the controlled stop after
+  8 completed roots resumed with unchanged manifests and zero new provider or Lean calls for the
+  completed roots passed; the zero-call replay passed; the injected-malformed check passed; wall
+  time passed; **Lean-invalid candidates 36 of 118 elaborations (30.5%, 36 of 80 planned slots)
+  failed** the below-25%/fewer-than-20-of-80 bound (historical 100-root run: 52.2%). Kimi
+  telemetry ran after the claim was released: 8/8 agreements, 2 malformed retries, no exclusion.
+  The worker recorded terminal `threshold_failed`, `scale_10k_authorized: false`, and chain
+  receipt `stop`/`pilot_threshold_failed`; no 12K certification or shard was launched. No SFT2A
+  tmux session or Lean claim remains. Compacted core `compacted/new_core/core.jsonl` (sha256
+  `4a336a0fcaa8aa133d6951d8ee80f301301fcd263f19203c0589c0e870203e85`) is retained as
+  additive evidence, not as scale authorization.
+- 2026-09-02 — diagnosed the failed threshold from the attempt journals. Twelve of the 36
+  failures are one CSLib root (`cslib:census:6b82d7c16f043ec3e5626b6a`, 12/12 candidates) whose
+  census context is `namespace Relation` with `open LeftEuclidean`/`RightEuclidean`: the oracle
+  command emitted `open` before `namespace`, so every candidate failed with `unknown namespace`
+  regardless of the proposer (the candidates themselves elaborated). Twenty more are proposer
+  faults the v5 prompt never forbade: 14 `Unknown identifier` candidates that used displayed
+  locals (`p`, `p'`, `M`) without binding them, 4 bare `↑` coercions without an expected type,
+  and 2 undeclared universe names `u`/`v`; 4 are genuine typeclass/type errors. Repairs in
+  `014bfdb`: v2 commands emit namespaces before opens and bind
+  `COMMAND_TEMPLATE_VERSION_V2` into the v2 cache identity (stale invalid entries cannot be
+  reused; the live gate gains a `namespace Real`/`open Angle` fixture); the additive proposer
+  prompt `prompts/sft2a/codex_proposer_sprint_v1.txt` states explicit closure rules (bind every
+  displayed local/instance in dependency order, canonical `u_i` universes only, ascriptions
+  instead of bare coercions); `configs/sft2a/closure_aware_v5_2_sprint_v2.yaml` binds both
+  sprint prompts (same run layout, so the passed canaries are reused) and the unlaunched
+  `configs/sft2a/sprint_pilot_20roots_v2.json` targets fresh output
+  `runs/sprint_pilot_20roots_run_v2` on the same 20-root sample; the 12K pool config now points
+  at the v2 base. Under the sprint stop policy a failed objective threshold ends automatic
+  progression, so pilot v2 was prepared but not launched; 121 SFT2A tests, Ruff, and strict
+  Mypy pass on `014bfdb`.
