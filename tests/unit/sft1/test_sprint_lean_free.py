@@ -1496,6 +1496,10 @@ def test_square_resume_validates_run_manifest(tmp_path: Path) -> None:
         assert "engine_source_sha256" in str(exc)
     else:
         raise AssertionError("resume with a different engine must fail")
+    runner.write_run_manifest(replay=True)  # zero-Lean replay ignores the engine text
+    runner.max_roots = 100  # a forced resume may widen max_roots
+    runner.base.identity.source_sha256 = "e"
+    runner.write_run_manifest()
 
 
 def test_square_card_states_direct_not_iff_evidence_and_supersession() -> None:

@@ -399,7 +399,7 @@ class SquareRunner:
     def run(self, *, require_zero_lean: bool = False) -> dict[str, Any]:
         self.base.verify_pins()
         self.load_state()
-        self.write_run_manifest()
+        self.write_run_manifest(replay=require_zero_lean)
         reservation: Reservation | None = None
         pending: list[Mapping[str, Any]] = []
         considered = 0
@@ -442,11 +442,18 @@ class SquareRunner:
             "root_count": len(self.roots),
         }
 
-    def write_run_manifest(self) -> None:
+    def write_run_manifest(self, *, replay: bool = False) -> None:
         if self.paths.run_manifest.is_file():
             recorded = read_json_object(self.paths.run_manifest)
             mismatches = []
+            engine_keys = {
+                "engine_source_sha256",
+                "engine_semantic_version",
+                "import_options_fingerprint",
+            }
             for key, value in self.manifest_identity().items():
+                if replay and key in engine_keys:
+                    continue  # a zero-Lean replay never elaborates; the engine text is moot
                 stored = (
                     recorded.get(key)
                     if key

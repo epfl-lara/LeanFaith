@@ -1306,7 +1306,11 @@ private def firstApplicable (root : Root) (candidates : Array Op) : MetaM (Op ×
     applicable transform is chosen on `P` and replayed at the same site on `C`. -/
 private def closeSquare (root rootC : Root) (sop : SquareOp) (direction : String) :
     MetaM (Op × Op × Site × Site × Expr × Expr) := do
-  if sop.transforms.isEmpty then
+  if sop.neg.isNone then
+    -- whole-claim negation: T acts under the outer negation, T(¬P) := ¬T(P)
+    let (t, ap) ← firstApplicable root sop.transforms
+    return (t, t, ap.site, ap.site, ap.candidate, mkApp (mkConst ``Not) ap.candidate)
+  else if sop.transforms.isEmpty then
     let (tP, tC) ← symmetryFor direction
     let ap ← applyOp root tP
     let ac ← applyOp rootC tC
@@ -1316,9 +1320,6 @@ private def closeSquare (root rootC : Root) (sop : SquareOp) (direction : String
     let cPrime ← replayOp rootC t ap.site
     return (t, t, ap.site, ap.site, ap.candidate, cPrime)
 
-/-- Rebuild the certified negative pair `(P, C)` for `sop.neg` and close the square with
-    one preserving transform on both endpoints, requiring the exact typed diamond
-    `T(N(P)) = N(T(P))`. -/
 /-- The certified negative of `reference` for `sop`: an engine operation, or the
     whole-claim negation `Not reference` (catalog N19). -/
 private def squareNegate (root : Root) (sop : SquareOp) : MetaM (Expr × String) := do
@@ -1330,16 +1331,14 @@ private def squareNegate (root : Root) (sop : SquareOp) : MetaM (Expr × String)
       unless ← isProp root.reference do throwNA "n19_reference_not_prop"
       return (mkApp (mkConst ``Not) root.reference, "whole_claim")
 
+/-- Rebuild the certified negative pair `(P, C)` for `sop.neg` and close the square with
+    one preserving transform on both endpoints, requiring the exact typed diamond
+    `T(N(P)) = N(T(P))`. -/
 def buildSquare (root : Root) (sop : SquareOp) : MetaM SquareBuild := do
   let (negated, direction) ← squareNegate root sop
   let c ← checkedClosedProp false "candidate" negated
   let rootC : Root := { root with reference := c }
-  let (tP, tC, siteP, siteC, pPrimeRaw, cPrimeRaw) ←
-    if sop.neg.isSome then closeSquare root rootC sop direction
-    else do
-      -- T acts under the outer negation: T(¬P) := ¬T(P)
-      let (t, ap) ← firstApplicable root sop.transforms
-      return (t, t, ap.site, ap.site, ap.candidate, mkApp (mkConst ``Not) ap.candidate)
+  let (tP, tC, siteP, siteC, pPrimeRaw, cPrimeRaw) ← closeSquare root rootC sop direction
   let pPrime ← checkedClosedProp false "p_prime" pPrimeRaw
   let cPrime ← checkedClosedProp false "c_prime" cPrimeRaw
   let rootPPrime : Root := { root with reference := pPrime }
