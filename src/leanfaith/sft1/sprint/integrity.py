@@ -20,13 +20,22 @@ from typing import Any
 from leanfaith.config.hashing import canonical_json_bytes, hash_canonical, hash_file, sha256_hex
 from leanfaith.config.paths import find_repo_root
 from leanfaith.schemas.ids import PAIR_PREFIX, make_id
-from leanfaith.sft1.sprint.engine import NEGATIVE_OPERATIONS, POSITIVE_OPERATIONS
+from leanfaith.sft1.sprint.engine import NEGATIVE_OPERATIONS, POSITIVE_OPERATIONS, mechanism_of
 from leanfaith.sft1.sprint.provenance import derive_provenance
 from leanfaith.sft1.sprint.screens import residue_violation, unordered_pair_key
 from leanfaith.sft1.sprint.store import read_json_object, write_atomic
 
 ROW_FIELDS = {"pair_id", "root_id", "reference", "candidate", "label", "operation_id"}
-VIEW_SIDECAR_FIELDS = {"orientation", "core_family", "core_cell"}
+MODEL_FACING_ROW_FIELDS = {"reference", "candidate", "label"}
+VIEW_SIDECAR_FIELDS = {
+    "orientation",
+    "core_family",
+    "core_cell",
+    "row_schema",
+    "stored_reference_is",
+    "orientation_rule",
+    "mechanism",
+}
 
 
 def _without_view_fields(sidecar: Mapping[str, Any]) -> dict[str, Any]:
@@ -114,23 +123,27 @@ def validate_view(
             issue(f"shard_row_count: {shard_dir.name}")
         for row, sidecar in zip(rows, sidecars, strict=False):
             total_rows += 1
-            pair_id = str(row.get("pair_id"))
-            if set(row) != ROW_FIELDS:
+            model_facing = set(row) == MODEL_FACING_ROW_FIELDS
+            pair_id = str(sidecar.get("pair_id") if model_facing else row.get("pair_id"))
+            if not model_facing and set(row) != ROW_FIELDS:
                 issue(f"row_schema: {pair_id}")
-            if sidecar.get("pair_id") != pair_id:
+            if not model_facing and sidecar.get("pair_id") != pair_id:
                 issue(f"row_sidecar_join: {pair_id}")
                 continue
             if pair_id in seen_pairs:
                 issue(f"duplicate_pair_id: {pair_id}")
             seen_pairs.add(pair_id)
-            operation = str(row["operation_id"])
+            operation = str(sidecar["operation_id"] if model_facing else row["operation_id"])
+            row_root_id = str(sidecar["root_id"] if model_facing else row["root_id"])
             label = bool(row["label"])
+            if sidecar.get("mechanism") != mechanism_of(operation):
+                issue(f"mechanism_metadata: {pair_id}")
             expected_label = operation in POSITIVE_OPERATIONS or (
                 operation.startswith("P") and operation not in NEGATIVE_OPERATIONS
             )
             if label != expected_label or bool(sidecar.get("label")) != label:
                 issue(f"label_polarity: {pair_id}")
-            if sidecar.get("root_id") != row["root_id"] or sidecar.get("operation_id") != operation:
+            if sidecar.get("root_id") != row_root_id or sidecar.get("operation_id") != operation:
                 issue(f"sidecar_identity: {pair_id}")
             evidence_issue = _check_evidence(sidecar, operation)
             if evidence_issue:
@@ -154,7 +167,7 @@ def validate_view(
             expected_pair = make_id(
                 PAIR_PREFIX,
                 {
-                    "root_id": row["root_id"],
+                    "root_id": row_root_id,
                     "operation_id": operation,
                     "reference_expr_hash": (reference.get("provenance") or {}).get("expr_hash"),
                     "candidate_expr_hash": (candidate.get("provenance") or {}).get("expr_hash"),
@@ -195,7 +208,12 @@ def validate_view(
                 original = _without_view_fields(source_record["sidecar"])
                 if hash_canonical(original) != hash_canonical(stored):
                     issue(f"sidecar_hash_mismatch: {pair_id}")
-                if sidecar.get("orientation") != "swapped" and source_record["row"] != row:
+                source_row = source_record["row"]
+                if sidecar.get("orientation") != "swapped" and (
+                    source_row["reference"] != row["reference"]
+                    or source_row["candidate"] != row["candidate"]
+                    or bool(source_row["label"]) != label
+                ):
                     issue(f"retained_row_mismatch: {pair_id}")
                 if sidecar.get("orientation") == "swapped" and (
                     source_record["row"]["reference"] != row["candidate"]
@@ -233,17 +251,24 @@ def validate_view(
     manifest_provenance = manifest.get("provenance")
     if not isinstance(manifest_provenance, dict):
         issue("manifest_provenance: manifest lacks sidecar-derived provenance")
-    else:
-        recorded = {
-            (s["engine_source_sha256"], s["compile_context_id"], s["rows"])
-            for s in manifest_provenance.get("segments", [])
-        }
-        derived = {
-            (s["engine_source_sha256"], s["compile_context_id"], s["rows"])
-            for s in provenance["segments"]
-        }
-        if recorded != derived:
-            issue("manifest_provenance: recorded segments differ from sidecar-derived segments")
+    elif hash_canonical(manifest_provenance) != hash_canonical(provenance):
+        issue(
+            "manifest_provenance: recorded provenance object differs from the sidecar-derived one"
+        )
+    if manifest.get("orientation_rule") == "one_swapped_row_per_paired_root":
+        per_root: dict[str, int] = {}
+        swapped_total = 0
+        for record in records:
+            root = str(record["sidecar"].get("root_id"))
+            swapped_here = record["sidecar"].get("orientation") == "swapped"
+            per_root[root] = per_root.get(root, 0) + (1 if swapped_here else 0)
+            swapped_total += 1 if swapped_here else 0
+        if swapped_total * 2 != len(records) or any(count != 1 for count in per_root.values()):
+            issue("orientation_rule: not exactly one swapped row per paired root")
+    if manifest.get("finalized") is True:
+        for shard_dir in shard_dirs:
+            if read_json_object(shard_dir / "manifest.json").get("complete") is not True:
+                issue(f"finalized_shard_incomplete: {shard_dir.name}")
     report = {
         "schema_version": 1,
         "run_id": run_id,

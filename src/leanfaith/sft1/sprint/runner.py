@@ -1056,7 +1056,7 @@ class SprintRunner:
             "pool_id": self.pools.get(name, "unknown"),
             "statement": self.statements.get(name),
             "operation_id": operation,
-            "mechanism": operation.split("_", 1)[0],
+            "mechanism": engine_module.mechanism_of(operation),
             "label": label,
             "site": op_record.get("site"),
             "evidence": op_record.get("evidence"),

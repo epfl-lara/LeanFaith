@@ -29,53 +29,125 @@ class PublishError(RuntimeError):
     """Fail-closed publication error."""
 
 
+def _gate_summary(release: Mapping[str, Any] | None) -> list[str]:
+    if release is None:
+        return ["No release report accompanies this artifact."]
+    checks = release.get("checks", {})
+    failed = [name for name, ok in checks.items() if not ok]
+    passed = [name for name, ok in checks.items() if ok]
+    if failed:
+        lines = [
+            "**This artifact did not pass its release gate.** Failed checks:",
+            *(f"- `{name}`" for name in failed),
+            "",
+            f"Passed checks: {', '.join(f'`{name}`' for name in passed) or 'none'}.",
+        ]
+    else:
+        lines = [
+            "**This artifact passed every check of its release gate**"
+            f" ({len(passed)} checks, evaluated on {release.get('evaluated_on', 'the view')}).",
+        ]
+    return lines
+
+
+def _screen_lines(release: Mapping[str, Any] | None) -> list[str]:
+    if release is None:
+        return []
+    shortcut = release.get("shortcut") or {}
+    screens = shortcut.get("screens", [])
+    lines = [
+        "",
+        "## Shortcut screens",
+        "",
+        "| screen | balanced accuracy | 95% upper bound | threshold | result |",
+        "| --- | --- | --- | --- | --- |",
+    ]
+    for screen in screens:
+        lines.append(
+            f"| {screen.get('name')} | {screen.get('balanced_accuracy')} |"
+            f" {screen.get('upper_bound_95')} | {screen.get('threshold')} |"
+            f" {'pass' if screen.get('passed') else 'FAIL'} |"
+        )
+    per_family = shortcut.get("per_family") or {}
+    if per_family:
+        lines.extend(["", "Per-family balanced accuracy (held-out predictions):", ""])
+        families = sorted({f for values in per_family.values() for f in values})
+        lines.append("| family | " + " | ".join(sorted(per_family)) + " |")
+        lines.append("| --- |" + " --- |" * len(per_family))
+        for family in families:
+            lines.append(
+                f"| {family} | "
+                + " | ".join(str(per_family[name].get(family, "")) for name in sorted(per_family))
+                + " |"
+            )
+    method = shortcut.get("method")
+    if method:
+        lines.extend(["", f"Method: `{json.dumps(method, sort_keys=True)}`"])
+    return lines
+
+
 def dataset_card(run_id: str, manifest: dict[str, Any], release: dict[str, Any] | None) -> str:
     operations = manifest.get("operations", {})
     labels = manifest.get("labels", {})
     provenance = manifest.get("provenance") or {}
     segments = provenance.get("segments") or []
-    status = manifest.get("artifact_status", "diagnostic_gate_evidence_not_a_training_release")
-    screens = (release or {}).get("shortcut", {}).get("screens", [])
+    status = manifest.get("artifact_status", "unstated")
+    row_fields = manifest.get("row_fields") or [
+        "pair_id",
+        "root_id",
+        "reference",
+        "candidate",
+        "label",
+        "operation_id",
+    ]
     lines = [
         "---",
         "license: apache-2.0",
-        "pretty_name: LeanFaith SFT1 sprint v1 diagnostic gate evidence",
+        "pretty_name: LeanFaith SFT1 sprint v1 theorem-equivalence pairs",
         "language: [en]",
-        "tags: [lean4, mathlib, theorem-equivalence, autoformalization, diagnostic-evidence]",
+        "tags: [lean4, mathlib, theorem-equivalence, autoformalization]",
         "configs:",
         f"  - config_name: {run_id}",
         "    data_files:",
-        "      - split: diagnostic",
+        "      - split: train",
         f'        path: "sprint_v1/{run_id}/shard-*/rows.jsonl"',
         "---",
         "",
-        f"# LeanFaith SFT1 sprint v1 — diagnostic gate evidence, run `{run_id}`",
+        f"# LeanFaith SFT1 sprint v1 — `{run_id}`",
         "",
-        "**This artifact is diagnostic gate evidence, not a training release.** Its labels are",
-        "individually certified, but the composition failed the sprint's shortcut screens (see",
-        "the release-gate section), so it must not be used as model-facing training data.",
+        f"Artifact status: `{status}`.",
         "",
-        "Each core row is `{pair_id, root_id, reference, candidate, label, operation_id}` where",
-        "`reference` and `candidate` are `goal_v1.0` renderings of two closed propositions.",
-        "`label` is `true` only when a Meta- and kernel-checked `Iff reference candidate` witness",
-        "was constructed during original generation, and `false` only when the loaded Mathlib",
-        "proof of the reference and a kernel-checked `Not candidate` refutation under a complete",
-        "ground assignment were constructed during original generation. No label uses an LLM or",
-        "a rubric-only mutation.",
+        *_gate_summary(release),
+        "",
+        "Each model-facing row has exactly the fields `{" + ", ".join(row_fields) + "}`;"
+        " `reference` and `candidate` are `goal_v1.0` renderings of two closed",
+        "propositions. `label` is `true` only when a Meta- and kernel-checked",
+        "`Iff reference candidate` witness was constructed during original generation, and",
+        "`false` only when the loaded Mathlib proof of the reference and a kernel-checked",
+        "`Not candidate` refutation under a complete ground assignment were constructed during",
+        "original generation. No label uses an LLM or a rubric-only mutation. Identifiers,",
+        "operation, mechanism, orientation, evidence, and REPR records live in the line-aligned",
+        "sidecars.",
         "",
         "## Replay semantics",
         "",
-        "Proof checks occurred during original generation. The recorded zero-Lean-call replay is a",
-        "journal/cache replay of stored terminals and cached artifacts, not a fresh kernel replay.",
+        "Proof checks occurred during original generation. Recorded zero-Lean-call replays are",
+        "journal/cache replays of stored terminals and cached artifacts, not fresh kernel replays.",
         "",
         "## Counts",
         "",
-        f"- artifact status: `{status}`",
         f"- retained rows: {manifest.get('retained_rows')}",
         f"- labels: positive {labels.get('positive')}, negative {labels.get('negative')}",
         f"- roots: {manifest.get('roots')}",
+        f"- orientation: {manifest.get('orientation')}"
+        + (
+            f" (rule `{manifest.get('orientation_rule')}`)"
+            if manifest.get("orientation_rule")
+            else ""
+        ),
         "- operations:",
         *(f"  - `{name}`: {count}" for name, count in sorted(operations.items())),
+        *_screen_lines(release),
         "",
         "## Provenance (derived from sidecars)",
         "",
@@ -94,39 +166,13 @@ def dataset_card(run_id: str, manifest: dict[str, Any], release: dict[str, Any] 
         [
             f"- config semantic hash: `{manifest.get('config_semantic_hash')}`",
             f"- gold blocklist sha256: `{manifest.get('gold_blocklist_sha256')}`",
-            f"- duplicates removed: {manifest.get('duplicates_removed')}, conflicting rows"
-            f" rejected: {manifest.get('conflicting_rows_rejected')}, view-dropped rows:"
-            f" {manifest.get('view_dropped')}",
             "",
             "## Files",
             "",
-            "- `shard-*/rows.jsonl`: core rows",
-            "- `shard-*/sidecars.jsonl`: keyed sidecars with site certificates, proof/refutation",
-            "  evidence, frozen REPR records for both endpoints, project pins, engine identity,",
-            "  and cache identity",
-            "- `shard-*/manifest.json`, `manifest.json`: counts, content hashes, sidecar-derived",
-            "  provenance segments",
-        ]
-    )
-    if release is not None:
-        checks = release.get("checks", {})
-        lines.extend(
-            [
-                "- `release_report.json`: release-gate report (shortcut screens and projection)",
-                "",
-                "## Release gate",
-                "",
-                *(f"- {name}: {'pass' if value else 'FAIL'}" for name, value in checks.items()),
-                *(
-                    f"- {screen.get('name')}: balanced accuracy {screen.get('balanced_accuracy')}"
-                    f" (95% upper bound {screen.get('upper_bound_95')}, threshold"
-                    f" {screen.get('threshold')}) → {'pass' if screen.get('passed') else 'FAIL'}"
-                    for screen in screens
-                ),
-            ]
-        )
-    lines.extend(
-        [
+            "- `shard-*/rows.jsonl`: model-facing rows",
+            "- `shard-*/sidecars.jsonl`: line-aligned sidecars",
+            "- `shard-*/manifest.json`, `manifest.json`: counts, content hashes, provenance",
+            "- `release_report.json`, `integrity_report.json`, `verdict.json` when present",
             "",
             "This repository is private-first; redistribution review is recorded in the LeanFaith",
             "task brief `plans/30_sft1_deterministic.md`.",

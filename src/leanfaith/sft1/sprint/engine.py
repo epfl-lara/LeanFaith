@@ -47,6 +47,28 @@ OPERATIONS: tuple[str, ...] = (
 SPRINT_V1_OPERATIONS: tuple[str, ...] = OPERATIONS[:7]
 OPERATION_BITS: dict[str, int] = {operation: index for index, operation in enumerate(OPERATIONS)}
 POSITIVE_OPERATIONS: frozenset[str] = frozenset(op for op in OPERATIONS if op.startswith("P"))
+OPERATION_MECHANISM: dict[str, str] = {
+    "P15_SWAP_IFF_SIDES_V1": "P15",
+    "P18_SYMMETRIZE_EQUALITY_V1": "P18",
+    "P14_SWAP_INDEPENDENT_DATA_BINDERS_V1": "P14",
+    "P23_CURRY_PROP_PAIR_V1": "P23",
+    "N25_TOGGLE_EQ_NE_PROOF_V1": "N25",
+    "N32_SWAP_ROLE_ORDER_PROOF_V1": "N32",
+    "N31_DROP_REQUIRED_GUARD_PROOF_V1": "N31",
+    "P_NE_SYMMETRIZE_V1": "PNE",
+    "P_DROP_REDUNDANT_GUARD_PROOF_V1": "PDRG",
+}
+
+
+def mechanism_of(operation: str) -> str:
+    """Mechanism label of an operation; exact table, never a prefix split."""
+
+    try:
+        return OPERATION_MECHANISM[operation]
+    except KeyError as exc:
+        raise SprintEngineError(f"unknown operation {operation!r}") from exc
+
+
 NEGATIVE_OPERATIONS: frozenset[str] = frozenset(op for op in OPERATIONS if op.startswith("N"))
 ALL_OPERATIONS_MASK = (1 << len(OPERATIONS)) - 1
 

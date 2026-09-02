@@ -636,3 +636,211 @@ def test_cache_accepts_volatile_proof_fingerprint_differences(tmp_path: Path) ->
     changed["evidence"]["refutation"]["check"]["kernel_checked"] = False
     with pytest.raises(store.StoreError):
         cache.put_op("k" * 64, changed)
+
+
+def _seed_core_records(count: int = 40) -> list[dict[str, object]]:
+    """Paired core records: one positive and one negative per root."""
+
+    import random
+
+    rng = random.Random(11)
+    records: list[dict[str, object]] = []
+    families = ["eq_relation", "ne_relation", "order", "guard"]
+    for index in range(count):
+        root = f"root:{index}"
+        family = families[index % 4]
+        words = " ".join(rng.choice("abcdefgh") for _ in range(6))
+        for label, operation in (
+            (True, "P18_SYMMETRIZE_EQUALITY_V1"),
+            (False, "N25_TOGGLE_EQ_NE_PROOF_V1" if index % 2 else "N32_SWAP_ROLE_ORDER_PROOF_V1"),
+        ):
+            pair_id = f"pair:{index}:{int(label)}"
+            check = {"meta_checked": True, "kernel_checked": True}
+            evidence = (
+                {
+                    "equivalence_proof": {"check": check},
+                    "candidate_truth": "proved_equivalent_to_reference",
+                }
+                if label
+                else {
+                    "refutation": {"check": check},
+                    "source_proof_check": check,
+                    "candidate_truth": "refuted",
+                }
+            )
+            records.append(
+                {
+                    "row": {
+                        "pair_id": pair_id,
+                        "root_id": root,
+                        "reference": f"x : ℕ\n⊢ {words} = 0",
+                        "candidate": f"x : ℕ\n⊢ 0 {'=' if label else '≠'} {words}",
+                        "label": label,
+                        "operation_id": operation,
+                    },
+                    "sidecar": {
+                        "pair_id": pair_id,
+                        "root_id": root,
+                        "root_name": f"Root.t{index}",
+                        "operation_id": operation,
+                        "evidence": evidence,
+                        "core_family": family,
+                        "core_cell": "cell",
+                        "orientation": "original",
+                        "engine": {
+                            "source_sha256": "e" * 64,
+                            "compile_context_id": "ctx:test",
+                            "semantic_version": "sft1_sprint_engine_v1",
+                            "import_options_fingerprint": "f" * 64,
+                        },
+                        "project": {
+                            "project_id": "mathlib",
+                            "project_revision": "r" * 40,
+                            "lean_version": "v4.31.0-rc1",
+                        },
+                        "repr": {
+                            "reference": {
+                                "implementation_identity": {"renderer_semantic_hash": "s"},
+                                "spec_hash": "spec",
+                                "goal_v1": f"x : ℕ\n⊢ {words} = 0",
+                                "rendered_goal_hash": "",
+                                "provenance": {"expr_hash": "a"},
+                            },
+                            "candidate": {
+                                "implementation_identity": {"renderer_semantic_hash": "s"},
+                                "spec_hash": "spec",
+                                "goal_v1": f"x : ℕ\n⊢ 0 {'=' if label else '≠'} {words}",
+                                "rendered_goal_hash": "",
+                                "provenance": {"expr_hash": "b"},
+                            },
+                        },
+                        "cache_key": "",
+                    },
+                    "row_hash": hash_canonical([pair_id]),
+                    "unordered_pair_key": hash_canonical([pair_id, "u"]),
+                    "label": label,
+                    "operation_id": operation,
+                    "root_name": f"Root.t{index}",
+                }
+            )
+    return records
+
+
+def test_mechanism_map_is_exact() -> None:
+    from leanfaith.sft1.sprint.engine import mechanism_of
+
+    assert mechanism_of("P_NE_SYMMETRIZE_V1") == "PNE"
+    assert mechanism_of("P_DROP_REDUNDANT_GUARD_PROOF_V1") == "PDRG"
+    assert mechanism_of("N25_TOGGLE_EQ_NE_PROOF_V1") == "N25"
+    with pytest.raises(engine.SprintEngineError):
+        mechanism_of("P_UNKNOWN")
+
+
+def test_seed_records_store_exactly_one_swap_per_root_and_three_field_rows() -> None:
+    from leanfaith.sft1.sprint.seed import seed_records
+
+    seeds = seed_records(_seed_core_records())
+    assert len(seeds) == 80
+    assert all(set(item["row"]) == {"reference", "candidate", "label"} for item in seeds)
+    swapped = [item for item in seeds if item["sidecar"]["orientation"] == "swapped"]
+    assert len(swapped) == 40
+    per_root: dict[str, int] = {}
+    for item in seeds:
+        root = item["sidecar"]["root_id"]
+        per_root[root] = per_root.get(root, 0) + (
+            1 if item["sidecar"]["orientation"] == "swapped" else 0
+        )
+    assert set(per_root.values()) == {1}
+    for item in swapped:
+        assert item["row"]["reference"].startswith("x : ℕ\n⊢ 0")
+        assert item["sidecar"]["stored_reference_is"] == "candidate"
+    assert all(item["sidecar"]["mechanism"] in {"P18", "N25", "N32"} for item in seeds)
+    assert all("pair_id" in item["sidecar"] and "root_id" in item["sidecar"] for item in seeds)
+
+
+def test_screens_v3_are_order_invariant_under_shuffles() -> None:
+    import random
+
+    from leanfaith.sft1.sprint import shortcut
+    from leanfaith.sft1.sprint.seed import seed_records
+
+    seeds = seed_records(_seed_core_records())
+    baseline = shortcut.run_screens_v3(seeds)
+    for seed in (1, 7, 42):
+        shuffled = list(seeds)
+        random.Random(seed).shuffle(shuffled)
+        assert shortcut.run_screens_v3(shuffled) == baseline
+    assert baseline["method"]["order_invariant"] is True
+    assert set(baseline["per_family"]) == {"candidate_only", "reference_only", "family_held_out"}
+    assert set(baseline["per_family"]["candidate_only"]) == {
+        "eq_relation",
+        "ne_relation",
+        "order",
+        "guard",
+    }
+
+
+def test_diversity_floor_is_proportional() -> None:
+    from leanfaith.sft1.sprint.seed import diversity_floor
+
+    assert diversity_floor(994) == 50
+    assert diversity_floor(10000) == 100
+    assert diversity_floor(30) == 2
+
+
+def test_validator_compares_full_provenance_and_model_facing_rows(tmp_path: Path) -> None:
+    from leanfaith.sft1.sprint import integrity
+
+    # A shard with three-field rows and metadata sidecars, plus a manifest whose
+    # provenance object differs from the sidecar-derived one in a non-segment field.
+    seeds = _seed_core_records(4)
+    compacted = tmp_path / "view"
+    shard = compacted / "shard-0001"
+    shard.mkdir(parents=True)
+    rows = []
+    sidecars = []
+    for item in seeds:
+        row = dict(item["row"])
+        sidecar = dict(item["sidecar"])
+        sidecar["mechanism"] = "WRONG"
+        rows.append(
+            {"reference": row["reference"], "candidate": row["candidate"], "label": row["label"]}
+        )
+        sidecars.append(sidecar)
+    from leanfaith.config.hashing import canonical_json_bytes, sha256_hex
+
+    rows_bytes = b"".join(canonical_json_bytes(r) + b"\n" for r in rows)
+    sidecar_bytes = b"".join(canonical_json_bytes(s) + b"\n" for s in sidecars)
+    (shard / "rows.jsonl").write_bytes(rows_bytes)
+    (shard / "sidecars.jsonl").write_bytes(sidecar_bytes)
+    (shard / "manifest.json").write_bytes(
+        canonical_json_bytes(
+            {
+                "row_count": len(rows),
+                "rows_sha256": sha256_hex(rows_bytes),
+                "sidecars_sha256": sha256_hex(sidecar_bytes),
+                "complete": False,
+            }
+        )
+    )
+    manifest = {
+        "retained_rows": len(rows),
+        "input_records": len(rows),
+        "provenance": {"schema_version": 1, "segments": [], "row_count": 0},
+        "finalized": True,
+    }
+    (compacted / "manifest.json").write_bytes(canonical_json_bytes(manifest))
+    retained = tmp_path / "retained.jsonl"
+    retained.write_bytes(b"".join(canonical_json_bytes(item) + b"\n" for item in seeds))
+    report = integrity.validate_view(
+        repo_root=ROOT,
+        staging_root=tmp_path,
+        run_id="x",
+        compacted_dir=compacted,
+        retained_path=retained,
+    )
+    counts = report["issue_counts"]
+    assert counts.get("mechanism_metadata") == len(rows)
+    assert counts.get("manifest_provenance") == 1
+    assert counts.get("finalized_shard_incomplete") == 1
+    assert "row_schema" not in counts

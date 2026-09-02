@@ -22,14 +22,14 @@
 > active sprint prerequisites.
 > **REPR predecessor:** `cbc933c3623d81ba649a1f9c5107ad404389d69f` was reviewed but is
 > superseded and not consumable by SFT1
-> **Next gate:** the shortcut-corrected v2 core view passes every shortcut threshold
-> (candidate-only 0.562 / upper bound 0.581 < 0.60; reference-only 0.551 / 0.570 < 0.60;
-> family-held-out 0.483 / 0.490 < 0.65) on 994 balanced rows, but the matched design is bounded by
-> the 212 disequality roots with grounded refutations in all of Mathlib, and the ≥100-rows-per-
-> negative-operation criterion is met only by N25 (424; N32 54, N31 19 by the requested cap).
-> A full Mathlib wave would not enlarge the matched core (all `≠` and `<` roots are already
-> processed), so it was not launched; the lever is grounding coverage for `≠` roots. The user
-> decides whether the 994-row core is the release and whether to fund grounding expansion.
+> **Next gate:** user decision after the stable (order-invariant, serialized-row) shortcut
+> evaluation of the additive seed view `core_v2_seed` failed two of three screens:
+> candidate-only 0.624 (95% upper bound 0.647, threshold 0.60) and reference-only 0.584 (0.605,
+> threshold 0.60); family-held-out 0.483 (0.492, threshold 0.65) passes. The earlier `core_v2`
+> pass rested on an order-sensitive minibatch screen; the deterministic full-batch screen finds a
+> real leak (label-permutation control 0.52–0.55). The proposed correction is a composition
+> change with additional certified negative mechanisms or N32-positive twins, not more N25
+> grounding. No Lean, no regeneration, no Hub overwrite, no merge.
 > **Compute class:** no active claim. The `tenk` run used one persistent Mathlib worker
 > (`SFT1-SPRINT`, 1 worker / 24 GiB) across three launches with peak process-tree RSS 10.0 GB and
 > released it at exit; no tmux session is running.
@@ -1642,3 +1642,44 @@ resource use, output paths, and exact remaining ETA. Do not run training.
   `4e2571f7dd6b7708632e25087c817aadaf7d92ed`; refreshed cards/index at
   `315b7988651d5ab3cae73ab24fc38a5314c79de3`. Every upload was verified by fresh download and
   has a local receipt under its compacted directory.
+- 2026-09-02 — additive corrected seed release attempt (`core_v2_seed`, commits after
+  `b40fdbb`; `core_v2` and `aux_n31_core_v2` untouched):
+  - Shortcut evaluation is now order-invariant: rows are canonically ordered by pair id, the
+    classifier is full-batch class-weighted L2 logistic regression (no minibatches, no random
+    state), folds are stable SHA-256 root folds, and the 95% upper bounds come from a
+    family-stratified root bootstrap (400 resamples). A regression shuffles the rows with three
+    seeds and requires bit-identical metrics. The screens read the exact serialized shards.
+  - Exact deterministic orientation: exactly one swapped row per paired root (497 swapped / 497
+    original), selected by a salted root hash; model-facing rows are exactly
+    `{reference, candidate, label}` and every identifier lives in the line-aligned sidecar
+    (`pair_id`, `root_id`, `operation_id`, `mechanism`, orientation, family, cell). The finalized
+    shard is marked complete. Mechanism metadata now comes from an exact table
+    (`P_NE_SYMMETRIZE_V1` → `PNE`, `P_DROP_REDUNDANT_GUARD_PROOF_V1` → `PDRG`); the validator
+    checks it, compares the full canonical provenance object, and verifies the orientation rule
+    and finalized-shard completeness; regressions cover all of these. Cards are generated from
+    the actual gate checks with no hardcoded shortcut wording.
+  - Diversity rule applied proportionally: at least two negative mechanisms with at least
+    `min(100, ceil(0.05 × rows))` = 50 rows; N25 424 and N32 54 qualify, capped N31 (19) is
+    exploratory. This check passes.
+  - Stable gate on the serialized `core_v2_seed` (994 rows, 497 roots, 497/497 labels):
+    candidate-only 0.624 (upper bound 0.647) FAIL; reference-only 0.584 (0.605) FAIL;
+    family-held-out 0.483 (0.492) pass. Per-family candidate-only balanced accuracy:
+    eq_relation 0.573, ne_relation 0.672, order 0.639, guard 0.605; reference-only: eq_relation
+    0.580, ne_relation 0.611, order 0.537, guard 0.447. Label-permutation control (two seeds):
+    candidate-only 0.521/0.552 (upper bounds 0.554/0.581), reference-only 0.533/0.537
+    (0.565/0.567) — the actual values sit above the control band, so the leak is real; the
+    earlier `core_v2` "pass" (0.562/0.551) came from the order-sensitive minibatch screen.
+    Integrity validator: 994/994 rows, zero issues (`compacted/core_v2_seed/integrity_report.json`,
+    `release_report.json`, `permutation_control.json`). The seed was NOT published and is kept
+    locally as gate-failed evidence (`artifact_status: candidate_seed_release_gate_failed`).
+  - Status `waiting_user`. Proposed composition correction (no N25 grounding work): add
+    certified negative mechanisms whose candidates do not carry a relation-symbol or
+    hypothesis-count signature, and N32-positive twins that share N32's surface, e.g. (a) a
+    strict-order side swap that is *positive* under an extra hypothesis is impossible, but a
+    P-twin "swap independent data binders" already exists — expand N32's twin pool by targeting
+    `<` roots with two explicit data binders; (b) an N-mechanism "swap hypothesis roles" (exchange
+    two same-typed hypothesis arguments, refuted via the loaded proof) whose candidate keeps every
+    token of the reference; (c) an N-mechanism "shift a literal bound by one" restricted to
+    decidable Nat/Int targets, refuted at the boundary, whose candidate differs by one numeral.
+    Each needs a fixture pair, a targeted run, and the stable serialized-row gate before any
+    seed release.

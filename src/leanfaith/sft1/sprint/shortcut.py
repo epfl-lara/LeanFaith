@@ -10,9 +10,10 @@ screen for surface shortcuts, not a model of interest.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from itertools import pairwise
 from pathlib import Path
@@ -254,6 +255,214 @@ def run_screens_v2(records: Sequence[dict[str, object]], *, folds: int = 5) -> d
         "screens": [result.to_dict() for result in results],
         "passed": all(result.passed for result in results),
     }
+
+
+# ---------------------------------------------------------------- v3: order-invariant
+
+
+def record_pair_id(record: Mapping[str, Any]) -> str:
+    row = cast(dict[str, Any], record["row"])
+    sidecar = cast(dict[str, Any], record["sidecar"])
+    return str(row.get("pair_id") or sidecar["pair_id"])
+
+
+def canonical_records(records: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
+    """Canonical row order (by pair id) so every computation is order-invariant."""
+
+    ordered = sorted(records, key=record_pair_id)
+    ids = [record_pair_id(item) for item in ordered]
+    if len(ids) != len(set(ids)):
+        raise ValueError("pair ids must be unique for canonical ordering")
+    return [dict(item) for item in ordered]
+
+
+def train_logreg_full_batch(
+    x: np.ndarray, y: np.ndarray, *, iterations: int = 300, lr: float = 2.0, l2: float = 1e-3
+) -> np.ndarray:
+    """Class-weighted L2 logistic regression by full-batch gradient descent.
+
+    No sampling and no random state: the result depends only on the (canonically
+    ordered) data, so it is invariant to input permutations.
+    """
+
+    xb = np.hstack([x.astype(np.float64), np.ones((x.shape[0], 1), dtype=np.float64)])
+    target = y.astype(np.float64)
+    positive = max(float(target.sum()), 1.0)
+    negative = max(float(len(target) - target.sum()), 1.0)
+    weight = np.where(target == 1, len(target) / (2 * positive), len(target) / (2 * negative))
+    weights = np.zeros(xb.shape[1], dtype=np.float64)
+    for _ in range(iterations):
+        logits = xb @ weights
+        probs = 1.0 / (1.0 + np.exp(-logits))
+        gradient = ((probs - target) * weight) @ xb / len(target) + l2 * weights
+        weights -= lr * gradient
+    return weights
+
+
+def predict_full(weights: np.ndarray, x: np.ndarray) -> np.ndarray:
+    xb = np.hstack([x.astype(np.float64), np.ones((x.shape[0], 1), dtype=np.float64)])
+    result: np.ndarray = (xb @ weights > 0).astype(np.int8)
+    return result
+
+
+def stable_fold(key: str, folds: int) -> int:
+    return int(hashlib.sha256(key.encode("utf-8")).hexdigest(), 16) % folds
+
+
+def family_stratified_root_bootstrap_upper(
+    y_true: np.ndarray,
+    y_pred: np.ndarray,
+    roots: np.ndarray,
+    families: np.ndarray,
+    *,
+    samples: int = 400,
+    seed: int = 1,
+) -> float:
+    """97.5th percentile of balanced accuracy over root resamples drawn within
+    each surface family (family root counts preserved)."""
+
+    rng = np.random.default_rng(seed)
+    strata: list[list[np.ndarray]] = []
+    for family in sorted(set(families.tolist())):
+        members = sorted(set(roots[families == family].tolist()))
+        strata.append([np.flatnonzero((roots == root) & (families == family)) for root in members])
+    values: list[float] = []
+    for _ in range(samples):
+        parts: list[np.ndarray] = []
+        for stratum in strata:
+            chosen = rng.integers(0, len(stratum), size=len(stratum))
+            parts.extend(stratum[index] for index in chosen)
+        idx = np.concatenate(parts)
+        values.append(balanced_accuracy(y_true[idx], y_pred[idx]))
+    finite = [value for value in values if value == value]
+    return float(np.percentile(finite, 97.5)) if finite else float("nan")
+
+
+def _held_out_predictions(
+    features: np.ndarray, labels: np.ndarray, groups: np.ndarray
+) -> tuple[np.ndarray, int]:
+    predictions = np.zeros(len(labels), dtype=np.int8)
+    folds = 0
+    for group in sorted(set(groups.tolist())):
+        test = groups == group
+        train = ~test
+        if test.sum() == 0 or train.sum() == 0 or len(set(labels[train].tolist())) < 2:
+            continue
+        weights = train_logreg_full_batch(features[train], labels[train])
+        predictions[test] = predict_full(weights, features[test])
+        folds += 1
+    return predictions, folds
+
+
+def _screen_v3(
+    name: str,
+    features: np.ndarray,
+    labels: np.ndarray,
+    groups: np.ndarray,
+    roots: np.ndarray,
+    families: np.ndarray,
+    *,
+    threshold: float,
+) -> tuple[ScreenResult, dict[str, float]]:
+    predictions, folds = _held_out_predictions(features, labels, groups)
+    accuracy = balanced_accuracy(labels, predictions)
+    upper = family_stratified_root_bootstrap_upper(labels, predictions, roots, families)
+    passed = bool(accuracy == accuracy and upper == upper and upper < threshold)
+    per_family: dict[str, float] = {}
+    for family in sorted(set(families.tolist())):
+        mask = families == family
+        per_family[family] = round(balanced_accuracy(labels[mask], predictions[mask]), 4)
+    return ScreenResult(name, accuracy, upper, threshold, folds, passed), per_family
+
+
+def run_screens_v3(records: Sequence[Mapping[str, Any]], *, folds: int = 5) -> dict[str, object]:
+    """Order-invariant screens on a stored (orientation-assigned) view.
+
+    Rows are canonically ordered by pair id; classifiers are full-batch and
+    deterministic; folds are stable hashes of root ids; the 95% upper bounds
+    come from a family-stratified root bootstrap.  Reports global and
+    per-family candidate-only and reference-only balanced accuracy.
+    """
+
+    ordered = canonical_records(records)
+    rows = [cast(dict[str, Any], item["row"]) for item in ordered]
+    sidecars = [cast(dict[str, Any], item["sidecar"]) for item in ordered]
+    labels = np.array([1 if row["label"] else 0 for row in rows], dtype=np.int8)
+    roots = np.array([str(sidecar["root_id"]) for sidecar in sidecars])
+    families = np.array([str(sidecar.get("core_family", "unassigned")) for sidecar in sidecars])
+    root_folds = np.array([stable_fold(root, folds) for root in roots])
+    candidate_only = featurize([str(row["candidate"]) for row in rows])
+    reference_only = featurize([str(row["reference"]) for row in rows])
+    pair_features = featurize_side_tagged(
+        [(str(row["reference"]), str(row["candidate"])) for row in rows]
+    )
+    cand, cand_family = _screen_v3(
+        "candidate_only", candidate_only, labels, root_folds, roots, families, threshold=0.60
+    )
+    ref, ref_family = _screen_v3(
+        "reference_only", reference_only, labels, root_folds, roots, families, threshold=0.60
+    )
+    fam, fam_family = _screen_v3(
+        "family_held_out", pair_features, labels, families, roots, families, threshold=0.65
+    )
+    family_counts = {
+        family: {
+            "rows": int((families == family).sum()),
+            "positives": int(labels[families == family].sum()),
+            "negatives": int((families == family).sum() - labels[families == family].sum()),
+            "roots": len(set(roots[families == family].tolist())),
+        }
+        for family in sorted(set(families.tolist()))
+    }
+    return {
+        "rows": len(rows),
+        "positives": int(labels.sum()),
+        "negatives": int(len(labels) - labels.sum()),
+        "roots": len(set(roots.tolist())),
+        "families": family_counts,
+        "orientation": {
+            "swapped": sum(1 for s in sidecars if s.get("orientation") == "swapped"),
+            "original": sum(1 for s in sidecars if s.get("orientation") != "swapped"),
+        },
+        "method": {
+            "ordering": "canonical_by_pair_id",
+            "classifier": "full_batch_class_weighted_l2_logistic_regression",
+            "folds": "stable_sha256_root_folds",
+            "bootstrap": "family_stratified_root_resampling_400",
+            "features": "hashed_unigram_bigram; side_tagged_pairs_for_family_held_out",
+            "order_invariant": True,
+        },
+        "screens": [cand.to_dict(), ref.to_dict(), fam.to_dict()],
+        "per_family": {
+            "candidate_only": cand_family,
+            "reference_only": ref_family,
+            "family_held_out": fam_family,
+        },
+        "passed": all(result.passed for result in (cand, ref, fam)),
+    }
+
+
+def load_serialized_view(compacted_dir: Path) -> list[dict[str, Any]]:
+    """Exactly the rows and sidecars written to a compacted view's shards."""
+
+    records: list[dict[str, Any]] = []
+    for shard_dir in sorted(compacted_dir.glob("shard-*")):
+        rows = [
+            json.loads(line)
+            for line in (shard_dir / "rows.jsonl").read_text("utf-8").splitlines()
+            if line
+        ]
+        sidecars = [
+            json.loads(line)
+            for line in (shard_dir / "sidecars.jsonl").read_text("utf-8").splitlines()
+            if line
+        ]
+        if len(rows) != len(sidecars):
+            raise ValueError(f"row/sidecar count mismatch in {shard_dir}")
+        records.extend(
+            {"row": row, "sidecar": sidecar} for row, sidecar in zip(rows, sidecars, strict=True)
+        )
+    return records
 
 
 def load_records(path: Path) -> list[dict[str, object]]:
