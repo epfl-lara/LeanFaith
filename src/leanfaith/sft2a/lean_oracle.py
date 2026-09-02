@@ -25,6 +25,8 @@ from leanfaith.sft2a.models import ProposerOutput
 
 ORACLE_METHOD_VERSION = "sft2a_proof_free_signature_oracle_binder_hygiene_v1"
 ORACLE_METHOD_VERSION_V2 = "sft2a_proof_free_signature_oracle_canonical_universes_v2"
+# Identity of the v2 command skeleton around the elaborator body (scope ordering and layout).
+COMMAND_TEMPLATE_VERSION_V2 = "sft2a_signature_command_namespaces_before_opens_v2_1"
 _CACHE_VERSION_V1 = "v1"
 _CACHE_VERSION_V2 = "v2"
 _CANONICAL_UNIVERSES = [f"u_{i}" for i in range(8)]
@@ -73,10 +75,11 @@ def compile_context(loaded: LoadedSFT2AConfig) -> CompileContext:
 
 
 def elaborator_sha256(cache_version: Literal["v1", "v2"]) -> str:
-    """Content identity of the Lean elaborator body injected for one oracle version."""
+    """Content identity of the Lean elaborator body plus command skeleton for one version."""
 
-    body = _V1_NAMESPACE_BODY if cache_version == "v1" else _V2_NAMESPACE_BODY
-    return sha256_hex(body.encode("utf-8"))
+    if cache_version == "v1":
+        return sha256_hex(_V1_NAMESPACE_BODY.encode("utf-8"))
+    return sha256_hex((_V2_NAMESPACE_BODY + "\n" + COMMAND_TEMPLATE_VERSION_V2).encode("utf-8"))
 
 
 def project_backend_context(context: CompileContext) -> CompileContext:
@@ -309,9 +312,17 @@ def _signature_command(
         if _SAFE_OPTION_NAME.fullmatch(option_name) is None:
             raise SignatureOracleError(f"unsafe Lean option name {option_name!r}")
         lines.append(f"set_option {option_name} {_option_value(value)}")
-    lines.extend(f"open {name}" for name in context.open_context)
-    lines.extend(f"open scoped {name}" for name in context.scoped_context)
-    lines.extend(f"namespace {name}" for name in context.namespace_context)
+    if cache_version == "v2":
+        # The census records `open` commands at the declaration offset, i.e. inside the enclosing
+        # namespaces, where `open X` also resolves namespace-relative `N.X`. Emitting the opens
+        # first made every candidate of such roots fail with `unknown namespace`.
+        lines.extend(f"namespace {name}" for name in context.namespace_context)
+        lines.extend(f"open {name}" for name in context.open_context)
+        lines.extend(f"open scoped {name}" for name in context.scoped_context)
+    else:
+        lines.extend(f"open {name}" for name in context.open_context)
+        lines.extend(f"open scoped {name}" for name in context.scoped_context)
+        lines.extend(f"namespace {name}" for name in context.namespace_context)
     lines.append(
         f"{command_keyword} {json.dumps(endpoint_id)} {json.dumps(render_scope_id)} : ({signature})"
     )
@@ -618,6 +629,7 @@ class SignatureOracle:
 
 
 __all__ = [
+    "COMMAND_TEMPLATE_VERSION_V2",
     "ORACLE_METHOD_VERSION",
     "ORACLE_METHOD_VERSION_V2",
     "SignatureOracle",

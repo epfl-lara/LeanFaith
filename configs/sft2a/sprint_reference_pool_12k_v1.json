@@ -1,8 +1,8 @@
 {
   "version": "leanfaith_sft2a_sprint_reference_pool_v1",
   "sprint_authority": "plans/72h_sft_data_sprint_2026-09-01.md",
-  "base_config_path": "configs/sft2a/closure_aware_v5_2_sprint_v1.yaml",
-  "base_config_sha256": "2950dbf1882fbdaa08ba8226a77a593eec7acada58d39093eac7bdaccc565240",
+  "base_config_path": "configs/sft2a/closure_aware_v5_2_sprint_v2.yaml",
+  "base_config_sha256": "824f9f370ed4e70cb4891a195cff7f6a4048117eb747113daad008a546203717",
   "census_root": "/storage/milikic/leanfaith/value_first/sft2_llm_transforms_v1/runs/reference_certification_v5_2_recovery_v3/census",
   "census_eligible_sha256": "45ae24c3d0c17f365b801b064e8ea42767e6620543262890b0608c237ce3cf7b",
   "exclusion_sample_paths": [
@@ -30,8 +30,8 @@
     "output_root": "/storage/milikic/leanfaith/value_first/sft2_llm_transforms_v1/runs/sprint_shards_1k_v1",
     "first_shard_provider_concurrency": 16,
     "provider_config": {
-      "base_config_path": "configs/sft2a/closure_aware_v5_2_sprint_v1.yaml",
-      "base_config_sha256": "2950dbf1882fbdaa08ba8226a77a593eec7acada58d39093eac7bdaccc565240",
+      "base_config_path": "configs/sft2a/closure_aware_v5_2_sprint_v2.yaml",
+      "base_config_sha256": "824f9f370ed4e70cb4891a195cff7f6a4048117eb747113daad008a546203717",
       "labeling_defaults_policy_path": "policies/sft2_llm_labeling_defaults_v1.yaml",
       "labeling_defaults_policy_sha256": "4554a071b06b1af9015b253b5e64b2a0a4d013630e5224ef7729bbf65757646f",
       "provider_concurrency": 16,
@@ -52,5 +52,5 @@
       }
     }
   },
-  "oracle_v2_gate_receipt_path": "/storage/milikic/leanfaith/value_first/sft2_llm_transforms_v1/runs/sprint_pilot_20roots_run/checks/oracle_v2_live_gate/oracle_v2_live_gate_receipt.json"
+  "oracle_v2_gate_receipt_path": "/storage/milikic/leanfaith/value_first/sft2_llm_transforms_v1/runs/sprint_pilot_20roots_run_v2/checks/oracle_v2_live_gate/oracle_v2_live_gate_receipt.json"
 }

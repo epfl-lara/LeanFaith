@@ -857,3 +857,46 @@ def test_sprint_config_loads_with_real_pins_and_rejects_bad_contracts(tmp_path: 
         path.write_text(json.dumps({**document, **update}))
         with pytest.raises(ProviderRehearsalV52Error, match=message):
             load_provider_rehearsal_v52(path)
+
+
+def test_v2_command_opens_inside_namespaces_and_v1_is_unchanged() -> None:
+    context = _context(namespace_context=["Relation"], open_context=["LeftEuclidean"])
+    v2 = _signature_command(
+        context=context, signature="True", endpoint_id="e", render_scope_id="s", cache_version="v2"
+    )
+    assert v2.index("namespace Relation") < v2.index("open LeftEuclidean")
+    v1 = _signature_command(
+        context=context, signature="True", endpoint_id="e", render_scope_id="s", cache_version="v1"
+    )
+    assert v1.index("open LeftEuclidean") < v1.index("namespace Relation")
+    from leanfaith.sft2a.lean_oracle import COMMAND_TEMPLATE_VERSION_V2
+
+    assert "namespaces_before_opens" in COMMAND_TEMPLATE_VERSION_V2
+    assert elaborator_sha256("v2") != elaborator_sha256("v1")
+
+
+def test_sprint_v2_config_binds_closure_rule_proposer_prompt() -> None:
+    from leanfaith.sft2a.models import SlotConfig
+    from leanfaith.sft2a.prompts import render_proposer_prompt
+
+    loaded = load_sft2a_config(Path("configs/sft2a/closure_aware_v5_2_sprint_v2.yaml"))
+    assert loaded.config.prompts.codex_proposer.path == "prompts/sft2a/codex_proposer_sprint_v1.txt"
+    assert loaded.config.prompts.blinded_claude_judge.path == (
+        "prompts/sft2a/blinded_judge_sprint_v1.txt"
+    )
+    assert "CLOSURE RULES" in loaded.proposer_prompt
+    assert "u_0" in loaded.proposer_prompt and "coercion" in loaded.proposer_prompt
+    slot = SlotConfig(
+        slot_id="preserve_0",
+        requested_polarity="preserving",
+        preferred_mechanism="mechanism_family=equality_symmetry",
+        max_attempts=3,
+    )
+    rendered = render_proposer_prompt(
+        loaded, slot=slot, attempt_number=1, attempt_feedback=None, reference_goal="x : ℕ\n⊢ x = x"
+    )
+    assert "x : ℕ" in rendered and "{{" not in rendered
+    pilot = load_provider_rehearsal_v52(Path("configs/sft2a/sprint_pilot_20roots_v2.json"))
+    assert pilot.kind == "sprint"
+    assert pilot.base.path.name == "closure_aware_v5_2_sprint_v2.yaml"
+    assert pilot.output_root.name == "sprint_pilot_20roots_run_v2"

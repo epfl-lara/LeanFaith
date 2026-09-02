@@ -1615,6 +1615,7 @@ class OracleV2Fixture:
     expected_status: Literal["valid", "invalid"]
     minimum_distinct_universes: int = 0
     open_context: tuple[str, ...] = ()
+    namespace_context: tuple[str, ...] = ()
 
 
 ORACLE_V2_FIXTURES: tuple[OracleV2Fixture, ...] = (
@@ -1673,6 +1674,13 @@ ORACLE_V2_FIXTURES: tuple[OracleV2Fixture, ...] = (
         "∀ (n : ℕ), succ n = n + 1",
         "valid",
         open_context=("Nat",),
+    ),
+    OracleV2Fixture(
+        "namespace_relative_open_resolves",
+        "∀ (θ : Angle), toReal θ = toReal θ",
+        "valid",
+        open_context=("Angle",),
+        namespace_context=("Real",),
     ),
 )
 
@@ -1747,9 +1755,12 @@ def run_oracle_v2_live_gate(
     try:
         oracle = SignatureOracle(base, cache_version="v2")
         for fixture in fixtures:
-            if fixture.open_context:
+            if fixture.open_context or fixture.namespace_context:
                 context = base.config.root.compile_context.model_copy(
-                    update={"open_context": list(fixture.open_context)}
+                    update={
+                        "open_context": list(fixture.open_context),
+                        "namespace_context": list(fixture.namespace_context),
+                    }
                 )
                 root = base.config.root.model_copy(update={"compile_context": context})
                 rebound = replace(base, config=base.config.model_copy(update={"root": root}))
@@ -1775,6 +1786,7 @@ def run_oracle_v2_live_gate(
                     "elapsed_ms": result.elapsed_ms,
                     "detail": result.detail[:500],
                     "open_context": list(fixture.open_context),
+                    "namespace_context": list(fixture.namespace_context),
                     "passed": passed,
                 }
             )
