@@ -518,6 +518,96 @@ def outer_negation_xor_baseline(records: Sequence[Mapping[str, Any]]) -> dict[st
     }
 
 
+_RELATION_CHARS = "↔≠=≤<≥>∣∈⊆∧∨→"  # noqa: RUF001  (Lean relation symbols, intentional)
+
+
+def _goal_hypothesis_count(text: str) -> int:
+    head = text.rsplit("⊢", 1)[0]
+    return sum(1 for line in head.splitlines() if line.strip())
+
+
+def _target_relation(text: str) -> str:
+    """The first top-level relation symbol of a goal target (heuristic, telemetry only)."""
+    target = _goal_target(text)
+    if target.startswith("¬"):
+        return "¬"
+    depth = 0
+    for char in target:
+        if char in "([{":
+            depth += 1
+        elif char in ")]}":
+            depth = max(0, depth - 1)
+        elif depth == 0 and char in _RELATION_CHARS:
+            return char
+    return "none"
+
+
+def _rule_balanced_accuracy(records: Sequence[Mapping[str, Any]], same: Sequence[bool]) -> float:
+    truth = np.array([bool(r["row"]["label"]) for r in records])
+    pred = np.array(list(same))
+    return round(float(balanced_accuracy(truth, pred)), 4)
+
+
+def pairwise_shortcut_diagnostics(records: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
+    """Four cheap pairwise surface rules and their balanced accuracy on a view.
+
+    Telemetry, not a gate: each rule predicts "equivalent" when a pairwise surface feature
+    agrees on both sides. Values near 0.5 mean the feature carries no label information
+    on this view; values near 1.0 name an easy pairwise pattern a model could exploit.
+    """
+    if not records:
+        return {"rows": 0, "rules": {}}
+    refs = [str(r["row"]["reference"]) for r in records]
+    cands = [str(r["row"]["candidate"]) for r in records]
+    relation_same = [
+        _target_relation(a) == _target_relation(b) for a, b in zip(refs, cands, strict=True)
+    ]
+    target_same = [_goal_target(a) == _goal_target(b) for a, b in zip(refs, cands, strict=True)]
+    deltas = [
+        abs(_goal_hypothesis_count(a) - _goal_hypothesis_count(b))
+        for a, b in zip(refs, cands, strict=True)
+    ]
+    binder_same = [delta == 0 for delta in deltas]
+    negation_same = [
+        _goal_target(a).startswith("¬") == _goal_target(b).startswith("¬")
+        for a, b in zip(refs, cands, strict=True)
+    ]
+    accuracies = {
+        "relation_parity": _rule_balanced_accuracy(records, relation_same),
+        "target_equality": _rule_balanced_accuracy(records, target_same),
+        "binder_delta": _rule_balanced_accuracy(records, binder_same),
+        "negation_xor": _rule_balanced_accuracy(records, negation_same),
+    }
+    rules: dict[str, dict[str, Any]] = {
+        "relation_parity": {
+            "rule": "equivalent iff both targets share their top-level relation symbol",
+            "balanced_accuracy": accuracies["relation_parity"],
+            "agreeing_rows": int(sum(relation_same)),
+        },
+        "target_equality": {
+            "rule": "equivalent iff the goal targets are textually identical",
+            "balanced_accuracy": accuracies["target_equality"],
+            "agreeing_rows": int(sum(target_same)),
+        },
+        "binder_delta": {
+            "rule": "equivalent iff both sides list the same number of hypotheses",
+            "balanced_accuracy": accuracies["binder_delta"],
+            "mean_absolute_delta": round(float(np.mean(deltas)), 4),
+        },
+        "negation_xor": {
+            "rule": "equivalent iff both or neither goal target starts with a negation",
+            "balanced_accuracy": accuracies["negation_xor"],
+            "rows_with_negation_on_exactly_one_side": int(sum(1 for x in negation_same if not x)),
+        },
+    }
+    return {
+        "rows": len(records),
+        "kind": "telemetry_not_a_gate",
+        "rules": rules,
+        "max_balanced_accuracy": max(accuracies.values()),
+    }
+
+
 def load_serialized_view(compacted_dir: Path) -> list[dict[str, Any]]:
     """Exactly the rows and sidecars written to a compacted view's shards."""
 

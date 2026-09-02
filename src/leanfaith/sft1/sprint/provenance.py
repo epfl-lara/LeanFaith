@@ -191,24 +191,38 @@ def _generating_run_verifies(
     return f"generating run {run_name} has no Lean terminal for the root"
 
 
-def verify_square_cache(
-    sidecar: Mapping[str, Any], cache_root: Path, runs_root: Path | None = None
-) -> tuple[int | None, list[str]]:
-    """Load the explicit square-root cache record a sidecar points at and verify it.
+class SnapshotStore:
+    """Content-addressed cache-record snapshots packed inside a release directory."""
 
-    Returns the cache schema and the list of inconsistencies (empty when verified). The
-    record must exist at the recorded path, be keyed by the recomputed square-root
-    identity, and agree with the sidecar on root, engine, compile context, terminal
-    status, request hashes, and the four alpha hashes.
-    """
-    issues: list[str] = []
-    block = sidecar.get("cache")
-    if not isinstance(block, Mapping):
-        return None, ["cache block missing"]
-    key = str(block.get("key", ""))
-    schema = block.get("schema")
+    def __init__(self, release_dir: Path | None) -> None:
+        self.release_dir = release_dir
+        self._files: dict[str, list[str]] = {}
+
+    def load(self, snapshot: Mapping[str, Any]) -> dict[str, Any] | None:
+        if self.release_dir is None:
+            return None
+        name = str(snapshot.get("file", ""))
+        line = snapshot.get("line")
+        if not name or not isinstance(line, int):
+            return None
+        if name not in self._files:
+            path = self.release_dir / name
+            if not path.is_file():
+                return None
+            self._files[name] = path.read_text(encoding="utf-8").splitlines()
+        lines = self._files[name]
+        if line < 0 or line >= len(lines):
+            return None
+        loaded = json.loads(lines[line])
+        return dict(loaded) if isinstance(loaded, dict) else None
+
+
+def _square_key_identity(sidecar: Mapping[str, Any], block: Mapping[str, Any]) -> str:
+    """Recompute the cache key from sidecar fields for schema 2 (legacy) or 3."""
     engine = sidecar.get("engine") or {}
     project = sidecar.get("project") or {}
+    schema = block.get("schema")
+    revision = block.get("revision", 0)
     identity: dict[str, Any] = {
         "kind": "square_root",
         "cache_schema": schema,
@@ -219,19 +233,91 @@ def verify_square_cache(
         "lean_version": str(project.get("lean_version")),
         "import_options_fingerprint": str(engine.get("import_options_fingerprint")),
     }
-    revision = block.get("revision", 0)
-    if isinstance(revision, int) and revision > 0:
+    if schema == 3:
+        identity["operation_revision"] = int(revision) if isinstance(revision, int) else 0
+        identity["engine_source_sha256"] = str(engine.get("source_sha256"))
+        identity["compile_context_id"] = str(engine.get("compile_context_id"))
+    elif isinstance(revision, int) and revision > 0:
         identity["operation_revision"] = revision
-    expected_key = hash_canonical(identity)
-    if key != expected_key:
+    return hash_canonical(identity)
+
+
+def _recovered_record_verifies(
+    runs_root: Path | None, run_name: str, sidecar: Mapping[str, Any]
+) -> str | None:
+    """A record recovered from run evidence must match that run's own retained rows."""
+    if runs_root is None:
+        return "run evidence unavailable"
+    retained = runs_root / run_name / "retained.jsonl"
+    if not retained.is_file():
+        return f"run {run_name} retained file absent"
+    hashes = sidecar.get("lean_request_hashes") or {}
+    root_name = str(sidecar.get("root_name"))
+    with retained.open("r", encoding="utf-8") as handle:
+        for line in handle:
+            if root_name not in line:
+                continue
+            item = json.loads(line)
+            stored = item["sidecar"]
+            if stored.get("root_name") != root_name:
+                continue
+            if (stored.get("lean_request_hashes") or {}) == hashes:
+                return None
+            return f"run {run_name} evidence carries different request hashes for the root"
+    return f"run {run_name} has no retained rows for the root"
+
+
+def verify_square_cache(
+    sidecar: Mapping[str, Any],
+    cache_root: Path,
+    runs_root: Path | None = None,
+    snapshots: SnapshotStore | None = None,
+) -> tuple[int | None, list[str], bool | None]:
+    """Verify the cache record a sidecar's rows were built from.
+
+    Release evidence is the content-addressed snapshot packed inside the release (when
+    present); the record must hash to the sidecar's ``content_sha256`` and agree with the
+    sidecar on root, engine, compile context, terminal status, request hashes, alpha
+    hashes, and commit provenance. The live shared cache is compared only for information
+    (third return value), so a later cache write can never invalidate a release. Releases
+    without snapshots (legacy) are verified against the live record.
+    """
+    issues: list[str] = []
+    block = sidecar.get("cache")
+    if not isinstance(block, Mapping):
+        return None, ["cache block missing"], None
+    key = str(block.get("key", ""))
+    schema = block.get("schema")
+    engine = sidecar.get("engine") or {}
+    if key != _square_key_identity(sidecar, block):
         issues.append("cache key does not match the square-root identity")
-    path = cache_root / str(block.get("path", ""))
     if str(block.get("path", "")) != f"roots/{key[:2]}/{key}.json":
         issues.append("cache path does not match the cache key")
-    if not path.is_file():
-        issues.append("cache record absent")
-        return (int(schema) if isinstance(schema, int) else None), issues
-    record = read_json_object(path)
+    live_path = cache_root / str(block.get("path", ""))
+    live = read_json_object(live_path) if live_path.is_file() else None
+    content_sha = block.get("content_sha256")
+    snapshot_ref = block.get("snapshot")
+    record: dict[str, Any] | None = None
+    live_agrees: bool | None = None
+    if isinstance(snapshot_ref, Mapping) and snapshots is not None:
+        record = snapshots.load(snapshot_ref)
+        if record is None:
+            issues.append("cache snapshot absent from the release")
+        elif hash_canonical(record) != content_sha:
+            issues.append("cache snapshot content hash differs from the sidecar")
+            record = None
+        if live is not None and content_sha is not None:
+            live_agrees = hash_canonical(live) == content_sha
+    if record is None and not issues:
+        if live is None:
+            issues.append("cache record absent")
+        else:
+            record = live
+            if content_sha is not None and hash_canonical(live) != content_sha:
+                issues.append("live cache record content differs from the sidecar")
+                record = None
+    if record is None:
+        return (int(schema) if isinstance(schema, int) else None), issues, live_agrees
     if record.get("root") != sidecar.get("root_name"):
         issues.append("cache record root differs")
     if record.get("status") != "retained":
@@ -264,9 +350,13 @@ def verify_square_cache(
         )
         if problem:
             issues.append(problem)
+    elif source.startswith("recovered_from_run_evidence:"):
+        problem = _recovered_record_verifies(runs_root, source.split(":", 1)[1], sidecar)
+        if problem:
+            issues.append(problem)
     else:
         issues.append("cache record lacks an implementation commit and no generating run is named")
-    return (int(schema) if isinstance(schema, int) else None), issues
+    return (int(schema) if isinstance(schema, int) else None), issues, live_agrees
 
 
 def segment_key(sidecar: Mapping[str, Any], cache_schema: int | None) -> tuple[str, ...]:
@@ -287,10 +377,15 @@ def derive_provenance(
     *,
     repo_root: Path,
     cache_root: Path,
+    release_dir: Path | None = None,
 ) -> dict[str, Any]:
     """Segments, identities, and consistency checks derived from sidecars."""
 
     resolver = CacheSchemaResolver(cache_root)
+    snapshots = SnapshotStore(release_dir)
+    snapshot_verified = 0
+    live_agreeing = 0
+    live_disagreeing = 0
     commit_map = engine_commit_map(repo_root)
     segments: dict[tuple[str, ...], dict[str, Any]] = {}
     semantic_versions: set[str] = set()
@@ -303,9 +398,15 @@ def derive_provenance(
         sidecar = record["sidecar"]
         cache_block = sidecar.get("cache")
         if isinstance(cache_block, Mapping) and cache_block.get("kind") == "square_root":
-            schema, record_issues = verify_square_cache(
-                sidecar, cache_root, runs_root=cache_root.parent / "runs"
+            schema, record_issues, live_agrees = verify_square_cache(
+                sidecar, cache_root, runs_root=cache_root.parent / "runs", snapshots=snapshots
             )
+            if isinstance(cache_block.get("snapshot"), Mapping) and not record_issues:
+                snapshot_verified += 1
+            if live_agrees is True:
+                live_agreeing += 1
+            elif live_agrees is False:
+                live_disagreeing += 1
             if record_issues:
                 schema = None
                 cache_issues.setdefault(str(sidecar.get("root_name")), "; ".join(record_issues))
@@ -382,6 +483,9 @@ def derive_provenance(
         "project_pin_set_count": len(project_pins),
         "square_cache_records_verified": square_verified,
         "square_cache_records_inconsistent": len(cache_issues),
+        "square_cache_snapshots_verified": snapshot_verified,
+        "square_live_cache_agreeing": live_agreeing,
+        "square_live_cache_disagreeing": live_disagreeing,
         "segments": segment_list,
         "consistent": not issues,
         "issues": issues,

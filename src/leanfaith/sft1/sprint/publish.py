@@ -89,18 +89,62 @@ def _curriculum_lines(manifest: Mapping[str, Any], release: Mapping[str, Any] | 
     if not manifest.get("curriculum_only"):
         return []
     baseline = (release or {}).get("outer_negation_xor_baseline") or {}
-    return [
+    sampling = manifest.get("sampling_configs") or {}
+    lines = [
         "",
         "## Curriculum-only auxiliary data (catalog N19 whole-claim negation)",
         "",
-        "Negatives are whole-claim negations `¬A` of proved theorems `A`, closed by a certified",
-        "preserving transform. Every certificate is kernel-checked, but the pairs are an easy",
-        'pairwise pattern: the rule "equivalent iff both or neither goal starts with `¬`" reaches',
-        f"balanced accuracy {baseline.get('balanced_accuracy')} on this view"
+        "**Never concatenate this view into the headline core.** Negatives are whole-claim",
+        "negations `¬A` of proved theorems `A`, closed by a certified preserving transform. Every",
+        "certificate is kernel-checked, but the pairs are an easy pairwise pattern: the rule",
+        '"equivalent iff both or neither goal starts with `¬`" reaches balanced accuracy',
+        f"**{baseline.get('balanced_accuracy')}** on this view"
         " (`outer_negation_xor_baseline.json`).",
-        "Keep this dataset separate from the headline core and mix it at no more than 10% sampling",
-        "weight with richer data.",
+        "",
+        "Sampling configurations (fraction of mixed training rows drawn from this view):",
+        "",
+        "| config | weight | role |",
+        "| --- | --- | --- |",
     ]
+    for item in sampling.get("configs") or []:
+        lines.append(f"| `{item.get('name')}` | {item.get('weight')} | {item.get('role')} |")
+    lines += [
+        "",
+        f"Initial default `{sampling.get('initial_default')}`; hard ceiling"
+        f" `{sampling.get('hard_ceiling')}` (`sampling_configs.json`).",
+    ]
+    return lines
+
+
+def _coverage_lines(manifest: Mapping[str, Any], release: Mapping[str, Any] | None) -> list[str]:
+    if not _is_square_view(manifest):
+        return []
+    diagnostics = (release or {}).get("pairwise_diagnostics") or {}
+    rules = diagnostics.get("rules") or {}
+    negatives = ", ".join(
+        f"`{k}` {v}" for k, v in sorted((manifest.get("negative_mechanisms") or {}).items())
+    )
+    lines = [
+        "",
+        "## What this view is",
+        "",
+        "A high-confidence deterministic curriculum seed built from certificate-closure squares,",
+        "not broad theorem-equivalence coverage: every label is kernel-checked, but candidates are",
+        "limited to relation-symmetry and binder transforms of certified negatives of Mathlib",
+        f"statements. Negative mechanisms present: {negatives or 'none recorded'}.",
+    ]
+    if rules:
+        lines += [
+            "",
+            "Pairwise shortcut diagnostics (telemetry, not a gate; balanced accuracy of one",
+            "surface rule, 0.5 = uninformative):",
+            "",
+            "| rule | balanced accuracy |",
+            "| --- | --- |",
+        ]
+        for name, rule in rules.items():
+            lines.append(f"| {name}: {rule.get('rule')} | {rule.get('balanced_accuracy')} |")
+    return lines
 
 
 def _square_accounting_lines(manifest: Mapping[str, Any]) -> list[str]:
@@ -219,6 +263,7 @@ def dataset_card(run_id: str, manifest: dict[str, Any], release: dict[str, Any] 
             else ""
         ),
         *_square_accounting_lines(manifest),
+        *_coverage_lines(manifest, release),
         *_curriculum_lines(manifest, release),
         "- operations:",
         *(f"  - `{name}`: {count}" for name, count in sorted(operations.items())),
@@ -283,6 +328,8 @@ def index_card(prefixes: Sequence[Mapping[str, Any]]) -> str:
 
 def local_files(compacted: Path) -> list[Path]:
     files: list[Path] = []
+    for snapshot in sorted(compacted.glob("cache_records/shard-*.jsonl")):
+        files.append(snapshot)  # immutable release evidence: content-addressed cache records
     for shard in sorted(compacted.glob("shard-*")):
         for name in ("rows.jsonl", "sidecars.jsonl", "manifest.json"):
             path = shard / name
@@ -295,6 +342,9 @@ def local_files(compacted: Path) -> list[Path]:
         "integrity_report.json",
         "verdict.json",
         "outer_negation_xor_baseline.json",
+        "pairwise_diagnostics.json",
+        "sampling_configs.json",
+        "superseded_squares.json",
         "duplicate_squares.json",
         "permutation_control.json",
         "quarantined_roots.json",

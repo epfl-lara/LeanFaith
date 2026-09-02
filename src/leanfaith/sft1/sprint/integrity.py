@@ -148,6 +148,95 @@ def _check_evidence(sidecar: Mapping[str, Any], operation: str) -> str | None:
     return None
 
 
+def sidecar_aggregate_counts(sidecars: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
+    """Recompute every manifest aggregate from the finalized sidecars of a view."""
+    counts: dict[str, dict[str, int]] = {
+        "operations": {},
+        "mechanisms": {},
+        "negative_mechanisms": {},
+        "transforms": {},
+        "families": {},
+        "row_kinds": {},
+    }
+    roots: set[str] = set()
+    squares: set[str] = set()
+    positives = 0
+    for sidecar in sidecars:
+        square = sidecar.get("square") or {}
+        for name, value in (
+            ("operations", sidecar.get("operation_id")),
+            ("mechanisms", sidecar.get("mechanism")),
+            ("negative_mechanisms", square.get("negative_operation")),
+            ("transforms", square.get("t_p")),
+            ("families", sidecar.get("core_family")),
+            ("row_kinds", sidecar.get("row_kind")),
+        ):
+            key = str(value)
+            counts[name][key] = counts[name].get(key, 0) + 1
+        roots.add(str(sidecar.get("root_id")))
+        squares.add(f"{sidecar.get('root_id')}|{sidecar.get('operation_id')}")
+        positives += 1 if bool(sidecar.get("label")) else 0
+    return {
+        **{name: dict(sorted(values.items())) for name, values in counts.items()},
+        "roots": len(roots),
+        "squares": len(squares),
+        "retained_rows": len(sidecars),
+        "labels": {"positive": positives, "negative": len(sidecars) - positives},
+        "curriculum_only": any(
+            str(sidecar.get("operation_id")) == "SQUARE_N19_CURRICULUM_V1" for sidecar in sidecars
+        ),
+    }
+
+
+def manifest_aggregate_issues(
+    manifest: Mapping[str, Any], sidecars: Sequence[Mapping[str, Any]]
+) -> list[str]:
+    """Every aggregate the manifest reports must equal the sidecar-derived value.
+
+    Square manifests (those with ``row_kinds``) are checked for all aggregates; other
+    manifests only for the aggregates they carry.
+    """
+    if not sidecars:
+        return []
+    derived = sidecar_aggregate_counts(sidecars)
+    square_manifest = "row_kinds" in manifest
+    issues: list[str] = []
+    for name in (
+        "operations",
+        "mechanisms",
+        "negative_mechanisms",
+        "transforms",
+        "families",
+        "row_kinds",
+        "roots",
+        "squares",
+        "retained_rows",
+        "labels",
+        "curriculum_only",
+    ):
+        if name not in manifest:
+            if square_manifest and name in {
+                "operations",
+                "mechanisms",
+                "negative_mechanisms",
+                "families",
+                "row_kinds",
+                "roots",
+                "retained_rows",
+                "labels",
+            }:
+                issues.append(f"{name} missing from the manifest")
+            continue
+        if manifest[name] != derived[name]:
+            issues.append(f"{name}: manifest {manifest[name]!r} != sidecars {derived[name]!r}")
+    status = str(manifest.get("artifact_status", ""))
+    if square_manifest and status.startswith("square_release") and derived["curriculum_only"]:
+        issues.append("curriculum-only view labelled as a core release")
+    if square_manifest and status.startswith("curriculum") and not derived["curriculum_only"]:
+        issues.append("core view labelled as curriculum-only")
+    return issues
+
+
 def _pair_id(item: Mapping[str, Any]) -> str:
     """Pair id of a retained record.
 
@@ -340,7 +429,15 @@ def validate_view(
             issue(f"replay_receipt: {source_run} missing replay_report.json")
         elif replay.get("lean_requests") != 0 or replay.get("duplicate_rows") != 0:
             issue(f"replay_receipt: {source_run} replay issued Lean requests or appended rows")
-    provenance = derive_provenance(records, repo_root=repo_root, cache_root=staging_root / "cache")
+    aggregate_issues = manifest_aggregate_issues(manifest, [r["sidecar"] for r in records])
+    for text in aggregate_issues:
+        issue(f"manifest_aggregate: {text}")
+    provenance = derive_provenance(
+        records,
+        repo_root=repo_root,
+        cache_root=staging_root / "cache",
+        release_dir=compacted_dir,
+    )
     if not provenance["consistent"]:
         for text in provenance["issues"]:
             issue(f"provenance: {text}")

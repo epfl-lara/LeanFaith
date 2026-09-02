@@ -23,7 +23,7 @@ import shutil
 import sys
 import time
 from collections.abc import Collection, Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, cast
 
@@ -62,9 +62,12 @@ from leanfaith.sft1.sprint.screens import (
     residue_violation,
     unordered_pair_key,
 )
-from leanfaith.sft1.sprint.store import read_json_object, write_atomic
+from leanfaith.sft1.sprint.store import SemanticCache, read_json_object, write_atomic
 
 SQUARE_OPERATION = "SQUARE_N25_SYMMETRY_V1"
+SQUARE_CACHE_KIND = "square_root"
+SQUARE_CACHE_SCHEMA_LEGACY = 2  # semantic version + pins; records could be overwritten
+SQUARE_CACHE_SCHEMA = 3  # + operation revision, engine source hash, compile-context identity
 # square operation id -> (negative operation it closes, census file, family prefix)
 SQUARE_OPERATIONS: dict[str, dict[str, str]] = {
     "SQUARE_N25_SYMMETRY_V1": {
@@ -107,20 +110,50 @@ def square_cache_key(
     lean_version: str,
     import_options_fingerprint: str,
     revision: int,
+    schema: int = SQUARE_CACHE_SCHEMA,
+    engine_source_sha256: str | None = None,
+    compile_context_id: str | None = None,
 ) -> str:
-    identity: dict[str, Any] = {
-        "kind": SQUARE_CACHE_KIND,
-        "cache_schema": SQUARE_CACHE_SCHEMA,
-        "operation_id": operation_id,
-        "name": name,
-        "engine_semantic_version": engine_semantic_version,
-        "project_revision": project_revision,
-        "lean_version": lean_version,
-        "import_options_fingerprint": import_options_fingerprint,
-    }
-    if revision > 0:
-        identity["operation_revision"] = revision
-    return hash_canonical(identity)
+    """Cache identity of one square-root record.
+
+    Schema 2 (legacy) binds the engine semantic version and the project pins only, so a
+    later run with a different engine text could overwrite a record. Schema 3 also binds
+    the operation revision, the engine source hash, and the compile-context identity, so
+    a key names exactly one deterministic computation.
+    """
+    if schema == SQUARE_CACHE_SCHEMA_LEGACY:
+        identity: dict[str, Any] = {
+            "kind": SQUARE_CACHE_KIND,
+            "cache_schema": SQUARE_CACHE_SCHEMA_LEGACY,
+            "operation_id": operation_id,
+            "name": name,
+            "engine_semantic_version": engine_semantic_version,
+            "project_revision": project_revision,
+            "lean_version": lean_version,
+            "import_options_fingerprint": import_options_fingerprint,
+        }
+        if revision > 0:
+            identity["operation_revision"] = revision
+        return hash_canonical(identity)
+    if schema != SQUARE_CACHE_SCHEMA:
+        raise SquareError(f"unknown square cache schema {schema}")
+    if not engine_source_sha256 or not compile_context_id:
+        raise SquareError("schema 3 cache keys need the engine source hash and compile context")
+    return hash_canonical(
+        {
+            "kind": SQUARE_CACHE_KIND,
+            "cache_schema": SQUARE_CACHE_SCHEMA,
+            "operation_id": operation_id,
+            "operation_revision": revision,
+            "name": name,
+            "engine_source_sha256": engine_source_sha256,
+            "compile_context_id": compile_context_id,
+            "engine_semantic_version": engine_semantic_version,
+            "project_revision": project_revision,
+            "lean_version": lean_version,
+            "import_options_fingerprint": import_options_fingerprint,
+        }
+    )
 
 
 INVENTORY_NEGATIVES = {"N19_WHOLE_CLAIM_NEGATION_V1"}
@@ -153,8 +186,6 @@ ENDPOINT_TRUTH: dict[str, str] = {
     "c": "refuted",  # the certified N25 negative of `P`
     "c_prime": "refuted",  # derived from `¬C` along the checked C-iff-C'
 }
-SQUARE_CACHE_KIND = "square_root"
-SQUARE_CACHE_SCHEMA = 2
 ROW_KINDS: tuple[tuple[str, bool, str, str, str], ...] = (
     ("p_prime_iff_p", True, "p_prime", "p", "p_prime_iff_p"),
     ("c_iff_c_prime", True, "c", "c_prime", "c_iff_c_prime"),
@@ -274,11 +305,11 @@ def render_body(names: Sequence[str], scope: str, operation_id: str = SQUARE_OPE
     ]
     fields = {"p": "p", "c": "c", "p_prime": "pPrime", "c_prime": "cPrime"}
     for index in range(len(names)):
-        for endpoint, field in fields.items():
+        for endpoint, lean_field in fields.items():
             lines.append(
                 f"  LeanFaith.GoalV1.emitClosedProp {json.dumps(f'{index}.{endpoint}')} "
                 f"{json.dumps(scope)} {json.dumps(ENDPOINT_ORIGIN[endpoint])} "
-                f"(squares[{index}]!).{field}"
+                f"(squares[{index}]!).{lean_field}"
             )
     return "\n".join(lines)
 
@@ -324,12 +355,16 @@ class SquareRunner:
         owner_session: str = "claude-sft1-square",
         use_cache: bool = True,
         operation_id: str = SQUARE_OPERATION,
+        cache_schema: int = SQUARE_CACHE_SCHEMA,
+        isolated_cache: bool = False,
     ) -> None:
         if operation_id not in SQUARE_OPERATIONS:
             raise SquareError(f"unknown square operation {operation_id!r}")
         self.base = SprintRunner(repo_root, loaded, run_id=run_id, owner_session=owner_session)
         self.use_cache = use_cache
         self.operation_id = operation_id
+        self.cache_schema = cache_schema
+        self.isolated_cache = isolated_cache
         self.repo_root = repo_root
         self.loaded = loaded
         self.config = loaded.config
@@ -338,7 +373,13 @@ class SquareRunner:
         self.max_roots = max_roots
         self.paths = self.base.paths
         self.journal = self.base.journal
-        self.cache = self.base.cache
+        # fixture gates write to their own cache root so they can never overwrite a record
+        # that a release references
+        self.cache = (
+            SemanticCache(Path(loaded.config.output.staging_root) / "cache_fixtures")
+            if isolated_cache
+            else self.base.cache
+        )
         self.done: dict[str, str] = {}
         self.retained = 0
         self.counts: dict[str, int] = {}
@@ -347,6 +388,7 @@ class SquareRunner:
         self.started = time.monotonic()
         self.batches = 0
         self.statements: dict[str, str] = {}
+        self.recovered_roots: list[str] = []
 
     # ---------------------------------------------------------------- state
 
@@ -423,7 +465,38 @@ class SquareRunner:
             lean_version=self.base.pins.lean_version,
             import_options_fingerprint=self.base.identity.import_options_fingerprint,
             revision=operation_cache_revision(self.operation_id),
+            schema=self.cache_schema,
+            engine_source_sha256=self.base.identity.source_sha256,
+            compile_context_id=self.base.context.compile_context_id,
         )
+
+    def cache_put(self, name: str, record: Mapping[str, Any]) -> str:
+        """Write-once semantics: an existing record is never overwritten.
+
+        Keys of schema 3 name one deterministic computation, so a colliding write can only
+        differ in volatile fields; keeping the first record protects every release that
+        already references it. The skipped write is journaled.
+        """
+        key = self.square_root_key(name)
+        existing = self.cache.get_root(key)
+        if existing is None:
+            self.cache.put_root(key, record)
+            return "written"
+        if existing.get("process_request_hash") == record.get("process_request_hash") and (
+            (existing.get("render") or {}).get("request_hash")
+            == (record.get("render") or {}).get("request_hash")
+        ):
+            return "identical"
+        self.journal.append(
+            {
+                "kind": "cache_write_skipped",
+                "root": name,
+                "cache_key": key,
+                "existing_process_request_hash": existing.get("process_request_hash"),
+                "new_process_request_hash": record.get("process_request_hash"),
+            }
+        )
+        return "kept_existing"
 
     # ---------------------------------------------------------------- run
 
@@ -465,6 +538,7 @@ class SquareRunner:
     def manifest_identity(self) -> dict[str, Any]:
         return {
             "operation_id": self.operation_id,
+            "cache_schema": self.cache_schema,
             "config_semantic_hash": self.loaded.config_hash,
             "engine_source_sha256": self.base.identity.source_sha256,
             "engine_semantic_version": self.base.identity.semantic_version,
@@ -518,6 +592,8 @@ class SquareRunner:
             "max_roots": self.max_roots,
             "roots_sha256": hash_canonical([str(item["name"]) for item in self.roots]),
             "root_count": len(self.roots),
+            "cache_schema": self.cache_schema,
+            "cache_root": str(self.cache.root),
             "argv": sys.argv,
         }
         write_atomic(self.paths.run_manifest, canonical_json_bytes(manifest) + b"\n")
@@ -586,7 +662,7 @@ class SquareRunner:
             if payload.get("status") != "retained":
                 record = self.cache_record(name, payload, None, result.request_hash)
                 if cacheable_status(payload.get("status")):
-                    self.cache.put_root(self.square_root_key(name), record)
+                    self.cache_put(name, record)
                 self.finalize(name, record, source="lean", root=root)
                 continue
             violation = self.screen_payload(payload)
@@ -595,7 +671,7 @@ class SquareRunner:
                 payload["status"] = "rejected"
                 payload["reason"] = violation
                 record = self.cache_record(name, payload, None, result.request_hash)
-                self.cache.put_root(self.square_root_key(name), record)
+                self.cache_put(name, record)
                 self.finalize(name, record, source="lean", root=root)
                 continue
             pending.append((root, payload))
@@ -686,7 +762,7 @@ class SquareRunner:
             }
             render["request_hash"] = batch.request_hash  # type: ignore[assignment]
             record = self.cache_record(name, payload, render, process_request_hash)
-            self.cache.put_root(self.square_root_key(name), record)
+            self.cache_put(name, record)
             self.finalize(name, record, source="lean", root=root)
         return True
 
@@ -814,10 +890,14 @@ class SquareRunner:
         cache_key = self.square_root_key(name)
         cache_block = {
             "kind": SQUARE_CACHE_KIND,
-            "schema": SQUARE_CACHE_SCHEMA,
+            "schema": self.cache_schema,
             "revision": operation_cache_revision(operation_id),
             "key": cache_key,
             "path": f"roots/{cache_key[:2]}/{cache_key}.json",
+            # content address of the record these rows were built from; a release snapshots
+            # the record under this hash so later cache writes cannot invalidate it
+            "content_sha256": hash_canonical(record),
+            "snapshot": None,
         }
         rows: list[dict[str, Any]] = []
         for kind, label, ref_ep, cand_ep, evidence_key in ROW_KINDS:
@@ -1143,6 +1223,102 @@ def generating_run_commits(
     return result
 
 
+def run_evidence_hashes(paths: RunPaths) -> dict[str, dict[str, str]]:
+    """Root -> the process/render request hashes the run's own retained rows were built from."""
+    result: dict[str, dict[str, str]] = {}
+    if not paths.retained.is_file():
+        return result
+    with paths.retained.open("r", encoding="utf-8") as handle:
+        for line in handle:
+            if not line.strip():
+                continue
+            sidecar = json.loads(line)["sidecar"]
+            result.setdefault(
+                str(sidecar["root_name"]),
+                {k: str(v) for k, v in (sidecar.get("lean_request_hashes") or {}).items()},
+            )
+    return result
+
+
+def recover_square_record(
+    paths: RunPaths, name: str, *, raw_dir: Path, operation_id: str
+) -> dict[str, Any] | None:
+    """Rebuild a retained square record from durable run evidence, without Lean.
+
+    The run's retained rows carry every endpoint REPR record and source material, the
+    square evidence, module, level parameters, and the request hashes; the stored process
+    response (content-addressed by that hash) carries the alpha hashes, goals, and the
+    evidence again, which must agree. Returns ``None`` when any piece is missing or the
+    stored copies disagree.
+    """
+    rows = [
+        json.loads(line)
+        for line in paths.retained.read_text(encoding="utf-8").splitlines()
+        if line and name in line
+    ]
+    rows = [item for item in rows if item["sidecar"].get("root_name") == name]
+    if len(rows) != 4:
+        return None
+    sidecar = rows[0]["sidecar"]
+    hashes = sidecar.get("lean_request_hashes") or {}
+    render: dict[str, Any] = {"request_hash": str(hashes.get("render", ""))}
+    for item in rows:
+        block = item["sidecar"]["repr"]
+        for side in ("reference", "candidate"):
+            record = block[side]
+            endpoint = str(record.get("endpoint_id", "")).split(".", 1)[-1]
+            if endpoint in {"p", "c", "p_prime", "c_prime"} and endpoint not in render:
+                render[endpoint] = {
+                    "record": record,
+                    "source_material": block[f"{side}_source_material"],
+                }
+    if any(ep not in render for ep in ("p", "c", "p_prime", "c_prime")):
+        return None
+    evidence = (sidecar.get("evidence") or {}).get("square")
+    if not isinstance(evidence, dict):
+        return None
+    payloads: list[dict[str, Any]] = []
+    for path in sorted(raw_dir.glob(f"{hashes.get('process', '')}.*.json")):
+        raw = read_json_object(path)
+        messages = cast(list[dict[str, Any]], (raw.get("response") or {}).get("messages") or [])
+        for payload in parse_evidence_lines(messages):
+            if payload.get("kind") == "square" and payload.get("root") == name:
+                payloads.append(dict(payload))
+    if not payloads:
+        return None
+    first = payloads[0]
+    for other in payloads[1:]:
+        if other.get("alpha") != first.get("alpha") or other.get("evidence") != first.get(
+            "evidence"
+        ):
+            return None
+    if first.get("status") != "retained" or first.get("evidence") != evidence:
+        return None
+    return {
+        "schema_version": 1,
+        "operation_id": str(first.get("operation_id") or operation_id),
+        "root": name,
+        "status": "retained",
+        "reason": "",
+        "direction": first.get("direction"),
+        "module": first.get("module"),
+        "level_params": first.get("level_params"),
+        "alpha": first.get("alpha"),
+        "goals": first.get("goals"),
+        "evidence": evidence,
+        "elapsed_ms": first.get("elapsed_ms"),
+        "engine": sidecar.get("engine"),
+        "implementation_commit": None,
+        "implementation_commit_source": f"recovered_from_run_evidence:{paths.run_dir.name}",
+        "process_request_hash": str(hashes.get("process", "")),
+        "render": render,
+        "recovered_from": {
+            "run_id": paths.run_dir.name,
+            "process_raw_copies": len(payloads),
+        },
+    }
+
+
 def regenerate_records(
     runner: SquareRunner, *, raw_dir: Path, roots_by_name: Mapping[str, Mapping[str, Any]]
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
@@ -1155,11 +1331,36 @@ def regenerate_records(
     rows: list[dict[str, Any]] = []
     quarantined: list[dict[str, Any]] = []
     generating = generating_run_commits(runner.paths.run_dir.parent, runner.operation_id)
+    evidence_hashes = run_evidence_hashes(runner.paths)
+    runner.recovered_roots = []
     for name, promised in terminal_pair_ids(runner.paths.journal).items():
         record = runner.cache.get_root(runner.square_root_key(name))
+        original = evidence_hashes.get(name)
+        live_matches_run = (
+            record is not None
+            and original is not None
+            and record.get("process_request_hash") == original.get("process")
+            and (record.get("render") or {}).get("request_hash") == original.get("render")
+        )
+        if not live_matches_run:
+            # the shared cache no longer holds the record these rows were built from (or
+            # never did); rebuild it from the run's own durable evidence
+            recovered = recover_square_record(
+                runner.paths, name, raw_dir=raw_dir, operation_id=runner.operation_id
+            )
+            if recovered is None:
+                quarantined.append(
+                    {
+                        "root": name,
+                        "reason": "cache_record_missing_or_overwritten_and_unrecoverable",
+                    }
+                )
+                continue
+            record = recovered
+            runner.recovered_roots.append(name)
+        assert record is not None
         if (
-            record is None
-            or record.get("status") != "retained"
+            record.get("status") != "retained"
             or not isinstance(record.get("render"), dict)
             or record.get("root") != name
         ):
@@ -1191,6 +1392,8 @@ def regenerate_records(
         if [str(item["sidecar"]["pair_id"]) for item in built] != promised:
             quarantined.append({"root": name, "reason": "pair_ids_differ_from_terminal"})
             continue
+        for item in built:
+            item["cache_record"] = record  # snapshotted by the release build, not serialized
         rows.extend(built)
     return rows, quarantined
 
@@ -1204,6 +1407,7 @@ class SquareSelection:
     duplicate_squares: list[dict[str, str]]
     degenerate_roots: list[str]
     conflict_rows: int
+    superseded_squares: list[dict[str, str]] = field(default_factory=list)
 
 
 def square_key(sidecar: Mapping[str, Any]) -> str:
@@ -1212,7 +1416,9 @@ def square_key(sidecar: Mapping[str, Any]) -> str:
 
 
 def select_squares(
-    screened: Sequence[Mapping[str, Any]], conflict_keys: Collection[str]
+    screened: Sequence[Mapping[str, Any]],
+    conflict_keys: Collection[str],
+    preferred_operations: Collection[str] = (),
 ) -> SquareSelection:
     """Accept squares in the stable salted-hash order of their root id.
 
@@ -1226,7 +1432,31 @@ def select_squares(
     by_root: dict[str, list[dict[str, Any]]] = {}
     for record in screened:
         by_root.setdefault(square_key(record["sidecar"]), []).append(dict(record))
-    ordered = sorted(by_root, key=lambda root: hash_canonical([SQUARE_SALT, root]))
+    # one square per root when a preferred operation (the complete v4 square) is present
+    preferred = set(preferred_operations)
+    superseded: list[dict[str, str]] = []
+    if preferred:
+        squares_by_root: dict[str, list[str]] = {}
+        for key in by_root:
+            squares_by_root.setdefault(key.split("|", 1)[0], []).append(key)
+        for root_id, keys in squares_by_root.items():
+            winners = [k for k in keys if k.split("|", 1)[1] in preferred]
+            if winners and len(keys) > 1:
+                for key in keys:
+                    if key not in winners:
+                        superseded.append(
+                            {
+                                "square": key,
+                                "root_id": root_id,
+                                "operation_id": key.split("|", 1)[1],
+                                "superseded_by": winners[0],
+                            }
+                        )
+                        by_root.pop(key)
+    salted = lambda key: hash_canonical([SQUARE_SALT, key])  # noqa: E731
+    ordered = sorted((k for k in by_root if k.split("|", 1)[1] in preferred), key=salted) + sorted(
+        (k for k in by_root if k.split("|", 1)[1] not in preferred), key=salted
+    )
     conflicts = set(conflict_keys)
     claimed: dict[str, str] = {}
     kept: list[dict[str, Any]] = []
@@ -1262,7 +1492,91 @@ def select_squares(
             claimed[key] = root
         accepted.append(root)
         kept.extend(items)
-    return SquareSelection(kept, accepted, duplicates, degenerate, conflict_rows)
+    return SquareSelection(kept, accepted, duplicates, degenerate, conflict_rows, superseded)
+
+
+def sidecar_aggregates(sidecars: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
+    """Every aggregate a manifest reports, derived from the finalized sidecars only."""
+    counts: dict[str, dict[str, int]] = {
+        "operations": {},
+        "mechanisms": {},
+        "negative_mechanisms": {},
+        "transforms": {},
+        "families": {},
+        "row_kinds": {},
+    }
+    squares: set[str] = set()
+    for sidecar in sidecars:
+        square = cast(Mapping[str, Any], sidecar.get("square") or {})
+        for name, value in (
+            ("operations", sidecar.get("operation_id")),
+            ("mechanisms", sidecar.get("mechanism")),
+            ("negative_mechanisms", square.get("negative_operation")),
+            ("transforms", square.get("t_p")),
+            ("families", sidecar.get("core_family")),
+            ("row_kinds", sidecar.get("row_kind")),
+        ):
+            key = str(value)
+            counts[name][key] = counts[name].get(key, 0) + 1
+        squares.add(square_key(sidecar))
+    return {
+        **{name: dict(sorted(values.items())) for name, values in counts.items()},
+        "squares": len(squares),
+        "curriculum_only": any(
+            str(sidecar.get("operation_id")) == "SQUARE_N19_CURRICULUM_V1" for sidecar in sidecars
+        ),
+    }
+
+
+def write_cache_snapshots(
+    out: Path, shards: Sequence[Sequence[dict[str, Any]]]
+) -> list[dict[str, Any]]:
+    """Pack the cache record behind each square into ``cache_records/shard-XXXX.jsonl``.
+
+    One canonical JSON line per square (in shard order); every row's sidecar cache block
+    receives the file, line, and content hash of its record. Rows regenerated without a
+    record (legacy retained files) keep ``snapshot: None``.
+    """
+    directory = out / "cache_records"
+    directory.mkdir(parents=True, exist_ok=True)
+    manifests: list[dict[str, Any]] = []
+    for number, shard in enumerate(shards, start=1):
+        name = f"cache_records/shard-{number:04d}.jsonl"
+        lines: list[bytes] = []
+        index: dict[str, int] = {}
+        for item in shard:
+            record = item.get("cache_record")
+            if record is None:
+                continue
+            block = item["sidecar"]["cache"]
+            sha = str(block.get("content_sha256"))
+            if sha not in index:
+                index[sha] = len(lines)
+                lines.append(canonical_json_bytes(record))
+            block["snapshot"] = {"file": name, "line": index[sha], "content_sha256": sha}
+        payload = b"".join(line + b"\n" for line in lines)
+        write_atomic(out / name, payload)
+        manifests.append({"file": name, "squares": len(lines), "sha256": sha256_hex(payload)})
+    return manifests
+
+
+CURRICULUM_SAMPLING_CONFIGS: tuple[dict[str, Any], ...] = (
+    {"name": "n19_0pct", "weight": 0.0, "role": "excluded"},
+    {"name": "n19_2pct", "weight": 0.02, "role": "initial_default"},
+    {"name": "n19_5pct", "weight": 0.05, "role": "option"},
+    {"name": "n19_10pct", "weight": 0.10, "role": "hard_ceiling"},
+)
+
+
+def curriculum_sampling_configs() -> dict[str, Any]:
+    """Explicit mixing weights for the curriculum-only auxiliary set (never concatenated)."""
+    return {
+        "unit": "fraction_of_mixed_training_rows_drawn_from_this_view",
+        "initial_default": "n19_2pct",
+        "hard_ceiling": "n19_10pct",
+        "configs": [dict(item) for item in CURRICULUM_SAMPLING_CONFIGS],
+        "note": "keep separate from the headline core; the outer-negation-XOR shortcut is ~0.98",
+    }
 
 
 def build_square_view(
@@ -1274,6 +1588,7 @@ def build_square_view(
     regenerate: bool = True,
     supersedes: str | None = None,
     require_identical_rows: str | None = None,
+    preferred_operations: Sequence[str] = (),
 ) -> dict[str, Any]:
     from leanfaith.sft1.sprint import shortcut
 
@@ -1286,6 +1601,7 @@ def build_square_view(
     source_retained_paths: list[str] = []
     records: list[dict[str, Any]] = []
     regenerated: list[tuple[Path, list[dict[str, Any]]]] = []
+    recovered_roots: list[str] = []
     for run_id in run_ids:
         paths = RunPaths(staging, run_id)
         run_manifest = read_json_object(paths.run_manifest)
@@ -1308,6 +1624,7 @@ def build_square_view(
                     f"{regenerated_path} already exists; regenerated files are additive"
                 )
             regenerated.append((regenerated_path, run_records))
+            recovered_roots.extend(runner.recovered_roots)
             records.extend(run_records)
             quarantined.extend({**item, "run_id": run_id} for item in run_quarantined)
             source_retained_paths.append(str(regenerated_path.relative_to(staging)))
@@ -1337,7 +1654,7 @@ def build_square_view(
         else:
             screened.append(record)
     outcome = deduplicate(screened)  # conflict detection: same unordered pair, different labels
-    selection = select_squares(screened, outcome.conflict_keys)
+    selection = select_squares(screened, outcome.conflict_keys, preferred_operations)
     kept = selection.kept
     complete_roots = set(selection.accepted_roots)  # square keys (root|operation)
     by_root: dict[str, list[dict[str, Any]]] = {}
@@ -1351,27 +1668,18 @@ def build_square_view(
         root_names[key] = str(record["sidecar"].get("root_name"))
     duplicate_rows = sum(screened_by_root[d["square"]] for d in selection.duplicate_squares)
     degenerate_rows = sum(screened_by_root[root] for root in selection.degenerate_roots)
+    superseded_rows = sum(screened_by_root[d["square"]] for d in selection.superseded_squares)
     distinct_roots = {str(record["sidecar"]["root_id"]) for record in kept}
     conservation = {
         "screened_rows": len(screened),
         "kept_rows": len(kept),
         "duplicate_square_rows_dropped": duplicate_rows,
         "degenerate_square_rows_dropped": degenerate_rows,
-        "holds": len(screened) == len(kept) + duplicate_rows + degenerate_rows,
+        "superseded_square_rows_dropped": superseded_rows,
+        "holds": len(screened) == len(kept) + duplicate_rows + degenerate_rows + superseded_rows,
     }
     incomplete = len(selection.degenerate_roots)
     conflicting_rows = selection.conflict_rows
-    provenance = derive_provenance(
-        kept, repo_root=repo_root, cache_root=Path(config.output.staging_root) / "cache"
-    )
-    if not provenance["consistent"]:
-        raise SquareError("provenance inconsistent: " + "; ".join(provenance["issues"]))
-    for regenerated_path, run_records in regenerated:
-        write_atomic(
-            regenerated_path,
-            b"".join(canonical_json_bytes(item) + b"\n" for item in run_records),
-        )
-    out.mkdir(parents=True)
     size = config.output.shard_size
     shards: list[list[dict[str, Any]]] = []
     current: list[dict[str, Any]] = []
@@ -1385,6 +1693,27 @@ def build_square_view(
         current_root = root
     if current:
         shards.append(current)
+    out.mkdir(parents=True)
+    # immutable release evidence: every referenced cache record, content-addressed and
+    # packed per shard; sidecars point at their snapshot line
+    snapshot_manifests = write_cache_snapshots(out, shards)
+    provenance = derive_provenance(
+        kept,
+        repo_root=repo_root,
+        cache_root=Path(config.output.staging_root) / "cache",
+        release_dir=out,
+    )
+    if not provenance["consistent"]:
+        shutil.rmtree(out)
+        raise SquareError("provenance inconsistent: " + "; ".join(provenance["issues"]))
+    for regenerated_path, run_records in regenerated:
+        write_atomic(
+            regenerated_path,
+            b"".join(
+                canonical_json_bytes({k: v for k, v in item.items() if k != "cache_record"}) + b"\n"
+                for item in run_records
+            ),
+        )
     shard_manifests: list[dict[str, Any]] = []
     for number, shard in enumerate(shards, start=1):
         shard_dir = out / f"shard-{number:04d}"
@@ -1442,12 +1771,9 @@ def build_square_view(
             "positive": sum(1 for item in kept if item["label"]),
             "negative": sum(1 for item in kept if not item["label"]),
         },
-        "operations": _count_by(kept, "operation_id"),
-        "mechanisms": _count_by(kept, "mechanism"),
-        "row_kinds": _count_by([item["sidecar"] for item in kept], "row_kind"),
-        "families": _count_by([item["sidecar"] for item in kept], "core_family"),
+        **sidecar_aggregates([item["sidecar"] for item in kept]),
+        "cache_snapshots": snapshot_manifests,
         "roots": len(distinct_roots),
-        "squares": len(complete_roots),
         "grouping": "four_rows_per_root_same_shard",
         "orientation_rule": "square_fixed_marginals",
         "shard_size": size,
@@ -1458,9 +1784,12 @@ def build_square_view(
         "proof_check_time": "original_generation",
         "replay_semantics": "journal_and_cache_replay_of_stored_terminals_no_fresh_kernel_replay",
         "artifact_status": "candidate_square_release_pending_gate",
-        "curriculum_only": any(
-            str(item["sidecar"]["operation_id"]) == "SQUARE_N19_CURRICULUM_V1" for item in kept
-        ),
+        "superseded_squares_dropped": len(selection.superseded_squares),
+        "preferred_operations": list(preferred_operations),
+        "recovered_roots": sorted(recovered_roots),
+        "sampling_configs": curriculum_sampling_configs()
+        if any(str(item["sidecar"]["operation_id"]) == "SQUARE_N19_CURRICULUM_V1" for item in kept)
+        else None,
     }
     write_atomic(out / "manifest.json", canonical_json_bytes(manifest) + b"\n")
     write_atomic(
@@ -1478,6 +1807,16 @@ def build_square_view(
         + b"\n",
     )
     write_atomic(out / "quarantined_roots.json", canonical_json_bytes(quarantined) + b"\n")
+    write_atomic(
+        out / "superseded_squares.json",
+        canonical_json_bytes(
+            [
+                {**item, "root_name": root_names.get(item["square"])}
+                for item in selection.superseded_squares
+            ]
+        )
+        + b"\n",
+    )
     reconciliations = [
         cast(dict[str, Any], item["sidecar"])["square"].get("alpha_reconciliation") for item in kept
     ]
@@ -1518,6 +1857,8 @@ def build_square_view(
     write_atomic(
         out / "outer_negation_xor_baseline.json", canonical_json_bytes(xor_baseline) + b"\n"
     )
+    diagnostics = shortcut.pairwise_shortcut_diagnostics(serialized)
+    write_atomic(out / "pairwise_diagnostics.json", canonical_json_bytes(diagnostics) + b"\n")
     screens = shortcut.run_screens_v3(serialized)
     control = shortcut.permutation_control(serialized)
     write_atomic(out / "permutation_control.json", canonical_json_bytes(control) + b"\n")
@@ -1588,25 +1929,33 @@ def build_square_view(
         "roots": len(complete_roots),
         "families": manifest["families"],
         "row_kinds": manifest["row_kinds"],
-        "negative_mechanisms_informational": {
-            "note": "all square negatives derive from certified N25 pairs (Eq→Ne and Ne→Eq)",
-            "by_family": manifest["families"],
-        },
+        "operations": manifest["operations"],
+        "mechanisms": manifest["mechanisms"],
+        "transforms": manifest["transforms"],
+        "squares": manifest["squares"],
+        "curriculum_only": manifest["curriculum_only"],
         "unchecked_rows": unchecked,
         "shortcut": screens,
         "permutation_control": {k: v for k, v in control.items() if k != "per_seed"},
         "outer_negation_xor_baseline": xor_baseline,
+        "pairwise_diagnostics": diagnostics,
+        "negative_mechanisms": manifest["negative_mechanisms"],
+        "coverage_statement": (
+            "high-confidence deterministic curriculum seed built from certificate-closure "
+            "squares; not broad theorem-equivalence coverage"
+        ),
         "proof_check_time": "original_generation",
         "replay_semantics": "journal_and_cache_replay_of_stored_terminals_no_fresh_kernel_replay",
         "checks": checks,
         "passed": all(checks.values()),
     }
     write_atomic(out / "release_report.json", canonical_json_bytes(report) + b"\n")
-    manifest["artifact_status"] = (
-        "square_release_high_confidence"
-        if report["passed"]
-        else "candidate_square_release_gate_failed"
-    )
+    if not report["passed"]:
+        manifest["artifact_status"] = "candidate_square_release_gate_failed"
+    elif manifest["curriculum_only"]:
+        manifest["artifact_status"] = "curriculum_auxiliary_certified_easy_pattern"
+    else:
+        manifest["artifact_status"] = "square_release_high_confidence_curriculum_seed"
     write_atomic(out / "manifest.json", canonical_json_bytes(manifest) + b"\n")
     return report
 
@@ -1634,7 +1983,13 @@ def run_square_fixtures(
     if stale_run_dir.exists():
         shutil.rmtree(stale_run_dir)
     runner = SquareRunner(
-        repo_root, loaded, run_id=run_id, roots=roots, use_cache=False, operation_id=operation_id
+        repo_root,
+        loaded,
+        run_id=run_id,
+        roots=roots,
+        use_cache=False,
+        operation_id=operation_id,
+        isolated_cache=True,
     )
     # the summary returned by run() carries the live Lean request accounting; calling
     # write_status again after the session closed would report zero requests
@@ -1819,6 +2174,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--config", type=Path)
     parser.add_argument("--run-id", default="square_full")
     parser.add_argument("--run-ids", help="comma-separated run ids for build (default: --run-id)")
+    parser.add_argument(
+        "--prefer-operations",
+        help="comma-separated square operations that supersede other squares of the same root",
+    )
     parser.add_argument("--operation", default=SQUARE_OPERATION, choices=sorted(SQUARE_OPERATIONS))
     parser.add_argument("--max-roots", type=int)
     parser.add_argument("--label", default="core_v3_square")
@@ -1902,6 +2261,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         regenerate=not args.no_regenerate,
         supersedes=args.supersedes,
         require_identical_rows=args.require_identical_rows,
+        preferred_operations=[
+            x.strip() for x in (args.prefer_operations or "").split(",") if x.strip()
+        ],
     )
     print(
         json.dumps(
