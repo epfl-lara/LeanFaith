@@ -128,7 +128,7 @@
   "code_pins": [
     {
       "path": "src/leanfaith/sft2b/full_source_consumer.py",
-      "sha256": "7acab628001f43a23473256529d349d0f127bee07219e655e3fda46e7cd547e9"
+      "sha256": "bce037f35e866c7204176f1b9cd6a2d41d9ee948aaced33293e246ac0ab4ef06"
     },
     {
       "path": "src/leanfaith/sft2b/vllm_backend.py",

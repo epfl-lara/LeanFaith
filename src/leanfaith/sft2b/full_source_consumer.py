@@ -127,6 +127,7 @@ PILOT_EVIDENCE_FILES = (
 )
 FULL_PROFILE_NAME = "probe_dp4_tp2_c8"
 SOURCE_CHUNK_SIZE = 128
+MAX_PROVIDER_ATTEMPTS = 3
 _EXPECTED_GPU_INDICES = tuple(range(8))
 _PILOT_RUNTIME_PACKAGES = {"flash-attn", "huggingface-hub", "torch", "transformers", "vllm"}
 _SERVER_READY_RE = re.compile(
@@ -694,6 +695,22 @@ class FullSourceRuntimeSessionReceipt(StrictModel):
     shutdown_path: Annotated[str, Field(min_length=1)]
     shutdown_sha256: Sha256
     session_start_sha256: Sha256
+
+
+class FullSourceRuntimeSessionReconciliation(StrictModel):
+    schema_version: Literal["sft2b_full_source_runtime_reconciliation_v1"] = (
+        "sft2b_full_source_runtime_reconciliation_v1"
+    )
+    sequence: Annotated[int, Field(ge=0)]
+    run_id: StableId
+    session_id: Annotated[str, Field(pattern=r"^[0-9]+-[0-9]+$")]
+    server_pid: Annotated[int, Field(gt=0)]
+    reconciled_unix_ns: Annotated[int, Field(gt=0)]
+    session_start_sha256: Sha256
+    process_absent: Literal[True]
+    port_closed: Literal[True]
+    reason: Literal["dead_same_run_runtime"]
+    reconciliation_artifact_path: Annotated[str, Field(min_length=1)]
 
 
 @dataclass(frozen=True, slots=True)
@@ -2975,6 +2992,10 @@ def _runtime_session_start_journal(run_root: Path, plan: FullSourceRunPlan) -> P
     return run_root / plan.shard_id / plan.run_id / "runtime_session_starts.jsonl"
 
 
+def _runtime_session_reconciliation_journal(run_root: Path, plan: FullSourceRunPlan) -> Path:
+    return run_root / plan.shard_id / plan.run_id / "runtime_session_reconciliations.jsonl"
+
+
 def _verify_runtime_sessions(
     run_root: Path,
     plan: FullSourceRunPlan,
@@ -2984,6 +3005,7 @@ def _verify_runtime_sessions(
 ) -> tuple[FullSourceRuntimeSessionReceipt, ...]:
     journal_path = _runtime_session_journal(run_root, plan)
     starts_path = _runtime_session_start_journal(run_root, plan)
+    reconciliations_path = _runtime_session_reconciliation_journal(run_root, plan)
     sessions_root = journal_path.parent / "runtime_sessions"
     starts = (
         _read_models(starts_path, FullSourceRuntimeSessionStart) if starts_path.is_file() else ()
@@ -2993,15 +3015,27 @@ def _verify_runtime_sessions(
         if journal_path.is_file()
         else ()
     )
+    reconciliations = (
+        _read_models(reconciliations_path, FullSourceRuntimeSessionReconciliation)
+        if reconciliations_path.is_file()
+        else ()
+    )
     if require_nonempty and not receipts:
         raise FullSourceConsumerError("complete provider cache lacks closed runtime evidence")
     if tuple(item.sequence for item in starts) != tuple(range(len(starts))):
         raise FullSourceConsumerError("runtime-session start journal sequence drifted")
     if tuple(item.sequence for item in receipts) != tuple(range(len(receipts))):
         raise FullSourceConsumerError("runtime-session journal sequence drifted")
+    if tuple(item.sequence for item in reconciliations) != tuple(range(len(reconciliations))):
+        raise FullSourceConsumerError("runtime-session reconciliation sequence drifted")
     start_by_id = {item.session_id: item for item in starts}
     receipt_by_id = {item.session_id: item for item in receipts}
-    if len(start_by_id) != len(starts) or len(receipt_by_id) != len(receipts):
+    reconciliation_by_id = {item.session_id: item for item in reconciliations}
+    if (
+        len(start_by_id) != len(starts)
+        or len(receipt_by_id) != len(receipts)
+        or len(reconciliation_by_id) != len(reconciliations)
+    ):
         raise FullSourceConsumerError("runtime-session identity repeats")
     observed_directories = (
         {item.name for item in sessions_root.iterdir() if item.is_dir()}
@@ -3023,9 +3057,33 @@ def _verify_runtime_sessions(
             or hash_file(claim_path) != start.claim_sha256
         ):
             raise FullSourceConsumerError("runtime-session start/claim evidence drifted")
-    open_sessions = set(start_by_id).difference(receipt_by_id)
+    if set(receipt_by_id).intersection(reconciliation_by_id):
+        raise FullSourceConsumerError("runtime session is both closed and reconciled")
+    for reconciliation in reconciliations:
+        reconciled_start = start_by_id.get(reconciliation.session_id)
+        expected_path = (
+            sessions_root / reconciliation.session_id / "dead_runtime_reconciliation.json"
+        )
+        if (
+            reconciled_start is None
+            or reconciliation.run_id != plan.run_id
+            or reconciliation.server_pid != reconciled_start.server_pid
+            or reconciliation.session_start_sha256
+            != hash_file(Path(reconciled_start.session_start_path))
+            or Path(reconciliation.reconciliation_artifact_path) != expected_path
+            or not expected_path.is_file()
+            or expected_path.is_symlink()
+            or FullSourceRuntimeSessionReconciliation.model_validate(_json_object(expected_path))
+            != reconciliation
+        ):
+            raise FullSourceConsumerError("runtime-session reconciliation evidence drifted")
+    open_sessions = set(start_by_id).difference(receipt_by_id, reconciliation_by_id)
     allowed_open = {allow_open_session_id} if allow_open_session_id is not None else set()
-    if open_sessions != allowed_open or not set(receipt_by_id).issubset(start_by_id):
+    if (
+        open_sessions != allowed_open
+        or not set(receipt_by_id).issubset(start_by_id)
+        or not set(reconciliation_by_id).issubset(start_by_id)
+    ):
         raise FullSourceConsumerError(
             "runtime session is unclosed; manual reconciliation is required"
         )
@@ -3131,6 +3189,77 @@ def _verify_runtime_sessions(
         ):
             raise FullSourceConsumerError("runtime-session shutdown evidence drifted")
     return receipts
+
+
+def _port_is_open(host: str, port: int) -> bool:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
+        probe.settimeout(1.0)
+        return probe.connect_ex((host, port)) == 0
+
+
+def _append_dead_runtime_reconciliation(
+    *,
+    run_root: Path,
+    plan: FullSourceRunPlan,
+    session_id: str,
+    host: str,
+    port: int,
+) -> FullSourceRuntimeSessionReconciliation:
+    starts = _read_models(
+        _runtime_session_start_journal(run_root, plan), FullSourceRuntimeSessionStart
+    )
+    start_by_id = {item.session_id: item for item in starts}
+    start = start_by_id.get(session_id)
+    if start is None or start.run_id != plan.run_id:
+        raise FullSourceConsumerError("dead runtime reconciliation is foreign to this run")
+    if Path(f"/proc/{start.server_pid}").exists():
+        raise FullSourceConsumerError("runtime server PID is still live; refusing reconciliation")
+    if _port_is_open(host, port):
+        raise FullSourceConsumerError(
+            "runtime provider port is still open; refusing reconciliation"
+        )
+    journal_path = _runtime_session_reconciliation_journal(run_root, plan)
+    artifact_path = (
+        journal_path.parent / "runtime_sessions" / session_id / "dead_runtime_reconciliation.json"
+    )
+    lock_path = journal_path.with_suffix(".jsonl.lock")
+    journal_path.parent.mkdir(parents=True, exist_ok=True)
+    with lock_path.open("a+") as lock:
+        fcntl.flock(lock.fileno(), fcntl.LOCK_EX)
+        try:
+            prior = (
+                _read_models(journal_path, FullSourceRuntimeSessionReconciliation)
+                if journal_path.is_file()
+                else ()
+            )
+            by_id = {item.session_id: item for item in prior}
+            if session_id in by_id:
+                return by_id[session_id]
+            if len(by_id) != len(prior):
+                raise FullSourceConsumerError("runtime reconciliation identity repeats")
+            start_path = Path(start.session_start_path)
+            reconciliation = FullSourceRuntimeSessionReconciliation(
+                sequence=len(prior),
+                run_id=plan.run_id,
+                session_id=session_id,
+                server_pid=start.server_pid,
+                reconciled_unix_ns=time.time_ns(),
+                session_start_sha256=hash_file(start_path),
+                process_absent=True,
+                port_closed=True,
+                reason="dead_same_run_runtime",
+                reconciliation_artifact_path=str(artifact_path),
+            )
+            payload = canonical_json_bytes(reconciliation.model_dump(mode="json")) + b"\n"
+            immutable_write(artifact_path, payload)
+            with journal_path.open("ab") as handle:
+                handle.write(payload)
+                handle.flush()
+                os.fsync(handle.fileno())
+        finally:
+            fcntl.flock(lock.fileno(), fcntl.LOCK_UN)
+    _verify_runtime_sessions(run_root, plan, require_nonempty=False)
+    return reconciliation
 
 
 def _append_runtime_session_start(
@@ -3351,6 +3480,148 @@ def _verify_full_resource_release(
             raise FullSourceConsumerError("full-source resource claim/release evidence drifted")
 
 
+def _reconcile_stale_same_run_reservation(
+    *,
+    repo_root: Path,
+    spec: FullSourceConsumerSpec,
+    plan: FullSourceRunPlan,
+    run_root: Path,
+    shard_root: Path,
+    host: str,
+    port: int,
+) -> bool:
+    active = [
+        item
+        for item in list_reservations(spec.runtime.reservation_root)
+        if item.task == spec.runtime.reservation_task
+    ]
+    if not active:
+        return False
+    if len(active) != 1:
+        raise FullSourceConsumerError("multiple SFT2B reservations violate atomic ownership")
+    reservation = active[0]
+    if reservation.hostname != socket.gethostname():
+        raise FullSourceConsumerError("foreign-host SFT2B reservation cannot be reconciled")
+    if Path(f"/proc/{reservation.pid}").exists():
+        raise FullSourceConsumerError("live SFT2B reservation cannot be reconciled")
+    if Path(reservation.worktree).resolve() != repo_root.resolve():
+        raise FullSourceConsumerError("foreign-worktree SFT2B reservation cannot be reconciled")
+    if f"run_id={plan.run_id}" not in reservation.owner_session:
+        raise FullSourceConsumerError("foreign-run SFT2B reservation cannot be reconciled")
+    if _port_is_open(host, port):
+        raise FullSourceConsumerError("provider port remains open; refusing reservation release")
+    claims = _read_jsonl_objects(shard_root / "resource_claims.jsonl")
+    releases = _read_jsonl_objects(shard_root / "resource_releases.jsonl")
+    released_ids = {item.get("claim_id") for item in releases}
+    unmatched = [item for item in claims if item.get("claim_id") not in released_ids]
+    if len(unmatched) != 1:
+        raise FullSourceConsumerError(
+            "stale same-run reservation lacks one unmatched durable claim"
+        )
+    claim = unmatched[0]
+    claim_id = claim.get("claim_id")
+    claim_path_value = claim.get("claim_artifact_path")
+    if not isinstance(claim_id, str) or not isinstance(claim_path_value, str):
+        raise FullSourceConsumerError("stale resource claim identity is invalid")
+    claim_path = Path(claim_path_value)
+    if (
+        claim.get("schema_version") != "sft2b_full_source_resource_claim_v2"
+        or claim.get("run_id") != plan.run_id
+        or claim.get("reservation_root") != str(spec.runtime.reservation_root)
+        or claim.get("reservation") != asdict(reservation)
+        or claim_path != shard_root / "resource_sessions" / claim_id / "claim.json"
+        or not claim_path.is_file()
+        or claim_path.is_symlink()
+        or _json_object(claim_path) != claim
+    ):
+        raise FullSourceConsumerError("stale resource claim evidence drifted")
+    runtime_reconciliations = (
+        _read_models(
+            _runtime_session_reconciliation_journal(run_root, plan),
+            FullSourceRuntimeSessionReconciliation,
+        )
+        if _runtime_session_reconciliation_journal(run_root, plan).is_file()
+        else ()
+    )
+    starts = (
+        _read_models(
+            _runtime_session_start_journal(run_root, plan),
+            FullSourceRuntimeSessionStart,
+        )
+        if _runtime_session_start_journal(run_root, plan).is_file()
+        else ()
+    )
+    start_ids_for_claim = {
+        item.session_id for item in starts if Path(item.claim_artifact_path) == claim_path
+    }
+    reconciled_ids = {item.session_id for item in runtime_reconciliations}
+    if start_ids_for_claim and not start_ids_for_claim.issubset(reconciled_ids):
+        raise FullSourceConsumerError("stale claim still owns an unreconciled runtime")
+    reconciliation_root = shard_root / "resource_sessions" / claim_id
+    intent_path = reconciliation_root / "stale_release_intent.json"
+    intent = {
+        "schema_version": "sft2b_full_source_stale_release_intent_v1",
+        "run_id": plan.run_id,
+        "claim_id": claim_id,
+        "claim_artifact_path": str(claim_path),
+        "claim_sha256": hash_file(claim_path),
+        "reservation": asdict(reservation),
+        "reservation_pid_absent": True,
+        "provider_port_closed": True,
+        "runtime_reconciliation_sha256": {
+            item.session_id: hash_file(Path(item.reconciliation_artifact_path))
+            for item in runtime_reconciliations
+            if item.session_id in start_ids_for_claim
+        },
+        "reason": "dead_same_run_supervisor",
+    }
+    immutable_write(intent_path, canonical_json_bytes(intent) + b"\n")
+    released = release_resources(
+        root=spec.runtime.reservation_root, task=spec.runtime.reservation_task
+    )
+    active_after = sum(
+        item.task == spec.runtime.reservation_task
+        for item in list_reservations(spec.runtime.reservation_root)
+    )
+    if released != reservation or active_after != 0:
+        raise FullSourceConsumerError("stale release differs from its exact reservation")
+    completion_path = reconciliation_root / "stale_release_completed.json"
+    immutable_write(
+        completion_path,
+        canonical_json_bytes(
+            {
+                "schema_version": "sft2b_full_source_stale_release_completed_v1",
+                "run_id": plan.run_id,
+                "claim_id": claim_id,
+                "intent_path": str(intent_path),
+                "intent_sha256": hash_file(intent_path),
+                "released_reservation": asdict(released),
+                "active_task_claims_after_release": active_after,
+                "reconciled_unix_ns": time.time_ns(),
+            }
+        )
+        + b"\n",
+    )
+    _append_resource_record(
+        shard_root=shard_root,
+        kind="release",
+        claim_id=claim_id,
+        payload={
+            "schema_version": "sft2b_full_source_resource_release_v2",
+            "run_id": plan.run_id,
+            "task": spec.runtime.reservation_task,
+            "launch_nonce": claim["launch_nonce"],
+            "launched_unix_ns": claim["launched_unix_ns"],
+            "claim_artifact_path": str(claim_path),
+            "claim_sha256": hash_file(claim_path),
+            "supervisor_pid": reservation.pid,
+            "released": True,
+            "active_task_claims_after_release": active_after,
+        },
+    )
+    return True
+
+
 def _append_runtime_session(
     *,
     run_root: Path,
@@ -3550,6 +3821,12 @@ class _ScalableExecutionResult:
     compacted: CompactionResult
 
 
+@dataclass(frozen=True, slots=True)
+class _ProviderExecutionResult:
+    terminal: VllmRequestTerminal
+    model_calls: int
+
+
 def _prepared_chunks(
     backend: LoadedVllmBackend,
     *,
@@ -3559,13 +3836,463 @@ def _prepared_chunks(
 ) -> Iterator[tuple[str, Path, tuple[PreparedRequest, ...]]]:
     """Lazily prepare prompt-bearing requests in bounded source chunks."""
 
+    profile = backend.spec.profiles[profile_name]
+    run_id = stable_id(
+        "sft2b_vllm_run",
+        {
+            "schema_version": "sft2b_vllm_semantic_run_v2",
+            "provider": backend.spec.provider,
+            "model_id": backend.placement.model_id,
+            "model_revision": backend.placement.model_revision,
+            "snapshot_binding_sha256": backend.placement.snapshot_binding_sha256,
+            "source_ids": profile.source_ids,
+            "slots": profile.slots,
+            "prompt_template_sha256": backend.placement.prompt_sha256,
+            "decoding_sha256": backend.placement.decoding_sha256,
+        },
+    )
+    root = backend.spec.staging_root / "generation/vllm" / profile.profile_id / run_id
     for start in range(0, len(sources), SOURCE_CHUNK_SIZE):
-        yield frozen_vllm_backend._prepare_requests(
+        _, _, legacy_requests = frozen_vllm_backend._prepare_requests(
             backend,
             profile_name=profile_name,
             sources=sources[start : start + SOURCE_CHUNK_SIZE],
             endpoint_url=endpoint_url,
         )
+        semantic_requests: list[PreparedRequest] = []
+        for request in legacy_requests:
+            request_key = hash_canonical(
+                {
+                    "schema_version": "sft2b_vllm_request_key_v2",
+                    "provider": backend.spec.provider,
+                    "model_id": backend.placement.model_id,
+                    "model_revision": backend.placement.model_revision,
+                    "snapshot_binding_sha256": backend.placement.snapshot_binding_sha256,
+                    "source_id": request.source.source_id,
+                    "slot": request.slot.slot,
+                    "seed": request.slot.seed,
+                    "request_payload_sha256": hash_canonical(request.payload),
+                }
+            )
+            attempt_id = stable_id(
+                "sft2b_formalizer_attempt",
+                {"request_key": request_key, "provider": backend.spec.provider},
+            )
+            semantic_requests.append(
+                PreparedRequest(
+                    source=request.source,
+                    slot=request.slot,
+                    prompt=request.prompt,
+                    profile=request.profile,
+                    request_key=request_key,
+                    attempt_id=attempt_id,
+                    endpoint_url=request.endpoint_url,
+                    payload=request.payload,
+                    cell=root / "requests" / request_key,
+                )
+            )
+        yield run_id, root, tuple(semantic_requests)
+
+
+def _provider_attempt_root(request: PreparedRequest, attempt_number: int) -> Path:
+    return request.cell / "transport_attempts" / f"{attempt_number:02d}"
+
+
+def _provider_attempt_rows(request: PreparedRequest) -> tuple[dict[str, Any], ...]:
+    attempts_root = request.cell / "transport_attempts"
+    if not attempts_root.is_dir():
+        return ()
+    directories = sorted(item for item in attempts_root.iterdir() if item.is_dir())
+    expected_names = [f"{index:02d}" for index in range(1, len(directories) + 1)]
+    if [item.name for item in directories] != expected_names:
+        raise FullSourceConsumerError("provider transport-attempt sequence drifted")
+    rows: list[dict[str, Any]] = []
+    for attempt_number, root in enumerate(directories, start=1):
+        started_path = root / "started.json"
+        if not started_path.is_file() or started_path.is_symlink():
+            raise FullSourceConsumerError("provider transport attempt lacks immutable start")
+        started = _json_object(started_path)
+        expected_attempt_id = stable_id(
+            "sft2b_provider_transport_attempt",
+            {"request_key": request.request_key, "attempt_number": attempt_number},
+        )
+        if started != {
+            "schema_version": "sft2b_provider_transport_attempt_started_v1",
+            "request_key": request.request_key,
+            "attempt_id": expected_attempt_id,
+            "attempt_number": attempt_number,
+        }:
+            raise FullSourceConsumerError("provider transport-attempt start drifted")
+        outcomes = [
+            name
+            for name in ("success.json", "failure.json", "abandoned.json")
+            if (root / name).is_file()
+        ]
+        if len(outcomes) > 1:
+            raise FullSourceConsumerError("provider transport attempt has multiple outcomes")
+        outcome = _json_object(root / outcomes[0]) if outcomes else None
+        rows.append(
+            {
+                "attempt_number": attempt_number,
+                "attempt_id": expected_attempt_id,
+                "root": root,
+                "outcome_name": outcomes[0] if outcomes else None,
+                "outcome": outcome,
+            }
+        )
+    return tuple(rows)
+
+
+def _persisted_provider_completion(row: Mapping[str, Any]) -> Any:
+    root = cast(Path, row["root"])
+    outcome = cast(dict[str, Any], row["outcome"])
+    raw_response_path = root / "raw_response.sse"
+    raw_output_path = root / "raw_output.txt"
+    if (
+        outcome.get("schema_version") != "sft2b_provider_transport_attempt_success_v1"
+        or outcome.get("attempt_id") != row["attempt_id"]
+        or outcome.get("attempt_number") != row["attempt_number"]
+        or not raw_response_path.is_file()
+        or raw_response_path.is_symlink()
+        or not raw_output_path.is_file()
+        or raw_output_path.is_symlink()
+        or outcome.get("raw_response_sha256") != hash_file(raw_response_path)
+        or outcome.get("raw_output_sha256") != hash_file(raw_output_path)
+    ):
+        raise FullSourceConsumerError("persisted provider completion drifted")
+    return frozen_vllm_backend.StreamCompletion(
+        raw_response=raw_response_path.read_bytes(),
+        output_text=raw_output_path.read_text(encoding="utf-8"),
+        response_id=cast(str, outcome["response_id"]),
+        response_request_id=cast(str | None, outcome["response_request_id"]),
+        prompt_tokens=cast(int, outcome["prompt_tokens"]),
+        completion_tokens=cast(int, outcome["completion_tokens"]),
+        finish_reason=cast(str, outcome["finish_reason"]),
+        elapsed_ms=cast(int, outcome["elapsed_ms"]),
+        time_to_first_token_ms=cast(int, outcome["time_to_first_token_ms"]),
+        http_status=cast(int, outcome["http_status"]),
+    )
+
+
+def _retryable_provider_failure(exc: Exception) -> bool:
+    if isinstance(exc, (TimeoutError, ConnectionError, OSError)):
+        return True
+    detail = str(exc).lower()
+    return any(
+        marker in detail
+        for marker in (
+            "endpoint unavailable",
+            "connection refused",
+            "connection reset",
+            "timed out",
+            "vllm http 408",
+            "vllm http 429",
+            "vllm http 500",
+            "vllm http 502",
+            "vllm http 503",
+            "vllm http 504",
+        )
+    )
+
+
+def _validated_runtime_reconciliation_reference(
+    *, artifact_path: object, artifact_sha256: object, session_id: object
+) -> FullSourceRuntimeSessionReconciliation:
+    if not isinstance(artifact_path, str) or not isinstance(artifact_sha256, str):
+        raise FullSourceConsumerError("provider reconciliation lacks runtime evidence")
+    path = Path(artifact_path)
+    if not path.is_file() or path.is_symlink() or hash_file(path) != artifact_sha256:
+        raise FullSourceConsumerError("provider runtime-reconciliation binding drifted")
+    runtime = FullSourceRuntimeSessionReconciliation.model_validate(_json_object(path))
+    if runtime.session_id != session_id or Path(runtime.reconciliation_artifact_path) != path:
+        raise FullSourceConsumerError("provider runtime-reconciliation identity drifted")
+    return runtime
+
+
+def _request_reconciliation(request: PreparedRequest) -> dict[str, Any] | None:
+    path = request.cell / "request_reconciled.json"
+    if not path.exists():
+        return None
+    if not path.is_file() or path.is_symlink():
+        raise FullSourceConsumerError("provider request-reconciliation artifact is invalid")
+    row = _json_object(path)
+    if (
+        row.get("schema_version") != "sft2b_provider_request_reconciliation_v1"
+        or row.get("request_key") != request.request_key
+        or row.get("request_started_sha256") != hash_file(request.cell / "request_started.json")
+        or row.get("reason") != "dead_runtime_before_transport_attempt"
+        or row.get("provider_call_occurred") is not False
+    ):
+        raise FullSourceConsumerError("provider request-reconciliation evidence drifted")
+    _validated_runtime_reconciliation_reference(
+        artifact_path=row.get("runtime_reconciliation_path"),
+        artifact_sha256=row.get("runtime_reconciliation_sha256"),
+        session_id=row.get("runtime_session_id"),
+    )
+    return row
+
+
+def _semantic_request_can_resume(request: PreparedRequest) -> bool:
+    rows = _provider_attempt_rows(request)
+    if not rows:
+        return _request_reconciliation(request) is not None
+    last = rows[-1]
+    outcome_name = last["outcome_name"]
+    outcome = cast(dict[str, Any] | None, last["outcome"])
+    if outcome_name == "success.json":
+        _persisted_provider_completion(last)
+        return True
+    if outcome_name == "abandoned.json":
+        if (
+            outcome is None
+            or outcome.get("schema_version") != "sft2b_provider_transport_attempt_abandoned_v1"
+            or outcome.get("request_key") != request.request_key
+            or outcome.get("attempt_id") != last["attempt_id"]
+            or outcome.get("attempt_number") != last["attempt_number"]
+            or outcome.get("reason") != "dead_same_run_runtime"
+            or outcome.get("provider_call_may_have_occurred") is not True
+        ):
+            raise FullSourceConsumerError("provider abandoned-attempt evidence drifted")
+        _validated_runtime_reconciliation_reference(
+            artifact_path=outcome.get("runtime_reconciliation_path"),
+            artifact_sha256=outcome.get("runtime_reconciliation_sha256"),
+            session_id=outcome.get("runtime_session_id"),
+        )
+        return len(rows) < MAX_PROVIDER_ATTEMPTS
+    if outcome_name != "failure.json" or outcome is None:
+        return False
+    if (
+        outcome.get("schema_version") != "sft2b_provider_transport_attempt_failure_v1"
+        or outcome.get("attempt_id") != last["attempt_id"]
+        or outcome.get("attempt_number") != last["attempt_number"]
+        or not isinstance(outcome.get("retryable"), bool)
+    ):
+        raise FullSourceConsumerError("provider transport failure evidence drifted")
+    return cast(bool, outcome["retryable"]) and len(rows) < MAX_PROVIDER_ATTEMPTS
+
+
+def _reconcile_dead_same_run_runtime_and_requests(
+    *,
+    backend: LoadedVllmBackend,
+    sources: tuple[SourceRecord, ...],
+    endpoint_url: str,
+    run_root: Path,
+    plan: FullSourceRunPlan,
+    host: str,
+    port: int,
+) -> tuple[FullSourceRuntimeSessionReconciliation, ...]:
+    starts_path = _runtime_session_start_journal(run_root, plan)
+    receipts_path = _runtime_session_journal(run_root, plan)
+    reconciliations_path = _runtime_session_reconciliation_journal(run_root, plan)
+    starts = (
+        _read_models(starts_path, FullSourceRuntimeSessionStart) if starts_path.is_file() else ()
+    )
+    receipts = (
+        _read_models(receipts_path, FullSourceRuntimeSessionReceipt)
+        if receipts_path.is_file()
+        else ()
+    )
+    reconciliations = (
+        _read_models(reconciliations_path, FullSourceRuntimeSessionReconciliation)
+        if reconciliations_path.is_file()
+        else ()
+    )
+    closed = {item.session_id for item in receipts}.union(
+        item.session_id for item in reconciliations
+    )
+    for start in starts:
+        if start.session_id not in closed:
+            _append_dead_runtime_reconciliation(
+                run_root=run_root,
+                plan=plan,
+                session_id=start.session_id,
+                host=host,
+                port=port,
+            )
+    reconciliations = (
+        _read_models(reconciliations_path, FullSourceRuntimeSessionReconciliation)
+        if reconciliations_path.is_file()
+        else ()
+    )
+    if not reconciliations:
+        return ()
+    runtime_by_time = tuple(sorted(reconciliations, key=lambda item: item.reconciled_unix_ns))
+    for _, _, requests in _prepared_chunks(
+        backend,
+        profile_name=FULL_PROFILE_NAME,
+        sources=sources,
+        endpoint_url=endpoint_url,
+    ):
+        for request in requests:
+            started_path = request.cell / "request_started.json"
+            if (request.cell / "terminal.json").is_file() or not started_path.is_file():
+                continue
+            eligible = tuple(
+                item
+                for item in runtime_by_time
+                if item.reconciled_unix_ns >= started_path.stat().st_mtime_ns
+            )
+            if not eligible:
+                continue
+            runtime = eligible[0]
+            runtime_path = Path(runtime.reconciliation_artifact_path)
+            rows = _provider_attempt_rows(request)
+            if not rows:
+                immutable_write(
+                    request.cell / "request_reconciled.json",
+                    canonical_json_bytes(
+                        {
+                            "schema_version": "sft2b_provider_request_reconciliation_v1",
+                            "request_key": request.request_key,
+                            "request_started_sha256": hash_file(started_path),
+                            "runtime_session_id": runtime.session_id,
+                            "runtime_reconciliation_path": str(runtime_path),
+                            "runtime_reconciliation_sha256": hash_file(runtime_path),
+                            "reason": "dead_runtime_before_transport_attempt",
+                            "provider_call_occurred": False,
+                        }
+                    )
+                    + b"\n",
+                )
+                continue
+            last = rows[-1]
+            if last["outcome_name"] is not None:
+                continue
+            attempt_root = cast(Path, last["root"])
+            immutable_write(
+                attempt_root / "abandoned.json",
+                canonical_json_bytes(
+                    {
+                        "schema_version": "sft2b_provider_transport_attempt_abandoned_v1",
+                        "request_key": request.request_key,
+                        "attempt_id": last["attempt_id"],
+                        "attempt_number": last["attempt_number"],
+                        "runtime_session_id": runtime.session_id,
+                        "runtime_reconciliation_path": str(runtime_path),
+                        "runtime_reconciliation_sha256": hash_file(runtime_path),
+                        "reason": "dead_same_run_runtime",
+                        "provider_call_may_have_occurred": True,
+                    }
+                )
+                + b"\n",
+            )
+    _verify_runtime_sessions(run_root, plan, require_nonempty=False)
+    return reconciliations
+
+
+def _cache_semantic_terminal(request: PreparedRequest) -> VllmRequestTerminal | None:
+    terminal_path = request.cell / "terminal.json"
+    if terminal_path.is_file():
+        return frozen_vllm_backend._cache_terminal(request)
+    started_path = request.cell / "request_started.json"
+    if not started_path.exists():
+        return None
+    if _semantic_request_can_resume(request):
+        return None
+    raise FullSourceConsumerError(
+        f"ambiguous in-flight vLLM request; refusing duplicate: {request.request_key}"
+    )
+
+
+def _execute_semantic_request_with_retries(
+    backend: LoadedVllmBackend,
+    request: PreparedRequest,
+    transport: CompletionTransport,
+) -> _ProviderExecutionResult:
+    model_calls = 0
+
+    def retrying_transport(
+        endpoint_url: str,
+        payload: dict[str, object],
+        request_key: str,
+        timeout_seconds: float,
+    ) -> Any:
+        nonlocal model_calls
+        prior = _provider_attempt_rows(request)
+        if prior:
+            last = prior[-1]
+            if last["outcome_name"] == "success.json":
+                return _persisted_provider_completion(last)
+            if not _semantic_request_can_resume(request):
+                raise FullSourceConsumerError(
+                    "provider transport attempts are terminal or ambiguous"
+                )
+        for attempt_number in range(len(prior) + 1, MAX_PROVIDER_ATTEMPTS + 1):
+            attempt_id = stable_id(
+                "sft2b_provider_transport_attempt",
+                {"request_key": request_key, "attempt_number": attempt_number},
+            )
+            attempt_root = _provider_attempt_root(request, attempt_number)
+            immutable_write(
+                attempt_root / "started.json",
+                canonical_json_bytes(
+                    {
+                        "schema_version": "sft2b_provider_transport_attempt_started_v1",
+                        "request_key": request_key,
+                        "attempt_id": attempt_id,
+                        "attempt_number": attempt_number,
+                    }
+                )
+                + b"\n",
+            )
+            model_calls += 1
+            try:
+                completion = transport(endpoint_url, payload, request_key, timeout_seconds)
+            except Exception as exc:
+                retryable = _retryable_provider_failure(exc)
+                immutable_write(
+                    attempt_root / "failure.json",
+                    canonical_json_bytes(
+                        {
+                            "schema_version": "sft2b_provider_transport_attempt_failure_v1",
+                            "request_key": request_key,
+                            "attempt_id": attempt_id,
+                            "attempt_number": attempt_number,
+                            "retryable": retryable,
+                            "error_class": type(exc).__name__,
+                            "error_detail": str(exc)[:2000] or type(exc).__name__,
+                        }
+                    )
+                    + b"\n",
+                )
+                if retryable and attempt_number < MAX_PROVIDER_ATTEMPTS:
+                    continue
+                raise
+            raw_response_path = attempt_root / "raw_response.sse"
+            raw_output_path = attempt_root / "raw_output.txt"
+            immutable_write(raw_response_path, completion.raw_response)
+            immutable_write(raw_output_path, completion.output_text.encode("utf-8"))
+            immutable_write(
+                attempt_root / "success.json",
+                canonical_json_bytes(
+                    {
+                        "schema_version": "sft2b_provider_transport_attempt_success_v1",
+                        "request_key": request_key,
+                        "attempt_id": attempt_id,
+                        "attempt_number": attempt_number,
+                        "response_id": completion.response_id,
+                        "response_request_id": completion.response_request_id,
+                        "prompt_tokens": completion.prompt_tokens,
+                        "completion_tokens": completion.completion_tokens,
+                        "finish_reason": completion.finish_reason,
+                        "elapsed_ms": completion.elapsed_ms,
+                        "time_to_first_token_ms": completion.time_to_first_token_ms,
+                        "http_status": completion.http_status,
+                        "raw_response_sha256": hash_file(raw_response_path),
+                        "raw_output_sha256": hash_file(raw_output_path),
+                    }
+                )
+                + b"\n",
+            )
+            return completion
+        raise FullSourceConsumerError("provider retry ceiling exhausted")
+
+    terminal = frozen_vllm_backend._execute_request(
+        backend,
+        request,
+        retrying_transport,
+    )
+    return _ProviderExecutionResult(terminal=terminal, model_calls=model_calls)
 
 
 def _inspect_scalable_cache(
@@ -3603,9 +4330,13 @@ def _inspect_scalable_cache(
             request_count += 1
             terminal_path = request.cell / "terminal.json"
             started_path = request.cell / "request_started.json"
-            if not terminal_path.exists() and started_path.exists():
+            if (
+                not terminal_path.exists()
+                and started_path.exists()
+                and not _semantic_request_can_resume(request)
+            ):
                 ambiguous.append(request.request_key)
-            elif frozen_vllm_backend._cache_terminal(request) is None:
+            elif _cache_semantic_terminal(request) is None:
                 missing += 1
             else:
                 cached += 1
@@ -3668,7 +4399,7 @@ def _run_scalable_and_reconcile(
     transport: CompletionTransport | None,
     status_path: Path | None,
 ) -> _ScalableExecutionResult:
-    """Bound prompts/terminals to one chunk and reconcile each chunk durably."""
+    """Keep one bounded request window full while preparing sources in chunks."""
 
     profile = backend.spec.profiles[profile_name]
     provider_journal: _ScalableVllmJournal | None = None
@@ -3682,134 +4413,146 @@ def _run_scalable_and_reconcile(
     observed_run: str | None = None
     observed_root: Path | None = None
     request_count = 0
+    processed_count = 0
     model_calls = 0
     cache_hits = 0
     key_digest = hashlib.sha256()
     seen_keys: set[str] = set()
-    global_ordinal = 0
-    for run_id, root, requests in _prepared_chunks(
-        backend,
-        profile_name=profile_name,
-        sources=sources,
-        endpoint_url=endpoint_url,
-    ):
-        if observed_run is None:
-            observed_run, observed_root = run_id, root
-            provider_journal = _ScalableVllmJournal(root)
-        elif run_id != observed_run or root != observed_root:
-            raise FullSourceConsumerError("chunked vLLM execution identity drifted")
-        terminals: dict[str, VllmRequestTerminal] = {}
-        missing: list[PreparedRequest] = []
-        for request in requests:
-            if request.request_key in seen_keys:
-                raise FullSourceConsumerError("chunked vLLM execution request key repeated")
-            seen_keys.add(request.request_key)
-            terminal = frozen_vllm_backend._cache_terminal(request)
-            if terminal is None:
-                missing.append(request)
-            else:
-                terminals[request.request_key] = terminal
-                cache_hits += 1
-                cast(_ScalableVllmJournal, provider_journal).append(
-                    terminal, fsync_every=journal_fsync_every
+    checkpoint_interval = SOURCE_CHUNK_SIZE * len(profile.slots)
+
+    def prepared_requests() -> Iterator[tuple[int, PreparedRequest]]:
+        nonlocal observed_run, observed_root, provider_journal, request_count
+        for run_id, root, requests in _prepared_chunks(
+            backend,
+            profile_name=profile_name,
+            sources=sources,
+            endpoint_url=endpoint_url,
+        ):
+            if observed_run is None:
+                observed_run, observed_root = run_id, root
+                provider_journal = _ScalableVllmJournal(root)
+            elif run_id != observed_run or root != observed_root:
+                raise FullSourceConsumerError("chunked vLLM execution identity drifted")
+            for request in requests:
+                if request.request_key in seen_keys:
+                    raise FullSourceConsumerError("chunked vLLM execution request key repeated")
+                seen_keys.add(request.request_key)
+                ordinal = request_count
+                _append_canonical_string_hash(
+                    key_digest,
+                    request.request_key,
+                    first=request_count == 0,
                 )
-        if missing:
-            missing_iterator = iter(missing)
-            with concurrent.futures.ThreadPoolExecutor(max_workers=profile.concurrency) as pool:
-                pending: dict[concurrent.futures.Future[VllmRequestTerminal], PreparedRequest] = {}
-                for _ in range(min(profile.concurrency, len(missing))):
-                    request = next(missing_iterator)
-                    pending[
-                        pool.submit(
-                            frozen_vllm_backend._execute_request,
-                            backend,
-                            request,
-                            selected_transport,
-                        )
-                    ] = request
-                    model_calls += 1
-                while pending:
-                    done, _ = concurrent.futures.wait(
-                        pending, return_when=concurrent.futures.FIRST_COMPLETED
-                    )
-                    for future in done:
-                        request = pending.pop(future)
-                        try:
-                            terminal = future.result()
-                        except Exception as exc:
-                            for other in pending:
-                                other.cancel()
-                            raise FullSourceConsumerError(
-                                "vLLM request failed for "
-                                f"{request.source.source_id}/{request.slot.slot}: {exc}"
-                            ) from exc
-                        terminals[request.request_key] = terminal
-                        cast(_ScalableVllmJournal, provider_journal).append(
-                            terminal, fsync_every=journal_fsync_every
-                        )
-                        try:
-                            next_request = next(missing_iterator)
-                        except StopIteration:
-                            continue
-                        pending[
-                            pool.submit(
-                                frozen_vllm_backend._execute_request,
-                                backend,
-                                next_request,
-                                selected_transport,
-                            )
-                        ] = next_request
-                        model_calls += 1
-        for request in requests:
-            terminal = terminals[request.request_key]
-            cell = plan.cells[global_ordinal]
-            if (
-                cell.source_id != terminal.attempt.source_id
-                or cell.slot != terminal.attempt.slot
-                or cell.seed != terminal.attempt.lineage.seed
-                or terminal.metrics.source_id != cell.source_id
-                or terminal.metrics.slot != cell.slot
-            ):
-                raise FullSourceConsumerError("vLLM terminal does not map to its planned cell")
-            provider_artifacts = _provider_artifact_binding(terminal)
-            terminal_path = write_cached_terminal(
-                cache_root,
-                plan,
-                cell,
-                payload={
-                    "schema_version": "sft2b_full_source_vllm_payload_v1",
-                    "request_key": terminal.request_key,
-                    "attempt_id": terminal.attempt.attempt_id,
-                    "response_id": terminal.metrics.response_id,
-                    "provider_artifacts": provider_artifacts,
-                    "vllm_terminal": terminal.model_dump(mode="json"),
-                },
+                request_count += 1
+                yield ordinal, request
+
+    def reconcile_terminal(
+        ordinal: int,
+        request: PreparedRequest,
+        terminal: VllmRequestTerminal,
+    ) -> None:
+        nonlocal processed_count
+        cell = plan.cells[ordinal]
+        if (
+            request.source.source_id != cell.source_id
+            or request.slot.slot != cell.slot
+            or request.slot.seed != cell.seed
+            or cell.source_id != terminal.attempt.source_id
+            or cell.slot != terminal.attempt.slot
+            or cell.seed != terminal.attempt.lineage.seed
+            or terminal.metrics.source_id != cell.source_id
+            or terminal.metrics.slot != cell.slot
+        ):
+            raise FullSourceConsumerError("vLLM terminal does not map to its planned cell")
+        cast(_ScalableVllmJournal, provider_journal).append(
+            terminal, fsync_every=journal_fsync_every
+        )
+        terminal_path = write_cached_terminal(
+            cache_root,
+            plan,
+            cell,
+            payload={
+                "schema_version": "sft2b_full_source_vllm_payload_v1",
+                "request_key": terminal.request_key,
+                "attempt_id": terminal.attempt.attempt_id,
+                "response_id": terminal.metrics.response_id,
+                "provider_artifacts": _provider_artifact_binding(terminal),
+                "vllm_terminal": terminal.model_dump(mode="json"),
+            },
+        )
+        consumer_journal.append_terminal(cell, terminal_path)
+        processed_count += 1
+        if processed_count % checkpoint_interval == 0:
+            cast(_ScalableVllmJournal, provider_journal).sync()
+            consumer_journal.sync()
+            if status_path is not None:
+                _write_durable_checkpoint(
+                    status_path=status_path,
+                    plan=plan,
+                    provider_journal=cast(_ScalableVllmJournal, provider_journal).path,
+                    consumer_journal=consumer_journal.path,
+                    output_path=(
+                        run_root / plan.shard_id / plan.run_id / "outputs/request_terminals.jsonl"
+                    ),
+                    sequence=processed_count,
+                )
+
+    request_iterator = iter(prepared_requests())
+    exhausted = False
+    pending: dict[
+        concurrent.futures.Future[_ProviderExecutionResult], tuple[int, PreparedRequest]
+    ] = {}
+    with concurrent.futures.ThreadPoolExecutor(max_workers=profile.concurrency) as pool:
+
+        def fill_window() -> None:
+            nonlocal exhausted, cache_hits
+            while not exhausted and len(pending) < profile.concurrency:
+                try:
+                    ordinal, request = next(request_iterator)
+                except StopIteration:
+                    exhausted = True
+                    break
+                terminal = _cache_semantic_terminal(request)
+                if terminal is not None:
+                    cache_hits += 1
+                    reconcile_terminal(ordinal, request, terminal)
+                    continue
+                future = pool.submit(
+                    _execute_semantic_request_with_retries,
+                    backend,
+                    request,
+                    selected_transport,
+                )
+                pending[future] = (ordinal, request)
+
+        fill_window()
+        while pending:
+            done, _ = concurrent.futures.wait(
+                pending,
+                return_when=concurrent.futures.FIRST_COMPLETED,
             )
-            consumer_journal.append_terminal(cell, terminal_path)
-            _append_canonical_string_hash(
-                key_digest, terminal.request_key, first=request_count == 0
-            )
-            request_count += 1
-            global_ordinal += 1
-        cast(_ScalableVllmJournal, provider_journal).sync()
-        consumer_journal.sync()
-        if status_path is not None:
-            _write_durable_checkpoint(
-                status_path=status_path,
-                plan=plan,
-                provider_journal=cast(_ScalableVllmJournal, provider_journal).path,
-                consumer_journal=consumer_journal.path,
-                output_path=(
-                    run_root / plan.shard_id / plan.run_id / "outputs/request_terminals.jsonl"
-                ),
-                sequence=request_count,
-            )
+            for future in done:
+                ordinal, request = pending.pop(future)
+                try:
+                    execution = future.result()
+                except Exception as exc:
+                    for other in pending:
+                        other.cancel()
+                    raise FullSourceConsumerError(
+                        "vLLM request failed for "
+                        f"{request.source.source_id}/{request.slot.slot}: {exc}"
+                    ) from exc
+                model_calls += execution.model_calls
+                reconcile_terminal(ordinal, request, execution.terminal)
+            fill_window()
+    cast(_ScalableVllmJournal, provider_journal).sync()
+    consumer_journal.sync()
     key_digest.update(b"]")
     if (
         observed_run is None
         or observed_root is None
         or request_count != len(plan.cells)
-        or global_ordinal != len(plan.cells)
+        or processed_count != len(plan.cells)
         or not consumer_journal.is_complete()
     ):
         raise FullSourceConsumerError("provider reconciliation did not close every planned cell")
@@ -3950,6 +4693,7 @@ def _provider_artifact_binding(terminal: VllmRequestTerminal) -> dict[str, str]:
             raise FullSourceConsumerError(f"provider reconciliation lacks {name} artifact")
     request = _json_object(request_path)
     started = _json_object(started_path)
+    semantic_request = (cell / "transport_attempts").is_dir()
     if (
         request.get("request_key") != terminal.request_key
         or request.get("attempt_id") != terminal.attempt.attempt_id
@@ -3962,11 +4706,23 @@ def _provider_artifact_binding(terminal: VllmRequestTerminal) -> dict[str, str]:
         or terminal.metrics.response_request_id != terminal.request_key
     ):
         raise FullSourceConsumerError("provider request/start/response identity drifted")
-    return {
+    binding = {
         "request_sha256": hash_file(request_path),
         "request_started_sha256": hash_file(started_path),
         "terminal_sha256": hash_file(terminal_path),
     }
+    if semantic_request:
+        attempts_root = cell / "transport_attempts"
+        attempt_files = sorted(item for item in attempts_root.rglob("*") if item.is_file())
+        if not attempt_files or any(item.is_symlink() for item in attempt_files):
+            raise FullSourceConsumerError("semantic provider terminal lacks attempt evidence")
+        binding["transport_attempts_sha256"] = hash_canonical(
+            {str(path.relative_to(attempts_root)): hash_file(path) for path in attempt_files}
+        )
+        reconciliation_path = cell / "request_reconciled.json"
+        if reconciliation_path.is_file():
+            binding["request_reconciliation_sha256"] = hash_file(reconciliation_path)
+    return binding
 
 
 def reconcile_vllm_result(
@@ -4332,21 +5088,28 @@ def _session_name(spec: FullSourceConsumerSpec, plan: FullSourceRunPlan) -> str:
 
 
 def _expected_provider_journal(
+    repo_root: Path,
     spec: FullSourceConsumerSpec,
     *,
-    config_sha256: str,
     plan: FullSourceRunPlan,
 ) -> Path:
     profile_id = f"sft2b_reform_32b_{plan.shard_id}_dp4_tp2_{plan.run_id.split(':', 1)[1][:16]}"
+    placement = _json_object(repo_root / spec.model.placement_config_path)
+    decoding = placement.get("decoding")
+    if not isinstance(decoding, dict):
+        raise FullSourceConsumerError("placement config lacks semantic decoding identity")
     provider_run_id = stable_id(
         "sft2b_vllm_run",
         {
-            "profile_id": profile_id,
-            "backend_config_sha256": config_sha256,
+            "schema_version": "sft2b_vllm_semantic_run_v2",
+            "provider": "local_vllm_openai",
+            "model_id": spec.model.model_id,
             "model_revision": spec.model.revision,
             "snapshot_binding_sha256": spec.model.snapshot_binding_sha256,
             "source_ids": plan.source_ids,
             "slots": tuple(CandidateSlot),
+            "prompt_template_sha256": spec.model.prompt_sha256,
+            "decoding_sha256": hash_canonical(decoding),
         },
     )
     return (
@@ -4389,7 +5152,6 @@ def build_detached_launch(
     if spec.executor.kind != "integrated_vllm":
         raise FullSourceConsumerError("full-source launch lacks the integrated executor")
     session_name = _session_name(spec, plan)
-    config_sha256 = hash_file(config_path)
     launch_time = time.time_ns()
     launch_nonce = hash_canonical(
         {
@@ -4446,8 +5208,8 @@ def build_detached_launch(
         launch_nonce=launch_nonce,
         launched_unix_ns=launch_time,
         provider_journal_path=_expected_provider_journal(
+            repo_root,
             spec,
-            config_sha256=config_sha256,
             plan=plan,
         ),
         consumer_journal_path=shard_root / "journal/requests.jsonl",
@@ -4799,6 +5561,24 @@ def supervise_shard(
         plan=plan,
     )
     endpoint = profile_endpoint(backend, FULL_PROFILE_NAME)
+    _reconcile_dead_same_run_runtime_and_requests(
+        backend=backend,
+        sources=sources,
+        endpoint_url=endpoint,
+        run_root=run_root,
+        plan=plan,
+        host=backend.spec.launch.host,
+        port=spec.executor.port,
+    )
+    _reconcile_stale_same_run_reservation(
+        repo_root=repo_root,
+        spec=spec,
+        plan=plan,
+        run_root=run_root,
+        shard_root=shard_root,
+        host=backend.spec.launch.host,
+        port=spec.executor.port,
+    )
     inspection = _inspect_scalable_cache(
         backend,
         profile_name=FULL_PROFILE_NAME,
@@ -4836,12 +5616,10 @@ def supervise_shard(
                 f"existing SFT2B resource claim is {state}; refusing foreign release/restart"
             )
         if not inspection.complete:
-            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
-                probe.settimeout(1.0)
-                if probe.connect_ex(("127.0.0.1", spec.executor.port)) == 0:
-                    raise FullSourceConsumerError(
-                        "vLLM port is already open without a same-run runtime receipt"
-                    )
+            if _port_is_open(backend.spec.launch.host, spec.executor.port):
+                raise FullSourceConsumerError(
+                    "vLLM port is already open without a same-run runtime receipt"
+                )
             reservation = claim_resources(
                 root=spec.runtime.reservation_root,
                 task=spec.runtime.reservation_task,

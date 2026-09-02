@@ -3,6 +3,8 @@ from __future__ import annotations
 import base64
 import concurrent.futures
 import json
+import os
+import threading
 from collections.abc import Iterable
 from pathlib import Path
 from types import SimpleNamespace
@@ -49,10 +51,8 @@ from leanfaith.sft2b.vllm_backend import (
     StreamCompletion,
     VllmRequestMetrics,
     VllmRequestTerminal,
-    inspect_vllm_sources_cache,
     load_vllm_spec,
     profile_endpoint,
-    run_vllm_sources,
 )
 
 _REPO_ROOT = find_repo_root(Path(__file__).parent)
@@ -833,14 +833,16 @@ def _bind_fixture_quality_acceptance(
     return receipt
 
 
-def _backend(tmp_path: Path, source: SourceRecord) -> LoadedVllmBackend:
+def _backend(tmp_path: Path, source: SourceRecord | tuple[SourceRecord, ...]) -> LoadedVllmBackend:
+    sources = source if isinstance(source, tuple) else (source,)
+    source_ids = tuple(item.source_id for item in sources)
     original = load_vllm_spec(_REPO_ROOT, _VLLM_CONFIG)
     smoke = original.profiles["smoke_dp1_tp2"].model_copy(
-        update={"source_ids": (source.source_id,), "max_model_len": 4103}
+        update={"source_ids": source_ids, "max_model_len": 4103}
     )
     full = original.profiles[FULL_PROFILE_NAME].model_copy(
         update={
-            "source_ids": (source.source_id,),
+            "source_ids": source_ids,
             "slots": tuple(CandidateSlot),
             "max_model_len": 4103,
             "concurrency": 4,
@@ -849,7 +851,7 @@ def _backend(tmp_path: Path, source: SourceRecord) -> LoadedVllmBackend:
     spec = original.model_copy(
         update={
             "staging_root": tmp_path / "vllm-cache",
-            "source_prompt_tokens": {source.source_id: 7},
+            "source_prompt_tokens": {item.source_id: 7 for item in sources},
             "profiles": {"smoke_dp1_tp2": smoke, FULL_PROFILE_NAME: full},
         }
     )
@@ -1284,14 +1286,23 @@ def test_crash_after_provider_terminals_restarts_without_duplicate_calls(
             http_status=200,
         )
 
-    first = run_vllm_sources(
-        backend,
-        profile_name=FULL_PROFILE_NAME,
-        sources=(source,),
-        endpoint_url=endpoint,
-        transport=transport,
+    prepared = tuple(
+        request
+        for _, _, requests in consumer_module._prepared_chunks(
+            backend,
+            profile_name=FULL_PROFILE_NAME,
+            sources=(source,),
+            endpoint_url=endpoint,
+        )
+        for request in requests
     )
-    assert first.model_calls == 4 and calls == 4
+    for request in prepared:
+        consumer_module._execute_semantic_request_with_retries(
+            backend,
+            request,
+            transport,
+        )
+    assert calls == 4
     # Simulated process crash here: provider terminals exist, but the consumer
     # journal and compaction have not run.
     compacted = run_integrated_executor(
@@ -1357,14 +1368,19 @@ def test_complete_provider_cache_before_runtime_receipt_recovers_without_calls(
             http_status=200,
         )
 
-    first = run_vllm_sources(
+    for _, _, requests in consumer_module._prepared_chunks(
         backend,
         profile_name=FULL_PROFILE_NAME,
         sources=(source,),
         endpoint_url=endpoint,
-        transport=transport,
-    )
-    assert first.model_calls == 4 and calls == 4
+    ):
+        for request in requests:
+            consumer_module._execute_semantic_request_with_retries(
+                backend,
+                request,
+                transport,
+            )
+    assert calls == 4
 
     def forbidden(*_args: object, **_kwargs: object) -> object:
         raise AssertionError("complete cache must not start vLLM or call a provider")
@@ -1587,14 +1603,16 @@ def test_ambiguous_started_provider_call_fails_closed_without_recall(
         source_ids=(source.source_id,),
     )
     endpoint = profile_endpoint(backend, FULL_PROFILE_NAME)
-    inspection = inspect_vllm_sources_cache(
-        backend,
-        profile_name=FULL_PROFILE_NAME,
-        sources=(source,),
-        endpoint_url=endpoint,
+    _, _, requests = next(
+        consumer_module._prepared_chunks(
+            backend,
+            profile_name=FULL_PROFILE_NAME,
+            sources=(source,),
+            endpoint_url=endpoint,
+        )
     )
-    ambiguous_key = inspection.missing_request_keys[0]
-    started = inspection.root / "requests" / ambiguous_key / "request_started.json"
+    ambiguous_key = requests[0].request_key
+    started = requests[0].cell / "request_started.json"
     started.parent.mkdir(parents=True)
     _write_json(
         started,
@@ -1626,6 +1644,156 @@ def test_ambiguous_started_provider_call_fails_closed_without_recall(
             transport=transport,
         )
     assert calls == 0
+
+
+def test_semantic_request_identity_excludes_backend_config_hash(tmp_path: Path) -> None:
+    source = _source(0)
+    first = _backend(tmp_path, source)
+    second = LoadedVllmBackend(
+        spec=first.spec,
+        config_path=first.config_path,
+        config_sha256="e" * 64,
+        placement=first.placement,
+        release_root=first.release_root,
+    )
+    endpoint = profile_endpoint(first, FULL_PROFILE_NAME)
+    first_run, first_root, first_requests = next(
+        consumer_module._prepared_chunks(
+            first,
+            profile_name=FULL_PROFILE_NAME,
+            sources=(source,),
+            endpoint_url=endpoint,
+        )
+    )
+    second_run, second_root, second_requests = next(
+        consumer_module._prepared_chunks(
+            second,
+            profile_name=FULL_PROFILE_NAME,
+            sources=(source,),
+            endpoint_url=endpoint,
+        )
+    )
+    assert first_run == second_run
+    assert first_root == second_root
+    assert tuple(item.request_key for item in first_requests) == tuple(
+        item.request_key for item in second_requests
+    )
+
+
+def test_semantic_request_retries_two_transient_failures_then_succeeds(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr("leanfaith.sft2b.vllm_backend.metadata.version", lambda _name: "test")
+    source = _source(0)
+    backend = _backend(tmp_path, source)
+    endpoint = profile_endpoint(backend, FULL_PROFILE_NAME)
+    _, _, requests = next(
+        consumer_module._prepared_chunks(
+            backend,
+            profile_name=FULL_PROFILE_NAME,
+            sources=(source,),
+            endpoint_url=endpoint,
+        )
+    )
+    calls = 0
+
+    def transport(
+        _endpoint_url: str,
+        _payload: dict[str, object],
+        request_key: str,
+        _timeout_seconds: float,
+    ) -> StreamCompletion:
+        nonlocal calls
+        calls += 1
+        if calls < 3:
+            raise TimeoutError("transient fixture timeout")
+        return StreamCompletion(
+            raw_response=b"data: {}\n\ndata: [DONE]\n\n",
+            output_text="```lean4\ntheorem generated : True\n```\n",
+            response_id=f"cmpl-{request_key[:12]}",
+            response_request_id=request_key,
+            prompt_tokens=7,
+            completion_tokens=8,
+            finish_reason="stop",
+            elapsed_ms=5,
+            time_to_first_token_ms=1,
+            http_status=200,
+        )
+
+    result = consumer_module._execute_semantic_request_with_retries(
+        backend,
+        requests[0],
+        transport,
+    )
+    assert calls == result.model_calls == 3
+    attempt_rows = consumer_module._provider_attempt_rows(requests[0])
+    assert [item["outcome_name"] for item in attempt_rows] == [
+        "failure.json",
+        "failure.json",
+        "success.json",
+    ]
+
+
+def test_sliding_window_crosses_source_chunk_boundary(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr("leanfaith.sft2b.vllm_backend.metadata.version", lambda _name: "test")
+    monkeypatch.setattr(consumer_module, "SOURCE_CHUNK_SIZE", 1)
+    sources = (_source(0), _source(1))
+    original = _backend(tmp_path, sources)
+    profiles = dict(original.spec.profiles)
+    profiles[FULL_PROFILE_NAME] = profiles[FULL_PROFILE_NAME].model_copy(update={"concurrency": 2})
+    backend = LoadedVllmBackend(
+        spec=original.spec.model_copy(update={"profiles": profiles}),
+        config_path=original.config_path,
+        config_sha256=original.config_sha256,
+        placement=original.placement,
+        release_root=original.release_root,
+    )
+    spec = _authorized_spec(source_count=2)
+    plan = build_run_plan(
+        spec,
+        config_sha256="9" * 64,
+        shard_id=CORE_SHARD,
+        source_ids=tuple(item.source_id for item in sources),
+    )
+    second_chunk_started = threading.Event()
+
+    def transport(
+        _endpoint_url: str,
+        payload: dict[str, object],
+        request_key: str,
+        _timeout_seconds: float,
+    ) -> StreamCompletion:
+        prompt = str(payload["prompt"])
+        if "numbered 1" in prompt:
+            second_chunk_started.set()
+        if "numbered 0" in prompt and payload["seed"] == 3:
+            assert second_chunk_started.wait(timeout=2.0)
+        return StreamCompletion(
+            raw_response=b"data: {}\n\ndata: [DONE]\n\n",
+            output_text="```lean4\ntheorem generated : True\n```\n",
+            response_id=f"cmpl-{request_key[:12]}",
+            response_request_id=request_key,
+            prompt_tokens=7,
+            completion_tokens=8,
+            finish_reason="stop",
+            elapsed_ms=5,
+            time_to_first_token_ms=1,
+            http_status=200,
+        )
+
+    compacted = run_integrated_executor(
+        spec=spec,
+        backend=backend,
+        sources=sources,
+        plan=plan,
+        cache_root=tmp_path / "consumer-cache",
+        run_root=tmp_path / "runs",
+        transport=transport,
+    )
+    assert second_chunk_started.is_set()
+    assert compacted.rows == 8
 
 
 def test_detached_health_requires_actual_durable_advancement(
@@ -1877,3 +2045,240 @@ def test_two_session_claim_release_receipts_are_append_only_and_fully_verified(
     consumer_module._verify_full_resource_release(shard_root, spec=spec, plan=plan)
     assert len((shard_root / "resource_claims.jsonl").read_text().splitlines()) == 2
     assert len((shard_root / "resource_releases.jsonl").read_text().splitlines()) == 2
+
+
+def test_dead_runtime_reconciles_started_requests_and_resumes_once(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr("leanfaith.sft2b.vllm_backend.metadata.version", lambda _name: "test")
+    monkeypatch.setattr(consumer_module, "_port_is_open", lambda _host, _port: False)
+    source = _source(0)
+    backend = _backend(tmp_path, source)
+    spec = _authorized_spec()
+    plan = build_run_plan(
+        spec,
+        config_sha256="9" * 64,
+        shard_id=CORE_SHARD,
+        source_ids=(source.source_id,),
+    )
+    run_root = tmp_path / "runs"
+    claim_path = run_root / CORE_SHARD / plan.run_id / "resource_sessions/claim/claim.json"
+    claim_path.parent.mkdir(parents=True)
+    _write_json(claim_path, {"fixture": "dead runtime claim"})
+    session_id = "123456789-99999999"
+    consumer_module._append_runtime_session_start(
+        run_root=run_root,
+        plan=plan,
+        session_id=session_id,
+        server_pid=99_999_999,
+        served_model_name="reform-32b-80e9d9d83998",
+        started_unix_ns=123_456_789,
+        backend_config_sha256=backend.config_sha256,
+        claim_path=claim_path,
+    )
+    endpoint = profile_endpoint(backend, FULL_PROFILE_NAME)
+    _, _, requests = next(
+        consumer_module._prepared_chunks(
+            backend,
+            profile_name=FULL_PROFILE_NAME,
+            sources=(source,),
+            endpoint_url=endpoint,
+        )
+    )
+    for request in requests[:2]:
+        request.cell.mkdir(parents=True)
+        _write_json(
+            request.cell / "request_started.json",
+            {
+                "schema_version": "sft2b_vllm_request_started_v1",
+                "request_key": request.request_key,
+            },
+        )
+    first_attempt_id = stable_id(
+        "sft2b_provider_transport_attempt",
+        {"request_key": requests[0].request_key, "attempt_number": 1},
+    )
+    (requests[0].cell / "transport_attempts/01").mkdir(parents=True)
+    _write_json(
+        requests[0].cell / "transport_attempts/01/started.json",
+        {
+            "schema_version": "sft2b_provider_transport_attempt_started_v1",
+            "request_key": requests[0].request_key,
+            "attempt_id": first_attempt_id,
+            "attempt_number": 1,
+        },
+    )
+
+    reconciliations = consumer_module._reconcile_dead_same_run_runtime_and_requests(
+        backend=backend,
+        sources=(source,),
+        endpoint_url=endpoint,
+        run_root=run_root,
+        plan=plan,
+        host="127.0.0.1",
+        port=8123,
+    )
+    assert len(reconciliations) == 1
+    assert (requests[0].cell / "transport_attempts/01/abandoned.json").is_file()
+    assert (requests[1].cell / "request_reconciled.json").is_file()
+    assert consumer_module._semantic_request_can_resume(requests[0])
+    assert consumer_module._semantic_request_can_resume(requests[1])
+
+    calls: list[str] = []
+
+    def transport(
+        _endpoint_url: str,
+        _payload: dict[str, object],
+        request_key: str,
+        _timeout_seconds: float,
+    ) -> StreamCompletion:
+        calls.append(request_key)
+        return StreamCompletion(
+            raw_response=b"data: {}\n\ndata: [DONE]\n\n",
+            output_text="```lean4\ntheorem generated : True\n```\n",
+            response_id=f"cmpl-{request_key[:12]}",
+            response_request_id=request_key,
+            prompt_tokens=7,
+            completion_tokens=8,
+            finish_reason="stop",
+            elapsed_ms=5,
+            time_to_first_token_ms=1,
+            http_status=200,
+        )
+
+    compacted = run_integrated_executor(
+        spec=spec,
+        backend=backend,
+        sources=(source,),
+        plan=plan,
+        cache_root=tmp_path / "consumer-cache",
+        run_root=run_root,
+        transport=transport,
+    )
+    assert compacted.rows == 4
+    assert len(calls) == 4 and len(set(calls)) == 4
+    assert (requests[0].cell / "transport_attempts/02/success.json").is_file()
+    assert (requests[1].cell / "transport_attempts/01/success.json").is_file()
+
+
+def test_runtime_reconciliation_refuses_live_process_or_open_port(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    source = _source(0)
+    spec = _authorized_spec()
+    plan = build_run_plan(
+        spec,
+        config_sha256="9" * 64,
+        shard_id=CORE_SHARD,
+        source_ids=(source.source_id,),
+    )
+    claim_path = tmp_path / CORE_SHARD / plan.run_id / "resource_sessions/claim/claim.json"
+    claim_path.parent.mkdir(parents=True)
+    _write_json(claim_path, {"fixture": "live runtime claim"})
+    live_session = f"123456789-{os.getpid()}"
+    consumer_module._append_runtime_session_start(
+        run_root=tmp_path,
+        plan=plan,
+        session_id=live_session,
+        server_pid=os.getpid(),
+        served_model_name="reform-32b-80e9d9d83998",
+        started_unix_ns=123_456_789,
+        backend_config_sha256="9" * 64,
+        claim_path=claim_path,
+    )
+    monkeypatch.setattr(consumer_module, "_port_is_open", lambda _host, _port: False)
+    with pytest.raises(FullSourceConsumerError, match="PID is still live"):
+        consumer_module._append_dead_runtime_reconciliation(
+            run_root=tmp_path,
+            plan=plan,
+            session_id=live_session,
+            host="127.0.0.1",
+            port=8123,
+        )
+
+    second_root = tmp_path / "open-port"
+    second_claim = second_root / CORE_SHARD / plan.run_id / "resource_sessions/claim/claim.json"
+    second_claim.parent.mkdir(parents=True)
+    _write_json(second_claim, {"fixture": "open port claim"})
+    dead_session = "123456790-99999999"
+    consumer_module._append_runtime_session_start(
+        run_root=second_root,
+        plan=plan,
+        session_id=dead_session,
+        server_pid=99_999_999,
+        served_model_name="reform-32b-80e9d9d83998",
+        started_unix_ns=123_456_790,
+        backend_config_sha256="9" * 64,
+        claim_path=second_claim,
+    )
+    monkeypatch.setattr(consumer_module, "_port_is_open", lambda _host, _port: True)
+    with pytest.raises(FullSourceConsumerError, match="port is still open"):
+        consumer_module._append_dead_runtime_reconciliation(
+            run_root=second_root,
+            plan=plan,
+            session_id=dead_session,
+            host="127.0.0.1",
+            port=8123,
+        )
+
+
+def test_stale_same_run_reservation_is_exactly_released_and_journaled(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    source = _source(0)
+    original = _authorized_spec()
+    reservation_root = tmp_path / "reservations"
+    run_root = tmp_path / "runs"
+    spec = original.model_copy(
+        update={
+            "runtime": original.runtime.model_copy(
+                update={"reservation_root": reservation_root, "run_root": run_root}
+            )
+        }
+    )
+    plan = build_run_plan(
+        spec,
+        config_sha256="9" * 64,
+        shard_id=CORE_SHARD,
+        source_ids=(source.source_id,),
+    )
+    reservation = consumer_module.claim_resources(
+        root=reservation_root,
+        task="SFT2B",
+        lean_workers=0,
+        lean_rss_gib=0.0,
+        gpu=True,
+        pid=99_999_999,
+        owner_session=f"unit-test; run_id={plan.run_id}",
+        worktree=_REPO_ROOT,
+    )
+    claim_id = f"123456789-{reservation.pid}"
+    shard_root = run_root / CORE_SHARD / plan.run_id
+    consumer_module._append_resource_record(
+        shard_root=shard_root,
+        kind="claim",
+        claim_id=claim_id,
+        payload={
+            "schema_version": "sft2b_full_source_resource_claim_v2",
+            "run_id": plan.run_id,
+            "reservation_root": str(reservation_root),
+            "launch_nonce": "e" * 64,
+            "launched_unix_ns": 123_456_789,
+            "reservation": consumer_module.asdict(reservation),
+        },
+    )
+    monkeypatch.setattr(consumer_module, "_port_is_open", lambda _host, _port: False)
+    assert consumer_module._reconcile_stale_same_run_reservation(
+        repo_root=_REPO_ROOT,
+        spec=spec,
+        plan=plan,
+        run_root=run_root,
+        shard_root=shard_root,
+        host="127.0.0.1",
+        port=8123,
+    )
+    assert consumer_module.list_reservations(reservation_root) == []
+    consumer_module._verify_full_resource_release(shard_root, spec=spec, plan=plan)
+    reconciliation_root = shard_root / "resource_sessions" / claim_id
+    assert (reconciliation_root / "stale_release_intent.json").is_file()
+    assert (reconciliation_root / "stale_release_completed.json").is_file()
