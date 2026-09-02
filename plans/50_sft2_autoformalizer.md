@@ -1182,3 +1182,30 @@ authorization sentence, clean-tree receipt, or historical-artifact ceremony.
   closed. Stop conditions are any provider error/timeout, ambiguous started-without-vote cell,
   identity/hash/schema drift, attempted call-budget overflow, unknown above 25%, or pairwise
   agreement below 70%; deterministic failures are not retried blindly.
+- 2026-09-01 — completed the full concurrent downstream judge pilot and its zero-call replay. The
+  first direct tmux command exited before Python because this tmux server sent SIGHUP to the
+  `exec ... </dev/null` pane; counts remained at the three smoke votes and zero full-run terminals,
+  so no call escaped. The corrected interactive-shell launch retained the same verified named
+  session `leanfaith-sft2b-judge-pilot-bef90f75aa1e`, pane PID `3316334`, persistent log, run ID,
+  config, cache, and ceilings; provider subprocesses themselves still received closed stdin. Initial
+  health showed the runner process tree live and durable advancement to 10 votes/10 terminals. The
+  first pass then cached 299/300 votes and stopped on exactly one Lemex HTTP-429 retry exhaustion.
+  Its started-only cell and the traceback were preserved as attempt-1 evidence; after cooldown, the
+  exact missing cell alone was retried, while the other 299 were cache hits. Final run
+  `sft2b_judge_pilot:bef90f75aa1ec0b07a65914755434ddde2e21e52efc9f2159489bb03aeeda04c`
+  has 300/300 blinded vote terminals over 100/100 deterministic valid unique candidates, 37
+  equivalent majorities, 63 non-equivalent majorities, zero unknowns, and 84.67% pairwise
+  agreement. All four coverage/routing/unknown/agreement checks pass. Manifest SHA-256 is
+  `81f491b71caccb06e7689e31770e6fa79cbf1e0889f7cc2bb833d93f234707c4`; votes, majority,
+  core, and unknown hashes are respectively
+  `c639bae9b8ce1b964ad43c1dfd3cfe6f8edbbc6cec6549ae3df9ada5e72db1bf`,
+  `37ba6488ace7f15d802db0429ee0f1d1de0059be85f3828312bf2950c855659a`,
+  `91659fce291df1cfdf50fd1ae9a2324fda8482c06c5444ba079b5f488a0a647a`, and
+  `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`; the vote-terminal
+  ledger hash is `fe79ced73daf24639c489652b8da6dbc8cef3ecaee5f6d6631ff7603410b9850`.
+  A full verify replay made zero provider calls with 300 cache hits and reproduced every hash. The
+  completed task-owned tmux session was closed and no SFT2B resource claim remains; a separate live
+  SFT2A claim was left untouched. The complete 161-test SFT2B collection exits zero with 157 passed
+  and the four documented portability skips. Status remains `active`: the only sprint gate still
+  ahead of corrected-core generation is the real eight-A100/H100 100-source/400-cell
+  vLLM-plus-supervisor kill/resume smoke, which this one-RTX-4090 host cannot execute validly.
