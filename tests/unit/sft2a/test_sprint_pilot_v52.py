@@ -495,6 +495,10 @@ def test_malformed_injection_check_runs_real_root_path_without_crash(tmp_path: P
         for line in (tmp_path / "injection/one_root/new_core/core.jsonl").read_text().splitlines()
     ]
     assert sorted(row["label"] for row in core) == [False, False, True, True]
+    # A resumed worker replays the durable synthetic root; the check must still pass.
+    replayed = run_malformed_injection_check(base, output_root=tmp_path / "injection")
+    assert replayed["passed"] is True and replayed["replayed"] is True
+    assert replayed["proposer_calls"] == 0 and replayed["judge_calls"] == 0
 
 
 def _thresholds_loaded(tmp_path: Path, roots: int) -> LoadedProviderRehearsalV52:
