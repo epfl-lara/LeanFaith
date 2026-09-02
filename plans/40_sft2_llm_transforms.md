@@ -1044,3 +1044,30 @@ rows/minute, and pilot quality bounds hold. Leave healthy long runs detached wit
   `configs/sft2a/sprint_canary_20roots_v3_natural.json`, same gates, chained to the frozen v3
   shard 2 config). Decision required: run the natural-mix canary as the gate for shards 2–10,
   optionally after a one-line prompt clarification against invented namespace prefixes.
+- 2026-09-02 — shards 2–10 authorized directly after the hostile canary (copied inaccessible
+  names 0, context-prelude failures 0, 65/80 accepted, zero self-pairs/duplicates/infrastructure
+  failures/replay problems); the candidate-local Lean-invalid rate is now retry-cost telemetry,
+  not a gate, and the natural-mix canary was not run. Blocking conditions for every v3 shard:
+  accepted slots below 70%, any copied-inaccessible-name or context-prelude failure, any
+  accepted self-pair, duplicate, or contamination hit, infrastructure failures at or above 2%,
+  or broken durable resume/terminal accounting. Implementation at `f988040`: the evaluator
+  takes `genuine_rate_blocking` (v3 shard configs set `genuine_lean_invalid_blocking: false`,
+  the rate stays in the terminal as `genuine_lean_invalid_rate`), an accepted-row screen over
+  completed roots (self-pairs, cross-root duplicates, and gold contamination on the raw
+  candidate signature and rendered goal, zero Lean/provider) feeds a `zero_accepted_
+  contamination` check, and a zero-provider in-run checkpoint (`in_run_checkpoint_v52`) runs
+  after the controlled stop: it evaluates the completed roots against the blocking conditions
+  plus terminal accounting (every completed root's manifest present and hash-equal to its
+  root-state record) and stops the worker with `threshold_failed`/`in_run_checkpoint_failed`
+  when any fails; otherwise generation continues to the final evaluation. Shard 2 had already
+  been launched at 18:35:24Z in `runs/sprint_shards_1k_v3/shard_02/run` (tmux
+  `leanfaith-sft2a-sprint-v3-shard-02`, commit `692118f`, config without the checkpoint and
+  with the blocking rate) outside this session; instead of a duplicate, a controlled stop
+  request let its 16 in-flight roots finish (75 roots complete, claim released at 18:52:26Z,
+  terminal `failed: generation stopped by request`), the shard configs were regenerated in
+  place (shard 2: `in_run_checkpoint_roots: 100`, stop after 42 more roots, nonblocking rate;
+  shards 3–10 rewritten with the nonblocking rate; started shards only receive overrides), and
+  shard 2 was resumed at 18:52:36Z in the same output path under the pushed code (zero-call
+  replay of the 75 completed roots, one worker/16 GiB beside SFT1's 24 GiB, concurrency 16).
+  The chain continues automatically through shard 10 without further pauses; Kimi's 403 stays
+  nonblocking telemetry per shard. Report only a blocking failure or final completion.
