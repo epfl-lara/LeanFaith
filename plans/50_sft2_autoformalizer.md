@@ -2,12 +2,12 @@
 
 > **Task ID:** SFT2B
 > **Status:** active
-> **Owner/session:** Codex `/root` — 2026-09-01 72-hour SFT2B sprint execution
-> **Last updated:** 2026-09-01
+> **Owner/session:** Codex `/root` — 2026-09-02 sprint-v3 scale activation
+> **Last updated:** 2026-09-02
 > **Dependencies:** REPR `goal_v1.0`; source-quality audit and frozen consistency/voting prompts
-> **Next gate:** on an eight-A100/H100 host, pass the 100-source/400-cell vLLM-plus-supervisor
-> kill/resume smoke, then automatically launch four contiguous 12,500-source corrected-core ReForm
-> shards; no additional authorization sentence or review gate intervenes.
+> **Next gate:** commit and push the additive sprint-v3 scale activation, then on an exact
+> eight-A100/H100-80GB target pass inline same-run recovery in real shard `core_00` and continue
+> automatically through `core_01`--`core_03`; the 4,144-row tail remains disabled.
 > **Compute class:** source-freeze work is Lean/GPU-free; the completed matched pilot used eight
 > H100-80GB GPUs at DP=4/TP=2. Any future scale config records the actual A100/H100 host profile.
 > **Lean budget:** compile each novel formalization candidate once through persistent cached workers
@@ -123,7 +123,8 @@ changes.
 
 **Paths claimed by this session:** `plans/50_sft2_autoformalizer.md`;
 `src/leanfaith/sft2b/`; `configs/sft2b/`; `prompts/sft2b/`; `tests/unit/sft2b/`;
-`/storage/milikic/leanfaith/value_first/sft2_autoformalizer_v1/`. All currently modified or
+`/storage/milikic/leanfaith/value_first/sft2_autoformalizer_v1/`; and target-host run data under
+`/scratch/milikic/data/leanfaith/value_first/sft2_autoformalizer_v1/`. All currently modified or
 untracked paths outside this list are unrelated work and remain untouched.
 
 ## Pinned REPR dependency
@@ -1209,3 +1210,37 @@ authorization sentence, clean-tree receipt, or historical-artifact ceremony.
   and the four documented portability skips. Status remains `active`: the only sprint gate still
   ahead of corrected-core generation is the real eight-A100/H100 100-source/400-cell
   vLLM-plus-supervisor kill/resume smoke, which this one-RTX-4090 host cannot execute validly.
+- 2026-09-02 — user authorized the minimum additive sprint-v3 scale activation from exact clean
+  baseline `0f7f2d352e75d73018af85d9e50085108d357b81`: corrected 50,000-source core only, split
+  into four exact ordered 12,500-source views and run sequentially on eight A100/H100-80GB GPUs.
+  Codex `/root` claimed the existing SFT2B-owned paths in dedicated worktree
+  `/localhome/milikic/LeanFaith-sft2b-scale-sprint-v3` and branch
+  `milikic/sft2b-scale-sprint-v3`. The separate 100-source smoke is replaced by an inline
+  same-run kill/recovery checkpoint in real shard `core_00`; on pass the orchestrator continues
+  through `core_03` without another review. The 4,144-row tail remains forbidden. Lean remains the
+  bottleneck downstream: all view slicing, hashes, schemas, joins, deduplication, recovery checks,
+  generation compaction, and publication precede persistent cached Lean validation, and no corpus
+  is compiled merely to activate generation scale.
+- 2026-09-02 — the additive activation implementation is ready for a committed target-host
+  preflight. New config `configs/sft2b/reform_diverse_core_scale_sprint_v3.json` pins the private
+  source revision and every file covered by its checksum ledger, the accepted generation/Lean/judge
+  evidence, the exact ReForm/vLLM topology, four independent publication roots, and the frozen
+  ordered views. Their artifact hashes are `89783e5650505ddb54530d3c19d92a0dff9d13ec6771da6a557d2731aad1f579`,
+  `a9a94d0a77f10477847284e098396dd8a19c5c18496bb1c7f874d83718bd7baf`,
+  `ecbf26e24c4adcdb0c800b73e384c3ca48827c5ef16eea3c5ec701c961e52ad2`, and
+  `c1289cbcc6a6960c69138f4dcee14e3b97856c3903ebb7d5ca23747e19b9ad12`; verification proves
+  12,500 sources per view, pairwise disjointness, exact ordered concatenation to the frozen 50,000
+  core IDs, and exclusion of the 4,144-row tail. The sprint-v3 driver SHA-256 is
+  `04ef039473361e5025e816e320dd366fa4e36ab994acdba2eaab3638362058cc`; it delegates cell
+  execution and reconciliation to the existing hardened executor and adds strict target preflight,
+  inline `core_00` process-identity recovery, sequential detached shard supervision, independent
+  publish/fresh-verify/zero-call-replay gates, downstream work-item handoff, and the final union
+  receipt. Verification passed: exact local source and accepted-evidence binding; 164 unit tests
+  passed with four documented portability skips; Ruff check and format check, strict mypy, and
+  `git diff --check` all passed. A diagnostic pre-commit preflight stopped before staging or launch
+  because this host exposes one RTX 4090 rather than eight supported 80GB GPUs; it created no tmux
+  session, process, resource claim, model download, or generation output. The exact target command
+  after push is `uv run --with vllm==0.12.0 python -m leanfaith.sft2b.scale_sprint_v3 --config
+  configs/sft2b/reform_diverse_core_scale_sprint_v3.json activate`. Lean remains the bottleneck:
+  cheap deterministic work is completed first, while downstream validation is bounded, persistent,
+  cached, and separately resource-budgeted as each generation shard lands.

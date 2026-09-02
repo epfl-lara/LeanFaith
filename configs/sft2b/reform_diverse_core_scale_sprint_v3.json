@@ -1,0 +1,159 @@
+{
+  "schema_version": "sft2b_reform_diverse_core_scale_sprint_v3",
+  "authorization": {
+    "authorized_at": "2026-09-02",
+    "authorized_by": "user",
+    "baseline_git_revision": "0f7f2d352e75d73018af85d9e50085108d357b81",
+    "core_enabled": true,
+    "tail_enabled": false
+  },
+  "input": {
+    "expected_core_sources": 50000,
+    "expected_source_rows": 54144,
+    "expected_tail_sources": 4144,
+    "files": {
+      "SHA256SUMS": "adadb46402c72fb208e04278b324fda3904736096dcfdb0aa5835d3adab6d2ed",
+      "frozen_active_meta_instruction_impact.json": "44566540c96adc0ab96ca6aa4a8e8ae757edcc75a863fe5524fbd48689ee50ab",
+      "frozen_v2_library_docstring_corrections.jsonl": "58322fb15182f683f38c51d7eb29f5dc093999ea8774396dafcc60394b85345d",
+      "frozen_v2_source_audit.jsonl": "15c926ec5f54c582600cda4f0129bb1904b7ce8b191eca66c348886f901933a8",
+      "frozen_v2_source_manifest.json": "c44b9edd3515f7e1ba03dee902c55fcfa5b8be378a732a3e7c7f101fd5250d53",
+      "frozen_v2_workbook_discourse_audit.jsonl": "e273c021a5782d280f391b0504f23a59ffc15b13b8a6d99141d538c7c45662a2",
+      "legacy_tail_source_ids.json": "906c91b168ff7729100df561067821572cb913681da5325024c21bbd8f2a5bf1",
+      "matched_50000_source_ids.json": "eec1662da06494928561db779738b7063e4a8c154aaecb79b9cafb7e22ab8d53",
+      "mechanical_conservative_receipt.json": "75f530845bbca7018675baaac5def7fca88e920f424dc312d724487108e6c051",
+      "prompt_token_counts.json": "7743482e1d94d410dee351e9af34051e76962adc9d8fea0385a965e97253efee",
+      "source_conservation_events.jsonl": "9020bf05619d5c5364db6083009aa49a06ad09aa71190ed37506c3d0dd3c1be5",
+      "source_conservation_receipt.json": "40ca2bc1e793b91267340edf84516a2f5ec052a3995d24c47782a6ded5a0047a",
+      "source_manifest.json": "e2200189b065df06b6fea71d10db407a4a642eed27c4c38ed54092beccebc6c9",
+      "source_mechanical_evidence.jsonl": "80f7f37e838ee0356021bbd5c243103b6d8d2c19e086d2b2fe727b0292271084",
+      "source_mix.json": "5d935f6f96422969161c590c3946ff371a52bf8bd5f87d2b985418e603ea4854",
+      "source_quarantine.jsonl": "20244b00f7a6b0ca14e117f48f027f4831869289b6f73ef9b33c7dddeda4a8b0",
+      "sources.jsonl": "c3809a0f8a7986e7af10370e37dafd440a786498cd287ea54b872ae334a0c3d3"
+    },
+    "path_prefix": "source_inputs/reform_diverse_full_v3_mechanical_conservative_v1",
+    "private_required": true,
+    "repo_id": "Lemmy00/leanfaith-sft2-autoformalizer-v1",
+    "repo_type": "dataset",
+    "revision": "a9b2d76d0f6c12e87c86434b6ad3744d13c50fee"
+  },
+  "shards": [
+    {
+      "artifact_sha256": "89783e5650505ddb54530d3c19d92a0dff9d13ec6771da6a557d2731aad1f579",
+      "expected_sources": 12500,
+      "shard_id": "core_00",
+      "source_ids_sha256": "ac0ec636b62df849710cd39cb62a35c65704c84c4a9d27fc38055b99f4202a25",
+      "start": 0,
+      "stop": 12500
+    },
+    {
+      "artifact_sha256": "a9a94d0a77f10477847284e098396dd8a19c5c18496bb1c7f874d83718bd7baf",
+      "expected_sources": 12500,
+      "shard_id": "core_01",
+      "source_ids_sha256": "ad019eee712910c649094971021f786527ae7eee3995b475db53cc832bac3f36",
+      "start": 12500,
+      "stop": 25000
+    },
+    {
+      "artifact_sha256": "ecbf26e24c4adcdb0c800b73e384c3ca48827c5ef16eea3c5ec701c961e52ad2",
+      "expected_sources": 12500,
+      "shard_id": "core_02",
+      "source_ids_sha256": "695c85ea60095af0cc59157d250a149f4be12c77cb7762bd7bae9cce104774f8",
+      "start": 25000,
+      "stop": 37500
+    },
+    {
+      "artifact_sha256": "c1289cbcc6a6960c69138f4dcee14e3b97856c3903ebb7d5ca23747e19b9ad12",
+      "expected_sources": 12500,
+      "shard_id": "core_03",
+      "source_ids_sha256": "c46bdd354b162ec040ac23c1ae2a7a488013685560defabe437a7e4e85720e8d",
+      "start": 37500,
+      "stop": 50000
+    }
+  ],
+  "model": {
+    "checkpoint_dtype": "bfloat16",
+    "concurrency": 64,
+    "data_parallel_size": 4,
+    "gpu_memory_utilization": 0.9,
+    "max_model_len": 5063,
+    "max_num_seqs": 16,
+    "model_id": "GuoxinChen/ReForm-32B",
+    "placement_config_path": "configs/sft2b/reform_32b_placement_v1.json",
+    "placement_config_sha256": "faef13dba4d21eb381e85a201fb8bda3617003bc8323c3e796006dd97caa77a5",
+    "port": 8102,
+    "prefix_caching": false,
+    "prompt_path": "prompts/sft2b/reform_8b_generation_theorem_v1.md",
+    "prompt_sha256": "9aa0de0550bd871fc1cff03cf2614ed4e7e5bfa6c4371351b901d745515afe36",
+    "quantization": null,
+    "revision": "80e9d9d83998d8c118c512bd6a35d1cdf11b57c8",
+    "served_model_name": "reform-32b-80e9d9d83998",
+    "snapshot_binding_sha256": "8dfcd12699d8a3730d1776dc6969e96ebe678d29ccaa43754e0deea3cd90773a",
+    "tensor_parallel_size": 2,
+    "tokenizer_sha256": "fa572b107ab6cc0b9932cf8b6b3f4b0febbc0c693fc3afb71458e6c1d87799fb",
+    "trust_remote_code": false,
+    "visible_devices": [0, 1, 2, 3, 4, 5, 6, 7]
+  },
+  "evidence": {
+    "judge_gate_passed": true,
+    "judge_manifest_sha256": "81f491b71caccb06e7689e31770e6fa79cbf1e0889f7cc2bb833d93f234707c4",
+    "lean_audit_gate_passed": true,
+    "lean_audit_manifest_sha256": "1e8098b222b77b131e77d84eccdf5c116b5f083489515afa1e827332de9541f9",
+    "matched_generation_path_prefix": "pilot_outputs/reform_32b_matched_500_v1/d9eadc4aa717813e61d9809a98ba771e7004c1fc9161caa97a7c020b4746d387",
+    "matched_generation_revision": "e7f2ef6e5c84f22de479cf99360aace281523a71",
+    "matched_generation_terminal_count": 2000,
+    "matched_generation_manifest_sha256": "04504e127750c422d3c90c3f41de5e4c1a83e040f77e815d6852d13827a00ad6",
+    "waived_historical_receipts_resurrected": false
+  },
+  "recovery": {
+    "checkpoint_terminals": 512,
+    "kill_max_terminals": 128,
+    "kill_min_terminals": 64,
+    "minimum_post_recovery_terminals": 601,
+    "minimum_requests_per_second": 2.0,
+    "required_abandoned_attempts": 1
+  },
+  "runtime": {
+    "base_executor_config_path": "configs/sft2b/reform_diverse_full_consumer_v2.json",
+    "base_executor_config_sha256": "7a5d4fa4ec9cb5db2a77e937ac27c766019f54e772fe3cc7c00e9a6341c86ac7",
+    "cache_root": "/scratch/milikic/data/leanfaith/value_first/sft2_autoformalizer_v1/cache/reform_diverse_core_scale_sprint_v3",
+    "input_cache_root": "/scratch/milikic/data/leanfaith/value_first/sft2_autoformalizer_v1/inputs/reform_diverse_core_scale_sprint_v3",
+    "minimum_free_scratch_bytes": 500000000000,
+    "minimum_gpu_memory_mib": 79000,
+    "model_cache_root": "/scratch/milikic/data/leanfaith/huggingface/hub",
+    "model_snapshot_path": "/scratch/milikic/data/leanfaith/huggingface/hub/models--GuoxinChen--ReForm-32B/snapshots/80e9d9d83998d8c118c512bd6a35d1cdf11b57c8",
+    "orchestrator_session_prefix": "leanfaith-sft2b-scale-v3",
+    "reservation_root": "/scratch/milikic/data/leanfaith/value_first/host_reservations",
+    "reservation_task": "SFT2B",
+    "run_root": "/scratch/milikic/data/leanfaith/value_first/sft2_autoformalizer_v1/runs/reform_diverse_core_scale_sprint_v3",
+    "scratch_root": "/scratch/milikic/data/leanfaith",
+    "shard_session_prefix": "leanfaith-sft2b-core-v3",
+    "vllm_version": "0.12.0"
+  },
+  "publication": {
+    "commit_message_prefix": "Publish SFT2B sprint-v3 ReForm shard",
+    "path_prefix": "generation_outputs/reform_diverse_core_scale_sprint_v3",
+    "private_required": true,
+    "repo_id": "Lemmy00/leanfaith-sft2-autoformalizer-v1",
+    "repo_type": "dataset"
+  },
+  "downstream": {
+    "invalid_candidates_are_semantic_negatives": false,
+    "judge_config_path": "configs/sft2b/judges_sprint_defaults_v1.json",
+    "judge_config_sha256": "8c2363cd0940c97c2b10d218fe7138b90df13c3f4d3904946ca4b79a7ad531e3",
+    "labeling_policy_path": "policies/sft2_llm_labeling_defaults_v1.yaml",
+    "labeling_policy_sha256": "4554a071b06b1af9015b253b5e64b2a0a4d013630e5224ef7729bbf65757646f",
+    "lean_max_host_rss_gib": 40.0,
+    "lean_max_workers": 2,
+    "start_after_each_publication": true
+  },
+  "code_pins": {
+    "src/leanfaith/sft2b/durable.py": "a0d01c76196c9cf80dd07fb2e3b4271a6a8564dd32e8d3a7ed9ef7123d783b68",
+    "src/leanfaith/sft2b/formalizer.py": "72f59ae2755080adc25bc9083bb7056120031aebf704a4a8c291d8b4a9840cd0",
+    "src/leanfaith/sft2b/full_source_consumer.py": "bce037f35e866c7204176f1b9cd6a2d41d9ee948aaced33293e246ac0ab4ef06",
+    "src/leanfaith/sft2b/reform_32b.py": "a01269e90b5e3a055b690221a94cbe95395d9cefc568fdaa833dec0f89e04881",
+    "src/leanfaith/sft2b/schemas.py": "3c55738a6cab77c74ee872074e6511a06cecb4c0b312d798b1750c7333c43550",
+    "src/leanfaith/sft2b/scale_sprint_v3.py": "04ef039473361e5025e816e320dd366fa4e36ab994acdba2eaab3638362058cc",
+    "src/leanfaith/sft2b/vllm_backend.py": "ce859852fcb5f9c81103ebb94fc69097014bf4bcaf2952c73d23306a878ce640",
+    "src/leanfaith/sft2b/vllm_telemetry.py": "47f4867e33ab7f36e94dfc39a4e984b1a8a66e2a4f65aea9d26bb122c721aea5"
+  }
+}
