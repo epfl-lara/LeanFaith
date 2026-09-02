@@ -48,6 +48,9 @@ execution:
 output:
   staging_root: /storage/milikic/leanfaith/value_first/sft1_deterministic_v1/sprint_v1
   shard_size: 1000
+fixtures_success_waivers:
+  - operation_id: P_DROP_REDUNDANT_GUARD_PROOF_V1
+    reason: "budgeted yield run v2_guard retained 0 of 8,690 roots (runs/v2_guard/budget_verdict.json); the operation stays rejection-covered only"
 fixtures:
   - {root: le_antisymm_iff, operation_id: P15_SWAP_IFF_SIDES_V1, expect_status: retained}
   - {root: Nat.pow_sub_one, operation_id: P15_SWAP_IFF_SIDES_V1, expect_status: not_applicable, expect_reason_prefix: final_target_iff_not_applicable}

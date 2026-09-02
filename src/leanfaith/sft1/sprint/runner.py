@@ -164,6 +164,11 @@ class FixtureConfig(StrictModel):
     expect_reason_prefix: str = ""
 
 
+class FixtureWaiver(StrictModel):
+    operation_id: NonEmpty
+    reason: NonEmpty
+
+
 class SprintConfig(StrictModel):
     schema_version: Literal[1]
     sprint_id: NonEmpty
@@ -173,6 +178,7 @@ class SprintConfig(StrictModel):
     screens: ScreensConfig
     execution: ExecutionConfig
     output: OutputConfig
+    fixtures_success_waivers: tuple[FixtureWaiver, ...] = ()
     fixtures: tuple[FixtureConfig, ...]
 
 
@@ -1857,16 +1863,19 @@ def run_fixtures(repo_root: Path, loaded: LoadedConfig[SprintConfig]) -> dict[st
     covered_rejection = {
         str(r["operation_id"]) for r in results if r["expect_status"] != "retained" and r["passed"]
     }
+    waived = {waiver.operation_id: waiver.reason for waiver in config.fixtures_success_waivers}
+    required_success = set(OPERATIONS) - set(waived)
     report = {
         "schema_version": 1,
         "run_id": run_id,
         "results": results,
         "success_covered": sorted(covered_success),
         "rejection_covered": sorted(covered_rejection),
-        "all_operations_covered": covered_success == set(OPERATIONS)
+        "success_waived": waived,
+        "all_operations_covered": covered_success >= required_success
         and covered_rejection == set(OPERATIONS),
         "passed": all(r["passed"] for r in results)
-        and covered_success == set(OPERATIONS)
+        and covered_success >= required_success
         and covered_rejection == set(OPERATIONS),
         "status": runner.summary(),
     }

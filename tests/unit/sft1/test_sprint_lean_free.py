@@ -31,7 +31,9 @@ def test_config_loads_and_pins_engine_operations() -> None:
     rejection = {f.operation_id for f in config.fixtures if f.expect_status != "retained"}
     # P_DROP_REDUNDANT_GUARD_PROOF_V1 receives its success fixture once the budgeted yield run
     # identifies a Mathlib root with a provably redundant guard.
-    assert set(OPERATIONS) - success <= {"P_DROP_REDUNDANT_GUARD_PROOF_V1"}
+    waived = {waiver.operation_id for waiver in config.fixtures_success_waivers}
+    assert waived == {"P_DROP_REDUNDANT_GUARD_PROOF_V1"}
+    assert set(OPERATIONS) - success <= waived
     assert rejection == set(OPERATIONS)
 
 
