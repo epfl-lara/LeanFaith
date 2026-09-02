@@ -148,20 +148,25 @@ def _check_evidence(sidecar: Mapping[str, Any], operation: str) -> str | None:
     return None
 
 
-def sidecar_aggregate_counts(sidecars: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
-    """Recompute every manifest aggregate from the finalized sidecars of a view."""
-    counts: dict[str, dict[str, int]] = {
-        "operations": {},
-        "mechanisms": {},
-        "negative_mechanisms": {},
-        "transforms": {},
-        "families": {},
-        "row_kinds": {},
-    }
-    roots: set[str] = set()
-    squares: set[str] = set()
-    positives = 0
-    for sidecar in sidecars:
+class AggregateAccumulator:
+    """Streaming recomputation of every manifest aggregate from full sidecars."""
+
+    def __init__(self) -> None:
+        self.counts: dict[str, dict[str, int]] = {
+            "operations": {},
+            "mechanisms": {},
+            "negative_mechanisms": {},
+            "transforms": {},
+            "families": {},
+            "row_kinds": {},
+        }
+        self.roots: set[str] = set()
+        self.squares: set[str] = set()
+        self.rows = 0
+        self.positives = 0
+        self.curriculum_only = False
+
+    def add(self, sidecar: Mapping[str, Any]) -> None:
         square = sidecar.get("square") or {}
         for name, value in (
             ("operations", sidecar.get("operation_id")),
@@ -172,33 +177,51 @@ def sidecar_aggregate_counts(sidecars: Sequence[Mapping[str, Any]]) -> dict[str,
             ("row_kinds", sidecar.get("row_kind")),
         ):
             key = str(value)
-            counts[name][key] = counts[name].get(key, 0) + 1
-        roots.add(str(sidecar.get("root_id")))
-        squares.add(f"{sidecar.get('root_id')}|{sidecar.get('operation_id')}")
-        positives += 1 if bool(sidecar.get("label")) else 0
-    return {
-        **{name: dict(sorted(values.items())) for name, values in counts.items()},
-        "roots": len(roots),
-        "squares": len(squares),
-        "retained_rows": len(sidecars),
-        "labels": {"positive": positives, "negative": len(sidecars) - positives},
-        "curriculum_only": any(
-            str(sidecar.get("operation_id")) == "SQUARE_N19_CURRICULUM_V1" for sidecar in sidecars
-        ),
-    }
+            self.counts[name][key] = self.counts[name].get(key, 0) + 1
+        self.roots.add(str(sidecar.get("root_id")))
+        self.squares.add(f"{sidecar.get('root_id')}|{sidecar.get('operation_id')}")
+        self.rows += 1
+        self.positives += 1 if bool(sidecar.get("label")) else 0
+        if str(sidecar.get("operation_id")) == "SQUARE_N19_CURRICULUM_V1":
+            self.curriculum_only = True
+
+    def result(self) -> dict[str, Any]:
+        return {
+            **{name: dict(sorted(values.items())) for name, values in self.counts.items()},
+            "roots": len(self.roots),
+            "squares": len(self.squares),
+            "retained_rows": self.rows,
+            "labels": {"positive": self.positives, "negative": self.rows - self.positives},
+            "curriculum_only": self.curriculum_only,
+        }
+
+
+def sidecar_aggregate_counts(sidecars: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
+    """Recompute every manifest aggregate from the finalized sidecars of a view."""
+    accumulator = AggregateAccumulator()
+    for sidecar in sidecars:
+        accumulator.add(sidecar)
+    return accumulator.result()
 
 
 def manifest_aggregate_issues(
-    manifest: Mapping[str, Any], sidecars: Sequence[Mapping[str, Any]]
+    manifest: Mapping[str, Any],
+    sidecars: Sequence[Mapping[str, Any]] = (),
+    *,
+    derived: Mapping[str, Any] | None = None,
 ) -> list[str]:
     """Every aggregate the manifest reports must equal the sidecar-derived value.
 
     Square manifests (those with ``row_kinds``) are checked for all aggregates; other
-    manifests only for the aggregates they carry.
+    manifests only for the aggregates they carry. ``derived`` may be passed from a
+    streaming accumulation instead of the sidecars themselves.
     """
-    if not sidecars:
+    if derived is None:
+        if not sidecars:
+            return []
+        derived = sidecar_aggregate_counts(sidecars)
+    elif int(derived.get("retained_rows", 0)) == 0:
         return []
-    derived = sidecar_aggregate_counts(sidecars)
     square_manifest = "row_kinds" in manifest
     issues: list[str] = []
     for name in (
@@ -328,6 +351,7 @@ def validate_view(
     seen_pairs: set[str] = set()
     seen_keys: dict[str, str] = {}
     records: list[dict[str, Any]] = []
+    aggregates = AggregateAccumulator()
     for shard_dir in shard_dirs:
         shard_manifest = read_json_object(shard_dir / "manifest.json")
         rows_path = shard_dir / "rows.jsonl"
@@ -437,6 +461,7 @@ def validate_view(
                     or source_row["candidate"] != row["reference"]
                 ):
                     issue(f"orientation_swap_mismatch: {pair_id}")
+            aggregates.add(sidecar)
             records.append({"row": row, "sidecar": _slim_for_provenance(sidecar)})
     if total_rows != int(manifest.get("retained_rows", -1)):
         issue("shard_conservation: total shard rows differ from manifest retained_rows")
@@ -461,7 +486,7 @@ def validate_view(
             issue(f"replay_receipt: {source_run} missing replay_report.json")
         elif replay.get("lean_requests") != 0 or replay.get("duplicate_rows") != 0:
             issue(f"replay_receipt: {source_run} replay issued Lean requests or appended rows")
-    aggregate_issues = manifest_aggregate_issues(manifest, [r["sidecar"] for r in records])
+    aggregate_issues = manifest_aggregate_issues(manifest, derived=aggregates.result())
     for text in aggregate_issues:
         issue(f"manifest_aggregate: {text}")
     provenance = derive_provenance(
