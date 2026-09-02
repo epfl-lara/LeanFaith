@@ -336,12 +336,14 @@ def verify_square_cache(
     if dict(record.get("alpha") or {}) != dict((sidecar.get("square") or {}).get("alpha") or {}):
         issues.append("cache record alpha hashes differ")
     source = str(sidecar.get("implementation_commit_source") or "cache_record")
-    if record.get("implementation_commit"):
-        if source != "cache_record":
-            issues.append("implementation commit source must be the cache record")
-        if record.get("implementation_commit") != sidecar.get("implementation_commit"):
+    if source == "cache_record":
+        if not record.get("implementation_commit"):
+            issues.append("cache record lacks an implementation commit")
+        elif record.get("implementation_commit") != sidecar.get("implementation_commit"):
             issues.append("cache record implementation commit differs")
     elif source.startswith("generating_run_manifest:"):
+        if record.get("implementation_commit") not in (None, sidecar.get("implementation_commit")):
+            issues.append("cache record implementation commit differs")
         problem = _generating_run_verifies(
             runs_root,
             source.split(":", 1)[1],
@@ -355,7 +357,7 @@ def verify_square_cache(
         if problem:
             issues.append(problem)
     else:
-        issues.append("cache record lacks an implementation commit and no generating run is named")
+        issues.append("unknown implementation commit source")
     return (int(schema) if isinstance(schema, int) else None), issues, live_agrees
 
 

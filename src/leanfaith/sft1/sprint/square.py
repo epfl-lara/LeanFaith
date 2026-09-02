@@ -1610,7 +1610,13 @@ def build_square_view(
             census = read_json_object(census_path_for(staging, operation_id))
             census_roots = cast(list[dict[str, Any]], census["roots"])
             runner = SquareRunner(
-                repo_root, loaded, run_id=run_id, roots=census_roots, operation_id=operation_id
+                repo_root,
+                loaded,
+                run_id=run_id,
+                roots=census_roots,
+                operation_id=operation_id,
+                # records of an existing run live under the key schema that run used
+                cache_schema=int(run_manifest.get("cache_schema", SQUARE_CACHE_SCHEMA_LEGACY)),
             )
             runner.load_state()
             run_records, run_quarantined = regenerate_records(

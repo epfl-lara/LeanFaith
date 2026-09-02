@@ -1441,7 +1441,7 @@ def test_verify_square_cache_record(tmp_path: Path) -> None:
         None,
     )
     assert provenance.verify_square_cache(sidecar, cache_root, runs_root=runs_root)[1] == [
-        "cache record lacks an implementation commit and no generating run is named"
+        "cache record lacks an implementation commit"
     ]
     other_run = dict(resolved, implementation_commit="d" * 40)
     assert provenance.verify_square_cache(other_run, cache_root, runs_root=runs_root)[1] == [
