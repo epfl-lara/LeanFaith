@@ -987,7 +987,9 @@ def run_square_fixtures(
     if stale_run_dir.exists():
         shutil.rmtree(stale_run_dir)
     runner = SquareRunner(repo_root, loaded, run_id=run_id, roots=roots, use_cache=False)
-    runner.run()
+    # the summary returned by run() carries the live Lean request accounting; calling
+    # write_status again after the session closed would report zero requests
+    summary = runner.run()
     terminals: dict[str, dict[str, Any]] = {}
     for record in runner.journal.read():
         if record.get("kind") == "square_terminal":
@@ -1023,7 +1025,7 @@ def run_square_fixtures(
         "passed": all(r["passed"] for r in results)
         and any(r["expect_status"] == "retained" and r["passed"] for r in results)
         and any(r["expect_status"] != "retained" and r["passed"] for r in results),
-        "status": runner.write_status(final=True),
+        "status": summary,
     }
     write_atomic(
         runner.paths.run_dir / "fixtures_report.json", canonical_json_bytes(report) + b"\n"
