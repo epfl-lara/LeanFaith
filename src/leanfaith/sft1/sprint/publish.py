@@ -168,7 +168,7 @@ def local_files(compacted: Path) -> list[Path]:
             if not path.is_file():
                 raise PublishError(f"shard file missing: {path}")
             files.append(path)
-    for name in ("manifest.json", "release_report.json"):
+    for name in ("manifest.json", "release_report.json", "integrity_report.json", "verdict.json"):
         path = compacted / name
         if path.is_file():
             files.append(path)
