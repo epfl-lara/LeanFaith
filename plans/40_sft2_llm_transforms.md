@@ -6,11 +6,10 @@
 > `/localhome/milikic/LeanFaith-sft2a-72h-sprint`, branch `milikic/sft2a-72h-sprint`
 > **Last updated:** 2026-09-02
 > **Dependencies:** REPR `goal_v1.0`; shared rubric; roots may be selected independently of SFT1
-> **Next gate:** the detached 20-root/80-slot pilot v2 (`leanfaith-sft2a-sprint-pilot-20roots-v2`,
-> launched 2026-09-02T02:31:23Z at `eb55cc5`) must pass its objective thresholds; a pass
-> automatically runs the zero-provider ~12K reference certification and shard 1 only, and
-> shards 2–10 continue only if shard 1 passes every quality/resume gate and its measured
-> projection fits before 2026-09-04T00:00Z
+> **Next gate:** shard 1 (`leanfaith-sft2a-sprint-shard-01`, launched 2026-09-02T03:35:49Z) is
+> the throughput gate: it must pass every quality/resume gate at ≥ 8 accepted rows/minute, and
+> shards 2–10 chain automatically only if its measured projection fits before
+> 2026-09-04T00:00Z
 > **Compute class:** external LLM/API plus CPU/RAM for Lean; large run may need explicit budget approval
 > **Lean budget:** compile each novel candidate once through cached persistent workers
 > **Local staging root:** `/storage/milikic/leanfaith/value_first/sft2_llm_transforms_v1/`
@@ -870,3 +869,30 @@ rows/minute, and pilot quality bounds hold. Leave healthy long runs detached wit
   `scale_10k_authorized: true` for this stage only and chains the zero-provider 12K reference
   certification and shard 1; shard 1 is the throughput gate and shards 2–10 continue only if it
   passes every quality/resume gate and its projection fits before 2026-09-04T00:00Z.
+- 2026-09-02 — the pilot v2 pass chained the zero-provider 12K reference certification
+  (`runs/sprint_reference_certification_12k_v1`, tmux `leanfaith-sft2a-sprint-12k-certification`):
+  13,718 pool roots (7,500 Mathlib, 3,000 Physlib, all 1,218 usable CSLib, 2,000 compiler-data;
+  121 used roots excluded), certified in 26 minutes on two cooperative workers (claimed only
+  because both were free): 12,077 valid, 1,641 invalid. Shard freezing exposed two screening
+  gaps, fixed at `c5b1eba`, `fe81adf`, `560959d`, and `13ddcb9` without touching frozen
+  verifiers: 18 long goals the exact-goal certificate verifier refuses because the raw payload
+  is line-wrapped are screened out (`certificate_verification_failed`), and 299 roots whose
+  certified structured shape has fewer than two applicable families per polarity are screened
+  out (`insufficient_structured_mechanism_coverage`); shard planning also retries along a
+  fixed cap ladder if the 20% cap ever becomes infeasible (all ten shards planned at 0.2).
+  Cooperative Lean claims are now 16 GiB per worker (one v2 backend measures about 7 GiB) so
+  one SFT2A worker fits beside SFT1's 24 GiB claim, and a cached certification no longer
+  claims Lean. Result: 11,618 usable certified roots (6,718 Mathlib, 2,513 Physlib, 841 CSLib,
+  1,546 compiler-data); ten disjoint 1K shards with mix 578/216/73/133 under
+  `runs/sprint_shards_1k_v1/shard_NN/` (manifest `shards_manifest.json`), each with a generated
+  provider config bound to the v3 base config, the pilot v2 gate receipt, a shared cross-shard
+  candidate registry, `sprint_deadline_utc` 2026-09-04T00:00Z, one cooperative 16 GiB Lean
+  worker, provider concurrency 16 with fallback 8, 10% Kimi telemetry capped at 80 rows, and
+  chained `next_shard_config_path`. Shard 1 launched automatically at 2026-09-02T03:35:49Z
+  (tmux `leanfaith-sft2a-sprint-shard-01`, PID 3647348, claim SFT2A-SPRINT-SHARD-01 with zero
+  wait, effective concurrency 16). Status: `uv run python -m leanfaith.sft2a
+  --provider-rehearsal-config runs/sprint_shards_1k_v1/shard_01/provider_config.json
+  sprint-pilot-v5-2-health` (absolute path under the staging root). Shards 2–10 continue only
+  if shard 1 passes and `remaining_shards × measured wall` fits before the deadline; the
+  combined release view is produced by `compact-sprint-shards` with cross-shard
+  deduplication, quarantine, and telemetry exclusions.
