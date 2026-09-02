@@ -18,6 +18,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import shutil
 import sys
 import time
 from collections.abc import Mapping, Sequence
@@ -333,6 +334,8 @@ class SquareRunner:
         record = self.cache.get_root(self.square_root_key(name))
         if record is None:
             return False
+        if record.get("status") == "error":
+            return False  # request failures are not deterministic terminals
         if record.get("status") == "retained" and not isinstance(record.get("render"), dict):
             return False
         self.finalize(name, record, source="cache", root=root)
@@ -383,7 +386,8 @@ class SquareRunner:
                 }
             if payload.get("status") != "retained":
                 record = self.cache_record(name, payload, None, result.request_hash)
-                self.cache.put_root(self.square_root_key(name), record)
+                if payload.get("status") != "error":
+                    self.cache.put_root(self.square_root_key(name), record)
                 self.finalize(name, record, source="lean", root=root)
                 continue
             violation = self.screen_payload(payload)
@@ -971,6 +975,10 @@ def run_square_fixtures(
     ]
     pins = SprintRunner(repo_root, loaded, run_id="square-fixtures").identity
     run_id = f"square-fixtures-{pins.source_sha256[:12]}"
+    # Fixture gates always start fresh: they must exercise the engine, never resume a journal.
+    stale_run_dir = RunPaths(Path(loaded.config.output.staging_root), run_id).run_dir
+    if stale_run_dir.exists():
+        shutil.rmtree(stale_run_dir)
     runner = SquareRunner(repo_root, loaded, run_id=run_id, roots=roots)
     runner.run()
     terminals: dict[str, dict[str, Any]] = {}

@@ -175,7 +175,7 @@ private def checkedClosedProp (na : Bool) (origin : String) (e : Expr) : MetaM E
     failClosed na s!"{origin}_not_prop"
   return e
 
-private def Level.zeroInstantiate (params : List Name) (e : Expr) : Expr :=
+private def levelZeroInstantiate (params : List Name) (e : Expr) : Expr :=
   e.instantiateLevelParams params (params.map fun _ => Level.zero)
 
 structure ProofCheck where
@@ -210,8 +210,8 @@ private def checkedProof
   let actual ← inferType proof
   unless ← withoutModifyingMCtx (isDefEq actual expected) do
     throwRej s!"{origin}_proof_type_mismatch"
-  let proof0 := Level.zeroInstantiate params proof
-  let expected0 := Level.zeroInstantiate params expected
+  let proof0 := levelZeroInstantiate params proof
+  let expected0 := levelZeroInstantiate params expected
   let env ← getEnv
   let kernelType ←
     match Kernel.check env {} proof0 with
@@ -941,8 +941,8 @@ private def universeTag (root : Root) : String :=
     a `False` builder from the applied source and candidate proofs. -/
 private def refuteViaSource (root : Root) (cand : Expr)
     (falseOf : Expr → Expr → MetaM Expr) : MetaM NegativeEvidence := do
-  let ref0 := Level.zeroInstantiate root.levelParams root.reference
-  let cand0 := Level.zeroInstantiate root.levelParams cand
+  let ref0 := levelZeroInstantiate root.levelParams root.reference
+  let cand0 := levelZeroInstantiate root.levelParams cand
   let branchBudget ← IO.mkRef groundingBranchBudget
   let tacticBudget ← IO.mkRef groundingTacticBudget
   let some (g, ()) ← groundTelescope ref0 0 (fun _ => none) #[] #[] branchBudget tacticBudget
@@ -977,7 +977,7 @@ private def n32Refute (root : Root) (cand : Expr) (ty : String) : MetaM Negative
     return mkApp asymm candApp
 
 private def n31Refute (root : Root) (cand : Expr) (site : Site) : MetaM NegativeEvidence := do
-  let cand0 := Level.zeroInstantiate root.levelParams cand
+  let cand0 := levelZeroInstantiate root.levelParams cand
   let (_, m) ← discoverN31 root
   let tacticBudget ← IO.mkRef groundingTacticBudget
   let mut result : Option (Grounding × Expr × String × Int) := none
@@ -1058,7 +1058,7 @@ private def certifyPositive (root : Root) (op : Op) (applied : Applied) : MetaM 
 private def certifyNegative (root : Root) (op : Op) (applied : Applied) : MetaM Json := do
   let cand := applied.candidate
   let sourceCheck ← checkedProof "source" [] (sourceConst root)
-    (Level.zeroInstantiate root.levelParams root.reference)
+    (levelZeroInstantiate root.levelParams root.reference)
   let ev ←
     match op with
     | .n25 => n25Refute root cand applied.site.detail
@@ -1231,6 +1231,11 @@ def emitRebuildReport (pairs : Array RebuiltPair) : MetaM Unit := do
 
 def squareOperationId : String := "SQUARE_N25_SYMMETRY_V1"
 
+/-- Universe parameters instantiated at level zero for kernel checks (same body
+    as the private helper above; kept public for the square section). -/
+def squareLevelZero (params : List Name) (e : Expr) : Expr :=
+  e.instantiateLevelParams params (params.map fun _ => Level.zero)
+
 structure SquareBuild where
   root : Root
   direction : String
@@ -1288,12 +1293,12 @@ def squareEvidence (sq : SquareBuild) : MetaM Json := do
   let checkP'P ← checkedProof "p_prime_iff_p" params iffP'P (iffExpr sq.pPrime sq.p)
   let iffCC' ← finalTargetIffProof sq.c sq.cPrime (symmWitness sq.tC)
   let checkCC' ← checkedProof "c_iff_c_prime" params iffCC' (iffExpr sq.c sq.cPrime)
-  let p0 := levelZeroInstantiate params sq.p
-  let c0 := levelZeroInstantiate params sq.c
-  let p'0 := levelZeroInstantiate params sq.pPrime
-  let c'0 := levelZeroInstantiate params sq.cPrime
-  let iffPP'0 := levelZeroInstantiate params iffPP'
-  let iffCC'0 := levelZeroInstantiate params iffCC'
+  let p0 := squareLevelZero params sq.p
+  let c0 := squareLevelZero params sq.c
+  let p'0 := squareLevelZero params sq.pPrime
+  let c'0 := squareLevelZero params sq.cPrime
+  let iffPP'0 := squareLevelZero params iffPP'
+  let iffCC'0 := squareLevelZero params iffCC'
   let source0 := sourceConst sq.root
   let sourceCheck ← checkedProof "source" [] source0 p0
   let neg ← n25Refute sq.root sq.c sq.direction
