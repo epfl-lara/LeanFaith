@@ -22,22 +22,29 @@
 > active sprint prerequisites.
 > **REPR predecessor:** `cbc933c3623d81ba649a1f9c5107ad404389d69f` was reviewed but is
 > superseded and not consumable by SFT1
-> **Next gate:** user decision after the stable (order-invariant, serialized-row) shortcut
-> evaluation of the additive seed view `core_v2_seed` failed two of three screens:
-> candidate-only 0.624 (95% upper bound 0.647, threshold 0.60) and reference-only 0.584 (0.605,
-> threshold 0.60); family-held-out 0.483 (0.492, threshold 0.65) passes. The earlier `core_v2`
-> pass rested on an order-sensitive minibatch screen; the deterministic full-batch screen finds a
-> real leak (label-permutation control 0.52–0.55). The proposed correction is a composition
-> change with additional certified negative mechanisms or N32-positive twins, not more N25
-> grounding. No Lean, no regeneration, no Hub overwrite, no merge.
-> **Compute class:** no active claim. The `tenk` run used one persistent Mathlib worker
-> (`SFT1-SPRINT`, 1 worker / 24 GiB) across three launches with peak process-tree RSS 10.0 GB and
-> released it at exit; no tmux session is running.
+> **Next gate:** the corrected combined release `core_v5_combined_square` (v4 binder squares
+> preferred over v3 symmetry squares of the same root; expected 6,412 rows, 3,206/3,206,
+> 1,603 roots, four rows per root, snapshots of every referenced cache record inside the
+> release) and the separate auxiliary `aux_n19_square_curriculum` must pass integrity,
+> conservation, snapshot provenance, replay receipts, sidecar-derived aggregate checks, the
+> unchanged serialized-row screens (0.60/0.60/0.65 upper bounds), and fresh-download
+> verification before publication under new additive prefixes. Pairwise diagnostics
+> (relation parity, target equality, binder delta, negation XOR) are telemetry, not a gate.
+> No Lean is needed for either release; corrections are developed on
+> `milikic/sft1-corrections` in worktree `/localhome/milikic/LeanFaith-sft1-corrections` so the
+> running N19 chain never loads changed code.
+> **Compute class:** one active claim. The N19 curriculum full run holds `SFT1-SPRINT`
+> (1 worker / 24 GiB; ledger pid 1687523) inside tmux `leanfaith-sft1-n19-full` since
+> 2026-09-02T09:12:44Z; the ledger's historical session label `claude-sft1-square` (the runner's
+> default owner-session string) differs from the tmux name and is left as is rather than
+> disturbing a healthy job. Chain `logs/n19_full_chain.sh` → run `n19_full` → zero-Lean replay →
+> build; progress at 14:01Z: 74,225 / 180,400 roots considered, 52,728 squares retained,
+> 17,162 `not_applicable`, 4,310 fail-closed rendering screens, 25 request-level errors, 6,581
+> Lean requests, about 6.9 h remaining. The claim is released when the chain ends.
 > Sprint outputs live under the staging root's `sprint_v1/` directory (`inventory/`, `cache/`,
-> `raw/`, `runs/<run_id>/`, `compacted/<run_id>/`, `logs/`).
-> **Lean budget:** the next gate may use one claimed persistent project worker with
-> `Elab.async=false`; do all root selection and filtering first, issue no per-row process, cache
-> deterministic results, and release the claim after live and zero-call replay checks.
+> `cache_fixtures/`, `raw/`, `runs/<run_id>/`, `compacted/<label>/`, `logs/`).
+> **Lean budget:** no further Lean for SFT1 in this sequence; if a recovery from durable evidence
+> were impossible, at most one bounded Lean check would be allowed (none was needed).
 > **Local staging root:** `/storage/milikic/leanfaith/value_first/sft1_deterministic_v1/`
 > **HF destination:** private `Lemmy00/leanfaith-sft1-deterministic-v1`
 
