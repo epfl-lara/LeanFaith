@@ -43,6 +43,7 @@ from leanfaith.sft2a.models import (
     SFT2AV52Config,
 )
 from leanfaith.sft2a.parallel_rehearsal import (
+    READ_ONLY_MAXIMUM_WORKERS,
     AtomicBudgetedProvider,
     AtomicProviderBudget,
     ParallelRehearsalError,
@@ -1231,7 +1232,9 @@ def compact_provider_rehearsal_v52(loaded: LoadedProviderRehearsalV52) -> dict[s
 
     rows = _sample_rows(loaded.sample_path)
     expected_count = len(rows)
-    states = ParallelRootStateMachine(loaded.output_root / "root_state.jsonl").snapshot()["roots"]
+    states = ParallelRootStateMachine(
+        loaded.output_root / "root_state.jsonl", maximum_workers=READ_ONLY_MAXIMUM_WORKERS
+    ).snapshot()["roots"]
     if (
         not isinstance(states, dict)
         or len(states) != expected_count
@@ -1683,7 +1686,8 @@ def run_detached_provider_rehearsal_v52(
                         loaded.output_root / "provider_budget.jsonl", loaded.ceilings
                     ).snapshot(),
                     "root_state": ParallelRootStateMachine(
-                        loaded.output_root / "root_state.jsonl"
+                        loaded.output_root / "root_state.jsonl",
+                        maximum_workers=READ_ONLY_MAXIMUM_WORKERS,
                     ).snapshot(),
                     "failed_at": _now(),
                     "scale_10k_authorized": False,
@@ -1766,7 +1770,11 @@ def provider_rehearsal_health_v52(loaded: LoadedProviderRehearsalV52) -> dict[st
             }
         ),
         "root_state": (
-            ParallelRootStateMachine(state_path).snapshot() if state_path.is_file() else {}
+            ParallelRootStateMachine(
+                state_path, maximum_workers=READ_ONLY_MAXIMUM_WORKERS
+            ).snapshot()
+            if state_path.is_file()
+            else {}
         ),
         "provider_budget": (
             AtomicProviderBudget(budget_path, loaded.ceilings).snapshot()

@@ -416,3 +416,17 @@ def test_effective_concurrency_honours_durable_override(tmp_path: Path) -> None:
     detached.mkdir(parents=True)
     (detached / "concurrency_override.json").write_text(json.dumps({"provider_concurrency": 8}))
     assert sprint_pilot_v52._effective_concurrency(loaded, detached) == 8
+
+
+def test_read_only_snapshots_tolerate_many_in_flight_roots(tmp_path: Path) -> None:
+    from leanfaith.sft2a.parallel_rehearsal import ParallelRootStateMachine
+
+    loaded = _loaded_for_role(tmp_path, "pilot")
+    states = ParallelRootStateMachine(loaded.output_root / "root_state.jsonl", maximum_workers=8)
+    for index in range(8):
+        states.claim(root_id=f"mathlib:t:{index}", worker_id=f"dyn-{index}")
+    states.complete(root_id="mathlib:t:0", worker_id="dyn-0", manifest_hash="a" * 64)
+    # Seven roots remain in flight; read-side helpers must not enforce the two-worker default.
+    assert sprint_pilot_v52._completed_root_ids(loaded) == ["mathlib:t:0"]
+    with pytest.raises(Exception, match="ceiling exceeded"):
+        ParallelRootStateMachine(loaded.output_root / "root_state.jsonl").snapshot()

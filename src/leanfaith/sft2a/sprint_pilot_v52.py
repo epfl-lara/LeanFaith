@@ -49,6 +49,7 @@ from leanfaith.sft2a.mechanisms import (
 )
 from leanfaith.sft2a.models import OneRootConfig, SFT2AOpusConfig
 from leanfaith.sft2a.parallel_rehearsal import (
+    READ_ONLY_MAXIMUM_WORKERS,
     AtomicProviderBudget,
     ParallelRehearsalError,
     ParallelRootStateMachine,
@@ -677,7 +678,9 @@ def _completed_root_ids(loaded: LoadedProviderRehearsalV52) -> list[str]:
     state_path = loaded.output_root / "root_state.jsonl"
     if not state_path.is_file():
         return []
-    roots = ParallelRootStateMachine(state_path).snapshot()["roots"]
+    roots = ParallelRootStateMachine(
+        state_path, maximum_workers=READ_ONLY_MAXIMUM_WORKERS
+    ).snapshot()["roots"]
     assert isinstance(roots, dict)
     return sorted(
         root_id

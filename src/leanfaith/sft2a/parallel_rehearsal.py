@@ -444,6 +444,12 @@ class AtomicBudgetedProvider:
         return result
 
 
+# Read-only snapshots validate the journal's structure, not the live concurrency cap; the cap is
+# enforced by the worker that claims roots. A dynamic queue may legitimately leave many roots
+# in flight, so readers use this generous bound instead of the historical two-worker default.
+READ_ONLY_MAXIMUM_WORKERS = 4096
+
+
 class ParallelRootStateMachine:
     """Validated root ownership, checkpoints, crashes, and explicit reclamation."""
 
@@ -723,6 +729,7 @@ def prepare_parallel_rehearsal_path(loaded: LoadedSFT2AConfig) -> dict[str, obje
 
 
 __all__ = [
+    "READ_ONLY_MAXIMUM_WORKERS",
     "AtomicBudgetedProvider",
     "AtomicProviderBudget",
     "ParallelRehearsalError",
