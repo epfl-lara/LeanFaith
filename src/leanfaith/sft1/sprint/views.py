@@ -43,21 +43,24 @@ from leanfaith.sft1.sprint.screens import GoldBlocklist, deduplicate, residue_vi
 from leanfaith.sft1.sprint.store import write_atomic
 
 CORE_SALT = "sft1_sprint_core_v2"
+# Twins are chosen by surface neutrality: a binder swap keeps the token
+# multiset, side swaps keep it too, while hypothesis packing adds `∧` and a
+# fresh name, so P23 is the last resort.
 TWIN_PRIORITY_ORDER = (
-    "P18_SYMMETRIZE_EQUALITY_V1",
     "P14_SWAP_INDEPENDENT_DATA_BINDERS_V1",
     "P15_SWAP_IFF_SIDES_V1",
-    "P23_CURRY_PROP_PAIR_V1",
-    "P_DROP_REDUNDANT_GUARD_PROOF_V1",
+    "P18_SYMMETRIZE_EQUALITY_V1",
     "P_NE_SYMMETRIZE_V1",
+    "P_DROP_REDUNDANT_GUARD_PROOF_V1",
+    "P23_CURRY_PROP_PAIR_V1",
 )
 TWIN_PRIORITY_GUARD = (
     "P_DROP_REDUNDANT_GUARD_PROOF_V1",
-    "P18_SYMMETRIZE_EQUALITY_V1",
     "P14_SWAP_INDEPENDENT_DATA_BINDERS_V1",
     "P15_SWAP_IFF_SIDES_V1",
-    "P23_CURRY_PROP_PAIR_V1",
+    "P18_SYMMETRIZE_EQUALITY_V1",
     "P_NE_SYMMETRIZE_V1",
+    "P23_CURRY_PROP_PAIR_V1",
 )
 
 
@@ -148,7 +151,10 @@ def _store(record: dict[str, Any], family: str, cell: str) -> dict[str, Any]:
 
 
 def build_core(
-    records: Sequence[dict[str, Any]], *, n31_cap_fraction: float = 0.02
+    records: Sequence[dict[str, Any]],
+    *,
+    n31_cap_fraction: float = 0.02,
+    order_cap_fraction: float | None = None,
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     by_root: dict[str, dict[str, list[dict[str, Any]]]] = {}
     ops_by_root: dict[str, dict[str, list[dict[str, Any]]]] = {}
@@ -178,7 +184,11 @@ def build_core(
         core.append(_store(_pick(by_root[root]["ne_neg"]), "ne_relation", "ne_neg"))
         used_roots.add(root)
     order_pairs = 0
+    matched_rows = len(core)
+    order_cap = None if order_cap_fraction is None else int(order_cap_fraction * matched_rows)
     for root in sorted(ops_by_root, key=root_rank):
+        if order_cap is not None and order_pairs >= order_cap:
+            break
         if root in used_roots or not ops_by_root[root].get("N32_SWAP_ROLE_ORDER_PROOF_V1"):
             continue
         twin = _twin(ops_by_root[root], TWIN_PRIORITY_ORDER)
@@ -213,6 +223,8 @@ def build_core(
         "eq_roots_available": len(eq_roots),
         "ne_roots_available": len(ne_roots),
         "matched_roots_per_relation": k,
+        "order_cap_fraction": order_cap_fraction,
+        "order_cap_rows": order_cap,
         "order_pairs": order_pairs,
         "n31_cap_fraction": n31_cap_fraction,
         "n31_cap_rows": n31_cap,
@@ -310,6 +322,7 @@ def build_views(
     run_ids: Sequence[str],
     label: str = "core_v2",
     n31_cap_fraction: float = 0.02,
+    order_cap_fraction: float | None = None,
     minimum_negative_pairs: int = 100,
 ) -> dict[str, Any]:
     from leanfaith.sft1.sprint import shortcut
@@ -332,7 +345,9 @@ def build_views(
         "artifact_status": "candidate_model_facing_view",
         "gold_blocklist_sha256": gold.sha256,
     }
-    core, core_report = build_core(outcome.kept, n31_cap_fraction=n31_cap_fraction)
+    core, core_report = build_core(
+        outcome.kept, n31_cap_fraction=n31_cap_fraction, order_cap_fraction=order_cap_fraction
+    )
     core_manifest = write_view(
         repo_root=repo_root,
         loaded=loaded,
@@ -417,6 +432,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--runs", required=True, help="comma-separated run ids to join")
     parser.add_argument("--label", default="core_v2")
     parser.add_argument("--n31-cap", type=float, default=0.02)
+    parser.add_argument("--order-cap", type=float, default=None)
     args = parser.parse_args(argv)
     repo_root = args.repo_root.resolve()
     loaded = load_sprint_config(repo_root, args.config.resolve() if args.config else None)
@@ -426,6 +442,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         run_ids=args.runs.split(","),
         label=args.label,
         n31_cap_fraction=args.n31_cap,
+        order_cap_fraction=args.order_cap,
     )
     print(json.dumps(report, ensure_ascii=False, indent=1))
     return 0 if report["passed"] else 1
