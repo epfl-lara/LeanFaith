@@ -1150,3 +1150,35 @@ authorization sentence, clean-tree receipt, or historical-artifact ceremony.
   and zero active LeanFaith reservations, so it cannot validly run the mandated eight-GPU
   100-source/400-cell kill/resume smoke. No scale config was authorized, no provider/judge call ran,
   and no detached generation job was launched; status remains `active` at that machine-bound gate.
+- 2026-09-01 — implemented and pushed the additive matched-pilot three-judge runner at implementation
+  commit `01861191b50cfeb4eaf44674fd329f6391d18b28`. It hash-ranks the validated audit rows, selects
+  exactly 100 representation-valid candidates with globally unique formal signatures, binds the
+  exact Lean manifest and candidate/source bytes, runs per-vote cells concurrently, writes immutable
+  raw captures/receipts/votes plus run-specific terminals, routes the frozen two-of-three majority,
+  and compacts separate minimal core and unknown views. The additive judge config uses the active
+  defaults exactly: GPT-5.6 Terra/high, Kimi 2.7/high, and Opus 5 via `opus`/high. Configuration
+  SHA-256 is `630bb0c2efcb606c340aea7c969697a05db80c16327238bc46ee547e234f8941`;
+  the module SHA-256 is `0c150d2b5f0a01a6e0d31b9088467b2f64bfdb86848e934c469137c9bfec4cbd`.
+  Three new focused tests plus the existing schema tests pass 6/6; Ruff, format, and strict mypy pass.
+  A first preflight correctly made zero calls. Its initial execution preserved successful Codex and
+  Claude votes but stopped on a missing inherited `LEMEX_API_KEY`; the started-only Lemex cell was
+  archived intact under `matched_pilot_judge_pilot_v1/failed_cells/`, the runner now fails before
+  creating any cell when a required environment variable is absent, and the credential is sourced
+  from shell initialization without printing it. The retried one-candidate smoke reused those two
+  votes, made one Lemex call, produced three equivalent votes and one labeled row, passed both pilot
+  thresholds, and its immediate replay made zero calls with three cache hits. Smoke run ID is
+  `sft2b_judge_pilot:99063f321e94779497bb38a8460e678f5e4f8f83d6d8c1ac9b835b4bc464df3e`.
+  The full 100-candidate run is frozen as
+  `sft2b_judge_pilot:bef90f75aa1ec0b07a65914755434ddde2e21e52efc9f2159489bb03aeeda04c`
+  at output root
+  `/storage/milikic/leanfaith/value_first/sft2_autoformalizer_v1/matched_pilot_judge_pilot_v1/sft2b_judge_pilot_bef90f75aa1ec0b07a65914755434ddde2e21e52efc9f2159489bb03aeeda04c`;
+  its shared immutable vote cache is the sibling `cache/votes/`, its log is `driver.log`, and
+  `manifest.json` is the durable completion marker. It uses no Lean/GPU reservation, permits at most
+  12 concurrent provider processes and 300 total cache misses, and begins with three cached cells,
+  so at most 297 new calls remain. Launch/resume command is `source /localhome/milikic/.bashrc
+  >/dev/null 2>&1; uv run python -m leanfaith.sft2b.matched_pilot_judge_pilot --config
+  configs/sft2b/matched_pilot_judge_pilot_v1.json run`. It will run in detached tmux session
+  `leanfaith-sft2b-judge-pilot-bef90f75aa1e`, with stdout/stderr appended to `driver.log` and stdin
+  closed. Stop conditions are any provider error/timeout, ambiguous started-without-vote cell,
+  identity/hash/schema drift, attempted call-budget overflow, unknown above 25%, or pairwise
+  agreement below 70%; deterministic failures are not retried blindly.
