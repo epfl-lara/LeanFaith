@@ -51,6 +51,7 @@ from leanfaith.sft2a.prompts import (
 )
 from leanfaith.sft2a.providers import (
     ProviderCallResult,
+    StructuredProviderError,
     claude_judge_provider,
     lemex_audit_provider,
     proposer_provider,
@@ -442,14 +443,38 @@ def run_one_root(
                     attempt_feedback=feedback,
                     reference_goal=reference.goal_v1,
                 )
-                proposer_call = proposer_client.call(
-                    prompt=proposer_prompt,
-                    input_ids=(
-                        loaded.config.root.root_id,
-                        slot.slot_id,
-                        f"attempt:{attempt_number}",
-                    ),
-                )
+                try:
+                    proposer_call = proposer_client.call(
+                        prompt=proposer_prompt,
+                        input_ids=(
+                            loaded.config.root.root_id,
+                            slot.slot_id,
+                            f"attempt:{attempt_number}",
+                        ),
+                    )
+                except StructuredProviderError as exc:
+                    # A provider-level rejection (capture redaction, exhausted infrastructure
+                    # attempts) is a durable failure of this one call, not of the root: record
+                    # it, consume the slot attempt, and let the slot try a new candidate.
+                    detail = f"proposer_provider_rejected:{exc}"[:1000]
+                    record = _attempt_record(
+                        root_id=loaded.config.root.root_id,
+                        slot=slot,
+                        attempt_number=attempt_number,
+                        status="proposer_provider_rejected",
+                        proposer_call=None,
+                        proposer=None,
+                        lean=None,
+                        judge_call=None,
+                        judge=None,
+                        detail=detail,
+                    )
+                    record["proposer_prompt_hash"] = prompt_hash(proposer_prompt)
+                    attempts.append(record)
+                    invalid_rows.append(record)
+                    _append_event(journal_path, record)
+                    feedback = _feedback("proposer_provider_rejected", "provider rejected")
+                    continue
                 all_provider_calls.append(proposer_call)
                 try:
                     proposal = (
@@ -716,17 +741,53 @@ def run_one_root(
                 judge_malformed: list[dict[str, object]] = []
                 judge_lexical: str | None = None
                 if closure_aware:
-                    consistent = call_consistent_judge(
-                        judge_client,
-                        prompt=judge_prompt,
-                        input_ids=(
-                            loaded.config.root.root_id,
-                            lean.signature_sha256,
-                            "blinded_claude_judge_v5",
-                        ),
-                        closure_aware=True,
-                        malformed_retries=1,
-                    )
+                    judge_rejection: StructuredProviderError | None = None
+                    consistent = None
+                    for _provider_try in range(2):
+                        try:
+                            consistent = call_consistent_judge(
+                                judge_client,
+                                prompt=judge_prompt,
+                                input_ids=(
+                                    loaded.config.root.root_id,
+                                    lean.signature_sha256,
+                                    "blinded_claude_judge_v5",
+                                ),
+                                closure_aware=True,
+                                malformed_retries=1,
+                            )
+                        except StructuredProviderError as exc:
+                            judge_rejection = exc
+                            continue
+                        break
+                    if consistent is None:
+                        detail = f"judge_provider_rejected:{judge_rejection}"[:1000]
+                        record = _attempt_record(
+                            root_id=loaded.config.root.root_id,
+                            slot=slot,
+                            attempt_number=attempt_number,
+                            status="judge_provider_rejected",
+                            proposer_call=proposer_call,
+                            proposer=proposal,
+                            lean=lean,
+                            judge_call=None,
+                            judge=None,
+                            detail=detail,
+                        )
+                        record["proposer_prompt_hash"] = prompt_hash(proposer_prompt)
+                        record["judge_prompt_hash"] = prompt_hash(judge_prompt)
+                        record["planned_mechanism"] = (
+                            None if assignment is None else assignment.to_dict()
+                        )
+                        attempts.append(record)
+                        unknown_rows.append(record)
+                        _append_event(journal_path, record)
+                        feedback = _feedback(
+                            "judge_provider_rejected",
+                            "the judge could not record a verdict for this candidate; propose a "
+                            "different candidate",
+                        )
+                        continue
                     all_provider_calls.extend(consistent.calls)
                     judge_malformed = list(consistent.malformed_attempts)
                     judge_lexical = consistent.lexical_contradiction
@@ -1016,6 +1077,10 @@ def run_one_root(
                 ),
                 "universe_mismatch_rejections": sum(
                     row.get("status") == "universe_mismatch_rejected" for row in invalid_rows
+                ),
+                "provider_rejections": sum(
+                    row.get("status") in {"proposer_provider_rejected", "judge_provider_rejected"}
+                    for row in attempts
                 ),
                 "judge_lexical_contradictions": sum(
                     isinstance(row.get("judge_lexical_contradiction"), str) for row in attempts

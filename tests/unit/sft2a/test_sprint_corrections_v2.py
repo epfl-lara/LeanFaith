@@ -717,3 +717,167 @@ def test_combined_compaction_dedups_across_shards_and_applies_exclusions(tmp_pat
         {"row_id": "sft2a-new:s2:0", "duplicate_of": "sft2a-new:s1:0", "shard": 2}
     ]
     assert hash_file(shard_root / "combined/core.jsonl") == manifest["core_sha256"]
+
+
+# ---------------------------------------------------------------------------
+# 6. Provider capture rejections are slot-level outcomes, never root crashes.
+# ---------------------------------------------------------------------------
+
+
+def _root_fixture(tmp_path: Path) -> tuple[Any, dict[str, Any], str]:
+    from dataclasses import replace
+
+    from leanfaith.sft2a.config import load_sft2a_config
+    from leanfaith.sft2a.mechanisms import (
+        BREAKING_MECHANISMS,
+        PRESERVING_MECHANISMS,
+        MechanismAssignment,
+    )
+
+    base = load_sft2a_config(Path("configs/sft2a/closure_aware_v5_2_sprint_v3.yaml"))
+    staging = str(tmp_path / "staging")
+    config = base.config.model_copy(
+        update={
+            "staging_root": staging,
+            "run_layout": base.config.run_layout.model_copy(  # type: ignore[union-attr]
+                update={"shared_cache_root": staging}
+            ),
+        }
+    )
+    loaded = replace(
+        base, config=config, config_hash=hash_canonical(config.model_dump(mode="json"))
+    )
+    plan = {
+        "preserve_0": MechanismAssignment(
+            PRESERVING_MECHANISMS[0].family, "preserving", "i", "general", "s"
+        ),
+        "preserve_1": MechanismAssignment(
+            PRESERVING_MECHANISMS[1].family, "preserving", "i", "general", "s"
+        ),
+        "break_0": MechanismAssignment(
+            BREAKING_MECHANISMS[0].family, "breaking", "i", "general", "s"
+        ),
+        "break_1": MechanismAssignment(
+            BREAKING_MECHANISMS[1].family, "breaking", "i", "general", "s"
+        ),
+    }
+    return loaded, plan, "∀ {α : Type u_0} [inst : Preorder α] {a b c : α}, "
+
+
+def _proposal_v5(polarity: str, family: str, signature: str) -> dict[str, object]:
+    return {
+        "schema_version": 5,
+        "requested_polarity": polarity,
+        "mechanism": family,
+        "applicability_reason": "t",
+        "candidate_signature": signature,
+        "change_summary": "t",
+        "judge_trap": "t",
+        "informative": True,
+        "substantive_change": True,
+        "proof_free": True,
+    }
+
+
+class _ScriptedCalls:
+    def __init__(self, provider_id: str, script: list[object]) -> None:
+        self.provider_id = provider_id
+        self.script = script
+        self.calls = 0
+
+    def call(self, *, prompt: str, input_ids: Sequence[str]) -> ProviderCallResult:
+        from leanfaith.sft2a.providers import StructuredProviderError
+
+        item = self.script[self.calls]
+        self.calls += 1
+        if isinstance(item, str):
+            raise StructuredProviderError(item)
+        return ProviderCallResult(
+            call_key=f"{self.provider_id}:{self.calls}",
+            provider_id=self.provider_id,
+            structured=cast(dict[str, object], item),
+            usage={},
+            cost_usd=0.0,
+            elapsed_seconds=0.0,
+            cache_hit=False,
+            terminal_path=Path("/nonexistent"),
+        )
+
+
+class _LevelOracle:
+    method_version = ORACLE_METHOD_VERSION_V2
+    cache_version = "v2"
+
+    def elaborate(self, signature: str, *, endpoint_role: str) -> SignatureOracleResult:
+        return _result(["u_0"] if "Type u_0" in signature else [], goal=f"⊢ {signature}")
+
+    def close(self) -> None:
+        return None
+
+
+def test_provider_capture_rejection_retries_judge_once_then_retries_the_slot(
+    tmp_path: Path,
+) -> None:
+    from leanfaith.sft2a.pipeline import run_one_root
+
+    loaded, plan, binders = _root_fixture(tmp_path)
+    rejection = "provider capture required secret redaction; call rejected"
+    proposer = _ScriptedCalls(
+        loaded.config.proposer.provider_id,
+        [
+            _proposal_v5(
+                "preserving", plan["preserve_0"].family, binders + "b ≤ c → a ≤ b → a ≤ c"
+            ),
+            _proposal_v5(
+                "preserving", plan["preserve_0"].family, binders + "a ≤ b ∧ b ≤ c → a ≤ c"
+            ),
+            _proposal_v5(
+                "preserving", plan["preserve_1"].family, binders + "a ≤ b → (b ≤ c → a ≤ c)"
+            ),
+            rejection,
+            _proposal_v5("breaking", plan["break_0"].family, binders + "a ≤ b → b ≤ c → c ≤ a"),
+            _proposal_v5("breaking", plan["break_1"].family, binders + "a ≤ b → b ≤ c → b ≤ a"),
+        ],
+    )
+    equivalent = _judge_payload("equivalent", "Both express the same claim.")
+    non_equivalent = _judge_payload("non_equivalent", "The conclusion changes.")
+    judge = _ScriptedCalls(
+        loaded.config.claude_judge.provider_id,
+        [
+            rejection,  # preserve_0 attempt 1: rejected twice -> slot retry with a new candidate
+            rejection,
+            equivalent,  # preserve_0 attempt 2
+            rejection,  # preserve_1: rejected once, recovered on the immediate retry
+            equivalent,
+            non_equivalent,  # break_0 attempt 2 (attempt 1 was a proposer rejection)
+            non_equivalent,  # break_1
+        ],
+    )
+    result = run_one_root(
+        loaded,
+        proposer=proposer,
+        claude_judge=judge,
+        oracle=_LevelOracle(),
+        output_root=tmp_path / "root",
+        enforce_expected_reference_goal=True,
+        enforce_smoke_ceilings=False,
+        mechanism_plan=plan,
+        enforce_closure_canaries=False,
+        certified_reference=_result(["u_0"], goal=loaded.config.root.expected_reference_goal_v1),
+    )
+    counts = cast(dict[str, object], result.manifest["counts"])
+    assert counts["accepted"] == 4
+    assert counts["provider_rejections"] == 2
+    assert counts["retry_slots"] == 2
+    assert proposer.calls == 6 and judge.calls == 7
+    attempts = [
+        json.loads(line)
+        for line in (tmp_path / "root/attempts/terminal_attempts.jsonl").read_text().splitlines()
+    ]
+    statuses = [(a["slot_id"], a["attempt_number"], a["status"]) for a in attempts]
+    assert ("preserve_0", 1, "judge_provider_rejected") in statuses
+    assert ("preserve_0", 2, "accepted") in statuses
+    assert ("break_0", 1, "proposer_provider_rejected") in statuses
+    assert ("break_0", 2, "accepted") in statuses
+    rejected = next(a for a in attempts if a["status"] == "judge_provider_rejected")
+    assert rejected["judge_call_key"] is None and "secret redaction" in rejected["detail"]
