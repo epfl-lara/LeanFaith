@@ -1126,7 +1126,59 @@ def _square_rebuild_entries(raw: Mapping[str, Any]) -> dict[int, dict[str, str]]
     return None
 
 
-def reconcile_square_alpha(record: Mapping[str, Any], raw_dir: Path) -> dict[str, Any]:
+RawIndex = dict[str, list[Path]]
+
+
+def index_raw_files(raw_dir: Path) -> RawIndex:
+    """Request hash -> stored response files, built once instead of globbing per root."""
+    index: RawIndex = {}
+    for path in raw_dir.iterdir():
+        if path.suffix == ".json":
+            index.setdefault(path.name.split(".", 1)[0], []).append(path)
+    for paths in index.values():
+        paths.sort()
+    return index
+
+
+def _raw_files(raw_dir: Path, request_hash: str, raw_index: RawIndex | None) -> list[Path]:
+    if raw_index is not None:
+        return list(raw_index.get(request_hash, []))
+    return sorted(raw_dir.glob(f"{request_hash}.*.json"))
+
+
+class _RenderResponseCache:
+    """Parsed (chunk names, rebuild entries) per stored render response, bounded."""
+
+    def __init__(self, capacity: int = 32) -> None:
+        self.capacity = capacity
+        self.items: dict[Path, tuple[list[str], dict[int, dict[str, str]] | None] | str] = {}
+
+    def get(self, path: Path) -> tuple[list[str], dict[int, dict[str, str]] | None] | str:
+        cached = self.items.get(path)
+        if cached is not None:
+            return cached
+        raw = read_json_object(path)
+        code = str(cast(dict[str, Any], raw.get("request") or {}).get("code") or "")
+        call = _REBUILD_CALL.search(code)
+        if call is None:
+            result: tuple[list[str], dict[int, dict[str, str]] | None] | str = (
+                "rebuild_call_not_found"
+            )
+        else:
+            names = [json.loads(literal) for literal in _STRING_LITERAL.findall(call.group(1))]
+            result = (names, _square_rebuild_entries(raw))
+        if len(self.items) >= self.capacity:
+            self.items.pop(next(iter(self.items)))
+        self.items[path] = result
+        return result
+
+
+_RENDER_CACHE = _RenderResponseCache()
+
+
+def reconcile_square_alpha(
+    record: Mapping[str, Any], raw_dir: Path, raw_index: RawIndex | None = None
+) -> dict[str, Any]:
     """Compare the persisted process alpha hashes with the structural hashes that
     ``rebuildSquares`` emitted in the stored render response for the same root.
 
@@ -1153,27 +1205,21 @@ def reconcile_square_alpha(record: Mapping[str, Any], raw_dir: Path) -> dict[str
         return result
     chunk_index = int(endpoint_id.split(".", 1)[0])
     result["chunk_index"] = chunk_index
-    files = sorted(raw_dir.glob(f"{request_hash}.*.json"))
+    files = _raw_files(raw_dir, request_hash, raw_index)
     result["raw_files"] = len(files)
     if not files:
         result["reason"] = "raw_render_response_missing"
         return result
     rebuilds: list[dict[str, str]] = []
     for path in files:
-        raw = read_json_object(path)
-        if raw.get("request_hash") != request_hash:
-            result["reason"] = "raw_file_request_hash_mismatch"
+        parsed = _RENDER_CACHE.get(path)
+        if isinstance(parsed, str):
+            result["reason"] = parsed
             return result
-        code = str(cast(dict[str, Any], raw.get("request") or {}).get("code") or "")
-        call = _REBUILD_CALL.search(code)
-        if call is None:
-            result["reason"] = "rebuild_call_not_found"
-            return result
-        names = [json.loads(literal) for literal in _STRING_LITERAL.findall(call.group(1))]
+        names, entries = parsed
         if chunk_index >= len(names) or names[chunk_index] != record.get("root"):
             result["reason"] = "chunk_name_mismatch"
             return result
-        entries = _square_rebuild_entries(raw)
         if entries is None or chunk_index not in entries:
             result["reason"] = "square_rebuild_report_missing"
             return result
@@ -1241,7 +1287,12 @@ def run_evidence_hashes(paths: RunPaths) -> dict[str, dict[str, str]]:
 
 
 def recover_square_record(
-    paths: RunPaths, name: str, *, raw_dir: Path, operation_id: str
+    paths: RunPaths,
+    name: str,
+    *,
+    raw_dir: Path,
+    operation_id: str,
+    raw_index: RawIndex | None = None,
 ) -> dict[str, Any] | None:
     """Rebuild a retained square record from durable run evidence, without Lean.
 
@@ -1278,7 +1329,7 @@ def recover_square_record(
     if not isinstance(evidence, dict):
         return None
     payloads: list[dict[str, Any]] = []
-    for path in sorted(raw_dir.glob(f"{hashes.get('process', '')}.*.json")):
+    for path in _raw_files(raw_dir, str(hashes.get("process", "")), raw_index):
         raw = read_json_object(path)
         messages = cast(list[dict[str, Any]], (raw.get("response") or {}).get("messages") or [])
         for payload in parse_evidence_lines(messages):
@@ -1332,6 +1383,7 @@ def regenerate_records(
     quarantined: list[dict[str, Any]] = []
     generating = generating_run_commits(runner.paths.run_dir.parent, runner.operation_id)
     evidence_hashes = run_evidence_hashes(runner.paths)
+    raw_index = index_raw_files(raw_dir)
     runner.recovered_roots = []
     for name, promised in terminal_pair_ids(runner.paths.journal).items():
         record = runner.cache.get_root(runner.square_root_key(name))
@@ -1346,7 +1398,11 @@ def regenerate_records(
             # the shared cache no longer holds the record these rows were built from (or
             # never did); rebuild it from the run's own durable evidence
             recovered = recover_square_record(
-                runner.paths, name, raw_dir=raw_dir, operation_id=runner.operation_id
+                runner.paths,
+                name,
+                raw_dir=raw_dir,
+                operation_id=runner.operation_id,
+                raw_index=raw_index,
             )
             if recovered is None:
                 quarantined.append(
@@ -1377,7 +1433,7 @@ def regenerate_records(
                 "implementation_commit": commit,
                 "implementation_commit_source": f"generating_run_manifest:{run_name}",
             }
-        reconciliation = reconcile_square_alpha(record, raw_dir)
+        reconciliation = reconcile_square_alpha(record, raw_dir, raw_index)
         if not reconciliation["matches"]:
             quarantined.append(
                 {
