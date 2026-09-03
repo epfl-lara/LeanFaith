@@ -152,9 +152,25 @@ def test_overlapping_runs_collapse_only_exact_repeated_pair_ids() -> None:
         "row_hash": "row-b",
         "sidecar": {"pair_id": "pair:b"},
     }
-    kept, repeated = collapse_exact_repeated_records([first, second, dict(first)])
+    kept, repeated, provenance_only = collapse_exact_repeated_records([first, second, dict(first)])
     assert kept == [first, second]
     assert repeated == 1
+    assert provenance_only == 0
+
+    later_runner = {
+        **first,
+        "sidecar": {**first["sidecar"], "runner_source_sha256": "b" * 64},
+    }
+    earlier_runner = {
+        **first,
+        "sidecar": {**first["sidecar"], "runner_source_sha256": "a" * 64},
+    }
+    kept, repeated, provenance_only = collapse_exact_repeated_records(
+        [earlier_runner, later_runner]
+    )
+    assert kept == [earlier_runner]
+    assert repeated == 1
+    assert provenance_only == 1
 
     collision = {**first, "row_hash": "different"}
     with pytest.raises(SquareError, match="pair ID collision across source runs"):

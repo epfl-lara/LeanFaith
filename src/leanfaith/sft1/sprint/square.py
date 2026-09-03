@@ -1519,16 +1519,20 @@ def square_key(sidecar: Mapping[str, Any]) -> str:
 
 def collapse_exact_repeated_records(
     records: Sequence[Mapping[str, Any]],
-) -> tuple[list[dict[str, Any]], int]:
-    """Collapse byte-equivalent rows repeated through overlapping source runs.
+) -> tuple[list[dict[str, Any]], int, int]:
+    """Collapse equivalent rows repeated through overlapping source runs.
 
-    A pair ID is content-addressed. Seeing the same ID with any different payload is an
-    integrity error; seeing the exact same payload twice is expected when a resumed wider
-    target contains rows already emitted by an earlier bounded run.
+    A pair ID is content-addressed. Seeing the exact same payload twice is expected when a
+    resumed wider target contains rows already emitted by an earlier bounded run. The one
+    allowed provenance-only difference is ``runner_source_sha256``: release/audit-only changes
+    to this module can change that hash without changing the engine, cache record, certificate,
+    serialized pair, or any other sidecar field. Every other difference remains an integrity
+    error. Return total repeated records and the provenance-only subset separately.
     """
     kept: list[dict[str, Any]] = []
     by_pair: dict[str, dict[str, Any]] = {}
     repeated = 0
+    provenance_only = 0
     for item in records:
         record = dict(item)
         pair_id = str(cast(Mapping[str, Any], record["sidecar"])["pair_id"])
@@ -1538,9 +1542,18 @@ def collapse_exact_repeated_records(
             kept.append(record)
             continue
         if record != previous:
-            raise SquareError(f"pair ID collision across source runs: {pair_id}")
+            previous_sidecar = dict(cast(Mapping[str, Any], previous["sidecar"]))
+            record_sidecar = dict(cast(Mapping[str, Any], record["sidecar"]))
+            previous_sidecar.pop("runner_source_sha256", None)
+            record_sidecar.pop("runner_source_sha256", None)
+            if {**record, "sidecar": record_sidecar} != {
+                **previous,
+                "sidecar": previous_sidecar,
+            }:
+                raise SquareError(f"pair ID collision across source runs: {pair_id}")
+            provenance_only += 1
         repeated += 1
-    return kept, repeated
+    return kept, repeated, provenance_only
 
 
 def select_squares(
@@ -1789,7 +1802,9 @@ def build_square_view(
             records.extend(attach_cache_records(load_square_retained(paths), staging / "cache"))
             source_retained_paths.append(str(paths.retained.relative_to(staging)))
     input_records = len(records)
-    records, repeated_input_records = collapse_exact_repeated_records(records)
+    records, repeated_input_records, provenance_only_repeated_records = (
+        collapse_exact_repeated_records(records)
+    )
     gold = GoldBlocklist.load(
         repo_root / config.screens.gold_blocklist_path,
         expected_sha256=config.screens.gold_blocklist_sha256,
@@ -1925,6 +1940,7 @@ def build_square_view(
         "input_records": input_records,
         "unique_input_records": len(records),
         "repeated_input_records_dropped": repeated_input_records,
+        "provenance_only_repeated_input_records_dropped": provenance_only_repeated_records,
         "screen_rejections": rejections,
         "duplicate_rows_seen": repeated_input_records + outcome.duplicate_count,
         "duplicate_squares_dropped": len(selection.duplicate_squares),
