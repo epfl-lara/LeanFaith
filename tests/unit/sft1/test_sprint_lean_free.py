@@ -1551,6 +1551,80 @@ def test_square_card_states_direct_not_iff_evidence_and_supersession() -> None:
     assert "complete ground assignment" in plain and "supersedes" not in plain
 
 
+def test_existing_prefix_verification_uses_git_and_lfs_digests(tmp_path: Path) -> None:
+    import hashlib
+    from types import SimpleNamespace
+
+    from leanfaith.sft1.sprint.publish import PublishError, _verify_existing_prefix
+
+    regular = tmp_path / "README.md"
+    regular.write_bytes(b"card\n")
+    large = tmp_path / "shard-0001" / "sidecars.jsonl"
+    large.parent.mkdir()
+    large.write_bytes(b"sidecar\n")
+
+    def git_blob_sha1(path: Path) -> str:
+        data = path.read_bytes()
+        return hashlib.sha1(f"blob {len(data)}\0".encode() + data).hexdigest()
+
+    prefix = "sprint_v1/run"
+    remote = [
+        SimpleNamespace(
+            path=f"{prefix}/README.md",
+            size=regular.stat().st_size,
+            blob_id=git_blob_sha1(regular),
+            lfs=None,
+        ),
+        SimpleNamespace(
+            path=f"{prefix}/shard-0001/sidecars.jsonl",
+            size=large.stat().st_size,
+            blob_id="pointer-blob",
+            lfs=SimpleNamespace(sha256=hashlib.sha256(large.read_bytes()).hexdigest()),
+        ),
+    ]
+
+    class FakeApi:
+        def repo_info(self, **_: object) -> object:
+            return SimpleNamespace(sha="a" * 40, private=True)
+
+        def list_repo_tree(self, **_: object) -> list[object]:
+            return remote
+
+    verification, hashes = _verify_existing_prefix(
+        FakeApi(),
+        repo_id="owner/repo",
+        revision="a" * 40,
+        remote_prefix=prefix,
+        local_root=tmp_path,
+        files=[regular, large],
+    )
+    assert verification == {
+        "method": "immutable_hub_tree_git_blob_sha1_and_xet_lfs_sha256",
+        "full_fresh_download": False,
+        "immutable_revision": "a" * 40,
+        "remote_prefix": prefix,
+        "path_count": 2,
+        "byte_count": regular.stat().st_size + large.stat().st_size,
+        "regular_git_blobs": 1,
+        "xet_lfs_files": 1,
+        "path_set_match": True,
+        "size_match": True,
+        "digest_match": True,
+    }
+    assert hashes[f"{prefix}/README.md"] == hashlib.sha256(regular.read_bytes()).hexdigest()
+
+    remote[1].lfs.sha256 = "0" * 64
+    with pytest.raises(PublishError, match=r"sidecars\.jsonl"):
+        _verify_existing_prefix(
+            FakeApi(),
+            repo_id="owner/repo",
+            revision="a" * 40,
+            remote_prefix=prefix,
+            local_root=tmp_path,
+            files=[regular, large],
+        )
+
+
 def test_operation_cache_revision_only_changes_revised_keys() -> None:
     from leanfaith.sft1.sprint import square
 

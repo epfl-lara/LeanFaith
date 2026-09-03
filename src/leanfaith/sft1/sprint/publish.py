@@ -2,14 +2,18 @@
 
 Uploads are additive: a remote prefix is written exactly once with one
 immutable commit, verified by a fresh download of every file, and recorded in
-a local receipt.  The token is read from the environment by ``huggingface_hub``
-and is never printed or stored.
+a local receipt. If the upload commit lands but the client times out before
+writing that receipt, a recovery-only path can compare local bytes with the
+immutable Hub tree's Git-blob and Xet/LFS digests without uploading again. The
+token is read from the environment by ``huggingface_hub`` and is never printed
+or stored.
 """
 
 from __future__ import annotations
 
 import argparse
 import datetime
+import hashlib
 import json
 import tempfile
 from collections.abc import Mapping, Sequence
@@ -357,6 +361,128 @@ def local_files(compacted: Path) -> list[Path]:
     return files
 
 
+def _verify_existing_prefix(
+    api: Any,
+    *,
+    repo_id: str,
+    revision: str,
+    remote_prefix: str,
+    local_root: Path,
+    files: Sequence[Path],
+) -> tuple[dict[str, Any], dict[str, str]]:
+    """Verify local bytes against one immutable Hub tree without downloading blobs."""
+
+    info = api.repo_info(repo_id=repo_id, repo_type=REPO_TYPE, revision=revision)
+    if str(info.sha) != revision:
+        raise PublishError(f"Hub revision resolved to {info.sha}, expected {revision}")
+    if not bool(info.private):
+        raise PublishError("refusing to recover a receipt for a public repository")
+
+    prefix = remote_prefix.rstrip("/")
+    prefix_slash = f"{prefix}/"
+    remote: dict[str, Any] = {}
+    for item in api.list_repo_tree(
+        repo_id=repo_id,
+        repo_type=REPO_TYPE,
+        revision=revision,
+        path_in_repo=prefix,
+        recursive=True,
+        expand=True,
+    ):
+        if not hasattr(item, "size") or not hasattr(item, "blob_id"):
+            continue
+        item_path = str(item.path)
+        if not item_path.startswith(prefix_slash):
+            raise PublishError(f"remote tree returned a path outside {prefix!r}: {item_path}")
+        relative = item_path.removeprefix(prefix_slash)
+        if relative in remote:
+            raise PublishError(f"duplicate remote path in immutable tree: {item_path}")
+        remote[relative] = item
+
+    local: dict[str, Path] = {}
+    for local_path in files:
+        try:
+            relative = local_path.relative_to(local_root).as_posix()
+        except ValueError as exc:
+            raise PublishError(
+                f"local publication file is outside {local_root}: {local_path}"
+            ) from exc
+        if relative in local:
+            raise PublishError(f"duplicate local publication path: {relative}")
+        if not local_path.is_file():
+            raise PublishError(f"local publication file missing: {local_path}")
+        local[relative] = local_path
+
+    missing = sorted(local.keys() - remote.keys())
+    extra = sorted(remote.keys() - local.keys())
+    if missing or extra:
+        raise PublishError(
+            f"immutable remote path mismatch: missing_remote={missing!r}, extra_remote={extra!r}"
+        )
+
+    size_mismatches: list[str] = []
+    digest_mismatches: list[str] = []
+    file_sha256: dict[str, str] = {}
+    regular_git_blobs = 0
+    xet_lfs_files = 0
+    local_bytes = 0
+    for relative in sorted(local):
+        local_path = local[relative]
+        item = remote[relative]
+        size = local_path.stat().st_size
+        local_bytes += size
+        if size != int(item.size):
+            size_mismatches.append(f"{prefix_slash}{relative} (local={size}, remote={item.size})")
+            continue
+
+        sha256 = hashlib.sha256()
+        lfs = getattr(item, "lfs", None)
+        git_blob = None if lfs is not None else hashlib.sha1(f"blob {size}\0".encode("ascii"))
+        with local_path.open("rb") as handle:
+            for chunk in iter(lambda: handle.read(8 * 1024 * 1024), b""):
+                sha256.update(chunk)
+                if git_blob is not None:
+                    git_blob.update(chunk)
+        remote_path = f"{prefix_slash}{relative}"
+        file_sha256[remote_path] = sha256.hexdigest()
+        if lfs is None:
+            regular_git_blobs += 1
+            expected = str(item.blob_id)
+            observed = git_blob.hexdigest() if git_blob is not None else ""
+        else:
+            xet_lfs_files += 1
+            expected = str(getattr(lfs, "sha256", ""))
+            observed = sha256.hexdigest()
+        if not expected or observed != expected:
+            digest_mismatches.append(remote_path)
+
+    if size_mismatches or digest_mismatches:
+        raise PublishError(
+            "immutable remote content mismatch: "
+            f"size_mismatches={size_mismatches!r}, digest_mismatches={digest_mismatches!r}"
+        )
+
+    remote_bytes = sum(int(item.size) for item in remote.values())
+    if remote_bytes != local_bytes:
+        raise PublishError(
+            f"immutable remote byte total mismatch: local={local_bytes}, remote={remote_bytes}"
+        )
+    verification = {
+        "method": "immutable_hub_tree_git_blob_sha1_and_xet_lfs_sha256",
+        "full_fresh_download": False,
+        "immutable_revision": revision,
+        "remote_prefix": prefix,
+        "path_count": len(local),
+        "byte_count": local_bytes,
+        "regular_git_blobs": regular_git_blobs,
+        "xet_lfs_files": xet_lfs_files,
+        "path_set_match": True,
+        "size_match": True,
+        "digest_match": True,
+    }
+    return verification, file_sha256
+
+
 def publish_run(
     repo_root: Path,
     *,
@@ -440,6 +566,98 @@ def publish_run(
         "retained_rows": manifest.get("retained_rows"),
         "published_at": datetime.datetime.now(datetime.UTC).isoformat(timespec="seconds"),
         "fresh_verification": True,
+    }
+    write_atomic(receipt_path, canonical_json_bytes(receipt) + b"\n")
+    return receipt
+
+
+def recover_publication_receipt(
+    repo_root: Path,
+    *,
+    run_id: str,
+    revision: str,
+    parent_revision: str,
+    repo_id: str = DEFAULT_REPO_ID,
+    remote_prefix: str | None = None,
+    config_path: Path | None = None,
+) -> dict[str, Any]:
+    """Recover a receipt after an upload landed but its client timed out."""
+
+    from huggingface_hub import HfApi
+
+    if len(revision) != 40 or len(parent_revision) != 40:
+        raise PublishError("receipt recovery requires full immutable revision hashes")
+    loaded = load_sprint_config(repo_root, config_path)
+    compacted = RunPaths(Path(loaded.config.output.staging_root), run_id).compacted
+    prefix = remote_prefix or f"sprint_v1/{run_id}"
+    receipt_path = compacted / "publication_receipt.json"
+    if receipt_path.is_file():
+        receipt = read_json_object(receipt_path)
+        if (
+            receipt.get("repo_id") == repo_id
+            and receipt.get("remote_prefix") == prefix
+            and receipt.get("revision") == revision
+        ):
+            return receipt
+        raise PublishError("publication receipt already exists for a different immutable commit")
+
+    manifest = read_json_object(compacted / "manifest.json")
+    card_path = compacted / "README.md"
+    if not card_path.is_file():
+        raise PublishError("cannot recover receipt: the exact uploaded README.md is missing")
+    files = [*local_files(compacted), card_path]
+    api = HfApi()
+    verification, file_sha256 = _verify_existing_prefix(
+        api,
+        repo_id=repo_id,
+        revision=revision,
+        remote_prefix=prefix,
+        local_root=compacted,
+        files=files,
+    )
+
+    commits = api.list_repo_commits(repo_id=repo_id, repo_type=REPO_TYPE, revision=revision)
+    if len(commits) < 2 or str(commits[0].commit_id) != revision:
+        raise PublishError("immutable Hub commit history did not start at the recovery revision")
+    if str(commits[1].commit_id) != parent_revision:
+        raise PublishError(
+            "immutable Hub parent mismatch: "
+            f"expected {parent_revision}, found {commits[1].commit_id}"
+        )
+    expected_title = f"sft1 sprint v1: publish {run_id} ({manifest.get('retained_rows')} rows)"
+    if str(commits[0].title) != expected_title:
+        raise PublishError(
+            f"immutable Hub commit title mismatch: expected {expected_title!r}, "
+            f"found {commits[0].title!r}"
+        )
+
+    recovered_at = datetime.datetime.now(datetime.UTC).isoformat(timespec="seconds")
+    verification.update(
+        {
+            "verified_at": recovered_at,
+            "commit_title": expected_title,
+            "parent_revision": parent_revision,
+            "parent_verification_method": "immediate_predecessor_in_immutable_hub_history",
+        }
+    )
+    receipt = {
+        "schema_version": 1,
+        "run_id": run_id,
+        "repo_id": repo_id,
+        "repo_type": REPO_TYPE,
+        "private": True,
+        "revision": revision,
+        "parent_revision": parent_revision,
+        "remote_prefix": prefix,
+        "file_sha256": file_sha256,
+        "retained_rows": manifest.get("retained_rows"),
+        "published_at": commits[0].created_at.isoformat(timespec="seconds"),
+        "fresh_verification": False,
+        "verification_method": verification["method"],
+        "verification": verification,
+        "recovery_reason": "client_http_504_after_commit_before_receipt_write",
+        "receipt_recovered_at": recovered_at,
+        "upload_performed_during_recovery": False,
     }
     write_atomic(receipt_path, canonical_json_bytes(receipt) + b"\n")
     return receipt
@@ -628,12 +846,28 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--run-id")
     parser.add_argument("--repo-id", default=DEFAULT_REPO_ID)
     parser.add_argument("--remote-prefix")
+    parser.add_argument("--recover-revision")
+    parser.add_argument("--recover-parent-revision")
     parser.add_argument("--windows", action="store_true", help="publish compacted root windows")
     parser.add_argument(
         "--update-cards", nargs="*", metavar="RUN_ID", help="replace README cards of published runs"
     )
     parser.add_argument("--index-json", type=Path, help="JSON list of {prefix, rows, status}")
     args = parser.parse_args(argv)
+    if args.recover_revision:
+        if not args.run_id or not args.recover_parent_revision:
+            parser.error("receipt recovery requires --run-id and --recover-parent-revision")
+        receipt = recover_publication_receipt(
+            args.repo_root.resolve(),
+            run_id=args.run_id,
+            revision=args.recover_revision,
+            parent_revision=args.recover_parent_revision,
+            repo_id=args.repo_id,
+            remote_prefix=args.remote_prefix,
+            config_path=args.config.resolve() if args.config else None,
+        )
+        print(json.dumps({k: v for k, v in receipt.items() if k != "file_sha256"}, indent=1))
+        return 0
     if args.update_cards is not None:
         index = json.loads(args.index_json.read_text(encoding="utf-8")) if args.index_json else []
         result = update_cards(

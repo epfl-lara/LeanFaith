@@ -2,8 +2,8 @@
 
 > **Task ID:** SFT1
 > **Status:** pilot_passed
-> **Owner/session:** Claude Fable 5.1 sprint session on worktree `/localhome/milikic/LeanFaith-sft1-sprint`, branch `milikic/sft1-sprint-72h`
-> **Last updated:** 2026-09-02
+> **Owner/session:** Codex `/root` release-reconciliation handoff (release sprint closed) on worktree `/localhome/milikic/LeanFaith-sft1-sprint`, branch `milikic/sft1-sprint-72h`
+> **Last updated:** 2026-09-03
 > **Active 72-hour sprint:** follow the compact execution path in
 > [`72h_sft_data_sprint_2026-09-01.md`](72h_sft_data_sprint_2026-09-01.md). The historical
 > authorization/readiness sequencing preserved below is frozen evidence, not an active dependency.
@@ -22,25 +22,13 @@
 > active sprint prerequisites.
 > **REPR predecessor:** `cbc933c3623d81ba649a1f9c5107ad404389d69f` was reviewed but is
 > superseded and not consumable by SFT1
-> **Next gate:** the corrected combined release `core_v5_combined_square` (v4 binder squares
-> preferred over v3 symmetry squares of the same root; expected 6,412 rows, 3,206/3,206,
-> 1,603 roots, four rows per root, snapshots of every referenced cache record inside the
-> release) and the separate auxiliary `aux_n19_square_curriculum` must pass integrity,
-> conservation, snapshot provenance, replay receipts, sidecar-derived aggregate checks, the
-> unchanged serialized-row screens (0.60/0.60/0.65 upper bounds), and fresh-download
-> verification before publication under new additive prefixes. Pairwise diagnostics
-> (relation parity, target equality, binder delta, negation XOR) are telemetry, not a gate.
-> No Lean is needed for either release; corrections are developed on
-> `milikic/sft1-corrections` in worktree `/localhome/milikic/LeanFaith-sft1-corrections` so the
-> running N19 chain never loads changed code.
-> **Compute class:** one active claim. The N19 curriculum full run holds `SFT1-SPRINT`
-> (1 worker / 24 GiB; ledger pid 1687523) inside tmux `leanfaith-sft1-n19-full` since
-> 2026-09-02T09:12:44Z; the ledger's historical session label `claude-sft1-square` (the runner's
-> default owner-session string) differs from the tmux name and is left as is rather than
-> disturbing a healthy job. Chain `logs/n19_full_chain.sh` → run `n19_full` → zero-Lean replay →
-> build; progress at 14:01Z: 74,225 / 180,400 roots considered, 52,728 squares retained,
-> 17,162 `not_applicable`, 4,310 fail-closed rendering screens, 25 request-level errors, 6,581
-> Lean requests, about 6.9 h remaining. The claim is released when the chain ends.
+> **Next gate:** none for this closed release sprint. Future mechanism expansion is deferred and
+> does not block coordinator integration. Any successor must start additively from the reconciled
+> release identities; it must not reinterpret `core_v5_combined_square` as a broad final corpus or
+> promote N19 out of its auxiliary role.
+> **Compute class:** none. No SFT1 Lean, generation, compaction, or publication job and no
+> shared-host reservation remains. The three named stale release/pilot wrappers were verified to
+> contain only childless sleeps and are removed after the reconciled branch push.
 > Sprint outputs live under the staging root's `sprint_v1/` directory (`inventory/`, `cache/`,
 > `cache_fixtures/`, `raw/`, `runs/<run_id>/`, `compacted/<label>/`, `logs/`).
 > **Lean budget:** no further Lean for SFT1 in this sequence; if a recovery from durable evidence
@@ -91,6 +79,48 @@ below 0.60 and mechanism-held-out balanced accuracy below 0.65, alongside 100% p
 replay and duplicate/conflict rejection. If those checks and the measured completion projection
 pass, launch larger scale in independently complete private-release shards; do not weaken negative
 proof requirements to hit a row target.
+
+## Release-sprint closure (2026-09-03)
+
+The 72-hour SFT1 release sprint is closed. The overall SFT1 task remains `pilot_passed`, not
+`complete`: the original broad multi-million-row objective was not reached, and future mechanism
+expansion is deferred rather than treated as a handoff blocker. No training was started.
+
+The reconciled private releases in `Lemmy00/leanfaith-sft1-deterministic-v1` are:
+
+| release | rows / roots | role | immutable Hub revision | verification |
+| --- | --- | --- | --- | --- |
+| `core_v4_diverse_square_v2` | 2,232 balanced 1,116/1,116 / 558 | additive diverse certificate-closure squares | `88f02d7a8203682438bd5676c2d43f246a77c75d` | release and integrity gates passed; fresh-download verification passed |
+| `core_v5_combined_square` | 6,412 balanced 3,206/3,206 / 1,603 | **current training-facing curriculum seed**, not a broad final SFT1 corpus | `9bf48f3dbcf86e17e0c5965faa8055da1a1d633d` | release and integrity gates passed; fresh-download verification passed |
+| `aux_n19_square_curriculum` | 508,600 balanced 254,300/254,300 / 127,150 | auxiliary curriculum only; recommended sampling weight at most 10% | `c0b1bed5003af836dcfbbd0595b92913fd7c6c28` | release and integrity gates passed; immutable-tree Git/Xet digest verification passed, not a fresh download |
+
+The N19 run generated 511,748 rows before compaction. Whole-square deduplication removed 787
+duplicate squares / 3,148 rows, leaving 508,600 rows in 509 finalized shards. The Lean-free
+integrity validator checked 508,600/508,600 rows with zero issues. Its upload completed, but the
+publisher received HTTP 504 before it could write the local receipt. The already-landed commit has
+title `sft1 sprint v1: publish aux_n19_square_curriculum (508600 rows)` and immediate predecessor
+`9bf48f3dbcf86e17e0c5965faa8055da1a1d633d`. Recovery compared the complete local publication set
+against immutable revision `c0b1bed5003af836dcfbbd0595b92913fd7c6c28`: 2,047 paths and
+7,345,681,944 bytes, including 1,539 regular Git blobs checked by Git-blob SHA-1 and 508 Xet/LFS
+objects checked by content SHA-256, with zero missing/extra paths, size mismatches, or digest
+mismatches. No upload or fresh download occurred during recovery. The atomic receipt is
+`/storage/milikic/leanfaith/value_first/sft1_deterministic_v1/sprint_v1/compacted/aux_n19_square_curriculum/publication_receipt.json`.
+
+The local compacted indexes are `compacted/index.json`, `compacted/hub_index.json`, and
+`compacted/README.index.md` under the sprint staging root. They identify `core_v5_combined_square`
+as the current training-facing seed and keep N19 strictly auxiliary with the 10% ceiling. They were
+not uploaded during reconciliation.
+
+The genuine quality limitation remains substantial. The current core is a small Mathlib-only
+certificate-closure-square curriculum with limited mechanism coverage; its recorded relation-parity
+surface diagnostic reaches 0.9425 balanced accuracy. N19 is larger but deliberately easy: its
+outer-negation-XOR baseline reaches 0.9973, which is why it cannot be treated as headline core data.
+The earlier 2--3M planning band remains unmet and unpromised.
+
+At reconciliation, no SFT1 Lean, generation, compaction, or publication job and no shared-host
+reservation remained (`leanfaith-resources list`: no active reservations). The three specifically
+named stale tmux panes contained only childless `sleep 86400` wrappers; they are closed only after
+the reconciled branch is pushed.
 
 ## Authorization boundary
 
@@ -1856,3 +1886,25 @@ resource use, output paths, and exact remaining ETA. Do not run training.
   - SFT1 engineering stops here per instruction; effort returns to SFT2. Status stays
     `pilot_passed` with `core_v3_square_v2` as the training-facing seed and
     `core_v4_diverse_square` as the additive diverse release.
+
+- 2026-09-03 — Codex `/root` claimed only the SFT1 brief, the existing publication helper and its
+  focused Lean-free test, and the task-owned compacted index/receipt surfaces for final
+  reconciliation. The branch began clean and pushed at the required
+  `056be282362b29e0e9795b7b3bce1914c30b4890`. Lean is the bottleneck, so every action in this
+  handoff remained Lean-free; no transformation, regeneration, compaction, release upload, or
+  fresh-download verification was run.
+- 2026-09-03 — release reconciliation closed the sprint. The three immutable private Hub revisions
+  resolved: `core_v4_diverse_square_v2` `88f02d7a…` (2,232 rows), current training-facing
+  curriculum seed `core_v5_combined_square` `9bf48f3d…` (6,412 rows), and auxiliary-only N19
+  `c0b1bed5…` (508,600 rows, recommended sampling weight at most 10%). The N19 recovery rechecked
+  all 2,047 paths / 7,345,681,944 bytes at the already-landed commit with Git-blob SHA-1 or Xet/LFS
+  SHA-256 as appropriate, found zero path/size/digest mismatches, verified the title and immediate
+  predecessor, and atomically wrote a receipt that explicitly records no fresh download and no
+  recovery upload. The three compacted indexes now record the final roles and revisions. Narrow
+  integrity passes rechecked 2,232/2,232, 6,412/6,412, and 508,600/508,600 rows with zero issues and
+  left all three published integrity-report hashes unchanged; seven focused receipt/card/plan tests,
+  Ruff check/format, strict Mypy, JSON/index assertions, and whitespace checks passed. No active
+  SFT1 job or shared reservation remained; only the three verified childless sleep wrappers awaited
+  their required post-push removal. The overall state stays `pilot_passed`: the 6,412-row square
+  seed has a 0.9425 relation-parity surface diagnostic, N19 has a 0.9973 outer-negation-XOR
+  baseline, and the original broad multi-million-row objective remains unmet and deferred.
