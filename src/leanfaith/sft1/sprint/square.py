@@ -2366,10 +2366,150 @@ def write_square_inspection(paths: RunPaths, records: Sequence[Mapping[str, Any]
     return out
 
 
+def select_stratified_audit_rows(
+    records: Sequence[Mapping[str, Any]], maximum_rows: int
+) -> list[dict[str, Any]]:
+    """Select a stable max-min sample over source/operation/transform/row-kind cells."""
+    if maximum_rows <= 0:
+        raise SquareError("audit row count must be positive")
+    buckets: dict[tuple[str, str, str, str], list[dict[str, Any]]] = {}
+    for item in records:
+        record = dict(item)
+        sidecar = cast(Mapping[str, Any], record["sidecar"])
+        project = cast(Mapping[str, Any], sidecar.get("project") or {})
+        square = cast(Mapping[str, Any], sidecar.get("square") or {})
+        key = (
+            str(project.get("project_id")),
+            str(sidecar.get("operation_id")),
+            str(square.get("t_p")),
+            str(sidecar.get("row_kind")),
+        )
+        buckets.setdefault(key, []).append(record)
+    for bucket in buckets.values():
+        bucket.sort(
+            key=lambda item: hash_canonical(
+                ["sft1_wave2_audit_v1", cast(Mapping[str, Any], item["sidecar"])["pair_id"]]
+            )
+        )
+    selected: list[dict[str, Any]] = []
+    position = 0
+    while len(selected) < min(maximum_rows, len(records)):
+        advanced = False
+        for key in sorted(buckets):
+            bucket = buckets[key]
+            if position < len(bucket):
+                selected.append(bucket[position])
+                advanced = True
+                if len(selected) == min(maximum_rows, len(records)):
+                    break
+        if not advanced:
+            break
+        position += 1
+    return selected
+
+
+def write_stratified_audit(compacted_dir: Path, maximum_rows: int = 200) -> dict[str, Any]:
+    records: list[dict[str, Any]] = []
+    for shard in sorted(compacted_dir.glob("shard-*")):
+        rows = [json.loads(line) for line in (shard / "rows.jsonl").read_text().splitlines()]
+        sidecars = [
+            json.loads(line) for line in (shard / "sidecars.jsonl").read_text().splitlines()
+        ]
+        if len(rows) != len(sidecars):
+            raise SquareError(f"audit source row/sidecar mismatch: {shard}")
+        records.extend(
+            {"row": row, "sidecar": sidecar} for row, sidecar in zip(rows, sidecars, strict=True)
+        )
+    selected = select_stratified_audit_rows(records, maximum_rows)
+    counts: dict[str, dict[str, int]] = {
+        "sources": {},
+        "operations": {},
+        "transforms": {},
+        "row_kinds": {},
+    }
+    rows_out: list[dict[str, Any]] = []
+    markdown = [
+        f"# {compacted_dir.name} deterministic stratified audit",
+        "",
+        f"- selected rows: {len(selected)}",
+        "- inspection verdict: pending manual inspection",
+        "",
+    ]
+    for index, item in enumerate(selected, start=1):
+        row = cast(dict[str, Any], item["row"])
+        sidecar = cast(dict[str, Any], item["sidecar"])
+        project = cast(dict[str, Any], sidecar.get("project") or {})
+        square = cast(dict[str, Any], sidecar.get("square") or {})
+        source = str(project.get("project_id"))
+        operation = str(sidecar.get("operation_id"))
+        transform = str(square.get("t_p"))
+        row_kind = str(sidecar.get("row_kind"))
+        for name, value in (
+            ("sources", source),
+            ("operations", operation),
+            ("transforms", transform),
+            ("row_kinds", row_kind),
+        ):
+            counts[name][value] = counts[name].get(value, 0) + 1
+        rows_out.append(
+            {
+                "index": index,
+                "pair_id": sidecar.get("pair_id"),
+                "root_name": sidecar.get("root_name"),
+                "source": source,
+                "operation_id": operation,
+                "transform": transform,
+                "row_kind": row_kind,
+                "reference": row["reference"],
+                "candidate": row["candidate"],
+                "label": row["label"],
+                "evidence_hash": sidecar.get("evidence_hash"),
+            }
+        )
+        markdown.extend(
+            [
+                f"## {index}. {source} / {operation} / {transform} / {row_kind}",
+                "",
+                f"- root: `{sidecar.get('root_name')}`",
+                f"- pair: `{sidecar.get('pair_id')}`",
+                f"- label: `{row['label']}`",
+                "- reference:",
+                "```text",
+                str(row["reference"]),
+                "```",
+                "- candidate:",
+                "```text",
+                str(row["candidate"]),
+                "```",
+                "",
+            ]
+        )
+    report = {
+        "schema_version": 1,
+        "view": compacted_dir.name,
+        "selection": (
+            "stable max-min round-robin over project_id, operation_id, preserving transform, "
+            "and row_kind; salted pair-id order within each cell"
+        ),
+        "requested_rows": maximum_rows,
+        "selected_rows": len(selected),
+        "selection_sha256": hash_canonical(
+            [cast(Mapping[str, Any], item["sidecar"])["pair_id"] for item in selected]
+        ),
+        "counts": {name: dict(sorted(values.items())) for name, values in counts.items()},
+        "inspection_status": "pending_manual",
+        "rows": rows_out,
+    }
+    write_atomic(compacted_dir / "audit_200.json", canonical_json_bytes(report) + b"\n")
+    write_atomic(compacted_dir / "audit_200.md", ("\n".join(markdown) + "\n").encode())
+    return {key: value for key, value in report.items() if key != "rows"}
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
-        "command", choices=("census", "fixtures", "run", "replay", "build", "status", "inspect")
+        "command",
+        choices=("census", "fixtures", "run", "replay", "build", "status", "inspect", "audit"),
     )
     parser.add_argument("--repo-root", type=Path, default=find_repo_root(Path.cwd()))
     parser.add_argument("--config", type=Path)
@@ -2384,6 +2524,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--roots-file", type=Path, help="JSON target file with a roots list")
     parser.add_argument("--label", default="core_v3_square")
     parser.add_argument("--maximum-rows", type=int, help="stable whole-square released-row ceiling")
+    parser.add_argument("--audit-rows", type=int, default=200)
     parser.add_argument("--owner-session", default="claude-sft1-square")
     parser.add_argument("--supersedes", help="label this view supersedes (recorded, not modified)")
     parser.add_argument(
@@ -2471,6 +2612,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         records = read_retained(paths.retained)
         out = write_square_inspection(paths, records)
         print(json.dumps({"run_id": args.run_id, "rows": len(records), "path": str(out)}))
+        return 0
+    if args.command == "audit":
+        report = write_stratified_audit(staging / "compacted" / args.label, args.audit_rows)
+        print(json.dumps(report, indent=1))
         return 0
     report = build_square_view(
         repo_root,

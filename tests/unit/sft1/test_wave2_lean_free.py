@@ -18,6 +18,7 @@ from leanfaith.sft1.sprint.square import (
     SquareSelection,
     cap_square_selection,
     collapse_exact_repeated_records,
+    select_stratified_audit_rows,
 )
 
 ROOT = find_repo_root(Path(__file__))
@@ -174,3 +175,27 @@ def test_integrity_source_match_ignores_release_cache_snapshot_location() -> Non
         },
     }
     assert _without_view_fields(source) == _without_view_fields(released)
+
+
+def test_audit_selection_covers_cells_before_repeating_large_cells() -> None:
+    def record(source: str, operation: str, transform: str, kind: str, number: int) -> dict:
+        return {
+            "sidecar": {
+                "pair_id": f"pair:{source}:{operation}:{transform}:{kind}:{number}",
+                "project": {"project_id": source},
+                "operation_id": operation,
+                "square": {"t_p": transform},
+                "row_kind": kind,
+            }
+        }
+
+    records = [record("mathlib", "N25", "P14", "positive", number) for number in range(10)] + [
+        record("cslib", "N25", "P32", "negative", 0)
+    ]
+    selected = select_stratified_audit_rows(records, 3)
+    assert len(selected) == 3
+    assert {item["sidecar"]["project"]["project_id"] for item in selected} == {
+        "mathlib",
+        "cslib",
+    }
+    assert select_stratified_audit_rows(records, 3) == selected
