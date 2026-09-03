@@ -23,7 +23,7 @@ namespace LeanFaith.SFT1.Sprint
 
 open Lean Elab Meta
 
-def engineSemanticVersion : String := "sft1_wave2_engine_v2"
+def engineSemanticVersion : String := "sft1_wave2_engine_v3"
 /-- Operation-set version 3 adds the Wave 2 preserving and proof-backed breaking batch. -/
 def engineOperationSetVersion : Nat := 3
 def evidenceMarker : String := "LFSFT1SPRINTJSON "
