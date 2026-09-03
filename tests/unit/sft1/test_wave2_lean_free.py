@@ -9,7 +9,7 @@ from leanfaith.config.paths import find_repo_root
 from leanfaith.sft1.sprint.engine import OPERATIONS, operation_mask, operations_in_mask
 from leanfaith.sft1.sprint.inventory import wave2_applicability, write_wave2_census
 from leanfaith.sft1.sprint.runner import load_sprint_config
-from leanfaith.sft1.sprint.square import SQUARE_OPERATIONS
+from leanfaith.sft1.sprint.square import SQUARE_FIXTURES, SQUARE_OPERATIONS
 
 ROOT = find_repo_root(Path(__file__))
 CONFIG_DIR = ROOT / "configs/transformations/sft1_value_first_v1"
@@ -111,3 +111,4 @@ def test_wave2_square_operations_close_only_proof_backed_negatives() -> None:
         "SQUARE_WAVE2_N31_V1": "N31_DROP_REQUIRED_GUARD_PROOF_V1",
     }
     assert {key: SQUARE_OPERATIONS[key]["negative"] for key in expected} == expected
+    assert expected.keys() - {"SQUARE_WAVE2_N31_V1"} <= SQUARE_FIXTURES.keys()

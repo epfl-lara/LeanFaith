@@ -2185,6 +2185,30 @@ SQUARE_FIXTURES: dict[str, tuple[dict[str, str], ...]] = {
             "expect_reason_prefix": "final_target_strict_lt_not_applicable",
         },
     ),
+    "SQUARE_WAVE2_N26_V1": (
+        {"root": "Finset.mem_range", "expect_status": "retained"},
+        {
+            "root": "PNat.gcd_comm",
+            "expect_status": "not_applicable",
+            "expect_reason_prefix": "n26_no_finset_range_coverage_bound",
+        },
+    ),
+    "SQUARE_WAVE2_N32_V1": (
+        {"root": "Nat.add_factorial_succ_le_factorial_add_succ", "expect_status": "retained"},
+        {
+            "root": "PNat.gcd_comm",
+            "expect_status": "not_applicable",
+            "expect_reason_prefix": "final_target_strict_lt_not_applicable",
+        },
+    ),
+    "SQUARE_WAVE2_N25_V1": (
+        {"root": "Nat.factorization_factorial_mul_succ", "expect_status": "retained"},
+        {
+            "root": "PNat.gcd_comm",
+            "expect_status": "not_applicable",
+            "expect_reason_prefix": "square_no_applicable_transform",
+        },
+    ),
 }
 
 
@@ -2274,6 +2298,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
     parser.add_argument("--operation", default=SQUARE_OPERATION, choices=sorted(SQUARE_OPERATIONS))
     parser.add_argument("--max-roots", type=int)
+    parser.add_argument("--roots-file", type=Path, help="JSON target file with a roots list")
     parser.add_argument("--label", default="core_v3_square")
     parser.add_argument("--owner-session", default="claude-sft1-square")
     parser.add_argument("--supersedes", help="label this view supersedes (recorded, not modified)")
@@ -2303,8 +2328,19 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(json.dumps({k: v for k, v in report.items() if k != "status"}, indent=1))
         return 0 if report["passed"] else 1
     if args.command in {"run", "replay"}:
-        census = read_json_object(census_path_for(staging, args.operation))
-        roots = cast(list[dict[str, Any]], census["roots"])
+        targets = (
+            read_json_object(args.roots_file.resolve())
+            if args.roots_file is not None
+            else read_json_object(census_path_for(staging, args.operation))
+        )
+        roots = [
+            (
+                {"name": item, "direction": "target", "reference_expr_hash": item}
+                if isinstance(item, str)
+                else cast(dict[str, Any], item)
+            )
+            for item in cast(list[Any], targets["roots"])
+        ]
         max_roots = args.max_roots
         manifest_path = RunPaths(staging, args.run_id).run_manifest
         if args.command == "replay" and manifest_path.is_file():
