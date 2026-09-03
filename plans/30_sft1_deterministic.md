@@ -2107,3 +2107,21 @@ resource use, output paths, and exact remaining ETA. Do not run training.
   `wave2_pool_mathlib_n32_compatible_v5`, the same single-worker/24 GiB/900-second limits, and an
   atomic terminal marker `wave2/pilot10k_extension_candidates_ready.json`. Resume is the identical
   script and run IDs; both runs must pass zero-call replay before consolidation.
+- 2026-09-03 — that extension completed and replayed both lanes with zero Lean calls and zero
+  duplicate rows. N25 reached 25,000 roots and retained 1,638 squares / 6,552 rows; the extension
+  phase used 591 Lean requests, 2,651 cache-terminal roots, 1,159.27 seconds, and 9,046,736,896
+  bytes peak RSS. The complete 16,850-root N32 lane retained 162 squares / 648 rows using 566 Lean
+  requests, 3,788 cache-terminal roots, 939.02 seconds, and 8,632,684,544 bytes peak RSS. Five
+  response-key errors were excluded: four quoted inventory names whose Lean pretty names omit
+  guillemets, plus `CategoryTheory.Injective.comp_factorThru`, which hit the deterministic
+  20,000-heartbeat typeclass-synthesis ceiling. No row from an error terminal was retained.
+  Cross-run deduplication leaves 2,230 unique complete squares / 8,920 possible rows, so the 10K
+  view remains unbuilt rather than being mislabeled.
+- 2026-09-03 — the final bounded pilot extension resumes the N25 journal from 25,000 to 35,000
+  roots. Exact script `wave2/logs/pilot10k_final_extension.sh` has SHA-256
+  `e74d7bee71c4482daf7768d1ea06dc0863d4f932bd6078cf4a459aaa4c9bd38f`; named session
+  `leanfaith-sft1-wave2-pilot4`, persistent log `wave2/logs/pilot10k_final_extension.log`, and
+  atomic terminal marker `wave2/pilot10k_final_candidates_ready.json`. It uses the same clean
+  committed runner, run ID, target hash, one-worker/24 GiB/900-second limits, and identical-command
+  replay/resume contract. The measured compatible yield projects enough new unique squares to
+  cross 10,000 rows without starting the post-gate full eligible-pool run early.
