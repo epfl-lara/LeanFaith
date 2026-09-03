@@ -27,14 +27,14 @@
 > active sprint prerequisites.
 > **REPR predecessor:** `cbc933c3623d81ba649a1f9c5107ad404389d69f` was reviewed but is
 > superseded and not consumable by SFT1
-> **Next gate:** resume the frozen Wave 3 pre-gate through its additive `r1` recovery controller
-> and finish the already-running Wave 5 zero-Lean inventory verifier. Wave 3
+> **Next gate:** monitor the healthy detached Wave 3 `r1` pre-gate to its
+> `awaiting_family_manual_inspection` terminal boundary. Wave 3
 > stops at `awaiting_family_manual_inspection` after fresh fixtures and the five separate
 > N26/N29/N30/N31/N32 exact-20 plus forced-resume/approximately-100/replay gates; actual row-by-row
-> review must pass before the strict 200-root mixed-source gate is launched. Wave 5 stops at
+> review must pass before the strict 200-root mixed-source gate is launched. Wave 5 has stopped at
 > `complete_awaiting_typed_1000_audit`; its inventory does not authorize compiler transformation.
 > **Compute class:** the frozen Wave 3 supervisor uses one persistent Lean worker with a 24 GiB
-> reservation/limit per typed run. The concurrent streamed Wave 5 inventory makes zero Lean calls;
+> reservation/limit per typed run. The completed streamed Wave 5 inventory made zero Lean calls;
 > the combined host ceiling remains 40 GiB and no more than one of the allowed two Lean workers is
 > used at this boundary. Both jobs use named detached tmux sessions and durable finite status.
 > **Lean budget:** all string parsing, schema/provenance work, source filtering, joins,
@@ -2555,3 +2555,33 @@ resource use, output paths, and exact remaining ETA. Do not run training.
   output roots, zero Lean calls, and the pinned run ID
   `fdc68ee4247517698f9e89c3a90818585eea62e9c5296a06b33e1c318d29b781`; the detached supervisor
   started its final inventory verifier at 2026-09-03T17:10:38.432235+00:00 with no active failure.
+- 2026-09-03 — Wave 5 zero-Lean inventory reached the durable terminal state
+  `complete_awaiting_typed_1000_audit` and its tmux session exited normally with no failure marker.
+  The SHA-256-bound terminal and manifest are
+  `c3720de73042f41d5c68e2555bf351e2c1d08d6a655f5e76472bd34b6a46d016` and
+  `6d91c399bc00ba544a659ed7265185fbdb88407e59e7f2d1eddae4ff36744567`; the 256-shard output tree
+  SHA-256 is `1335afddc613fe4141cf0c92c4ce7d8c7f2a8cb47338bb19450fcfbcebf042d6`.
+  The final counts are 4,278,539 inputs, 2,013,342 valid proof-bearing rows, 1,806,241 raw unique
+  valid prefixes, 1,806,082 post-screen exact prefixes, 2,013,142 accepted rows, and 1,745,040
+  normalized contextual inventory roots; 174 rows were rejected for contamination and 26 for
+  parse failure. The independently replayed 1,000-row selection conserved content, created zero
+  new shards, and the complete run made zero Lean calls. First-pass, replay, and verification wall
+  times were 17:38.68, 0:09.84, and 3:27.81; peak verification RSS was 799,596 KiB. This terminal
+  authorizes only the separate typed 1,000-root context/certificate audit, not compiler transforms,
+  publication, or a lower-confidence core.
+- 2026-09-03 — launched the frozen additive Wave 3 recovery command exactly once at
+  2026-09-03T17:14:13Z in detached tmux session
+  `leanfaith-sft1-wave3-pregate-a13363f332d3-r1`. Pane PID 4145496 owns supervisor PID 4145498;
+  preflight SHA-256 is
+  `c933cf40eb8a00c8ece1c09e5666d1c9387f540d3ac83d80b5685bf800d06c42` and correctly binds the
+  existing-output recovery boundary. The append-only supervisor recovered both predecessor
+  receipts, passed all three project validations, reused the fixture/N26 exact-20 receipts, and
+  completed N26 exact-20 replay with zero Lean requests plus its inspection check. The first
+  N26 approximately-100 phase then completed 50 roots at 2026-09-03T17:14:49.879939+00:00; its
+  journal had 50 root plus 50 terminal records, 40 cache-sourced and 60 Lean-sourced records, with
+  seven retained terminals. The forced resume to 100 started immediately under runner PID 4151060
+  and a live persistent Lean REPL, while the resource ledger showed exactly one 24 GiB, one-worker
+  `SFT1-WAVE3` reservation. No failure or terminal marker exists. The session, pane, journal,
+  receipt CAS, fixed output lock, terminal markers, recovery command, and finite read-only status
+  command are all recorded above; after this verified durable progress the task does not poll or
+  restart the unattended run.
