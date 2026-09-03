@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
 import yaml
 
 from leanfaith.config.paths import find_repo_root
@@ -12,8 +13,10 @@ from leanfaith.sft1.sprint.runner import load_sprint_config
 from leanfaith.sft1.sprint.square import (
     SQUARE_FIXTURES,
     SQUARE_OPERATIONS,
+    SquareError,
     SquareSelection,
     cap_square_selection,
+    collapse_exact_repeated_records,
 )
 
 ROOT = find_repo_root(Path(__file__))
@@ -134,3 +137,23 @@ def test_square_row_ceiling_keeps_only_complete_groups() -> None:
     assert len(capped.kept) == 8
     assert capped.accepted_roots == keys[:2]
     assert capped.capacity_squares == keys[2:]
+
+
+def test_overlapping_runs_collapse_only_exact_repeated_pair_ids() -> None:
+    first = {
+        "row": {"reference": "a", "candidate": "b", "label": True},
+        "row_hash": "row-a",
+        "sidecar": {"pair_id": "pair:a"},
+    }
+    second = {
+        "row": {"reference": "c", "candidate": "d", "label": False},
+        "row_hash": "row-b",
+        "sidecar": {"pair_id": "pair:b"},
+    }
+    kept, repeated = collapse_exact_repeated_records([first, second, dict(first)])
+    assert kept == [first, second]
+    assert repeated == 1
+
+    collision = {**first, "row_hash": "different"}
+    with pytest.raises(SquareError, match="pair ID collision across source runs"):
+        collapse_exact_repeated_records([first, collision])
