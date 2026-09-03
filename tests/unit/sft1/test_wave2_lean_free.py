@@ -19,13 +19,13 @@ SOURCE_CONFIGS = (
     "wave2_cslib_v1.yaml",
 )
 NEW_OPERATIONS = {
-    "P21_BETA_REDUCE_V1",
     "P21_ZETA_REDUCE_V1",
     "P32_ADD_ASSOC_LOCAL_V1",
     "P32_ADD_COMM_LOCAL_V1",
     "P35_SET_INTER_MEMBERSHIP_V1",
     "N26_INCREMENT_BOUND_PROOF_V1",
 }
+EVALUATED_DROPPED_OPERATIONS = {"P21_BETA_REDUCE_V1"}
 
 
 def test_historical_and_wave2_configs_load_without_mutating_old_operation_set() -> None:
@@ -51,6 +51,9 @@ def test_wave2_master_contract_is_additive_and_model_rows_are_minimal() -> None:
     assert payload["release"]["maximum_rows"] == 500_000
     assert payload["execution"]["model_facing_fields"] == ["reference", "candidate", "label"]
     assert payload["execution"]["census_and_filter_before_lean"] is True
+    assert {
+        item["operation_id"] for item in payload["operations"]["evaluated_dropped"]
+    } == EVALUATED_DROPPED_OPERATIONS
 
 
 def test_string_applicability_is_conservative_and_operation_specific() -> None:
@@ -61,7 +64,7 @@ def test_string_applicability_is_conservative_and_operation_specific() -> None:
     }
     operations = set(wave2_applicability(row))
     assert {
-        "P21_BETA_REDUCE_V1",
+        *EVALUATED_DROPPED_OPERATIONS,
         "P32_ADD_ASSOC_LOCAL_V1",
         "P32_ADD_COMM_LOCAL_V1",
         "N26_INCREMENT_BOUND_PROOF_V1",

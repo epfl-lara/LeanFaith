@@ -23,8 +23,8 @@
 > active sprint prerequisites.
 > **REPR predecessor:** `cbc933c3623d81ba649a1f9c5107ad404389d69f` was reviewed but is
 > superseded and not consumable by SFT1
-> **Next gate:** implement and pass one live success plus one fail-closed fixture for every enabled
-> new mechanism, then inspect every emitted pair from twenty diverse roots.
+> **Next gate:** pass one live success plus one fail-closed fixture for every enabled mechanism,
+> then inspect every emitted pair from twenty diverse roots.
 > **Compute class:** no claim while census and Lean-free implementation work proceeds. Live gates
 > will claim one persistent project worker within the shared 24 GiB/one-worker budget; any 10K or
 > eligible-pool run will use a named detached tmux session and a recorded exact resume command.
@@ -53,6 +53,12 @@ The authorized preserving batch is `P21_BETA_REDUCE_V1`, `P21_ZETA_REDUCE_V1`,
 an exact source proof and candidate refutation are available. Difficult, unsafe, or near-zero-yield
 new mechanisms are recorded and dropped rather than allowed to block the roughly four-hour
 implementation time box.
+
+`P21_BETA_REDUCE_V1` was implemented and evaluated, then disabled before the gates: conservative
+string candidates either had no beta redex in the elaborated theorem type or rendered as a
+self-pair after definitional normalization. This is the time-boxed near-zero-yield disposition,
+not an unsafe label waiver. `P21_ZETA_REDUCE_V1` remains enabled and retains visible certified
+let-reduction pairs.
 
 Every positive requires definitional equality or a checked equivalence certificate. Every negative
 requires an exact source proof plus candidate refutation or another explicit kernel-checkable
@@ -1995,3 +2001,17 @@ resource use, output paths, and exact remaining ETA. Do not run training.
   expanded N32 `LT`/`LE`, and proof-backed square closure; the historical sprint config still loads
   its original nine-operation set. Eighteen focused Lean-free tests, strict Mypy, Ruff, formatting,
   config loading, and whitespace checks passed. No Lean call or host reservation occurred yet.
+- 2026-09-03 — bounded live mechanism probes compiled the additive engine in the persistent
+  Mathlib worker and found kernel-checked retained rows for zeta reduction, local additive
+  associativity, local additive commutativity, set-intersection membership, N26 range-bound
+  increment, and N32 strict and non-strict role-order swaps. Two implementation defects were
+  exposed and fixed before gates: a reserved identifier in the injected source, and generic
+  rewrite lemmas instantiated without fresh universe metavariables. The final targeted 15-root
+  probe retained 15 rows (P32-assoc 2, P32-comm 8, P35 2, N26 2, N32 1); a separate six-root LE
+  probe retained three expanded-N32 rows. Beta produced no usable surface pair and was disabled
+  under the authorized near-zero-yield drop rule; zeta retained six rows in the initial bounded
+  probe. All unsuccessful candidates failed closed. The canonical already-built source checkouts
+  were then selected for non-Mathlib execution: Physlib `f5242c99…` (5,778 declarations, Lean
+  v4.30.0) and CSLib `2f677bfc…` (1,452 declarations, Lean v4.31.0-rc1). Their additive string
+  censuses supersede, without deleting, the preliminary raw-repository census directories. No
+  reservation remained after each bounded probe.

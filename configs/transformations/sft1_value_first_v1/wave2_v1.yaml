@@ -15,11 +15,13 @@ sources:
     disposition: excluded_until_exact_theorem_and_proof_context_is_locally_reproducible
 operations:
   preserving_new:
-    - P21_BETA_REDUCE_V1
     - P21_ZETA_REDUCE_V1
     - P32_ADD_ASSOC_LOCAL_V1
     - P32_ADD_COMM_LOCAL_V1
     - P35_SET_INTER_MEMBERSHIP_V1
+  evaluated_dropped:
+    - operation_id: P21_BETA_REDUCE_V1
+      reason: elaboration_and_goal_v1_rendering_remove_the_beta_surface_delta
   preserving_reuse:
     - P14_SWAP_INDEPENDENT_DATA_BINDERS_V1
     - P23_CURRY_PROP_PAIR_V1

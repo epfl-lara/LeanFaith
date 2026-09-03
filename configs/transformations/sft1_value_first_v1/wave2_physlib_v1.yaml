@@ -2,9 +2,9 @@ schema_version: 1
 sprint_id: sft1_wave2_physlib_v1
 project:
   project_id: physlib
-  project_dir: /storage/milikic/lean_project_corpus/raw/repos/jagg-ix__physlib
-  project_revision: 6fd9a929fac46d3098c7e95ae66cbcd561aef4d8
-  lean_version: v4.29.0
+  project_dir: /storage/milikic/leanfaith/value_first/sft1_deterministic_v1/checkouts/physlib
+  project_revision: f5242c99d796b59a390d26cd7d1a8057e04c46b5
+  lean_version: v4.30.0
   lean_interact_version: 0.11.4
   repl_revision: augustepoiroux/repl@lean-interact-0.11.4
   import_header: import Physlib
@@ -20,7 +20,6 @@ engine:
     - N32_SWAP_ROLE_ORDER_PROOF_V1
     - N31_DROP_REQUIRED_GUARD_PROOF_V1
     - P_NE_SYMMETRIZE_V1
-    - P21_BETA_REDUCE_V1
     - P21_ZETA_REDUCE_V1
     - P32_ADD_ASSOC_LOCAL_V1
     - P32_ADD_COMM_LOCAL_V1

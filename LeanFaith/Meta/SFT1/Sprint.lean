@@ -23,7 +23,7 @@ namespace LeanFaith.SFT1.Sprint
 
 open Lean Elab Meta
 
-def engineSemanticVersion : String := "sft1_wave2_engine_v1"
+def engineSemanticVersion : String := "sft1_wave2_engine_v2"
 /-- Operation-set version 3 adds the Wave 2 preserving and proof-backed breaking batch. -/
 def engineOperationSetVersion : Nat := 3
 def evidenceMarker : String := "LFSFT1SPRINTJSON "
@@ -678,12 +678,13 @@ private def applyDefReduce (root : Root) (kind : DefReduceKind) : MetaM Applied 
 
 /-- Rewrite the first final-target occurrence with one exact lemma. The generated equality
     proof is replayed later to build the row-local `Iff` certificate. -/
-private def rewriteFinalByLemma (root : Root) (kind : String) (lemma : Name) : MetaM Applied := do
+private def rewriteFinalByLemma (root : Root) (kind : String) (lemmaName : Name) : MetaM Applied := do
   let candidate ← forallTelescope root.reference fun xs body => do
     let attempt : Except String RewriteResult ← tryCatchRuntimeEx
       (do
         let ambient ← mkFreshExprMVar none
-        return .ok (← ambient.mvarId!.rewrite body (mkConst lemma) false
+        let rewriteLemma ← mkConstWithFreshMVarLevels lemmaName
+        return .ok (← ambient.mvarId!.rewrite body rewriteLemma false
           { occs := .pos [1] }))
       fun ex => do
         if ex.isInterrupt then throw ex
@@ -692,7 +693,7 @@ private def rewriteFinalByLemma (root : Root) (kind : String) (lemma : Name) : M
     unless result.mvarIds.isEmpty do throwNA s!"{kind}_unresolved_rewrite"
     mkForallFVars xs result.eNew
   if targetReflexive candidate then throwRej s!"{kind}_claim_erasure_reflexive"
-  return { candidate, site := { kind, index := 1, detail := lemma.toString } }
+  return { candidate, site := { kind, index := 1, detail := lemmaName.toString } }
 
 private def applyN26 (root : Root) : MetaM Applied := do
   let candidate ← forallTelescope root.reference fun xs body => do
@@ -936,21 +937,22 @@ private def defeqIffProof (ref cand : Expr) : MetaM Expr := do
 
 /-- Re-run the exact single-occurrence lemma rewrite and turn its equality proof for the
     final target into a complete `Iff` proof under the original telescope. -/
-private def lemmaRewriteIffProof (ref cand : Expr) (lemma : Name) : MetaM Expr := do
+private def lemmaRewriteIffProof (ref cand : Expr) (lemmaName : Name) : MetaM Expr := do
   forallTelescope ref fun xs body => do
     let ambient ← mkFreshExprMVar none
-    let result ← ambient.mvarId!.rewrite body (mkConst lemma) false { occs := .pos [1] }
+    let rewriteLemma ← mkConstWithFreshMVarLevels lemmaName
+    let result ← ambient.mvarId!.rewrite body rewriteLemma false { occs := .pos [1] }
     unless result.mvarIds.isEmpty do throwRej "lemma_rewrite_unresolved_goals"
     let rebuilt ← mkForallFVars xs result.eNew
     unless Expr.equal rebuilt cand do throwRej "lemma_rewrite_candidate_mismatch"
     let mp ← withLocalDecl `h .default ref fun h => do
       let oldProof := mkAppN h xs
-      let newProof := mkEqMP result.eqProof oldProof
+      let newProof ← mkEqMP result.eqProof oldProof
       mkLambdaFVars #[h] (← mkLambdaFVars xs newProof)
     let eqSymm ← mkEqSymm result.eqProof
     let mpr ← withLocalDecl `h .default cand fun h => do
       let newProof := mkAppN h xs
-      let oldProof := mkEqMP eqSymm newProof
+      let oldProof ← mkEqMP eqSymm newProof
       mkLambdaFVars #[h] (← mkLambdaFVars xs oldProof)
     return iffIntro ref cand mp mpr
 

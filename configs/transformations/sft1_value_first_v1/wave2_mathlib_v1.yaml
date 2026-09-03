@@ -20,7 +20,6 @@ engine:
     - N32_SWAP_ROLE_ORDER_PROOF_V1
     - N31_DROP_REQUIRED_GUARD_PROOF_V1
     - P_NE_SYMMETRIZE_V1
-    - P21_BETA_REDUCE_V1
     - P21_ZETA_REDUCE_V1
     - P32_ADD_ASSOC_LOCAL_V1
     - P32_ADD_COMM_LOCAL_V1
@@ -49,4 +48,30 @@ output:
   staging_root: /storage/milikic/leanfaith/value_first/sft1_deterministic_v1/wave2/mathlib
   shard_size: 1000
 fixtures_success_waivers: []
-fixtures: []
+fixtures:
+  - {root: le_antisymm_iff, operation_id: P15_SWAP_IFF_SIDES_V1, expect_status: retained}
+  - {root: Nat.pow_sub_one, operation_id: P15_SWAP_IFF_SIDES_V1, expect_status: not_applicable, expect_reason_prefix: final_target_iff_not_applicable}
+  - {root: PNat.gcd_comm, operation_id: P18_SYMMETRIZE_EQUALITY_V1, expect_status: retained}
+  - {root: Nat.factorial_lt, operation_id: P18_SYMMETRIZE_EQUALITY_V1, expect_status: not_applicable, expect_reason_prefix: final_target_eq_not_applicable}
+  - {root: Nat.div_right_comm, operation_id: P14_SWAP_INDEPENDENT_DATA_BINDERS_V1, expect_status: retained}
+  - {root: Nat.factorial_lt, operation_id: P14_SWAP_INDEPENDENT_DATA_BINDERS_V1, expect_status: not_applicable, expect_reason_prefix: p14_no_adjacent_independent_data_binders}
+  - {root: le_of_le_of_eq', operation_id: P23_CURRY_PROP_PAIR_V1, expect_status: retained}
+  - {root: Nat.lt_factorial_self, operation_id: P23_CURRY_PROP_PAIR_V1, expect_status: not_applicable, expect_reason_prefix: p23_no_adjacent_independent_prop_binders}
+  - {root: Nat.mul_factorial_pred, operation_id: N25_TOGGLE_EQ_NE_PROOF_V1, expect_status: retained}
+  - {root: PNat.gcd_comm, operation_id: N25_TOGGLE_EQ_NE_PROOF_V1, expect_status: rejected, expect_reason_prefix: no_ground_assignment}
+  - {root: Nat.add_factorial_succ_le_factorial_add_succ, operation_id: N32_SWAP_ROLE_ORDER_PROOF_V1, expect_status: retained}
+  - {root: PNat.gcd_comm, operation_id: N32_SWAP_ROLE_ORDER_PROOF_V1, expect_status: not_applicable, expect_reason_prefix: final_target_strict_lt_not_applicable}
+  - {root: Nat.lt_factorial_self, operation_id: N31_DROP_REQUIRED_GUARD_PROOF_V1, expect_status: retained}
+  - {root: Nat.div_right_comm, operation_id: N31_DROP_REQUIRED_GUARD_PROOF_V1, expect_status: not_applicable, expect_reason_prefix: n31_no_supported_guard}
+  - {root: Nat.factorial_ne_zero, operation_id: P_NE_SYMMETRIZE_V1, expect_status: retained}
+  - {root: PNat.gcd_comm, operation_id: P_NE_SYMMETRIZE_V1, expect_status: not_applicable, expect_reason_prefix: final_target_ne_not_applicable}
+  - {root: IsOrderedMonoid.mkOfCone, operation_id: P21_ZETA_REDUCE_V1, expect_status: retained}
+  - {root: PNat.gcd_comm, operation_id: P21_ZETA_REDUCE_V1, expect_status: not_applicable, expect_reason_prefix: p21_zeta_no_redex}
+  - {root: Nat.factorization_factorial_mul_succ, operation_id: P32_ADD_ASSOC_LOCAL_V1, expect_status: retained}
+  - {root: PNat.gcd_comm, operation_id: P32_ADD_ASSOC_LOCAL_V1, expect_status: not_applicable, expect_reason_prefix: p32_add_assoc_not_applicable}
+  - {root: AddConstMapClass.map_const_add, operation_id: P32_ADD_COMM_LOCAL_V1, expect_status: retained}
+  - {root: PNat.gcd_comm, operation_id: P32_ADD_COMM_LOCAL_V1, expect_status: not_applicable, expect_reason_prefix: p32_add_comm_not_applicable}
+  - {root: Matroid.uniqueBaseOn_isNonloop_iff, operation_id: P35_SET_INTER_MEMBERSHIP_V1, expect_status: retained}
+  - {root: PNat.gcd_comm, operation_id: P35_SET_INTER_MEMBERSHIP_V1, expect_status: not_applicable, expect_reason_prefix: p35_set_inter_membership_not_applicable}
+  - {root: Finset.mem_range, operation_id: N26_INCREMENT_BOUND_PROOF_V1, expect_status: retained}
+  - {root: PNat.gcd_comm, operation_id: N26_INCREMENT_BOUND_PROOF_V1, expect_status: not_applicable, expect_reason_prefix: n26_no_finset_range_coverage_bound}
