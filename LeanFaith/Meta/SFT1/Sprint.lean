@@ -23,7 +23,7 @@ namespace LeanFaith.SFT1.Sprint
 
 open Lean Elab Meta
 
-def engineSemanticVersion : String := "sft1_wave2_engine_v4"
+def engineSemanticVersion : String := "sft1_wave2_engine_v5"
 /-- Operation-set version 3 adds the Wave 2 preserving and proof-backed breaking batch. -/
 def engineOperationSetVersion : Nat := 3
 def evidenceMarker : String := "LFSFT1SPRINTJSON "
@@ -1468,13 +1468,13 @@ def squareOps : Array SquareOp := #[
   { id := "SQUARE_N19_CURRICULUM_V1", negId := n19OperationId, neg := none,
     transforms := #[.p14, .p23, .p18, .pne, .p15] },
   { id := "SQUARE_WAVE2_N26_V1", negId := (Op.n26).id, neg := some .n26,
-    transforms := #[.p21Zeta, .p32Assoc, .p32Comm, .p35, .p14, .p23] },
+    transforms := #[.p15, .p14, .p23, .p21Zeta, .p32Assoc, .p32Comm, .p35] },
   { id := "SQUARE_WAVE2_N32_V1", negId := (Op.n32).id, neg := some .n32,
-    transforms := #[.p21Zeta, .p32Assoc, .p32Comm, .p35, .p14, .p23] },
+    transforms := #[.p14, .p23, .p21Zeta, .p32Assoc, .p32Comm, .p35] },
   { id := "SQUARE_WAVE2_N25_V1", negId := (Op.n25).id, neg := some .n25,
     transforms := #[.p21Zeta, .p32Assoc, .p32Comm, .p35, .p14, .p23] },
   { id := "SQUARE_WAVE2_N31_V1", negId := (Op.n31).id, neg := some .n31,
-    transforms := #[.p21Zeta, .p32Assoc, .p32Comm, .p35, .p14, .p23] }]
+    transforms := #[.p18, .pne, .p15, .p14, .p23, .p21Zeta, .p32Assoc, .p32Comm, .p35] }]
 
 def squareOp? (id : String) : Option SquareOp := squareOps.find? (·.id == id)
 

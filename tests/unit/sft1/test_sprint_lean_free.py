@@ -48,7 +48,7 @@ def test_config_rejects_async_elaboration() -> None:
 
 def test_engine_source_declares_version_and_no_forbidden_tokens() -> None:
     source = (ROOT / engine.ENGINE_RELATIVE_PATH).read_text(encoding="utf-8")
-    assert engine.engine_semantic_version(ROOT) == "sft1_wave2_engine_v4"
+    assert engine.engine_semantic_version(ROOT) == "sft1_wave2_engine_v5"
     for token in ("sorry", "addDecl", "addAndCompile", "ppGoal", "mkSorry", "sorryAx"):
         assert token not in source.replace("hasSorry", ""), token
     assert "Kernel.check" in source
