@@ -380,6 +380,7 @@ def derive_provenance(
     repo_root: Path,
     cache_root: Path,
     release_dir: Path | None = None,
+    allow_multiple_project_pins: bool = False,
 ) -> dict[str, Any]:
     """Segments, identities, and consistency checks derived from sidecars."""
 
@@ -460,7 +461,7 @@ def derive_provenance(
         issues.append("multiple frozen REPR implementation identities")
     if len(spec_hashes) != 1:
         issues.append("multiple REPR spec hashes")
-    if len(project_pins) != 1:
+    if len(project_pins) != 1 and not allow_multiple_project_pins:
         issues.append("multiple project pin sets")
     for segment in segment_list:
         if not segment["engine_commits"]:
@@ -483,6 +484,7 @@ def derive_provenance(
         ),
         "repr_implementation_identity_count": len(repr_identities),
         "project_pin_set_count": len(project_pins),
+        "multiple_project_pins_allowed": allow_multiple_project_pins,
         "square_cache_records_verified": square_verified,
         "square_cache_records_inconsistent": len(cache_issues),
         "square_cache_snapshots_verified": snapshot_verified,

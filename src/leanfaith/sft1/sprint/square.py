@@ -1127,6 +1127,26 @@ def load_square_retained(
     return rows
 
 
+def attach_cache_records(
+    records: Sequence[dict[str, Any]], cache_root: Path
+) -> list[dict[str, Any]]:
+    """Attach and verify live square records so a no-regenerate build can snapshot them."""
+    attached: list[dict[str, Any]] = []
+    for item in records:
+        record = dict(item)
+        block = cast(dict[str, Any], cast(dict[str, Any], record["sidecar"]).get("cache") or {})
+        relative = str(block.get("path") or "")
+        path = cache_root / relative
+        if not relative or not path.is_file():
+            raise SquareError(f"cache record absent for {record.get('root_name')}: {path}")
+        cached = read_json_object(path)
+        if hash_canonical(cached) != block.get("content_sha256"):
+            raise SquareError(f"cache content hash mismatch for {record.get('root_name')}: {path}")
+        record["cache_record"] = cached
+        attached.append(record)
+    return attached
+
+
 _REBUILD_CALL = re.compile(r"rebuildSquares #\[(.*?)\](?: \"[^\"]*\")?\n")
 _STRING_LITERAL = re.compile(r'"(?:[^"\\]|\\.)*"')
 
@@ -1670,6 +1690,7 @@ def build_square_view(
     supersedes: str | None = None,
     require_identical_rows: str | None = None,
     preferred_operations: Sequence[str] = (),
+    allow_multiple_project_pins: bool = False,
 ) -> dict[str, Any]:
     from leanfaith.sft1.sprint import shortcut
 
@@ -1716,7 +1737,7 @@ def build_square_view(
             quarantined.extend({**item, "run_id": run_id} for item in run_quarantined)
             source_retained_paths.append(str(regenerated_path.relative_to(staging)))
         else:
-            records.extend(load_square_retained(paths))
+            records.extend(attach_cache_records(load_square_retained(paths), staging / "cache"))
             source_retained_paths.append(str(paths.retained.relative_to(staging)))
     gold = GoldBlocklist.load(
         repo_root / config.screens.gold_blocklist_path,
@@ -1789,6 +1810,7 @@ def build_square_view(
         repo_root=repo_root,
         cache_root=Path(config.output.staging_root) / "cache",
         release_dir=out,
+        allow_multiple_project_pins=allow_multiple_project_pins,
     )
     if not provenance["consistent"]:
         shutil.rmtree(out)
@@ -1866,6 +1888,7 @@ def build_square_view(
         "shard_size": size,
         "shards": shard_manifests,
         "config_semantic_hash": loaded.config_hash,
+        "multiple_project_pins_allowed": allow_multiple_project_pins,
         "provenance": provenance,
         "gold_blocklist_sha256": gold.sha256,
         "proof_check_time": "original_generation",
@@ -2311,6 +2334,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         action="store_true",
         help="build from the run's retained file instead of regenerating from cache records",
     )
+    parser.add_argument(
+        "--allow-multiple-project-pins",
+        action="store_true",
+        help="admit independently pinned source projects in one combined square view",
+    )
     args = parser.parse_args(argv)
     repo_root = args.repo_root.resolve()
     loaded = load_sprint_config(repo_root, args.config.resolve() if args.config else None)
@@ -2394,6 +2422,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         preferred_operations=[
             x.strip() for x in (args.prefer_operations or "").split(",") if x.strip()
         ],
+        allow_multiple_project_pins=args.allow_multiple_project_pins,
     )
     print(
         json.dumps(

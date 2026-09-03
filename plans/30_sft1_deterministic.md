@@ -23,8 +23,8 @@
 > active sprint prerequisites.
 > **REPR predecessor:** `cbc933c3623d81ba649a1f9c5107ad404389d69f` was reviewed but is
 > superseded and not consumable by SFT1
-> **Next gate:** pass one live success plus one fail-closed fixture for every enabled mechanism,
-> then inspect every emitted pair from twenty diverse roots.
+> **Next gate:** finish the consolidated 200-root shortcut/structure/replay gate, then continue
+> automatically to the 10,000-row mixed-source pilot if every threshold passes.
 > **Compute class:** no claim while census and Lean-free implementation work proceeds. Live gates
 > will claim one persistent project worker within the shared 24 GiB/one-worker budget; any 10K or
 > eligible-pool run will use a named detached tmux session and a recorded exact resume command.
@@ -1121,12 +1121,14 @@ artifacts remain in the task-owned staging root. No coordinator-owned path is cl
 - `src/leanfaith/sft1/sprint/runner.py`
 - `src/leanfaith/sft1/sprint/shortcut.py`
 - `src/leanfaith/sft1/sprint/square.py`
+- `src/leanfaith/sft1/sprint/provenance.py`
 - `src/leanfaith/sft1/sprint/integrity.py`
 - `src/leanfaith/sft1/sprint/publish.py`
 - `configs/transformations/sft1_value_first_v1/wave2_v1.yaml`
 - `configs/transformations/sft1_value_first_v1/wave2_mathlib_v1.yaml`
 - `configs/transformations/sft1_value_first_v1/wave2_physlib_v1.yaml`
 - `configs/transformations/sft1_value_first_v1/wave2_cslib_v1.yaml`
+- `configs/transformations/sft1_value_first_v1/wave2_combined_v1.yaml`
 - `tests/unit/sft1/test_sprint_lean_free.py`
 - `tests/unit/sft1/test_wave2_lean_free.py`
 - `/storage/milikic/leanfaith/value_first/sft1_deterministic_v1/wave2/`
@@ -2015,3 +2017,22 @@ resource use, output paths, and exact remaining ETA. Do not run training.
   v4.30.0) and CSLib `2f677bfc…` (1,452 declarations, Lean v4.31.0-rc1). Their additive string
   censuses supersede, without deleting, the preliminary raw-repository census directories. No
   reservation remained after each bounded probe.
+- 2026-09-03 — passed the final Wave 2 fixture and 20-root boundaries under engine
+  `sft1_wave2_engine_v5`. All thirteen enabled single-hop mechanisms have a live retained fixture
+  and a typed fail-closed fixture; the three enabled Wave 2 square operations (N26, N32, N25) also
+  have live retained and fail-closed fixtures. The 20-root gate used 10 Mathlib, 5 Physlib, and 5
+  CSLib roots and retained 40 rows (22/9/9); every serialized reference/candidate pair was manually
+  inspected with zero wrong labels or edit mismatches. Its v5 model rows are byte-for-byte equal to
+  the inspected v3 rows, and the three v5 runs replayed with zero Lean calls and zero duplicate
+  rows. N31 square closure retained no bounded probe root and was dropped under the explicit
+  optional/non-blocking rule; the separately checked N31 single-hop evidence remains historical
+  gate evidence, not Wave 2 core data.
+- 2026-09-03 — completed the mixed-source 200-root Lean execution with forced resume after the
+  first 50 N32 roots. Exact proof-backed negative targets plus the zero-Lean preserving census
+  selected 170 Mathlib, 20 Physlib, and 10 CSLib roots. The five runs retained 131 complete squares
+  / 524 balanced rows: N32 58 squares, capped N25 72, and N26 1; Mathlib contributed 105 squares,
+  Physlib 18, and CSLib 8. No single negative mechanism exceeds 55% of retained squares. There were
+  62 `not_applicable` and 7 fail-closed `rejected` roots, with no engine errors or partial retained
+  group. A cross-project no-regenerate consolidation path is being checked now; it snapshots each
+  already-verified cache record and admits multiple independently pinned project identities
+  explicitly rather than pretending the three libraries share one project pin.

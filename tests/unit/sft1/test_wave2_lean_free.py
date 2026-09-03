@@ -18,6 +18,7 @@ SOURCE_CONFIGS = (
     "wave2_physlib_v1.yaml",
     "wave2_cslib_v1.yaml",
 )
+COMBINED_CONFIG = "wave2_combined_v1.yaml"
 NEW_OPERATIONS = {
     "P21_ZETA_REDUCE_V1",
     "P32_ADD_ASSOC_LOCAL_V1",
@@ -37,6 +38,9 @@ def test_historical_and_wave2_configs_load_without_mutating_old_operation_set() 
         assert loaded.config.output.staging_root.endswith(
             f"wave2/{loaded.config.project.project_id}"
         )
+    combined = load_sprint_config(ROOT, CONFIG_DIR / COMBINED_CONFIG)
+    assert combined.config.sprint_id == "sft1_wave2_combined_v1"
+    assert combined.config.output.staging_root.endswith("wave2/combined")
 
 
 def test_operation_mask_round_trip_including_wave2_batch() -> None:
