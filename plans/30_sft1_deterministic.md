@@ -2066,3 +2066,26 @@ resource use, output paths, and exact remaining ETA. Do not run training.
   zero-call. Any command failure stops the chain before its marker; unexpected certificate errors,
   resource-ceiling violations, or insufficient retained squares stop progression before a 10K
   release is built.
+- 2026-09-03 — the first 10K candidate pass completed cleanly but retained only 1,308 complete
+  squares / 5,232 rows, so it did not create or label a 10K view. The seven source/operation runs
+  all reached terminal state and then replayed with zero Lean calls, zero duplicate rows, and exact
+  retained counts. Retained squares were Mathlib N25/N32/N26 1,110/156/2, Physlib N25/N32 27/0,
+  and CSLib N25/N32 13/0; there were no engine errors. This exposed an overly broad zero-Lean
+  prefilter: the initial target plan counted preserving hits such as equality symmetry that are
+  intentionally absent from a given negative square's commuting transform set. Those roots failed
+  closed as `square_no_applicable_transform`; no certificate or label was weakened.
+- 2026-09-03 — replaced the execution target, not any historical artifact, with the exact
+  operation-compatible intersection in `wave2/full_eligible_compatible_plan.json`: 79,943 roots
+  total. Counts are Mathlib N25/N32/N26 57,385/16,850/1,985, Physlib 2,842/393/8, and CSLib
+  377/99/4; target-set hashes are recorded in that plan. N25/N32 use exactly P14, P23, zeta,
+  add-assoc, add-comm, and set-intersection transforms, while N26 additionally permits P15. A
+  bounded second pilot phase will process the first 15,000 Mathlib N25 compatible roots under run
+  `wave2_pool_mathlib_n25_compatible_v5`, then force a zero-call replay. Its clean committed code
+  is `f6dda3b65a14b63a4c83fb29ed9e49c6569a630b`; exact script
+  `wave2/logs/pilot10k_compatible_mathlib_n25.sh` has SHA-256
+  `be959fc783c6e357cbea78ae6b4deaf0445e8e52806cd7f3409f90df9f203e25`, session
+  `leanfaith-sft1-wave2-pilot2`, persistent log `wave2/logs/pilot10k_compatible_mathlib_n25.log`,
+  one persistent Mathlib worker, a 24 GiB measured-RSS claim, the existing 24,576 MiB hard limit,
+  and 900-second request timeout. Resume is the identical script/run ID and target. Three stale
+  preliminary zero-Lean census processes tied to superseded raw-source revisions were confirmed
+  task-owned and stopped before launch; no host reservation remained.
