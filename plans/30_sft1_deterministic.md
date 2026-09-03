@@ -1,12 +1,12 @@
 # SFT1 — deterministic theorem-equivalence data at scale
 
 > **Task ID:** SFT1
-> **Status:** active
-> **Owner/session:** Codex `/root` SFT1 Wave 2 diversity-and-scale sprint on worktree `/localhome/milikic/LeanFaith-sft1-wave2-diversity-scale`, branch `milikic/sft1-wave2-diversity-scale`
+> **Status:** pilot_passed
+> **Owner/session:** Wave 2 closed by Codex `/root` on worktree `/localhome/milikic/LeanFaith-sft1-wave2-diversity-scale`, branch `milikic/sft1-wave2-diversity-scale`
 > **Last updated:** 2026-09-03
-> **Active sprint:** Wave 2 uses the additive execution contract recorded below. The closed
-> 72-hour sprint and its authorization/readiness history remain frozen evidence, not active
-> dependencies.
+> **Active sprint:** none. Wave 2 is closed at private Hub revision
+> `a3b5c921a24f5dedd57f1b4fb3155c163a0a48bd`; the closed 72-hour sprint and its
+> authorization/readiness history remain frozen evidence, not active dependencies.
 > **Active policy:** historical baseline preserved: the additive, smoke-only implementation from accepted commit
 > `fc8cdc2c6d9d93e99e20933a17dbcfa2afc2be48` has produced exactly one real Mathlib preserving
 > pair and one hand-written closed N31 breaking canary, serialized both, and replayed both from
@@ -23,11 +23,11 @@
 > active sprint prerequisites.
 > **REPR predecessor:** `cbc933c3623d81ba649a1f9c5107ad404389d69f` was reviewed but is
 > superseded and not consumable by SFT1
-> **Next gate:** publish the passed 13,984-row final view only to the new private additive prefix
-> `wave2/core_v1`, verify the immutable fresh download, record the receipt/index, and close Wave 2.
-> **Compute class:** no claim while census and Lean-free implementation work proceeds. Live gates
-> will claim one persistent project worker within the shared 24 GiB/one-worker budget; any 10K or
-> eligible-pool run will use a named detached tmux session and a recorded exact resume command.
+> **Next gate:** none for this sprint. Any further SFT1 mechanism expansion is a separate batched
+> multi-operation effort; it must not reopen or mutate this Wave 2 release.
+> **Compute class:** no active claim, process, or detached Wave 2 session. Completed live gates used
+> one persistent project worker within the shared 24 GiB/one-worker budget; all reservations were
+> released.
 > Wave 2 outputs live under the staging root's additive `wave2/` directory (`inventory/`, `cache/`,
 > `cache_fixtures/`, `raw/`, `runs/<run_id>/`, `compacted/core_v1/`, `logs/`).
 > **Lean budget:** all string census, filtering, schema, provenance, joins, deduplication, and
@@ -38,7 +38,7 @@
 > **Local staging root:** `/storage/milikic/leanfaith/value_first/sft1_deterministic_v1/`
 > **HF destination:** private `Lemmy00/leanfaith-sft1-deterministic-v1`
 
-## Wave 2 diversity-and-scale sprint (active)
+## Wave 2 diversity-and-scale sprint (closed)
 
 Wave 2 is additive to the closed sprint and must not modify or republish `core_v4_diverse_square_v2`,
 `core_v5_combined_square`, or `aux_n19_square_curriculum`. N19 is frozen auxiliary data and is out
@@ -2218,3 +2218,16 @@ resource use, output paths, and exact remaining ETA. Do not run training.
   skew: N25 is 95.05% of final rows, relation-parity balanced accuracy is 0.9630, target-equality
   is 0.8274, P35 has no released scale row, and beta/N31 were time-boxed out. This is a
   substantially larger certified curriculum, not the original broad multi-million-row SFT1 goal.
+- 2026-09-03 — published the passed final view private-first, exactly once, to
+  `Lemmy00/leanfaith-sft1-deterministic-v1` prefix `wave2/core_v1`. Immutable Hub revision
+  `a3b5c921a24f5dedd57f1b4fb3155c163a0a48bd` has parent
+  `c0b1bed5003af836dcfbbd0595b92913fd7c6c28`; all 67 files / 188,451,099 bytes at the prefix
+  were hash-verified from a fresh download before the atomic local receipt
+  `wave2/combined/compacted/core_v1/publication_receipt.json` was written. The new local Wave 2
+  index is `wave2/combined/compacted/index.json`; it preserves the three immutable prior release
+  roles and names this view the current Wave 2 training-facing certified curriculum, explicitly
+  not a broad final SFT1 corpus. The 10K audit selection and manual verdict remain at
+  `core_v1_pilot10k_v4/audit_200.json` and `audit_200_verdict.json`. Focused Wave 2 and publication
+  tests, formatting, static typing, final JSON parsing, release, integrity, receipt, and immutable
+  Hub-resolution checks all passed. Wave 2 is closed at overall status `pilot_passed`; it does not
+  complete the original broad multi-million-row SFT1 objective, authorize training, or alter N19.
