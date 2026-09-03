@@ -27,8 +27,8 @@
 > release identities; it must not reinterpret `core_v5_combined_square` as a broad final corpus or
 > promote N19 out of its auxiliary role.
 > **Compute class:** none. No SFT1 Lean, generation, compaction, or publication job and no
-> shared-host reservation remains. The three named stale release/pilot wrappers were verified to
-> contain only childless sleeps and are removed after the reconciled branch push.
+> SFT1 shared-host reservation remains. The three named stale release/pilot wrappers were verified
+> to contain only childless sleeps and were removed after the reconciled branch push.
 > Sprint outputs live under the staging root's `sprint_v1/` directory (`inventory/`, `cache/`,
 > `cache_fixtures/`, `raw/`, `runs/<run_id>/`, `compacted/<label>/`, `logs/`).
 > **Lean budget:** no further Lean for SFT1 in this sequence; if a recovery from durable evidence
@@ -117,10 +117,10 @@ surface diagnostic reaches 0.9425 balanced accuracy. N19 is larger but deliberat
 outer-negation-XOR baseline reaches 0.9973, which is why it cannot be treated as headline core data.
 The earlier 2--3M planning band remains unmet and unpromised.
 
-At reconciliation, no SFT1 Lean, generation, compaction, or publication job and no shared-host
-reservation remained (`leanfaith-resources list`: no active reservations). The three specifically
-named stale tmux panes contained only childless `sleep 86400` wrappers; they are closed only after
-the reconciled branch is pushed.
+At reconciliation, no SFT1 Lean, generation, compaction, or publication job and no SFT1 shared-host
+reservation remained. The three specifically named stale tmux panes contained only childless
+`sleep 86400` wrappers and were closed only after the reconciled branch was pushed. Unrelated task
+reservations and tmux sessions are outside this handoff and remain untouched.
 
 ## Authorization boundary
 
