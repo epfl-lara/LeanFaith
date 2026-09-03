@@ -82,6 +82,7 @@ TerminalStatus = Literal["retained", "not_applicable", "rejected", "error"]
 FIXTURE_ROOT_PREFIX = "LeanFaith.SFT1.Sprint.Fixtures."
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
 _PAIR_ID = re.compile(r"^pair:[0-9a-f]{64}$")
+INFRASTRUCTURE_MAX_ATTEMPTS = 2
 
 
 class SprintRunnerError(RuntimeError):
@@ -821,11 +822,16 @@ class SprintRunner:
 
     # ------------------------------------------------------------ batches
 
-    def process_batch(self, batch: list[tuple[str, int]]) -> None:
+    def process_batch(
+        self, batch: list[tuple[str, int]], *, infrastructure_attempt: int = 0
+    ) -> None:
         session = self.open_session()
         self.batches += 1
         batch_started = time.monotonic()
-        request_id = f"{self.run_id}:process:{self.batches}:" + hash_canonical(batch)[:16]
+        request_id = (
+            f"{self.run_id}:process:{self.batches}:attempt-{infrastructure_attempt}:"
+            + hash_canonical(batch)[:16]
+        )
         result = session.run_process(batch, request_id=request_id)
         missing = [name for name, _ in batch if name not in result.roots]
         retryable_infrastructure = result.status in {
@@ -840,6 +846,17 @@ class SprintRunner:
             self.process_batch(batch[:half])
             self.process_batch(batch[half:])
             return
+        if retryable_infrastructure or valid_partial_payload:
+            if infrastructure_attempt + 1 < INFRASTRUCTURE_MAX_ATTEMPTS:
+                if self.backend is not None:
+                    self.backend.reset_session()
+                self.process_batch(batch, infrastructure_attempt=infrastructure_attempt + 1)
+                return
+            detail = "; ".join(result.errors[:2]) or result.status
+            raise SprintRunnerError(
+                "Lean infrastructure request failed after bounded retries without "
+                f"a terminal journal record: request_{result.status}:{detail[:300]}"
+            )
         if result.status != LeanStatus.VALID.value or missing:
             detail = "; ".join(result.errors[:2]) or result.status
             for name, _ in batch:

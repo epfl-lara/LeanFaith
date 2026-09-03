@@ -371,6 +371,47 @@ class _FakeProcessSession:
         return self.result
 
 
+class _FakeBackend:
+    def __init__(self) -> None:
+        self.resets = 0
+
+    def reset_session(self) -> None:
+        self.resets += 1
+
+
+def test_singleton_infrastructure_failure_is_bounded_and_left_retryable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    runner = SprintRunner.__new__(SprintRunner)
+    runner.run_id = "infrastructure-retry"
+    runner.batches = 0
+    runner.backend = _FakeBackend()
+    session = _FakeProcessSession(
+        engine.ProcessResult(
+            roots={},
+            request_hash="a" * 64,
+            elapsed_ms=1,
+            raw_response_path=None,
+            status=LeanStatus.CRASH.value,
+            errors=("injected crash",),
+        )
+    )
+    failures: list[tuple[str, Mapping[str, Any], str]] = []
+
+    def capture_failure(name: str, payload: Mapping[str, Any], *, source: str) -> None:
+        failures.append((name, payload, source))
+
+    monkeypatch.setattr(runner, "open_session", lambda: session)
+    monkeypatch.setattr(runner, "finalize_root_failure", capture_failure)
+    with pytest.raises(SprintRunnerError, match="after bounded retries"):
+        runner.process_batch([("Example.root", 1)])
+
+    assert len(session.calls) == 2
+    assert session.calls[0][1] != session.calls[1][1]
+    assert runner.backend.resets == 1
+    assert failures == []
+
+
 @pytest.mark.parametrize("status", [LeanStatus.INVALID.value, LeanStatus.VALID_WITH_SORRY.value])
 def test_deterministic_batch_failure_is_terminal_without_recursive_bisection(
     monkeypatch: pytest.MonkeyPatch, status: str
