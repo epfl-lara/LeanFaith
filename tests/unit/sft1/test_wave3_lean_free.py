@@ -587,3 +587,6 @@ def test_fixture_run_identity_binds_runner_source() -> None:
     fixtures = re.search(r"def run_fixtures\(.*?^def _parser\(", source, re.MULTILINE | re.DOTALL)
     assert fixtures is not None
     assert "hash_file(Path(__file__))" in fixtures.group(0)
+    assert "owner_session=owner_session" in fixtures.group(0)
+    assert "run_fixtures(repo_root, loaded, owner_session=args.owner_session)" in source
+    assert 'write_atomic(self.paths.retained, b"")' in source

@@ -684,6 +684,8 @@ class SprintRunner:
         self.resolve_operations()
         order = self.root_order()
         self.write_run_manifest(order_size=len(order))
+        if not self.paths.retained.exists():
+            write_atomic(self.paths.retained, b"")
         reservation: Reservation | None = None
         try:
             pending: list[tuple[str, int]] = []
@@ -3147,7 +3149,12 @@ def latest_fixtures_report(loaded: LoadedConfig[SprintConfig]) -> Path:
     return candidates[-1] if candidates else runs / "fixtures-none" / "fixtures_report.json"
 
 
-def run_fixtures(repo_root: Path, loaded: LoadedConfig[SprintConfig]) -> dict[str, object]:
+def run_fixtures(
+    repo_root: Path,
+    loaded: LoadedConfig[SprintConfig],
+    *,
+    owner_session: str = "claude-sft1-sprint",
+) -> dict[str, object]:
     config = loaded.config
     roots = sorted({fixture.root for fixture in config.fixtures})
     pins = project_pins(config)
@@ -3162,6 +3169,7 @@ def run_fixtures(repo_root: Path, loaded: LoadedConfig[SprintConfig]) -> dict[st
         loaded,
         run_id=run_id,
         explicit_roots=roots,
+        owner_session=owner_session,
         allow_fixture_roots=True,
     )
     runner.run()
@@ -3303,7 +3311,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(json.dumps({"config_hash": loaded.config_hash, "engine": identity.to_dict()}))
         return 0
     if args.command == "fixtures":
-        report = run_fixtures(repo_root, loaded)
+        report = run_fixtures(repo_root, loaded, owner_session=args.owner_session)
         print(
             json.dumps(
                 {k: v for k, v in report.items() if k != "status"}, ensure_ascii=False, indent=1
