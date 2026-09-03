@@ -1552,6 +1552,10 @@ def test_square_card_states_direct_not_iff_evidence_and_supersession() -> None:
     plain = dataset_card("tenk", {**manifest, "orientation_rule": None, "supersedes": None}, None)
     assert "complete ground assignment" in plain and "supersedes" not in plain
 
+    wave2 = dataset_card("core_v1", manifest, None, remote_prefix="wave2/core_v1")
+    assert 'path: "wave2/core_v1/shard-*/rows.jsonl"' in wave2
+    assert "limited to local certified transforms" in wave2
+
 
 def test_existing_prefix_verification_uses_git_and_lfs_digests(tmp_path: Path) -> None:
     import hashlib

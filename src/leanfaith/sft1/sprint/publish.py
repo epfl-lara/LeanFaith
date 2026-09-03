@@ -134,8 +134,8 @@ def _coverage_lines(manifest: Mapping[str, Any], release: Mapping[str, Any] | No
         "",
         "A high-confidence deterministic curriculum seed built from certificate-closure squares,",
         "not broad theorem-equivalence coverage: every label is kernel-checked, but candidates are",
-        "limited to relation-symmetry and binder transforms of certified negatives of Mathlib",
-        f"statements. Negative mechanisms present: {negatives or 'none recorded'}.",
+        "limited to local certified transforms of theorem statements from the pinned source",
+        f"projects. Negative mechanisms present: {negatives or 'none recorded'}.",
     ]
     if rules:
         lines += [
@@ -207,7 +207,13 @@ def _screen_lines(release: Mapping[str, Any] | None) -> list[str]:
     return lines
 
 
-def dataset_card(run_id: str, manifest: dict[str, Any], release: dict[str, Any] | None) -> str:
+def dataset_card(
+    run_id: str,
+    manifest: dict[str, Any],
+    release: dict[str, Any] | None,
+    *,
+    remote_prefix: str | None = None,
+) -> str:
     operations = manifest.get("operations", {})
     labels = manifest.get("labels", {})
     provenance = manifest.get("provenance") or {}
@@ -221,20 +227,21 @@ def dataset_card(run_id: str, manifest: dict[str, Any], release: dict[str, Any] 
         "label",
         "operation_id",
     ]
+    prefix = remote_prefix or f"sprint_v1/{run_id}"
     lines = [
         "---",
         "license: apache-2.0",
-        "pretty_name: LeanFaith SFT1 sprint v1 theorem-equivalence pairs",
+        "pretty_name: LeanFaith SFT1 deterministic theorem-equivalence pairs",
         "language: [en]",
         "tags: [lean4, mathlib, theorem-equivalence, autoformalization]",
         "configs:",
         f"  - config_name: {run_id}",
         "    data_files:",
         "      - split: train",
-        f'        path: "sprint_v1/{run_id}/shard-*/rows.jsonl"',
+        f'        path: "{prefix}/shard-*/rows.jsonl"',
         "---",
         "",
-        f"# LeanFaith SFT1 sprint v1 — `{run_id}`",
+        f"# LeanFaith SFT1 deterministic — `{run_id}`",
         "",
         f"Artifact status: `{status}`.",
         "",
@@ -275,7 +282,7 @@ def dataset_card(run_id: str, manifest: dict[str, Any], release: dict[str, Any] 
         "",
         "## Provenance (derived from sidecars)",
         "",
-        "- source: Mathlib theorem statements (Apache-2.0), revision recorded in every sidecar",
+        "- sources: pinned theorem statements and project revisions recorded in every sidecar",
         f"- engine semantic versions: {provenance.get('engine_semantic_versions')}",
         "- implementation segments (a resumed run may span several):",
     ]
@@ -507,7 +514,10 @@ def publish_run(
             return receipt
         raise PublishError("publication receipt exists for a different prefix or repo")
     card_path = compacted / "README.md"
-    write_atomic(card_path, dataset_card(run_id, manifest, release).encode("utf-8"))
+    write_atomic(
+        card_path,
+        dataset_card(run_id, manifest, release, remote_prefix=prefix).encode("utf-8"),
+    )
     files = [*local_files(compacted), card_path]
     hashes = {path.relative_to(compacted).as_posix(): hash_file(path) for path in files}
     api = HfApi()
@@ -804,7 +814,7 @@ def update_cards(
         manifest = read_json_object(compacted / "manifest.json")
         release_path = compacted / "release_report.json"
         release = read_json_object(release_path) if release_path.is_file() else None
-        card = dataset_card(run_id, manifest, release)
+        card = dataset_card(run_id, manifest, release, remote_prefix=str(receipt["remote_prefix"]))
         card_path = compacted / "README.md"
         write_atomic(card_path, card.encode("utf-8"))
         remote = f"{receipt['remote_prefix']}/README.md"
