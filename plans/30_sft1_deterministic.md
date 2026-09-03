@@ -27,14 +27,15 @@
 > active sprint prerequisites.
 > **REPR predecessor:** `cbc933c3623d81ba649a1f9c5107ad404389d69f` was reviewed but is
 > superseded and not consumable by SFT1
-> **Next gate:** execute fresh exact-source fixtures plus the five separate N26/N29/N30/N31/N32
-> 20-root and approximately-100-candidate forced-resume/replay gates from the frozen implementation
-> commit. Stop after producing every 20-root inspection artifact for actual row-by-row review; only
-> then execute the strict 200-root Mathlib/Physlib/CSLib mixed-source gate.
-> **Compute class:** no Wave 3--5 claim or process at ownership time. All later Lean work is limited
-> to at most two persistent workers and 40 GiB combined measured RSS under the shared atomic
-> reservation ledger. Long runs use named detached tmux sessions only after their exact committed
-> command/config/artifact identities and recovery contract are recorded here.
+> **Next gate:** run the frozen Wave 3 pre-gate and Wave 5 zero-Lean inventory supervisors. Wave 3
+> stops at `awaiting_family_manual_inspection` after fresh fixtures and the five separate
+> N26/N29/N30/N31/N32 exact-20 plus forced-resume/approximately-100/replay gates; actual row-by-row
+> review must pass before the strict 200-root mixed-source gate is launched. Wave 5 stops at
+> `complete_awaiting_typed_1000_audit`; its inventory does not authorize compiler transformation.
+> **Compute class:** the frozen Wave 3 supervisor uses one persistent Lean worker with a 24 GiB
+> reservation/limit per typed run. The concurrent streamed Wave 5 inventory makes zero Lean calls;
+> the combined host ceiling remains 40 GiB and no more than one of the allowed two Lean workers is
+> used at this boundary. Both jobs use named detached tmux sessions and durable finite status.
 > **Lean budget:** all string parsing, schema/provenance work, source filtering, joins,
 > deduplication, inventory construction, applicability selection, and deterministic sampling happen
 > before Lean. Retained rows receive exact proof/certificate checks in persistent context-grouped
@@ -67,6 +68,75 @@ The active stop conditions are a genuine label/certificate defect, unreconstruct
 contexts, shared-host exhaustion requiring migration, or completion. Low yield in one optional
 mechanism is recorded and quarantined without blocking successful siblings. No model training and
 no SFT2A/SFT2B work is in scope.
+
+### Frozen pre-gate and inventory launch contract (2026-09-03)
+
+The executable implementation is detached and clean at
+`/localhome/milikic/LeanFaith-sft1-wave3-exec-a13363f332d3`, exact commit
+`a13363f332d32d7f9d2e420a161f55e117807919`. The branch worktree may receive documentation-only
+commits after this freeze; neither supervisor consumes them. Its runtime is Python 3.12.3,
+PyArrow 25.0.0, and SQLite 3.45.1. The Lean engine SHA-256 is
+`a5da24b249840ed1438e70cb75e2df0f223019d7057e9db9a0d4cb1d701c4bfc`; Wave 3/Wave 5 config
+SHA-256 values are `8e55c44a573b541d7db1a86973a766d60e1aacfdcda771403fe1cb243202cdeb` and
+`5fb54643b1e33c563d13793268bb1b66a7670612e746bda776ab4cf8389256fa`; the compiler inventory,
+semantic store, and lockfile SHA-256 values are
+`4e83a1e301dd3e9bf640de845cbd6955d94d6004d7d6a63e652281f62c01f7ec`,
+`eb19e7513ad11fbeaa623008c52d52496ac22311dd5b21658084ee2b9e26324d`, and
+`f9111b930623c818c94093e2642029385ceabcb5b3ce3b19a5e4c7c9d6002921`.
+
+The executable 0700 control programs are frozen as follows:
+
+- Wave 3 control root:
+  `/storage/milikic/leanfaith/value_first/sft1_deterministic_v1/wave3/full_scale_v1/control/w3fs-a13363f332d3`.
+  `run_wave3_pregate.sh`, `verify_wave3_pregate.py`, and `status.py` have SHA-256
+  `ba4a6fc60d5ab92d5988c06850b0d587b85dce4c14b26ed769d4a88607361da7`,
+  `6c464e81f5528e5621082d6f60ab40bb37e1e901144ae9e508e1d6a9d764066c`, and
+  `a404561f9f8ff69930c2ca1307e8e80cf3d3ee165002d63b9f75fda6b5cc29f0`.
+- Wave 5 control root:
+  `/storage/milikic/leanfaith/value_first/sft1_deterministic_v1/wave5/control/w3fs-a13363f332d3`.
+  `run_inventory.sh` and `verify_inventory.py` have SHA-256
+  `f28623372f7986d58337888862e0d40716dbafcdcc3c1a39b793a0c328240606` and
+  `11b4bf2cd1f053810416c2dec5d8938c3e967936a78a1cf10998bb96047ba99f`.
+
+Wave 3 uses tmux session `leanfaith-sft1-wave3-pregate-a13363f332d3`, output/cache/run journals
+under `/storage/milikic/leanfaith/value_first/sft1_deterministic_v1/wave3/full_scale_v1/mathlib`,
+append-only supervisor journal `supervisor.jsonl`, log `tmux.log`, failure marker `failure.json`,
+and terminal marker `terminal.json` in its control root. The fixed output lock is
+`/storage/milikic/leanfaith/value_first/sft1_deterministic_v1/wave3/full_scale_v1/mathlib.pregate.lock`.
+Its exact launch command is:
+
+```text
+tmux new-session -d -s leanfaith-sft1-wave3-pregate-a13363f332d3 -c /localhome/milikic/LeanFaith-sft1-wave3-exec-a13363f332d3 'exec /storage/milikic/leanfaith/value_first/sft1_deterministic_v1/wave3/full_scale_v1/control/w3fs-a13363f332d3/run_wave3_pregate.sh </dev/null >>/storage/milikic/leanfaith/value_first/sft1_deterministic_v1/wave3/full_scale_v1/control/w3fs-a13363f332d3/tmux.log 2>&1'
+```
+
+Wave 5 uses tmux session `leanfaith-sft1-wave5-inventory-a13363f332d3`, output root
+`/storage/milikic/leanfaith/value_first/sft1_deterministic_v1/wave5/compiler_inventory_v1`,
+inventory journal `_state/journal.jsonl`, index `_state/index.sqlite3`, append-only supervisor
+journal `supervisor.jsonl`, log `tmux.log`, failure marker `failure.json`, and terminal marker
+`terminal.json`. The fixed output lock is
+`/storage/milikic/leanfaith/value_first/sft1_deterministic_v1/wave5/compiler_inventory_v1.lock`.
+Its exact launch command is:
+
+```text
+tmux new-session -d -s leanfaith-sft1-wave5-inventory-a13363f332d3 -c /localhome/milikic/LeanFaith-sft1-wave3-exec-a13363f332d3 'exec /storage/milikic/leanfaith/value_first/sft1_deterministic_v1/wave5/control/w3fs-a13363f332d3/run_inventory.sh </dev/null >>/storage/milikic/leanfaith/value_first/sft1_deterministic_v1/wave5/control/w3fs-a13363f332d3/tmux.log 2>&1'
+```
+
+The same command is the recovery command, but it may be issued only after confirming that the
+named session is absent and inspecting durable terminal/failure state; the control-wide and fixed
+output locks prohibit duplicates, while receipts, journals, and content-addressed terminal/failure
+archives make a legitimate resume/revalidation deterministic. The finite read-only status command
+for both jobs is:
+
+```text
+/localhome/milikic/LeanFaith-sft1-wave3-exec-a13363f332d3/.venv/bin/python /storage/milikic/leanfaith/value_first/sft1_deterministic_v1/wave3/full_scale_v1/control/w3fs-a13363f332d3/status.py
+```
+
+The supervisors stop on any command/hash/runtime/source drift, conflicting terminal state,
+certificate/integrity/replay defect, or resource failure. Wave 3 deliberately does not launch the
+mixed-200 gate before human inspection. Wave 5 is a zero-Lean metadata/content inventory only: it
+does not perform a second full Parquet reconstruction merely for inspection, and its independently
+replayed stratified 1,000-row membership audit remains a selection artifact awaiting the separate
+typed proof/context gate. No lower-confidence row is mixed into the proof-certified core.
 
 ## Wave 2 diversity-and-scale sprint (closed)
 
@@ -2390,3 +2460,16 @@ resource use, output paths, and exact remaining ETA. Do not run training.
   `0c9896c40f94194a5cfb4cda58f8e083a3587d5b76937619b539de377d996f10` and
   `e31af5eef2efb23cf8c0a92e4c027c883322bd9f1b545b8f9690cf855a962a90`. No old release, SFT2 path,
   model training, release prefix, Lean scale run, or host reservation was touched at this boundary.
+- 2026-09-03 — froze the exact detached pre-gate/inventory execution boundary at implementation
+  commit `a13363f332d32d7f9d2e420a161f55e117807919` in the clean detached worktree recorded above.
+  The final recovery change preserves unique root progress across interrupted render batches and
+  adds an end-to-end timeout -> fresh resume -> zero-call replay test; the focused mixed-integrity
+  file passes 31/31. A direct one-record read from the pinned CPT2 release reconstructed the first
+  accepted source record and all three content identities with zero Lean calls. Two independent
+  control reviews then hardened terminal revalidation, receipt/journal crash windows, replay
+  wording, tmux status races, failure archiving, and final-marker ordering; no remaining certain
+  launch blocker was found. Both fresh output roots were absent, both sessions were absent, and the
+  shared reservation ledger was empty. Shell syntax, Python AST parsing, Ruff lint/format, exact
+  control hashes, executable modes, runtime pins, and read-only `not_started` status passed. The
+  launch/recovery/status contract is recorded above before any job is started; no publication,
+  mixed-200 run, typed-1,000 audit, SFT2 work, old-release mutation, or training occurred here.
