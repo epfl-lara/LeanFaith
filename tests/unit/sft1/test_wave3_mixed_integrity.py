@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any, cast
 
 import pytest
@@ -492,6 +493,190 @@ def test_journal_recovery_counts_roots_once_and_advances_batch_ids(tmp_path: Pat
     assert runner.roots_lean == 1
     assert runner.roots_cache == 1
     assert runner.batches == 5
+
+
+def test_render_infrastructure_exhaustion_resumes_then_replays_without_lean(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    root = "Example.a"
+    operation = "P18_SYMMETRIZE_EQUALITY_V1"
+    reference_goal = "⊢ (1 : Nat) = 2"
+    candidate_goal = "⊢ (2 : Nat) = 1"
+    reference_alpha_hash = "a" * 64
+    candidate_alpha_hash = "b" * 64
+    loaded = _loaded_with_inventory(
+        tmp_path,
+        [
+            Declaration(
+                root,
+                "Example",
+                "Example.lean",
+                1,
+                "theorem",
+                "theorem a : (1 : Nat) = 2",
+            )
+        ],
+    )
+    process_result = engine.ProcessResult(
+        roots={
+            root: {
+                "root_status": "ok",
+                "module": "Example",
+                "level_params": [],
+                "reference_alpha_hash": reference_alpha_hash,
+                "reference_goal": reference_goal,
+                "binders": [],
+                "terminals": [
+                    {
+                        "operation_id": operation,
+                        "status": "retained",
+                        "reason": "",
+                        "label": True,
+                        "site": {"kind": "equality"},
+                        "evidence": {
+                            "candidate_truth": "proved_equivalent_to_reference",
+                            "equivalence_proof": {"check": CHECKED},
+                        },
+                        "candidate_alpha_hash": candidate_alpha_hash,
+                        "candidate_goal": candidate_goal,
+                    }
+                ],
+            }
+        },
+        request_hash="c" * 64,
+        elapsed_ms=1,
+        raw_response_path=None,
+        status=LeanStatus.VALID.value,
+        errors=(),
+    )
+
+    class FakeRecord:
+        def __init__(self, endpoint_id: str, goal: str, expr_hash: str) -> None:
+            self.endpoint_id = endpoint_id
+            self.payload = {
+                "endpoint_id": endpoint_id,
+                "goal_v1": goal,
+                "rendered_goal_hash": runner_module.render_hash(goal),
+                "spec_hash": "d" * 64,
+                "implementation_identity": "mock-goal-v1",
+                "provenance": {
+                    "expr_hash": expr_hash,
+                    "universe_profile_hash": "e" * 64,
+                    "render_context_hash": "f" * 64,
+                },
+            }
+
+        def to_dict(self) -> dict[str, object]:
+            return self.payload
+
+    class FakeSidecar:
+        def __init__(self, endpoint_id: str, goal: str, expr_hash: str) -> None:
+            self.record = FakeRecord(endpoint_id, goal, expr_hash)
+            self.source_material = SimpleNamespace(
+                to_dict=lambda: {"endpoint_id": endpoint_id, "mock": True}
+            )
+
+        def core_text(self) -> str:
+            return str(self.record.payload["goal_v1"])
+
+    success_render = SimpleNamespace(
+        status=LeanStatus.VALID.value,
+        infrastructure_error=None,
+        batch=SimpleNamespace(
+            failures=(),
+            sidecars=(
+                FakeSidecar("0.reference", reference_goal, "reference-expr"),
+                FakeSidecar("0.candidate", candidate_goal, "candidate-expr"),
+            ),
+            request_hash="1" * 64,
+        ),
+        rebuild_hashes={0: (reference_alpha_hash, candidate_alpha_hash)},
+    )
+    timeout_render = SimpleNamespace(
+        status=LeanStatus.TIMEOUT.value,
+        infrastructure_error="injected render timeout",
+        batch=SimpleNamespace(failures=(object(),), sidecars=(), request_hash="2" * 64),
+        rebuild_hashes={},
+    )
+
+    class FakeSession:
+        def __init__(self, rendered: object) -> None:
+            self.rendered = rendered
+            self.request_count = 0
+            self.lean_elapsed_ms = 0
+            self.process_request_ids: list[str] = []
+            self.render_request_ids: list[str] = []
+
+        def run_process(
+            self, roots: Sequence[tuple[str, int]], *, request_id: str
+        ) -> engine.ProcessResult:
+            assert [name for name, _ in roots] == [root]
+            self.process_request_ids.append(request_id)
+            self.request_count += 1
+            self.lean_elapsed_ms += process_result.elapsed_ms
+            return process_result
+
+        def run_render(
+            self,
+            pairs: Sequence[tuple[str, str]],
+            *,
+            statements: Mapping[str, str],
+            scope: str,
+            request_id: str,
+        ) -> object:
+            del statements, scope
+            assert pairs == [(root, operation)]
+            self.render_request_ids.append(request_id)
+            self.request_count += 1
+            self.lean_elapsed_ms += 1
+            return self.rendered
+
+    def make_runner(session: FakeSession) -> SprintRunner:
+        runner = SprintRunner(
+            ROOT,
+            loaded,
+            run_id="render-infrastructure-resume",
+            explicit_roots=[root],
+            operations=[operation],
+        )
+        runner.session = cast(Any, session)
+        runner.backend = cast(Any, _FakeBackend())
+        runner.rss = cast(Any, SimpleNamespace(peak=0, sample=lambda: 0))
+        monkeypatch.setattr(runner, "verify_pins", lambda: None)
+        monkeypatch.setattr(runner, "open_session", lambda: session)
+        monkeypatch.setattr(runner, "close_session", lambda: None)
+        monkeypatch.setattr(runner, "claim", lambda: object())
+        monkeypatch.setattr(runner, "release", lambda _reservation: None)
+        return runner
+
+    failed_session = FakeSession(timeout_render)
+    failed = make_runner(failed_session)
+    with pytest.raises(SprintRunnerError, match="render infrastructure failed"):
+        failed.run()
+    assert len(failed_session.render_request_ids) == 2
+    assert failed_session.render_request_ids[0] != failed_session.render_request_ids[1]
+    assert sum(record.get("kind") == "root" for record in failed.journal.read()) == 1
+    assert not any(record.get("kind") == "terminal" for record in failed.journal.read())
+
+    resumed_session = FakeSession(success_render)
+    resumed = make_runner(resumed_session)
+    resumed_summary = resumed.run()
+    assert resumed_summary["roots_considered"] == 1
+    assert resumed_summary["retained_total"] == 1
+    assert len(resumed_session.process_request_ids) == 1
+    assert len(resumed_session.render_request_ids) == 1
+    journal = list(resumed.journal.read())
+    assert sum(record.get("kind") == "root" for record in journal) == 1
+    assert sum(record.get("kind") == "terminal" for record in journal) == 1
+
+    replay_session = FakeSession(success_render)
+    replay = make_runner(replay_session)
+    replay_summary = replay.run(require_zero_lean=True)
+    assert replay_summary["roots_considered"] == 1
+    assert replay_summary["retained_total"] == 1
+    assert replay_summary["lean_requests"] == 0
+    assert replay_session.process_request_ids == []
+    assert replay_session.render_request_ids == []
 
 
 @pytest.mark.parametrize("status", [LeanStatus.INVALID.value, LeanStatus.VALID_WITH_SORRY.value])
