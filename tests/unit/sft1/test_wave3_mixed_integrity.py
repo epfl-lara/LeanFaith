@@ -464,6 +464,36 @@ def test_singleton_render_infrastructure_failure_is_bounded_and_left_retryable(
     assert terminals == []
 
 
+def test_journal_recovery_counts_roots_once_and_advances_batch_ids(tmp_path: Path) -> None:
+    runner = SprintRunner.__new__(SprintRunner)
+    runner.journal = runner_module.Journal(tmp_path / "journal.jsonl")
+    runner.observed_operations = set()
+    runner.done = {}
+    runner.roots_seen = set()
+    runner.retained_keys = set()
+    runner.retained_count = 0
+    runner.counts = {}
+    runner.op_status_counts = {}
+    runner.retained_by_op = {}
+    runner.roots_lean = 0
+    runner.roots_cache = 0
+    runner.batches = 0
+    runner.journal.append_many(
+        [
+            {"kind": "root", "root": "Example.a", "source": "lean", "batch": 3},
+            {"kind": "root", "root": "Example.a", "source": "lean", "batch": 4},
+            {"kind": "root", "root": "Example.b", "source": "cache", "batch": 5},
+        ]
+    )
+
+    runner._load_journal()
+
+    assert runner.roots_seen == {"Example.a", "Example.b"}
+    assert runner.roots_lean == 1
+    assert runner.roots_cache == 1
+    assert runner.batches == 5
+
+
 @pytest.mark.parametrize("status", [LeanStatus.INVALID.value, LeanStatus.VALID_WITH_SORRY.value])
 def test_deterministic_batch_failure_is_terminal_without_recursive_bisection(
     monkeypatch: pytest.MonkeyPatch, status: str

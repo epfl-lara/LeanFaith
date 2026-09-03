@@ -540,6 +540,9 @@ class SprintRunner:
 
     def _load_journal(self) -> None:
         for record in self.journal.read():
+            batch_value = record.get("batch")
+            if type(batch_value) is int:
+                self.batches = max(self.batches, batch_value)
             kind = record.get("kind")
             if kind == "terminal":
                 key = (str(record["root"]), str(record["operation_id"]))
@@ -554,7 +557,10 @@ class SprintRunner:
                     self.retained_by_op[str(record["operation_id"])] += 1
                     self.retained_keys.add(str(record["unordered_pair_key"]))
             elif kind == "root":
-                self.roots_seen.add(str(record["root"]))
+                root = str(record["root"])
+                if root in self.roots_seen:
+                    continue
+                self.roots_seen.add(root)
                 if record.get("source") == "cache":
                     self.roots_cache += 1
                 else:
@@ -755,18 +761,18 @@ class SprintRunner:
                 continue
             hits[operation] = record
         if hits:
-            self.journal.append(
-                {
-                    "kind": "root",
-                    "root": name,
-                    "root_status": "ok",
-                    "reason": "",
-                    "source": "cache",
-                    "batch": self.batches,
-                    "cached_operations": sorted(hits),
-                }
-            )
             if name not in self.roots_seen:
+                self.journal.append(
+                    {
+                        "kind": "root",
+                        "root": name,
+                        "root_status": "ok",
+                        "reason": "",
+                        "source": "cache",
+                        "batch": self.batches,
+                        "cached_operations": sorted(hits),
+                    }
+                )
                 self.roots_seen.add(name)
                 self.roots_cache += 1
             for operation, record in hits.items():
@@ -778,21 +784,22 @@ class SprintRunner:
     ) -> None:
         status = str(root_payload.get("root_status", "error"))
         reason = str(root_payload.get("reason", ""))
-        self.journal.append(
-            {
-                "kind": "root",
-                "root": name,
-                "root_status": status,
-                "reason": reason,
-                "source": source,
-                "batch": self.batches,
-            }
-        )
-        self.roots_seen.add(name)
-        if source == "cache":
-            self.roots_cache += 1
-        else:
-            self.roots_lean += 1
+        if name not in self.roots_seen:
+            self.journal.append(
+                {
+                    "kind": "root",
+                    "root": name,
+                    "root_status": status,
+                    "reason": reason,
+                    "source": source,
+                    "batch": self.batches,
+                }
+            )
+            self.roots_seen.add(name)
+            if source == "cache":
+                self.roots_cache += 1
+            else:
+                self.roots_lean += 1
         terminal_status = "not_applicable" if status == "not_applicable" else "error"
         records = []
         for operation in operations_in_mask(self.missing_mask(name)):
@@ -879,18 +886,18 @@ class SprintRunner:
                         self.root_key(name), self.root_cache_record(name, payload, {})
                     )
                 continue
-            self.journal.append(
-                {
-                    "kind": "root",
-                    "root": name,
-                    "root_status": "ok",
-                    "reason": "",
-                    "source": "lean",
-                    "batch": self.batches,
-                    "operations": list(operations_in_mask(mask)),
-                }
-            )
             if name not in self.roots_seen:
+                self.journal.append(
+                    {
+                        "kind": "root",
+                        "root": name,
+                        "root_status": "ok",
+                        "reason": "",
+                        "source": "lean",
+                        "batch": self.batches,
+                        "operations": list(operations_in_mask(mask)),
+                    }
+                )
                 self.roots_seen.add(name)
                 self.roots_lean += 1
             reference_goal, reference_violation = self.reference_surface(
