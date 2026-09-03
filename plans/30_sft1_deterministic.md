@@ -23,9 +23,8 @@
 > active sprint prerequisites.
 > **REPR predecessor:** `cbc933c3623d81ba649a1f9c5107ad404389d69f` was reviewed but is
 > superseded and not consumable by SFT1
-> **Next gate:** the 10,000-row mixed-source pilot passed; run the complete 79,943-root compatible
-> eligible pool, compact at most 500,000 rows into the additive final view, verify integrity and
-> shortcuts, then publish only `wave2/core_v1`.
+> **Next gate:** publish the passed 13,984-row final view only to the new private additive prefix
+> `wave2/core_v1`, verify the immutable fresh download, record the receipt/index, and close Wave 2.
 > **Compute class:** no claim while census and Lean-free implementation work proceeds. Live gates
 > will claim one persistent project worker within the shared 24 GiB/one-worker budget; any 10K or
 > eligible-pool run will use a named detached tmux session and a recorded exact resume command.
@@ -2182,3 +2181,40 @@ resource use, output paths, and exact remaining ETA. Do not run training.
   script removes only the redundant outer claim and retains the runner's per-command claim/release;
   its SHA-256 is `d82e7e19fad89f4b53282d87c0e56fe2cb1232a646125fc009049e9a498a23af`.
   Resume remains the same script/session/log/marker contract.
+- 2026-09-03 — the corrected full-pool session started at 06:52:11Z with pane PID 554310 and
+  completed normally at 07:44:40Z from generation commit `31e859b99614fb3a6deb09bda35a2a5d0f3af519`.
+  All 79,943 compatible roots reached durable terminal state: 3,453 retained squares, 45,151
+  `not_applicable`, 31,331 fail-closed `rejected`, and 8 non-retained errors. Per lane retained
+  squares were Mathlib N25/N32/N26 3,241/162/2, Physlib 35/0/0, and CSLib 13/0/0. The full session
+  made 1,585 Lean calls in 3,137.80 seconds of summed runner wall time and peaked at
+  9,825,550,336 bytes process-tree RSS. Across all candidate phases that feed the final release,
+  the recorded total is 5,392 Lean calls and 10,261.39 seconds. All nine explicit full-limit
+  replays made zero Lean calls, repeated zero rows, and preserved every retained count. The eight
+  error terminals produced no rows: five quoted-name response-key mismatches, the existing
+  `CategoryTheory.Injective.comp_factorThru` heartbeat ceiling, new
+  `CategoryTheory.Projective.factorThru_comp` typeclass heartbeat ceiling, and one Physlib
+  `Electromagnetism.DistElectromagneticPotential.gradLagrangian_sum_inr_i` deterministic `whnf`
+  heartbeat ceiling. The tmux session exited and its runner-owned reservation was released.
+- 2026-09-03 — full consolidation script `wave2/logs/consolidate_full.sh` (SHA-256
+  `1e17b8a73ce5a1a45882bb08f91b7b27d61fea84cdf7a05acd7a59bd9e4a90a7`) linked the source runs and
+  no-clobber hardlinked their semantic caches. The 19,568 retained records visible across the
+  combined staging root reference 3,567 unique cache objects; all exist and match their recorded
+  canonical content digest. The first final build stopped before release on one repeated pair
+  whose only difference was the run-level `runner_source_sha256` after audit-only square-module
+  changes. Commit `9acdf5cbf6c36799293a879ac3813950841434b7` admits exactly that provenance-only difference,
+  records its count separately, and continues to reject every model-row, label, cache, engine,
+  certificate, or other sidecar mismatch.
+- 2026-09-03 — final no-regeneration view `wave2/combined/compacted/core_v1` passed all 18 release
+  checks and the independent integrity validator: 13,984 balanced rows (6,992/6,992), 3,496
+  complete squares, 14 finalized shards, 13,984/13,984 cache snapshots and live cache objects
+  agreeing, and zero integrity issues, conflicts, incomplete groups, self-pairs, unchecked rows,
+  quarantines, or capacity drops. Final source rows are Mathlib 13,792, Physlib 140, CSLib 52;
+  operation rows are N25 13,292, N32 684, N26 8. Of 19,044 input records, 4,776 repeated inputs
+  were collapsed, including 828 runner-hash-only repeats; 71 duplicate squares / 284 rows were
+  dropped whole, and conservation holds. Candidate-only and reference-only balanced
+  accuracy/upper bounds are 0.5000/0.5000; family-held-out is 0.5135/0.5203. Publication-card
+  commit `6d5af46d…` points the data config at the actual Wave 2 prefix and describes mixed pinned
+  sources rather than Mathlib alone. The honest residual limitation is severe mechanism/surface
+  skew: N25 is 95.05% of final rows, relation-parity balanced accuracy is 0.9630, target-equality
+  is 0.8274, P35 has no released scale row, and beta/N31 were time-boxed out. This is a
+  substantially larger certified curriculum, not the original broad multi-million-row SFT1 goal.
