@@ -24,7 +24,8 @@ ROOT = Path(__file__).resolve().parents[3]
 def test_config_loads_and_pins_engine_operations() -> None:
     loaded = load_sprint_config(ROOT)
     config = loaded.config
-    assert tuple(config.engine.operations) == OPERATIONS
+    configured = set(config.engine.operations)
+    assert tuple(config.engine.operations) == OPERATIONS[:9]
     assert config.project.options == {"Elab.async": False, "autoImplicit": False}
     assert config.execution.lean_workers == 1
     success = {f.operation_id for f in config.fixtures if f.expect_status == "retained"}
@@ -33,8 +34,8 @@ def test_config_loads_and_pins_engine_operations() -> None:
     # identifies a Mathlib root with a provably redundant guard.
     waived = {waiver.operation_id for waiver in config.fixtures_success_waivers}
     assert waived == {"P_DROP_REDUNDANT_GUARD_PROOF_V1"}
-    assert set(OPERATIONS) - success <= waived
-    assert rejection == set(OPERATIONS)
+    assert configured - success <= waived
+    assert rejection == configured
 
 
 def test_config_rejects_async_elaboration() -> None:
@@ -47,7 +48,7 @@ def test_config_rejects_async_elaboration() -> None:
 
 def test_engine_source_declares_version_and_no_forbidden_tokens() -> None:
     source = (ROOT / engine.ENGINE_RELATIVE_PATH).read_text(encoding="utf-8")
-    assert engine.engine_semantic_version(ROOT) == "sft1_sprint_engine_v1"
+    assert engine.engine_semantic_version(ROOT) == "sft1_wave2_engine_v1"
     for token in ("sorry", "addDecl", "addAndCompile", "ppGoal", "mkSorry", "sorryAx"):
         assert token not in source.replace("hasSorry", ""), token
     assert "Kernel.check" in source
@@ -289,8 +290,9 @@ def test_new_non_test_implementation_stays_compact() -> None:
     total = sum(len(path.read_text(encoding="utf-8").splitlines()) for path in paths)
     # 9,000 covered the sprint engine and runner; the corrective square releases added cache
     # verification, alpha reconciliation, per-root transactions, release snapshots, record
-    # recovery, sidecar-derived aggregates, and pairwise diagnostics (2026-09-02).
-    assert total < 11000, total
+    # recovery, sidecar-derived aggregates, and pairwise diagnostics (2026-09-02). Wave 2 extends
+    # the same engine with one batched operation set and multi-project inventory support.
+    assert total < 11300, total
     assert json.loads(json.dumps({"ok": True}))["ok"]
 
 

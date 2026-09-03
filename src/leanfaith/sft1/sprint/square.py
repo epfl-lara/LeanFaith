@@ -93,6 +93,26 @@ SQUARE_OPERATIONS: dict[str, dict[str, str]] = {
         # cache revision 1: records written before the P15 witness dispatch existed are stale
         "cache_revision": "1",
     },
+    "SQUARE_WAVE2_N26_V1": {
+        "negative": "N26_INCREMENT_BOUND_PROOF_V1",
+        "census": "square_wave2_n26.json",
+        "family": "wave2_n26",
+    },
+    "SQUARE_WAVE2_N32_V1": {
+        "negative": "N32_SWAP_ROLE_ORDER_PROOF_V1",
+        "census": "square_wave2_n32.json",
+        "family": "wave2_n32",
+    },
+    "SQUARE_WAVE2_N25_V1": {
+        "negative": "N25_TOGGLE_EQ_NE_PROOF_V1",
+        "census": "square_wave2_n25.json",
+        "family": "wave2_n25",
+    },
+    "SQUARE_WAVE2_N31_V1": {
+        "negative": "N31_DROP_REQUIRED_GUARD_PROOF_V1",
+        "census": "square_wave2_n31.json",
+        "family": "wave2_n31",
+    },
 }
 
 
@@ -163,6 +183,11 @@ TRANSFORM_SHORT = {
     "P14_SWAP_INDEPENDENT_DATA_BINDERS_V1": "p14",
     "P23_CURRY_PROP_PAIR_V1": "p23",
     "P15_SWAP_IFF_SIDES_V1": "p15",
+    "P21_BETA_REDUCE_V1": "p21_beta",
+    "P21_ZETA_REDUCE_V1": "p21_zeta",
+    "P32_ADD_ASSOC_LOCAL_V1": "p32_assoc",
+    "P32_ADD_COMM_LOCAL_V1": "p32_comm",
+    "P35_SET_INTER_MEMBERSHIP_V1": "p35_inter",
 }
 
 

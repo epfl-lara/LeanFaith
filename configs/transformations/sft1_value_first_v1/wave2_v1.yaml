@@ -1,0 +1,59 @@
+schema_version: 1
+wave_id: sft1_wave2_diversity_scale_v1
+base_commit: 1e2019b7ffe3bea99068d0c3055487863ff8db74
+release:
+  repository: Lemmy00/leanfaith-sft1-deterministic-v1
+  prefix: wave2/core_v1
+  private: true
+  maximum_rows: 500000
+sources:
+  - {source_id: mathlib, config: wave2_mathlib_v1.yaml, role: core}
+  - {source_id: physlib, config: wave2_physlib_v1.yaml, role: core}
+  - {source_id: cslib, config: wave2_cslib_v1.yaml, role: core}
+  - source_id: compiler_data
+    role: conditional_only
+    disposition: excluded_until_exact_theorem_and_proof_context_is_locally_reproducible
+operations:
+  preserving_new:
+    - P21_BETA_REDUCE_V1
+    - P21_ZETA_REDUCE_V1
+    - P32_ADD_ASSOC_LOCAL_V1
+    - P32_ADD_COMM_LOCAL_V1
+    - P35_SET_INTER_MEMBERSHIP_V1
+  preserving_reuse:
+    - P14_SWAP_INDEPENDENT_DATA_BINDERS_V1
+    - P23_CURRY_PROP_PAIR_V1
+    - P15_SWAP_IFF_SIDES_V1
+    - P18_SYMMETRIZE_EQUALITY_V1
+    - P_NE_SYMMETRIZE_V1
+  breaking:
+    - {operation_id: N26_INCREMENT_BOUND_PROOF_V1, maximum_share: 0.35}
+    - {operation_id: N32_SWAP_ROLE_ORDER_PROOF_V1, maximum_share: 0.35}
+    - {operation_id: N25_TOGGLE_EQ_NE_PROOF_V1, maximum_share: 0.20}
+    - {operation_id: N31_DROP_REQUIRED_GUARD_PROOF_V1, maximum_share: 0.10, optional: true}
+gates:
+  fixtures: {success_and_fail_closed_per_enabled_new_mechanism: true}
+  roots20: {inspect_all_rows: true}
+  roots200:
+    wrong_labels_maximum: 0
+    certificate_or_separator_failures_maximum: 0
+    self_pairs_maximum: 0
+    duplicate_pairs_maximum: 0
+    partial_groups_maximum: 0
+    useful_preserving_mechanisms_minimum: 3
+    useful_breaking_mechanisms_minimum: 2
+    candidate_only_upper_bound_strictly_below: 0.60
+    reference_only_upper_bound_strictly_below: 0.60
+    pair_delta_family_held_out_upper_bound_strictly_below: 0.65
+    forced_resume_and_zero_call_replay: true
+  pilot10k:
+    retained_rows: 10000
+    deterministic_operation_source_stratified_audit_rows: 200
+    wrong_labels_maximum: 0
+    reuse_shortcut_thresholds: true
+execution:
+  census_and_filter_before_lean: true
+  persistent_workers_per_project: 1
+  lean_rss_claim_gib: 24
+  model_facing_fields: [reference, candidate, label]
+  composition: certified_single_hop_or_square_only

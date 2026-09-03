@@ -23,10 +23,9 @@ namespace LeanFaith.SFT1.Sprint
 
 open Lean Elab Meta
 
-def engineSemanticVersion : String := "sft1_sprint_engine_v1"
-/-- Operation-set version: 2 adds `P_NE_SYMMETRIZE_V1` and
-    `P_DROP_REDUNDANT_GUARD_PROOF_V1` without changing any earlier operation. -/
-def engineOperationSetVersion : Nat := 2
+def engineSemanticVersion : String := "sft1_wave2_engine_v1"
+/-- Operation-set version 3 adds the Wave 2 preserving and proof-backed breaking batch. -/
+def engineOperationSetVersion : Nat := 3
 def evidenceMarker : String := "LFSFT1SPRINTJSON "
 
 /-- Per-operation heartbeat budget in thousands of heartbeats. -/
@@ -38,9 +37,11 @@ def groundingTacticBudget : Nat := 40
 
 inductive Op where
   | p15 | p18 | p14 | p23 | n25 | n32 | n31 | pne | pdrg
+  | p21Beta | p21Zeta | p32Assoc | p32Comm | p35 | n26
   deriving BEq, Repr, Inhabited
 
-def Op.all : Array Op := #[.p15, .p18, .p14, .p23, .n25, .n32, .n31, .pne, .pdrg]
+def Op.all : Array Op := #[.p15, .p18, .p14, .p23, .n25, .n32, .n31, .pne, .pdrg,
+  .p21Beta, .p21Zeta, .p32Assoc, .p32Comm, .p35, .n26]
 
 def Op.id : Op → String
   | .p15 => "P15_SWAP_IFF_SIDES_V1"
@@ -52,12 +53,19 @@ def Op.id : Op → String
   | .n31 => "N31_DROP_REQUIRED_GUARD_PROOF_V1"
   | .pne => "P_NE_SYMMETRIZE_V1"
   | .pdrg => "P_DROP_REDUNDANT_GUARD_PROOF_V1"
+  | .p21Beta => "P21_BETA_REDUCE_V1"
+  | .p21Zeta => "P21_ZETA_REDUCE_V1"
+  | .p32Assoc => "P32_ADD_ASSOC_LOCAL_V1"
+  | .p32Comm => "P32_ADD_COMM_LOCAL_V1"
+  | .p35 => "P35_SET_INTER_MEMBERSHIP_V1"
+  | .n26 => "N26_INCREMENT_BOUND_PROOF_V1"
 
 def Op.ofId? (s : String) : Option Op := Op.all.find? (·.id == s)
 
 def Op.positive : Op → Bool
-  | .p15 | .p18 | .p14 | .p23 | .pne | .pdrg => true
-  | .n25 | .n32 | .n31 => false
+  | .p15 | .p18 | .p14 | .p23 | .pne | .pdrg
+  | .p21Beta | .p21Zeta | .p32Assoc | .p32Comm | .p35 => true
+  | .n25 | .n32 | .n31 | .n26 => false
 
 def Op.bit : Op → Nat
   | .p15 => 0
@@ -69,6 +77,12 @@ def Op.bit : Op → Nat
   | .n31 => 6
   | .pne => 7
   | .pdrg => 8
+  | .p21Beta => 9
+  | .p21Zeta => 10
+  | .p32Assoc => 11
+  | .p32Comm => 12
+  | .p35 => 13
+  | .n26 => 14
 
 /-! ## Tagged failure classes -/
 
@@ -254,8 +268,8 @@ def loadRoot (name : Name) : MetaM Root := do
     | throwNA "root_not_imported"
   let some module := env.allImportedModuleNames[modIdx.toNat]?
     | throwNA "root_module_unknown"
-  unless module.getRoot == `Mathlib do
-    throwNA "root_not_mathlib_module"
+  unless [`Mathlib, `Physlib, `Cslib].contains module.getRoot do
+    throwNA "root_not_registered_source_module"
   if ← isInstance name then
     throwNA "root_is_instance"
   let reference ← checkedClosedProp true "reference" (eraseMDataDeep tv.type)
@@ -385,7 +399,7 @@ private def swapNe? (t : Expr) : Option (Expr × String) :=
 private def isNatOrInt (α : Expr) : Option String :=
   if α.isConstOf ``Nat then some "Nat" else if α.isConstOf ``Int then some "Int" else none
 
-private def swapStrictLt? (t : Expr) : Option (Expr × String) :=
+private def swapRoleOrder? (t : Expr) : Option (Expr × String) :=
   let args := t.getAppArgs
   if headName? t == some ``LT.lt && args.size == 4 then
     match isNatOrInt args[0]! with
@@ -393,8 +407,97 @@ private def swapStrictLt? (t : Expr) : Option (Expr × String) :=
         if Expr.eqv args[2]! args[3]! then none
         else some (mkApp4 t.getAppFn args[0]! args[1]! args[3]! args[2]!, ty)
     | none => none
+  else if headName? t == some ``LE.le && args.size == 4 then
+    match isNatOrInt args[0]! with
+    | some ty =>
+        if Expr.eqv args[2]! args[3]! then none
+        else some (mkApp4 t.getAppFn args[0]! args[1]! args[3]! args[2]!, s!"{ty}:le")
+    | none => none
   else
     none
+
+inductive DefReduceKind where
+  | beta | zeta
+  deriving BEq
+
+/-- Reduce exactly the first matching explicit beta or zeta redex in preorder. -/
+private partial def reduceFirst? (kind : DefReduceKind) (e : Expr) : Option Expr :=
+  match kind, e with
+  | .beta, .app (.lam _ _ body _) arg => some (body.instantiate1 arg)
+  | .zeta, .letE _ _ value body _ => some (body.instantiate1 value)
+  | _, .app fn arg =>
+      match reduceFirst? kind fn with
+      | some fn' => some (.app fn' arg)
+      | none => (reduceFirst? kind arg).map (.app fn)
+  | _, .lam name domain body bi =>
+      match reduceFirst? kind domain with
+      | some domain' => some (.lam name domain' body bi)
+      | none => (reduceFirst? kind body).map fun body' => .lam name domain body' bi
+  | _, .forallE name domain body bi =>
+      match reduceFirst? kind domain with
+      | some domain' => some (.forallE name domain' body bi)
+      | none => (reduceFirst? kind body).map fun body' => .forallE name domain body' bi
+  | _, .letE name type value body nondep =>
+      match reduceFirst? kind type with
+      | some type' => some (.letE name type' value body nondep)
+      | none =>
+          match reduceFirst? kind value with
+          | some value' => some (.letE name type value' body nondep)
+          | none => (reduceFirst? kind body).map fun body' => .letE name type value body' nondep
+  | _, .mdata md body => (reduceFirst? kind body).map (.mdata md)
+  | _, .proj typeName index base =>
+      (reduceFirst? kind base).map fun base' => .proj typeName index base'
+  | _, _ => none
+
+private def targetReflexive (e : Expr) : Bool :=
+  let target := innermostTarget e
+  let args := target.getAppArgs
+  ((headName? target == some ``Eq && args.size == 3 && Expr.eqv args[1]! args[2]!) ||
+   (headName? target == some ``Iff && args.size == 2 && Expr.eqv args[0]! args[1]!))
+
+private def rangeIncrement? (e : Expr) : Option Expr :=
+  let args := e.getAppArgs
+  if headName? e == some ``Membership.mem && args.size >= 2 then
+    let container := args[args.size - 1]!
+    let rangeArgs := container.getAppArgs
+    if headName? container == some ``Finset.range && rangeArgs.size == 1 then
+      let bound := rangeArgs[0]!
+      let incremented := mkApp (mkConst ``Nat.succ) bound
+      let container' := mkApp (mkConst ``Finset.range) incremented
+      some (mkAppN e.getAppFn ((args.extract 0 (args.size - 1)).push container'))
+    else none
+  else none
+
+/-- Increment exactly the first `Finset.range` coverage bound occurring in the final target. -/
+private partial def incrementFirstRange? (e : Expr) : Option Expr :=
+  match rangeIncrement? e with
+  | some e' => some e'
+  | none =>
+      match e with
+      | .app fn arg =>
+          match incrementFirstRange? fn with
+          | some fn' => some (.app fn' arg)
+          | none => (incrementFirstRange? arg).map (.app fn)
+      | .lam name domain body bi =>
+          match incrementFirstRange? domain with
+          | some domain' => some (.lam name domain' body bi)
+          | none => (incrementFirstRange? body).map fun body' => .lam name domain body' bi
+      | .forallE name domain body bi =>
+          match incrementFirstRange? domain with
+          | some domain' => some (.forallE name domain' body bi)
+          | none => (incrementFirstRange? body).map fun body' => .forallE name domain body' bi
+      | .letE name type value body nondep =>
+          match incrementFirstRange? type with
+          | some type' => some (.letE name type' value body nondep)
+          | none =>
+              match incrementFirstRange? value with
+              | some value' => some (.letE name type value' body nondep)
+              | none => (incrementFirstRange? body).map fun body' =>
+                  .letE name type value body' nondep
+      | .mdata md body => (incrementFirstRange? body).map (.mdata md)
+      | .proj typeName index base =>
+          (incrementFirstRange? base).map fun base' => .proj typeName index base'
+      | _ => none
 
 /-- Walk the outer telescope with fvars; `pred` sees the binder index, name,
     closed domain, binder info, the raw continuation (loose bvar 0 = this
@@ -562,6 +665,44 @@ structure Applied where
   site : Site
   deriving Repr
 
+private def applyDefReduce (root : Root) (kind : DefReduceKind) : MetaM Applied := do
+  let some candidate := reduceFirst? kind root.reference
+    | throwNA (if kind == .beta then "p21_beta_no_redex" else "p21_zeta_no_redex")
+  return {
+    candidate
+    site := {
+      kind := "definitional_reduction"
+      detail := if kind == .beta then "beta" else "zeta"
+    }
+  }
+
+/-- Rewrite the first final-target occurrence with one exact lemma. The generated equality
+    proof is replayed later to build the row-local `Iff` certificate. -/
+private def rewriteFinalByLemma (root : Root) (kind : String) (lemma : Name) : MetaM Applied := do
+  let candidate ← forallTelescope root.reference fun xs body => do
+    let attempt : Except String RewriteResult ← tryCatchRuntimeEx
+      (do
+        let ambient ← mkFreshExprMVar none
+        return .ok (← ambient.mvarId!.rewrite body (mkConst lemma) false
+          { occs := .pos [1] }))
+      fun ex => do
+        if ex.isInterrupt then throw ex
+        return .error (← exceptionText ex)
+    let .ok result := attempt | throwNA s!"{kind}_not_applicable"
+    unless result.mvarIds.isEmpty do throwNA s!"{kind}_unresolved_rewrite"
+    mkForallFVars xs result.eNew
+  if targetReflexive candidate then throwRej s!"{kind}_claim_erasure_reflexive"
+  return { candidate, site := { kind, index := 1, detail := lemma.toString } }
+
+private def applyN26 (root : Root) : MetaM Applied := do
+  let candidate ← forallTelescope root.reference fun xs body => do
+    let some body' := incrementFirstRange? body | throwNA "n26_no_finset_range_coverage_bound"
+    mkForallFVars xs body'
+  return {
+    candidate
+    site := { kind := "finset_range_coverage_bound", index := 1, detail := "succ" }
+  }
+
 private def applyFinalTarget (root : Root) (kind : String)
     (f : Expr → Option (Expr × String)) : MetaM Applied := do
   let some (candidate, depth) := rewriteFinalTarget root.reference (fun t => (f t).map (·.1))
@@ -673,8 +814,14 @@ def applyOp (root : Root) (op : Op) : MetaM Applied := do
   | .p15 => applyFinalTarget root "final_target_iff" swapIff?
   | .p18 => applyFinalTarget root "final_target_eq" swapEq?
   | .n25 => applyFinalTarget root "final_target_eq_ne" toggleEqNe?
-  | .n32 => applyFinalTarget root "final_target_strict_lt" swapStrictLt?
+  | .n32 => applyFinalTarget root "final_target_strict_lt" swapRoleOrder?
   | .pne => applyFinalTarget root "final_target_ne" swapNe?
+  | .p21Beta => applyDefReduce root .beta
+  | .p21Zeta => applyDefReduce root .zeta
+  | .p32Assoc => rewriteFinalByLemma root "p32_add_assoc" ``add_assoc
+  | .p32Comm => rewriteFinalByLemma root "p32_add_comm" ``add_comm
+  | .p35 => rewriteFinalByLemma root "p35_set_inter_membership" ``Set.mem_inter_iff
+  | .n26 => applyN26 root
   | .pdrg =>
       let (g, label) ← discoverRedundantGuard root
       let candidate ← applyDropGuardAt root g
@@ -714,7 +861,8 @@ def applyOp (root : Root) (op : Op) : MetaM Applied := do
     the site alone determines the candidate. -/
 def replayOp (root : Root) (op : Op) (site : Site) : MetaM Expr := do
   match op with
-  | .p15 | .p18 | .n25 | .n32 | .pne =>
+  | .p15 | .p18 | .n25 | .n32 | .pne
+  | .p21Beta | .p21Zeta | .p32Assoc | .p32Comm | .p35 | .n26 =>
       let applied ← applyOp root op
       unless applied.site == site do throwRej "replay_site_mismatch"
       return applied.candidate
@@ -780,6 +928,31 @@ private def dropGuardIffProof (ref cand : Expr) (g : Nat) : MetaM (Expr × Strin
     let mpr ← withLocalDecl `h .default cand fun h => do
       mkLambdaFVars #[h] (← mkLambdaFVars xs (mkAppN h prefixArgs))
     return (iffIntro ref cand mp mpr, label)
+
+private def defeqIffProof (ref cand : Expr) : MetaM Expr := do
+  unless ← withoutModifyingMCtx (isDefEq ref cand) do
+    throwRej "definitional_equivalence_failed"
+  return mkApp (mkConst ``Iff.rfl) ref
+
+/-- Re-run the exact single-occurrence lemma rewrite and turn its equality proof for the
+    final target into a complete `Iff` proof under the original telescope. -/
+private def lemmaRewriteIffProof (ref cand : Expr) (lemma : Name) : MetaM Expr := do
+  forallTelescope ref fun xs body => do
+    let ambient ← mkFreshExprMVar none
+    let result ← ambient.mvarId!.rewrite body (mkConst lemma) false { occs := .pos [1] }
+    unless result.mvarIds.isEmpty do throwRej "lemma_rewrite_unresolved_goals"
+    let rebuilt ← mkForallFVars xs result.eNew
+    unless Expr.equal rebuilt cand do throwRej "lemma_rewrite_candidate_mismatch"
+    let mp ← withLocalDecl `h .default ref fun h => do
+      let oldProof := mkAppN h xs
+      let newProof := mkEqMP result.eqProof oldProof
+      mkLambdaFVars #[h] (← mkLambdaFVars xs newProof)
+    let eqSymm ← mkEqSymm result.eqProof
+    let mpr ← withLocalDecl `h .default cand fun h => do
+      let newProof := mkAppN h xs
+      let oldProof := mkEqMP eqSymm newProof
+      mkLambdaFVars #[h] (← mkLambdaFVars xs oldProof)
+    return iffIntro ref cand mp mpr
 
 /-! ## Grounding search for negatives -/
 
@@ -1008,6 +1181,34 @@ private def n31Refute (root : Root) (cand : Expr) (site : Site) : MetaM Negative
     proof
   }
 
+/-- Construct an explicit counterexample to a candidate by grounding its complete telescope and
+    kernel-checking a proof of the negated grounded target. The exact source theorem is checked
+    separately by the negative driver. -/
+private def groundedCandidateRefute (root : Root) (cand : Expr) (kind : String) :
+    MetaM NegativeEvidence := do
+  let cand0 := levelZeroInstantiate root.levelParams cand
+  let branchBudget ← IO.mkRef groundingBranchBudget
+  let tacticBudget ← IO.mkRef groundingTacticBudget
+  let found ← groundTelescope cand0 0 (fun _ => none) #[] #[] branchBudget tacticBudget
+    fun target _ => do
+      match ← proveClosed? (mkApp (mkConst ``Not) target) tacticBudget with
+      | some (proof, label) => return some (proof, label)
+      | none => return none
+  let some (g, (targetRefutation, label)) := found
+    | throwRej "no_boundary_refutation"
+  let notCand := mkApp (mkConst ``Not) cand0
+  let proof ← withLocalDecl `h .default cand0 fun h => do
+    mkLambdaFVars #[h] (mkApp targetRefutation (mkAppN h g.values))
+  let refutation ← checkedProof "refutation" [] proof notCand
+  return {
+    refutation
+    grounding := g
+    refutationKind := s!"{kind}:{label}"
+    boundary := none
+    tacticCalls := groundingTacticBudget - (← tacticBudget.get)
+    proof
+  }
+
 /-! ## Per-operation driver -/
 
 structure OpOutcome where
@@ -1041,6 +1242,10 @@ private def certifyPositive (root : Root) (op : Op) (applied : Applied) : MetaM 
         let (proof, label) ← dropGuardIffProof ref cand applied.site.index
         unless label == applied.site.detail do throwRej "pdrg_guard_proof_label_mismatch"
         pure proof
+    | .p21Beta | .p21Zeta => defeqIffProof ref cand
+    | .p32Assoc => lemmaRewriteIffProof ref cand ``add_assoc
+    | .p32Comm => lemmaRewriteIffProof ref cand ``add_comm
+    | .p35 => lemmaRewriteIffProof ref cand ``Set.mem_inter_iff
     | _ => throwRej "positive_dispatch_mismatch"
   let goal := mkApp2 (mkConst ``Iff) ref cand
   let checkResult ← checkedProof "equivalence" root.levelParams proof goal
@@ -1062,8 +1267,13 @@ private def certifyNegative (root : Root) (op : Op) (applied : Applied) : MetaM 
   let ev ←
     match op with
     | .n25 => n25Refute root cand applied.site.detail
-    | .n32 => n32Refute root cand applied.site.detail
+    | .n32 =>
+        if applied.site.detail == "Nat" || applied.site.detail == "Int" then
+          n32Refute root cand applied.site.detail
+        else
+          groundedCandidateRefute root cand "role_order_boundary_counterexample"
     | .n31 => n31Refute root cand applied.site
+    | .n26 => groundedCandidateRefute root cand "range_increment_boundary_counterexample"
     | _ => throwRej "negative_dispatch_mismatch"
   return Json.mkObj [
     ("label", Json.bool false),
@@ -1254,7 +1464,15 @@ def squareOps : Array SquareOp := #[
   { id := "SQUARE_N32_BINDER_V1", negId := (Op.n32).id, neg := some .n32,
     transforms := #[.p14, .p23] },
   { id := "SQUARE_N19_CURRICULUM_V1", negId := n19OperationId, neg := none,
-    transforms := #[.p14, .p23, .p18, .pne, .p15] }]
+    transforms := #[.p14, .p23, .p18, .pne, .p15] },
+  { id := "SQUARE_WAVE2_N26_V1", negId := (Op.n26).id, neg := some .n26,
+    transforms := #[.p21Beta, .p21Zeta, .p32Assoc, .p32Comm, .p35, .p14, .p23] },
+  { id := "SQUARE_WAVE2_N32_V1", negId := (Op.n32).id, neg := some .n32,
+    transforms := #[.p21Beta, .p21Zeta, .p32Assoc, .p32Comm, .p35, .p14, .p23] },
+  { id := "SQUARE_WAVE2_N25_V1", negId := (Op.n25).id, neg := some .n25,
+    transforms := #[.p21Beta, .p21Zeta, .p32Assoc, .p32Comm, .p35, .p14, .p23] },
+  { id := "SQUARE_WAVE2_N31_V1", negId := (Op.n31).id, neg := some .n31,
+    transforms := #[.p21Beta, .p21Zeta, .p32Assoc, .p32Comm, .p35, .p14, .p23] }]
 
 def squareOp? (id : String) : Option SquareOp := squareOps.find? (·.id == id)
 
@@ -1359,6 +1577,10 @@ private def squareIffProof (op : Op) (site : Site) (ref cand : Expr) : MetaM Exp
   | .pne => finalTargetIffProof ref cand fun p => mkAppM ``Ne.symm #[p]
   | .p14 => p14IffProof ref cand site.index
   | .p23 => p23IffProof ref cand site.index (Name.mkSimple site.detail)
+  | .p21Beta | .p21Zeta => defeqIffProof ref cand
+  | .p32Assoc => lemmaRewriteIffProof ref cand ``add_assoc
+  | .p32Comm => lemmaRewriteIffProof ref cand ``add_comm
+  | .p35 => lemmaRewriteIffProof ref cand ``Set.mem_inter_iff
   | _ => throwRej "square_transform_dispatch"
 
 /-- `Not (Not P)` from the loaded proof of `P`; the N19 refutation needs no grounding. -/
@@ -1380,7 +1602,15 @@ private def n19Refute (root : Root) (cand : Expr) : MetaM NegativeEvidence := do
 private def squareRefute (sq : SquareBuild) : MetaM NegativeEvidence :=
   match sq.op.neg with
   | some .n25 => n25Refute sq.root sq.c sq.direction
-  | some .n32 => n32Refute sq.root sq.c sq.direction
+  | some .n32 =>
+      if sq.direction == "Nat" || sq.direction == "Int" then
+        n32Refute sq.root sq.c sq.direction
+      else
+        groundedCandidateRefute sq.root sq.c "role_order_boundary_counterexample"
+  | some .n26 => groundedCandidateRefute sq.root sq.c "range_increment_boundary_counterexample"
+  | some .n31 => do
+      let applied ← applyOp sq.root .n31
+      n31Refute sq.root sq.c applied.site
   | none => n19Refute sq.root sq.c
   | _ => throwRej "square_negative_dispatch"
 

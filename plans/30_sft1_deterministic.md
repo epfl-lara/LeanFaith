@@ -1,40 +1,80 @@
 # SFT1 — deterministic theorem-equivalence data at scale
 
 > **Task ID:** SFT1
-> **Status:** pilot_passed
-> **Owner/session:** Codex `/root` release-reconciliation handoff (release sprint closed) on worktree `/localhome/milikic/LeanFaith-sft1-sprint`, branch `milikic/sft1-sprint-72h`
+> **Status:** active
+> **Owner/session:** Codex `/root` SFT1 Wave 2 diversity-and-scale sprint on worktree `/localhome/milikic/LeanFaith-sft1-wave2-diversity-scale`, branch `milikic/sft1-wave2-diversity-scale`
 > **Last updated:** 2026-09-03
-> **Active 72-hour sprint:** follow the compact execution path in
-> [`72h_sft_data_sprint_2026-09-01.md`](72h_sft_data_sprint_2026-09-01.md). The historical
-> authorization/readiness sequencing preserved below is frozen evidence, not an active dependency.
+> **Active sprint:** Wave 2 uses the additive execution contract recorded below. The closed
+> 72-hour sprint and its authorization/readiness history remain frozen evidence, not active
+> dependencies.
 > **Active policy:** historical baseline preserved: the additive, smoke-only implementation from accepted commit
 > `fc8cdc2c6d9d93e99e20933a17dbcfa2afc2be48` has produced exactly one real Mathlib preserving
 > pair and one hand-written closed N31 breaking canary, serialized both, and replayed both from
 > cache. This is thin plumbing/certificate evidence only: it does not compile or certify the
 > frozen Wave 1 engine. All frozen revisions, receipts, hashes, and the complete 46-operation
 > registry remain immutable.
-> **Approval recorded:** active 72-hour sprint approved by the user on 2026-09-01; its measured
-> fixture/100-root/10K gates authorize automatic progression. Older narrower approvals remain
-> preserved below as historical evidence and do not constrain the additive sprint path.
+> **Approval recorded:** Wave 2 was explicitly authorized by the user on 2026-09-03 from closed
+> sprint commit `1e2019b7ffe3bea99068d0c3055487863ff8db74`, including fixtures, 20 roots,
+> 200 roots, conditional 10K, conditional eligible-pool scale up to 500,000 released rows, and a
+> new private additive Hub prefix. Older narrower approvals remain preserved as historical evidence.
 > **Dependencies:** frozen REPR `176a783842c5a73b84413dfa8347670608b615d9`, current shared label
 > contract, pinned Mathlib project context, gold blocklist, and the sprint's compact engine/cache/
 > journal implementation. Historical census, admission, and readiness dependencies below are not
 > active sprint prerequisites.
 > **REPR predecessor:** `cbc933c3623d81ba649a1f9c5107ad404389d69f` was reviewed but is
 > superseded and not consumable by SFT1
-> **Next gate:** none for this closed release sprint. Future mechanism expansion is deferred and
-> does not block coordinator integration. Any successor must start additively from the reconciled
-> release identities; it must not reinterpret `core_v5_combined_square` as a broad final corpus or
-> promote N19 out of its auxiliary role.
-> **Compute class:** none. No SFT1 Lean, generation, compaction, or publication job and no
-> SFT1 shared-host reservation remains. The three named stale release/pilot wrappers were verified
-> to contain only childless sleeps and were removed after the reconciled branch push.
-> Sprint outputs live under the staging root's `sprint_v1/` directory (`inventory/`, `cache/`,
-> `cache_fixtures/`, `raw/`, `runs/<run_id>/`, `compacted/<label>/`, `logs/`).
-> **Lean budget:** no further Lean for SFT1 in this sequence; if a recovery from durable evidence
-> were impossible, at most one bounded Lean check would be allowed (none was needed).
+> **Next gate:** implement and pass one live success plus one fail-closed fixture for every enabled
+> new mechanism, then inspect every emitted pair from twenty diverse roots.
+> **Compute class:** no claim while census and Lean-free implementation work proceeds. Live gates
+> will claim one persistent project worker within the shared 24 GiB/one-worker budget; any 10K or
+> eligible-pool run will use a named detached tmux session and a recorded exact resume command.
+> Wave 2 outputs live under the staging root's additive `wave2/` directory (`inventory/`, `cache/`,
+> `cache_fixtures/`, `raw/`, `runs/<run_id>/`, `compacted/core_v1/`, `logs/`).
+> **Lean budget:** all string census, filtering, schema, provenance, joins, deduplication, and
+> candidate ordering happen before Lean. Retained rows receive exact certificate/separator checks
+> in bounded persistent project workers; no row launches its own Lean process. Progression is
+> fixtures -> 20 roots -> 200 roots -> conditional 10K -> conditional eligible pool, capped at
+> 500,000 released rows.
 > **Local staging root:** `/storage/milikic/leanfaith/value_first/sft1_deterministic_v1/`
 > **HF destination:** private `Lemmy00/leanfaith-sft1-deterministic-v1`
+
+## Wave 2 diversity-and-scale sprint (active)
+
+Wave 2 is additive to the closed sprint and must not modify or republish `core_v4_diverse_square_v2`,
+`core_v5_combined_square`, or `aux_n19_square_curriculum`. N19 is frozen auxiliary data and is out
+of scope. The new release prefix is `wave2/core_v1`.
+
+The authorized preserving batch is `P21_BETA_REDUCE_V1`, `P21_ZETA_REDUCE_V1`,
+`P32_ADD_ASSOC_LOCAL_V1`, `P32_ADD_COMM_LOCAL_V1`, and `P35_SET_INTER_MEMBERSHIP_V1`, with reuse of
+`P14_SWAP_INDEPENDENT_DATA_BINDERS_V1`, `P23_CURRY_PROP_PAIR_V1`, `P15_SWAP_IFF_SIDES_V1`,
+`P18_SYMMETRIZE_EQUALITY_V1`, and `P_NE_SYMMETRIZE_V1` where useful. The breaking batch is
+`N26_INCREMENT_BOUND_PROOF_V1`, expanded `N32_SWAP_ROLE_ORDER_PROOF_V1`, capped
+`N25_TOGGLE_EQ_NE_PROOF_V1`, and optional capped `N31_DROP_REQUIRED_GUARD_PROOF_V1` only where both
+an exact source proof and candidate refutation are available. Difficult, unsafe, or near-zero-yield
+new mechanisms are recorded and dropped rather than allowed to block the roughly four-hour
+implementation time box.
+
+Every positive requires definitional equality or a checked equivalence certificate. Every negative
+requires an exact source proof plus candidate refutation or another explicit kernel-checkable
+separator. Rubric-only and failed-search labels are excluded from the core. Source order is
+Mathlib, Physlib, CSLib, then only compiler-data roots whose exact theorem/proof context is already
+reproducible. Applicability is determined by a zero-Lean string census before typed validation.
+
+The shared gate sequence is: one success and one fail-closed fixture per enabled new mechanism;
+twenty diverse roots with every pair manually inspected; a 200-root mixed-source/mixed-operation
+pilot; candidate-only, reference-only, and pair-delta/family-held-out shortcut screens over the
+serialized rows; and forced resume plus zero-call replay. The 200-root gate requires zero wrong
+labels, certificate/separator failures, self-pairs, duplicate pairs, and partial groups; at least
+three useful preserving and two useful breaking mechanisms; no dominant negative mechanism;
+candidate-only and reference-only upper bounds below 0.60; pair-delta/family-held-out upper bound
+below 0.65; and exact replay/resume conservation.
+
+On a complete pass, execution continues without another review to a 10,000-row pilot and a
+deterministic 200-row operation/source-stratified audit. Zero wrong labels and the same shortcut
+thresholds authorize the full eligible-pool run, capped at 500,000 released rows. Model-facing rows
+remain exactly `{reference, candidate, label}`; all certificates, separators, operation/source
+identities, and diagnostics remain in keyed sidecars. No model training or transformation
+composition beyond certified single-hop/square construction is authorized.
 
 ## 72-hour sprint override (active)
 
@@ -1063,6 +1103,33 @@ Every earlier SFT1 path is read-only in this session. The evidence directory may
 two core rows, their keyed compact sidecars, and the hash-bound smoke manifest. Raw backend/cache
 artifacts remain in the task-owned staging root. No coordinator-owned path is claimed.
 
+**Exact paths claimed by the SFT1 Wave 2 diversity-and-scale session:**
+
+- `plans/30_sft1_deterministic.md`
+- `LeanFaith/Meta/SFT1/Sprint.lean`
+- `src/leanfaith/sft1/sprint/__init__.py`
+- `src/leanfaith/sft1/sprint/inventory.py`
+- `src/leanfaith/sft1/sprint/engine.py`
+- `src/leanfaith/sft1/sprint/screens.py`
+- `src/leanfaith/sft1/sprint/store.py`
+- `src/leanfaith/sft1/sprint/runner.py`
+- `src/leanfaith/sft1/sprint/shortcut.py`
+- `src/leanfaith/sft1/sprint/square.py`
+- `src/leanfaith/sft1/sprint/integrity.py`
+- `src/leanfaith/sft1/sprint/publish.py`
+- `configs/transformations/sft1_value_first_v1/wave2_v1.yaml`
+- `configs/transformations/sft1_value_first_v1/wave2_mathlib_v1.yaml`
+- `configs/transformations/sft1_value_first_v1/wave2_physlib_v1.yaml`
+- `configs/transformations/sft1_value_first_v1/wave2_cslib_v1.yaml`
+- `tests/unit/sft1/test_sprint_lean_free.py`
+- `tests/unit/sft1/test_wave2_lean_free.py`
+- `/storage/milikic/leanfaith/value_first/sft1_deterministic_v1/wave2/`
+
+These paths are claimed only for the additive Wave 2 batch, its focused tests, gates, durable
+artifacts, and new release. Existing content-addressed releases, historical receipts/manifests,
+N19 artifacts, shared plans, shared Lean/REPR infrastructure, project/dependency configuration,
+and unrelated user work remain read-only.
+
 ## Coordinator requests
 
 1. **REPR and SFT1 representation receipt resolved:** coherent freeze
@@ -1908,3 +1975,23 @@ resource use, output paths, and exact remaining ETA. Do not run training.
   their required post-push removal. The overall state stays `pilot_passed`: the 6,412-row square
   seed has a 0.9425 relation-parity surface diagnostic, N19 has a 0.9973 outer-negation-XOR
   baseline, and the original broad multi-million-row objective remains unmet and deferred.
+- 2026-09-03 — Codex `/root` started the explicitly authorized additive Wave 2 sprint from clean
+  commit `1e2019b7ffe3bea99068d0c3055487863ff8db74` in worktree
+  `/localhome/milikic/LeanFaith-sft1-wave2-diversity-scale` on branch
+  `milikic/sft1-wave2-diversity-scale` and claimed only the exact task-owned paths listed above.
+  Lean remains the bottleneck: zero-Lean applicability census, filtering, schema/provenance work,
+  joins, deduplication, and deterministic candidate ordering precede any bounded persistent-worker
+  validation. No Lean process, shared-resource claim, transformation, row, compaction, publication,
+  or prior-release/N19 mutation has started at this boundary.
+- 2026-09-03 — completed the Wave 2 zero-Lean source census and first batched implementation
+  boundary. Pinned inventories contain 180,415 Mathlib declarations at `d568c8c…`, 5,527 Physlib
+  declarations at locally reproducible clean commit `6fd9a929…`, and 1,330 CSLib declarations at
+  locally reproducible clean commit `ab16df6f…`. Conservative string applicability found,
+  respectively: beta 15,098/875/25; zeta 66/14/11; additive associativity 5,690/363/87;
+  additive commutativity 16,331/770/154; set-intersection membership 532/3/2; N26 range-bound
+  3,663/17/6; and N32 order-role 32,142/488/109 candidates. The compiler-data lane stays excluded
+  because no exact local theorem-and-proof context is reproducible. The existing engine now has
+  additive batch dispatch for the five new preserving mechanisms, exact `Finset.range` N26,
+  expanded N32 `LT`/`LE`, and proof-backed square closure; the historical sprint config still loads
+  its original nine-operation set. Eighteen focused Lean-free tests, strict Mypy, Ruff, formatting,
+  config loading, and whitespace checks passed. No Lean call or host reservation occurred yet.

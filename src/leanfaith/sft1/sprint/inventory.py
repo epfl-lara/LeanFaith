@@ -1,4 +1,4 @@
-"""Lean-free Mathlib theorem inventory and deterministic root ordering.
+"""Lean-free theorem inventory and deterministic root ordering.
 
 The scanner reads pinned Mathlib source text, tracks ``namespace``/``section``
 nesting, and records every non-private ``theorem``/``lemma`` declaration with
@@ -206,16 +206,24 @@ def scan_source(source: str, *, module: str, path: str) -> Iterator[Declaration]
         )
 
 
-def scan_mathlib(mathlib_dir: Path) -> list[Declaration]:
-    root = mathlib_dir / "Mathlib"
+def scan_project(project_dir: Path, root_module: str) -> list[Declaration]:
+    """Scan one pinned Lean library root without invoking Lean."""
+
+    root = project_dir / root_module
     declarations: list[Declaration] = []
     for path in sorted(root.rglob("*.lean")):
-        relative = path.relative_to(mathlib_dir)
+        relative = path.relative_to(project_dir)
         source = path.read_text(encoding="utf-8")
         declarations.extend(
             scan_source(source, module=module_name(relative), path=relative.as_posix())
         )
     return declarations
+
+
+def scan_mathlib(mathlib_dir: Path) -> list[Declaration]:
+    """Backward-compatible Mathlib scanner used by the closed sprint."""
+
+    return scan_project(mathlib_dir, "Mathlib")
 
 
 def lean_name_literal(name: str) -> str:
@@ -257,8 +265,16 @@ def git_head(directory: Path) -> str:
 
 
 def write_inventory(
-    declarations: Iterable[Declaration], out_dir: Path, *, mathlib_revision: str
+    declarations: Iterable[Declaration],
+    out_dir: Path,
+    *,
+    project_revision: str | None = None,
+    project_id: str = "mathlib",
+    mathlib_revision: str | None = None,
 ) -> Path:
+    revision = project_revision or mathlib_revision
+    if revision is None:
+        raise ValueError("inventory needs a project revision")
     out_dir.mkdir(parents=True, exist_ok=True)
     rows = [item.to_dict() for item in declarations]
     body = b"".join(canonical_json_bytes(row) + b"\n" for row in rows)
@@ -267,12 +283,15 @@ def write_inventory(
     names = [str(row["name"]) for row in rows]
     manifest = {
         "schema_version": INVENTORY_SCHEMA_VERSION,
-        "mathlib_revision": mathlib_revision,
+        "project_id": project_id,
+        "project_revision": revision,
         "declaration_count": len(rows),
         "unique_name_count": len(set(names)),
         "inventory_sha256": sha256_hex(body),
         "scanner": "leanfaith.sft1.sprint.inventory",
     }
+    if project_id == "mathlib":
+        manifest["mathlib_revision"] = revision
     (out_dir / "manifest.json").write_bytes(canonical_json_bytes(manifest) + b"\n")
     return inventory_path
 
@@ -285,6 +304,144 @@ def load_inventory(path: Path) -> list[dict[str, object]]:
             if isinstance(value, dict):
                 rows.append(value)
     return rows
+
+
+WAVE2_PRESERVING_PATTERNS: dict[str, re.Pattern[str]] = {
+    "P21_BETA_REDUCE_V1": re.compile(r"\bfun\b|fun\s+[^=]+=>"),
+    "P21_ZETA_REDUCE_V1": re.compile(r"\blet\b"),
+    "P32_ADD_ASSOC_LOCAL_V1": re.compile(r"\+[^+]{0,1000}\+"),
+    "P32_ADD_COMM_LOCAL_V1": re.compile(r"\+"),
+    "P35_SET_INTER_MEMBERSHIP_V1": re.compile(r"(?:∈.*∩|∩.*∈|Set\.inter.*Membership)"),
+    "P14_SWAP_INDEPENDENT_DATA_BINDERS_V1": re.compile(
+        r"\([^()]{1,200}\s+[^()]{1,200}:\s*[^()]{1,300}\)"
+    ),
+    "P23_CURRY_PROP_PAIR_V1": re.compile(
+        r"\([^()]{1,200}:\s*[^()]{1,300}\)[^()]{0,500}"
+        r"\([^()]{1,200}:\s*[^()]{1,300}\)"
+    ),
+    "P15_SWAP_IFF_SIDES_V1": re.compile(r"↔"),
+    "P18_SYMMETRIZE_EQUALITY_V1": re.compile(r"(?<![<>=:])=(?!=)"),
+    "P_NE_SYMMETRIZE_V1": re.compile(r"≠"),
+}
+
+WAVE2_BREAKING_PATTERNS: dict[str, re.Pattern[str]] = {
+    "N26_INCREMENT_BOUND_PROOF_V1": re.compile(r"Finset\.range|\brange\s+[A-Za-z0-9_(]"),
+    "N32_SWAP_ROLE_ORDER_PROOF_V1": re.compile(r"<|≤"),
+    "N25_TOGGLE_EQ_NE_PROOF_V1": re.compile(r"≠|(?<![<>=:])=(?!=)"),
+    "N31_DROP_REQUIRED_GUARD_PROOF_V1": re.compile(r"\([^)]*(?:<|≤|≠|(?<![<>=:])=(?!=))[^)]*\)"),
+}
+
+WAVE2_SQUARE_TARGETS: dict[str, str] = {
+    "N26_INCREMENT_BOUND_PROOF_V1": "square_wave2_n26.json",
+    "N32_SWAP_ROLE_ORDER_PROOF_V1": "square_wave2_n32.json",
+    "N25_TOGGLE_EQ_NE_PROOF_V1": "square_wave2_n25.json",
+    "N31_DROP_REQUIRED_GUARD_PROOF_V1": "square_wave2_n31.json",
+}
+
+
+def wave2_applicability(row: dict[str, object]) -> tuple[str, ...]:
+    """Conservative string-only operation prefilter; typed checks remain authoritative."""
+
+    statement = str(row.get("statement", ""))
+    operations = [
+        operation
+        for operation, pattern in {
+            **WAVE2_PRESERVING_PATTERNS,
+            **WAVE2_BREAKING_PATTERNS,
+        }.items()
+        if pattern.search(statement)
+    ]
+    return tuple(operations)
+
+
+def write_wave2_census(
+    rows: Sequence[dict[str, object]],
+    out_dir: Path,
+    *,
+    project_id: str,
+    project_revision: str,
+) -> dict[str, object]:
+    """Persist the Wave 2 zero-Lean applicability matrix and square candidate lists."""
+
+    out_dir.mkdir(parents=True, exist_ok=True)
+    seen: set[str] = set()
+    candidates: list[dict[str, object]] = []
+    counts: dict[str, int] = dict.fromkeys(
+        (*WAVE2_PRESERVING_PATTERNS, *WAVE2_BREAKING_PATTERNS), 0
+    )
+    square_roots: dict[str, list[dict[str, object]]] = {
+        operation: [] for operation in WAVE2_BREAKING_PATTERNS
+    }
+    for row in rows:
+        name = str(row.get("name", ""))
+        if not name or name in seen:
+            continue
+        seen.add(name)
+        applicable = wave2_applicability(row)
+        if not applicable:
+            continue
+        for operation in applicable:
+            counts[operation] += 1
+        candidate = {
+            "name": name,
+            "module": row.get("module"),
+            "path": row.get("path"),
+            "line": row.get("line"),
+            "statement": row.get("statement"),
+            "applicable_operations": list(applicable),
+        }
+        candidates.append(candidate)
+        has_preserving = any(op in WAVE2_PRESERVING_PATTERNS for op in applicable)
+        if has_preserving:
+            for operation in WAVE2_BREAKING_PATTERNS:
+                if operation in applicable:
+                    square_roots[operation].append(
+                        {
+                            **candidate,
+                            "source_run": "inventory_string_census",
+                            "direction": "typed_check_pending",
+                            "reference_expr_hash": name,
+                        }
+                    )
+    candidates.sort(key=lambda item: hash_canonical([project_id, project_revision, item["name"]]))
+    matrix = {
+        "schema_version": 1,
+        "project_id": project_id,
+        "project_revision": project_revision,
+        "inventory_rows": len(seen),
+        "candidate_rows": len(candidates),
+        "operation_counts": counts,
+        "candidates_sha256": hash_canonical(candidates),
+        "candidates": candidates,
+    }
+    (out_dir / "wave2_applicability.json").write_bytes(canonical_json_bytes(matrix) + b"\n")
+    for operation, roots in square_roots.items():
+        roots.sort(
+            key=lambda item: hash_canonical([project_id, project_revision, operation, item["name"]])
+        )
+        payload = {
+            "schema_version": 1,
+            "project_id": project_id,
+            "project_revision": project_revision,
+            "operation_id": next(
+                square
+                for square, negative in {
+                    "SQUARE_WAVE2_N26_V1": "N26_INCREMENT_BOUND_PROOF_V1",
+                    "SQUARE_WAVE2_N32_V1": "N32_SWAP_ROLE_ORDER_PROOF_V1",
+                    "SQUARE_WAVE2_N25_V1": "N25_TOGGLE_EQ_NE_PROOF_V1",
+                    "SQUARE_WAVE2_N31_V1": "N31_DROP_REQUIRED_GUARD_PROOF_V1",
+                }.items()
+                if negative == operation
+            ),
+            "negative_operation": operation,
+            "count": len(roots),
+            "roots_sha256": hash_canonical([item["name"] for item in roots]),
+            "roots": roots,
+        }
+        (out_dir / WAVE2_SQUARE_TARGETS[operation]).write_bytes(
+            canonical_json_bytes(payload) + b"\n"
+        )
+    return {key: value for key, value in matrix.items() if key != "candidates"}
 
 
 @dataclass(frozen=True, slots=True)
@@ -349,12 +506,23 @@ def ordered_roots(
 
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--mathlib", type=Path, required=True)
+    parser.add_argument("--mathlib", type=Path)
+    parser.add_argument("--project", type=Path)
+    parser.add_argument("--project-id", default="mathlib")
+    parser.add_argument("--root-module", default="Mathlib")
     parser.add_argument("--out", type=Path, required=True)
     args = parser.parse_args(argv)
-    revision = git_head(args.mathlib)
-    declarations = scan_mathlib(args.mathlib)
-    path = write_inventory(declarations, args.out / revision, mathlib_revision=revision)
+    project = args.project or args.mathlib
+    if project is None:
+        parser.error("one of --project or --mathlib is required")
+    revision = git_head(project)
+    declarations = scan_project(project, args.root_module)
+    path = write_inventory(
+        declarations,
+        args.out / revision,
+        project_revision=revision,
+        project_id=args.project_id,
+    )
     print(
         json.dumps(
             {"inventory": str(path), "declarations": len(declarations), "revision": revision}

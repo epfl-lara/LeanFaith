@@ -98,19 +98,28 @@ def canonical_surface(goal_text: str) -> tuple[str | None, str | None]:
 
 
 class ProjectConfig(StrictModel):
-    project_id: Literal["mathlib"]
+    project_id: Literal["mathlib", "physlib", "cslib"]
     project_dir: NonEmpty
     project_revision: NonEmpty
     lean_version: NonEmpty
     lean_interact_version: NonEmpty
     repl_revision: NonEmpty
-    import_header: Literal["import Mathlib"]
+    import_header: NonEmpty
     options: dict[str, bool]
 
     @model_validator(mode="after")
     def _options(self) -> ProjectConfig:
         if self.options.get("Elab.async") is not False:
             raise ValueError("sprint runs must disable Elab.async")
+        expected_import = {
+            "mathlib": "import Mathlib",
+            "physlib": "import Physlib",
+            "cslib": "import Cslib",
+        }[self.project_id]
+        if self.import_header != expected_import:
+            raise ValueError(
+                f"{self.project_id} must use the exact import header {expected_import!r}"
+            )
         return self
 
 
@@ -120,8 +129,14 @@ class EngineConfig(StrictModel):
 
     @model_validator(mode="after")
     def _operations(self) -> EngineConfig:
-        if tuple(self.operations) != OPERATIONS:
-            raise ValueError("sprint config must list exactly the engine operations in order")
+        if not self.operations or len(set(self.operations)) != len(self.operations):
+            raise ValueError("sprint config operations must be nonempty and unique")
+        unknown = set(self.operations).difference(OPERATIONS)
+        if unknown:
+            raise ValueError(f"unknown sprint operations: {sorted(unknown)}")
+        expected = tuple(operation for operation in OPERATIONS if operation in self.operations)
+        if tuple(self.operations) != expected:
+            raise ValueError("sprint operations must follow canonical engine order")
         return self
 
 
@@ -312,14 +327,17 @@ class SprintRunner:
         head = _git(self.pins.project_dir, "rev-parse", "HEAD")
         if head != self.pins.project_revision:
             raise SprintRunnerError(
-                f"Mathlib revision mismatch: {head} != {self.pins.project_revision}"
+                f"{self.pins.project_id} revision mismatch: {head} != {self.pins.project_revision}"
             )
 
     def load_inventory_rows(self) -> list[dict[str, object]]:
         inventory_dir = Path(self.config.inventory.root) / self.pins.project_revision
         manifest = read_json_object(inventory_dir / "manifest.json")
-        if manifest.get("mathlib_revision") != self.pins.project_revision:
+        recorded_revision = manifest.get("project_revision", manifest.get("mathlib_revision"))
+        if recorded_revision != self.pins.project_revision:
             raise SprintRunnerError("inventory manifest revision mismatch")
+        if manifest.get("project_id", self.pins.project_id) != self.pins.project_id:
+            raise SprintRunnerError("inventory manifest project mismatch")
         inventory_path = inventory_dir / "inventory.jsonl"
         if hash_file(inventory_path) != manifest.get("inventory_sha256"):
             raise SprintRunnerError("inventory content hash mismatch")
@@ -1871,7 +1889,8 @@ def run_fixtures(repo_root: Path, loaded: LoadedConfig[SprintConfig]) -> dict[st
         str(r["operation_id"]) for r in results if r["expect_status"] != "retained" and r["passed"]
     }
     waived = {waiver.operation_id: waiver.reason for waiver in config.fixtures_success_waivers}
-    required_success = set(OPERATIONS) - set(waived)
+    required_operations = set(config.engine.operations)
+    required_success = required_operations - set(waived)
     report = {
         "schema_version": 1,
         "run_id": run_id,
@@ -1880,10 +1899,10 @@ def run_fixtures(repo_root: Path, loaded: LoadedConfig[SprintConfig]) -> dict[st
         "rejection_covered": sorted(covered_rejection),
         "success_waived": waived,
         "all_operations_covered": covered_success >= required_success
-        and covered_rejection == set(OPERATIONS),
+        and covered_rejection == required_operations,
         "passed": all(r["passed"] for r in results)
         and covered_success >= required_success
-        and covered_rejection == set(OPERATIONS),
+        and covered_rejection == required_operations,
         "status": runner.summary(),
     }
     write_atomic(
