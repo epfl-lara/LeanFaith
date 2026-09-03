@@ -2175,3 +2175,10 @@ resource use, output paths, and exact remaining ETA. Do not run training.
   `SFT1-WAVE2-FULL`, uses the existing 24,576 MiB hard ceiling and 900-second per-request timeout,
   releases its reservation on every exit, and leaves no GPU claim. Any command failure prevents
   the terminal marker and stops compaction/publication.
+- 2026-09-03 — the first full-pool launch performed zero root work and stopped before opening a
+  Lean worker because the wrapper's 24 GiB reservation duplicated the runner's own atomic 24 GiB
+  claim (requested aggregate 48 GiB exceeded the shared 40 GiB cap). The wrapper trap released its
+  reservation; no terminal journal, retained row, or semantic cache changed. The corrected exact
+  script removes only the redundant outer claim and retains the runner's per-command claim/release;
+  its SHA-256 is `d82e7e19fad89f4b53282d87c0e56fe2cb1232a646125fc009049e9a498a23af`.
+  Resume remains the same script/session/log/marker contract.
