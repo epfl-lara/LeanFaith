@@ -1087,3 +1087,27 @@ rows/minute, and pilot quality bounds hold. Leave healthy long runs detached wit
   nonblocking). Chain launched shard 3 at 21:59:14Z (`shard_passed_projection_nonblocking`,
   tmux `leanfaith-sft2a-sprint-v3-shard-03`, one worker/16 GiB, concurrency 16; SFT1's claim had
   been released by then).
+- 2026-09-03 — shard 3 (v3) hit two external faults. (1) The Claude account's session limit
+  ("You've hit your session limit · resets 12am (UTC)") refused every judge call from about
+  22:05Z to 00:00Z: the CLI returned an `is_error` wrapper with exit 1 and zero cost, the
+  provider recorded each as a rejected judge call (2,882 rejections, 3,784 CLI attempts with the
+  single retry), and 393 of the 938 roots completed by then lost their judgments (roots 100–399
+  in completion order got zero accepted rows; 1,924 accepted of 3,752 slots overall). (2) One
+  candidate elaboration (`physlib:census:a6eceba1…`, slot break_1) exceeded the 300 s Lean
+  request timeout twice, crashing the root deterministically at 938 and again after a resume.
+  Both conditions were blocking by the shard rules (infrastructure well above 2%, accepted
+  below 70%), so the worker was stopped by request at 01:50Z and the failure was reported.
+  Mitigations at `e457c86`, all additive and tested (158 SFT2A unit tests): the Claude judge
+  now waits out a session limit (poll every 15 min, up to 8 h, waits recorded per capture
+  attempt as `session_limit_waits.json`) instead of failing the slot; a v3 candidate whose
+  elaboration times out is an immutable candidate-local invalid terminal flagged
+  `lean_timeout` (the backend recreates its killed server lazily; timeouts still count as
+  infrastructure failures in the 2% gate and as `lean_timeouts` telemetry) instead of a root
+  crash; and `reopen-judge-outage-roots` archives every completed root with rejected judge
+  calls under `roots_reopened/<hash>/<stamp>/`, appends a `reopened` root-state event (a
+  completed root only; the next claim starts a new generation and keeps the prior manifest
+  hash), and lets a normal resume regenerate only those roots with Terra proposals and Lean
+  elaborations replaying from cache. Recovery of shard 3 started at 02:11:41Z: 393 roots
+  reopened (1,527 slots at stake, zero Lean and zero provider calls), worker resumed at
+  02:11:42Z in the same output path with the remaining 47 roots; on completion the shard
+  re-evaluates and the chain continues into shard 4 automatically.
