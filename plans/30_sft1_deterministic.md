@@ -2089,3 +2089,21 @@ resource use, output paths, and exact remaining ETA. Do not run training.
   and 900-second request timeout. Resume is the identical script/run ID and target. Three stale
   preliminary zero-Lean census processes tied to superseded raw-source revisions were confirmed
   task-owned and stopped before launch; no host reservation remained.
+- 2026-09-03 — the second pilot phase completed 15,000 compatible Mathlib N25 roots and retained
+  1,207 complete squares / 4,828 rows. It used 888 Lean requests, 1,862 cache-terminal roots,
+  1,728.35 seconds wall time, and 9,334,714,368 bytes peak process-tree RSS; its replay used zero
+  Lean calls, repeated zero rows, and preserved all 4,828 rows. One non-retained inventory root,
+  `Sym.«forall»`, ended as `request_valid:` because Lean's response pretty-printed the constant as
+  `Sym.forall`; this is an exact-name response-key mismatch, not a label or certificate failure.
+  Across the first candidate pass plus this compatible run there are only 1,862 unique squares /
+  7,448 possible rows after root/operation deduplication, so no undersized 10K view was emitted.
+- 2026-09-03 — the next durable pilot extension resumes the same N25 journal from 15,000 to
+  25,000 roots and then runs the complete 16,850-root compatible Mathlib N32 pool. Both runs are
+  required by the later full eligible-pool pass, so this is forward progress rather than repeated
+  generation. Exact script `wave2/logs/pilot10k_compatible_extension.sh` has SHA-256
+  `86e8b2e9b0421f7ea4e006d3d359ad848a628833f79679c5eaaabda1f248bc08`; named session
+  `leanfaith-sft1-wave2-pilot3`, persistent log `wave2/logs/pilot10k_compatible_extension.log`,
+  run IDs `wave2_pool_mathlib_n25_compatible_v5` and
+  `wave2_pool_mathlib_n32_compatible_v5`, the same single-worker/24 GiB/900-second limits, and an
+  atomic terminal marker `wave2/pilot10k_extension_candidates_ready.json`. Resume is the identical
+  script and run IDs; both runs must pass zero-call replay before consolidation.
