@@ -1,42 +1,71 @@
 # SFT1 — deterministic theorem-equivalence data at scale
 
 > **Task ID:** SFT1
-> **Status:** pilot_passed
-> **Owner/session:** Wave 2 closed by Codex `/root` on worktree `/localhome/milikic/LeanFaith-sft1-wave2-diversity-scale`, branch `milikic/sft1-wave2-diversity-scale`
+> **Status:** active
+> **Owner/session:** Codex `/root` on isolated worktree `/localhome/milikic/LeanFaith-sft1-wave3-full-scale`, branch `milikic/sft1-wave3-full-scale`, based at `92bcb1ef4e8ab6bb2a79004c1c386bf473d614ab`
 > **Last updated:** 2026-09-03
-> **Active sprint:** none. Wave 2 is closed at private Hub revision
-> `a3b5c921a24f5dedd57f1b4fb3155c163a0a48bd`; the closed 72-hour sprint and its
-> authorization/readiness history remain frozen evidence, not active dependencies.
+> **Active sprint:** additive Wave 3--5 full-scale deterministic execution. Wave 2 is closed at
+> private Hub revision `a3b5c921a24f5dedd57f1b4fb3155c163a0a48bd`; the closed 72-hour sprint,
+> all earlier releases, and their authorization/readiness history remain frozen evidence, not
+> mutable dependencies.
 > **Active policy:** historical baseline preserved: the additive, smoke-only implementation from accepted commit
 > `fc8cdc2c6d9d93e99e20933a17dbcfa2afc2be48` has produced exactly one real Mathlib preserving
 > pair and one hand-written closed N31 breaking canary, serialized both, and replayed both from
 > cache. This is thin plumbing/certificate evidence only: it does not compile or certify the
 > frozen Wave 1 engine. All frozen revisions, receipts, hashes, and the complete 46-operation
 > registry remain immutable.
-> **Approval recorded:** Wave 2 was explicitly authorized by the user on 2026-09-03 from closed
-> sprint commit `1e2019b7ffe3bea99068d0c3055487863ff8db74`, including fixtures, 20 roots,
-> 200 roots, conditional 10K, conditional eligible-pool scale up to 500,000 released rows, and a
-> new private additive Hub prefix. Older narrower approvals remain preserved as historical evidence.
+> **Approval recorded:** on 2026-09-03 the user explicitly authorized additive Wave 3 mechanism
+> expansion and bounded gates; Wave 4 preserving-site/orbit/composition work and its 200-root gate;
+> automatic full-library processing after a pass; the pinned-CPT2 zero-Lean inventory and 1,000-root
+> compiler audit; processing up to 500,000 compiler roots after that audit; private incremental
+> publication; and automatic progression through 500K, 1M, and 2--3M released-row checkpoints.
+> This authorization excludes training, SFT2A/SFT2B, N19, mutation of earlier releases, and any
+> weakening of proof/certificate evidence.
 > **Dependencies:** frozen REPR `176a783842c5a73b84413dfa8347670608b615d9`, current shared label
 > contract, pinned Mathlib project context, gold blocklist, and the sprint's compact engine/cache/
 > journal implementation. Historical census, admission, and readiness dependencies below are not
 > active sprint prerequisites.
 > **REPR predecessor:** `cbc933c3623d81ba649a1f9c5107ad404389d69f` was reviewed but is
 > superseded and not consumable by SFT1
-> **Next gate:** none for this sprint. Any further SFT1 mechanism expansion is a separate batched
-> multi-operation effort; it must not reopen or mutate this Wave 2 release.
-> **Compute class:** no active claim, process, or detached Wave 2 session. Completed live gates used
-> one persistent project worker within the shared 24 GiB/one-worker budget; all reservations were
-> released.
-> Wave 2 outputs live under the staging root's additive `wave2/` directory (`inventory/`, `cache/`,
-> `cache_fixtures/`, `raw/`, `runs/<run_id>/`, `compacted/core_v1/`, `logs/`).
-> **Lean budget:** all string census, filtering, schema, provenance, joins, deduplication, and
-> candidate ordering happen before Lean. Retained rows receive exact certificate/separator checks
-> in bounded persistent project workers; no row launches its own Lean process. Progression is
-> fixtures -> 20 roots -> 200 roots -> conditional 10K -> conditional eligible pool, capped at
-> 500,000 released rows.
+> **Next gate:** implement the Wave 3 witness/grounding layer and negative/preserving mechanisms,
+> then pass live retained and typed fail-closed fixtures, 20-root per-mechanism inspection, roughly
+> 100 typed candidates per new negative, and the combined 200-root mixed-source gate.
+> **Compute class:** no Wave 3--5 claim or process at ownership time. All later Lean work is limited
+> to at most two persistent workers and 40 GiB combined measured RSS under the shared atomic
+> reservation ledger. Long runs use named detached tmux sessions only after their exact committed
+> command/config/artifact identities and recovery contract are recorded here.
+> **Lean budget:** all string parsing, schema/provenance work, source filtering, joins,
+> deduplication, inventory construction, applicability selection, and deterministic sampling happen
+> before Lean. Retained rows receive exact proof/certificate checks in persistent context-grouped
+> workers; no row launches its own Lean process and no complete corpus is compiled for confidence.
+> Measure bounded fixtures and 20/approximately-100/200-root gates before library scale, then audit
+> only the stratified 1,000-root compiler oracle before processing the authorized compiler pool.
 > **Local staging root:** `/storage/milikic/leanfaith/value_first/sft1_deterministic_v1/`
 > **HF destination:** private `Lemmy00/leanfaith-sft1-deterministic-v1`
+
+## Wave 3--5 full-scale deterministic execution (active)
+
+This work is additive to every closed SFT1 release. It extends the existing sprint engine, runner,
+semantic cache, append-only journals, square/certificate closure, integrity screens, deterministic
+compaction, and private publisher. It must not regenerate or overwrite `wave2/core_v1`,
+`core_v5_combined_square`, `aux_n19_square_curriculum`, or any other frozen prefix. N19 is closed;
+N25 may be reused only for balance and is capped at 25% of released rows.
+
+Wave 3 expands the checked witness/grounding layer and attempts proof-certified N31, N26, N32,
+N30, and time-boxed N29 together with certified, visibly distinct preserving transformations. Wave
+4 deterministically enumerates applicable preserving sites and bounded two-/three-hop chains from
+distinct mechanism superclasses, transports every negative proof/refutation through each chain,
+and samples at most five preserving plus five negative-last variants per root by stable hashes.
+Wave 5 builds a zero-Lean content-addressed inventory from the pinned valid proof-bearing CPT2
+release, audits 1,000 stratified contexts through persistent Lean workers, and, only on a passing
+audit, processes independently complete compiler-root shards toward the 500K, 1M, and 2--3M row
+checkpoints. Proof-certified core and any separately justified lower-confidence view must remain
+distinct in schema, prefix, manifest, and reporting.
+
+The active stop conditions are a genuine label/certificate defect, unreconstructible compiler
+contexts, shared-host exhaustion requiring migration, or completion. Low yield in one optional
+mechanism is recorded and quarantined without blocking successful siblings. No model training and
+no SFT2A/SFT2B work is in scope.
 
 ## Wave 2 diversity-and-scale sprint (closed)
 
@@ -1138,6 +1167,28 @@ artifacts, and new release. Existing content-addressed releases, historical rece
 N19 artifacts, shared plans, shared Lean/REPR infrastructure, project/dependency configuration,
 and unrelated user work remain read-only.
 
+**Exact paths claimed by the Wave 3--5 full-scale deterministic session:**
+
+- `plans/30_sft1_deterministic.md`
+- `LeanFaith/Meta/SFT1/Sprint.lean`
+- `src/leanfaith/sft1/sprint/` (the existing runner/cache/journal/square/screen/compaction/
+  provenance/integrity/publication modules and additive Wave 3--5 modules only)
+- `configs/transformations/sft1_value_first_v1/wave3_v1.yaml`
+- `configs/transformations/sft1_value_first_v1/wave4_v1.yaml`
+- `configs/transformations/sft1_value_first_v1/wave5_v1.yaml`
+- `tests/fixtures/sft1/wave3_v1.yaml`
+- `tests/unit/sft1/test_wave3_lean_free.py`
+- `tests/unit/sft1/test_wave4_lean_free.py`
+- `tests/unit/sft1/test_wave5_lean_free.py`
+- `/storage/milikic/leanfaith/value_first/sft1_deterministic_v1/wave3/`
+- `/storage/milikic/leanfaith/value_first/sft1_deterministic_v1/wave4/`
+- `/storage/milikic/leanfaith/value_first/sft1_deterministic_v1/wave5/`
+
+This claim permits only SFT1 implementation, bounded gates, authorized scale runs, additive private
+release prefixes, and their evidence. CPT2 artifacts and manifests are read-only pinned inputs.
+Every earlier SFT1 release and staging subtree, all SFT2A/SFT2B paths, shared Lean/REPR modules,
+coordinator-owned files, dependency/project configuration, and unrelated work remain read-only.
+
 ## Coordinator requests
 
 1. **REPR and SFT1 representation receipt resolved:** coherent freeze
@@ -2231,3 +2282,11 @@ resource use, output paths, and exact remaining ETA. Do not run training.
   tests, formatting, static typing, final JSON parsing, release, integrity, receipt, and immutable
   Hub-resolution checks all passed. Wave 2 is closed at overall status `pilot_passed`; it does not
   complete the original broad multi-million-row SFT1 objective, authorize training, or alter N19.
+- 2026-09-03 — Codex `/root` claimed the additive Wave 3--5 full-scale deterministic execution on
+  isolated worktree `/localhome/milikic/LeanFaith-sft1-wave3-full-scale`, branch
+  `milikic/sft1-wave3-full-scale`, at exact base `92bcb1ef4e8ab6bb2a79004c1c386bf473d614ab`.
+  The claimed paths and immutable boundaries are recorded above. Lean remains the bottleneck: all
+  safe parsing, inventory, filtering, schema/provenance, joins, deduplication, applicability, and
+  deterministic sampling will precede bounded persistent-worker checks. No Lean process, resource
+  claim, generation, compaction, publication, earlier-release mutation, SFT2 work, or training was
+  started at this ownership boundary.
