@@ -23,9 +23,9 @@
 > active sprint prerequisites.
 > **REPR predecessor:** `cbc933c3623d81ba649a1f9c5107ad404389d69f` was reviewed but is
 > superseded and not consumable by SFT1
-> **Next gate:** produce the 10,000-row mixed-source pilot, run its deterministic 200-row
-> operation/source audit and shortcut screens, then continue automatically to the full eligible
-> pool if every threshold passes.
+> **Next gate:** the 10,000-row mixed-source pilot passed; run the complete 79,943-root compatible
+> eligible pool, compact at most 500,000 rows into the additive final view, verify integrity and
+> shortcuts, then publish only `wave2/core_v1`.
 > **Compute class:** no claim while census and Lean-free implementation work proceeds. Live gates
 > will claim one persistent project worker within the shared 24 GiB/one-worker budget; any 10K or
 > eligible-pool run will use a named detached tmux session and a recorded exact resume command.
@@ -2143,3 +2143,22 @@ resource use, output paths, and exact remaining ETA. Do not run training.
   the existing no-regenerate mixed-project path, prefer N26 then N32 then N25, and apply the stable
   whole-square `--maximum-rows 10000` cap. No Lean call, active job, or host reservation remains at
   this boundary.
+- 2026-09-03 — the final pilot view
+  `wave2/combined/compacted/core_v1_pilot10k_v4` passed release and integrity validation with
+  exactly 10,000 balanced rows / 2,500 complete squares in 10 shards and zero incorrect labels,
+  certificate/separator failures, self-pairs, conflicting duplicates, partial groups, unchecked
+  rows, quarantines, or integrity issues. Exact repeated inputs from overlapping resumable runs
+  were collapsed before square accounting (14,464 inputs, 10,516 unique records, 3,948 exact
+  repeats); mismatched pair-ID collisions still fail closed. All 10,000 release cache snapshots
+  match their source sidecars under the three explicit project pins. Candidate-only and
+  reference-only balanced accuracy/upper bounds are 0.5000/0.5000; family-held-out is
+  0.5112/0.5181. The stable 200-row audit covers CSLib/Mathlib/Physlib 24/140/36 rows,
+  N25/N26/N32 132/8/60 rows, every emitted row kind equally, and all six useful preserving
+  transforms. Manual row-by-row inspection of the actual serialized reference/candidate text
+  found zero label, transformation, pairing, or evidence defects; the selection hash is
+  `0e5714b43dd1cfd3052ffb66e731fdce866535c53bc8afc70217d1a3ee198946` and the signed-off verdict
+  is `audit_200_verdict.json`. The gate therefore passes and automatically advances to the full
+  compatible eligible pool. The honest quality limitation is severe surface skew: N25 supplies
+  9,328/10,000 rows, relation-parity balanced accuracy is 0.9527, and exact-target-equality is
+  0.8180 despite the learned shortcut gates passing. This wave is a larger certified curriculum,
+  not a broadly mechanism-balanced final SFT1 corpus.
