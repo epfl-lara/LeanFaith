@@ -2125,3 +2125,21 @@ resource use, output paths, and exact remaining ETA. Do not run training.
   committed runner, run ID, target hash, one-worker/24 GiB/900-second limits, and identical-command
   replay/resume contract. The measured compatible yield projects enough new unique squares to
   cross 10,000 rows without starting the post-gate full eligible-pool run early.
+- 2026-09-03 — the final extension completed 35,000 N25 roots and retained 2,146 complete squares /
+  8,584 rows. Its final 10,000-root segment used 630 Lean requests, 1,217.77 seconds, and
+  9,184,661,504 bytes peak RSS; replay used zero Lean calls, duplicated zero rows, and preserved
+  all 8,584 rows. Three cumulative N25 roots have error terminals and no retained data:
+  `Sym.«forall»` and `Sym.«exists»` hit the quoted-name response-key mismatch, while
+  `CategoryTheory.Injective.comp_factorThru` hit the recorded typeclass-synthesis heartbeat
+  ceiling. The nine pilot source/run inputs contain
+  14,464 rows before cross-run deduplication and exactly 2,629 unique complete squares / 10,516
+  available rows afterward.
+- 2026-09-03 — consolidated the nine pilot runs into the additive combined staging root using
+  run-directory symlinks and no-clobber hardlinks. Script
+  `wave2/logs/consolidate_pilot10k.sh` has SHA-256
+  `e417e27bbae8cf647be9d5b20ff7af93b7ed9c02becac7c087f0af4e65321e50`. All 2,629 cache records
+  referenced by retained squares exist in the combined cache and match their sidecar-recorded
+  canonical object digest; an inode check also confirms hardlink identity. The 10K build will use
+  the existing no-regenerate mixed-project path, prefer N26 then N32 then N25, and apply the stable
+  whole-square `--maximum-rows 10000` cap. No Lean call, active job, or host reservation remains at
+  this boundary.
