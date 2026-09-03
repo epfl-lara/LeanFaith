@@ -14,10 +14,12 @@ import argparse
 import datetime
 import json
 import os
+import re
 import subprocess
 import sys
 import time
 from collections.abc import Iterable, Mapping, Sequence
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal, cast
 
@@ -70,16 +72,29 @@ from leanfaith.sft1.sprint.screens import (
     stable_row_hash,
     unordered_pair_key,
 )
+from leanfaith.sft1.sprint.shortcut import pairwise_shortcut_diagnostics, run_screens_v3
 from leanfaith.sft1.sprint.store import Journal, SemanticCache, read_json_object, write_atomic
 
 DEFAULT_CONFIG = Path("configs/transformations/sft1_value_first_v1/sprint_v1.yaml")
 Sha256 = str
 NonEmpty = str
 TerminalStatus = Literal["retained", "not_applicable", "rejected", "error"]
+FIXTURE_ROOT_PREFIX = "LeanFaith.SFT1.Sprint.Fixtures."
+_SHA256 = re.compile(r"^[0-9a-f]{64}$")
+_PAIR_ID = re.compile(r"^pair:[0-9a-f]{64}$")
 
 
 class SprintRunnerError(RuntimeError):
     """Fail-closed runner error."""
+
+
+@dataclass(frozen=True, slots=True)
+class RootsFileSelection:
+    """Normalized roots plus the complete content identity of their source file."""
+
+    roots: tuple[str, ...]
+    source_path: str | None
+    identity: dict[str, object]
 
 
 def canonical_surface(goal_text: str) -> tuple[str | None, str | None]:
@@ -223,6 +238,148 @@ def project_pins(config: SprintConfig) -> ProjectPins:
     )
 
 
+def _root_entry_name(value: object, *, index: int) -> str:
+    if isinstance(value, str):
+        name = value
+    elif isinstance(value, Mapping):
+        name_value = value.get("name")
+        if not isinstance(name_value, str):
+            raise SprintRunnerError(f"roots[{index}] mapping needs a string name")
+        for alias in ("root", "root_name"):
+            alias_value = value.get(alias)
+            if alias_value is not None and alias_value != name_value:
+                raise SprintRunnerError(f"roots[{index}] has conflicting name and {alias} fields")
+        name = name_value
+    else:
+        raise SprintRunnerError(f"roots[{index}] must be a string or mapping")
+    if not name or name != name.strip():
+        raise SprintRunnerError(f"roots[{index}] has an empty or padded name")
+    return name
+
+
+def _pinned_inventory_identity(
+    loaded: LoadedConfig[SprintConfig],
+) -> tuple[Path, str]:
+    """Return the verified inventory path and exact content hash for a config."""
+
+    config = loaded.config
+    inventory_dir = Path(config.inventory.root) / config.project.project_revision
+    inventory_path = inventory_dir / "inventory.jsonl"
+    inventory_manifest = read_json_object(inventory_dir / "manifest.json")
+    inventory_sha256 = hash_file(inventory_path)
+    if inventory_manifest.get("inventory_sha256") != inventory_sha256:
+        raise SprintRunnerError("active inventory content hash disagrees with its manifest")
+    manifest_revision = inventory_manifest.get(
+        "project_revision", inventory_manifest.get("mathlib_revision")
+    )
+    if manifest_revision != config.project.project_revision:
+        raise SprintRunnerError("active inventory manifest revision mismatch")
+    if inventory_manifest.get("project_id", config.project.project_id) != config.project.project_id:
+        raise SprintRunnerError("active inventory manifest project mismatch")
+    return inventory_path, inventory_sha256
+
+
+def read_roots_file(
+    path: Path,
+    loaded: LoadedConfig[SprintConfig],
+    *,
+    expected_file_sha256: str | None = None,
+) -> RootsFileSelection:
+    """Read and fully bind one deterministic roots file without invoking Lean.
+
+    Historical files containing only ``{"roots": [...]}`` remain valid.  When
+    identity metadata is present it is authoritative and must agree with the
+    active project and inventory.  The exact file hash and a hash of every
+    non-root metadata field are recorded even for the historical simple form.
+    """
+
+    try:
+        raw = path.read_bytes()
+    except OSError as exc:
+        raise SprintRunnerError(f"cannot read roots file {path}: {exc}") from exc
+    file_sha256 = sha256_hex(raw)
+    if expected_file_sha256 is not None:
+        if _SHA256.fullmatch(expected_file_sha256) is None:
+            raise SprintRunnerError("--roots-file-sha256 must be lowercase SHA-256")
+        if file_sha256 != expected_file_sha256:
+            raise SprintRunnerError(
+                f"roots file SHA-256 mismatch: {file_sha256} != {expected_file_sha256}"
+            )
+    try:
+        payload = json.loads(raw.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise SprintRunnerError(f"roots file is not a UTF-8 JSON object: {path}") from exc
+    if not isinstance(payload, dict):
+        raise SprintRunnerError("roots file must contain one JSON object")
+    entries = payload.get("roots")
+    if not isinstance(entries, list):
+        raise SprintRunnerError("roots file must contain a roots list")
+    names = tuple(_root_entry_name(value, index=index) for index, value in enumerate(entries))
+    if len(names) != len(set(names)):
+        raise SprintRunnerError("roots file contains duplicate normalized root names")
+
+    config = loaded.config
+    inventory_path, inventory_sha256 = _pinned_inventory_identity(loaded)
+
+    expected: dict[str, object] = {
+        "project_id": config.project.project_id,
+        "project_revision": config.project.project_revision,
+        "inventory_sha256": inventory_sha256,
+        "count": len(names),
+        "roots_sha256": hash_canonical(names),
+    }
+    aliases = {"root_count": "count"}
+    for alias, field in aliases.items():
+        if alias in payload and field in payload and payload[alias] != payload[field]:
+            raise SprintRunnerError(f"roots file has conflicting {alias} and {field} metadata")
+    has_declared_count = "count" in payload or "root_count" in payload
+    declared_count = payload.get("count", payload.get("root_count"))
+    declared: dict[str, object] = {
+        **{key: payload[key] for key in expected if key in payload},
+        **({"count": declared_count} if has_declared_count else {}),
+    }
+    for field, value in declared.items():
+        if field == "count" and type(value) is not int:
+            raise SprintRunnerError("roots file count must be an integer")
+        if field != "count" and not isinstance(value, str):
+            raise SprintRunnerError(f"roots file {field} must be a string")
+        if value != expected[field]:
+            raise SprintRunnerError(
+                f"roots file {field} mismatch: {value!r} != {expected[field]!r}"
+            )
+    for index, entry in enumerate(entries):
+        if not isinstance(entry, Mapping):
+            continue
+        for field in ("project_id", "project_revision", "inventory_sha256"):
+            if field in entry and entry[field] != expected[field]:
+                raise SprintRunnerError(
+                    f"roots[{index}] {field} conflicts with the pinned inventory"
+                )
+    if payload.get("target_kind") == "lean_free_mixed_family_candidate_only":
+        _validate_mixed_target_payload(payload, entries)
+
+    known_names = {str(row["name"]) for row in load_inventory(inventory_path)}
+    unknown = [name for name in names if name not in known_names]
+    if unknown:
+        preview = ", ".join(repr(name) for name in unknown[:3])
+        raise SprintRunnerError(
+            f"roots file contains names absent from pinned inventory: {preview}"
+        )
+
+    metadata = {key: value for key, value in payload.items() if key != "roots"}
+    identity = {
+        "schema_version": 1,
+        "file_sha256": file_sha256,
+        "metadata_sha256": hash_canonical(metadata),
+        **expected,
+    }
+    return RootsFileSelection(
+        roots=names,
+        source_path=str(path.resolve()),
+        identity=identity,
+    )
+
+
 def utc_now() -> str:
     return datetime.datetime.now(datetime.UTC).isoformat(timespec="seconds")
 
@@ -269,6 +426,8 @@ class SprintRunner:
         explicit_roots: Sequence[str] | None = None,
         owner_session: str = "claude-sft1-sprint",
         operations: Sequence[str] | None = None,
+        allow_fixture_roots: bool = False,
+        roots_file: RootsFileSelection | None = None,
     ) -> None:
         self.repo_root = repo_root
         self.loaded = loaded
@@ -278,6 +437,10 @@ class SprintRunner:
         self.target_retained = target_retained
         self.explicit_roots = list(explicit_roots) if explicit_roots is not None else None
         self.owner_session = owner_session
+        self.allow_fixture_roots = allow_fixture_roots
+        self.roots_file = roots_file
+        if roots_file is not None and self.explicit_roots != list(roots_file.roots):
+            raise SprintRunnerError("roots-file selection disagrees with explicit roots")
         self.pins = project_pins(self.config)
         self.context: CompileContext = engine_module.build_compile_context(repo_root, self.pins)
         self.identity: EngineIdentity = engine_module.engine_identity(
@@ -351,6 +514,13 @@ class SprintRunner:
     def root_order(self) -> list[tuple[str, str]]:
         rows = self.load_inventory_rows()
         if self.explicit_roots is not None:
+            fixture_roots = [
+                name for name in self.explicit_roots if name.startswith(FIXTURE_ROOT_PREFIX)
+            ]
+            if fixture_roots and not self.allow_fixture_roots:
+                raise SprintRunnerError(
+                    "fixture-only roots are forbidden outside the explicit fixture command"
+                )
             return [(name, "explicit") for name in self.explicit_roots]
         pools = [
             Pool(
@@ -459,6 +629,7 @@ class SprintRunner:
             import_options_fingerprint=self.identity.import_options_fingerprint,
             engine_semantic_version=self.identity.semantic_version,
             name=name,
+            engine_source_sha256=self.identity.source_sha256,
         )
 
     def op_key(self, reference_alpha_hash: str, operation: str, name: str) -> str:
@@ -470,6 +641,7 @@ class SprintRunner:
             project_revision=self.pins.project_revision,
             import_options_fingerprint=self.identity.import_options_fingerprint,
             name=name,
+            engine_source_sha256=self.identity.source_sha256,
         )
 
     def root_id(self, name: str) -> str:
@@ -654,20 +826,29 @@ class SprintRunner:
         request_id = f"{self.run_id}:process:{self.batches}:" + hash_canonical(batch)[:16]
         result = session.run_process(batch, request_id=request_id)
         missing = [name for name, _ in batch if name not in result.roots]
-        if result.status not in {LeanStatus.VALID.value, LeanStatus.INVALID.value} or missing:
-            if len(batch) > 1:
-                half = len(batch) // 2
-                self.batches -= 1
-                self.process_batch(batch[:half])
-                self.process_batch(batch[half:])
-                return
-            name, mask = batch[0]
+        retryable_infrastructure = result.status in {
+            LeanStatus.CRASH.value,
+            LeanStatus.INTERNAL_ERROR.value,
+            LeanStatus.TIMEOUT.value,
+        }
+        valid_partial_payload = result.status == LeanStatus.VALID.value and bool(missing)
+        if (retryable_infrastructure or valid_partial_payload) and len(batch) > 1:
+            half = len(batch) // 2
+            self.batches -= 1
+            self.process_batch(batch[:half])
+            self.process_batch(batch[half:])
+            return
+        if result.status != LeanStatus.VALID.value or missing:
             detail = "; ".join(result.errors[:2]) or result.status
-            self.finalize_root_failure(
-                name,
-                {"root_status": "error", "reason": f"request_{result.status}:{detail[:300]}"},
-                source="lean",
-            )
+            for name, _ in batch:
+                self.finalize_root_failure(
+                    name,
+                    {
+                        "root_status": "error",
+                        "reason": f"request_{result.status}:{detail[:300]}",
+                    },
+                    source="lean",
+                )
             return
         pending_render: list[tuple[str, str, dict[str, Any], dict[str, Any]]] = []
         for name, mask in batch:
@@ -1130,6 +1311,36 @@ class SprintRunner:
 
     def write_run_manifest(self, *, order_size: int) -> None:
         if self.paths.run_manifest.is_file():
+            recorded = read_json_object(self.paths.run_manifest)
+            expected: dict[str, object] = {
+                "sprint_id": self.config.sprint_id,
+                "run_id": self.run_id,
+                "config_semantic_hash": self.loaded.config_hash,
+                "engine": self.identity.to_dict(),
+                "project": self.pins.to_dict(),
+                "gold_blocklist_sha256": self.gold.sha256,
+                "explicit_roots_sha256": (
+                    hash_canonical(self.explicit_roots) if self.explicit_roots is not None else None
+                ),
+                "roots_file_identity": (
+                    self.roots_file.identity if self.roots_file is not None else None
+                ),
+                "operations": list(self.operations),
+            }
+            for field, value in expected.items():
+                if recorded.get(field) != value:
+                    raise SprintRunnerError(
+                        f"run {self.run_id!r} manifest {field} changed; refusing mixed resume"
+                    )
+            if bool(recorded.get("allow_fixture_roots", False)) != self.allow_fixture_roots:
+                raise SprintRunnerError(
+                    f"run {self.run_id!r} fixture-root policy changed; refusing mixed resume"
+                )
+            recorded_runner = recorded.get("runner_source_sha256")
+            if recorded_runner is not None and recorded_runner != self.runner_source_sha256:
+                raise SprintRunnerError(
+                    f"run {self.run_id!r} runner source changed; refusing mixed resume"
+                )
             return
         manifest = {
             "schema_version": 1,
@@ -1144,14 +1355,22 @@ class SprintRunner:
             "gold_blocklist_sha256": self.gold.sha256,
             "implementation_commit": _git(self.repo_root, "rev-parse", "HEAD"),
             "implementation_dirty": bool(_git(self.repo_root, "status", "--porcelain")),
+            "runner_source_sha256": self.runner_source_sha256,
             "max_roots": self.max_roots,
             "target_retained": self.target_retained,
             "explicit_roots": self.explicit_roots,
             "explicit_roots_sha256": (
                 hash_canonical(self.explicit_roots) if self.explicit_roots is not None else None
             ),
+            "roots_file_path": (
+                self.roots_file.source_path if self.roots_file is not None else None
+            ),
+            "roots_file_identity": (
+                self.roots_file.identity if self.roots_file is not None else None
+            ),
             "operations": list(self.operations),
-            "engine_operation_set_version": 2,
+            "allow_fixture_roots": self.allow_fixture_roots,
+            "engine_operation_set_version": engine_module.ENGINE_OPERATION_SET_VERSION,
             "root_order_size": order_size,
             "argv": sys.argv,
         }
@@ -1223,6 +1442,80 @@ def read_retained(path: Path) -> list[dict[str, Any]]:
     return records
 
 
+def release_certificate_issues(record: Mapping[str, Any]) -> list[str]:
+    """Return exact certificate-contract violations for one retained row."""
+
+    issues: list[str] = []
+    sidecar = record.get("sidecar")
+    if not isinstance(sidecar, Mapping):
+        return ["sidecar_missing"]
+    operation = str(sidecar.get("operation_id", record.get("operation_id", "")))
+    evidence = sidecar.get("evidence")
+    if not isinstance(evidence, Mapping):
+        return ["evidence_missing"]
+    label = sidecar.get("label", record.get("label"))
+    if operation in POSITIVE_OPERATIONS:
+        equivalence = evidence.get("equivalence_proof")
+        check = equivalence.get("check") if isinstance(equivalence, Mapping) else None
+        if not _check_passed(check):
+            issues.append("positive_equivalence_unchecked")
+        if evidence.get("candidate_truth") != "proved_equivalent_to_reference":
+            issues.append("positive_truth_evidence_missing")
+        if label is not True:
+            issues.append("positive_polarity_mismatch")
+        return issues
+    if operation not in NEGATIVE_OPERATIONS:
+        return ["operation_polarity_unknown"]
+    if label is not False:
+        issues.append("negative_polarity_mismatch")
+    if not _check_passed(evidence.get("source_proof_check")):
+        issues.append("negative_source_proof_unchecked")
+    refutation = evidence.get("refutation")
+    if not isinstance(refutation, Mapping) or not _check_passed(refutation.get("check")):
+        issues.append("negative_refutation_unchecked")
+        return issues
+    if evidence.get("candidate_truth") != "refuted":
+        issues.append("negative_candidate_not_refuted")
+    engine = sidecar.get("engine")
+    semantic_version = (
+        str(engine.get("semantic_version", "")) if isinstance(engine, Mapping) else ""
+    )
+    is_wave3_plus = semantic_version.startswith(("sft1_wave3_", "sft1_wave4_", "sft1_wave5_"))
+    if is_wave3_plus and operation in {
+        "N26_INCREMENT_BOUND_PROOF_V1",
+        "N31_DROP_REQUIRED_GUARD_PROOF_V1",
+    }:
+        separator = refutation.get("separator")
+        if not isinstance(separator, Mapping) or not _check_passed(separator.get("check")):
+            issues.append("boundary_separator_unchecked")
+    if is_wave3_plus and operation == "N30_ADD_UNJUSTIFIED_UNIQUENESS_PROOF_V1":
+        witnesses = refutation.get("witnesses")
+        checks = refutation.get("witness_checks")
+        enumeration = refutation.get("enumeration")
+        if not isinstance(witnesses, list) or len(witnesses) < 2:
+            issues.append("n30_two_witnesses_missing")
+        if (
+            not isinstance(checks, list)
+            or len(checks) < 3
+            or not all(_check_passed(check) for check in checks)
+        ):
+            issues.append("n30_witness_checks_missing")
+        if not isinstance(enumeration, str) or "complete" not in enumeration:
+            issues.append("n30_complete_enumeration_missing")
+    if is_wave3_plus and operation == "N29_SWAP_WITNESS_DEPENDENCY_PROOF_V1":
+        checks = refutation.get("witness_checks")
+        enumeration = refutation.get("enumeration")
+        if (
+            not isinstance(checks, list)
+            or not checks
+            or not all(_check_passed(check) for check in checks)
+        ):
+            issues.append("n29_matrix_checks_missing")
+        if not isinstance(enumeration, str) or "complete_matrix" not in enumeration:
+            issues.append("n29_complete_matrix_missing")
+    return issues
+
+
 def balanced_view(records: Sequence[dict[str, Any]]) -> list[dict[str, Any]]:
     """Per-root label balancing: each root contributes equally many positive and
     negative pairs (chosen by stable row hash); roots lacking either polarity
@@ -1265,6 +1558,11 @@ def compact_run(
     screened: list[dict[str, Any]] = []
     screen_rejections: dict[str, int] = {}
     for record in records:
+        certificate_issues = release_certificate_issues(record)
+        if certificate_issues:
+            raise SprintRunnerError(
+                "retained row has invalid release certificate: " + ",".join(certificate_issues)
+            )
         row = record["row"]
         reasons = [
             residue_violation(str(row["reference"])),
@@ -1618,6 +1916,7 @@ def gate_report(
     unchecked = 0
     residue = 0
     rubric_only = 0
+    certificate_issue_counts: dict[str, int] = {}
     for record in records:
         op = str(record["operation_id"])
         by_mechanism[op] = by_mechanism.get(op, 0) + 1
@@ -1631,6 +1930,8 @@ def gate_report(
             unchecked += 1
         if op in NEGATIVE_OPERATIONS and evidence.get("candidate_truth") != "refuted":
             rubric_only += 1
+        for issue in release_certificate_issues(record):
+            certificate_issue_counts[issue] = certificate_issue_counts.get(issue, 0) + 1
         row = record["row"]
         if residue_violation(str(row["reference"])) or residue_violation(str(row["candidate"])):
             residue += 1
@@ -1648,6 +1949,7 @@ def gate_report(
         "three_positive_mechanisms": len(positives) >= 3,
         "two_negative_mechanisms": len(negatives) >= 2,
         "all_rows_kernel_and_meta_checked": unchecked == 0,
+        "all_release_certificates_complete": not certificate_issue_counts,
         "zero_rubric_only_negatives": rubric_only == 0,
         "zero_residue": residue == 0,
         "zero_duplicate_or_conflicting_pairs": dedup.duplicate_count == 0
@@ -1667,6 +1969,7 @@ def gate_report(
         "rich_negative": sorted(negatives),
         "unchecked_rows": unchecked,
         "rubric_only_negatives": rubric_only,
+        "certificate_issue_counts": dict(sorted(certificate_issue_counts.items())),
         "residue_rows": residue,
         "duplicates": dedup.duplicate_count,
         "conflicts": dedup.conflict_count,
@@ -1798,6 +2101,518 @@ def conclusion_relation(statement: str) -> str:
     return "other"
 
 
+_FINITE_TYPE_HINTS: tuple[str, ...] = (
+    "Bool",
+    "Fin ",
+    "Fin(",
+    "Unit",
+    "Option ",
+    "Option(",
+    "Prod ",
+)
+
+
+def _top_level_colon_index(statement: str) -> int | None:
+    opening = {"(": ")", "[": "]", "{": "}", "⦃": "⦄"}
+    closing = set(opening.values())
+    depth = 0
+    for index, character in enumerate(statement):
+        if character in opening:
+            depth += 1
+        elif character in closing:
+            depth = max(0, depth - 1)
+        elif character == ":" and depth == 0:
+            return index
+    return None
+
+
+def _top_level_result(statement: str) -> str:
+    """Return a source declaration's result after its outer signature colon."""
+
+    index = _top_level_colon_index(statement)
+    return statement[index + 1 :].strip() if index is not None else ""
+
+
+def _has_direct_finite_exists(statement: str) -> bool:
+    """Whether the declaration's outer result is an existential.
+
+    This deliberately avoids matching existentials nested under an iff, an
+    implication, or another connective.  The Lean engine remains the source of
+    truth for the witness type and finite-instance check.
+    """
+
+    result = _top_level_result(" ".join(statement.split()))
+    return result.startswith("∃")
+
+
+def _has_forall_exists_suffix(statement: str) -> bool:
+    """Conservative text hint for a final ``forall/exists`` dependency.
+
+    Source declarations normally spell their outer forall as argument binders
+    before the signature colon, so a direct existential plus an explicit data
+    binder is included.  A result that writes the forall explicitly is also
+    included.  Exact applicability is still reconstructed from the typed Expr.
+    """
+
+    compact = " ".join(statement.split())
+    result = _top_level_result(compact)
+    if result.startswith("∀"):
+        return "∃" in result
+    if not result.startswith("∃"):
+        return False
+    signature = compact[: compact.find(result)].rstrip(" :")
+    return bool(re.search(r"\([^()]*(?::=|:)[^()]+\)", signature))
+
+
+def _finite_target_hint(statement: str) -> bool:
+    compact = " ".join(statement.split())
+    return any(token in compact for token in _FINITE_TYPE_HINTS) or any(
+        token in compact
+        for token in (
+            "[Fintype ",
+            "[Finite ",
+            "[Nontrivial ",
+            " card ",
+            "Fintype.card",
+        )
+    )
+
+
+_MULTI_EXISTS_BINDER = re.compile(
+    r"^∃\s+(?:\([^)]*\)|[A-Za-z_][\w₀-₉']*)\s+"
+    r"(?:\([^)]*\)|[A-Za-z_][\w₀-₉']*)\s*(?::|,)"
+)
+
+
+_N26_INDEX_NAME = r"[^\W\d]\w*"
+_N26_BOUNDARY_PATTERN = re.compile(
+    rf"(?:^∀\s+|,\s*)({_N26_INDEX_NAME})\s+"
+    rf"(?:<\s*({_N26_INDEX_NAME})|∈\s*(?:Finset\.)?range\s+({_N26_INDEX_NAME}))"
+    r"\s*(?:,|→)"
+)
+_N26_DIRECT_BOUNDARY_PATTERN = re.compile(
+    rf"^({_N26_INDEX_NAME})\s+"
+    rf"(?:<\s*({_N26_INDEX_NAME})|∈\s*(?:Finset\.)?range\s+({_N26_INDEX_NAME}))"
+    r"\s*→"
+)
+_DECLARATION_BINDER = re.compile(r"[({⦃]([^(){}⦃⦄]+)[)}⦄]")
+
+
+def _declaration_binder_names(statement: str) -> set[str]:
+    """Conservative names from binder groups before the outer result colon."""
+
+    result_colon = _top_level_colon_index(statement)
+    if result_colon is None:
+        return set()
+    signature = statement[:result_colon]
+    names: set[str] = set()
+    for match in _DECLARATION_BINDER.finditer(signature):
+        left = match.group(1).split(":=", 1)[0].split(":", 1)[0]
+        names.update(re.findall(_N26_INDEX_NAME, left))
+    return names
+
+
+def target_family_matches(statement: str, family: str) -> bool:
+    """Conservative Lean-free shape filter for one Wave 3 mechanism.
+
+    This is only a targeting hint.  It never creates an applicability judgment:
+    every selected root is still elaborated and either receives an exact checked
+    certificate or a typed fail-closed terminal from the Lean engine.
+    """
+
+    compact = " ".join(statement.split())
+    key = family.upper()
+    if key in {"N26", "N26_INCREMENT_BOUND_PROOF_V1"}:
+        result = _top_level_result(compact)
+        match = (
+            _N26_BOUNDARY_PATTERN.search(result)
+            if result.startswith("∀")
+            else _N26_DIRECT_BOUNDARY_PATTERN.match(result)
+        )
+        if match is None:
+            return False
+        value = match.group(1)
+        bound = match.group(2) or match.group(3)
+        if value == bound:
+            return False
+        if not result.startswith("∀"):
+            declared = _declaration_binder_names(compact)
+            return value in declared and bound in declared
+        return True
+    if key in {"N30", "N30_ADD_UNJUSTIFIED_UNIQUENESS_PROOF_V1"}:
+        return "∃!" not in compact and _has_direct_finite_exists(compact)
+    if key in {"N29", "N29_SWAP_WITNESS_DEPENDENCY_PROOF_V1"}:
+        return _has_forall_exists_suffix(compact)
+    if key in {"N32", "N32_SWAP_ROLE_ORDER_PROOF_V1"}:
+        return conclusion_relation(compact) in {"lt", "le"}
+    if key in {"N31", "N31_DROP_REQUIRED_GUARD_PROOF_V1"}:
+        guard_tokens = (" ≠ 0", "0 < ", "0 ≤ ", " ∈ ", " < ")
+        return "→" in compact and any(token in compact for token in guard_tokens)
+    if key in {"PRESERVING", "POSITIVE"}:
+        return any(
+            token in compact for token in ("↔", " = ", " ≠ ", " ∧ ", "Finset.range", " ∈ ", " + ")
+        )
+    raise SprintRunnerError(f"unknown target family {family!r}")
+
+
+def target_family_priority(statement: str, family: str) -> int:
+    """Put likely supported finite Wave 3 roots first without excluding misses."""
+
+    key = family.upper()
+    if key in {"N30", "N30_ADD_UNJUSTIFIED_UNIQUENESS_PROOF_V1"}:
+        result = _top_level_result(" ".join(statement.split()))
+        multi = _MULTI_EXISTS_BINDER.search(result) is not None
+        if ((multi and "≠" in result) or result.count("≠") >= 2) and _finite_target_hint(statement):
+            return 0
+        if multi:
+            return 1
+        return 2 if _finite_target_hint(statement) else 3
+    if key in {"N29", "N29_SWAP_WITNESS_DEPENDENCY_PROOF_V1"}:
+        result = _top_level_result(" ".join(statement.split()))
+        dependency_shape = result.startswith("∃") and any(token in result for token in ("≠", " = "))
+        if dependency_shape and "[Nontrivial " in statement:
+            return 0
+        return 1 if _finite_target_hint(statement) and dependency_shape else 2
+    if key in {"N26", "N26_INCREMENT_BOUND_PROOF_V1"}:
+        result = _top_level_result(" ".join(statement.split()))
+        return 0 if "∈ Finset.range" in result or "∈ range" in result else 1
+    return 0
+
+
+MIXED_TARGET_FAMILY_ORDER: tuple[str, ...] = (
+    "N26",
+    "N29",
+    "N30",
+    "N31",
+    "N32",
+    "PRESERVING",
+)
+_MIXED_TARGET_FAMILY_ALIASES: dict[str, str] = {
+    "N26": "N26",
+    "N26_INCREMENT_BOUND_PROOF_V1": "N26",
+    "N29": "N29",
+    "N29_SWAP_WITNESS_DEPENDENCY_PROOF_V1": "N29",
+    "N30": "N30",
+    "N30_ADD_UNJUSTIFIED_UNIQUENESS_PROOF_V1": "N30",
+    "N31": "N31",
+    "N31_DROP_REQUIRED_GUARD_PROOF_V1": "N31",
+    "N32": "N32",
+    "N32_SWAP_ROLE_ORDER_PROOF_V1": "N32",
+    "POSITIVE": "PRESERVING",
+    "PRESERVING": "PRESERVING",
+}
+
+
+def _validate_mixed_target_payload(payload: Mapping[str, Any], entries: list[object]) -> None:
+    """Validate the builder-specific quota and family-assignment bindings."""
+
+    salt = payload.get("selection_salt")
+    if not isinstance(salt, str) or not salt or salt != salt.strip():
+        raise SprintRunnerError("mixed target file has an invalid selection salt")
+    if payload.get("stable_family_order") != list(MIXED_TARGET_FAMILY_ORDER):
+        raise SprintRunnerError("mixed target file has a conflicting stable family order")
+    family_order = payload.get("family_order")
+    if (
+        not isinstance(family_order, list)
+        or not family_order
+        or not all(isinstance(family, str) for family in family_order)
+    ):
+        raise SprintRunnerError("mixed target file has malformed family order")
+    canonical_order = [
+        family for family in MIXED_TARGET_FAMILY_ORDER if family in set(family_order)
+    ]
+    if family_order != canonical_order:
+        raise SprintRunnerError("mixed target file family order is not canonical")
+
+    quotas_value = payload.get("family_quotas")
+    if not isinstance(quotas_value, list) or len(quotas_value) != len(family_order):
+        raise SprintRunnerError("mixed target file has malformed family quotas")
+    quotas: dict[str, int] = {}
+    for expected_family, item in zip(family_order, quotas_value, strict=True):
+        if not isinstance(item, Mapping) or set(item) != {"target_family", "quota"}:
+            raise SprintRunnerError("mixed target file has malformed family quota entry")
+        family = item.get("target_family")
+        quota = item.get("quota")
+        if family != expected_family or type(quota) is not int or quota < 1:
+            raise SprintRunnerError("mixed target file quota disagrees with family order")
+        quotas[expected_family] = quota
+
+    assignments: list[dict[str, str]] = []
+    assignment_families: list[str] = []
+    for index, entry in enumerate(entries):
+        if not isinstance(entry, Mapping) or set(entry) != {"name", "target_family"}:
+            raise SprintRunnerError(
+                f"mixed target roots[{index}] must contain exactly name and target_family"
+            )
+        family = entry.get("target_family")
+        if not isinstance(family, str) or family not in quotas:
+            raise SprintRunnerError(f"mixed target roots[{index}] has an unrequested family")
+        name = _root_entry_name(entry, index=index)
+        assignments.append({"name": name, "target_family": family})
+        assignment_families.append(family)
+    expected_families = [family for family in family_order for _ in range(quotas[family])]
+    if assignment_families != expected_families:
+        raise SprintRunnerError("mixed target root assignments do not match exact ordered quotas")
+    if payload.get("assignments_sha256") != hash_canonical(assignments):
+        raise SprintRunnerError("mixed target assignment hash mismatch")
+
+
+def parse_family_quotas(values: Sequence[str]) -> tuple[tuple[str, int], ...]:
+    """Parse repeated ``FAMILY=COUNT`` values into the fixed selection order."""
+
+    if not values:
+        raise SprintRunnerError("mixed-targets requires at least one --family-quota")
+    quotas: dict[str, int] = {}
+    for value in values:
+        family_text, separator, quota_text = value.partition("=")
+        if not separator or not family_text or not quota_text:
+            raise SprintRunnerError(f"invalid family quota {value!r}; expected FAMILY=COUNT")
+        family = _MIXED_TARGET_FAMILY_ALIASES.get(family_text.upper())
+        if family is None:
+            raise SprintRunnerError(f"unsupported mixed target family {family_text!r}")
+        if family in quotas:
+            raise SprintRunnerError(f"duplicate mixed target family quota for {family}")
+        try:
+            quota = int(quota_text)
+        except ValueError as exc:
+            raise SprintRunnerError(f"family quota is not an integer: {value!r}") from exc
+        if quota < 1 or str(quota) != quota_text:
+            raise SprintRunnerError(f"family quota must be a canonical positive integer: {value!r}")
+        quotas[family] = quota
+    return tuple(
+        (family, quotas[family]) for family in MIXED_TARGET_FAMILY_ORDER if family in quotas
+    )
+
+
+def write_mixed_family_targets(
+    loaded: LoadedConfig[SprintConfig],
+    *,
+    family_quotas: Sequence[tuple[str, int]],
+    selection_salt: str,
+    out: Path,
+) -> dict[str, object]:
+    """Write deterministic, outcome-independent targets from overlapping family queues."""
+
+    if not selection_salt or selection_salt != selection_salt.strip():
+        raise SprintRunnerError("mixed target selection salt must be nonempty and unpadded")
+    quota_by_family: dict[str, int] = {}
+    for family, quota in family_quotas:
+        if family not in MIXED_TARGET_FAMILY_ORDER:
+            raise SprintRunnerError(f"unsupported mixed target family {family!r}")
+        if family in quota_by_family:
+            raise SprintRunnerError(f"duplicate mixed target family quota for {family}")
+        if type(quota) is not int or quota < 1:
+            raise SprintRunnerError(f"mixed target quota for {family} must be positive")
+        quota_by_family[family] = quota
+    if not quota_by_family:
+        raise SprintRunnerError("mixed targets require at least one family quota")
+    ordered_quotas = tuple(
+        (family, quota_by_family[family])
+        for family in MIXED_TARGET_FAMILY_ORDER
+        if family in quota_by_family
+    )
+
+    config = loaded.config
+    inventory_path, inventory_sha256 = _pinned_inventory_identity(loaded)
+    statements: dict[str, str] = {}
+    for row in load_inventory(inventory_path):
+        name = str(row["name"])
+        statements.setdefault(name, str(row["statement"]))
+
+    used: set[str] = set()
+    assignments: list[dict[str, str]] = []
+    eligible_counts: dict[str, int] = {}
+    available_after_dedup: dict[str, int] = {}
+    for family, quota in ordered_quotas:
+        queue = [
+            name
+            for name, statement in statements.items()
+            if target_family_matches(statement, family)
+        ]
+        queue.sort(
+            key=lambda name: (
+                target_family_priority(statements[name], family),
+                hash_canonical(
+                    [
+                        selection_salt,
+                        config.project.project_id,
+                        config.project.project_revision,
+                        family,
+                        name,
+                    ]
+                ),
+                name,
+            )
+        )
+        eligible_counts[family] = len(queue)
+        available = [name for name in queue if name not in used]
+        available_after_dedup[family] = len(available)
+        if len(available) < quota:
+            raise SprintRunnerError(
+                f"mixed target quota {family}={quota} cannot be met after deterministic "
+                f"cross-family dedup; only {len(available)} roots remain"
+            )
+        for name in available[:quota]:
+            assignments.append({"name": name, "target_family": family})
+            used.add(name)
+
+    names = [assignment["name"] for assignment in assignments]
+    family_order = [family for family, _ in ordered_quotas]
+    quota_payload = [{"target_family": family, "quota": quota} for family, quota in ordered_quotas]
+    payload = {
+        "schema_version": 1,
+        "target_kind": "lean_free_mixed_family_candidate_only",
+        "project_id": config.project.project_id,
+        "project_revision": config.project.project_revision,
+        "inventory_sha256": inventory_sha256,
+        "selection_salt": selection_salt,
+        "stable_family_order": list(MIXED_TARGET_FAMILY_ORDER),
+        "family_order": family_order,
+        "family_quotas": quota_payload,
+        "eligible_counts_before_dedup": eligible_counts,
+        "available_counts_after_prior_family_dedup": available_after_dedup,
+        "count": len(assignments),
+        "roots_sha256": hash_canonical(names),
+        "assignments_sha256": hash_canonical(assignments),
+        "roots": assignments,
+    }
+    write_atomic(out, canonical_json_bytes(payload) + b"\n")
+    selection = read_roots_file(out, loaded, expected_file_sha256=hash_file(out))
+    if selection.roots != tuple(names):
+        raise SprintRunnerError("mixed target roots failed strict roots-file round-trip")
+    return {key: value for key, value in payload.items() if key != "roots"}
+
+
+def write_family_targets(
+    loaded: LoadedConfig[SprintConfig], *, family: str, out: Path, limit: int | None = None
+) -> dict[str, object]:
+    """Write a content-bound, deterministic real-root candidate set."""
+
+    config = loaded.config
+    inventory_dir = Path(config.inventory.root) / config.project.project_revision
+    inventory_path = inventory_dir / "inventory.jsonl"
+    rows = load_inventory(inventory_path)
+    by_name: dict[str, str] = {}
+    for row in rows:
+        name = str(row["name"])
+        statement = str(row["statement"])
+        if name not in by_name and target_family_matches(statement, family):
+            by_name[name] = statement
+    names = sorted(
+        by_name,
+        key=lambda name: (
+            target_family_priority(by_name[name], family),
+            hash_canonical([config.inventory.order_salt, family, name]),
+        ),
+    )
+    eligible_count = len(names)
+    if limit is not None:
+        names = names[:limit]
+    payload = {
+        "schema_version": 1,
+        "target_kind": "lean_free_shape_candidate_only",
+        "family": family,
+        "project_id": config.project.project_id,
+        "project_revision": config.project.project_revision,
+        "inventory_sha256": hash_file(inventory_path),
+        "eligible_count": eligible_count,
+        "count": len(names),
+        "roots_sha256": hash_canonical(names),
+        "roots": names,
+    }
+    write_atomic(out, canonical_json_bytes(payload) + b"\n")
+    return {k: v for k, v in payload.items() if k != "roots"}
+
+
+def _check_passed(value: object) -> bool:
+    return (
+        isinstance(value, Mapping)
+        and value.get("meta_checked") is True
+        and value.get("kernel_checked") is True
+    )
+
+
+def write_certified_targets(
+    *,
+    compacted_dir: Path,
+    operation_id: str,
+    out: Path,
+    selection_salt: str,
+    limit: int | None = None,
+) -> dict[str, object]:
+    """Extract roots from an immutable proof-certified compacted SFT1 artifact.
+
+    The source manifest and every sidecar shard are hash-checked before roots are
+    admitted.  This is used to start Wave 3 N31 from the exact 346 previously
+    certified roots, without rerunning or mutating that historical release.
+    """
+
+    manifest_path = compacted_dir / "manifest.json"
+    manifest = read_json_object(manifest_path)
+    shards = manifest.get("shards")
+    if not isinstance(shards, list) or not shards:
+        raise SprintRunnerError("certified target source has no manifest shards")
+    roots: set[str] = set()
+    matching_records = 0
+    for shard in shards:
+        if not isinstance(shard, Mapping) or shard.get("complete") is not True:
+            raise SprintRunnerError("certified target source contains an incomplete shard")
+        number = shard.get("shard")
+        expected = shard.get("sidecars_sha256")
+        if type(number) is not int or not isinstance(expected, str):
+            raise SprintRunnerError("certified target shard metadata is malformed")
+        sidecars_path = compacted_dir / f"shard-{number:04d}" / "sidecars.jsonl"
+        if hash_file(sidecars_path) != expected:
+            raise SprintRunnerError(f"certified target sidecar hash mismatch: {sidecars_path}")
+        with sidecars_path.open("r", encoding="utf-8") as handle:
+            for line in handle:
+                if not line.strip():
+                    continue
+                sidecar = json.loads(line)
+                if sidecar.get("operation_id") != operation_id:
+                    continue
+                evidence = sidecar.get("evidence")
+                if sidecar.get("label") is not False or not isinstance(evidence, Mapping):
+                    raise SprintRunnerError("certified negative source has inconsistent polarity")
+                refutation = evidence.get("refutation")
+                source_check = evidence.get("source_proof_check")
+                if not isinstance(refutation, Mapping) or not _check_passed(
+                    refutation.get("check")
+                ):
+                    raise SprintRunnerError(
+                        "certified negative source lacks an exact checked refutation"
+                    )
+                if not _check_passed(source_check):
+                    raise SprintRunnerError(
+                        "certified negative source lacks a checked source proof"
+                    )
+                root_name = sidecar.get("root_name")
+                if not isinstance(root_name, str) or not root_name:
+                    raise SprintRunnerError("certified negative source lacks a root name")
+                roots.add(root_name)
+                matching_records += 1
+    names = sorted(roots, key=lambda name: hash_canonical([selection_salt, operation_id, name]))
+    eligible_count = len(names)
+    if limit is not None:
+        names = names[:limit]
+    payload = {
+        "schema_version": 1,
+        "target_kind": "prior_exact_proof_certified_roots",
+        "operation_id": operation_id,
+        "source_compacted_dir": str(compacted_dir),
+        "source_manifest_sha256": hash_file(manifest_path),
+        "source_run_id": manifest.get("run_id"),
+        "matching_records": matching_records,
+        "eligible_count": eligible_count,
+        "selection_salt": selection_salt,
+        "count": len(names),
+        "roots_sha256": hash_canonical(names),
+        "roots": names,
+    }
+    write_atomic(out, canonical_json_bytes(payload) + b"\n")
+    return {k: v for k, v in payload.items() if k != "roots"}
+
+
 def write_targets(
     loaded: LoadedConfig[SprintConfig], *, relation: str, out: Path, limit: int | None = None
 ) -> dict[str, object]:
@@ -1839,6 +2654,488 @@ def roots_from_run(loaded: LoadedConfig[SprintConfig], run_id: str) -> list[str]
     return names
 
 
+# ------------------------------------------------------- Wave 3 mixed gate
+
+
+_MIXED_PROJECTS = frozenset({"mathlib", "physlib", "cslib"})
+_TERMINAL_STATUSES = frozenset({"retained", "not_applicable", "rejected", "error"})
+
+
+def _read_jsonl_objects(path: Path) -> list[dict[str, Any]]:
+    records: list[dict[str, Any]] = []
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except OSError as exc:
+        raise SprintRunnerError(f"cannot read mixed-gate input {path}: {exc}") from exc
+    for line_number, line in enumerate(lines, start=1):
+        if not line:
+            continue
+        try:
+            value = json.loads(line)
+        except json.JSONDecodeError as exc:
+            raise SprintRunnerError(f"malformed JSON at {path}:{line_number}") from exc
+        if not isinstance(value, dict):
+            raise SprintRunnerError(
+                f"mixed-gate JSONL row is not an object at {path}:{line_number}"
+            )
+        records.append(value)
+    return records
+
+
+def _mixed_run_receipt(run_dir: Path) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    required = {
+        "manifest": run_dir / "run.json",
+        "status": run_dir / "status.json",
+        "journal": run_dir / "journal.jsonl",
+        "retained": run_dir / "retained.jsonl",
+        "replay": run_dir / "replay_report.json",
+    }
+    missing_files = [str(path) for path in required.values() if not path.is_file()]
+    if missing_files:
+        raise SprintRunnerError("mixed-gate run receipt is incomplete: " + ", ".join(missing_files))
+    manifest = read_json_object(required["manifest"])
+    status = read_json_object(required["status"])
+    replay = read_json_object(required["replay"])
+    journal = _read_jsonl_objects(required["journal"])
+    retained = _read_jsonl_objects(required["retained"])
+
+    project = manifest.get("project")
+    if not isinstance(project, Mapping):
+        raise SprintRunnerError(f"mixed-gate run {run_dir} lacks project identity")
+    project_id = project.get("project_id")
+    project_revision = project.get("project_revision")
+    run_id = manifest.get("run_id")
+    if not isinstance(project_id, str) or not isinstance(project_revision, str):
+        raise SprintRunnerError(f"mixed-gate run {run_dir} has malformed project identity")
+    if not isinstance(run_id, str) or not run_id:
+        raise SprintRunnerError(f"mixed-gate run {run_dir} has no run id")
+    operations_value = manifest.get("operations")
+    if not isinstance(operations_value, list) or not operations_value:
+        raise SprintRunnerError(f"mixed-gate run {run_id!r} has no selected operations")
+    operations = tuple(operations_value)
+    if not all(isinstance(operation, str) for operation in operations):
+        raise SprintRunnerError(f"mixed-gate run {run_id!r} has malformed operations")
+    if len(operations) != len(set(operations)) or any(op not in OPERATIONS for op in operations):
+        raise SprintRunnerError(f"mixed-gate run {run_id!r} has invalid selected operations")
+    roots_value = manifest.get("explicit_roots")
+    if not isinstance(roots_value, list) or not all(isinstance(root, str) for root in roots_value):
+        raise SprintRunnerError(f"mixed-gate run {run_id!r} lacks explicit string roots")
+    roots = tuple(roots_value)
+    if not roots or len(roots) != len(set(roots)):
+        raise SprintRunnerError(f"mixed-gate run {run_id!r} has empty or duplicate roots")
+
+    roots_file = manifest.get("roots_file_identity")
+    roots_file_bound = isinstance(roots_file, Mapping) and all(
+        roots_file.get(field) == expected
+        for field, expected in {
+            "project_id": project_id,
+            "project_revision": project_revision,
+            "count": len(roots),
+            "roots_sha256": hash_canonical(roots),
+        }.items()
+    )
+    if roots_file_bound and isinstance(roots_file, Mapping):
+        roots_file_bound = all(
+            isinstance(roots_file.get(field), str)
+            and _SHA256.fullmatch(str(roots_file[field])) is not None
+            for field in ("file_sha256", "metadata_sha256", "inventory_sha256")
+        )
+    explicit_hash_ok = manifest.get("explicit_roots_sha256") == hash_canonical(roots)
+
+    terminal_records = [record for record in journal if record.get("kind") == "terminal"]
+    terminal_counts: dict[tuple[str, str], int] = {}
+    terminal_by_cell: dict[tuple[str, str], dict[str, Any]] = {}
+    unexpected_terminals = 0
+    invalid_terminal_statuses = 0
+    error_terminals = 0
+    expected_cells = {(root, operation) for root in roots for operation in operations}
+    for terminal in terminal_records:
+        cell = (str(terminal.get("root", "")), str(terminal.get("operation_id", "")))
+        terminal_counts[cell] = terminal_counts.get(cell, 0) + 1
+        terminal_by_cell.setdefault(cell, terminal)
+        if cell not in expected_cells:
+            unexpected_terminals += 1
+        status_value = terminal.get("status")
+        if status_value not in _TERMINAL_STATUSES:
+            invalid_terminal_statuses += 1
+        elif status_value == "error":
+            error_terminals += 1
+    missing_cells = sum(1 for cell in expected_cells if terminal_counts.get(cell, 0) == 0)
+    duplicate_cells = sum(max(0, count - 1) for count in terminal_counts.values())
+    qualified_roots = sum(
+        all(
+            terminal_counts.get((root, operation)) == 1
+            and terminal_by_cell[(root, operation)].get("status")
+            in (_TERMINAL_STATUSES - {"error"})
+            for operation in operations
+        )
+        for root in roots
+    )
+
+    record_cells: dict[tuple[str, str], list[dict[str, Any]]] = {}
+    record_issues = 0
+    for record in retained:
+        sidecar = record.get("sidecar")
+        row = record.get("row")
+        if not isinstance(sidecar, Mapping) or not isinstance(row, Mapping):
+            record_issues += 1
+            continue
+        cell = (str(sidecar.get("root_name", "")), str(sidecar.get("operation_id", "")))
+        record_cells.setdefault(cell, []).append(record)
+        labels = (row.get("label"), sidecar.get("label"), record.get("label"))
+        pair_ids = (row.get("pair_id"), sidecar.get("pair_id"))
+        if cell not in expected_cells or (
+            row.get("operation_id") != cell[1]
+            or record.get("operation_id") != cell[1]
+            or record.get("root_name") != cell[0]
+            or not isinstance(row.get("root_id"), str)
+            or row.get("root_id") != sidecar.get("root_id")
+            or not all(type(label) is bool for label in labels)
+            or labels[0] != labels[1]
+            or labels[0] != labels[2]
+            or not all(isinstance(pair_id, str) and pair_id for pair_id in pair_ids)
+            or pair_ids[0] != pair_ids[1]
+        ):
+            record_issues += 1
+        sidecar_project = sidecar.get("project")
+        if not isinstance(sidecar_project, Mapping) or (
+            sidecar_project.get("project_id") != project_id
+            or sidecar_project.get("project_revision") != project_revision
+        ):
+            record_issues += 1
+    retained_cells = {
+        cell for cell, terminal in terminal_by_cell.items() if terminal.get("status") == "retained"
+    }
+    joined_cells = {
+        cell
+        for cell, records in record_cells.items()
+        if len(records) == 1 and cell in retained_cells
+    }
+    record_join_defects = (
+        len(retained_cells.difference(joined_cells))
+        + len(set(record_cells).difference(retained_cells))
+        + sum(max(0, len(records) - 1) for records in record_cells.values())
+    )
+    for cell in joined_cells:
+        terminal = terminal_by_cell[cell]
+        record = record_cells[cell][0]
+        row = record.get("row")
+        if not isinstance(row, Mapping) or terminal.get("pair_id") != row.get("pair_id"):
+            record_join_defects += 1
+        if terminal.get("unordered_pair_key") != record.get("unordered_pair_key"):
+            record_join_defects += 1
+        if terminal.get("row_hash") is not None and terminal.get("row_hash") != record.get(
+            "row_hash"
+        ):
+            record_join_defects += 1
+
+    replay_ok = (
+        replay.get("run_id") == run_id
+        and replay.get("lean_requests") == 0
+        and replay.get("duplicate_rows") == 0
+        and replay.get("retained_before") == len(retained)
+        and replay.get("retained_after") == len(retained)
+        and replay.get("roots_considered") == len(roots)
+    )
+    status_ok = (
+        status.get("run_id") == run_id
+        and status.get("final") is True
+        and status.get("roots_considered") == len(roots)
+        and status.get("retained_total") == len(retained)
+    )
+    roots_this_process = status.get("roots_this_process")
+    resume_observed = type(roots_this_process) is int and 0 <= roots_this_process < len(roots)
+    receipt = {
+        "run_dir": str(run_dir),
+        "run_id": run_id,
+        "project_id": project_id,
+        "project_revision": project_revision,
+        "operations": list(operations),
+        "selected_roots": len(roots),
+        "qualified_roots": qualified_roots,
+        "retained_rows": len(retained),
+        "terminal_counts": {
+            "expected": len(expected_cells),
+            "observed": len(terminal_records),
+            "missing": missing_cells,
+            "duplicate": duplicate_cells,
+            "unexpected": unexpected_terminals,
+            "invalid_status": invalid_terminal_statuses,
+            "error": error_terminals,
+        },
+        "record_issues": record_issues,
+        "record_join_defects": record_join_defects,
+        "roots_file_bound": roots_file_bound,
+        "explicit_roots_hash_matches": explicit_hash_ok,
+        "generation_status_complete": status_ok,
+        "resume_observed": resume_observed,
+        "replay_zero_call": replay_ok,
+        "input_sha256": {name: hash_file(path) for name, path in required.items()},
+    }
+    return receipt, retained
+
+
+def _wave3_shortcut_screens(records: Sequence[Mapping[str, Any]]) -> dict[str, object]:
+    """Run the existing v3 release screens on single-hop Wave 3 families.
+
+    V3 calls the polarity-paired grouping field ``core_family``.  Single-hop
+    records predate that name and carry the same grouping as ``mechanism``;
+    normalize a copy so the existing thresholds and classifiers are reused
+    unchanged.
+    """
+
+    if not records:
+        return {"rows": 0, "screens": [], "passed": False, "reason": "no_valid_records"}
+    normalized: list[dict[str, Any]] = []
+    for record in records:
+        sidecar = dict(cast(Mapping[str, Any], record["sidecar"]))
+        family = sidecar.get("core_family") or sidecar.get("mechanism")
+        if not isinstance(family, str) or not family:
+            family = str(sidecar.get("operation_id", "unassigned"))
+        sidecar["core_family"] = family
+        normalized.append({**record, "sidecar": sidecar})
+    try:
+        return run_screens_v3(normalized)
+    except (IndexError, KeyError, TypeError, ValueError) as exc:
+        return {
+            "rows": len(normalized),
+            "screens": [],
+            "passed": False,
+            "reason": f"screen_input_invalid:{type(exc).__name__}:{str(exc)[:200]}",
+        }
+
+
+def wave3_mixed_gate_report(
+    run_dirs: Sequence[Path], *, expected_roots: int = 200
+) -> dict[str, Any]:
+    """Validate a three-project Wave 3 gate entirely from durable receipts."""
+
+    if expected_roots < 1:
+        raise SprintRunnerError("mixed-gate expected roots must be positive")
+    if len(run_dirs) != 3 or len({path.resolve() for path in run_dirs}) != 3:
+        raise SprintRunnerError("mixed-gate requires three distinct project run directories")
+    receipts: list[dict[str, Any]] = []
+    records: list[dict[str, Any]] = []
+    for run_dir in run_dirs:
+        receipt, run_records = _mixed_run_receipt(run_dir.resolve())
+        receipts.append(receipt)
+        records.extend(run_records)
+
+    project_ids = [str(receipt["project_id"]) for receipt in receipts]
+    selected_roots = sum(int(receipt["selected_roots"]) for receipt in receipts)
+    qualified_roots = sum(int(receipt["qualified_roots"]) for receipt in receipts)
+    terminal_totals = {
+        key: sum(int(receipt["terminal_counts"][key]) for receipt in receipts)
+        for key in (
+            "expected",
+            "observed",
+            "missing",
+            "duplicate",
+            "unexpected",
+            "invalid_status",
+            "error",
+        )
+    }
+
+    pair_ids: list[str] = []
+    row_hashes: list[str] = []
+    self_pairs = 0
+    residue_rows = 0
+    malformed_stable_ids = 0
+    certificate_issues: dict[str, int] = {}
+    negative_yields: dict[str, int] = {}
+    n25_rows = 0
+    diagnostic_records: list[dict[str, Any]] = []
+    for record in records:
+        row = record.get("row")
+        sidecar = record.get("sidecar")
+        if not isinstance(row, Mapping) or not isinstance(sidecar, Mapping):
+            malformed_stable_ids += 1
+            continue
+        pair_id = row.get("pair_id")
+        sidecar_pair_id = sidecar.get("pair_id")
+        row_hash = record.get("row_hash")
+        unordered_key = record.get("unordered_pair_key")
+        label = record.get("label")
+        reference_value = row.get("reference")
+        candidate_value = row.get("candidate")
+        root_id = row.get("root_id")
+        sidecar_root_id = sidecar.get("root_id")
+        if (
+            not isinstance(pair_id, str)
+            or _PAIR_ID.fullmatch(pair_id) is None
+            or pair_id != sidecar_pair_id
+        ):
+            malformed_stable_ids += 1
+        else:
+            pair_ids.append(pair_id)
+        if not isinstance(row_hash, str) or _SHA256.fullmatch(row_hash) is None:
+            malformed_stable_ids += 1
+        else:
+            row_hashes.append(row_hash)
+        if not isinstance(unordered_key, str) or _SHA256.fullmatch(unordered_key) is None:
+            malformed_stable_ids += 1
+        if type(label) is not bool or row.get("label") is not label:
+            malformed_stable_ids += 1
+        if not isinstance(root_id, str) or not root_id or root_id != sidecar_root_id:
+            malformed_stable_ids += 1
+        if not isinstance(reference_value, str) or not isinstance(candidate_value, str):
+            malformed_stable_ids += 1
+            reference = ""
+            candidate = ""
+        else:
+            reference = reference_value
+            candidate = candidate_value
+        if (
+            isinstance(pair_id, str)
+            and _PAIR_ID.fullmatch(pair_id) is not None
+            and pair_id == sidecar_pair_id
+            and isinstance(row_hash, str)
+            and _SHA256.fullmatch(row_hash) is not None
+            and isinstance(unordered_key, str)
+            and _SHA256.fullmatch(unordered_key) is not None
+            and type(label) is bool
+            and row.get("label") is label
+            and isinstance(root_id, str)
+            and bool(root_id)
+            and root_id == sidecar_root_id
+            and isinstance(reference_value, str)
+            and isinstance(candidate_value, str)
+        ):
+            diagnostic_records.append(record)
+        repr_payload = sidecar.get("repr")
+        same_render_hash = False
+        if isinstance(repr_payload, Mapping):
+            reference_repr = repr_payload.get("reference")
+            candidate_repr = repr_payload.get("candidate")
+            if isinstance(reference_repr, Mapping) and isinstance(candidate_repr, Mapping):
+                reference_record = reference_repr.get("record")
+                candidate_record = candidate_repr.get("record")
+                if isinstance(reference_record, Mapping) and isinstance(candidate_record, Mapping):
+                    reference_render_hash = reference_record.get("rendered_goal_hash")
+                    candidate_render_hash = candidate_record.get("rendered_goal_hash")
+                    same_render_hash = (
+                        isinstance(reference_render_hash, str)
+                        and bool(reference_render_hash)
+                        and reference_render_hash == candidate_render_hash
+                    )
+        if reference == candidate or same_render_hash:
+            self_pairs += 1
+        if residue_violation(reference) is not None or residue_violation(candidate) is not None:
+            residue_rows += 1
+        for issue in release_certificate_issues(record):
+            certificate_issues[issue] = certificate_issues.get(issue, 0) + 1
+        operation = str(sidecar.get("operation_id", record.get("operation_id", "")))
+        if operation in NEGATIVE_OPERATIONS:
+            negative_yields[operation] = negative_yields.get(operation, 0) + 1
+        if operation == "N25_TOGGLE_EQ_NE_PROOF_V1":
+            n25_rows += 1
+
+    duplicate_pair_ids = len(pair_ids) - len(set(pair_ids))
+    duplicate_row_hashes = len(row_hashes) - len(set(row_hashes))
+    dedup = deduplicate(diagnostic_records)
+    available_negatives = sorted(
+        {
+            operation
+            for receipt in receipts
+            for operation in receipt["operations"]
+            if operation in NEGATIVE_OPERATIONS
+        }
+    )
+    useful_negatives = sorted(operation for operation, count in negative_yields.items() if count)
+    required_useful_negatives = min(3, len(available_negatives))
+    n25_share = n25_rows / len(records) if records else 0.0
+    pair_delta = pairwise_shortcut_diagnostics(diagnostic_records)
+    shortcut_screens = _wave3_shortcut_screens(diagnostic_records)
+    shortcut_results = {
+        str(screen.get("name")): screen
+        for screen in cast(list[dict[str, Any]], shortcut_screens.get("screens", []))
+        if isinstance(screen, Mapping)
+    }
+    checks = {
+        "exact_three_pinned_projects": set(project_ids) == _MIXED_PROJECTS
+        and len(project_ids) == len(set(project_ids)),
+        "exactly_expected_selected_roots": selected_roots == expected_roots,
+        "exactly_expected_qualified_roots": qualified_roots == expected_roots,
+        "roots_files_content_bound": all(receipt["roots_file_bound"] for receipt in receipts),
+        "explicit_root_hashes_match": all(
+            receipt["explicit_roots_hash_matches"] for receipt in receipts
+        ),
+        "selected_operation_terminals_complete": terminal_totals["missing"] == 0
+        and terminal_totals["duplicate"] == 0
+        and terminal_totals["unexpected"] == 0
+        and terminal_totals["invalid_status"] == 0
+        and terminal_totals["observed"] == terminal_totals["expected"],
+        "zero_error_terminals": terminal_totals["error"] == 0,
+        "generation_receipts_complete": all(
+            receipt["generation_status_complete"] for receipt in receipts
+        ),
+        "retained_terminal_record_join_complete": all(
+            receipt["record_join_defects"] == 0 and receipt["record_issues"] == 0
+            for receipt in receipts
+        ),
+        "zero_certificate_defects": not certificate_issues,
+        "zero_self_pairs": self_pairs == 0,
+        "zero_residue": residue_rows == 0,
+        "zero_duplicate_stable_ids": malformed_stable_ids == 0
+        and duplicate_pair_ids == 0
+        and duplicate_row_hashes == 0,
+        "zero_duplicate_or_conflicting_pairs": dedup.duplicate_count == 0
+        and dedup.conflict_count == 0,
+        "three_useful_negative_families_when_available": len(useful_negatives)
+        >= required_useful_negatives,
+        "n25_share_at_most_25_percent": n25_share <= 0.25,
+        "forced_resume_observed": any(receipt["resume_observed"] for receipt in receipts),
+        "all_replays_zero_call": all(receipt["replay_zero_call"] for receipt in receipts),
+        "pair_delta_diagnostics_recorded": pair_delta.get("rows") == len(records)
+        and bool(pair_delta.get("rules")),
+        "candidate_only_shortcut_screen_passed": shortcut_results.get("candidate_only", {}).get(
+            "passed"
+        )
+        is True,
+        "reference_only_shortcut_screen_passed": shortcut_results.get("reference_only", {}).get(
+            "passed"
+        )
+        is True,
+        "existing_shortcut_screen_contract_passed": shortcut_screens.get("passed") is True,
+    }
+    return {
+        "schema_version": 1,
+        "gate": "sft1_wave3_mixed_200_v1",
+        "expected_roots": expected_roots,
+        "selected_roots": selected_roots,
+        "qualified_roots": qualified_roots,
+        "retained_rows": len(records),
+        "projects": sorted(project_ids),
+        "receipts": sorted(receipts, key=lambda receipt: str(receipt["project_id"])),
+        "terminal_counts": terminal_totals,
+        "negative_family_yields": dict(sorted(negative_yields.items())),
+        "available_negative_families": available_negatives,
+        "useful_negative_families": useful_negatives,
+        "required_useful_negative_families": required_useful_negatives,
+        "n25_rows": n25_rows,
+        "n25_share": round(n25_share, 6),
+        "certificate_issue_counts": dict(sorted(certificate_issues.items())),
+        "self_pairs": self_pairs,
+        "residue_rows": residue_rows,
+        "malformed_stable_ids": malformed_stable_ids,
+        "duplicate_pair_ids": duplicate_pair_ids,
+        "duplicate_row_hashes": duplicate_row_hashes,
+        "duplicate_pairs": dedup.duplicate_count,
+        "conflicting_pairs": dedup.conflict_count,
+        "pair_delta_diagnostics": pair_delta,
+        "shortcut_screens": shortcut_screens,
+        "input_receipts_sha256": hash_canonical(
+            [
+                receipt["input_sha256"]
+                for receipt in sorted(receipts, key=lambda item: str(item["project_id"]))
+            ]
+        ),
+        "checks": checks,
+        "passed": all(checks.values()),
+    }
+
+
 # ------------------------------------------------------------------ fixtures
 
 
@@ -1856,8 +3153,17 @@ def run_fixtures(repo_root: Path, loaded: LoadedConfig[SprintConfig]) -> dict[st
     pins = project_pins(config)
     context = engine_module.build_compile_context(repo_root, pins)
     identity = engine_module.engine_identity(repo_root, pins, context)
-    run_id = f"fixtures-{identity.source_sha256[:12]}"
-    runner = SprintRunner(repo_root, loaded, run_id=run_id, explicit_roots=roots)
+    fixture_identity = hash_canonical(
+        [identity.source_sha256, loaded.config_hash, hash_file(Path(__file__))]
+    )
+    run_id = f"fixtures-{fixture_identity[:12]}"
+    runner = SprintRunner(
+        repo_root,
+        loaded,
+        run_id=run_id,
+        explicit_roots=roots,
+        allow_fixture_roots=True,
+    )
     runner.run()
     terminals: dict[tuple[str, str], dict[str, Any]] = {}
     for record in runner.journal.read():
@@ -1930,6 +3236,9 @@ def _parser() -> argparse.ArgumentParser:
             "gate10k",
             "compact-windows",
             "targets",
+            "mixed-targets",
+            "certified-targets",
+            "mixed-gate",
         ),
     )
     parser.add_argument("--repo-root", type=Path, default=find_repo_root(Path.cwd()))
@@ -1945,8 +3254,28 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--view", choices=("raw", "balanced"), default="raw")
     parser.add_argument("--operations", help="comma-separated operation IDs for this run")
     parser.add_argument("--roots-file", type=Path, help="JSON targets file with a roots list")
+    parser.add_argument("--roots-file-sha256", help="expected exact SHA-256 of --roots-file")
     parser.add_argument("--roots-from-run", help="reuse the root list of an existing run")
+    parser.add_argument(
+        "--project-run",
+        action="append",
+        type=Path,
+        help="mixed-gate: one project run directory (repeat for Mathlib, Physlib, CSLib)",
+    )
+    parser.add_argument("--expected-roots", type=int, default=200)
     parser.add_argument("--relation", default="ne", help="targets: conclusion relation")
+    parser.add_argument("--family", help="targets: Wave 3 mechanism family shape")
+    parser.add_argument(
+        "--family-quota",
+        action="append",
+        default=[],
+        help="mixed-targets: deterministic FAMILY=COUNT quota (repeat per family)",
+    )
+    parser.add_argument(
+        "--source-compacted", type=Path, help="certified-targets: immutable compacted source"
+    )
+    parser.add_argument("--operation", help="certified-targets: exact negative operation ID")
+    parser.add_argument("--selection-salt", default="sft1-wave3-certified-targets-v1")
     parser.add_argument("--out", type=Path, help="targets: output JSON path")
     parser.add_argument("--limit", type=int, help="targets: maximum roots")
     parser.add_argument("--minimum-rows", type=int, default=10000)
@@ -1956,6 +3285,16 @@ def _parser() -> argparse.ArgumentParser:
 def main(argv: Sequence[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     repo_root = args.repo_root.resolve()
+    if args.command == "mixed-gate":
+        if len(args.project_run or []) != 3:
+            raise SprintRunnerError("mixed-gate requires exactly three --project-run directories")
+        report = wave3_mixed_gate_report(
+            [path.resolve() for path in args.project_run], expected_roots=args.expected_roots
+        )
+        if args.out is not None:
+            write_atomic(args.out, canonical_json_bytes(report) + b"\n")
+        print(json.dumps(report, ensure_ascii=False, indent=1))
+        return 0 if report["passed"] else 1
     loaded = load_sprint_config(repo_root, args.config.resolve() if args.config else None)
     if args.command == "validate":
         pins = project_pins(loaded.config)
@@ -1974,16 +3313,59 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.command == "targets":
         out = (
             args.out
-            or Path(loaded.config.output.staging_root) / "targets" / f"{args.relation}.json"
+            or Path(loaded.config.output.staging_root)
+            / "targets"
+            / f"{args.family or args.relation}.json"
         )
-        print(json.dumps(write_targets(loaded, relation=args.relation, out=out, limit=args.limit)))
+        report = (
+            write_family_targets(loaded, family=args.family, out=out, limit=args.limit)
+            if args.family
+            else write_targets(loaded, relation=args.relation, out=out, limit=args.limit)
+        )
+        print(json.dumps(report))
+        return 0
+    if args.command == "mixed-targets":
+        if args.out is None:
+            raise SprintRunnerError("mixed-targets requires --out")
+        report = write_mixed_family_targets(
+            loaded,
+            family_quotas=parse_family_quotas(args.family_quota),
+            selection_salt=args.selection_salt,
+            out=args.out.resolve(),
+        )
+        print(json.dumps(report))
+        return 0
+    if args.command == "certified-targets":
+        if args.source_compacted is None or args.operation is None or args.out is None:
+            raise SprintRunnerError(
+                "certified-targets requires --source-compacted, --operation, and --out"
+            )
+        print(
+            json.dumps(
+                write_certified_targets(
+                    compacted_dir=args.source_compacted.resolve(),
+                    operation_id=args.operation,
+                    out=args.out,
+                    selection_salt=args.selection_salt,
+                    limit=args.limit,
+                )
+            )
+        )
         return 0
     if args.command in {"run", "replay"}:
         max_roots = args.max_roots
         target_retained = args.target_retained
         explicit: list[str] | None = None
+        roots_file: RootsFileSelection | None = None
         if args.roots_file is not None:
-            explicit = [str(name) for name in read_json_object(args.roots_file)["roots"]]
+            roots_file = read_roots_file(
+                args.roots_file.resolve(),
+                loaded,
+                expected_file_sha256=args.roots_file_sha256,
+            )
+            explicit = list(roots_file.roots)
+        elif args.roots_file_sha256 is not None:
+            raise SprintRunnerError("--roots-file-sha256 requires --roots-file")
         elif args.roots_from_run:
             explicit = roots_from_run(loaded, args.roots_from_run)
         operations = args.operations.split(",") if args.operations else None
@@ -1998,6 +3380,21 @@ def main(argv: Sequence[str] | None = None) -> int:
                 target_retained = int(recorded["target_retained"])
             if explicit is None and isinstance(recorded.get("explicit_roots"), list):
                 explicit = [str(name) for name in recorded["explicit_roots"]]
+            recorded_roots_file = recorded.get("roots_file_identity")
+            if roots_file is None and isinstance(recorded_roots_file, Mapping):
+                if explicit is None:
+                    raise SprintRunnerError(
+                        "recorded roots-file identity lacks recorded explicit roots"
+                    )
+                roots_file = RootsFileSelection(
+                    roots=tuple(explicit),
+                    source_path=(
+                        str(recorded["roots_file_path"])
+                        if isinstance(recorded.get("roots_file_path"), str)
+                        else None
+                    ),
+                    identity=dict(recorded_roots_file),
+                )
         runner = SprintRunner(
             repo_root,
             loaded,
@@ -2007,6 +3404,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             owner_session=args.owner_session,
             explicit_roots=explicit,
             operations=operations,
+            roots_file=roots_file,
         )
         before = len(read_retained(runner.paths.retained))
         summary = runner.run(require_zero_lean=args.command == "replay")

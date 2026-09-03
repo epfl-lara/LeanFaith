@@ -1,0 +1,101 @@
+schema_version: 1
+sprint_id: sft1_wave3_natural_core_v1
+project:
+  project_id: mathlib
+  project_dir: /storage/milikic/leanfaith/mathlib4
+  project_revision: d568c8c09630de097a046763c17b9ea99f95f950
+  lean_version: v4.31.0-rc1
+  lean_interact_version: 0.11.4
+  repl_revision: augustepoiroux/repl@lean-interact-0.11.4
+  import_header: import Mathlib
+  options: {Elab.async: false, autoImplicit: false}
+engine:
+  path: LeanFaith/Meta/SFT1/Sprint.lean
+  operations:
+    - P15_SWAP_IFF_SIDES_V1
+    - P18_SYMMETRIZE_EQUALITY_V1
+    - P14_SWAP_INDEPENDENT_DATA_BINDERS_V1
+    - P23_CURRY_PROP_PAIR_V1
+    - N25_TOGGLE_EQ_NE_PROOF_V1
+    - N32_SWAP_ROLE_ORDER_PROOF_V1
+    - N31_DROP_REQUIRED_GUARD_PROOF_V1
+    - P_NE_SYMMETRIZE_V1
+    - P_DROP_REDUNDANT_GUARD_PROOF_V1
+    - P21_ZETA_REDUCE_V1
+    - P32_ADD_ASSOC_LOCAL_V1
+    - P32_ADD_COMM_LOCAL_V1
+    - P35_SET_INTER_MEMBERSHIP_V1
+    - N26_INCREMENT_BOUND_PROOF_V1
+    - N30_ADD_UNJUSTIFIED_UNIQUENESS_PROOF_V1
+    - N29_SWAP_WITNESS_DEPENDENCY_PROOF_V1
+    - P24_SWAP_INDEPENDENT_PROP_BINDERS_V1
+    - P16_REASSOCIATE_AND_V1
+    - P28_IFF_TO_IMPLICATION_PAIR_V1
+    - P_ORDER_COMPLEMENT_V1
+inventory:
+  root: /storage/milikic/leanfaith/value_first/sft1_deterministic_v1/wave2/mathlib/inventory
+  order_salt: sft1_wave3_mathlib_roots_v1
+  pools:
+    - {pool_id: guards_bounds, module_prefixes: [Mathlib.Data.Nat, Mathlib.Data.Finset, Mathlib.Order], weight: 3}
+    - {pool_id: finite_logic, module_prefixes: [Mathlib.Data.Bool, Mathlib.Data.Fin, Mathlib.Logic], weight: 3}
+    - {pool_id: general, module_prefixes: [], weight: 1}
+screens:
+  gold_blocklist_path: data/benchmarks/golden_blocklist_v1.json
+  gold_blocklist_sha256: 8e4af6a9e47fb06d281169cdaddb01c5c66c1b0d150f2df9c9283ecb587117f7
+execution:
+  resource_task: SFT1-WAVE3
+  batch_roots: 20
+  render_batch_pairs: 32
+  request_timeout_seconds: 900
+  lean_workers: 1
+  lean_rss_claim_gib: 24
+  memory_hard_limit_mb: 24576
+  server_restart_rss_gib: 20
+output:
+  staging_root: /storage/milikic/leanfaith/value_first/sft1_deterministic_v1/wave3/full_scale_v1/mathlib
+  shard_size: 1000
+fixtures_success_waivers:
+  - operation_id: P_DROP_REDUNDANT_GUARD_PROOF_V1
+    reason: no stable imported positive root; exact checked implementation remains enabled
+fixtures:
+  - {root: le_antisymm_iff, operation_id: P15_SWAP_IFF_SIDES_V1, expect_status: retained}
+  - {root: Nat.pow_sub_one, operation_id: P15_SWAP_IFF_SIDES_V1, expect_status: not_applicable, expect_reason_prefix: final_target_iff_not_applicable}
+  - {root: PNat.gcd_comm, operation_id: P18_SYMMETRIZE_EQUALITY_V1, expect_status: retained}
+  - {root: Nat.factorial_lt, operation_id: P18_SYMMETRIZE_EQUALITY_V1, expect_status: not_applicable, expect_reason_prefix: final_target_eq_not_applicable}
+  - {root: Nat.div_right_comm, operation_id: P14_SWAP_INDEPENDENT_DATA_BINDERS_V1, expect_status: retained}
+  - {root: Nat.factorial_lt, operation_id: P14_SWAP_INDEPENDENT_DATA_BINDERS_V1, expect_status: not_applicable, expect_reason_prefix: p14_no_adjacent_independent_data_binders}
+  - {root: le_of_le_of_eq', operation_id: P23_CURRY_PROP_PAIR_V1, expect_status: retained}
+  - {root: Nat.lt_factorial_self, operation_id: P23_CURRY_PROP_PAIR_V1, expect_status: not_applicable, expect_reason_prefix: p23_no_adjacent_independent_prop_binders}
+  - {root: Nat.mul_factorial_pred, operation_id: N25_TOGGLE_EQ_NE_PROOF_V1, expect_status: retained}
+  - {root: Nat.factorial_lt, operation_id: N25_TOGGLE_EQ_NE_PROOF_V1, expect_status: not_applicable, expect_reason_prefix: final_target_eq_ne_not_applicable}
+  - {root: LeanFaith.SFT1.Sprint.Fixtures.n32Retained, operation_id: N32_SWAP_ROLE_ORDER_PROOF_V1, expect_status: retained}
+  - {root: LeanFaith.SFT1.Sprint.Fixtures.n32FailClosed, operation_id: N32_SWAP_ROLE_ORDER_PROOF_V1, expect_status: not_applicable, expect_reason_prefix: final_target_order_not_applicable}
+  - {root: Nat.factorial_lt, operation_id: N31_DROP_REQUIRED_GUARD_PROOF_V1, expect_status: retained}
+  - {root: Nat.div_right_comm, operation_id: N31_DROP_REQUIRED_GUARD_PROOF_V1, expect_status: not_applicable, expect_reason_prefix: n31_no_supported_guard}
+  - {root: Nat.factorial_ne_zero, operation_id: P_NE_SYMMETRIZE_V1, expect_status: retained}
+  - {root: PNat.gcd_comm, operation_id: P_NE_SYMMETRIZE_V1, expect_status: not_applicable, expect_reason_prefix: final_target_ne_not_applicable}
+  - {root: PNat.gcd_comm, operation_id: P_DROP_REDUNDANT_GUARD_PROOF_V1, expect_status: not_applicable, expect_reason_prefix: pdrg_no_redundant_guard}
+  - {root: IsOrderedMonoid.mkOfCone, operation_id: P21_ZETA_REDUCE_V1, expect_status: retained}
+  - {root: PNat.gcd_comm, operation_id: P21_ZETA_REDUCE_V1, expect_status: not_applicable, expect_reason_prefix: p21_zeta_no_redex}
+  - {root: Nat.factorization_factorial_mul_succ, operation_id: P32_ADD_ASSOC_LOCAL_V1, expect_status: retained}
+  - {root: PNat.gcd_comm, operation_id: P32_ADD_ASSOC_LOCAL_V1, expect_status: not_applicable, expect_reason_prefix: p32_add_assoc_not_applicable}
+  - {root: AddConstMapClass.map_const_add, operation_id: P32_ADD_COMM_LOCAL_V1, expect_status: retained}
+  - {root: PNat.gcd_comm, operation_id: P32_ADD_COMM_LOCAL_V1, expect_status: not_applicable, expect_reason_prefix: p32_add_comm_not_applicable}
+  - {root: Matroid.uniqueBaseOn_isNonloop_iff, operation_id: P35_SET_INTER_MEMBERSHIP_V1, expect_status: retained}
+  - {root: PNat.gcd_comm, operation_id: P35_SET_INTER_MEMBERSHIP_V1, expect_status: not_applicable, expect_reason_prefix: p35_set_inter_membership_not_applicable}
+  - {root: LeanFaith.SFT1.Sprint.Fixtures.n26Retained, operation_id: N26_INCREMENT_BOUND_PROOF_V1, expect_status: retained}
+  - {root: LeanFaith.SFT1.Sprint.Fixtures.n26FailClosed, operation_id: N26_INCREMENT_BOUND_PROOF_V1, expect_status: not_applicable, expect_reason_prefix: n26_no_supported_bounded_binder}
+  - {root: LeanFaith.SFT1.Sprint.Fixtures.n30Retained, operation_id: N30_ADD_UNJUSTIFIED_UNIQUENESS_PROOF_V1, expect_status: retained}
+  - {root: LeanFaith.SFT1.Sprint.Fixtures.n30FailClosed, operation_id: N30_ADD_UNJUSTIFIED_UNIQUENESS_PROOF_V1, expect_status: rejected, expect_reason_prefix: n30_no_two_distinct_satisfying_witnesses}
+  - {root: LeanFaith.SFT1.Sprint.Fixtures.n30EnumerableRetained, operation_id: N30_ADD_UNJUSTIFIED_UNIQUENESS_PROOF_V1, expect_status: retained}
+  - {root: LeanFaith.SFT1.Sprint.Fixtures.n30PolymorphicRetained, operation_id: N30_ADD_UNJUSTIFIED_UNIQUENESS_PROOF_V1, expect_status: retained}
+  - {root: LeanFaith.SFT1.Sprint.Fixtures.n29Retained, operation_id: N29_SWAP_WITNESS_DEPENDENCY_PROOF_V1, expect_status: retained}
+  - {root: LeanFaith.SFT1.Sprint.Fixtures.n29FailClosed, operation_id: N29_SWAP_WITNESS_DEPENDENCY_PROOF_V1, expect_status: rejected, expect_reason_prefix: n29_no_complete_finite_counterexample_matrix}
+  - {root: LeanFaith.SFT1.Sprint.Fixtures.p24Retained, operation_id: P24_SWAP_INDEPENDENT_PROP_BINDERS_V1, expect_status: retained}
+  - {root: LeanFaith.SFT1.Sprint.Fixtures.preservingFailClosed, operation_id: P24_SWAP_INDEPENDENT_PROP_BINDERS_V1, expect_status: not_applicable, expect_reason_prefix: p24_no_adjacent_independent_prop_binders}
+  - {root: LeanFaith.SFT1.Sprint.Fixtures.p16Retained, operation_id: P16_REASSOCIATE_AND_V1, expect_status: retained}
+  - {root: LeanFaith.SFT1.Sprint.Fixtures.preservingFailClosed, operation_id: P16_REASSOCIATE_AND_V1, expect_status: not_applicable, expect_reason_prefix: p16_and_assoc_not_applicable}
+  - {root: LeanFaith.SFT1.Sprint.Fixtures.p28Retained, operation_id: P28_IFF_TO_IMPLICATION_PAIR_V1, expect_status: retained}
+  - {root: LeanFaith.SFT1.Sprint.Fixtures.preservingFailClosed, operation_id: P28_IFF_TO_IMPLICATION_PAIR_V1, expect_status: not_applicable, expect_reason_prefix: p28_iff_def_not_applicable}
+  - {root: LeanFaith.SFT1.Sprint.Fixtures.pOrderComplementRetained, operation_id: P_ORDER_COMPLEMENT_V1, expect_status: retained}
+  - {root: LeanFaith.SFT1.Sprint.Fixtures.preservingFailClosed, operation_id: P_ORDER_COMPLEMENT_V1, expect_status: not_applicable, expect_reason_prefix: p_order_complement_not_applicable}

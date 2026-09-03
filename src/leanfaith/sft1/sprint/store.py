@@ -92,8 +92,8 @@ class SemanticCache:
     """Content-addressed root and operation records shared across runs.
 
     Root records are keyed by project revision, Lean version, import/options
-    context, engine semantic version, and root name.  Operation records are
-    keyed by the root's structural closed-Expr hash, operation ID, engine
+    context, engine semantic version, exact engine source, and root name.
+    Operation records are keyed by the root's structural closed-Expr hash, operation ID, engine
     semantic version, Lean/project revision, and import/options context, as
     the sprint contract requires.  Runner and config bytes are provenance only.
     """
@@ -111,18 +111,20 @@ class SemanticCache:
         import_options_fingerprint: str,
         engine_semantic_version: str,
         name: str,
+        engine_source_sha256: str | None = None,
     ) -> str:
-        return hash_canonical(
-            {
-                "kind": "sprint_root",
-                "cache_schema": 2,
-                "project_revision": project_revision,
-                "lean_version": lean_version,
-                "import_options_fingerprint": import_options_fingerprint,
-                "engine_semantic_version": engine_semantic_version,
-                "name": name,
-            }
-        )
+        identity: dict[str, object] = {
+            "kind": "sprint_root",
+            "cache_schema": 3 if engine_source_sha256 is not None else 2,
+            "project_revision": project_revision,
+            "lean_version": lean_version,
+            "import_options_fingerprint": import_options_fingerprint,
+            "engine_semantic_version": engine_semantic_version,
+            "name": name,
+        }
+        if engine_source_sha256 is not None:
+            identity["engine_source_sha256"] = engine_source_sha256
+        return hash_canonical(identity)
 
     @staticmethod
     def op_key(
@@ -134,27 +136,29 @@ class SemanticCache:
         project_revision: str,
         import_options_fingerprint: str,
         name: str,
+        engine_source_sha256: str | None = None,
     ) -> str:
         """Operation record key.
 
         Alias theorems with alpha-identical statements share the reference
         hash but not their source constant, and negative evidence cites that
-        constant, so the root name is part of the key (cache schema 2).
+        constant, so the root name is part of the key (cache schemas 2 and 3).
         """
 
-        return hash_canonical(
-            {
-                "kind": "sprint_operation",
-                "cache_schema": 2,
-                "name": name,
-                "reference_alpha_hash": reference_alpha_hash,
-                "operation_id": operation_id,
-                "engine_semantic_version": engine_semantic_version,
-                "lean_version": lean_version,
-                "project_revision": project_revision,
-                "import_options_fingerprint": import_options_fingerprint,
-            }
-        )
+        identity: dict[str, object] = {
+            "kind": "sprint_operation",
+            "cache_schema": 3 if engine_source_sha256 is not None else 2,
+            "name": name,
+            "reference_alpha_hash": reference_alpha_hash,
+            "operation_id": operation_id,
+            "engine_semantic_version": engine_semantic_version,
+            "lean_version": lean_version,
+            "project_revision": project_revision,
+            "import_options_fingerprint": import_options_fingerprint,
+        }
+        if engine_source_sha256 is not None:
+            identity["engine_source_sha256"] = engine_source_sha256
+        return hash_canonical(identity)
 
     def _path(self, kind: str, key: str) -> Path:
         return self.root / kind / key[:2] / f"{key}.json"

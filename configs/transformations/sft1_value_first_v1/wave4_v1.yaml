@@ -1,0 +1,219 @@
+schema_version: 1
+wave_id: sft1_wave4_orbit_composition_v1
+status: production_runner_integrated
+release:
+  repository: Lemmy00/leanfaith-sft1-deterministic-v1
+  prefix: wave4/composed_core_v1
+  private: true
+  immutable_if_present: true
+  target_rows: [100000, 250000]
+
+inputs:
+  certified_negative_runs:
+    require_pinned_run_manifests: true
+    require_terminal_markers: true
+    require_cache_snapshots: true
+    require_source_proof_and_exact_refutation: true
+  sources: [mathlib, physlib, cslib]
+
+negative_families:
+  enabled:
+    - N31_DROP_REQUIRED_GUARD_PROOF_V1
+    - N26_INCREMENT_BOUND_PROOF_V1
+    - N32_SWAP_ROLE_ORDER_PROOF_V1
+    - N30_ADD_UNJUSTIFIED_UNIQUENESS_PROOF_V1
+    - N29_SWAP_WITNESS_DEPENDENCY_PROOF_V1
+    - N25_TOGGLE_EQ_NE_PROOF_V1
+  forbidden: [N19_WHOLE_CLAIM_NEGATION_V1]
+  maximum_released_share:
+    N25_TOGGLE_EQ_NE_PROOF_V1: 0.25
+
+preserving_operations:
+  # Superclass and inverse-token equality are chain-level exclusion rules.
+  enabled:
+    - {operation_id: P14_SWAP_INDEPENDENT_DATA_BINDERS_V1, mechanism: P14, superclass: binder_permutation, inverse_token: adjacent_data_binder_swap}
+    - {operation_id: P15_SWAP_IFF_SIDES_V1, mechanism: P15, superclass: logical_symmetry, inverse_token: iff_side_swap}
+    - {operation_id: P18_SYMMETRIZE_EQUALITY_V1, mechanism: P18, superclass: relation_symmetry, inverse_token: relation_argument_swap}
+    - {operation_id: P_NE_SYMMETRIZE_V1, mechanism: PNE, superclass: relation_symmetry, inverse_token: relation_argument_swap}
+    - {operation_id: P_DROP_REDUNDANT_GUARD_PROOF_V1, mechanism: PDRG, superclass: guard_redundancy, inverse_token: redundant_guard_drop_add}
+    - {operation_id: P21_ZETA_REDUCE_V1, mechanism: P21Z, superclass: definitional_reduction, inverse_token: zeta_intro_reduce}
+    - {operation_id: P23_CURRY_PROP_PAIR_V1, mechanism: P23, superclass: proposition_packaging, inverse_token: prop_pair_curry_uncurry}
+    - {operation_id: P32_ADD_ASSOC_LOCAL_V1, mechanism: P32A, superclass: ac_local_rewrite, inverse_token: add_association_direction}
+    - {operation_id: P32_ADD_COMM_LOCAL_V1, mechanism: P32C, superclass: ac_local_rewrite, inverse_token: add_commutative_swap}
+    - {operation_id: P35_SET_INTER_MEMBERSHIP_V1, mechanism: P35, superclass: membership_schema, inverse_token: set_inter_membership_schema}
+    - {operation_id: P24_SWAP_INDEPENDENT_PROP_BINDERS_V1, mechanism: P24, superclass: prop_binder_permutation, inverse_token: adjacent_prop_binder_swap}
+    - {operation_id: P16_REASSOCIATE_AND_V1, mechanism: P16, superclass: connective_association, inverse_token: connective_association_direction}
+    - {operation_id: P28_IFF_TO_IMPLICATION_PAIR_V1, mechanism: P28, superclass: iff_decomposition, inverse_token: iff_implication_pair}
+    - {operation_id: P_ORDER_COMPLEMENT_V1, mechanism: POC, superclass: order_duality, inverse_token: order_complement_direction}
+  optional_after_exact_certificate_implementation:
+    - P20_FOLD_UNFOLD_V1
+    - P22_ETA_REDUCE_V1
+
+composition:
+  maximum_depth: 3
+  allowed_positive_depths: [1, 2, 3]
+  negative_operation_position: last
+  enumerate_every_applicable_operation_site: true
+  maximum_results_per_exact_operation_site: 1
+  distinct_mechanism_superclasses: true
+  repeated_mechanisms_forbidden: true
+  repeated_inverse_tokens_forbidden: true
+  repeated_expression_hashes_forbidden: true
+  repeated_render_hashes_forbidden: true
+  repeated_site_lineages_forbidden: true
+  sites_must_be_disjoint_or_checked_transported: true
+  per_hop_direct_iff_certificate_required: true
+  composite_iff_certificate_required: true
+  exact_negative_last_refutation_required: true
+  exact_negative_last_operation_replay_required: true
+  exact_typed_closure_required: true
+
+selection:
+  salt: sft1-wave4-orbit-composition-v1
+  maximum_preserving_variants_per_root: 5
+  maximum_negative_last_variants_per_root: 5
+  stable_hash_fields:
+    - root_id
+    - negative_operation
+    - reference_operation_chain
+    - reference_site_lineage_hashes
+    - candidate_operation_chain
+    - candidate_site_lineage_hashes
+  balance_signals:
+    - top_level_relation_agreement
+    - top_level_relation_change
+    - target_text_equality
+    - target_text_change
+    - binder_count_delta
+    - connective_signature_delta
+    - source
+    - negative_family
+    - preserving_family
+    - chain_depth
+  rebalance_before_quarantine: true
+  preserve_complete_closure_groups: true
+  descriptor_preselection_before_full_validation_and_frozen_render: true
+
+closure_storage:
+  schema: sft1_wave4_shared_edge_closure_v1
+  model_row_fields: [reference, candidate, label]
+  physical_rows_are_globally_unique: true
+  shared_base_negative_written_once: true
+  logical_group_index_required: true
+  negative_family_evidence_required:
+    - boundary
+    - separator
+    - witnesses
+    - witness_checks
+    - enumeration
+  negative_last_replay_required: true
+  logical_edges_per_group:
+    - preserving_reference
+    - preserving_candidate
+    - negative_base
+    - negative_last
+
+cache_and_resume:
+  bind_policy_hash: true
+  bind_operation_chain_hash: true
+  bind_selected_site_lineage_hashes: true
+  root_enumeration_terminal_required: true
+  per_group_begin_and_terminal_required: true
+  cache_deterministic_terminal_failures: true
+  forced_resume_required: true
+  zero_lean_replay_required: true
+
+screens:
+  candidate_only_required: true
+  reference_only_required: true
+  pair_delta_required: true
+  gold_blocklist_path: data/benchmarks/golden_blocklist_v1.json
+  gold_blocklist_sha256: 8e4af6a9e47fb06d281169cdaddb01c5c66c1b0d150f2df9c9283ecb587117f7
+  wrong_labels_maximum: 0
+  self_pairs_maximum: 0
+  duplicate_pair_ids_maximum: 0
+  duplicate_unordered_pairs_maximum: 0
+  partial_groups_maximum: 0
+  conflicting_labels_maximum: 0
+
+gates:
+  composition_roots: 200
+  inspect_every_emitted_pair: true
+  forced_resume_and_zero_lean_replay: true
+  full_library_run_after_pass: true
+
+execution:
+  cheap_census_filter_join_dedup_and_sampling_before_lean: true
+  persistent_context_grouped_workers: true
+  workers_per_project: 1
+  maximum_machine_lean_workers: 2
+  maximum_machine_rss_gib: 40
+  elab_async: false
+  detached_tmux_required_for_full_run: true
+  append_only_journal_required: true
+  finite_event_monitor_required: true
+  # The Python runner preselects descriptors before full validation and frozen
+  # GoalV1 rendering. The Lean engine must also split descriptor enumeration
+  # from selected proof construction before the 200-root gate is authorized.
+  lean_descriptor_then_selected_certificate_api_required: true
+
+# Existing SprintRunner infrastructure, embedded so the Wave 4 policy remains a
+# separately hash-bound document instead of being silently discarded by SprintConfig.
+runtime:
+  schema_version: 1
+  sprint_id: sft1_wave4_composed_core_v1
+  project:
+    project_id: mathlib
+    project_dir: /storage/milikic/leanfaith/mathlib4
+    project_revision: d568c8c09630de097a046763c17b9ea99f95f950
+    lean_version: v4.31.0-rc1
+    lean_interact_version: 0.11.4
+    repl_revision: augustepoiroux/repl@lean-interact-0.11.4
+    import_header: import Mathlib
+    options: {Elab.async: false, autoImplicit: false}
+  engine:
+    path: LeanFaith/Meta/SFT1/Sprint.lean
+    operations:
+      - P15_SWAP_IFF_SIDES_V1
+      - P18_SYMMETRIZE_EQUALITY_V1
+      - P14_SWAP_INDEPENDENT_DATA_BINDERS_V1
+      - P23_CURRY_PROP_PAIR_V1
+      - N25_TOGGLE_EQ_NE_PROOF_V1
+      - N32_SWAP_ROLE_ORDER_PROOF_V1
+      - N31_DROP_REQUIRED_GUARD_PROOF_V1
+      - P_NE_SYMMETRIZE_V1
+      - P_DROP_REDUNDANT_GUARD_PROOF_V1
+      - P21_ZETA_REDUCE_V1
+      - P32_ADD_ASSOC_LOCAL_V1
+      - P32_ADD_COMM_LOCAL_V1
+      - P35_SET_INTER_MEMBERSHIP_V1
+      - N26_INCREMENT_BOUND_PROOF_V1
+      - N30_ADD_UNJUSTIFIED_UNIQUENESS_PROOF_V1
+      - N29_SWAP_WITNESS_DEPENDENCY_PROOF_V1
+      - P24_SWAP_INDEPENDENT_PROP_BINDERS_V1
+      - P16_REASSOCIATE_AND_V1
+      - P28_IFF_TO_IMPLICATION_PAIR_V1
+      - P_ORDER_COMPLEMENT_V1
+  inventory:
+    root: /storage/milikic/leanfaith/value_first/sft1_deterministic_v1/wave2/mathlib/inventory
+    order_salt: sft1_wave4_mathlib_roots_v1
+    pools:
+      - {pool_id: guards_bounds, module_prefixes: [Mathlib.Data.Nat, Mathlib.Data.Finset, Mathlib.Order], weight: 3}
+      - {pool_id: finite_logic, module_prefixes: [Mathlib.Data.Bool, Mathlib.Data.Fin, Mathlib.Logic], weight: 3}
+      - {pool_id: general, module_prefixes: [], weight: 1}
+  screens:
+    gold_blocklist_path: data/benchmarks/golden_blocklist_v1.json
+    gold_blocklist_sha256: 8e4af6a9e47fb06d281169cdaddb01c5c66c1b0d150f2df9c9283ecb587117f7
+  execution:
+    resource_task: SFT1-WAVE4
+    batch_roots: 20
+    render_batch_pairs: 20
+    request_timeout_seconds: 900
+    lean_workers: 1
+    lean_rss_claim_gib: 24
+    memory_hard_limit_mb: 24576
+    server_restart_rss_gib: 20
+  output:
+    staging_root: /storage/milikic/leanfaith/value_first/sft1_deterministic_v1/wave4/mathlib
+    shard_size: 1000
+  fixtures: []

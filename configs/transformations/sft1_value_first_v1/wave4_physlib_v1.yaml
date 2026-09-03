@@ -1,0 +1,59 @@
+schema_version: 1
+wave_id: sft1_wave4_orbit_composition_v1
+policy_config: wave4_v1.yaml
+runtime:
+  schema_version: 1
+  sprint_id: sft1_wave4_physlib_composed_core_v1
+  project:
+    project_id: physlib
+    project_dir: /storage/milikic/leanfaith/value_first/sft1_deterministic_v1/checkouts/physlib
+    project_revision: f5242c99d796b59a390d26cd7d1a8057e04c46b5
+    lean_version: v4.30.0
+    lean_interact_version: 0.11.4
+    repl_revision: augustepoiroux/repl@lean-interact-0.11.4
+    import_header: import Physlib
+    options: {Elab.async: false, autoImplicit: false}
+  engine:
+    path: LeanFaith/Meta/SFT1/Sprint.lean
+    operations:
+      - P15_SWAP_IFF_SIDES_V1
+      - P18_SYMMETRIZE_EQUALITY_V1
+      - P14_SWAP_INDEPENDENT_DATA_BINDERS_V1
+      - P23_CURRY_PROP_PAIR_V1
+      - N25_TOGGLE_EQ_NE_PROOF_V1
+      - N32_SWAP_ROLE_ORDER_PROOF_V1
+      - N31_DROP_REQUIRED_GUARD_PROOF_V1
+      - P_NE_SYMMETRIZE_V1
+      - P_DROP_REDUNDANT_GUARD_PROOF_V1
+      - P21_ZETA_REDUCE_V1
+      - P32_ADD_ASSOC_LOCAL_V1
+      - P32_ADD_COMM_LOCAL_V1
+      - P35_SET_INTER_MEMBERSHIP_V1
+      - N26_INCREMENT_BOUND_PROOF_V1
+      - N30_ADD_UNJUSTIFIED_UNIQUENESS_PROOF_V1
+      - N29_SWAP_WITNESS_DEPENDENCY_PROOF_V1
+      - P24_SWAP_INDEPENDENT_PROP_BINDERS_V1
+      - P16_REASSOCIATE_AND_V1
+      - P28_IFF_TO_IMPLICATION_PAIR_V1
+      - P_ORDER_COMPLEMENT_V1
+  inventory:
+    root: /storage/milikic/leanfaith/value_first/sft1_deterministic_v1/wave2/physlib/inventory
+    order_salt: sft1_wave4_physlib_roots_v1
+    pools:
+      - {pool_id: physlib, module_prefixes: [Physlib], weight: 1}
+  screens:
+    gold_blocklist_path: data/benchmarks/golden_blocklist_v1.json
+    gold_blocklist_sha256: 8e4af6a9e47fb06d281169cdaddb01c5c66c1b0d150f2df9c9283ecb587117f7
+  execution:
+    resource_task: SFT1-WAVE4
+    batch_roots: 15
+    render_batch_pairs: 24
+    request_timeout_seconds: 900
+    lean_workers: 1
+    lean_rss_claim_gib: 24
+    memory_hard_limit_mb: 24576
+    server_restart_rss_gib: 20
+  output:
+    staging_root: /storage/milikic/leanfaith/value_first/sft1_deterministic_v1/wave4/physlib
+    shard_size: 1000
+  fixtures: []

@@ -27,9 +27,10 @@
 > active sprint prerequisites.
 > **REPR predecessor:** `cbc933c3623d81ba649a1f9c5107ad404389d69f` was reviewed but is
 > superseded and not consumable by SFT1
-> **Next gate:** implement the Wave 3 witness/grounding layer and negative/preserving mechanisms,
-> then pass live retained and typed fail-closed fixtures, 20-root per-mechanism inspection, roughly
-> 100 typed candidates per new negative, and the combined 200-root mixed-source gate.
+> **Next gate:** execute fresh exact-source fixtures plus the five separate N26/N29/N30/N31/N32
+> 20-root and approximately-100-candidate forced-resume/replay gates from the frozen implementation
+> commit. Stop after producing every 20-root inspection artifact for actual row-by-row review; only
+> then execute the strict 200-root Mathlib/Physlib/CSLib mixed-source gate.
 > **Compute class:** no Wave 3--5 claim or process at ownership time. All later Lean work is limited
 > to at most two persistent workers and 40 GiB combined measured RSS under the shared atomic
 > reservation ledger. Long runs use named detached tmux sessions only after their exact committed
@@ -1172,14 +1173,28 @@ and unrelated user work remain read-only.
 - `plans/30_sft1_deterministic.md`
 - `LeanFaith/Meta/SFT1/Sprint.lean`
 - `src/leanfaith/sft1/sprint/` (the existing runner/cache/journal/square/screen/compaction/
-  provenance/integrity/publication modules and additive Wave 3--5 modules only)
+  provenance/integrity/publication modules and additive Wave 3--5 modules only, including the
+  compiler inventory, typed replay, and scale runner)
 - `configs/transformations/sft1_value_first_v1/wave3_v1.yaml`
+- `configs/transformations/sft1_value_first_v1/wave3_physlib_v1.yaml`
+- `configs/transformations/sft1_value_first_v1/wave3_cslib_v1.yaml`
 - `configs/transformations/sft1_value_first_v1/wave4_v1.yaml`
+- `configs/transformations/sft1_value_first_v1/wave4_physlib_v1.yaml`
+- `configs/transformations/sft1_value_first_v1/wave4_cslib_v1.yaml`
 - `configs/transformations/sft1_value_first_v1/wave5_v1.yaml`
 - `tests/fixtures/sft1/wave3_v1.yaml`
+- `tests/unit/sft1/test_sprint_lean_free.py` (only Wave 3 semantic-version and additive
+  implementation-budget assertions; historical behavior assertions remain unchanged)
 - `tests/unit/sft1/test_wave3_lean_free.py`
+- `tests/unit/sft1/test_wave3_mixed_integrity.py`
+- `tests/unit/sft1/test_wave3_release.py`
+- `tests/unit/sft1/test_publish_hardening.py`
 - `tests/unit/sft1/test_wave4_lean_free.py`
+- `tests/unit/sft1/test_wave4_lean_contract.py`
+- `tests/unit/sft1/test_wave4_provenance.py`
 - `tests/unit/sft1/test_wave5_lean_free.py`
+- `tests/unit/sft1/test_wave5_typed_hook.py`
+- `tests/unit/sft1/test_wave5_scale.py`
 - `/storage/milikic/leanfaith/value_first/sft1_deterministic_v1/wave3/`
 - `/storage/milikic/leanfaith/value_first/sft1_deterministic_v1/wave4/`
 - `/storage/milikic/leanfaith/value_first/sft1_deterministic_v1/wave5/`
@@ -2290,3 +2305,88 @@ resource use, output paths, and exact remaining ETA. Do not run training.
   deterministic sampling will precede bounded persistent-worker checks. No Lean process, resource
   claim, generation, compaction, publication, earlier-release mutation, SFT2 work, or training was
   started at this ownership boundary.
+- 2026-09-03 — implemented the first Wave 3 checked grounding/witness boundary in the existing
+  sprint engine. The engine now uses synthesized `Inhabited`, `Nonempty`, and project-local
+  instances only when Lean constructs them; has exact finite domains for `Bool`, `Unit`, bounded
+  literal `Fin`, products, options, and synthesized `Fintype` domains capped at 32 elements; and
+  fails closed on synthesis/search heartbeat limits. The additive mechanisms include exact-boundary
+  N26/N31, asymmetric checked N32, two-distinct-witness N30, and complete finite-matrix N29 together
+  with the quick exact-certificate preserving additions. The complete Mathlib fixture run
+  `wave3/mathlib/runs/fixtures-6b3407edfdd7` retained 52 pairs over 28 roots with no error and has
+  one live retained plus one typed fail-closed case for every new negative. No failed synthesis was
+  interpreted as negative evidence. The fixture artifact is bound to sprint source SHA-256
+  `e264e8945c84c2ad7c0f4f4dd6c9a5db6e9881d6482ecbc09551643e2954cfac`; later additive Wave 4
+  changes require a fresh exact-source fixture receipt before release.
+- 2026-09-03 — bounded Wave 3 negative pilots established useful checked yield rather than relying
+  on the string census. N30 retained 4/20 inspected rows and 5/100 broad typed candidates
+  (`gate_n30_e264_20_v1`, `gate_n30_e264_100_v1`); every retained row has two distinct satisfying
+  witnesses, successful witness checks, and a complete finite enumeration. N29 retained 6/20
+  inspected finite candidates and 5/100 broad candidates (`gate_n29_e264_20_v1`,
+  `gate_n29_e264_100_v1`); every retained row has the complete checked `forall-exists` matrix and
+  exact `exists-forall` refutation. Both 100-root runs replayed with zero Lean calls and no duplicate
+  retained rows. N31 retained all 20 roots from the immutable prior-certified-346 target in
+  `gate_n31_e264_20_v1`; all 20 serialized pairs were read row by row with zero wrong labels, exact
+  single-guard deletion, a concrete boundary assignment, source proof, and candidate refutation.
+  The inspection verdict is durable beside that run. N29's broad 5% yield is sufficient to keep the
+  time-boxed mechanism available, but it will not block or dominate siblings. No N19 row was used;
+  N25 is excluded from the mixed gate and remains capped at 25% in any release selection.
+- 2026-09-03 — pinned the existing proof-valid CPT2 input before compiler-data work. The private
+  repository is `Lemmy00/leanfaith-cpt2-proof-validity-v1`, immutable release revision
+  `df99c186ce1841c806d8b2a194573dc0b73fed33`, with data parent
+  `b6955dbf234d4ac294a6cf795c2e471126828d4c`. The local source manifest at
+  `cpt2_v1/scale_full_v1/release/manifest.json` has SHA-256
+  `0c9896c40f94194a5cfb4cda58f8e083a3587d5b76937619b539de377d996f10`; its 80-shard tree hash is
+  `943c28416fd6ed7e396981593fdc087b2a2c400bd351ef712d9443a9f7463514` and run ID is
+  `2905ac065e1f045698f34f6c007fce053712a89c0a081754366d76246b8da2ce`. Cheap manifest/parquet
+  verification reproduces 4,278,539 rows, 2,013,342 `isValid=True` proof-bearing rows, and
+  1,806,241 unique valid theorem prefixes. The current Wave 5 inventory/replay code is provisional:
+  original-proof replay alone does not authorize transformation labels, so the 1,000-root audit
+  remains blocked on a typed in-context hook into the shared Sprint certificate engine. No full
+  inventory Lean compilation, compiler transformation, or publication has occurred.
+- 2026-09-03 — cleared the Wave 5 typed-context blocker without changing the imported-library
+  `loadRoot` contract. Additive `loadCompilerRootChecked` accepts only a theorem declared in the
+  reconstructed current compilation unit, rejects imported constants, and Meta- plus kernel-checks
+  its exact stored proof before the shared Wave 3 `runOp` and Wave 4 descriptor/selected-certificate
+  paths may use it. The correctly reserved live CPT2 smoke used
+  `train-00000-of-00040.parquet:7138`, root ID
+  `b8363900b50d9165d86e2f65341dcbadd6580f0a88d8d45fa709c4b201e021da`: P18 and N25 retained,
+  ORBIT-N25 enumerated one descriptor, and selected index 0 produced one complete checked closure
+  with frozen GoalV1 endpoints and its negative site. Receipt
+  `wave5/compiler_typed_hook_smoke_v1/receipt.json` has SHA-256
+  `300a60b1ec38ee330301370070d021547e1a5344fa07329b8e6a44a08e8f8dce`; the earlier technically
+  passing but unreserved attempt is preserved separately under
+  `compiler_typed_hook_smoke_unclaimed_20260903T1242Z/` and is explicitly non-gate evidence.
+  Final exact-source fixtures `fixtures-2923e23e69f7` passed 41/41 with 52 retained pairs, four
+  Lean requests, 33.715 seconds Lean time, 38.428 seconds wall time, and 8,335,876,096 bytes peak
+  RSS; immediate replay made zero Lean requests. The engine is
+  `sft1_wave5_compiler_engine_v1`, source SHA-256
+  `a5da24b249840ed1438e70cb75e2df0f223019d7057e9db9a0d4cb1d701c4bfc`. The live run held one
+  worker/24 GiB in the shared ledger for its full lifetime and released it; the final ledger is
+  empty. This proves the one-row hook, not the 1,000-root audit or compiler-scale readiness.
+- 2026-09-03 — completed the additive implementation freeze candidate for Waves 3--5 without
+  launching generation or publication. Wave 3 now has strict per-family fixture, exact-20,
+  approximately-100, manual-inspection, forced-resume, zero-call-replay, and mixed-source gate
+  contracts. Wave 4 enumerates every checked preserving site, bounds two-/three-hop chains by
+  distinct superclasses and transported sites, materializes complete four-edge certificate
+  closures, and uses a deterministic whole-ancestry selector. That selector interleaves project,
+  negative-operation, and preserving-superclass strata; matches inverse joint pair-delta vectors;
+  quarantines only unmatched complete closure units; and iterates pair-delta balancing with the N25
+  cap to a fixed point, so quarantine cannot raise N25 above 25%. Wave 5 reconstructs the pinned
+  proof-bearing CPT2 inventory without Lean, binds the typed 1,000-root audit, emits independently
+  complete shards, preserves crash/replay Lean-call accounting, uses a streamed terminal index
+  rather than a 500K-root quadratic journal scan, and makes shortcut/pair-delta/useful-family
+  checks binding before checkpoint metadata or final aggregate publication. Publication queues,
+  receipts, revision chains, and manifest-last recovery are recomputed and fail closed on drift.
+  No lower-confidence rows are admitted to the proof-certified core.
+- 2026-09-03 — the implementation candidate passed the complete SFT1 unit suite: 949 tests
+  collected, 948 passed, and one expected live-data skip. Ruff lint and format checks passed for
+  all SFT1 sprint/test Python; strict mypy passed for all 13 changed sprint modules; Python bytecode
+  compilation, `git diff --check`, all Wave 3/4/5 config loaders, and Mathlib/Physlib/CSLib Wave 3
+  config validation passed. The exact Lean engine SHA-256 remains
+  `a5da24b249840ed1438e70cb75e2df0f223019d7057e9db9a0d4cb1d701c4bfc`, which is the source already
+  exercised by the reserved live 41-fixture/52-retained typed run and zero-call replay above; the
+  clean execution revision will nevertheless rerun fixtures before any new release evidence.
+  Reverified CPT2 manifest and publication-receipt SHA-256 values remain
+  `0c9896c40f94194a5cfb4cda58f8e083a3587d5b76937619b539de377d996f10` and
+  `e31af5eef2efb23cf8c0a92e4c027c883322bd9f1b545b8f9690cf855a962a90`. No old release, SFT2 path,
+  model training, release prefix, Lean scale run, or host reservation was touched at this boundary.

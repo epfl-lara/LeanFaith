@@ -1,0 +1,166 @@
+schema_version: sft1_wave5_compiler_inventory_config_v1
+sprint_id: sft1_wave5_compiler_core_v1
+
+# Immutable CPT2 release boundary. The provenance commit is the canonical Hub
+# revision; its parent is the commit containing the unchanged Parquet objects.
+source:
+  repo_id: Lemmy00/leanfaith-cpt2-proof-validity-v1
+  final_revision: df99c186ce1841c806d8b2a194573dc0b73fed33
+  data_commit: b6955dbf234d4ac294a6cf795c2e471126828d4c
+  local_release_root: /storage/milikic/leanfaith/value_first/cpt2_v1/scale_full_v1/release
+  manifest_path: /storage/milikic/leanfaith/value_first/cpt2_v1/scale_full_v1/release/manifest.json
+  manifest_sha256: 0c9896c40f94194a5cfb4cda58f8e083a3587d5b76937619b539de377d996f10
+  publication_receipt_path: /storage/milikic/leanfaith/value_first/cpt2_v1/scale_full_v1/_state/publication.json
+  publication_receipt_sha256: e31af5eef2efb23cf8c0a92e4c027c883322bd9f1b545b8f9690cf855a962a90
+  release_tree_sha256: 943c28416fd6ed7e396981593fdc087b2a2c400bd351ef712d9443a9f7463514
+  cpt2_run_id: 2905ac065e1f045698f34f6c007fce053712a89c0a081754366d76246b8da2ce
+  expected_release_rows: 4278539
+  expected_valid_rows: 2013342
+  expected_valid_exact_prefixes: 1806241
+  upstream_repo_id: formalmathatepfl/compiler_data
+  upstream_revision: ca37d4701b11022f183e72b7b96ff543a8a615d3
+  upstream_parquet_path: answer_data.parquet
+  upstream_parquet_sha256: c45145de5b681efd5aa265fdc90b9dc68d542321dd931d139cdead693360a81a
+
+# This is the chosen audit/replay environment, not a claim about the upstream
+# compiler-data toolchain. Context compatibility remains a bounded Lean gate.
+project:
+  project_id: mathlib
+  project_revision: d568c8c09630de097a046763c17b9ea99f95f950
+  lean_version: v4.31.0-rc1
+  lean_interact_version: 0.11.4
+  repl_revision: augustepoiroux/repl@lean-interact-0.11.4
+  checker_version: sft1_wave5_compiler_context_replay_v1
+
+inventory:
+  output_root: /storage/milikic/leanfaith/value_first/sft1_deterministic_v1/wave5/compiler_inventory_v1
+  splits: [train, validation]
+  required_label: true
+  output_shards: 256
+  batch_rows: 8192
+  verify_input_file_hashes: true
+  normalization_version: lean_name_free_quote_aware_layout_v1
+  feature_version: sft1_compiler_signature_features_v1
+  length_strata_version: sft1_compiler_fixed_character_bins_v1
+  reconstruction: theorem_plus_literal_by_plus_body
+  dedup_order: [exact_theorem_prefix, context_qualified_normalized_name_free_signature]
+  representative_order: [body_characters, body_sha256, source_row_id]
+  lean_calls: 0
+
+contamination:
+  gold_blocklist_path: data/benchmarks/golden_blocklist_v1.json
+  gold_blocklist_sha256: 8e4af6a9e47fb06d281169cdaddb01c5c66c1b0d150f2df9c9283ecb587117f7
+  action: exclude_before_dedup
+  additional_hook: supported_by_compiler_inventory_api_with_content_digest
+
+audit_sample:
+  size: 1000
+  salt: sft1_wave5_compiler_audit_v1
+  multi_label_features:
+    - equality
+    - disequality
+    - strict_order
+    - non_strict_order
+    - bounded_quantifier
+    - existential
+    - implication
+    - membership
+    - universe
+    - typeclass
+    - numeral
+  length_dimensions: [signature, theorem, body, full_source]
+  include_common_and_rare_context_fingerprints: true
+  include_namespace_status_strata: true
+  include_context_complexity_strata: true
+
+execution:
+  census_filter_join_dedup_before_lean: true
+  inventory_uses_lean: false
+  lean_workers_after_inventory: 2
+  host_rss_ceiling_gib: 40
+  elab_async: false
+
+# Bounded compiler-context audit. The exact reconstructed source theorem and
+# proof are checked before the shared typed Wave 3/Wave 4 certificate hook is
+# allowed to consume that locally declared theorem.
+compiler_audit:
+  schema_version: sft1_compiler_context_audit_v1
+  checker_version: sft1_wave5_compiler_context_replay_v1
+  output_root: /storage/milikic/leanfaith/value_first/sft1_deterministic_v1/wave5/compiler_audit_v1
+  project_dir: /storage/milikic/leanfaith/mathlib4
+  engine_path: LeanFaith/Meta/SFT1/Sprint.lean
+  resource_task: SFT1-WAVE5-AUDIT
+  expected_rows: 1000
+  memory_hard_limit_mb: 24576
+  request_timeout_seconds: 900
+  context_request_max_roots: 20
+  request_batch_size: 8
+  retry_max_attempts: 2
+  retry_statuses: [crash, internal_error, timeout]
+  isolate_incremental_commands: true
+  terminal_marker: complete.json
+  downstream_mode: proof_certified_typed_sft1_hook_v1
+
+compiler_scale:
+  schema_version: sft1_wave5_compiler_scale_config_v1
+  output_root: /storage/milikic/leanfaith/value_first/sft1_deterministic_v1/wave5/compiler_core_v1
+  wave4_config_path: configs/transformations/sft1_value_first_v1/wave4_v1.yaml
+  root_ceiling: 500000
+  maximum_release_rows: 3000000
+  checkpoints: [500000, 1000000, 2000000]
+  roots_per_shard: 256
+  root_batch_size: 8
+  selection_salt: sft1-wave5-compiler-scale-roots-v1
+  required_any_features:
+    - equality
+    - disequality
+    - strict_order
+    - non_strict_order
+    - bounded_quantifier
+    - existential
+    - implication
+    - membership
+    - numeral
+  maximum_full_source_characters: 200000
+  n25_maximum_share: 0.25
+  projected_runtime_limit_hours: 36
+  terminal_marker: complete.json
+  operations:
+    - P15_SWAP_IFF_SIDES_V1
+    - P18_SYMMETRIZE_EQUALITY_V1
+    - P14_SWAP_INDEPENDENT_DATA_BINDERS_V1
+    - P23_CURRY_PROP_PAIR_V1
+    - N25_TOGGLE_EQ_NE_PROOF_V1
+    - N32_SWAP_ROLE_ORDER_PROOF_V1
+    - N31_DROP_REQUIRED_GUARD_PROOF_V1
+    - P_NE_SYMMETRIZE_V1
+    - P_DROP_REDUNDANT_GUARD_PROOF_V1
+    - P21_BETA_REDUCE_V1
+    - P21_ZETA_REDUCE_V1
+    - P32_ADD_ASSOC_LOCAL_V1
+    - P32_ADD_COMM_LOCAL_V1
+    - P35_SET_INTER_MEMBERSHIP_V1
+    - N26_INCREMENT_BOUND_PROOF_V1
+    - N30_ADD_UNJUSTIFIED_UNIQUENESS_PROOF_V1
+    - N29_SWAP_WITNESS_DEPENDENCY_PROOF_V1
+    - P24_SWAP_INDEPENDENT_PROP_BINDERS_V1
+    - P16_REASSOCIATE_AND_V1
+    - P28_IFF_TO_IMPLICATION_PAIR_V1
+    - P_ORDER_COMPLEMENT_V1
+  orbit_operations:
+    - ORBIT_WAVE4_N25_V1
+    - ORBIT_WAVE4_N26_V1
+    - ORBIT_WAVE4_N29_V1
+    - ORBIT_WAVE4_N30_V1
+    - ORBIT_WAVE4_N31_V1
+    - ORBIT_WAVE4_N32_V1
+  maximum_depth: 3
+  maximum_variants_per_orbit: 5
+  typed_selection_salt: sft1-wave5-compiler-typed-selection-v1
+
+release:
+  destination: Lemmy00/leanfaith-sft1-deterministic-v1
+  prefix: wave5/compiler_core_v1
+  private_first: true
+  model_facing_fields: [reference, candidate, label]
+  proof_certified_core_only: true

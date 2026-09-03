@@ -4,6 +4,7 @@ inventory scanner, durable store, and compaction."""
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 import pytest
@@ -48,12 +49,21 @@ def test_config_rejects_async_elaboration() -> None:
 
 def test_engine_source_declares_version_and_no_forbidden_tokens() -> None:
     source = (ROOT / engine.ENGINE_RELATIVE_PATH).read_text(encoding="utf-8")
-    assert engine.engine_semantic_version(ROOT) == "sft1_wave2_engine_v5"
+    assert engine.engine_semantic_version(ROOT) == "sft1_wave5_compiler_engine_v1"
     for token in ("sorry", "addDecl", "addAndCompile", "ppGoal", "mkSorry", "sorryAx"):
         assert token not in source.replace("hasSorry", ""), token
     assert "Kernel.check" in source
     assert "Iff.intro" in source
-    assert "Nat.lt_asymm" in source and "Int.lt_asymm" in source
+    # N32 is no longer hard-coded to Nat/Int.  Its strict-order path builds the
+    # exact generic asymmetry proof from the source and candidate applications;
+    # unsupported typeclasses fall back to a checked concrete counterexample.
+    assert "mkAppM ``lt_asymm #[sourceApp]" in source
+    assert "return mkApp asymm candApp" in source
+    assert "if Expr.eqv args[2]! args[3]! then none" in source
+    assert 'groundedCandidateRefute root cand "role_order_boundary_counterexample"' in source
+    assert 'throwRej "n32_certificate_search_heartbeat_limit"' in source
+    assert "groundTelescope cand0" in source
+    assert 'checkedProof "refutation"' in source
 
 
 def test_process_body_and_mask_round_trip() -> None:
@@ -282,18 +292,78 @@ def test_inspection_sample_includes_every_n31_row() -> None:
     assert len(set(others)) == len(OPERATIONS) - 1
 
 
-def test_new_non_test_implementation_stays_compact() -> None:
-    paths = [
+def test_sprint_implementation_stays_bounded_and_uses_shared_surfaces() -> None:
+    package = ROOT / "src/leanfaith/sft1/sprint"
+    bounded_files = {
+        ROOT / "LeanFaith/Meta/SFT1/Sprint.lean": 4_500,
+        package / "runner.py": 4_000,
+        package / "square.py": 7_000,
+        package / "compiler_certificate_gate.py": 3_000,
+        package / "compiler_inventory.py": 2_800,
+        package / "compiler_replay.py": 3_000,
+        package / "compiler_scale.py": 4_800,
+        package / "orbit.py": 1_500,
+    }
+    counts = {
+        path.relative_to(ROOT).as_posix(): len(path.read_text(encoding="utf-8").splitlines())
+        for path in bounded_files
+    }
+    over_limit = {
+        path.relative_to(ROOT).as_posix(): counts[path.relative_to(ROOT).as_posix()] - limit
+        for path, limit in bounded_files.items()
+        if counts[path.relative_to(ROOT).as_posix()] > limit
+    }
+    assert over_limit == {}, over_limit
+
+    # Keep a package-wide backstop, but make the architectural boundaries above
+    # and the reachability checks below the primary guard against parallel engines.
+    implementation_paths = [
         ROOT / "LeanFaith/Meta/SFT1/Sprint.lean",
-        *(ROOT / "src/leanfaith/sft1/sprint").glob("*.py"),
+        *sorted(package.glob("*.py")),
     ]
-    total = sum(len(path.read_text(encoding="utf-8").splitlines()) for path in paths)
-    # 9,000 covered the sprint engine and runner; the corrective square releases added cache
-    # verification, alpha reconciliation, per-root transactions, release snapshots, record
-    # recovery, sidecar-derived aggregates, and pairwise diagnostics (2026-09-02). Wave 2 extends
-    # the same engine with one batched operation set and multi-project inventory support.
-    assert total < 11300, total
-    assert json.loads(json.dumps({"ok": True}))["ok"]
+    total = sum(len(path.read_text(encoding="utf-8").splitlines()) for path in implementation_paths)
+    assert total <= 38_000, total
+
+    duplicate_wave_modules = [
+        path.relative_to(ROOT).as_posix()
+        for path in package.rglob("*.py")
+        if path.name in {"wave3.py", "wave4.py", "wave5.py"}
+    ]
+    assert duplicate_wave_modules == []
+
+    square_source = (package / "square.py").read_text(encoding="utf-8")
+    assert "from leanfaith.sft1.sprint.orbit import (" in square_source
+    for shared_orbit_symbol in ("policy_from_config(", "cap_negative_operation_share("):
+        assert shared_orbit_symbol in square_source
+    assert "Wave4Runner(" in square_source and "build_wave4_view(" in square_source
+
+    compiler_inventory_source = (package / "compiler_inventory.py").read_text(encoding="utf-8")
+    compiler_replay_source = (package / "compiler_replay.py").read_text(encoding="utf-8")
+    assert (
+        "from leanfaith.sft1.sprint import compiler_inventory as inventory_module"
+        in compiler_replay_source
+    )
+    assert "from leanfaith.sft1.sprint.compiler_inventory import (" in compiler_replay_source
+    for shared_inventory_symbol in (
+        "load_inventory_config(",
+        "load_pinned_input_shards(",
+        "reconstruct_source(",
+    ):
+        assert shared_inventory_symbol in compiler_replay_source
+    for cli_source in (compiler_inventory_source, compiler_replay_source):
+        assert "def main(" in cli_source
+        assert 'if __name__ == "__main__":' in cli_source
+        assert "argparse.ArgumentParser(" in cli_source
+
+    direct_lake_lean = re.compile(
+        r"(?:lake\s+env\s+lean|[\"']lake[\"']\s*,\s*[\"']env[\"']\s*,\s*[\"']lean[\"'])"
+    )
+    forbidden_launches = [
+        path.relative_to(ROOT).as_posix()
+        for path in sorted(package.glob("*.py"))
+        if direct_lake_lean.search(path.read_text(encoding="utf-8"))
+    ]
+    assert forbidden_launches == []
 
 
 def _synthetic_records(*, leak: bool, count: int = 240) -> list[dict[str, object]]:
