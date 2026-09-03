@@ -2162,3 +2162,16 @@ resource use, output paths, and exact remaining ETA. Do not run training.
   9,328/10,000 rows, relation-parity balanced accuracy is 0.9527, and exact-target-equality is
   0.8180 despite the learned shortcut gates passing. This wave is a larger certified curriculum,
   not a broadly mechanism-balanced final SFT1 corpus.
+- 2026-09-03 — authorized full eligible-pool execution is prepared from clean commit
+  `132a402582d4080d33dab07c94b4a33cb4cbe596`. Exact resumable script
+  `wave2/logs/full_eligible_chain.sh` has SHA-256
+  `7ef4c76148a8e456294122801882b722f8fa9aed4beccc80a4d0eed9bd9f2e44`; it processes all 79,943
+  operation-compatible roots across the nine Mathlib/Physlib/CSLib N25/N32/N26 lanes, including
+  zero-call resume of the already completed prefixes, and then explicitly replays every full lane.
+  The named detached session is `leanfaith-sft1-wave2-full`, the persistent log is
+  `wave2/logs/full_eligible_chain.log`, the terminal marker is
+  `wave2/full_eligible_candidates_ready.json`, and the exact resume command is the same script in
+  the same worktree. The script claims one persistent worker and 24 GiB measured RSS for task
+  `SFT1-WAVE2-FULL`, uses the existing 24,576 MiB hard ceiling and 900-second per-request timeout,
+  releases its reservation on every exit, and leaves no GPU claim. Any command failure prevents
+  the terminal marker and stops compaction/publication.
