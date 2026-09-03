@@ -1509,6 +1509,7 @@ class SquareSelection:
     degenerate_roots: list[str]
     conflict_rows: int
     superseded_squares: list[dict[str, str]] = field(default_factory=list)
+    capacity_squares: list[str] = field(default_factory=list)
 
 
 def square_key(sidecar: Mapping[str, Any]) -> str:
@@ -1594,6 +1595,27 @@ def select_squares(
         accepted.append(root)
         kept.extend(items)
     return SquareSelection(kept, accepted, duplicates, degenerate, conflict_rows, superseded)
+
+
+def cap_square_selection(selection: SquareSelection, maximum_rows: int | None) -> SquareSelection:
+    """Apply a stable whole-square row ceiling after structural selection."""
+    if maximum_rows is None:
+        return selection
+    if maximum_rows <= 0 or maximum_rows % len(ROW_KINDS) != 0:
+        raise SquareError(f"maximum rows must be a positive multiple of {len(ROW_KINDS)}")
+    maximum_squares = maximum_rows // len(ROW_KINDS)
+    accepted = selection.accepted_roots[:maximum_squares]
+    accepted_set = set(accepted)
+    capped = selection.accepted_roots[maximum_squares:]
+    return SquareSelection(
+        kept=[item for item in selection.kept if square_key(item["sidecar"]) in accepted_set],
+        accepted_roots=accepted,
+        duplicate_squares=selection.duplicate_squares,
+        degenerate_roots=selection.degenerate_roots,
+        conflict_rows=selection.conflict_rows,
+        superseded_squares=selection.superseded_squares,
+        capacity_squares=capped,
+    )
 
 
 def sidecar_aggregates(sidecars: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
@@ -1691,6 +1713,7 @@ def build_square_view(
     require_identical_rows: str | None = None,
     preferred_operations: Sequence[str] = (),
     allow_multiple_project_pins: bool = False,
+    maximum_rows: int | None = None,
 ) -> dict[str, Any]:
     from leanfaith.sft1.sprint import shortcut
 
@@ -1762,7 +1785,9 @@ def build_square_view(
         else:
             screened.append(record)
     outcome = deduplicate(screened)  # conflict detection: same unordered pair, different labels
-    selection = select_squares(screened, outcome.conflict_keys, preferred_operations)
+    selection = cap_square_selection(
+        select_squares(screened, outcome.conflict_keys, preferred_operations), maximum_rows
+    )
     kept = selection.kept
     complete_roots = set(selection.accepted_roots)  # square keys (root|operation)
     by_root: dict[str, list[dict[str, Any]]] = {}
@@ -1777,6 +1802,7 @@ def build_square_view(
     duplicate_rows = sum(screened_by_root[d["square"]] for d in selection.duplicate_squares)
     degenerate_rows = sum(screened_by_root[root] for root in selection.degenerate_roots)
     superseded_rows = sum(screened_by_root[d["square"]] for d in selection.superseded_squares)
+    capacity_rows = sum(screened_by_root[root] for root in selection.capacity_squares)
     distinct_roots = {str(record["sidecar"]["root_id"]) for record in kept}
     conservation = {
         "screened_rows": len(screened),
@@ -1784,7 +1810,9 @@ def build_square_view(
         "duplicate_square_rows_dropped": duplicate_rows,
         "degenerate_square_rows_dropped": degenerate_rows,
         "superseded_square_rows_dropped": superseded_rows,
-        "holds": len(screened) == len(kept) + duplicate_rows + degenerate_rows + superseded_rows,
+        "capacity_square_rows_dropped": capacity_rows,
+        "holds": len(screened)
+        == len(kept) + duplicate_rows + degenerate_rows + superseded_rows + capacity_rows,
     }
     incomplete = len(selection.degenerate_roots)
     conflicting_rows = selection.conflict_rows
@@ -1871,6 +1899,8 @@ def build_square_view(
         "duplicate_rows_seen": outcome.duplicate_count,
         "duplicate_squares_dropped": len(selection.duplicate_squares),
         "degenerate_squares_dropped": incomplete,
+        "capacity_squares_dropped": len(selection.capacity_squares),
+        "maximum_rows": maximum_rows,
         "conflicting_classes_rejected": outcome.conflict_count,
         "conflicting_rows_rejected": conflicting_rows,
         "conservation": conservation,
@@ -2323,6 +2353,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--max-roots", type=int)
     parser.add_argument("--roots-file", type=Path, help="JSON target file with a roots list")
     parser.add_argument("--label", default="core_v3_square")
+    parser.add_argument("--maximum-rows", type=int, help="stable whole-square released-row ceiling")
     parser.add_argument("--owner-session", default="claude-sft1-square")
     parser.add_argument("--supersedes", help="label this view supersedes (recorded, not modified)")
     parser.add_argument(
@@ -2423,6 +2454,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             x.strip() for x in (args.prefer_operations or "").split(",") if x.strip()
         ],
         allow_multiple_project_pins=args.allow_multiple_project_pins,
+        maximum_rows=args.maximum_rows,
     )
     print(
         json.dumps(

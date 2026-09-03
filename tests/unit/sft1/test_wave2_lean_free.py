@@ -9,7 +9,12 @@ from leanfaith.config.paths import find_repo_root
 from leanfaith.sft1.sprint.engine import OPERATIONS, operation_mask, operations_in_mask
 from leanfaith.sft1.sprint.inventory import wave2_applicability, write_wave2_census
 from leanfaith.sft1.sprint.runner import load_sprint_config
-from leanfaith.sft1.sprint.square import SQUARE_FIXTURES, SQUARE_OPERATIONS
+from leanfaith.sft1.sprint.square import (
+    SQUARE_FIXTURES,
+    SQUARE_OPERATIONS,
+    SquareSelection,
+    cap_square_selection,
+)
 
 ROOT = find_repo_root(Path(__file__))
 CONFIG_DIR = ROOT / "configs/transformations/sft1_value_first_v1"
@@ -116,3 +121,16 @@ def test_wave2_square_operations_close_only_proof_backed_negatives() -> None:
     }
     assert {key: SQUARE_OPERATIONS[key]["negative"] for key in expected} == expected
     assert expected.keys() - {"SQUARE_WAVE2_N31_V1"} <= SQUARE_FIXTURES.keys()
+
+
+def test_square_row_ceiling_keeps_only_complete_groups() -> None:
+    kept = [
+        {"sidecar": {"root_id": f"root-{root}", "operation_id": "SQUARE_WAVE2_N25_V1"}}
+        for root in range(3)
+        for _ in range(4)
+    ]
+    keys = [f"root-{root}|SQUARE_WAVE2_N25_V1" for root in range(3)]
+    capped = cap_square_selection(SquareSelection(kept, keys, [], [], 0), 8)
+    assert len(capped.kept) == 8
+    assert capped.accepted_roots == keys[:2]
+    assert capped.capacity_squares == keys[2:]

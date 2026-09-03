@@ -23,8 +23,9 @@
 > active sprint prerequisites.
 > **REPR predecessor:** `cbc933c3623d81ba649a1f9c5107ad404389d69f` was reviewed but is
 > superseded and not consumable by SFT1
-> **Next gate:** finish the consolidated 200-root shortcut/structure/replay gate, then continue
-> automatically to the 10,000-row mixed-source pilot if every threshold passes.
+> **Next gate:** produce the 10,000-row mixed-source pilot, run its deterministic 200-row
+> operation/source audit and shortcut screens, then continue automatically to the full eligible
+> pool if every threshold passes.
 > **Compute class:** no claim while census and Lean-free implementation work proceeds. Live gates
 > will claim one persistent project worker within the shared 24 GiB/one-worker budget; any 10K or
 > eligible-pool run will use a named detached tmux session and a recorded exact resume command.
@@ -2036,3 +2037,15 @@ resource use, output paths, and exact remaining ETA. Do not run training.
   group. A cross-project no-regenerate consolidation path is being checked now; it snapshots each
   already-verified cache record and admits multiple independently pinned project identities
   explicitly rather than pretending the three libraries share one project pin.
+- 2026-09-03 — the consolidated 200-root gate passed all 18 structural/release checks at
+  `wave2/combined/compacted/core_v1_gate200`: 524 rows / 131 squares, balanced 262/262, zero
+  conflicts, duplicates, incomplete groups, quarantines, or unchecked rows, with all 524 cache
+  snapshots verified against three independently pinned project contexts. Candidate-only and
+  reference-only balanced accuracy/upper bounds are 0.50/0.50; family-held-out is 0.4809 with
+  0.5038 upper bound, all strictly below the required thresholds. Eight preserving/negative
+  surface families are present; N25/N32/N26 shares are 55.0%/44.3%/0.8%, below the recorded 60%
+  dominance ceiling. All five source/operation runs replayed with zero Lean calls, zero repeated
+  rows, and unchanged retained counts; the forced 50-to-100-root N32 resume lost or repeated zero
+  rows. Actual rows were inspected across every source/family stratum with no defect. The genuine
+  pairwise telemetry limitation is a 0.7557 relation-parity and 0.7748 exact-target-equality
+  balanced accuracy even though the learned held-out screens pass.
