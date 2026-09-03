@@ -27,7 +27,8 @@
 > active sprint prerequisites.
 > **REPR predecessor:** `cbc933c3623d81ba649a1f9c5107ad404389d69f` was reviewed but is
 > superseded and not consumable by SFT1
-> **Next gate:** run the frozen Wave 3 pre-gate and Wave 5 zero-Lean inventory supervisors. Wave 3
+> **Next gate:** resume the frozen Wave 3 pre-gate through its additive `r1` recovery controller
+> and finish the already-running Wave 5 zero-Lean inventory verifier. Wave 3
 > stops at `awaiting_family_manual_inspection` after fresh fixtures and the five separate
 > N26/N29/N30/N31/N32 exact-20 plus forced-resume/approximately-100/replay gates; actual row-by-row
 > review must pass before the strict 200-root mixed-source gate is launched. Wave 5 stops at
@@ -86,19 +87,29 @@ semantic store, and lockfile SHA-256 values are
 
 The executable 0700 control programs are frozen as follows:
 
-- Wave 3 control root:
+- Wave 3 predecessor control root (immutable, retired after the transport-only stdout parsing
+  failure recorded below):
   `/storage/milikic/leanfaith/value_first/sft1_deterministic_v1/wave3/full_scale_v1/control/w3fs-a13363f332d3`.
   `run_wave3_pregate.sh`, `verify_wave3_pregate.py`, and `status.py` have SHA-256
   `ba4a6fc60d5ab92d5988c06850b0d587b85dce4c14b26ed769d4a88607361da7`,
   `6c464e81f5528e5621082d6f60ab40bb37e1e901144ae9e508e1d6a9d764066c`, and
   `a404561f9f8ff69930c2ca1307e8e80cf3d3ee165002d63b9f75fda6b5cc29f0`.
+- Active Wave 3 additive recovery control root:
+  `/storage/milikic/leanfaith/value_first/sft1_deterministic_v1/wave3/full_scale_v1/control/w3fs-a13363f332d3-r1`.
+  `run_wave3_pregate.sh`, `capture_trailing_json.py`, `verify_wave3_pregate.py`, and `status.py`
+  have SHA-256
+  `1960baae70ced763db98281330044b8c094803ab9f28216058d04e0f9b014102`,
+  `5a57df6cf22df4789034c215245168e31d57044910bd1abe109b60b5ff006ad1`,
+  `dc598bab16b84eac59b3e4ea479c7452a81cb1a1c48c0a97c3f7560cc970e63e`, and
+  `a74a426cd88c5ae59de95ce819e6b1365993269e2fba999c2beac44974b61227`.
 - Wave 5 control root:
   `/storage/milikic/leanfaith/value_first/sft1_deterministic_v1/wave5/control/w3fs-a13363f332d3`.
   `run_inventory.sh` and `verify_inventory.py` have SHA-256
   `f28623372f7986d58337888862e0d40716dbafcdcc3c1a39b793a0c328240606` and
   `11b4bf2cd1f053810416c2dec5d8938c3e967936a78a1cf10998bb96047ba99f`.
 
-Wave 3 uses tmux session `leanfaith-sft1-wave3-pregate-a13363f332d3`, output/cache/run journals
+The Wave 3 predecessor used tmux session `leanfaith-sft1-wave3-pregate-a13363f332d3`,
+output/cache/run journals
 under `/storage/milikic/leanfaith/value_first/sft1_deterministic_v1/wave3/full_scale_v1/mathlib`,
 append-only supervisor journal `supervisor.jsonl`, log `tmux.log`, failure marker `failure.json`,
 and terminal marker `terminal.json` in its control root. The fixed output lock is
@@ -107,6 +118,29 @@ Its exact launch command is:
 
 ```text
 tmux new-session -d -s leanfaith-sft1-wave3-pregate-a13363f332d3 -c /localhome/milikic/LeanFaith-sft1-wave3-exec-a13363f332d3 '/storage/milikic/leanfaith/value_first/sft1_deterministic_v1/wave3/full_scale_v1/control/w3fs-a13363f332d3/run_wave3_pregate.sh </dev/null >>/storage/milikic/leanfaith/value_first/sft1_deterministic_v1/wave3/full_scale_v1/control/w3fs-a13363f332d3/tmux.log 2>&1'
+```
+
+That predecessor completed the fresh fixture and N26 exact-20 Lean work, but its controller parsed
+the complete command stdout as JSON. LeanInteract's one-time Lake/cache prelude therefore produced
+a control-transport failure after the valid trailing JSON receipt. The additive `r1` controller
+does not change the engine, configs, run IDs, outputs, cache, or journals. It binds the immutable
+predecessor preflight SHA-256
+`9b6c095978ce8883959d6ecd8545df1d25b239ba7f7f2c206cdf8d6c3d908b96`, recovers the two exact raw
+stdout objects with SHA-256
+`72a8cc8663c684e0015a447c1871572c796a58e9cce368764ac8946489e0ff71` and
+`2d42a0e122664def4ed0ba2600e9c065e3918a1e11a9fc89712313f7ca1f32a8`, and accepts only one unique
+JSON object that consumes the trailing suffix through EOF. Raw stdout is stored content-addressed;
+an immutable per-command index binds each canonical receipt, and receipt/index crash windows fail
+closed or recover without rerunning Lean. Its preflight must record
+`output_existed_before_launch=true`, while the bound predecessor preflight records the original
+fresh boundary as false.
+
+The active recovery session is `leanfaith-sft1-wave3-pregate-a13363f332d3-r1`; its append-only
+supervisor journal, log, failure marker, and terminal marker live in the `r1` control root. It uses
+the same fixed output lock and the exact launch/recovery command below:
+
+```text
+tmux new-session -d -s leanfaith-sft1-wave3-pregate-a13363f332d3-r1 -c /localhome/milikic/LeanFaith-sft1-wave3-exec-a13363f332d3 '/storage/milikic/leanfaith/value_first/sft1_deterministic_v1/wave3/full_scale_v1/control/w3fs-a13363f332d3-r1/run_wave3_pregate.sh </dev/null >>/storage/milikic/leanfaith/value_first/sft1_deterministic_v1/wave3/full_scale_v1/control/w3fs-a13363f332d3-r1/tmux.log 2>&1'
 ```
 
 Wave 5 uses tmux session `leanfaith-sft1-wave5-inventory-a13363f332d3`, output root
@@ -131,6 +165,12 @@ for both jobs is:
 
 ```text
 /localhome/milikic/LeanFaith-sft1-wave3-exec-a13363f332d3/.venv/bin/python /storage/milikic/leanfaith/value_first/sft1_deterministic_v1/wave3/full_scale_v1/control/w3fs-a13363f332d3/status.py
+```
+
+The active additive finite status command, which also reports the unchanged Wave 5 session, is:
+
+```text
+/localhome/milikic/LeanFaith-sft1-wave3-exec-a13363f332d3/.venv/bin/python /storage/milikic/leanfaith/value_first/sft1_deterministic_v1/wave3/full_scale_v1/control/w3fs-a13363f332d3-r1/status.py
 ```
 
 The supervisors stop on any command/hash/runtime/source drift, conflicting terminal state,
@@ -2487,3 +2527,31 @@ resource use, output paths, and exact remaining ETA. Do not run training.
   while the child retains closed stdin and redirected output. The exact launch/recovery commands
   above were corrected and recommitted before retry; control program contents and frozen hashes did
   not change.
+- 2026-09-03 — the corrected Wave 3 predecessor reached real typed work and established valid
+  semantic evidence before exposing a second control-transport defect. Fresh fixtures completed
+  exactly 28 unique roots by 20 operations: all 560 terminal cells were produced by Lean, 41/41
+  fixture expectations passed, and 52 rows retained (31 positive and 21 negative) with no
+  certificate-contract issue. N26 exact-20 completed 20 unique terminals with 5 retained, 12 not
+  applicable, and 3 rejected; all five retained negatives have checked source proofs, exact
+  refutations, and boundary separators. That generation made two Lean requests, used 22.803
+  seconds of Lean time and 23.82 seconds wall time, and peaked at 8,289,312,768 bytes RSS. The
+  controller then rejected each command because the one-time LeanInteract/Lake build prelude
+  preceded its valid trailing JSON object; explicit forced replay and later family gates were not
+  reached. The exact raw stdout was preserved in the predecessor diagnostics and no label,
+  certificate, journal, cache, or runner artifact was altered to diagnose it.
+- 2026-09-03 — froze the additive Wave 3 `r1` recovery controller recorded above before launch.
+  It preserves the predecessor controls and their failed marker unchanged, imports the exact
+  fixture and N26 receipts from SHA-bound raw stdout, and resumes the same run IDs without replacing
+  original counters. Independent checks passed shell syntax, Ruff lint/format, Python AST parsing,
+  exact 0700 modes and hashes, unique trailing-JSON extraction, content-addressed raw validation,
+  and simulated index-written/receipt-missing recovery. Its verifier independently requires the
+  original 28 roots, all 560 source=`lean` operation cells, the complete expected capture set,
+  forced-resume/zero-call replay evidence, exact certificates and integrity, and the manual-review
+  stop boundary. At this prelaunch boundary the `r1` session is absent, its supervisor journal and
+  terminal/failure markers are absent, the shared resource ledger is empty, and the existing output
+  is intentionally required. Concurrent Wave 5 has already completed all 80 pinned input shards,
+  all 256 independent output shards, and its deterministic 1,000-row zero-Lean membership audit.
+  Its manifest records 4,278,539 inputs, 2,013,342 valid rows, 1,745,040 normalized contextual
+  output roots, zero Lean calls, and the pinned run ID
+  `fdc68ee4247517698f9e89c3a90818585eea62e9c5296a06b33e1c318d29b781`; the detached supervisor
+  started its final inventory verifier at 2026-09-03T17:10:38.432235+00:00 with no active failure.
