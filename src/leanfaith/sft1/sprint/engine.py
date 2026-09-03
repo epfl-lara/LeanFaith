@@ -345,6 +345,8 @@ class ProcessResult:
 class RenderResult:
     batch: ClosedExprBatchResult
     rebuild_hashes: dict[int, tuple[str, str]]
+    status: str
+    infrastructure_error: str | None
 
 
 class SprintSession:
@@ -430,7 +432,21 @@ class SprintSession:
                         str(entry["reference_alpha_hash"]),
                         str(entry["candidate_alpha_hash"]),
                     )
-        return RenderResult(batch=batch, rebuild_hashes=rebuild)
+        last_result = counting.last_result
+        return RenderResult(
+            batch=batch,
+            rebuild_hashes=rebuild,
+            status=(
+                last_result.status.value
+                if last_result is not None
+                else LeanStatus.INTERNAL_ERROR.value
+            ),
+            infrastructure_error=(
+                last_result.infrastructure_error
+                if last_result is not None
+                else "renderer backend returned no result"
+            ),
+        )
 
 
 class _CountingBackend:

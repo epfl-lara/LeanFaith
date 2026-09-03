@@ -412,6 +412,58 @@ def test_singleton_infrastructure_failure_is_bounded_and_left_retryable(
     assert failures == []
 
 
+def test_singleton_render_infrastructure_failure_is_bounded_and_left_retryable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class RenderSession:
+        def __init__(self) -> None:
+            self.calls: list[str] = []
+
+        def run_render(
+            self,
+            pairs: Sequence[tuple[str, str]],
+            *,
+            statements: Mapping[str, str],
+            scope: str,
+            request_id: str,
+        ) -> object:
+            del pairs, statements, scope
+            self.calls.append(request_id)
+            return type(
+                "Rendered",
+                (),
+                {
+                    "status": LeanStatus.TIMEOUT.value,
+                    "infrastructure_error": "injected timeout",
+                    "batch": type("Batch", (), {"failures": (object(),)})(),
+                    "rebuild_hashes": {},
+                },
+            )()
+
+    runner = SprintRunner.__new__(SprintRunner)
+    runner.run_id = "render-infrastructure-retry"
+    runner.batches = 1
+    runner.backend = _FakeBackend()
+    runner.statements = {}
+    runner.scope = "scope:test"
+    session = RenderSession()
+    terminals: list[tuple[object, ...]] = []
+    monkeypatch.setattr(runner, "open_session", lambda: session)
+    monkeypatch.setattr(runner, "finalize_terminal", lambda *args, **kwargs: terminals.append(args))
+
+    with pytest.raises(SprintRunnerError, match="render infrastructure failed"):
+        runner.render_chunk(
+            [("Example.root", "P18_SYMMETRIZE_EQUALITY_V1", {}, {})],
+            process_request_hash="a" * 64,
+            final=True,
+        )
+
+    assert len(session.calls) == 2
+    assert session.calls[0] != session.calls[1]
+    assert runner.backend.resets == 1
+    assert terminals == []
+
+
 @pytest.mark.parametrize("status", [LeanStatus.INVALID.value, LeanStatus.VALID_WITH_SORRY.value])
 def test_deterministic_batch_failure_is_terminal_without_recursive_bisection(
     monkeypatch: pytest.MonkeyPatch, status: str

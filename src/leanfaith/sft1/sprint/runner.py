@@ -1003,10 +1003,14 @@ class SprintRunner:
         *,
         process_request_hash: str,
         final: bool = False,
+        infrastructure_attempt: int = 0,
     ) -> bool:
         session = self.open_session()
         pairs = [(name, operation) for name, operation, _, _ in chunk]
-        request_id = f"{self.run_id}:render:{self.batches}:" + hash_canonical(pairs)[:16]
+        request_id = (
+            f"{self.run_id}:render:{self.batches}:attempt-{infrastructure_attempt}:"
+            + hash_canonical(pairs)[:16]
+        )
         try:
             rendered = session.run_render(
                 pairs, statements=self.statements, scope=self.scope, request_id=request_id
@@ -1020,6 +1024,28 @@ class SprintRunner:
             )
             return True
         batch = rendered.batch
+        render_infrastructure_failure = rendered.status in {
+            LeanStatus.CRASH.value,
+            LeanStatus.INTERNAL_ERROR.value,
+            LeanStatus.TIMEOUT.value,
+        }
+        if render_infrastructure_failure:
+            if infrastructure_attempt + 1 < INFRASTRUCTURE_MAX_ATTEMPTS:
+                if self.backend is not None:
+                    self.backend.reset_session()
+                return self.render_chunk(
+                    chunk,
+                    process_request_hash=process_request_hash,
+                    final=final,
+                    infrastructure_attempt=infrastructure_attempt + 1,
+                )
+            if not final:
+                return False
+            detail = rendered.infrastructure_error or rendered.status
+            raise SprintRunnerError(
+                "Lean render infrastructure failed after bounded retries without "
+                f"a terminal journal record: request_{rendered.status}:{detail[:300]}"
+            )
         if batch.failures:
             if not final:
                 return False
