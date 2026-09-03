@@ -40,7 +40,13 @@ VIEW_SIDECAR_FIELDS = {
 
 
 def _without_view_fields(sidecar: Mapping[str, Any]) -> dict[str, Any]:
-    return {k: v for k, v in sidecar.items() if k not in VIEW_SIDECAR_FIELDS}
+    result = {k: v for k, v in sidecar.items() if k not in VIEW_SIDECAR_FIELDS}
+    cache = result.get("cache")
+    if isinstance(cache, Mapping):
+        # Snapshot locations are assigned only during release compaction. They do not
+        # change the source record that the compacted sidecar must match.
+        result["cache"] = {**cache, "snapshot": None}
+    return result
 
 
 REPLAY_SEMANTICS = (
@@ -469,6 +475,7 @@ def validate_view(
         int(manifest.get("input_records", 0))
         - sum(int(v) for v in (manifest.get("screen_rejections") or {}).values())
         - int(manifest.get("duplicates_removed", 0))
+        - int(manifest.get("repeated_input_records_dropped", 0))
         - int(manifest.get("conflicting_rows_rejected", 0))
         - int(manifest.get("view_dropped", 0))
     )
@@ -494,6 +501,7 @@ def validate_view(
         repo_root=repo_root,
         cache_root=staging_root / "cache",
         release_dir=compacted_dir,
+        allow_multiple_project_pins=bool(manifest.get("multiple_project_pins_allowed")),
     )
     if not provenance["consistent"]:
         for text in provenance["issues"]:

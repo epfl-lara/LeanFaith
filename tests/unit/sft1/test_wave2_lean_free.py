@@ -8,6 +8,7 @@ import yaml
 
 from leanfaith.config.paths import find_repo_root
 from leanfaith.sft1.sprint.engine import OPERATIONS, operation_mask, operations_in_mask
+from leanfaith.sft1.sprint.integrity import _without_view_fields
 from leanfaith.sft1.sprint.inventory import wave2_applicability, write_wave2_census
 from leanfaith.sft1.sprint.runner import load_sprint_config
 from leanfaith.sft1.sprint.square import (
@@ -157,3 +158,19 @@ def test_overlapping_runs_collapse_only_exact_repeated_pair_ids() -> None:
     collision = {**first, "row_hash": "different"}
     with pytest.raises(SquareError, match="pair ID collision across source runs"):
         collapse_exact_repeated_records([first, collision])
+
+
+def test_integrity_source_match_ignores_release_cache_snapshot_location() -> None:
+    source = {
+        "pair_id": "pair:a",
+        "cache": {"key": "cache:a", "snapshot": None},
+        "orientation": "square_fixed",
+    }
+    released = {
+        **source,
+        "cache": {
+            "key": "cache:a",
+            "snapshot": {"file": "cache_records/shard-0001.jsonl", "line": 0},
+        },
+    }
+    assert _without_view_fields(source) == _without_view_fields(released)
