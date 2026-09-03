@@ -543,7 +543,10 @@ def publish_run(
         repo_id=repo_id,
         repo_type=REPO_TYPE,
         operations=operations,
-        commit_message=f"sft1 sprint v1: publish {run_id} ({manifest.get('retained_rows')} rows)",
+        commit_message=(
+            f"sft1 {prefix.split('/', 1)[0].replace('_', ' ')}: publish {run_id} "
+            f"({manifest.get('retained_rows')} rows)"
+        ),
         parent_commit=parent,
     )
     revision = str(commit.oid)
