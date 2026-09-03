@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import tempfile
-from collections.abc import Mapping, Sequence
+import time
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal, NoReturn
@@ -32,6 +34,82 @@ _SYSTEM_PROMPT = (
     "Follow the supplied LeanFaith task exactly. Do not use tools. Return only the JSON object "
     "required by the supplied schema."
 )
+
+
+# The Claude CLI reports an account session/usage limit as a successful-looking result
+# wrapper with ``is_error: true`` and a nonzero exit. Treating it as a failed judge call
+# silently discarded every slot for the rest of the window (shard 3, 2026-09-02 22:05Z to
+# 00:00Z). The judge instead waits it out and retries the same call; the wait is recorded in
+# the capture attempt.
+CLAUDE_SESSION_LIMIT_POLL_SECONDS = 900.0
+CLAUDE_SESSION_LIMIT_MAXIMUM_WAIT_SECONDS = 8 * 3600.0
+_SESSION_LIMIT_PATTERN = re.compile(
+    r"(session|usage|rate)[ -]limit|hit your .*limit|resets? (at )?\d", re.IGNORECASE
+)
+
+
+def claude_session_limit_message(exit_code: int | None, stdout: bytes) -> str | None:
+    """The limit message when a Claude CLI capture is an account-limit refusal, else None."""
+
+    if exit_code == 0:
+        return None
+    try:
+        wrapper = json.loads(stdout.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        return None
+    if not isinstance(wrapper, dict) or wrapper.get("is_error") is not True:
+        return None
+    text = str(wrapper.get("result", ""))
+    return text if _SESSION_LIMIT_PATTERN.search(text) else None
+
+
+def run_claude_with_session_limit_wait[CaptureT](
+    execute_once: Callable[[], CaptureT],
+    *,
+    call_key: str,
+    sleep: Callable[[float], None] = time.sleep,
+    poll_seconds: float | None = None,
+    maximum_wait_seconds: float | None = None,
+) -> tuple[CaptureT, list[dict[str, object]]]:
+    """Execute a Claude CLI call, waiting out account session limits instead of failing."""
+
+    poll = CLAUDE_SESSION_LIMIT_POLL_SECONDS if poll_seconds is None else poll_seconds
+    maximum = (
+        CLAUDE_SESSION_LIMIT_MAXIMUM_WAIT_SECONDS
+        if maximum_wait_seconds is None
+        else maximum_wait_seconds
+    )
+    waited = 0.0
+    waits: list[dict[str, object]] = []
+    while True:
+        capture = execute_once()
+        message = claude_session_limit_message(
+            getattr(capture, "exit_code", None), getattr(capture, "stdout", b"")
+        )
+        if message is None or waited >= maximum:
+            return capture, waits
+        waits.append(
+            {
+                "at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                "message": message[:200],
+                "sleep_seconds": poll,
+                "waited_seconds_before": waited,
+            }
+        )
+        print(
+            json.dumps(
+                {
+                    "event": "claude_session_limit_wait",
+                    "call_key": call_key,
+                    "message": message[:120],
+                    "waited_seconds": waited,
+                    "sleep_seconds": poll,
+                }
+            ),
+            flush=True,
+        )
+        sleep(poll)
+        waited += poll
 
 
 class StructuredProviderError(RuntimeError):
@@ -495,14 +573,22 @@ class CliStructuredProvider:
                 "--output-format",
                 "json",
             )
-            claude_capture = SubprocessClaudeCliExecutor().execute(
-                argv=argv,
-                prompt=prompt.encode("utf-8"),
-                cwd=workspace,
-                env=child_env,
-                timeout_seconds=self.pin.timeout_seconds,
-                termination_grace_seconds=self.pin.termination_grace_seconds,
+            claude_capture, session_limit_waits = run_claude_with_session_limit_wait(
+                lambda: SubprocessClaudeCliExecutor().execute(
+                    argv=argv,
+                    prompt=prompt.encode("utf-8"),
+                    cwd=workspace,
+                    env=child_env,
+                    timeout_seconds=self.pin.timeout_seconds,
+                    termination_grace_seconds=self.pin.termination_grace_seconds,
+                ),
+                call_key=call_key,
             )
+            if session_limit_waits:
+                _atomic(
+                    attempt_dir / "session_limit_waits.json",
+                    canonical_json_bytes({"waits": session_limit_waits}) + b"\n",
+                )
             raw_streams = {"stdout": claude_capture.stdout, "stderr": claude_capture.stderr}
             if claude_capture.status != "completed" or claude_capture.exit_code != 0:
                 process_failure = (

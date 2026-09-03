@@ -12,7 +12,7 @@ from collections import Counter
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Literal, Protocol
+from typing import Literal, Protocol, cast
 
 from pydantic import ValidationError
 
@@ -273,6 +273,7 @@ def _attempt_record(
                 "raw_response_path": lean.raw_response_path,
                 "detail": lean.detail,
                 "attribution": getattr(lean, "attribution", None),
+                "timeout": getattr(lean, "lean_timeout", False) is True,
             }
         ),
         "judge": None if judge is None else judge.model_dump(mode="json"),
@@ -1230,6 +1231,12 @@ def run_one_root(
                 ),
                 "inaccessible_name_rejections": sum(
                     row.get("status") == "inaccessible_name_rejected" for row in invalid_rows
+                ),
+                "lean_timeouts": sum(
+                    row.get("status") == "lean_invalid"
+                    and isinstance(row.get("lean"), Mapping)
+                    and cast(Mapping[str, object], row["lean"]).get("timeout") is True
+                    for row in invalid_rows
                 ),
                 "proposer_schema_rejections": sum(
                     row.get("status") == "proposer_rejected" for row in invalid_rows

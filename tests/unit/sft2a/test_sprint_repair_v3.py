@@ -5,6 +5,7 @@ thresholds, the canary role and its chain, and the deterministic defect-class se
 from __future__ import annotations
 
 import json
+import re
 from collections.abc import Sequence
 from dataclasses import replace
 from pathlib import Path
@@ -893,3 +894,121 @@ def test_replay_accepts_this_runs_historical_config_hashes(tmp_path: Path) -> No
     )
     empty = SimpleNamespace(output_root=tmp_path / "none", base=base, sha256="s")
     assert run_config_hashes(cast(Any, empty)) == {"s"}
+
+
+# ---- Lean timeout as candidate-local, session-limit wait, and reopen -----------------------------
+
+
+def test_v3_candidate_timeout_becomes_cached_candidate_local_invalid(tmp_path: Path) -> None:
+    from leanfaith.lean.protocol import LeanRequest, LeanResult, LeanStatus
+    from leanfaith.sft2a.config import load_sft2a_config
+
+    class _Backend:
+        def __init__(self) -> None:
+            self.calls: list[str] = []
+
+        def run(self, request: LeanRequest) -> LeanResult:
+            self.calls.append(request.request_id)
+            timed_out = re.search(r'^lfSft2aSignatureV3 "', request.code or "", re.M) is not None
+            return LeanResult(
+                request_id=request.request_id,
+                request_hash="h" + str(len(self.calls)),
+                context_id=request.context_id,
+                context_fingerprint="fp",
+                status=LeanStatus.TIMEOUT if timed_out else LeanStatus.VALID,
+                messages=(),
+                elapsed_ms=5,
+                infrastructure_error="TimeoutError: killed" if timed_out else None,
+            )
+
+        def close(self) -> None:
+            return None
+
+    base = load_sft2a_config(
+        REPO / "configs/sft2a/closure_aware_v5_2_sprint_v3_authoring.yaml", verify_binaries=False
+    )
+    staging = str(tmp_path / "staging")
+    config = base.config.model_copy(update={"staging_root": staging})
+    loaded = replace(base, config=config)
+    backend = _Backend()
+    oracle = lean_oracle.SignatureOracle(loaded, backend=cast(Any, backend), cache_version="v3")
+    result = oracle.elaborate("∀ (p : Prop), p → p", endpoint_role="candidate")
+    assert result.status == "invalid" and result.lean_timeout is True
+    assert result.attribution == "candidate_local" and result.detail.startswith("lean_timeout")
+    again = oracle.elaborate("∀ (p : Prop), p → p", endpoint_role="candidate")
+    assert again.cache_hit is True and again.lean_timeout is True and again.status == "invalid"
+    reference = oracle.elaborate("∀ (p : Prop), p → p", endpoint_role="reference")
+    assert reference.status == "infrastructure" and reference.lean_timeout is False
+
+
+def test_claude_session_limit_wait_retries_until_the_limit_clears() -> None:
+    from types import SimpleNamespace
+
+    from leanfaith.sft2a.providers import (
+        claude_session_limit_message,
+        run_claude_with_session_limit_wait,
+    )
+
+    limited = json.dumps(
+        {
+            "type": "result",
+            "subtype": "success",
+            "is_error": True,
+            "result": "You've hit your session limit · resets 12am (UTC)",
+        }
+    ).encode()
+    assert claude_session_limit_message(1, limited) is not None
+    assert claude_session_limit_message(0, limited) is None
+    assert claude_session_limit_message(1, b"not json") is None
+    assert (
+        claude_session_limit_message(
+            1, json.dumps({"is_error": True, "result": "some other failure"}).encode()
+        )
+        is None
+    )
+    captures = [
+        SimpleNamespace(exit_code=1, stdout=limited),
+        SimpleNamespace(exit_code=1, stdout=limited),
+        SimpleNamespace(exit_code=0, stdout=b'{"type":"result","is_error":false}'),
+    ]
+    slept: list[float] = []
+    capture, waits = run_claude_with_session_limit_wait(
+        lambda: captures.pop(0),
+        call_key="k",
+        sleep=slept.append,
+        poll_seconds=7.0,
+        maximum_wait_seconds=100.0,
+    )
+    assert capture.exit_code == 0 and slept == [7.0, 7.0] and len(waits) == 2
+    assert waits[1]["waited_seconds_before"] == 7.0
+    # The wait is bounded: after the maximum the limited capture is returned as a failure.
+    endless = [SimpleNamespace(exit_code=1, stdout=limited) for _ in range(5)]
+    capture, waits = run_claude_with_session_limit_wait(
+        lambda: endless.pop(0),
+        call_key="k",
+        sleep=lambda _s: None,
+        poll_seconds=50.0,
+        maximum_wait_seconds=100.0,
+    )
+    assert capture.exit_code == 1 and len(waits) == 2
+
+
+def test_root_state_reopen_allows_a_new_generation_only_from_complete(tmp_path: Path) -> None:
+    from leanfaith.sft2a.parallel_rehearsal import ParallelRehearsalError, ParallelRootStateMachine
+
+    states = ParallelRootStateMachine(tmp_path / "root_state.jsonl", maximum_workers=4)
+    with pytest.raises(ParallelRehearsalError):
+        states.reopen(root_id="r1", worker_id="recovery", reason="judge_provider_outage")
+    states.claim(root_id="r1", worker_id="w1")
+    with pytest.raises(ParallelRehearsalError):
+        states.reopen(root_id="r1", worker_id="recovery", reason="judge_provider_outage")
+    states.complete(root_id="r1", worker_id="w1", manifest_hash="m1")
+    assert states.claim(root_id="r1", worker_id="w2") == "replay_complete"
+    states.reopen(root_id="r1", worker_id="recovery", reason="judge_provider_outage")
+    roots = cast(dict[str, Any], states.snapshot()["roots"])
+    assert roots["r1"]["status"] == "reopened" and roots["r1"]["prior_manifest_hash"] == "m1"
+    assert states.claim(root_id="r1", worker_id="w3") == "claimed"
+    states.complete(root_id="r1", worker_id="w3", manifest_hash="m2")
+    roots = cast(dict[str, Any], states.snapshot()["roots"])
+    assert roots["r1"]["status"] == "complete" and roots["r1"]["generation"] == 1
+    assert roots["r1"]["manifest_hash"] == "m2"

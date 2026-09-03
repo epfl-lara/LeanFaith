@@ -469,24 +469,56 @@ class ParallelRootStateMachine:
             root_id = event.get("root_id")
             worker_id = event.get("worker_id")
             if (
-                phase not in {"claimed", "slot_checkpoint", "crashed", "reclaimed", "complete"}
+                phase
+                not in {
+                    "claimed",
+                    "slot_checkpoint",
+                    "crashed",
+                    "reclaimed",
+                    "complete",
+                    "reopened",
+                }
                 or not isinstance(root_id, str)
                 or not isinstance(worker_id, str)
             ):
                 raise ParallelRehearsalError("parallel root state event is malformed")
             current = roots.get(root_id)
             if phase == "claimed":
-                if current is not None:
+                if current is not None and current.get("status") != "reopened":
                     raise ParallelRehearsalError("root has a second initial claim")
                 if worker_id in workers:
                     raise ParallelRehearsalError("worker owns more than one unfinished root")
+                claim_generation = 0
+                if current is not None:
+                    prior_generation = current.get("generation", 0)
+                    claim_generation = (
+                        int(prior_generation) + 1
+                        if isinstance(prior_generation, int)
+                        and not isinstance(prior_generation, bool)
+                        else 1
+                    )
                 roots[root_id] = {
                     "status": "active",
                     "owner": worker_id,
-                    "generation": 0,
+                    "generation": claim_generation,
                     "checkpoints": {},
+                    **({"reopened_from": current} if current is not None else {}),
                 }
                 workers[worker_id] = root_id
+                continue
+            if phase == "reopened":
+                # Additive recovery: a completed root whose judgments were lost to an external
+                # provider outage is reopened for regeneration; its prior manifest hash stays
+                # recorded and the next claim starts a new generation.
+                if current is None or current.get("status") != "complete":
+                    raise ParallelRehearsalError("only a completed root may be reopened")
+                reason = event.get("reason")
+                if not isinstance(reason, str) or not reason:
+                    raise ParallelRehearsalError("root reopen lacks a reason")
+                current["status"] = "reopened"
+                current["prior_manifest_hash"] = current.get("manifest_hash")
+                current["reopen_reason"] = reason
+                current["owner"] = None
                 continue
             if current is None:
                 raise ParallelRehearsalError("root transition lacks an initial claim")
@@ -551,7 +583,11 @@ class ParallelRootStateMachine:
                 worker_id = str(event["worker_id"])
                 phase = event["phase"]
                 current = roots.get(root_id)
-                if phase == "claimed" and current is not None:
+                if (
+                    phase == "claimed"
+                    and current is not None
+                    and current.get("status") != "reopened"
+                ):
                     if current.get("status") == "complete":
                         return "replay_complete"
                     if current.get("status") == "active" and current.get("owner") == worker_id:
@@ -612,6 +648,11 @@ class ParallelRootStateMachine:
                 "worker_id": worker_id,
                 "prior_owner": prior_worker_id,
             }
+        )
+
+    def reopen(self, *, root_id: str, worker_id: str, reason: str) -> None:
+        self._transition(
+            {"phase": "reopened", "root_id": root_id, "worker_id": worker_id, "reason": reason}
         )
 
     def complete(self, *, root_id: str, worker_id: str, manifest_hash: str) -> None:

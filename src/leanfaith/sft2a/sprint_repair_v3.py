@@ -1155,6 +1155,82 @@ def run_v3_repair_gates(
     return receipt
 
 
+def reopen_judge_outage_roots(config_path: Path) -> dict[str, object]:
+    """Reopen every completed root of a stopped shard whose judge calls were rejected by a
+    provider outage (``provider_rejections > 0``), archiving its outputs under
+    ``roots_reopened/`` so a resume regenerates only those roots. Zero Lean, zero provider
+    calls; refuses a live session, a held claim, or a sealed terminal."""
+
+    from leanfaith.host_resources import list_reservations
+    from leanfaith.sft2a.parallel_rehearsal import ParallelRootStateMachine
+    from leanfaith.sft2a.provider_rehearsal_v52 import _root_output, _sample_rows
+    from leanfaith.sft2a.sprint_pilot_v52 import _tmux_session_exists
+
+    loaded = load_provider_rehearsal_v52(config_path)
+    session = str(loaded.document["tmux_session"])
+    if _tmux_session_exists(session):
+        raise SprintRepairV3Error(f"cannot reopen roots while {session} is alive")
+    task = str(loaded.document["resource_task"])
+    if any(item.task == task for item in list_reservations()):
+        raise SprintRepairV3Error("cannot reopen roots while the run holds a Lean claim")
+    terminal_path = loaded.output_root / "detached/terminal_status.json"
+    if terminal_path.is_file():
+        status = _object(terminal_path).get("status")
+        if status in {"complete", "threshold_failed"}:
+            raise SprintRepairV3Error(f"cannot reopen roots of a sealed run: {status}")
+    states = ParallelRootStateMachine(loaded.output_root / "root_state.jsonl", maximum_workers=4096)
+    snapshot = cast(Mapping[str, object], states.snapshot()["roots"])
+    stamp = _now().replace(":", "").replace("+00:00", "Z")
+    reopened: list[dict[str, object]] = []
+    lost_rows = 0
+    for row in _sample_rows(loaded.sample_path):
+        root_id = str(cast(Mapping[str, object], row["root"])["root_id"])
+        state = snapshot.get(root_id)
+        if not isinstance(state, Mapping) or state.get("status") != "complete":
+            continue
+        root_output = _root_output(loaded, root_id)
+        manifest_path = root_output / "manifest.json"
+        if not manifest_path.is_file():
+            continue
+        manifest = _object(manifest_path)
+        counts = cast(Mapping[str, object], manifest.get("counts", {}))
+        rejections = int(cast(int, counts.get("provider_rejections", 0)))
+        if rejections <= 0:
+            continue
+        archive = loaded.output_root / "roots_reopened" / root_output.name / stamp
+        archive.parent.mkdir(parents=True, exist_ok=True)
+        root_output.rename(archive)
+        states.reopen(
+            root_id=root_id, worker_id="judge-outage-recovery", reason="judge_provider_outage"
+        )
+        lost_rows += 4 - int(cast(int, counts.get("accepted", 0)))
+        reopened.append(
+            {
+                "root_id": root_id,
+                "provider_rejections": rejections,
+                "accepted_before": counts.get("accepted", 0),
+                "archived_to": str(archive),
+                "prior_manifest_hash": state.get("manifest_hash"),
+            }
+        )
+    receipt: dict[str, object] = {
+        "version": "leanfaith_sft2a_judge_outage_reopen_v1",
+        "provider_config_sha256": loaded.sha256,
+        "reopened_roots": len(reopened),
+        "slots_at_stake": lost_rows,
+        "roots": reopened,
+        "reopened_at": _now(),
+        "lean_requests_executed": 0,
+        "provider_calls_executed": 0,
+        "resume_command": (
+            f"uv run python -m leanfaith.sft2a --provider-rehearsal-config {config_path} "
+            "resume-sprint-pilot-v5-2"
+        ),
+    }
+    _atomic_replace_json(loaded.output_root / "detached/reopen_receipt.json", receipt)
+    return receipt
+
+
 __all__ = [
     "CANARY_MANIFEST_VERSION",
     "REPAIR_GATES_VERSION",
@@ -1169,6 +1245,7 @@ __all__ = [
     "is_open_rendering_failure",
     "load_repair_plan_v3",
     "regenerate_sprint_v3_shard_configs",
+    "reopen_judge_outage_roots",
     "run_v3_repair_gates",
     "select_adversarial_roots",
     "select_by_class",

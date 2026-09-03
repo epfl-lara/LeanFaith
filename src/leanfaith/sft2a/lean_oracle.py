@@ -77,6 +77,9 @@ class SignatureOracleResult:
     # v3 only: which layer an invalid result is attributable to (None for valid/infrastructure
     # results and for every v1/v2 result).
     attribution: LeanAttribution | None = None
+    # v3 only: the candidate's elaboration exceeded the request timeout and was recorded as a
+    # candidate-local invalid terminal (the backend recreates its killed server lazily).
+    lean_timeout: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -1234,6 +1237,7 @@ class SignatureOracle:
                 ),
                 detail=str(cached["detail"]),
                 attribution=_attribution_literal(cached_attribution),
+                lean_timeout=cached.get("lean_timeout") is True,
             )
 
         endpoint_id = f"sft2a-signature:{endpoint_role}:{signature_sha256}"
@@ -1262,6 +1266,52 @@ class SignatureOracle:
             str(message.get("data", "")) for message in result.messages
         )
         if result.status in _INFRASTRUCTURE:
+            if (
+                effective is not None
+                and endpoint_role == "candidate"
+                and result.status == LeanStatus.TIMEOUT
+            ):
+                # v3: a candidate whose elaboration exceeds the request timeout is a
+                # candidate-local failure (the slot retries with another candidate) rather
+                # than a root crash; the backend drops the killed server and recreates it
+                # lazily. The terminal is immutable and flagged so infrastructure accounting
+                # still counts the timeout.
+                timeout_detail = "lean_timeout: " + (detail or result.status.value)
+                timeout_terminal: dict[str, object] = {
+                    "version": "leanfaith_sft2a_signature_cache_v1",
+                    "cache_key": cache_key,
+                    "key_payload": key_payload,
+                    "status": "invalid",
+                    "signature_sha256": signature_sha256,
+                    "goal_v1": None,
+                    "sidecar": None,
+                    "lean_status": result.status.value,
+                    "request_hash": result.request_hash,
+                    "elapsed_ms": result.elapsed_ms,
+                    "raw_response_path": result.raw_response_path,
+                    "detail": timeout_detail,
+                    "attribution": "candidate_local",
+                    "lean_timeout": True,
+                    "prelude_line_count": int(cast_int(effective.record["prelude_line_count"])),
+                    "effective_context_fingerprint": effective.fingerprint,
+                    "command_template_version": COMMAND_TEMPLATE_VERSION_V3,
+                }
+                _atomic(cache_path, canonical_json_bytes(timeout_terminal) + b"\n")
+                return SignatureOracleResult(
+                    status="invalid",
+                    cache_key=cache_key,
+                    cache_hit=False,
+                    signature_sha256=signature_sha256,
+                    goal_v1=None,
+                    sidecar=None,
+                    lean_status=result.status.value,
+                    request_hash=result.request_hash,
+                    elapsed_ms=result.elapsed_ms,
+                    raw_response_path=result.raw_response_path,
+                    detail=timeout_detail,
+                    attribution="candidate_local",
+                    lean_timeout=True,
+                )
             return SignatureOracleResult(
                 status="infrastructure",
                 cache_key=cache_key,

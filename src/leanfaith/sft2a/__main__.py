@@ -85,6 +85,7 @@ from leanfaith.sft2a.sprint_repair_v3 import (
     freeze_sprint_canary_v3,
     load_repair_plan_v3,
     regenerate_sprint_v3_shard_configs,
+    reopen_judge_outage_roots,
     run_v3_repair_gates,
 )
 from leanfaith.sft2a.sprint_scale_v52 import (
@@ -107,6 +108,7 @@ SPRINT_PILOT_COMMANDS = frozenset(
         "resume-sprint-pilot-v5-2",
         "detached-sprint-pilot-v5-2-worker",
         "sprint-pilot-v5-2-health",
+        "reopen-judge-outage-roots",
     }
 )
 SPRINT_POOL_COMMANDS = frozenset(
@@ -458,6 +460,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     elif arguments.command == "sprint-pilot-v5-2-health":
         assert provider_loaded is not None
         result = sprint_pilot_health_v52(provider_loaded)
+    elif arguments.command == "reopen-judge-outage-roots":
+        assert provider_loaded is not None
+        result = reopen_judge_outage_roots(provider_loaded.path)
     elif arguments.command == "run-audit-only-kimi-v5-2":
         assert audit_only_loaded is not None
         result = run_audit_only_kimi_v52(audit_only_loaded)

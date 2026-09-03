@@ -570,13 +570,20 @@ def measure_infrastructure_failures(loaded: LoadedProviderRehearsalV52) -> dict[
             else:
                 provider_failures += 1
     lean_failures = 0
+    lean_timeouts = 0
     for row in _sample_rows(loaded.sample_path):
         root = OneRootConfig.model_validate(row["root"])
         attempts_path = _root_output(loaded, root.root_id) / "attempts/terminal_attempts.jsonl"
         if attempts_path.is_file():
             for line in attempts_path.read_text(encoding="utf-8").splitlines():
-                if line.strip() and json.loads(line).get("status") == "lean_infrastructure":
+                if not line.strip():
+                    continue
+                record = json.loads(line)
+                if record.get("status") == "lean_infrastructure":
                     lean_failures += 1
+                lean_record = record.get("lean")
+                if isinstance(lean_record, Mapping) and lean_record.get("timeout") is True:
+                    lean_timeouts += 1
     crashes = 0
     state_path = loaded.output_root / "root_state.jsonl"
     if state_path.is_file():
@@ -584,12 +591,13 @@ def measure_infrastructure_failures(loaded: LoadedProviderRehearsalV52) -> dict[
             if line.strip() and json.loads(line).get("phase") == "crashed":
                 crashes += 1
     finalized_calls = sum(state.get("phase") == "finalized" for state in states.values())
-    failures = provider_failures + lean_failures + crashes
+    failures = provider_failures + lean_failures + lean_timeouts + crashes
     denominator = finalized_calls + provider_failures
     return {
         "provider_infrastructure_failures": provider_failures,
         "provider_schema_invalid_attempts": schema_invalid_attempts,
         "lean_infrastructure_attempts": lean_failures,
+        "lean_timeout_attempts": lean_timeouts,
         "root_crashes": crashes,
         "finalized_provider_calls": finalized_calls,
         "infrastructure_failures": failures,
