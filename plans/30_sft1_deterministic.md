@@ -106,7 +106,7 @@ and terminal marker `terminal.json` in its control root. The fixed output lock i
 Its exact launch command is:
 
 ```text
-tmux new-session -d -s leanfaith-sft1-wave3-pregate-a13363f332d3 -c /localhome/milikic/LeanFaith-sft1-wave3-exec-a13363f332d3 'exec /storage/milikic/leanfaith/value_first/sft1_deterministic_v1/wave3/full_scale_v1/control/w3fs-a13363f332d3/run_wave3_pregate.sh </dev/null >>/storage/milikic/leanfaith/value_first/sft1_deterministic_v1/wave3/full_scale_v1/control/w3fs-a13363f332d3/tmux.log 2>&1'
+tmux new-session -d -s leanfaith-sft1-wave3-pregate-a13363f332d3 -c /localhome/milikic/LeanFaith-sft1-wave3-exec-a13363f332d3 '/storage/milikic/leanfaith/value_first/sft1_deterministic_v1/wave3/full_scale_v1/control/w3fs-a13363f332d3/run_wave3_pregate.sh </dev/null >>/storage/milikic/leanfaith/value_first/sft1_deterministic_v1/wave3/full_scale_v1/control/w3fs-a13363f332d3/tmux.log 2>&1'
 ```
 
 Wave 5 uses tmux session `leanfaith-sft1-wave5-inventory-a13363f332d3`, output root
@@ -118,10 +118,12 @@ journal `supervisor.jsonl`, log `tmux.log`, failure marker `failure.json`, and t
 Its exact launch command is:
 
 ```text
-tmux new-session -d -s leanfaith-sft1-wave5-inventory-a13363f332d3 -c /localhome/milikic/LeanFaith-sft1-wave3-exec-a13363f332d3 'exec /storage/milikic/leanfaith/value_first/sft1_deterministic_v1/wave5/control/w3fs-a13363f332d3/run_inventory.sh </dev/null >>/storage/milikic/leanfaith/value_first/sft1_deterministic_v1/wave5/control/w3fs-a13363f332d3/tmux.log 2>&1'
+tmux new-session -d -s leanfaith-sft1-wave5-inventory-a13363f332d3 -c /localhome/milikic/LeanFaith-sft1-wave3-exec-a13363f332d3 '/storage/milikic/leanfaith/value_first/sft1_deterministic_v1/wave5/control/w3fs-a13363f332d3/run_inventory.sh </dev/null >>/storage/milikic/leanfaith/value_first/sft1_deterministic_v1/wave5/control/w3fs-a13363f332d3/tmux.log 2>&1'
 ```
 
-The same command is the recovery command, but it may be issued only after confirming that the
+Each tmux command intentionally leaves its pane shell waiting for the redirected child, keeping the
+pseudo-terminal open while the child's stdin remains closed and stdout/stderr remain durable. The
+same command is the recovery command, but it may be issued only after confirming that the
 named session is absent and inspecting durable terminal/failure state; the control-wide and fixed
 output locks prohibit duplicates, while receipts, journals, and content-addressed terminal/failure
 archives make a legitimate resume/revalidation deterministic. The finite read-only status command
@@ -2473,3 +2475,15 @@ resource use, output paths, and exact remaining ETA. Do not run training.
   control hashes, executable modes, runtime pins, and read-only `not_started` status passed. The
   launch/recovery/status contract is recorded above before any job is started; no publication,
   mixed-200 run, typed-1,000 audit, SFT2 work, old-release mutation, or training occurred here.
+- 2026-09-03 — the first recorded tmux invocation exposed an infrastructure-only startup defect:
+  using `exec` after redirecting all three child streams closed the pane pseudo-terminal, so tmux
+  immediately sent SIGHUP. Wave 3 had made no supervisor event and Wave 5 durably recorded only
+  `supervisor_started` plus preflight SIGHUP; neither created an inventory row, Lean run, or host
+  claim. A bounded three-second local trace proved all source/config/runtime checks and target
+  hashes, then intentionally terminated the first fixture request; its empty temporary receipt was
+  moved to the task-owned diagnostics directory, the typed runner released its reservation, and
+  the resulting failure marker is recoverable by the existing content-addressed archive path. A
+  two-call detached probe confirmed the corrected no-`exec` wrapper keeps the pane shell alive
+  while the child retains closed stdin and redirected output. The exact launch/recovery commands
+  above were corrected and recommitted before retry; control program contents and frozen hashes did
+  not change.
