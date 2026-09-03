@@ -2049,3 +2049,20 @@ resource use, output paths, and exact remaining ETA. Do not run training.
   rows. Actual rows were inspected across every source/family stratum with no defect. The genuine
   pairwise telemetry limitation is a 0.7557 relation-parity and 0.7748 exact-target-equality
   balanced accuracy even though the learned held-out screens pass.
+- 2026-09-03 — authorized 10K candidate phase is ready to launch from executable-code commit
+  `50d9fc170f2a64a36cd743f01b4ec8c22b4eeb97` (engine source commit `0f6f1edc…`, square-runner
+  target support commit `d7065565…`). The post-filter full eligible plan has 26,138 roots:
+  Mathlib N25/N32/N26 15,093/4,890/72, Physlib N25/N32 4,818/469, and CSLib N25/N32 684/112;
+  its durable target hashes are recorded in `wave2/full_eligible_plan.json`. The initial pilot
+  ceilings are 8,000 Mathlib N25 roots, all Mathlib N32/N26 roots, 2,500 Physlib N25 roots, and
+  all Physlib N32 plus CSLib N25/N32 roots. Exact commands are frozen in
+  `wave2/logs/pilot10k_chain.sh` (SHA-256 `cb0b8e859d67950cf270ec65d460b4aaad20d182f3ba82168d4e32185ad566c7`):
+  each source uses its pinned Wave 2 config, one persistent worker, 24 GiB measured-RSS claim,
+  24,576 MiB hard address-space ceiling, 900-second request timeout, no GPU, journaled run paths
+  under `wave2/<source>/runs/wave2_pool_*_v5`, and semantic caches under
+  `wave2/<source>/cache`. The named session is `leanfaith-sft1-wave2-pilot`, persistent log
+  `wave2/logs/pilot10k_chain.log`, and terminal marker `wave2/pilot10k_candidates_ready.json`.
+  Resume is the same script in the same worktree; terminal journals and cache make completed roots
+  zero-call. Any command failure stops the chain before its marker; unexpected certificate errors,
+  resource-ceiling violations, or insufficient retained squares stop progression before a 10K
+  release is built.
