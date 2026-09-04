@@ -27,15 +27,14 @@
 > active sprint prerequisites.
 > **REPR predecessor:** `cbc933c3623d81ba649a1f9c5107ad404389d69f` was reviewed but is
 > superseded and not consumable by SFT1
-> **Next gate:** run the frozen Wave 3 mixed-source 200-root supervisor after the completed
-> five-family manual boundary. On a pass, continue to the Wave 4 composition gate and the Wave 5
-> typed 1,000-root context/certificate audit. Wave 5 remains at
-> `complete_awaiting_typed_1000_audit`; its inventory alone does not authorize compiler
-> transformation.
-> **Compute class:** the frozen Wave 3 supervisor uses one persistent Lean worker with a 24 GiB
-> reservation/limit per typed run. The completed streamed Wave 5 inventory made zero Lean calls;
-> the combined host ceiling remains 40 GiB and no more than one of the allowed two Lean workers is
-> used at this boundary. Both jobs use named detached tmux sessions and durable finite status.
+> **Next gate:** the Wave 3 mixed-source certificate gate passed after report-only recovery, with
+> release shortcut rebalancing still required. Run the Wave 5 typed 1,000-root context/certificate
+> audit next, then the Wave 4 composition gate under a disjoint resource reservation. Compiler
+> transformation remains unauthorized until the typed audit passes.
+> **Compute class:** the Wave 5 typed audit uses the measured maximum of two persistent Lean workers
+> and the full 40 GiB host reservation. The completed streamed Wave 5 inventory and Wave 3 report
+> recovery made zero Lean calls. No Wave 4 Lean work runs concurrently with this audit. Long jobs
+> use named detached tmux sessions and durable finite status.
 > **Lean budget:** all string parsing, schema/provenance work, source filtering, joins,
 > deduplication, inventory construction, applicability selection, and deterministic sampling happen
 > before Lean. Retained rows receive exact proof/certificate checks in persistent context-grouped
@@ -272,6 +271,61 @@ The finite read-only status command is:
 
 ```text
 /localhome/milikic/LeanFaith-sft1-wave3-exec-a13363f332d3/.venv/bin/python /storage/milikic/leanfaith/value_first/sft1_deterministic_v1/wave3/full_scale_v1/control/w3mixed200-a13363f-v2/status.py
+```
+
+### Wave 3 report recovery and Wave 5 typed-audit launch contract (2026-09-04)
+
+The completed mixed run exposed two distinct outcomes. All 200 selected roots, 4,000 operation
+terminals, 250 retained pairs, exact certificates, stable-ID joins, forced resume, and three
+zero-call replays passed. All six available negative families yielded: N25/N26/N29/N30/N31/N32 =
+26/6/2/4/6/7, with N25 at 10.4%. The raw shortcut view did not pass: candidate-only balanced
+accuracy/95% upper bound was 0.8077/0.8668, reference-only 0.7760/0.8282, and family-held-out
+0.6345/0.6863. Therefore the certificate gate authorizes Wave 4 experimentation, while Wave 3
+publication remains blocked pending Lean-free balancing and offending-cell quarantine. The screen
+results are retained as release-readiness checks and were not converted into a pass.
+
+Implementation commit `10793f5e949696f75475829cc30211c2d2e31d3b` makes undefined
+single-label per-family screen metrics canonical-JSON-safe as `null` and explicitly separates the
+certificate gate from release shortcut readiness. The relevant mixed-gate and screen regression
+tests passed. The additive report-only recovery under
+`wave3/full_scale_v1/control/w3mixed200-report-v3-10793f5` made zero Lean calls and reached state
+`certificate_gate_passed_ready_for_wave4_shortcut_rebalance_required_before_wave3_release`.
+Its terminal SHA-256 is
+`4e2c3139be26a6af2345410859fd952a3baafb75a1f5466b880d3ba1bd4e3803`; the canonical certificate
+report at `wave3/full_scale_v1/gates/mixed_200_v1/mixed_200_certificate_report_v2.json` has SHA-256
+`d28c14832c87c3ccf366515ba48686b64c2173a7b5bb448bba02d18eaadabdac`. The recovery records 18
+original Lean requests, 178,175 ms Lean time, 197.179 summed runner seconds, 56 cache roots, 144
+Lean roots, and 8,376,901,632-byte peak process-tree RSS.
+
+The next detached control root is
+`/storage/milikic/leanfaith/value_first/sft1_deterministic_v1/wave5/control/typed1000-10793f5-v1`.
+It binds the clean detached execution worktree
+`/localhome/milikic/LeanFaith-sft1-wave3-exec-10793f5e9496` at the exact implementation commit,
+the immutable CPT2 inventory terminal/manifest/sample/receipt, the recovered Wave 3 certificate
+terminal, the Wave 5 config, the Lean engine, the compiler replay/certificate checker, and the Wave
+4 closure engine. `run_typed1000.sh`, `verify_typed1000.py`, and `status.py` have SHA-256
+`78660caef2c13f2cbdcffcaaaecb75225111811faaeffcbfed434a8379706c5b`,
+`b69a41d7aac16c1ab07c300cfe0581fe1160cd6ec6b3330530304c610b41aa6e`, and
+`62edfa9c3fd9654b610a8a0284254de0f4775817b44a7a749891d9f99f15ab1a`.
+Shell syntax, Ruff lint/format, Python compilation, the focused Wave 4/Wave 5 tests, clean pinned
+worktrees, absent output/terminal/failure markers, and an empty host ledger pass at this boundary.
+The runner uses two persistent workers, 40 GiB total measured-RSS reservation, synchronous
+elaboration, context-grouped batches of at most 20 roots, batches of eight requests, and retries
+only crash/internal-error/timeout terminals up to the configured two attempts. It writes per-root
+content-addressed terminals, an append-only journal, a forced zero-call replay, independent
+verification, and durable terminal/failure markers.
+
+The detached session is `leanfaith-sft1-wave5-typed1000-10793f5-v1`. Its exact launch/recovery
+command, usable only when durable state has been classified and the session is absent, is:
+
+```text
+tmux new-session -d -s leanfaith-sft1-wave5-typed1000-10793f5-v1 -c /localhome/milikic/LeanFaith-sft1-wave3-exec-10793f5e9496 '/storage/milikic/leanfaith/value_first/sft1_deterministic_v1/wave5/control/typed1000-10793f5-v1/run_typed1000.sh </dev/null >>/storage/milikic/leanfaith/value_first/sft1_deterministic_v1/wave5/control/typed1000-10793f5-v1/tmux.log 2>&1'
+```
+
+The finite read-only status command is:
+
+```text
+/localhome/milikic/LeanFaith-sft1-wave3-full-scale/.venv/bin/python /storage/milikic/leanfaith/value_first/sft1_deterministic_v1/wave5/control/typed1000-10793f5-v1/status.py
 ```
 
 ## Wave 2 diversity-and-scale sprint (closed)
@@ -2714,3 +2768,17 @@ resource use, output paths, and exact remaining ETA. Do not run training.
   20 Mathlib root plus terminal journal records were all healthy at the bounded startup check. The
   exact PIDs, hashes, paths, terminal/failure markers, recovery command, and finite status command
   are recorded above. The task now stops polling while the durable job runs.
+- 2026-09-04 — the corrected mixed-200 run completed all three projects and their zero-call
+  replays, then its report writer rejected 42 undefined per-family metrics encoded as non-finite
+  floats. Preserved that `v2` failure and every completed Lean artifact. Added canonical `null`
+  serialization plus a regression test, and separated certificate-gate success from publication
+  shortcut readiness. Additive report-only recovery at commit `10793f5e9496...` passed all
+  certificate/integrity checks with zero new Lean calls and recorded the three failing shortcut
+  screens as an explicit release blocker. Wave 3 has not been published.
+- 2026-09-04 — froze the Wave 5 typed 1,000-root audit controller recorded above after 113 focused
+  Wave 4/Wave 5 tests passed with one expected skip. It binds the exact 1,000-row stratified sample,
+  inventory evidence, recovered Wave 3 certificate terminal, clean implementation/project trees,
+  config/engine/checker hashes, two-worker/40 GiB ceiling, retry taxonomy, content-addressed root
+  terminals, forced zero-call replay, and independent terminal verification. The output root,
+  session, failure/terminal markers, recovery command, and finite status command were absent or
+  clean before launch; no Wave 4 job may overlap its full host reservation.
