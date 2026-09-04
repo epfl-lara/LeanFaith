@@ -2865,3 +2865,13 @@ resource use, output paths, and exact remaining ETA. Do not run training.
   descriptor-memory crash, a non-resumable journal/integrity failure, or violation of the one
   worker/24-GiB reservation. A successful controller marker authorizes the exact-200 build and
   every-row manual inspection; it is not itself a passed composition gate or a release.
+- 2026-09-04 — launched the exact Wave 4 gate-input command once at
+  2026-09-04T13:18:08.315020+00:00. Detached tmux session
+  `leanfaith-sft1-wave4-gate-inputs-10793f5-v1` is live with pane PID 2994050, controller shell PID
+  2994051, and first pinned runner PID 2994085. The resource ledger contains exactly
+  `SFT1-WAVE4: workers=1 rss=24GiB gpu=no` owned by that runner/session. The first N31 run started
+  from the 346-root immutable target; at the bounded startup check its append-only journal had
+  reached 4,571 bytes and retained output 53,931 bytes, with no failure or terminal marker. The
+  process tree, exact execution worktree, controller events, resource claim, and first durable
+  output advance are healthy. The task now leaves the session untouched and uses only the finite
+  status command recorded above after a meaningful terminal event.
