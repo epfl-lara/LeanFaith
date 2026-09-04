@@ -3033,3 +3033,17 @@ resource use, output paths, and exact remaining ETA. Do not run training.
   ```bash
   PYTHONPATH=/localhome/milikic/LeanFaith-sft1-wave4-exec-bec8f12/src /localhome/milikic/LeanFaith-sft1-wave3-full-scale/.venv/bin/python /storage/milikic/leanfaith/value_first/sft1_deterministic_v1/wave4/control/supplement-bec8f12-v4/control.py status
   ```
+- 2026-09-04 — launched the corrected supplement exactly once at
+  2026-09-04T18:08:41.587530+00:00 in detached tmux session
+  `leanfaith-sft1-wave4-supplement-bec8f12-v4`. Pane PID 1557215 owns controller shell PID 1557216
+  and pinned runner PID 1557865. The shared ledger contains exactly one SFT1-WAVE4 worker/24-GiB
+  claim owned by that runner/session. Preflight passed the exact clean execution, predecessor,
+  target, source-receipt, hash, novelty, and absent-output checks. At the bounded startup check the
+  N32 run had written its first deterministic Lean terminal to the append-only journal; it was an
+  ordinary `wave4_no_structural_chain` non-applicability, not a crash or certificate defect. The
+  process tree, tmux pane, controller events, output log, and resource claim were healthy and both
+  terminal markers were absent. No scheduled-monitor facility is available in this environment.
+  Per the token-efficient waiting contract, the task now stops completely without polling; a fresh
+  task should use the finite status command above after a terminal event and then continue directly
+  to the exact-200 build if `terminal.json` exists, or use the already enumerated N25 fallback only
+  if the supplement remains below 200 unique ancestries.
