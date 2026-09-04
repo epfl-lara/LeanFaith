@@ -3,7 +3,7 @@
 > **Task ID:** SFT1
 > **Status:** active
 > **Owner/session:** Codex `/root` on isolated worktree `/localhome/milikic/LeanFaith-sft1-wave3-full-scale`, branch `milikic/sft1-wave3-full-scale`, based at `92bcb1ef4e8ab6bb2a79004c1c386bf473d614ab`
-> **Last updated:** 2026-09-03
+> **Last updated:** 2026-09-04
 > **Active sprint:** additive Wave 3--5 full-scale deterministic execution. Wave 2 is closed at
 > private Hub revision `a3b5c921a24f5dedd57f1b4fb3155c163a0a48bd`; the closed 72-hour sprint,
 > all earlier releases, and their authorization/readiness history remain frozen evidence, not
@@ -27,12 +27,11 @@
 > active sprint prerequisites.
 > **REPR predecessor:** `cbc933c3623d81ba649a1f9c5107ad404389d69f` was reviewed but is
 > superseded and not consumable by SFT1
-> **Next gate:** monitor the healthy detached Wave 3 `r1` pre-gate to its
-> `awaiting_family_manual_inspection` terminal boundary. Wave 3
-> stops at `awaiting_family_manual_inspection` after fresh fixtures and the five separate
-> N26/N29/N30/N31/N32 exact-20 plus forced-resume/approximately-100/replay gates; actual row-by-row
-> review must pass before the strict 200-root mixed-source gate is launched. Wave 5 has stopped at
-> `complete_awaiting_typed_1000_audit`; its inventory does not authorize compiler transformation.
+> **Next gate:** run the frozen Wave 3 mixed-source 200-root supervisor after the completed
+> five-family manual boundary. On a pass, continue to the Wave 4 composition gate and the Wave 5
+> typed 1,000-root context/certificate audit. Wave 5 remains at
+> `complete_awaiting_typed_1000_audit`; its inventory alone does not authorize compiler
+> transformation.
 > **Compute class:** the frozen Wave 3 supervisor uses one persistent Lean worker with a 24 GiB
 > reservation/limit per typed run. The completed streamed Wave 5 inventory made zero Lean calls;
 > the combined host ceiling remains 40 GiB and no more than one of the allowed two Lean workers is
@@ -179,6 +178,65 @@ mixed-200 gate before human inspection. Wave 5 is a zero-Lean metadata/content i
 does not perform a second full Parquet reconstruction merely for inspection, and its independently
 replayed stratified 1,000-row membership audit remains a selection artifact awaiting the separate
 typed proof/context gate. No lower-confidence row is mixed into the proof-certified core.
+
+### Wave 3 manual boundary and mixed-200 launch contract (2026-09-04)
+
+The `r1` pre-gate finished at immutable terminal SHA-256
+`f917dc17cda1846541ee22b07a3ee0ad8e2139197d1767153329459e3510f7a1`; its tmux session is absent,
+its failure marker is absent, and the shared host ledger is empty. Every emitted exact-20 pair was
+read directly: 5 N26, 1 N29, 5 N30, 20 N31, and 6 N32, for 37/37 inspected rows and zero wrong
+labels. Boundary values, surviving premises, mutated conclusions, finite enumerations, and exact
+refutation kinds agree in every row. N26's 7/100 retained yield is telemetry, not a blocker. The
+five immutable family verdict SHA-256 values are:
+
+- N26: `ce0b572ce45939996b6a8b51d1ba1efdbd065b44090c8010f53364fe324da3db`;
+- N29: `2dbfb53f197a0b5c8f97b9133a9865daf99d88fe78d53661b227c9bd872a00c1`;
+- N30: `e386e62a2a42a62bec7ab3db115741a3b28c07762fb9cdbb55f96b423a0864fe`;
+- N31: `95e88c5c735c9311aac220d0157cd147b712c6532d83b567c3eb40de21b1caf4`;
+- N32: `88bdb3bd10e075cec2521fd3d7572e3f0d778fd328868cfdfd7109227c864a2d`.
+
+They live under
+`/storage/milikic/leanfaith/value_first/sft1_deterministic_v1/wave3/full_scale_v1/gates/family_manual_v1`.
+The receipt builder independently revalidated every exact-100 terminal set, retained join,
+certificate, fixture, forced resume, failure taxonomy, and zero-call replay; all five family gates
+pass together and all five are useful.
+
+The zero-Lean mixed selection is fixed at 160 Mathlib, 20 Physlib, and 20 CSLib roots. Mathlib uses
+quotas N26/N29/N30/N31/N32/preserving = 20/20/20/30/30/40; Physlib uses
+0/2/2/3/3/10; CSLib uses 1/2/2/3/3/9. The target files under
+`wave3/full_scale_v1/gates/mixed_200_v1/targets` have SHA-256
+`fd104795f0b55811d43774e0b9641cbebfb873a630db16f702ae86921ba69a97` (Mathlib),
+`3db9c8a2dc988c8a990bb902e592d873173f41be285ef0b24084b654ddaa886c` (Physlib), and
+`f60873071e354620f35d187d348e4065c9485b722e64a59324c4e60d59c05714` (CSLib). Selection is by
+the pinned inventory/project/family/site-independent hash salt
+`sft1-wave3-mixed200-a13363f-v1`; no Lean result influenced admission.
+
+The 0700 control root is
+`/storage/milikic/leanfaith/value_first/sft1_deterministic_v1/wave3/full_scale_v1/control/w3mixed200-a13363f-v1`.
+`run_wave3_mixed200.sh`, `verify_wave3_mixed200.py`, and `status.py` have SHA-256
+`91a4f262b7db58c1a584b8f9873af8ec693bc3c65509c9af5a8f665c7b576aa7`,
+`bcad615b193ba4ef7e55d6c624c05b791c35e4db9c132f19461f51d9f2d8714b`, and
+`563aa1a965c886915215e996500c212ee6ffb10f42f088e34f880e5f3bc87b6d`.
+It uses pinned execution commit `a13363f332d32d7f9d2e420a161f55e117807919`, one 24 GiB Lean
+worker at a time, persistent project-grouped sessions, content-addressed stdout receipts,
+append-only supervisor and run journals, a Mathlib 80 -> 160 forced resume, and zero-call replay of
+all three project runs. Any owned stale reservation is released on terminal/error; an unrelated
+claim causes fail-closed startup. Deterministic failures are not retried automatically.
+
+The session is `leanfaith-sft1-wave3-mixed200-a13363f-v1`, pane log is `tmux.log`, journal is
+`supervisor.jsonl`, completion marker is `terminal.json`, and recovery marker is `failure.json` in
+the control root. The exact launch/recovery command is:
+
+```text
+tmux new-session -d -s leanfaith-sft1-wave3-mixed200-a13363f-v1 -c /localhome/milikic/LeanFaith-sft1-wave3-exec-a13363f332d3 '/storage/milikic/leanfaith/value_first/sft1_deterministic_v1/wave3/full_scale_v1/control/w3mixed200-a13363f-v1/run_wave3_mixed200.sh </dev/null >>/storage/milikic/leanfaith/value_first/sft1_deterministic_v1/wave3/full_scale_v1/control/w3mixed200-a13363f-v1/tmux.log 2>&1'
+```
+
+It may be reused only after the session is absent and durable failure state has been classified.
+The finite read-only status command is:
+
+```text
+/localhome/milikic/LeanFaith-sft1-wave3-exec-a13363f332d3/.venv/bin/python /storage/milikic/leanfaith/value_first/sft1_deterministic_v1/wave3/full_scale_v1/control/w3mixed200-a13363f-v1/status.py
+```
 
 ## Wave 2 diversity-and-scale sprint (closed)
 
@@ -2585,3 +2643,26 @@ resource use, output paths, and exact remaining ETA. Do not run training.
   receipt CAS, fixed output lock, terminal markers, recovery command, and finite read-only status
   command are all recorded above; after this verified durable progress the task does not poll or
   restart the unattended run.
+- 2026-09-04 — verified the completed Wave 3 pre-gate from its immutable terminal rather than
+  rerunning it. The five exact-100 reports contain 100 unique operation terminals apiece, complete
+  retained joins and certificates, exact failure taxonomies, observed 50 -> 100 forced resumes,
+  and zero-call replay: N26 retained 7, N29 3, N30 6, N31 100, and N32 17. All 37 emitted
+  exact-20 pairs were then read row by row with zero wrong labels. Every displayed mutation agrees
+  with its checked separator: N26 uses the exact new boundary, N29 a complete finite dependency
+  matrix, N30 two distinct satisfying witnesses, N31 the removed guard's boundary counterexample,
+  and N32 a concrete asymmetric order witness or source-proof contradiction. Five immutable family
+  receipts under `wave3/full_scale_v1/gates/family_manual_v1` revalidated those readings against
+  the typed runs, fixtures, gold policy, terminal joins, and replay artifacts. Their combined
+  validator passes with the exact family set and five useful mechanisms. N26 remains active at its
+  measured 7% yield; it was not treated as a blocking quota.
+- 2026-09-04 — completed the mixed-200 census, selection, and detached-control freeze before Lean.
+  The content-bound allocation and hashes are recorded above; it uses 160/20/20 roots across
+  Mathlib/Physlib/CSLib, selects every root before execution, and invokes the existing 20-operation
+  Wave 3 engine without a parallel framework. The new control independently binds the completed
+  pre-gate terminal, Wave 5 inventory terminal, five manual verdicts, project/config/engine/gold
+  pins, and three target files. It requires one 24 GiB worker, forces an 80 -> 160 Mathlib resume,
+  replays all projects at zero calls, and reconstructs every mixed-gate check before terminalizing.
+  Shell syntax, Ruff lint/format, Python compilation, exact 0700 modes/hashes, empty run targets,
+  absent session/terminal/failure markers, clean pinned execution/project trees, and an empty host
+  ledger are the prelaunch boundary. No SFT2 path, training job, old release, or publication was
+  touched.
