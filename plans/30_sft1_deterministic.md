@@ -3006,3 +3006,30 @@ resource use, output paths, and exact remaining ETA. Do not run training.
   ```bash
   PYTHONPATH=/localhome/milikic/LeanFaith-sft1-wave4-exec-bec8f12/src /localhome/milikic/LeanFaith-sft1-wave3-full-scale/.venv/bin/python /storage/milikic/leanfaith/value_first/sft1_deterministic_v1/wave4/control/supplement-bec8f12-v3/control.py status
   ```
+- 2026-09-04 — the first supplement controller exited at its own preflight with zero Lean calls,
+  zero run directories, and no resource claim. Its duplicate guard incorrectly treated the
+  expected currently executing tmux session as a competing session. The complete `v3` control
+  root and failure marker remain immutable; no target, cache, retained row, or predecessor
+  artifact changed. The additive `v4` wrapper binds the exact `v3` controller SHA-256
+  `93bc527ffbd76ec28859c83850d574b6705722584efb3665ae27c755ec92d9fe` and changes only that guard:
+  preflight checks a distinct duplicate-probe session while status and execution remain bound to
+  `leanfaith-sft1-wave4-supplement-bec8f12-v4`. New run IDs prevent any ambiguity even though `v3`
+  created none. Wrapper, run-script, and preflight SHA-256 values are
+  `e67f40c3c03fcf0e583a73028c9343d5aa9b73ef73d5f4728cddcb2ebf8e4d8c`,
+  `1152b558d2f41b984e4474a9aab8700af13a9064bd0f411eeaa49a5f0be58d15`, and
+  `cd7826656cac732a67a2e96193e66c6c47c43e6c255c08033303de3e0bb2d4d1`; both programs are mode
+  0700, shell syntax/Python compilation/Ruff lint+format pass, the session and outputs are absent,
+  and the host ledger is empty. All semantic targets, commit/config/engine/runner pins, 191-root
+  predecessor bindings, ceilings, terminal requirements, and stop conditions remain those recorded
+  for `v3`. The exact launch and recovery command is:
+
+  ```bash
+  tmux new-session -d -s leanfaith-sft1-wave4-supplement-bec8f12-v4 -c /localhome/milikic/LeanFaith-sft1-wave4-exec-bec8f12 '/storage/milikic/leanfaith/value_first/sft1_deterministic_v1/wave4/control/supplement-bec8f12-v4/run_supplement.sh </dev/null >>/storage/milikic/leanfaith/value_first/sft1_deterministic_v1/wave4/control/supplement-bec8f12-v4/tmux.log 2>&1'
+  ```
+
+  Recovery may use that command only if the session and both `v4` terminal markers are absent. The
+  finite read-only status command is:
+
+  ```bash
+  PYTHONPATH=/localhome/milikic/LeanFaith-sft1-wave4-exec-bec8f12/src /localhome/milikic/LeanFaith-sft1-wave3-full-scale/.venv/bin/python /storage/milikic/leanfaith/value_first/sft1_deterministic_v1/wave4/control/supplement-bec8f12-v4/control.py status
+  ```
