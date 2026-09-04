@@ -238,6 +238,42 @@ The finite read-only status command is:
 /localhome/milikic/LeanFaith-sft1-wave3-exec-a13363f332d3/.venv/bin/python /storage/milikic/leanfaith/value_first/sft1_deterministic_v1/wave3/full_scale_v1/control/w3mixed200-a13363f-v1/status.py
 ```
 
+The frozen `v1` controller exited before any Lean call at
+2026-09-04T01:02:25.097886+00:00 because its trailing-JSON receipt invocation used the unsupported
+provenance value `mixed_200_command`; the pinned helper accepts `r1_command` or
+`predecessor_recovery`. Its failure marker, 294-byte three-event supervisor journal, 419-byte log,
+and preflight are retained unchanged. All three run journals remained empty, no run status was
+written, and the owned reservation was released. This is a control compatibility defect, not a
+label/certificate or transform failure, and `v1` must not be relaunched.
+
+The additive corrected control root is
+`/storage/milikic/leanfaith/value_first/sft1_deterministic_v1/wave3/full_scale_v1/control/w3mixed200-a13363f-v2`.
+It differs from `v1` only in its self-path/session identity and in using the helper's supported
+`r1_command` provenance. `run_wave3_mixed200.sh`, `verify_wave3_mixed200.py`, and `status.py` have
+SHA-256 `2f9a5b26090a1f0ce766448d619e008c8d2f79f7c61000080f9930d400971a6e`,
+`f0eb0a7fbddadfa8fa4f6e4ec2a5adce2568521441cc0d47b703231c571256e7`, and
+`2847103ccbc9897152291a30a614dec39b8a5d83d65474ec9c8e63c5c36a2f6d`. The corrected controller
+was launched exactly once at 2026-09-04T01:04:01.811612+00:00 in detached session
+`leanfaith-sft1-wave3-mixed200-a13363f-v2`. Pane PID 2877170 owns supervisor PID 2877171 and initial
+runner PID 2877366. Preflight SHA-256 is
+`907aa4f0f4129a65689861b87a3b41b16896321ae7158b0f3ef123405ea59144`. Startup validation passed
+for all three projects; the session and persistent Lean REPL were live, exactly one one-worker/24
+GiB `SFT1-WAVE3` reservation was present, no failure marker existed, and the Mathlib journal had
+already advanced to 20 root plus 20 terminal records at the first bounded health check.
+
+The exact recovery command, usable only after classifying durable state and never while the session
+is live, is:
+
+```text
+tmux new-session -d -s leanfaith-sft1-wave3-mixed200-a13363f-v2 -c /localhome/milikic/LeanFaith-sft1-wave3-exec-a13363f332d3 '/storage/milikic/leanfaith/value_first/sft1_deterministic_v1/wave3/full_scale_v1/control/w3mixed200-a13363f-v2/run_wave3_mixed200.sh </dev/null >>/storage/milikic/leanfaith/value_first/sft1_deterministic_v1/wave3/full_scale_v1/control/w3mixed200-a13363f-v2/tmux.log 2>&1'
+```
+
+The finite read-only status command is:
+
+```text
+/localhome/milikic/LeanFaith-sft1-wave3-exec-a13363f332d3/.venv/bin/python /storage/milikic/leanfaith/value_first/sft1_deterministic_v1/wave3/full_scale_v1/control/w3mixed200-a13363f-v2/status.py
+```
+
 ## Wave 2 diversity-and-scale sprint (closed)
 
 Wave 2 is additive to the closed sprint and must not modify or republish `core_v4_diverse_square_v2`,
@@ -2666,3 +2702,15 @@ resource use, output paths, and exact remaining ETA. Do not run training.
   absent session/terminal/failure markers, clean pinned execution/project trees, and an empty host
   ledger are the prelaunch boundary. No SFT2 path, training job, old release, or publication was
   touched.
+- 2026-09-04 — classified the first mixed-200 launch as a pre-Lean controller compatibility
+  failure: the receipt helper rejected an unsupported provenance enum before creating a run or
+  invoking Lean. The `v1` control root and its durable failure evidence remain immutable, all run
+  journals stayed empty, and reservation cleanup succeeded. Froze the additive `v2` controller
+  with only the supported `r1_command` provenance plus new self-identities; shell, Ruff, compile,
+  exact-diff, mode, checksum, absent-output, and empty-ledger checks all passed before launch.
+- 2026-09-04 — launched the corrected mixed-200 controller exactly once in detached tmux at
+  2026-09-04T01:04:01.811612+00:00. The session/process tree, pinned execution tree, preflight,
+  three project validations, one-worker/24 GiB resource claim, live persistent Lean REPL, and first
+  20 Mathlib root plus terminal journal records were all healthy at the bounded startup check. The
+  exact PIDs, hashes, paths, terminal/failure markers, recovery command, and finite status command
+  are recorded above. The task now stops polling while the durable job runs.
