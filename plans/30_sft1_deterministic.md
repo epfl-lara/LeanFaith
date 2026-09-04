@@ -328,6 +328,18 @@ The finite read-only status command is:
 /localhome/milikic/LeanFaith-sft1-wave3-full-scale/.venv/bin/python /storage/milikic/leanfaith/value_first/sft1_deterministic_v1/wave5/control/typed1000-10793f5-v1/status.py
 ```
 
+The command was launched exactly once at 2026-09-04T04:46:41.693352+00:00. Detached pane PID
+2899251 owns supervisor PID 2899252 and initial typed runner PID 2899324. Preflight SHA-256 is
+`e6ece9263a9719eef6c4b78a9ce2fb28b442d64574bdb57a5db18bb9005a2b38`. The process tree showed
+the runner initializing Lean under the configured two-worker pool, and the shared ledger showed
+exactly `SFT1-WAVE5-AUDIT: workers=2 rss=40GiB gpu=no` owned by
+`codex-sft1-wave5-typed1000-10793f5`. At the first bounded health check, the append-only typed
+journal had one durable terminal: it failed closed before Lean as
+`preflight:unresolved_namespace_context`. No outer failure or completion marker existed. The
+controller continues through the fixed 1,000-root sample so the terminal taxonomy can distinguish
+isolated source defects from unreconstructible compiler contexts; it must not be restarted,
+duplicated, or overlapped by Wave 4 while live.
+
 ## Wave 2 diversity-and-scale sprint (closed)
 
 Wave 2 is additive to the closed sprint and must not modify or republish `core_v4_diverse_square_v2`,
@@ -2782,3 +2794,11 @@ resource use, output paths, and exact remaining ETA. Do not run training.
   terminals, forced zero-call replay, and independent terminal verification. The output root,
   session, failure/terminal markers, recovery command, and finite status command were absent or
   clean before launch; no Wave 4 job may overlap its full host reservation.
+- 2026-09-04 — launched the typed 1,000-root controller exactly once at
+  2026-09-04T04:46:41.693352+00:00. The detached process tree, exact preflight, two persistent
+  workers, full 40 GiB resource claim, empty outer failure state, and append-only typed journal all
+  passed the bounded startup check. The first root was deterministically excluded at preflight for
+  an unresolved namespace context; this is retained as audit telemetry while the fixed sample
+  continues, not retried or treated as proof of success. Exact PIDs, hashes, terminal markers,
+  recovery command, and finite status command are recorded above. The task now stops polling and
+  does not start Wave 4 concurrently.
