@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pytest
 
-from leanfaith.config.hashing import hash_canonical
+from leanfaith.config.hashing import canonical_json_bytes, hash_canonical
 from leanfaith.representations.goal_v1 import _closed_expr_command
 from leanfaith.sft1.sprint import engine, inventory, screens, store
 from leanfaith.sft1.sprint.runner import (
@@ -853,6 +853,25 @@ def test_screens_v3_are_order_invariant_under_shuffles() -> None:
         "order",
         "guard",
     }
+
+
+def test_screens_v3_serialize_undefined_single_label_family_metrics_as_null() -> None:
+    from leanfaith.sft1.sprint import shortcut
+    from leanfaith.sft1.sprint.seed import seed_records
+
+    records = json.loads(json.dumps(seed_records(_seed_core_records())))
+    family = str(records[0]["sidecar"]["core_family"])
+    for record in records:
+        if record["sidecar"]["core_family"] == family:
+            record["row"]["label"] = True
+            record["sidecar"]["label"] = True
+
+    report = shortcut.run_screens_v3(records)
+
+    assert report["per_family"]["candidate_only"][family] is None
+    assert report["per_family"]["reference_only"][family] is None
+    assert report["per_family"]["family_held_out"][family] is None
+    assert b'"candidate_only"' in canonical_json_bytes(report)
 
 
 def test_diversity_floor_is_proportional() -> None:

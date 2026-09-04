@@ -3104,6 +3104,23 @@ def wave3_mixed_gate_report(
         for screen in cast(list[dict[str, Any]], shortcut_screens.get("screens", []))
         if isinstance(screen, Mapping)
     }
+    expected_shortcut_screens = {"candidate_only", "reference_only", "family_held_out"}
+    shortcut_screen_names = set(shortcut_results)
+    release_readiness_checks = {
+        "candidate_only_shortcut_screen_passed": shortcut_results.get("candidate_only", {}).get(
+            "passed"
+        )
+        is True,
+        "reference_only_shortcut_screen_passed": shortcut_results.get("reference_only", {}).get(
+            "passed"
+        )
+        is True,
+        "family_held_out_shortcut_screen_passed": shortcut_results.get("family_held_out", {}).get(
+            "passed"
+        )
+        is True,
+        "existing_shortcut_screen_contract_passed": shortcut_screens.get("passed") is True,
+    }
     checks = {
         "exact_three_pinned_projects": set(project_ids) == _MIXED_PROJECTS
         and len(project_ids) == len(set(project_ids)),
@@ -3141,19 +3158,13 @@ def wave3_mixed_gate_report(
         "all_replays_zero_call": all(receipt["replay_zero_call"] for receipt in receipts),
         "pair_delta_diagnostics_recorded": pair_delta.get("rows") == len(records)
         and bool(pair_delta.get("rules")),
-        "candidate_only_shortcut_screen_passed": shortcut_results.get("candidate_only", {}).get(
-            "passed"
-        )
-        is True,
-        "reference_only_shortcut_screen_passed": shortcut_results.get("reference_only", {}).get(
-            "passed"
-        )
-        is True,
-        "existing_shortcut_screen_contract_passed": shortcut_screens.get("passed") is True,
+        "all_shortcut_screens_recorded": shortcut_screen_names == expected_shortcut_screens,
+        "shortcut_screen_row_count_matches": shortcut_screens.get("rows") == len(records),
     }
+    release_ready = all(release_readiness_checks.values())
     return {
-        "schema_version": 1,
-        "gate": "sft1_wave3_mixed_200_v1",
+        "schema_version": 2,
+        "gate": "sft1_wave3_mixed_200_v2",
         "expected_roots": expected_roots,
         "selected_roots": selected_roots,
         "qualified_roots": qualified_roots,
@@ -3177,6 +3188,13 @@ def wave3_mixed_gate_report(
         "conflicting_pairs": dedup.conflict_count,
         "pair_delta_diagnostics": pair_delta,
         "shortcut_screens": shortcut_screens,
+        "release_readiness_checks": release_readiness_checks,
+        "release_ready": release_ready,
+        "shortcut_screen_disposition": (
+            "release_ready"
+            if release_ready
+            else "lean_free_rebalance_then_quarantine_offending_cells_before_release"
+        ),
         "input_receipts_sha256": hash_canonical(
             [
                 receipt["input_sha256"]

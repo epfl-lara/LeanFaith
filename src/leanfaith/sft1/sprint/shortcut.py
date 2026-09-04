@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import re
 from collections.abc import Iterator, Mapping, Sequence
 from dataclasses import dataclass
@@ -101,12 +102,18 @@ class ScreenResult:
     def to_dict(self) -> dict[str, object]:
         return {
             "name": self.name,
-            "balanced_accuracy": round(self.balanced_accuracy, 4),
-            "upper_bound_95": round(self.upper_bound_95, 4),
+            "balanced_accuracy": _rounded_metric(self.balanced_accuracy),
+            "upper_bound_95": _rounded_metric(self.upper_bound_95),
             "threshold": self.threshold,
             "folds": self.folds,
             "passed": self.passed,
         }
+
+
+def _rounded_metric(value: float) -> float | None:
+    """Return a canonical-JSON-safe metric, preserving undefined as null."""
+
+    return round(value, 4) if math.isfinite(value) else None
 
 
 def _cluster_bootstrap_upper(
@@ -365,15 +372,15 @@ def _screen_v3(
     families: np.ndarray,
     *,
     threshold: float,
-) -> tuple[ScreenResult, dict[str, float]]:
+) -> tuple[ScreenResult, dict[str, float | None]]:
     predictions, folds = _held_out_predictions(features, labels, groups)
     accuracy = balanced_accuracy(labels, predictions)
     upper = family_stratified_root_bootstrap_upper(labels, predictions, roots, families)
     passed = bool(accuracy == accuracy and upper == upper and upper < threshold)
-    per_family: dict[str, float] = {}
+    per_family: dict[str, float | None] = {}
     for family in sorted(set(families.tolist())):
         mask = families == family
-        per_family[family] = round(balanced_accuracy(labels[mask], predictions[mask]), 4)
+        per_family[family] = _rounded_metric(balanced_accuracy(labels[mask], predictions[mask]))
     return ScreenResult(name, accuracy, upper, threshold, folds, passed), per_family
 
 

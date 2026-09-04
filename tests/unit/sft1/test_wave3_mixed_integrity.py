@@ -867,8 +867,9 @@ def test_wave3_mixed_gate_passes_complete_three_project_receipts(tmp_path: Path)
     assert len(report["useful_negative_families"]) == 4
     assert report["pair_delta_diagnostics"]["rows"] == 1000
     assert report["shortcut_screens"]["passed"] is True
-    assert report["checks"]["candidate_only_shortcut_screen_passed"] is True
-    assert report["checks"]["reference_only_shortcut_screen_passed"] is True
+    assert report["release_readiness_checks"]["candidate_only_shortcut_screen_passed"] is True
+    assert report["release_readiness_checks"]["reference_only_shortcut_screen_passed"] is True
+    assert report["release_ready"] is True
     assert all(report["checks"].values())
 
 
@@ -891,9 +892,13 @@ def test_wave3_mixed_gate_enforces_existing_shortcut_thresholds(
 
     report = wave3_mixed_gate_report(_mixed_runs(tmp_path))
 
-    assert report["passed"] is False
-    assert report["checks"]["candidate_only_shortcut_screen_passed"] is False
-    assert report["checks"]["existing_shortcut_screen_contract_passed"] is False
+    assert report["passed"] is True
+    assert report["release_ready"] is False
+    assert report["release_readiness_checks"]["candidate_only_shortcut_screen_passed"] is False
+    assert report["release_readiness_checks"]["existing_shortcut_screen_contract_passed"] is False
+    assert report["shortcut_screen_disposition"] == (
+        "lean_free_rebalance_then_quarantine_offending_cells_before_release"
+    )
 
 
 @pytest.mark.parametrize(
