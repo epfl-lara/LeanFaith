@@ -31,12 +31,13 @@
 > release shortcut rebalancing still required. The first Wave 5 typed 1,000-root attempt is
 > preserved as an infrastructure failure caused by a deterministic descriptor-enumeration memory
 > spike; compiler transformation remains unauthorized until a repaired bounded audit passes. The
-> first Wave 4 controller failure is preserved, the shared-edge/inspection repair is pushed at
-> `bec8f120a204aecbcad04a69fd1c4984eacfc2a1`, and the additive pinned controller below is ready to
-> run. On its terminal pass, build and inspect the exact 200-root composition gate.
+> repaired Wave 4 controller completed every run/replay/inspection and retained 191 unique ancestry
+> roots, missing only the 200-root input threshold. Its failure is preserved. Run the additive
+> proof-certified N32/N31 supplement below; on a terminal pass, build and inspect the deterministic
+> exact-200 composition gate without rerunning the completed 191 roots.
 > **Compute class:** the failed Wave 5 audit and failed first Wave 4 controller released their host
-> reservations. The additive Wave 4 input controller uses one persistent Lean worker and at most
-> 24 GiB, sequentially across projects and negative families. The completed streamed Wave 5
+> reservations. The additive Wave 4 supplement uses one persistent Lean worker and at most 24 GiB,
+> sequentially across N32 and N31. The completed streamed Wave 5
 > inventory and all Wave 4 censuses use zero Lean calls. Long jobs use named detached tmux sessions
 > and durable finite status.
 > **Lean budget:** all string parsing, schema/provenance work, source filtering, joins,
@@ -2954,3 +2955,54 @@ resource use, output paths, and exact remaining ETA. Do not run training.
   pane and runner were live, both controller terminal markers were absent, and no deterministic
   startup failure was present. The job is now left alone; use only the finite status command above
   after a meaningful terminal event and never restart or duplicate it while the session is live.
+- 2026-09-04 — the repaired Wave 4 controller completed all 11 generation runs, all 11 zero-call
+  duplicate-free replays, and all 11 every-row inspection files, then correctly failed only its
+  final minimum-yield assertion at 2026-09-04T16:16:13.433760+00:00. The session exited and the
+  one-worker/24-GiB reservation was released. Its immutable summary/failure SHA-256 values are
+  `56ac4145a50d031c94fc4c4279843500e62d45f6dcadb3cd637b3a81c09fdf8f` and
+  `27df70329b275b6246d6271df80d0cfb828679dd81b8e923d9a7e76782e41935`. The runs retained 1,188
+  logical rows as 1,088 physical rows from 297 preserving variants, with 273 Lean requests and
+  1,636,556 ms Lean time. All three projects and five proof-certified negative families retained;
+  N19 is absent. There are 197 retained operation-root results but 191 unique ancestry roots after
+  cross-family deduplication, so the exact-200 input gate is nine unique ancestries short. This is
+  ordinary measured yield, not a label, certificate, resume, replay, or host defect; completed runs
+  remain immutable and will be joined into the next gate rather than rerun.
+- 2026-09-04 — completed a zero-Lean certified supplement census before any new Lean call. Joining
+  the existing Wave 3 retained rows against every completed Wave 4 ancestry exposed 23 natural N32
+  and two natural N31 roots that are proof-certified, not fixture-local, unused by the earlier
+  Wave 4 targets, mutually ancestry-distinct, and outside the retained 191. The additive target
+  files are `wave4/mathlib/targets/supplement_bec8f12_n32.json` and
+  `supplement_bec8f12_n31.json`, with SHA-256
+  `0c55b3835bbfc493138347b5093b613874ab0677e34e82dd1aa5b4d41bb73579` and
+  `a2b1dcd9fc3b2c52090f6cd297147baa77921a751aea10c1950c8ad572e1712f`. N25 is deliberately not
+  used in this supplement; it remains a fallback only if the successful N32/N31 siblings cannot
+  clear the threshold, and the combined physical-row N25 cap remains binding.
+- 2026-09-04 — froze the additive supplement controller before launch under
+  `/storage/milikic/leanfaith/value_first/sft1_deterministic_v1/wave4/control/supplement-bec8f12-v3`.
+  It uses the clean execution worktree and implementation commit
+  `bec8f120a204aecbcad04a69fd1c4984eacfc2a1`, exact runner/engine/config hashes recorded above,
+  and only the two new 23-root N32 and two-root N31 targets. Controller, run-script, and preflight
+  SHA-256 values are `93bc527ffbd76ec28859c83850d574b6705722584efb3665ae27c755ec92d9fe`,
+  `4dda35871c97ebe272a1af255417cd568cc7fec0e95428d2bec260046e21e0eb`, and
+  `27279e21e200649fc90ff987eadcd51cee8ed41bda7269e25126e7595464faa8`; both programs are mode
+  0700. Preflight binds the immutable 191-root near-pass, every source receipt hash, target novelty
+  and disjointness, exact clean import path, absent new run directories/session/terminal markers,
+  and empty resource ledger. It runs N32 then N31 with one persistent worker and at most 24 GiB;
+  each run has an append-only journal, final status, zero-call replay, and every-row inspection.
+  The terminal verifier joins the immutable 191 roots and supplement by project/root ID, rechecks
+  every predecessor receipt, requires at least 200 unique ancestries, all three projects, at least
+  three negative families, no N19, and N25 at or below 25% of physical rows. Output/cache/journals
+  live under `wave4/mathlib/runs/w4supp-bec8f12-*`, the existing content-addressed Mathlib cache,
+  and each run's `journal.jsonl`; supervisor/log/terminal/failure files live in the control root.
+  The exact launch and recovery command is:
+
+  ```bash
+  tmux new-session -d -s leanfaith-sft1-wave4-supplement-bec8f12-v3 -c /localhome/milikic/LeanFaith-sft1-wave4-exec-bec8f12 '/storage/milikic/leanfaith/value_first/sft1_deterministic_v1/wave4/control/supplement-bec8f12-v3/run_supplement.sh </dev/null >>/storage/milikic/leanfaith/value_first/sft1_deterministic_v1/wave4/control/supplement-bec8f12-v3/tmux.log 2>&1'
+  ```
+
+  Recovery may use that command only when the session and both terminal markers are absent. The
+  finite read-only status command is:
+
+  ```bash
+  PYTHONPATH=/localhome/milikic/LeanFaith-sft1-wave4-exec-bec8f12/src /localhome/milikic/LeanFaith-sft1-wave3-full-scale/.venv/bin/python /storage/milikic/leanfaith/value_first/sft1_deterministic_v1/wave4/control/supplement-bec8f12-v3/control.py status
+  ```
