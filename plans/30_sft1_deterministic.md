@@ -2940,3 +2940,17 @@ resource use, output paths, and exact remaining ETA. Do not run training.
   ```bash
   PYTHONPATH=/localhome/milikic/LeanFaith-sft1-wave4-exec-bec8f12/src /localhome/milikic/LeanFaith-sft1-wave3-full-scale/.venv/bin/python /storage/milikic/leanfaith/value_first/sft1_deterministic_v1/wave4/control/gate-inputs-bec8f12-v2/control.py status
   ```
+- 2026-09-04 — launched the additive repaired Wave 4 controller exactly once at
+  2026-09-04T15:47:48.276343+00:00 in detached tmux session
+  `leanfaith-sft1-wave4-gate-inputs-bec8f12-v2`. Pane PID 4028526 owns controller shell PID
+  4028528 and pinned runner PID 4028775. The first run manifest independently records clean commit
+  `bec8f120a204aecbcad04a69fd1c4984eacfc2a1`, `implementation_dirty=false`, the exact Mathlib
+  project/context fingerprints, the 346-root N31 input hash, and the repaired runner/unchanged
+  engine identity. At the bounded startup check the resource ledger held exactly one SFT1-WAVE4
+  worker/24 GiB claim owned by that runner/session; the append-only journal had advanced to 42,624
+  bytes with 14 complete cache terminals and retained output had advanced to 470,461 bytes. The
+  previously failing two-variant root `Int.le_add_iff_lt_of_dvd_sub` was the last complete terminal:
+  it retained both full closure groups as seven physical rows without a sidecar conflict. The tmux
+  pane and runner were live, both controller terminal markers were absent, and no deterministic
+  startup failure was present. The job is now left alone; use only the finite status command above
+  after a meaningful terminal event and never restart or duplicate it while the session is live.
