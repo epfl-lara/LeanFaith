@@ -2837,7 +2837,7 @@ resource use, output paths, and exact remaining ETA. Do not run training.
   `9f326afc259f48793dbfc3f0cec0c0a1f9816d8a006ea9877e5624ec51027d43`, and
   `98db6d8127771fb6bbd3ae6a61f9baccd0d003544ecc463463361fb2d64620bb`. The control program,
   run script, and preflight hashes are
-  `2f44877d15ef33dacefd04dfcba011a1569891cf37c0eb2057223cb3e48cd267`,
+  `f6ac8217a52fd61c8abf8264bdcfaf74949b7ded6f788f89c03199cda080da64`,
   `93fcd450caff1a6ec51d93892a9947b6995236e29cecc5082cf75e200b085640`, and
   `122380a67cbafffc7e23f211f36b19e5766eae7235e5ede58d859b78b0aa97da`. Shell syntax, Python
   compilation, Ruff lint/format, all exact target/config/engine/runner hashes, clean execution tree,
