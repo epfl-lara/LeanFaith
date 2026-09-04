@@ -30,12 +30,15 @@
 > **Next gate:** the Wave 3 mixed-source certificate gate passed after report-only recovery, with
 > release shortcut rebalancing still required. The first Wave 5 typed 1,000-root attempt is
 > preserved as an infrastructure failure caused by a deterministic descriptor-enumeration memory
-> spike; compiler transformation remains unauthorized until a repaired bounded audit passes. Run
-> the independent Wave 4 composition inputs now, then build and inspect the exact 200-root gate.
-> **Compute class:** the failed Wave 5 audit released its two-worker/40-GiB reservation. The active
-> Wave 4 input controller uses one persistent Lean worker and at most 24 GiB, sequentially across
-> projects and negative families. The completed streamed Wave 5 inventory and all Wave 4 censuses
-> use zero Lean calls. Long jobs use named detached tmux sessions and durable finite status.
+> spike; compiler transformation remains unauthorized until a repaired bounded audit passes. The
+> first Wave 4 controller failure is preserved, the shared-edge/inspection repair is pushed at
+> `bec8f120a204aecbcad04a69fd1c4984eacfc2a1`, and the additive pinned controller below is ready to
+> run. On its terminal pass, build and inspect the exact 200-root composition gate.
+> **Compute class:** the failed Wave 5 audit and failed first Wave 4 controller released their host
+> reservations. The additive Wave 4 input controller uses one persistent Lean worker and at most
+> 24 GiB, sequentially across projects and negative families. The completed streamed Wave 5
+> inventory and all Wave 4 censuses use zero Lean calls. Long jobs use named detached tmux sessions
+> and durable finite status.
 > **Lean budget:** all string parsing, schema/provenance work, source filtering, joins,
 > deduplication, inventory construction, applicability selection, and deterministic sampling happen
 > before Lean. Retained rows receive exact proof/certificate checks in persistent context-grouped
@@ -2875,3 +2878,65 @@ resource use, output paths, and exact remaining ETA. Do not run training.
   process tree, exact execution worktree, controller events, resource claim, and first durable
   output advance are healthy. The task now leaves the session untouched and uses only the finite
   status command recorded above after a meaningful terminal event.
+- 2026-09-04 — the first Wave 4 controller reached a durable fail-closed terminal at
+  2026-09-04T13:19:24.803623+00:00 and released its one-worker/24-GiB reservation. Its immutable
+  failure marker remains under `wave4/control/gate-inputs-10793f5-v1/failure.json`; no historical
+  input or release was modified and the remaining ten family/project runs never started. The first
+  Mathlib N31 run completed 13 root terminals before `Int.le_add_iff_lt_of_dvd_sub` produced two
+  valid preserving variants. Their shared base-negative edge had identical model text, expression
+  identity, source proof, exact refutation, and negative-family evidence, but the frozen renderer's
+  slot-specific `representation_id` still differed between slots `0` and `1`. The physical-edge
+  compactor correctly rejected that noncanonical sidecar instead of silently choosing one. A
+  second latent controller failure was then exposed by the bounded repair smoke: the legacy
+  inspection renderer did not recognize Wave 4 row roles.
+- 2026-09-04 — repaired both Wave 4 blockers additively and pushed implementation commit
+  `bec8f120a204aecbcad04a69fd1c4984eacfc2a1` to
+  `origin/milikic/sft1-wave3-full-scale`. Shared base endpoints now rebind both `endpoint_id` and
+  `representation_id` through the exact frozen closed-expression identity payload; incomplete
+  identity payloads fail closed. The inspection renderer now handles all four Wave 4 roles and
+  reports physical rows plus closure-group membership without changing legacy square semantics.
+  The full focused Wave 4 test set (`test_wave4_lean_free.py`, `test_wave4_lean_contract.py`, and
+  `test_wave4_provenance.py`) passes together, as do Ruff lint/format and `git diff --check`.
+  The clean pinned regression run `w4repair-smoke-int-le-add-bec8f12-v1` reused the preserved
+  certified cache with zero Lean calls, retained two complete closure groups/eight logical rows as
+  seven physical rows with exactly one shared base, replayed with zero calls and zero duplicates,
+  and materialized all seven inspection entries. Its status, replay, and inspection SHA-256 values
+  are `d0aa499e83f3014a5887edc6e583a6bdb7874935e5d3b1962f1bd16e57c11a64`,
+  `af4554eb5e50ac2b6e881d1fab7daf3713e637593020b98ba4b87dd87f3d4996`, and
+  `c7cc88cf18e7175719c22376ad9c3fe50bd77492f18ed0355bdacaad6d884908`.
+- 2026-09-04 — froze the additive Wave 4 retry controller before launch at
+  `/storage/milikic/leanfaith/value_first/sft1_deterministic_v1/wave4/control/gate-inputs-bec8f12-v2`.
+  It runs only from clean detached worktree
+  `/localhome/milikic/LeanFaith-sft1-wave4-exec-bec8f12` at exact commit
+  `bec8f120a204aecbcad04a69fd1c4984eacfc2a1`; its runner and unchanged Lean engine SHA-256 values
+  are `ad078964138ae123bf7d86f35c93a67e783cf4d281f93d6d92665d87d8f1ab52` and
+  `a5da24b249840ed1438e70cb75e2df0f223019d7057e9db9a0d4cb1d701c4bfc`. The wrapper binds and
+  verifies the immutable predecessor controller hash, and it requires the imported Python module
+  to resolve inside the clean execution worktree. Wrapper, run-script, and preflight SHA-256 values
+  are `c7b73cc9fff2a18268b71b1f85274d34b6b4194aa3e8e9427352adcc087a8c3f`,
+  `f441f79476adeff0a027b0a3dd83a54261d1a56b282cbd43a4d8e80275dfd8b8`, and
+  `480dd1378d12a948b4606dbb378a155ad4b22c23d4a73939146f90ced9cadee7`;
+  both programs are mode 0700. Preflight revalidated all 471 operation-root inputs, the three
+  unchanged config hashes recorded above, exact engine/runner hashes, clean execution tree, absent
+  output runs and terminal markers, absent tmux session, and empty resource ledger. Per-run output,
+  cache, and append-only journals live below `wave4/{mathlib,physlib,cslib}/runs/w4gate-bec8f12-*`,
+  `wave4/{mathlib,physlib,cslib}/cache`, and each run's `journal.jsonl`; controller logs and its
+  append-only supervisor journal live in the new control root. It processes all 11 inputs
+  sequentially, uses at most one persistent Lean worker/24 GiB, retries only infrastructure
+  failures inside the existing runner, then requires final status, zero-call replay, duplicate-free
+  retained rows, every-row inspection, at least 200 unique ancestry roots, all three projects, and
+  at least three negative families before writing `terminal.json`. Its failure marker is
+  `failure.json`; it never restarts or overwrites predecessor outputs. Stop conditions remain a
+  label/certificate defect, repeated descriptor-memory crash, non-resumable integrity/journal
+  failure, or host-limit violation. The exact launch and recovery command is:
+
+  ```bash
+  tmux new-session -d -s leanfaith-sft1-wave4-gate-inputs-bec8f12-v2 -c /localhome/milikic/LeanFaith-sft1-wave4-exec-bec8f12 '/storage/milikic/leanfaith/value_first/sft1_deterministic_v1/wave4/control/gate-inputs-bec8f12-v2/run_wave4_gate_inputs.sh </dev/null >>/storage/milikic/leanfaith/value_first/sft1_deterministic_v1/wave4/control/gate-inputs-bec8f12-v2/tmux.log 2>&1'
+  ```
+
+  Recovery may use that command only when the session is absent and neither terminal marker exists.
+  The finite read-only status command is:
+
+  ```bash
+  PYTHONPATH=/localhome/milikic/LeanFaith-sft1-wave4-exec-bec8f12/src /localhome/milikic/LeanFaith-sft1-wave3-full-scale/.venv/bin/python /storage/milikic/leanfaith/value_first/sft1_deterministic_v1/wave4/control/gate-inputs-bec8f12-v2/control.py status
+  ```
