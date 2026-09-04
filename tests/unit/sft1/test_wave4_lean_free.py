@@ -876,6 +876,84 @@ def test_shared_base_render_endpoint_discards_variant_slot() -> None:
     assert cast(Mapping[str, Any], variant["record"])["endpoint_id"] == "4.p"
 
 
+def test_shared_base_render_endpoint_rebinds_exact_representation_identity() -> None:
+    def endpoint(slot: int) -> dict[str, object]:
+        record: dict[str, object] = {
+            "renderer_version": "goal_v1.0",
+            "spec_hash": "a" * 64,
+            "goal_v1_source": "closed_prop_expr",
+            "goal_v1": "⊢ True",
+            "rendered_goal_hash": "b" * 64,
+            "endpoint_id": f"{slot}.p",
+            "endpoint_role": "reference",
+            "source_material_hash": "c" * 64,
+            "compile_context_id": "ctx:" + "d" * 64,
+            "provenance": {"expr_hash": "e" * 64},
+            "implementation_identity": {"renderer_semantic_hash": "f" * 64},
+        }
+        record["representation_id"] = "repr:" + hash_canonical(record)
+        return {"record": record, "source_material": {"kind": "raw_statement"}}
+
+    first = Wave4Runner._render_endpoint({"p": endpoint(0)}, "p", shared_base=True)
+    second = Wave4Runner._render_endpoint({"p": endpoint(1)}, "p", shared_base=True)
+    first_record = cast(dict[str, Any], first["record"])
+    second_record = cast(dict[str, Any], second["record"])
+    assert first_record == second_record
+    identity_fields = (
+        "renderer_version",
+        "spec_hash",
+        "goal_v1_source",
+        "goal_v1",
+        "rendered_goal_hash",
+        "endpoint_id",
+        "endpoint_role",
+        "source_material_hash",
+        "compile_context_id",
+        "provenance",
+        "implementation_identity",
+    )
+    assert first_record["representation_id"] == "repr:" + hash_canonical(
+        {field: first_record[field] for field in identity_fields}
+    )
+
+
+def test_shared_base_render_endpoint_fails_closed_on_partial_identity() -> None:
+    render = {
+        "p": {
+            "record": {
+                "endpoint_id": "0.p",
+                "representation_id": "repr:" + "a" * 64,
+                "goal_v1": "⊢ True",
+            },
+            "source_material": {"kind": "raw_statement"},
+        }
+    }
+    with pytest.raises(OrbitError, match="cannot replay its representation identity"):
+        Wave4Runner._render_endpoint(render, "p", shared_base=True)
+
+
+def test_square_inspection_supports_wave4_shared_base_materialization() -> None:
+    negative = "N31_DROP_REQUIRED_GUARD_PROOF_V1"
+    rows, _groups = _production_materialization((negative, negative))
+    for row in rows:
+        sidecar = cast(dict[str, Any], row["sidecar"])
+        sidecar.update(
+            {
+                "root_name": "Test.wave4",
+                "module": "Test",
+                "statement": "theorem Test.wave4 : True := by trivial",
+            }
+        )
+    lines = square_module.square_inspection_lines(rows)
+    rendered = "\n".join(lines)
+    assert "- rows: 7" in rendered
+    assert "- closure groups: 2" in rendered
+    assert rendered.count("### preserving_reference (label True)") == 2
+    assert rendered.count("### preserving_candidate (label True)") == 2
+    assert rendered.count("### negative_base (label False)") == 1
+    assert rendered.count("### negative_last (label False)") == 2
+
+
 def test_square_cli_dispatches_wave4_operation_to_wave4_runner(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

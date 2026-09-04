@@ -2856,6 +2856,29 @@ class Wave4Runner(SquareRunner):
         record = dict(_wave4_mapping(block.get("record"), f"render.{endpoint}.record"))
         if shared_base:
             record["endpoint_id"] = f"base.{endpoint}"
+            if "representation_id" in record:
+                identity_fields = (
+                    "renderer_version",
+                    "spec_hash",
+                    "goal_v1_source",
+                    "goal_v1",
+                    "rendered_goal_hash",
+                    "endpoint_id",
+                    "endpoint_role",
+                    "source_material_hash",
+                    "compile_context_id",
+                    "provenance",
+                    "implementation_identity",
+                )
+                missing = [field for field in identity_fields if field not in record]
+                if missing:
+                    raise OrbitError(
+                        "shared Wave 4 base endpoint cannot replay its representation identity: "
+                        + ", ".join(missing)
+                    )
+                record["representation_id"] = "repr:" + hash_canonical(
+                    {field: record[field] for field in identity_fields}
+                )
         block["record"] = record
         return block
 
@@ -6290,6 +6313,7 @@ SQUARE_FIXTURES: dict[str, tuple[dict[str, str], ...]] = {
 
 # ------------------------------------------------------------------ inspection
 SQUARE_ROW_ORDER: dict[str, int] = {kind[0]: index for index, kind in enumerate(ROW_KINDS)}
+SQUARE_ROW_ORDER.update({kind[0]: index for index, kind in enumerate(WAVE4_ROW_KINDS)})
 
 
 def _check_flag(value: Any) -> str | None:
@@ -6305,36 +6329,63 @@ def _check_flag(value: Any) -> str | None:
 
 
 def square_inspection_lines(records: Sequence[Mapping[str, Any]]) -> list[str]:
-    """Every retained square row grouped by root, four rows per root, with check flags."""
+    """Every retained legacy-square or Wave 4 physical row, grouped by root."""
     by_root: dict[str, list[Mapping[str, Any]]] = {}
     for record in records:
         by_root.setdefault(str(record["sidecar"]["root_name"]), []).append(record)
     lines = [
-        "# core_v3_square inspection",
+        "# SFT1 square inspection",
         "",
         f"- roots: {len(by_root)}",
         f"- rows: {len(records)}",
         "",
     ]
     for name in sorted(by_root):
-        recs = sorted(by_root[name], key=lambda r: SQUARE_ROW_ORDER[str(r["sidecar"]["row_kind"])])
+        try:
+            recs = sorted(
+                by_root[name],
+                key=lambda r: SQUARE_ROW_ORDER[str(r["sidecar"]["row_kind"])],
+            )
+        except KeyError as exc:
+            raise SquareError(f"unknown square inspection row kind {exc.args[0]!r}") from exc
         first = cast(dict[str, Any], recs[0]["sidecar"])
         square = cast(dict[str, Any], first.get("square", {}))
-        evidence = cast(
-            dict[str, Any], cast(dict[str, Any], first.get("evidence", {})).get("square", {})
-        )
+        first_evidence = cast(dict[str, Any], first.get("evidence", {}))
+        evidence = cast(dict[str, Any], first_evidence.get("square", first_evidence))
         flags = []
         for key, value in evidence.items():
             flag = _check_flag(value)
             if flag is not None:
                 kind = value.get("kind") if isinstance(value, dict) else None
                 flags.append(f"{key}:{flag}" + (f"({kind})" if kind else ""))
+        metadata = (
+            [
+                f"- operation: {first.get('operation_id')}",
+                f"- negative operation: {first.get('negative_operation')}",
+                "- closure groups: "
+                + str(
+                    len(
+                        {
+                            str(group_id)
+                            for record in recs
+                            for group_id in cast(Mapping[str, Any], record["sidecar"]).get(
+                                "closure_group_ids", []
+                            )
+                        }
+                    )
+                ),
+            ]
+            if first.get("row_kind") in WAVE4_ROW_LABEL
+            else [
+                f"- direction: {square.get('direction')} "
+                f"(T_P={square.get('t_p')}, T_C={square.get('t_c')})"
+            ]
+        )
         lines += [
             f"## {name}",
             "",
             f"- module: `{first.get('module')}`",
-            f"- direction: {square.get('direction')} "
-            f"(T_P={square.get('t_p')}, T_C={square.get('t_c')})",
+            *metadata,
             f"- statement: `{first.get('statement')}`",
             f"- checks: {' '.join(flags) if flags else 'none recorded'}",
             "",
