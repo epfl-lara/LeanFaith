@@ -15,6 +15,15 @@
 > No generation code or frozen execution contract is changed. Lean is the bottleneck: this
 > packaging task uses existing artifacts and zero Lean/GPU/provider calls.
 
+> **SFT1-first handoff — 2026-09-05:** the user has prioritized creating the SFT1 dataset before
+> any other new work. The coordinator's synthesis and concrete agent kickoff are in
+> `plans/reviews/2026-09-05-production/execution/SFT1_DATA_FIRST_PLAN.md` and `SFT1_AGENT_PROMPT.md`
+> in that directory. This handoff owns only this pointer and that additive `execution/` directory.
+> It prioritizes recovery/publication and existing library mechanisms, and defers compiler repair,
+> new composition, SFT2, CPT, model work, and additional baselines until the first SFT1 checkpoint.
+> No production job or implementation is started by this planning commit. Earlier review claims
+> about the compiler crash and dataset totals are qualified by the synthesis.
+
 LeanFaith is building a learned judge of whether two Lean theorem statements express the same
 mathematical claim. The immediate goal is to create high-value data quickly: very large, cheap
 automatic supervision first, followed by smaller and richer LLM-assisted supervision. CPT and SFT
