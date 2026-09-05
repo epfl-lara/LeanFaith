@@ -1,0 +1,18 @@
+{
+  "matching_rows": [
+    {
+      "original_line": 1,
+      "record": {
+        "cache_key": "325f97b4cb2489b534d46396282248cfeaba38a084d52aad5e3ecd0479e4166c",
+        "cache_sha256": "621bf41aee5c3bff3a7e732900dd9569087e1ed5d762d8e6bbf9f97c9c1047b4",
+        "event": "typed_root_terminal",
+        "root_id": "b73f9f6098bb8173f9be82aeac4c0ff1231f1fb9f5f122a5f100456f4b3722b9",
+        "run_id": "1173403d055809d5cbac4156b8b832f1f7320c3446f8544134ae08566bb871f1",
+        "status": "failed",
+        "taxonomy": "preflight:unresolved_namespace_context"
+      }
+    }
+  ],
+  "original_path": "/storage/milikic/leanfaith/value_first/sft1_deterministic_v1/wave5/compiler_audit_v1/typed_certificate_gate/journal.jsonl",
+  "original_sha256": "86b0b281ec1a20d39ac20be885fdc72c1703df84ea4d0aa8459d2116c96c134e"
+}

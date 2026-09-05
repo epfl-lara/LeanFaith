@@ -1,0 +1,2080 @@
+{
+  "balance_report": {
+    "cell_counts_after": {
+      "relation_same|target_changed|binders_same|connectives_changed": {
+        "negative": 2,
+        "positive": 2
+      },
+      "relation_same|target_changed|binders_same|connectives_same": {
+        "negative": 28,
+        "positive": 28
+      }
+    },
+    "cell_counts_before": {
+      "relation_changed|target_changed|binders_changed|connectives_changed": {
+        "negative": 0,
+        "positive": 20
+      },
+      "relation_changed|target_changed|binders_same|connectives_changed": {
+        "negative": 13,
+        "positive": 130
+      },
+      "relation_changed|target_changed|binders_same|connectives_same": {
+        "negative": 65,
+        "positive": 2
+      },
+      "relation_same|target_changed|binders_changed|connectives_changed": {
+        "negative": 2,
+        "positive": 6
+      },
+      "relation_same|target_changed|binders_same|connectives_changed": {
+        "negative": 11,
+        "positive": 16
+      },
+      "relation_same|target_changed|binders_same|connectives_same": {
+        "negative": 145,
+        "positive": 220
+      },
+      "relation_same|target_same|binders_changed|connectives_same": {
+        "negative": 287,
+        "positive": 54
+      },
+      "relation_same|target_same|binders_same|connectives_same": {
+        "negative": 0,
+        "positive": 190
+      }
+    },
+    "distribution_interleave": [
+      "project",
+      "negative_operation",
+      "preserving_superclass_chain"
+    ],
+    "input_groups": 319,
+    "input_physical_rows": 1161,
+    "input_roots": 202,
+    "inverse_vector_buckets": [
+      {
+        "available": 1,
+        "inverse": [
+          [
+            "relation_changed|target_changed|binders_changed|connectives_changed",
+            -2
+          ],
+          [
+            "relation_same|target_changed|binders_same|connectives_changed",
+            2
+          ]
+        ],
+        "inverse_available": 0,
+        "matched_each": 0,
+        "vector": [
+          [
+            "relation_changed|target_changed|binders_changed|connectives_changed",
+            2
+          ],
+          [
+            "relation_same|target_changed|binders_same|connectives_changed",
+            -2
+          ]
+        ]
+      },
+      {
+        "available": 7,
+        "inverse": [
+          [
+            "relation_same|target_changed|binders_same|connectives_same",
+            2
+          ],
+          [
+            "relation_same|target_same|binders_same|connectives_same",
+            -2
+          ]
+        ],
+        "inverse_available": 0,
+        "matched_each": 0,
+        "vector": [
+          [
+            "relation_same|target_changed|binders_same|connectives_same",
+            -2
+          ],
+          [
+            "relation_same|target_same|binders_same|connectives_same",
+            2
+          ]
+        ]
+      },
+      {
+        "available": 1,
+        "inverse": [
+          [
+            "relation_same|target_same|binders_same|connectives_same",
+            -2
+          ]
+        ],
+        "inverse_available": 0,
+        "matched_each": 0,
+        "vector": [
+          [
+            "relation_same|target_same|binders_same|connectives_same",
+            2
+          ]
+        ]
+      },
+      {
+        "available": 2,
+        "inverse": [
+          [
+            "relation_same|target_changed|binders_same|connectives_changed",
+            2
+          ],
+          [
+            "relation_same|target_same|binders_same|connectives_same",
+            -2
+          ]
+        ],
+        "inverse_available": 0,
+        "matched_each": 0,
+        "vector": [
+          [
+            "relation_same|target_changed|binders_same|connectives_changed",
+            -2
+          ],
+          [
+            "relation_same|target_same|binders_same|connectives_same",
+            2
+          ]
+        ]
+      },
+      {
+        "available": 17,
+        "inverse": [
+          [
+            "relation_same|target_changed|binders_same|connectives_same",
+            -2
+          ],
+          [
+            "relation_same|target_same|binders_changed|connectives_same",
+            2
+          ]
+        ],
+        "inverse_available": 0,
+        "matched_each": 0,
+        "vector": [
+          [
+            "relation_same|target_changed|binders_same|connectives_same",
+            2
+          ],
+          [
+            "relation_same|target_same|binders_changed|connectives_same",
+            -2
+          ]
+        ]
+      },
+      {
+        "available": 1,
+        "inverse": [
+          [
+            "relation_changed|target_changed|binders_same|connectives_same",
+            5
+          ],
+          [
+            "relation_same|target_changed|binders_same|connectives_same",
+            -4
+          ],
+          [
+            "relation_same|target_same|binders_same|connectives_same",
+            -4
+          ]
+        ],
+        "inverse_available": 0,
+        "matched_each": 0,
+        "vector": [
+          [
+            "relation_changed|target_changed|binders_same|connectives_same",
+            -5
+          ],
+          [
+            "relation_same|target_changed|binders_same|connectives_same",
+            4
+          ],
+          [
+            "relation_same|target_same|binders_same|connectives_same",
+            4
+          ]
+        ]
+      },
+      {
+        "available": 5,
+        "inverse": [
+          [
+            "relation_same|target_changed|binders_same|connectives_same",
+            -4
+          ],
+          [
+            "relation_same|target_same|binders_changed|connectives_same",
+            3
+          ]
+        ],
+        "inverse_available": 0,
+        "matched_each": 0,
+        "vector": [
+          [
+            "relation_same|target_changed|binders_same|connectives_same",
+            4
+          ],
+          [
+            "relation_same|target_same|binders_changed|connectives_same",
+            -3
+          ]
+        ]
+      },
+      {
+        "available": 60,
+        "inverse": [
+          [
+            "relation_changed|target_changed|binders_same|connectives_changed",
+            -2
+          ],
+          [
+            "relation_same|target_same|binders_changed|connectives_same",
+            2
+          ]
+        ],
+        "inverse_available": 0,
+        "matched_each": 0,
+        "vector": [
+          [
+            "relation_changed|target_changed|binders_same|connectives_changed",
+            2
+          ],
+          [
+            "relation_same|target_same|binders_changed|connectives_same",
+            -2
+          ]
+        ]
+      },
+      {
+        "available": 1,
+        "inverse": [
+          [
+            "relation_same|target_changed|binders_same|connectives_same",
+            6
+          ],
+          [
+            "relation_same|target_same|binders_changed|connectives_same",
+            -6
+          ],
+          [
+            "relation_same|target_same|binders_same|connectives_same",
+            -4
+          ]
+        ],
+        "inverse_available": 0,
+        "matched_each": 0,
+        "vector": [
+          [
+            "relation_same|target_changed|binders_same|connectives_same",
+            -6
+          ],
+          [
+            "relation_same|target_same|binders_changed|connectives_same",
+            6
+          ],
+          [
+            "relation_same|target_same|binders_same|connectives_same",
+            4
+          ]
+        ]
+      },
+      {
+        "available": 2,
+        "inverse": [
+          [
+            "relation_same|target_changed|binders_changed|connectives_changed",
+            -2
+          ],
+          [
+            "relation_same|target_changed|binders_same|connectives_same",
+            2
+          ]
+        ],
+        "inverse_available": 0,
+        "matched_each": 0,
+        "vector": [
+          [
+            "relation_same|target_changed|binders_changed|connectives_changed",
+            2
+          ],
+          [
+            "relation_same|target_changed|binders_same|connectives_same",
+            -2
+          ]
+        ]
+      },
+      {
+        "available": 1,
+        "inverse": [
+          [
+            "relation_changed|target_changed|binders_changed|connectives_changed",
+            -2
+          ],
+          [
+            "relation_same|target_changed|binders_same|connectives_changed",
+            -4
+          ],
+          [
+            "relation_same|target_changed|binders_same|connectives_same",
+            4
+          ]
+        ],
+        "inverse_available": 0,
+        "matched_each": 0,
+        "vector": [
+          [
+            "relation_changed|target_changed|binders_changed|connectives_changed",
+            2
+          ],
+          [
+            "relation_same|target_changed|binders_same|connectives_changed",
+            4
+          ],
+          [
+            "relation_same|target_changed|binders_same|connectives_same",
+            -4
+          ]
+        ]
+      },
+      {
+        "available": 2,
+        "inverse": [
+          [
+            "relation_same|target_changed|binders_same|connectives_same",
+            5
+          ],
+          [
+            "relation_same|target_same|binders_changed|connectives_same",
+            -4
+          ],
+          [
+            "relation_same|target_same|binders_same|connectives_same",
+            -4
+          ]
+        ],
+        "inverse_available": 0,
+        "matched_each": 0,
+        "vector": [
+          [
+            "relation_same|target_changed|binders_same|connectives_same",
+            -5
+          ],
+          [
+            "relation_same|target_same|binders_changed|connectives_same",
+            4
+          ],
+          [
+            "relation_same|target_same|binders_same|connectives_same",
+            4
+          ]
+        ]
+      },
+      {
+        "available": 1,
+        "inverse": [
+          [
+            "relation_same|target_changed|binders_same|connectives_changed",
+            3
+          ],
+          [
+            "relation_same|target_same|binders_same|connectives_same",
+            -4
+          ]
+        ],
+        "inverse_available": 0,
+        "matched_each": 0,
+        "vector": [
+          [
+            "relation_same|target_changed|binders_same|connectives_changed",
+            -3
+          ],
+          [
+            "relation_same|target_same|binders_same|connectives_same",
+            4
+          ]
+        ]
+      },
+      {
+        "available": 1,
+        "inverse": [
+          [
+            "relation_same|target_changed|binders_same|connectives_same",
+            6
+          ],
+          [
+            "relation_same|target_same|binders_changed|connectives_same",
+            -4
+          ],
+          [
+            "relation_same|target_same|binders_same|connectives_same",
+            -6
+          ]
+        ],
+        "inverse_available": 0,
+        "matched_each": 0,
+        "vector": [
+          [
+            "relation_same|target_changed|binders_same|connectives_same",
+            -6
+          ],
+          [
+            "relation_same|target_same|binders_changed|connectives_same",
+            4
+          ],
+          [
+            "relation_same|target_same|binders_same|connectives_same",
+            6
+          ]
+        ]
+      },
+      {
+        "available": 2,
+        "inverse": [
+          [
+            "relation_same|target_changed|binders_same|connectives_same",
+            -6
+          ],
+          [
+            "relation_same|target_same|binders_changed|connectives_same",
+            5
+          ],
+          [
+            "relation_same|target_same|binders_same|connectives_same",
+            -2
+          ]
+        ],
+        "inverse_available": 0,
+        "matched_each": 0,
+        "vector": [
+          [
+            "relation_same|target_changed|binders_same|connectives_same",
+            6
+          ],
+          [
+            "relation_same|target_same|binders_changed|connectives_same",
+            -5
+          ],
+          [
+            "relation_same|target_same|binders_same|connectives_same",
+            2
+          ]
+        ]
+      },
+      {
+        "available": 7,
+        "inverse": [
+          [
+            "relation_changed|target_changed|binders_same|connectives_same",
+            2
+          ],
+          [
+            "relation_same|target_changed|binders_same|connectives_same",
+            -2
+          ]
+        ],
+        "inverse_available": 0,
+        "matched_each": 0,
+        "vector": [
+          [
+            "relation_changed|target_changed|binders_same|connectives_same",
+            -2
+          ],
+          [
+            "relation_same|target_changed|binders_same|connectives_same",
+            2
+          ]
+        ]
+      },
+      {
+        "available": 3,
+        "inverse": [
+          [
+            "relation_same|target_changed|binders_same|connectives_same",
+            1
+          ],
+          [
+            "relation_same|target_same|binders_same|connectives_same",
+            -2
+          ]
+        ],
+        "inverse_available": 0,
+        "matched_each": 0,
+        "vector": [
+          [
+            "relation_same|target_changed|binders_same|connectives_same",
+            -1
+          ],
+          [
+            "relation_same|target_same|binders_same|connectives_same",
+            2
+          ]
+        ]
+      },
+      {
+        "available": 1,
+        "inverse": [
+          [
+            "relation_same|target_same|binders_changed|connectives_same",
+            4
+          ],
+          [
+            "relation_same|target_same|binders_same|connectives_same",
+            -6
+          ]
+        ],
+        "inverse_available": 0,
+        "matched_each": 0,
+        "vector": [
+          [
+            "relation_same|target_same|binders_changed|connectives_same",
+            -4
+          ],
+          [
+            "relation_same|target_same|binders_same|connectives_same",
+            6
+          ]
+        ]
+      },
+      {
+        "available": 2,
+        "inverse": [
+          [
+            "relation_same|target_same|binders_changed|connectives_same",
+            1
+          ],
+          [
+            "relation_same|target_same|binders_same|connectives_same",
+            -2
+          ]
+        ],
+        "inverse_available": 0,
+        "matched_each": 0,
+        "vector": [
+          [
+            "relation_same|target_same|binders_changed|connectives_same",
+            -1
+          ],
+          [
+            "relation_same|target_same|binders_same|connectives_same",
+            2
+          ]
+        ]
+      },
+      {
+        "available": 1,
+        "inverse": [
+          [
+            "relation_same|target_changed|binders_same|connectives_same",
+            -8
+          ],
+          [
+            "relation_same|target_same|binders_changed|connectives_same",
+            5
+          ]
+        ],
+        "inverse_available": 0,
+        "matched_each": 0,
+        "vector": [
+          [
+            "relation_same|target_changed|binders_same|connectives_same",
+            8
+          ],
+          [
+            "relation_same|target_same|binders_changed|connectives_same",
+            -5
+          ]
+        ]
+      },
+      {
+        "available": 1,
+        "inverse": [
+          [
+            "relation_changed|target_changed|binders_same|connectives_same",
+            -1
+          ],
+          [
+            "relation_same|target_changed|binders_same|connectives_same",
+            1
+          ]
+        ],
+        "inverse_available": 0,
+        "matched_each": 0,
+        "vector": [
+          [
+            "relation_changed|target_changed|binders_same|connectives_same",
+            1
+          ],
+          [
+            "relation_same|target_changed|binders_same|connectives_same",
+            -1
+          ]
+        ]
+      },
+      {
+        "available": 2,
+        "inverse": [
+          [
+            "relation_same|target_changed|binders_same|connectives_same",
+            -4
+          ],
+          [
+            "relation_same|target_same|binders_changed|connectives_same",
+            4
+          ],
+          [
+            "relation_same|target_same|binders_same|connectives_same",
+            -2
+          ]
+        ],
+        "inverse_available": 0,
+        "matched_each": 0,
+        "vector": [
+          [
+            "relation_same|target_changed|binders_same|connectives_same",
+            4
+          ],
+          [
+            "relation_same|target_same|binders_changed|connectives_same",
+            -4
+          ],
+          [
+            "relation_same|target_same|binders_same|connectives_same",
+            2
+          ]
+        ]
+      },
+      {
+        "available": 1,
+        "inverse": [
+          [
+            "relation_changed|target_changed|binders_same|connectives_changed",
+            4
+          ],
+          [
+            "relation_same|target_same|binders_same|connectives_same",
+            -6
+          ]
+        ],
+        "inverse_available": 0,
+        "matched_each": 0,
+        "vector": [
+          [
+            "relation_changed|target_changed|binders_same|connectives_changed",
+            -4
+          ],
+          [
+            "relation_same|target_same|binders_same|connectives_same",
+            6
+          ]
+        ]
+      },
+      {
+        "available": 1,
+        "inverse": [
+          [
+            "relation_changed|target_changed|binders_same|connectives_same",
+            4
+          ],
+          [
+            "relation_same|target_changed|binders_same|connectives_same",
+            -4
+          ],
+          [
+            "relation_same|target_same|binders_same|connectives_same",
+            -2
+          ]
+        ],
+        "inverse_available": 0,
+        "matched_each": 0,
+        "vector": [
+          [
+            "relation_changed|target_changed|binders_same|connectives_same",
+            -4
+          ],
+          [
+            "relation_same|target_changed|binders_same|connectives_same",
+            4
+          ],
+          [
+            "relation_same|target_same|binders_same|connectives_same",
+            2
+          ]
+        ]
+      },
+      {
+        "available": 2,
+        "inverse": [
+          [
+            "relation_same|target_changed|binders_same|connectives_same",
+            -2
+          ],
+          [
+            "relation_same|target_same|binders_changed|connectives_same",
+            2
+          ],
+          [
+            "relation_same|target_same|binders_same|connectives_same",
+            -2
+          ]
+        ],
+        "inverse_available": 0,
+        "matched_each": 0,
+        "vector": [
+          [
+            "relation_same|target_changed|binders_same|connectives_same",
+            2
+          ],
+          [
+            "relation_same|target_same|binders_changed|connectives_same",
+            -2
+          ],
+          [
+            "relation_same|target_same|binders_same|connectives_same",
+            2
+          ]
+        ]
+      },
+      {
+        "available": 1,
+        "inverse": [
+          [
+            "relation_same|target_changed|binders_same|connectives_same",
+            -6
+          ],
+          [
+            "relation_same|target_same|binders_changed|connectives_same",
+            4
+          ]
+        ],
+        "inverse_available": 0,
+        "matched_each": 0,
+        "vector": [
+          [
+            "relation_same|target_changed|binders_same|connectives_same",
+            6
+          ],
+          [
+            "relation_same|target_same|binders_changed|connectives_same",
+            -4
+          ]
+        ]
+      },
+      {
+        "available": 5,
+        "inverse": [
+          [
+            "relation_changed|target_changed|binders_same|connectives_changed",
+            -2
+          ],
+          [
+            "relation_same|target_changed|binders_same|connectives_same",
+            -2
+          ],
+          [
+            "relation_same|target_same|binders_changed|connectives_same",
+            3
+          ]
+        ],
+        "inverse_available": 0,
+        "matched_each": 0,
+        "vector": [
+          [
+            "relation_changed|target_changed|binders_same|connectives_changed",
+            2
+          ],
+          [
+            "relation_same|target_changed|binders_same|connectives_same",
+            2
+          ],
+          [
+            "relation_same|target_same|binders_changed|connectives_same",
+            -3
+          ]
+        ]
+      },
+      {
+        "available": 1,
+        "inverse": [
+          [
+            "relation_same|target_changed|binders_changed|connectives_changed",
+            -2
+          ],
+          [
+            "relation_same|target_changed|binders_same|connectives_changed",
+            -2
+          ],
+          [
+            "relation_same|target_changed|binders_same|connectives_same",
+            3
+          ]
+        ],
+        "inverse_available": 0,
+        "matched_each": 0,
+        "vector": [
+          [
+            "relation_same|target_changed|binders_changed|connectives_changed",
+            2
+          ],
+          [
+            "relation_same|target_changed|binders_same|connectives_changed",
+            2
+          ],
+          [
+            "relation_same|target_changed|binders_same|connectives_same",
+            -3
+          ]
+        ]
+      },
+      {
+        "available": 1,
+        "inverse": [
+          [
+            "relation_same|target_changed|binders_same|connectives_same",
+            2
+          ],
+          [
+            "relation_same|target_same|binders_changed|connectives_same",
+            -2
+          ],
+          [
+            "relation_same|target_same|binders_same|connectives_same",
+            -2
+          ]
+        ],
+        "inverse_available": 0,
+        "matched_each": 0,
+        "vector": [
+          [
+            "relation_same|target_changed|binders_same|connectives_same",
+            -2
+          ],
+          [
+            "relation_same|target_same|binders_changed|connectives_same",
+            2
+          ],
+          [
+            "relation_same|target_same|binders_same|connectives_same",
+            2
+          ]
+        ]
+      },
+      {
+        "available": 1,
+        "inverse": [
+          [
+            "relation_same|target_changed|binders_same|connectives_changed",
+            2
+          ],
+          [
+            "relation_same|target_changed|binders_same|connectives_same",
+            -2
+          ]
+        ],
+        "inverse_available": 2,
+        "matched_each": 1,
+        "vector": [
+          [
+            "relation_same|target_changed|binders_same|connectives_changed",
+            -2
+          ],
+          [
+            "relation_same|target_changed|binders_same|connectives_same",
+            2
+          ]
+        ]
+      },
+      {
+        "available": 3,
+        "inverse": [
+          [
+            "relation_changed|target_changed|binders_same|connectives_same",
+            4
+          ],
+          [
+            "relation_same|target_changed|binders_same|connectives_same",
+            -2
+          ],
+          [
+            "relation_same|target_same|binders_same|connectives_same",
+            -4
+          ]
+        ],
+        "inverse_available": 0,
+        "matched_each": 0,
+        "vector": [
+          [
+            "relation_changed|target_changed|binders_same|connectives_same",
+            -4
+          ],
+          [
+            "relation_same|target_changed|binders_same|connectives_same",
+            2
+          ],
+          [
+            "relation_same|target_same|binders_same|connectives_same",
+            4
+          ]
+        ]
+      },
+      {
+        "available": 1,
+        "inverse": [
+          [
+            "relation_changed|target_changed|binders_same|connectives_same",
+            6
+          ],
+          [
+            "relation_same|target_changed|binders_same|connectives_same",
+            -2
+          ],
+          [
+            "relation_same|target_same|binders_same|connectives_same",
+            -8
+          ]
+        ],
+        "inverse_available": 0,
+        "matched_each": 0,
+        "vector": [
+          [
+            "relation_changed|target_changed|binders_same|connectives_same",
+            -6
+          ],
+          [
+            "relation_same|target_changed|binders_same|connectives_same",
+            2
+          ],
+          [
+            "relation_same|target_same|binders_same|connectives_same",
+            8
+          ]
+        ]
+      },
+      {
+        "available": 3,
+        "inverse": [
+          [
+            "relation_changed|target_changed|binders_same|connectives_changed",
+            3
+          ],
+          [
+            "relation_same|target_changed|binders_same|connectives_same",
+            -4
+          ]
+        ],
+        "inverse_available": 0,
+        "matched_each": 0,
+        "vector": [
+          [
+            "relation_changed|target_changed|binders_same|connectives_changed",
+            -3
+          ],
+          [
+            "relation_same|target_changed|binders_same|connectives_same",
+            4
+          ]
+        ]
+      },
+      {
+        "available": 1,
+        "inverse": [
+          [
+            "relation_same|target_changed|binders_same|connectives_same",
+            -1
+          ]
+        ],
+        "inverse_available": 0,
+        "matched_each": 0,
+        "vector": [
+          [
+            "relation_same|target_changed|binders_same|connectives_same",
+            1
+          ]
+        ]
+      },
+      {
+        "available": 1,
+        "inverse": [
+          [
+            "relation_changed|target_changed|binders_same|connectives_same",
+            5
+          ],
+          [
+            "relation_same|target_changed|binders_same|connectives_same",
+            -2
+          ],
+          [
+            "relation_same|target_same|binders_same|connectives_same",
+            -6
+          ]
+        ],
+        "inverse_available": 0,
+        "matched_each": 0,
+        "vector": [
+          [
+            "relation_changed|target_changed|binders_same|connectives_same",
+            -5
+          ],
+          [
+            "relation_same|target_changed|binders_same|connectives_same",
+            2
+          ],
+          [
+            "relation_same|target_same|binders_same|connectives_same",
+            6
+          ]
+        ]
+      },
+      {
+        "available": 10,
+        "inverse": [
+          [
+            "relation_same|target_changed|binders_same|connectives_same",
+            3
+          ],
+          [
+            "relation_same|target_same|binders_changed|connectives_same",
+            -2
+          ],
+          [
+            "relation_same|target_same|binders_same|connectives_same",
+            -2
+          ]
+        ],
+        "inverse_available": 0,
+        "matched_each": 0,
+        "vector": [
+          [
+            "relation_same|target_changed|binders_same|connectives_same",
+            -3
+          ],
+          [
+            "relation_same|target_same|binders_changed|connectives_same",
+            2
+          ],
+          [
+            "relation_same|target_same|binders_same|connectives_same",
+            2
+          ]
+        ]
+      },
+      {
+        "available": 12,
+        "inverse": [
+          [
+            "relation_same|target_same|binders_changed|connectives_same",
+            2
+          ],
+          [
+            "relation_same|target_same|binders_same|connectives_same",
+            -2
+          ]
+        ],
+        "inverse_available": 0,
+        "matched_each": 0,
+        "vector": [
+          [
+            "relation_same|target_same|binders_changed|connectives_same",
+            -2
+          ],
+          [
+            "relation_same|target_same|binders_same|connectives_same",
+            2
+          ]
+        ]
+      },
+      {
+        "available": 1,
+        "inverse": [
+          [
+            "relation_same|target_changed|binders_same|connectives_same",
+            -10
+          ],
+          [
+            "relation_same|target_same|binders_changed|connectives_same",
+            6
+          ]
+        ],
+        "inverse_available": 0,
+        "matched_each": 0,
+        "vector": [
+          [
+            "relation_same|target_changed|binders_same|connectives_same",
+            10
+          ],
+          [
+            "relation_same|target_same|binders_changed|connectives_same",
+            -6
+          ]
+        ]
+      },
+      {
+        "available": 3,
+        "inverse": [
+          [
+            "relation_same|target_changed|binders_same|connectives_same",
+            -2
+          ],
+          [
+            "relation_same|target_same|binders_changed|connectives_same",
+            3
+          ],
+          [
+            "relation_same|target_same|binders_same|connectives_same",
+            -2
+          ]
+        ],
+        "inverse_available": 0,
+        "matched_each": 0,
+        "vector": [
+          [
+            "relation_same|target_changed|binders_same|connectives_same",
+            2
+          ],
+          [
+            "relation_same|target_same|binders_changed|connectives_same",
+            -3
+          ],
+          [
+            "relation_same|target_same|binders_same|connectives_same",
+            2
+          ]
+        ]
+      },
+      {
+        "available": 1,
+        "inverse": [
+          [
+            "relation_same|target_changed|binders_same|connectives_changed",
+            -6
+          ],
+          [
+            "relation_same|target_changed|binders_same|connectives_same",
+            6
+          ],
+          [
+            "relation_same|target_same|binders_same|connectives_same",
+            -4
+          ]
+        ],
+        "inverse_available": 0,
+        "matched_each": 0,
+        "vector": [
+          [
+            "relation_same|target_changed|binders_same|connectives_changed",
+            6
+          ],
+          [
+            "relation_same|target_changed|binders_same|connectives_same",
+            -6
+          ],
+          [
+            "relation_same|target_same|binders_same|connectives_same",
+            4
+          ]
+        ]
+      },
+      {
+        "available": 6,
+        "inverse": [
+          [
+            "relation_changed|target_changed|binders_same|connectives_same",
+            3
+          ],
+          [
+            "relation_same|target_changed|binders_same|connectives_same",
+            -2
+          ],
+          [
+            "relation_same|target_same|binders_same|connectives_same",
+            -2
+          ]
+        ],
+        "inverse_available": 0,
+        "matched_each": 0,
+        "vector": [
+          [
+            "relation_changed|target_changed|binders_same|connectives_same",
+            -3
+          ],
+          [
+            "relation_same|target_changed|binders_same|connectives_same",
+            2
+          ],
+          [
+            "relation_same|target_same|binders_same|connectives_same",
+            2
+          ]
+        ]
+      },
+      {
+        "available": 1,
+        "inverse": [
+          [
+            "relation_changed|target_changed|binders_changed|connectives_changed",
+            -2
+          ],
+          [
+            "relation_same|target_same|binders_changed|connectives_same",
+            3
+          ],
+          [
+            "relation_same|target_same|binders_same|connectives_same",
+            -2
+          ]
+        ],
+        "inverse_available": 0,
+        "matched_each": 0,
+        "vector": [
+          [
+            "relation_changed|target_changed|binders_changed|connectives_changed",
+            2
+          ],
+          [
+            "relation_same|target_same|binders_changed|connectives_same",
+            -3
+          ],
+          [
+            "relation_same|target_same|binders_same|connectives_same",
+            2
+          ]
+        ]
+      },
+      {
+        "available": 1,
+        "inverse": [
+          [
+            "relation_same|target_changed|binders_same|connectives_same",
+            5
+          ],
+          [
+            "relation_same|target_same|binders_changed|connectives_same",
+            -2
+          ],
+          [
+            "relation_same|target_same|binders_same|connectives_same",
+            -6
+          ]
+        ],
+        "inverse_available": 0,
+        "matched_each": 0,
+        "vector": [
+          [
+            "relation_same|target_changed|binders_same|connectives_same",
+            -5
+          ],
+          [
+            "relation_same|target_same|binders_changed|connectives_same",
+            2
+          ],
+          [
+            "relation_same|target_same|binders_same|connectives_same",
+            6
+          ]
+        ]
+      },
+      {
+        "available": 1,
+        "inverse": [
+          [
+            "relation_same|target_changed|binders_changed|connectives_changed",
+            2
+          ],
+          [
+            "relation_same|target_same|binders_same|connectives_same",
+            -2
+          ]
+        ],
+        "inverse_available": 0,
+        "matched_each": 0,
+        "vector": [
+          [
+            "relation_same|target_changed|binders_changed|connectives_changed",
+            -2
+          ],
+          [
+            "relation_same|target_same|binders_same|connectives_same",
+            2
+          ]
+        ]
+      },
+      {
+        "available": 1,
+        "inverse": [
+          [
+            "relation_same|target_changed|binders_same|connectives_same",
+            4
+          ],
+          [
+            "relation_same|target_same|binders_changed|connectives_same",
+            -2
+          ],
+          [
+            "relation_same|target_same|binders_same|connectives_same",
+            -4
+          ]
+        ],
+        "inverse_available": 0,
+        "matched_each": 0,
+        "vector": [
+          [
+            "relation_same|target_changed|binders_same|connectives_same",
+            -4
+          ],
+          [
+            "relation_same|target_same|binders_changed|connectives_same",
+            2
+          ],
+          [
+            "relation_same|target_same|binders_same|connectives_same",
+            4
+          ]
+        ]
+      },
+      {
+        "available": 7,
+        "inverse": [
+          [
+            "relation_changed|target_changed|binders_changed|connectives_changed",
+            -2
+          ],
+          [
+            "relation_same|target_same|binders_changed|connectives_same",
+            2
+          ]
+        ],
+        "inverse_available": 0,
+        "matched_each": 0,
+        "vector": [
+          [
+            "relation_changed|target_changed|binders_changed|connectives_changed",
+            2
+          ],
+          [
+            "relation_same|target_same|binders_changed|connectives_same",
+            -2
+          ]
+        ]
+      }
+    ],
+    "passed": true,
+    "policy": "whole_ancestry_closure_inverse_pair_delta_match_v1",
+    "quarantine_reason": "unmatched_complete_closure_unit_pair_delta_vector",
+    "quarantined_cells": [
+      "relation_changed|target_changed|binders_changed|connectives_changed",
+      "relation_changed|target_changed|binders_same|connectives_changed",
+      "relation_changed|target_changed|binders_same|connectives_same",
+      "relation_same|target_changed|binders_changed|connectives_changed",
+      "relation_same|target_changed|binders_same|connectives_changed",
+      "relation_same|target_changed|binders_same|connectives_same",
+      "relation_same|target_same|binders_changed|connectives_same",
+      "relation_same|target_same|binders_same|connectives_same"
+    ],
+    "quarantined_group_ids": [
+      "var:00f9932ab291195a561eccc36e2f8eb4647447800d904a82560985c2dc8a235d",
+      "var:01067389889f4737b5fa6179967cd14f5acb060ab4d0da590eda3e1e293ac801",
+      "var:01339df5ebb0ec2b372556fbd6b631f846cbf5e7ba3aa2448d1ff41c5aa2b659",
+      "var:020f50b13691e5e3bc8860528e7ee137b0899a302fa15e25cd3a90b79b49d73c",
+      "var:028e6fd26471e09f5993bcb416e30142f2c307bb27b955c2fc8868f02b16e4b6",
+      "var:038f2bc580555e72eedbf21fbf16f933ed95f0ab97dcc7d188345122cbf402d0",
+      "var:039e810039ee9eff7899fa712a3dea598261ba2713a2adb1d3b3c53ede49c510",
+      "var:047102831947d4e52ada9b58fe3bcc5fa38b9dc91e1797874557c98e6ed96598",
+      "var:04edea79519104f09ffe206edb0e8d8bd55e763bf994a5b4fedebbb6f71d2062",
+      "var:0564b652987af02d657d6f15f7ff17681b0da50aa18cbf2cf6e412c98a1a0433",
+      "var:059327f25fbb467ce1b2c92879011f7194b5f89eb5cc37caa23d044866eb2819",
+      "var:064595f78286595fc1c22ae2e8f98fe3cc7308c2262c54ec9524b204fe1baf27",
+      "var:06b5ccc79c88893154ae5a6ee8e96484b02b6c9bc7fd5b37b8e3786df448fdbf",
+      "var:0a012433753922b4650ddf8a2f1501a1c244fde27ec62d80a66d190fe8091303",
+      "var:0a0f5891a9add510aff749314c3b70cd6dfa949c3aaa399baa2b99ace2ab2794",
+      "var:0c584f32f5dc492bcdc0ddeb264175e9ab98f50513c9dfca47e0e1c92daf7b24",
+      "var:0e52a7520286ec92ad6e822b535efd9ca88f923cb6610f67d7f0add866583a32",
+      "var:0fc7e188a6994560cb5d1940ba98d986c9699b173acef33100e30f1a6e1967a4",
+      "var:11a38ad7add5e23b0b6b79cea6045a86043541962941c943498d64b1b4b04d85",
+      "var:11bb085840d0408a207dbc657bf8d10448c7c38909037368b377d180a3a6d576",
+      "var:1207d12758360e4615eaf54e163cf982efb2c624127100a350cac472c304846a",
+      "var:122461e17dfb4bb9662d70d5c64b68d277cfe46620ad950363696097fc783b76",
+      "var:128cfad3349feeced3ece4eb50cda3e4d19cde13be672d801a5c117aae08e1b3",
+      "var:13502a96d5cfc856f69552904a1bbd5a797de492d79efe9fc537ad74f6e21a84",
+      "var:14b2c61f5a1d9ad600f6d0557f3b8cd450a19e1e3ad78023e8f308559f99f649",
+      "var:175369c299624b9be7e1713de0e00016cdef809cf7bd4c61b8c380c00978cfcf",
+      "var:176e4b4a606027755a1b851fddbcbbf8e11a350f882c1fa584a6d15fc12ee331",
+      "var:198729b0151ab181c92c67807a2021832fab70a75d88808df130fd7f2f7c48e0",
+      "var:19ee5db070ee492ccc45fa6c4685d887ceb6da76bd01fec32f5dd7ed7ae42ed4",
+      "var:19fb9600a5ed889b9d9a0881757c56ab5dd1a31025bac6c75bef50bd4f864940",
+      "var:1adc7566bcce2d0952335fb50dddcdfe549f7ae0d19164dbb1baa4cdb2de881f",
+      "var:1add507675ab7ff0f84fc29f64d2052d6df22a139435f8d33eeca768f5575db8",
+      "var:1c82ff7e0281829f9a3af2e63e69567ed4b2189bdcbb49714bea74a074fda378",
+      "var:1cee9463ec1a3f87ace810754edba7436c9b2c01d13bc2e996fd5e67cf49b989",
+      "var:1d469654027ea3160593b2bd22880b7504f72d77ceda10147caf21b77a453974",
+      "var:2011653a7e17b819539ad8d62718b4e106db0d1d96811a8255f7ea15d16c4a3d",
+      "var:2156de8a642a44e64181f7308fe41e6912d664997a322f0070065c71ce1b7407",
+      "var:2204587efad9eaf68573fc7b3dfe0f15158035c3e831d381d85e76e4edb6e4a5",
+      "var:22c588eda54c0012ab960e5b496cec570bc0e794eea97dfbc4c48289ba37bd83",
+      "var:26aa07050439c635300d83b133d6daa8db008e9af97e9429673f30afd8731219",
+      "var:272ff764647dbec1273a45cd09984a623989fb2be93d181b4729f5eb4c224044",
+      "var:27316c7c3bc2b2750481def1f9d711ac4a2de50dc7e6dee492823f2fa87d3751",
+      "var:2859b1f3b72098851228fdd527e950e4bc57bbf88d75b14e0e9d3850885b7b9e",
+      "var:28e55b52c18c0d9fc385b8ae81402bfd4bd755c3d57af8d1c8dab340c342c32c",
+      "var:297bebfced111962d3da2f8e41b70c070f7f9bdac0d23b762ae9b4965bc5b0f1",
+      "var:2afc52a862f248bc323507f69004d01faedce448eb699d845473dc860dc8e2ec",
+      "var:2d7e44906234158a27271e4bea4d69aeee936e7b7d31784e2260d3c4d7ab47d4",
+      "var:2f7148f1fafb74fa1c105b544a40e2d8ffe501ada31e987eee3e5a24591a1f6b",
+      "var:2fb49c2a5dbf275eb35f4b039030aff97f636a198c5832a5af79349c014b5003",
+      "var:2fc32dfb521caf7b901c6bf0aadc964fae5f822ec0fe0e39af3e71b48159d7d9",
+      "var:3006e9f4f0ccdb1f5095ced39135726bb09e07e0601a0d2d9f7ade79c2a4c23f",
+      "var:32831332c62d8554a7d4727f0f94d369e67eeaa6311168ecf1fd16d8eb13b740",
+      "var:33355f487dda1fb7127f5ecbede0f931b6277f18bde7a6108bdf97b9bd86da80",
+      "var:3337a7725fd6708dc18c1009c851853549bd3c7e46430c824395835e9a580ffc",
+      "var:347530de59e60f7b384de67862d4137839bb8fa3a1530ccb5904ba0519adcfc9",
+      "var:34ea36437072c92f0c05e454fc6935acc295e34e18efe8926f2753a41a8eb170",
+      "var:365c8d8ed27d79b9e46dc4d3f4859f103945a26e435b136311fd33ef5fca90c7",
+      "var:366b74e4d2842baf884fbad3e24295797e89efd53ce2a7614c6c1f51573b1642",
+      "var:378955215bbb5c69a46df6da1d2b081ebbfa3e1cb6bab702c8bc31ebee297835",
+      "var:39d91b4e81fa36526706d7cbf51857c6eba1f625f167b0771fd2d1fb80510d94",
+      "var:3a5c5c84f201ff958d2d569f62b0765112a99ba8802b9917002372b862eb308b",
+      "var:3a5cfdcca7930e6b733e1c85e08a083219c48d86421fd54f00f3705944c50070",
+      "var:3c09a779d938e1bef955bf8426b441e15693dae0bb6943df429f18db56607a07",
+      "var:3c5ae9e93cb02bc840a9bd313f3af63c95b49e8436d9fd564b394f785ee7a026",
+      "var:3c95ea08f6cdd596a39bf5c7b0ca1d609c0b7e0c05218ee11feba600d57cff53",
+      "var:3dd2f018c1118a067155970232b2351ba846de105d784d681a3a3e5e588d3b61",
+      "var:3e97edfae747d94b9c81791b94626293b9a8f760b96f2a1d9509fa92fabdedd0",
+      "var:4092398829574d8e51a8c1b5b233aad70296a97783201afd049a64f788f81850",
+      "var:426d0c5cb5341e6217ddd26a20cda72f10e989b37e9f464b941c5a72d0636769",
+      "var:42ba8efef03fed53ec0f1cd1701df9efa550bcf96536f156b7494c7cc30f0c1f",
+      "var:42e3d703beb1116395497cea96afb607b5bee2925f9dc663d676bfb3c9701893",
+      "var:435d9ece26915dcc91d123ac136fdb72fbf0c4772a4deff8efaea9bcbaa895ed",
+      "var:4413c1115466d5fbc0033aa49249830af262e35237078801a6a88dac8614b345",
+      "var:45521086c4f37fb2bab9593ede403a0a29ed826cf7568afb8525631633e3bdfe",
+      "var:471a10a5d75907f7da27f9b87e78d3468e2e8f1171552244c05d8177e622361b",
+      "var:47e87d731401fa49ce7e69106c181b07e2c0547cd73d1da16290994b2dbf7c17",
+      "var:492e2c93220c669cf23c54baf435b87b51837776fa58709737e73c771e5c7632",
+      "var:494b0daf640239af94a92d9f4de622097e71ec4b7611b2b13f2fc0110628b50c",
+      "var:496a09ad667f48a6da9d5ebda404dd0c9cf87c68ca3f624e70cfd3f6ba789343",
+      "var:497b7465e1d8322b5ba0b43847ea5fe2eba203627ebd90b0a707ae289ea80257",
+      "var:49c4b78a2c8f7aa193fb82fa049af693dc1f35803a75feade578390af4bc364e",
+      "var:4a0e1553f3e9fc36f4a390cad7582353fc93aff9bdcef63c6db66f8615207215",
+      "var:4abe266edf692dfc5198700e12eb135275310f54c520988a4a17fe382f3ea58c",
+      "var:4ae915084caaf44346ddf1d3597a44edb2b92bbbf786a4a600450817f732b332",
+      "var:4b5eaba0c9646a1ba0cb0a78e61306e440f1ae67372dc6c9ccada68a1677e749",
+      "var:4c2db9d2b1f88a58136a412860f3c097b48082ceaba7a36100d393bab1a9994f",
+      "var:4c3c5221a7e9a62df84fd96c88a3ef5d626537193e0d33c64503bdb0edea9a3a",
+      "var:4d167f55db0d6cd4c90b6b99a33d715c46d866b45f60ef285d0259e7a32c557a",
+      "var:4d6d3f4a94c26b787316ce7eadfbe60b3456055baa3377f015a8098d914737ee",
+      "var:4d8da965158e4022337273aff7ae20d63f7871bbc0726bcecb21bc0eab1a0fa9",
+      "var:4e248885a8a554e12fcfc8b2dae57ae90a308fe62863dcfb24377aeefb7b8435",
+      "var:509d92ffd01b2c3735f0c69005060e63566c76337b4c9728e47b74846b463774",
+      "var:50e9abbb7c7deb40da7e05473821bfe7fb10705ffd0aa6a73ecac7a97d1b02cf",
+      "var:53330452649f2a20f8b2ab2fb74dbda0a0f81945caa6af15167a060beaef4576",
+      "var:535892851b940a6e6fe82c6f3359340f27c8ab23360e37034ad320113ca23727",
+      "var:53dad65337f5d2c05ad81cbff8c519f37aa2c0a8eee987b45d58074534fb2a1b",
+      "var:54b696f0ade702fc66a622feea8b0878066838a924e4265c107af6c0730333ea",
+      "var:552e464cabc7b896af10cc4006bed62166df68004b3e715c6bd5e468c2048921",
+      "var:586276e54c34da233280da1b2f794f4c904c0257dd3bfb8b00c7788461c17a35",
+      "var:58adce34cd31303c9dbdfd9c481dc41f13a27c55718b292b95c430d8fd9b4d58",
+      "var:5b5e8236607c5fc27c2b27d3d0a62ac933013dba035cbb8d0491d968a60a83a3",
+      "var:5c062eb5b3b6a9a2045b4bad19314fb5f23c8634cc8a9645d6fe2f7b372c20e5",
+      "var:5c241a8609d9417bfe640876a132b6e5c314e3d1ae3c168763d46c107db03042",
+      "var:5cb51849284d83062a85478080a517da27eedbb473b20b4ed34cbebeb19234bb",
+      "var:5cb8867e9f0ba8bf3302be37bc4150c8cd32a11a52546f868b3a52ba1f52efd5",
+      "var:5f3c7948ffbbb1817b653344915a485be1bb401b2b474d30ccd128a2490068ac",
+      "var:60209b7af54810d23799a9e16f0d31f20af9bd2fd1c677619c9d008e50e4e9f3",
+      "var:6032d4fc96e643776c1e54bb961f102e49b58970fa1ae4cff1fc54db55574f68",
+      "var:619c03269381b3222ced4beb9686b5cbac152c507fa06dda42145cecac81c4f6",
+      "var:61a9747d7301586f4d34144d087681fe10ab911b472c6b2246cacf94d88462cc",
+      "var:621f4c2ef1fb3bb20ae9d82c063275d54943ee748c6abd2ba4f1e1ed05578b2f",
+      "var:634f907a2b0ff7c98df1757dd9815b4dc8fd92df136d8d8da2de0b5a8cefab3b",
+      "var:6457b34b09108b923d0287e0f08fcd60f37534cd63fea6d4b29a3852f75a79f6",
+      "var:649c8ad1518c538cd324942614537f161a29d3e5d35031685e445c35b1435304",
+      "var:664d7f3ded574813756a8a5e9323fd2d8a1397519833074ebdbd324d2e438d41",
+      "var:66b6428b4c39ffc5068f97d7d7a6960d9267c024799a2931e1601d66cfe30bf5",
+      "var:67023b4c7c250d190269ea2ea662e0945e242c009c545549d70edd7cbb226274",
+      "var:6726da578aab4301b83a43bd77f7e439705c3076819a496e86b131607e8bfeaa",
+      "var:6741218eb60e68056cee964e4dd196131001c31e227c6f32e37a0d19ed781477",
+      "var:6797f908eea5f3a91b673202e3a529976125ea7082beb205612df1da2f067983",
+      "var:67ab91ec9590252666eaa766b18af3809e536f7468747fe4fcfea1b19142a424",
+      "var:695a840196cb450d7a268bf76a4069d365f7fbe5fb2d4b2988948f5d2b25070d",
+      "var:69ff2311189dff7a52d3ba3ec29833dc6a15f2a4153d5a05b520a69300a03cb0",
+      "var:6b52dae8a632ff3169725cab7ece177076487dd87acdbc305acdae33fff58773",
+      "var:6e3bae5087a7d206c071607b3583c69d4c20c45b3746441802f39bbf47070ed7",
+      "var:6e4d2e17a238a7f3a9b4a0ab913ffb7f7ea915c62d8c500105dc8002ca2a66e4",
+      "var:6e81edf03bff855a22c408a4ab618169eeed97d0404484f6b804c201dfeaf5a1",
+      "var:6ec311a2263d20d14428fccdc7240815859ba129c050caf5bde768924d96825f",
+      "var:6f42803f89bd572c08f25ecdf536da54f2388c7fb98368df4541e44386b4235a",
+      "var:6ff1732dd047524a017cbbbc513f6f88874d6e9a91cf80f4620e1525ddc7316c",
+      "var:703ad2beb9c525e402ffe636aa7773c95f630b5772a343cd7d9ddde76678077f",
+      "var:705472568123b7f3a8ba9429eecc7276b5ef1fc42e906a729ce69dd728ed60c5",
+      "var:71061564e829ed591d0935ee69886c8f594c5d09f02916d220db55a8bb6033c7",
+      "var:7125a67dfd8ecd6df63b6865806de64c0e074e4055f7c73d3fd52f88771194de",
+      "var:72924ff62efbb0d133c8346fdbede63f38d58c8b382ff8af3e3b201a1056a1ef",
+      "var:73171ecc591aa3ddf421c860e60697d7849046890891b4b361fd0399b506b5c1",
+      "var:73e88256becbed0c47a0b5ca590866b40692d276a26bb34cea04774c7646d82e",
+      "var:74e073dedf76be2be799dc14cf5629f9f49ba56b9c0052919377dca3eb7d1f64",
+      "var:74f07626b8eda95a69e566d243cecce7a973d3cd7d4b933baa3661df0176cc1f",
+      "var:7561fe659dd4bac5c944a8bfdfb300eadfa63cdf86ff328d1eee01504083b7cf",
+      "var:77c9071fca4e0ec151c738ce39339688119b97baa2d697bdd82d3a7f83677875",
+      "var:78437575ac31ec4d478ddf201c1fea967baf0a025dfeb91e3a8c01898179d056",
+      "var:78bf7f328d657cfb13fa32cfd12f9a53a7ee9b39f0f3c538836ba80bc1cc1684",
+      "var:78cf2f74a5c3708e4f32a2e507e52e4cea702e02de2a9d4c726ac00e880c1397",
+      "var:78e1717805e8086639b78f74b813c065d2b6ea78d75664c3d3948caf36a660f0",
+      "var:7beeaf9a005c8fe14963de8817f26484abfccf19d008d50c285d131944b7d2e0",
+      "var:7bf3bbfe9caa74b8e5c52e8d8b4fc01f6a6908db79e605a5d543452ee4393a15",
+      "var:7ee1fca96851cb810872f5655fc87b9df0ed3ff54034a1da25b29c9a5f3d7892",
+      "var:7ef58a7b2cc36de9d2474d0c2562edf05b092c638fac9528662bbdbe21cbd34b",
+      "var:7f626e99ac0dd9e2132190c0e65dfc81d94392a6475f97816c9d517b04975bd9",
+      "var:7ff2f19383b88389b5a6895c4356482017f53d1f2663739242aaffbb59f4f7a5",
+      "var:7ff9ae8417620e045e0f4bf07811136446f2b7ea0289065a6729e9bc6e5cb49a",
+      "var:8048c64baffa6130de6efac61e5d334436835730170ba63241b897d5ed5eac26",
+      "var:80745d9c731909c47bdae7433d1b9b10f81e69e90fc75469e3d927bf18207f9b",
+      "var:81bc922addc898b29f67eaf4f4603b49942dd22d0d609f059cd931e899513d02",
+      "var:81fab6d2a48bc6d0acdc3dfdd316e2e6675f876033ec7103a4283f6b6fdb3ab4",
+      "var:8219a38d3b1c863e61148becd184eb00ca60d697da7e8b781eec76902dbf63a1",
+      "var:834d79fd5c9e1fc636931a8287812bcc708c72ac8adc3b025bddd1f24dc19e31",
+      "var:84bdd515b3ba8a1bc4ddd157c033d7627629e6177fef13042034b46ccf40fa44",
+      "var:862568f922b45c3b29c5367685b081690eeaae7495d86d76769b113f87d79e96",
+      "var:86283b1f79fb4cc68bea2ee017214d0f11daba77514910b28d8ef66f80c2167e",
+      "var:86cc565f39488e4c27277996d455cf189a77f34f10f8ab610fb2fa3515c0ab3b",
+      "var:87f331b992c343b90e50775ac80b849f408924eafcf41fa91e6edcece4169e7c",
+      "var:888417fed6d1b54ab3ccd7e7794ea88dd40fde3dfcf305ec61f5d14fd9b622af",
+      "var:8b411ad843e7457d3283ae750d96488efcbdcf44a2efa643ae700fb5da19ce3a",
+      "var:8cba9815f889b08777a93d347700282b4be828499e981fe8b80afc01ece50936",
+      "var:8edd617e1042c57ff8e3005514495961aa500fc5a82c5a12662d5059d4b78b70",
+      "var:8f9d5d01f8db5e05c745e8bd22d0d81fcd488f226f41655109978d6a053c24f0",
+      "var:8fc82882114e0f75fe3d39ed4b101054f63bb67bb7fe86bd5745ae34e45fa683",
+      "var:8fd58694572057c4a37d5474fc7f9a1715b550cc73e454d0713b7bd7e49c1376",
+      "var:91035be5bc9d26545753aa46419aa59df7f59d45c137f989f419af570d79a890",
+      "var:914d2d7ce85143c6c45ed3ae48c954a333904cfcb6b2e54eb9c2f0259f7ce83e",
+      "var:91cae09c6dc1107b38c970f1039078323cd67c88e2c0cbcc7240aed05fbcd191",
+      "var:91d558d1828ba487fb55e7c33fd486df0053249c2dfbe65d957128213efb03ef",
+      "var:93a833c8749f718b541f285af3417b37d5d4f0dd891a8c3e5db82b52b809dff3",
+      "var:93c07144a2c50e599755c5fbeab1d03ca9480f248123768ac0f61a96cfda7b9a",
+      "var:93d6af27436a149666550b034a3a77e7357744f2f9c41121419e6afafdb41c73",
+      "var:95aacc64f3bdeeb5892d8ad51525e075f6217839afa3912b8ba6733c27cae930",
+      "var:975424332c6efcc891690973a85b670835571faf7d3eafdf9591dd1a6117f849",
+      "var:9783e83d99c1b87200f17612110d9588003edb93a81b666513fa83393615d949",
+      "var:97b7a1cb00bf71eb47e4e90b4d71906e9c4e9cf3a2c4c781b0d68fd133885218",
+      "var:986502f9ccece1e0d47bdf8def654dc1ca6b05b3ee07dcb922c1f95f025d9a39",
+      "var:994d4ce05f2909e66b830f0a7de704a201643683a5548c3471ce6f8b65a16e21",
+      "var:998acd60eb607c4027b3e45086bb7a2f883ea928850c2ce2b9e11870fed4480d",
+      "var:9b8ee51daf0f4289613144e63e16cad03c682549aa25af0a464c2a9f31da2142",
+      "var:9b901fc59fde58495eeedc8260eec9156d05148764a7527360fccfa27cf49c8e",
+      "var:9be7dc49e9f453f92341783dbe06225d1f950ae8e50e6ce350394396c5fd6c19",
+      "var:9ca978b2475496d2d0e8b24a733d3af058b1b5d176b29e8ca46e37418267e54a",
+      "var:9d45ad4387daa13788f579062360cbe23bc9d06755d7bcb3f1986dd20356e3f9",
+      "var:9fd1f668e6b2748c3f7820a4d6b22c17c4476e5e83e9262d0dc72090e1758d8f",
+      "var:a04b94302bcd3842883f2cf271afe383acdfdd99347b1068743b5574a8cae581",
+      "var:a0831e1828d7430704b3403452d9829299079c85c0e2c2a1e36ad8901a09a7e5",
+      "var:a0fdc4a6f17e1dee90d0323455b4206236fb311c7660c3f335e975da812d1f49",
+      "var:a1d7d26c08120001019742e6fce4318b0f7337e66057ca8d4554c5c44c7bbc79",
+      "var:a27778277293e337f8487698b2052db8291ceab675c6ff5409b1d0d2d4bbc044",
+      "var:a3b319cb52204b99f243aee4f52ab1a8e91765e80c3582c340909eccb23af353",
+      "var:a40d5b3eb9cd34d01d6db7d8ca91db3e9e0a421e8e3ea4b3de8574acc187b0d6",
+      "var:a6f32c79c11387c0ee496d74a14dc91906f7ae7eb81768b87ec57c1221e0c3a1",
+      "var:a866a05cf0191670ff2e6a0999092917bb59a8157ff462444e2f4a76ffb1187e",
+      "var:a87479b0077c5109be4a0fc2d29088fd5882122ac3f8133c4cfd2d9bdcd56f99",
+      "var:a8fe94bfffe32866a085d00f4dd6f912255d27b4fd653d2155c29844ec4b16ab",
+      "var:a934ec48bb04b8a68a655e0ca96c928cdd886f087ef8fa9526ed2f53d7701bbd",
+      "var:a939fbc5c0e096476d3ff4b5b3798cdd74f55246d65eba14312d5ab3ed5de3a9",
+      "var:aa0a94ffe4bdb2beb3f9b452df2e6233005f55dfdef4f4bc0b67984f83cf54c5",
+      "var:aabac12b5ceb3b9ca3cd2315bb196e5cb29f96bfe1d5ce628bf568c1aaa259d8",
+      "var:aabf16c398ac3698868c709bd97ba9377b8fce40f1cd51ba1acfd3023af26f5d",
+      "var:abd9734be4cf26ff80bfad9cd90e23936c3ab9effee82f844b2580f5deefd599",
+      "var:ac57da33b8b730efb237790e59a5babd0acd1604ed46afc9ba010efaa1d753e6",
+      "var:ac9a57b60435e8d3eb44ea63cea64a11077667039e3453918c20dff45accfafb",
+      "var:ad1e03b05d26de0068340457650b4d55c2f7658a3650b4e2a0e9f58c34fb76fa",
+      "var:adfad2ecd9b3d3f496cf4cca49992d240eb341fcaf8954736638fa51b65510fe",
+      "var:aeca87e2c1999df3e3bc9a73b77eb0fb7d8adeeb89821068af3e9ee3c8e1e39d",
+      "var:b01dc535821a2bfec4acea36e371dda4bdb220514be346bc403f79cc5aeb5315",
+      "var:b080c8e17e65b2da1026e7f6c2da26d522fbb13cacd582e15def61172c052f59",
+      "var:b0825535cee537ec343663e0494651f568d6a394d178ba3389da141a3b91ce87",
+      "var:b2e8c95ede5ac4bdfe1536a810c725e3f8c309a822aa5fb9dbb76c70946fe785",
+      "var:b3de27952fd219e75be108ccb3184f81c944cf6373f9a16d6213b64a8bbd6c71",
+      "var:b56ce840dc0677daace06a4a335b64ff56956ba2df0542f1970ec72fae7bd69f",
+      "var:b62f1a9d4020d665c9a8190eaf89a748a19d17d4d3549b3486b2ded22300ee94",
+      "var:b70d49e08ac79054bbf33c17a85601c056b4485deb862bf574609ca159320371",
+      "var:b8e6f2d0248f34120ef0a82ff3372af899b5b25b96f2cf38fa274e8be4c5127f",
+      "var:b91b2bb86f0a75dbc017cb053df3121ba120a2b754f46b1cbb0e63665b274018",
+      "var:b9561513111c961c1babf78d15c7397216471184d7221b9be78b914455b6e655",
+      "var:bae08e6b507645b90ff537de179d4bde6f019a0a360fdcf6f3b140923b79cdcb",
+      "var:bcb1626d5e9e0858e30f9fe5ef04563f19e7d3f618085cb46b3ef05de27ec3a2",
+      "var:bd35562697281060c2f5b4a003dd3b5bf54e43e73b9a79189be42ed76d545c0b",
+      "var:bd73cf10b52eaabe2f681af88b8c5a8f884316a13c5896d594e82c875120ed61",
+      "var:bda79511c6e2934ca0af04d78ad1f1477d0619cc4af740013c24324a876dcadd",
+      "var:be6e5e47996bbf3477bd114dc802d74f6fada6d745f5cce717cfaa80e61637c7",
+      "var:c12cada1a29ada413d8a90fc21b796602b649f1901957155a6d6a5c93ab19540",
+      "var:c171769e4ab01ab773c383dffb1165c4e4003fdd852b91e53d1c28db1e624183",
+      "var:c369a60ad26bd704ebf8795ab2291968214fa17c6fd42e0eed0f2b65f2e1d8e0",
+      "var:c3e387ee05f10b75b41ef975bd6a5cad057e6e9392532d9a5afe8e70635f84b9",
+      "var:c4a320830246afe35980d9c0141e52c6a388bb1861fa93bc3c688892b9804719",
+      "var:c4edda7cffd0b2d96c994c29aa02f336f68735656dc73f4fe1bbfec9c35b4c6f",
+      "var:c5d7c98ecdb0ec61b1df53f32db9fe2bfbfb1e44247a780681be6eeb7db77a43",
+      "var:c794481ac7dbc4f13e27580d525e0fce0fbef3260e42d62f0830ff06abb0782b",
+      "var:c7d6c33483e388b05b294b47ba6217a8db8b041e94b1b0b2137390d54a0cdf29",
+      "var:c881fa4b0493c3ad19d1db93b9282a23855a9269e680786be99849773c2e5c70",
+      "var:c8dcaf4dbd3984897fdb7cdcae3eeb77abb46216d7720dcd748c7db194597e1d",
+      "var:ccb422118c2e54d1230920ff08b8bb833fe8fee1ac1cd1d782905407fd8106a7",
+      "var:ced5f1f9c92ba8bff76e9693ee32548c792c44dd0a9d2bbf23c1bc5dd97ceaaa",
+      "var:d02c5ccf2449045760ee88a15e2edb5493f2957c8840f173f4cf1d8c653f046e",
+      "var:d10a303aa938d4d14f53685ec01b42705cef1893d6c38d74993110fabd90bd5e",
+      "var:d1b3938e97992f5929bdfafdf18e89268854a71af54d2a33070a604066193510",
+      "var:d1de82bff8cda23803c6aada50009b5cf76cb8817fa410f1cee6570854c89806",
+      "var:d265f067c80b54931005881922b903ab82dba7e69e611d20862255f5adbba767",
+      "var:d27e1d31a57f62f1f5de0a538fb12eedb9d4a87873af51e689dd7c24d85ee7bf",
+      "var:d4e09cd8cc593fd10e999f80c7988ee536dac5469bc996adde8049cb618ea2a3",
+      "var:d565104b6338e802a155d0224cd98ed05aa3e11981a639bcf64b9c03276c2577",
+      "var:d65294151c0d82eef6cfca401033761b62ab0535f6e129d687f1b761d8a5b089",
+      "var:d6846e22f5d9fe7d8f7424483e5ca04c9f110a0ad235ada0970ccb62866b1aaf",
+      "var:d75c95c84386d5b04283f0e7529a8254dd9fdec3a3c2ff4e238307ad95c29946",
+      "var:d798e5d070eeab659bb287f4d9d79f7626b39ddd882737b58d7f82357152c937",
+      "var:d7ed27f76378d9580e2dc2b8cc0740383246094da770ed250caefbbe866bdd8d",
+      "var:d815ed1c9f80b6fb95a3dd03e65e8ab458a84c6f29942349de8012c209410b96",
+      "var:d835daa57d17e99745d60382fa3651b39acbbd8e75339e31052e16f6d19e276b",
+      "var:d91aa738f915d30b217a924baf28bc22cdd28528164fd712180873a9cb0c6851",
+      "var:dc32b61de9911785d94893001ec75b3c0feba37a6201a9188c24e38b75db96b5",
+      "var:dc3aec689c19aa909e088f9c1fb7803656531a70fa80951075188bfc32e1fa34",
+      "var:dca0ce998d9e70594578356e3ce87856d66df791837a2f0960242cc7bb9c53c4",
+      "var:dccc1cacf27889e376b1b5192413dfb4c0f3182d9ae11879c13eb4d331464c57",
+      "var:dd2cc2ce1cf18852e5c0f045436405480d1e9471c7900cddf4276ebb4ae351d6",
+      "var:de15eccf2a1b305c89702448274b35ac4853658a8b24d95836808b2d7f90fc52",
+      "var:de8f4b1b9a26c08fe05e8d776533e88be8ca6c2afb4adbe69953beaa7e3cf7ec",
+      "var:e37ab2dcfb06284c2cce1170d84368f7eb8d79ee0f21c6e284b0ac104e44e824",
+      "var:e4b592908da57b71da3ae11118d9356d0e852d831fc3e0e5d8f94720a4c834df",
+      "var:e4e6ed9c0b541e7ac864ee096de1da4b1f6c583daf1dc08f8578c34320414c81",
+      "var:e518fccea4215ef37b07d51dee8d85306b1c58f8a94b61212dcf25224e9898e5",
+      "var:e62d31092d48ba8bc655e398d5c665646b8500cea2b746cbbed335c121943384",
+      "var:e6367b7421e0de93752a6c24c04f43f0e6435519f0a5338bdd7e79efc085926e",
+      "var:e67aa67b39aac20aefa4117240e6ca4ed8bebab98785f4c9bea6576a068a87dd",
+      "var:e6e4450e8895ea4503fee872469abe713269fe8402ca2b3c3639106e817b7486",
+      "var:e712361de85d3c374d4d129092ce04fd909a6eff5dcc9f179be48a17c4bf9c78",
+      "var:e7eae690961552dcd4ba5b70e62b4c9a11cc9d375f2aa6f58259819a2c7ed01d",
+      "var:e970c00875c1d4c9ddfbe58ad90f5614880e237819739f9de6938e9d570a3006",
+      "var:e983140779d38e034a4b5a9c253dff57d6753e8cd378aebecfb2c4f73e46326d",
+      "var:ea166aa44164d4f37f988f1bdf6b73d62b749ade66e4f68847d7fd1e95817eea",
+      "var:ea428d8b6861d48b2d5624628e8daf5ba2d38f02a7dd72b293a643b14fed22d0",
+      "var:ebd29e611d6b43019fe49d06fee59dd7ff2c86d0e294b4aacf1f0c7b947c8145",
+      "var:ecfcad5ca955a0b751b5c0d8fa0c709a1cdbdf49f4f1e1038e3d22c1e93cfd90",
+      "var:eeeb68621f1827e5313371373560edeecc830370dc44d3188fb8b416055fdc2e",
+      "var:effcdb70e50b1f9aaf87203eb8ce97add1c7804f470c190661d1681723fa24dd",
+      "var:f03ff9e15255a6c94f62f33e8e971243f768c865f05d3441d526df47dfb1a9e2",
+      "var:f0e8a151722490042a2dbf609902cb37f7afe086a718eddcb1076f74f02549c0",
+      "var:f12da5c71edcf55791fb2babea1e636f8ef21712a0b7b97c01665993e0fc66eb",
+      "var:f44e86ad84f8eb4f9a46bbe67500d32be0affa204568a97b5f316725f0c9084b",
+      "var:f5bd184cb40458a2c68a1f0aa6725da0cd6ad9a9fbdbd363ac873a211855abdc",
+      "var:f5cff0ea2f61c6f279ece846d5d3789d42f5892d9b04f9d26ab9441d9208d65f",
+      "var:f5f12cad7c2088063b2d76f20e9541ee93f3ea4655ad38d7b2bc9edc35049836",
+      "var:f6f02c9e110ff7c28e32f0c9d898a60ddcbabe3d1ff4fd521306c6f431dcaff1",
+      "var:f75f2bba5b002efeb9fbd18b92851bf3b32e7c6de54ab3d1b349813085de5124",
+      "var:f7cbafe5876997ec72fb91846146dd6027781505eb3a75a52e1eb23401499068",
+      "var:f8ff7ad9262a5c29e86b40953d9ed7207d6fb29442a8769b59756d799378f322",
+      "var:f9d410f708050e8ebae99add7510b76c9a72faa4ab44abda805f0d13e9b86e8a",
+      "var:fb26990187c9d22eb35e7735a762f530d4f414f53bd161bc4b75960e7861c730",
+      "var:fb5ace4ac30aaf3e85cfa61e201a24c65ed925398580121709ec33784e292495",
+      "var:fba7ad685bdcb537a126f0aa8f5fff0a7f8f95edca648c4adcd78094b60f31e3",
+      "var:fbfd6458fecf2c5e68485fb0ff6f65fd0e26d230cec3aa9e46eb86ff5adf5fcd",
+      "var:fc1e4438d1f7c85870d4c9e0c6835a46b509ba78ea8bdf7443270f5eee71743b",
+      "var:fcc902cb705448da870e7666826147bc501fb50968fada931c083bd11b65c466",
+      "var:ff0610448d0f38d6823a7ac6d90af51e557cc2c0dc1fdc9f0a76c7e47803b503",
+      "var:ff0f9feb14419572fe0f305e25cfe532354bfeff28ababe1096c8a9187c3242b",
+      "var:ff34e89b7751efa767e11d5141246bb7eefb03c1ee198f989152faa5955442d3"
+    ],
+    "quarantined_root_ids": [
+      "root:03281acf5642bab890d316a1569fa74bddce415254d6b62dc6e3ed6461283039",
+      "root:03f3b835be78d8072f0b3b6a3284ea8b181f0965912b898ac5ad8060cf4f43c2",
+      "root:053b8e945bab479585681ce3c67c215a6f298a705b8b42b44499cfab42b0f0f7",
+      "root:058ec958f0b85a3d9f61da964c976d66060727b9c4b0964e6aee4a3a8cd141fc",
+      "root:071eec34000fc01e2067391318896d10d7ac7d4516816ec0bdb638243b41bece",
+      "root:08ae0a1f153519fc72f5108f4cd4280237c382b654bfe8f6a99660df3344ca24",
+      "root:0962fb7e3b6b1bd4313cff6a220fc8dddda4309c6aa6c493ba2e1ed7e662e253",
+      "root:0b8cc1e37425516772925a3e0fc7570dc92200c129d99bd8153f4dc427516c82",
+      "root:0c0f1f7de2a6e285aee611e49a2a9e5df17cc6702773f327665a6f57c0d680bf",
+      "root:0d22816dd2185e37ade036c0cd1830eb8d3d4975f74d05e6ccf7bfc9068fbaf3",
+      "root:0fd01648b05eb8472100b7c20b9810396db8bdb4f8df4666090cf720e28a9c39",
+      "root:1136102e4c7d611129b8086ef60ddeef1260386e5b96b50c45338d7c28714723",
+      "root:125f2a628cbab8c7b28d2adb6f9459d5b2a60138f8fc63c6f85855463f234fd8",
+      "root:127d622c716c7284d5fd3c8d9f1a57e846376a97fcff2ee53dc65c14a0b178a7",
+      "root:15065cad35ee1ea819b71dd112b35caf367713d5439d8e4cd7efb4588c0b6062",
+      "root:179999bd9366f28cce2d1fe4458eadb1011bfe33143830772b8d2944a9628828",
+      "root:183fbf2782f41e8f40a9320ee67906ee4d837cbb421689118f0ca616bc196d67",
+      "root:1ab5ce04195a1093a8eda858d38f0ea3cb695a962310746a2165fb8c87a372ea",
+      "root:1c3f84e0ee085aac329a3b28a5680adb657f1c9d87b80d3e73d32a8b6a634ad1",
+      "root:1c4c1f6070af491837d5ca69dd06bdb1963188c38121e1acb915d05a1bfebb8f",
+      "root:2105c2059d11f748abe48cc6fcdc090b5de97714ff638dcc982bab9362d860a5",
+      "root:2152d18ebb63f931de74dec46d5e3b9c9a38f1fe84c4ce885049ea85e2c115c9",
+      "root:2244a4d498b2b1c3b86386a9bc70356fc4c056f56ea810f1b002be378926014e",
+      "root:231d85a29e5d75b1cffb20fbff37c56c346a1bd9100efbabbd7716fe34f0e20e",
+      "root:232e751201301bfe8f42a6269ecf1dc8f8369842aa1e0789de47c521b52f7e43",
+      "root:246d078650f5a9ca8523d37080c1f618c60f98f8b3a44ce82682267ad3419565",
+      "root:25bfa7f2b6c84522afc27bbf0f581daece79672588cd04717929efbf4ffb2290",
+      "root:28698bc881e13135a68ab956383decc67cd64253fca5e47c7f89f378e60d9388",
+      "root:28d23ba8a9f117a24ce8dd605a2870bfcf84b68355a79f0b2626335175650955",
+      "root:28d8b728314f8f15fee641d3913bacea9892c3700f325a70a97a8389454e023a",
+      "root:2911b48aa95f1619ff1399906794f4d4aaec64066e4527af5ba759f9d7443cdb",
+      "root:29ecca59aaeed553728aa890ae8046dc1be9f0e3fac57ead74bbabeb0431b0ec",
+      "root:2b11b928ef3e9eabecc6fee10255bfaedf0c69bacc33ab31c6aabfc7d739aac0",
+      "root:2b2ea805df3ad5bb0a7c097bcb3fb6c8dcd7f434096b2851798b0d5fb81ff8e6",
+      "root:2beebdde88ae4c3e9ee8880299b876c70461a8c9521b055d98e8fe7e04d49c88",
+      "root:2dc35a5a2755c7305505246ca8be33851076e59415b3174a8f7dee7f27d68131",
+      "root:2e55d59bea9555c2e8741292ca9a692b6cbc303ae5b3151012dd600596fb6f17",
+      "root:2e9cc743423eac827ec7197dec822a00aa9958f97bab34fd631dd4cc1c0d5190",
+      "root:3029365126d1d1874313ad1866e1b02059652b3bc2a6f7fcc19f6de51dcc203a",
+      "root:3142768267c0bfa308047c188b1ccf209b9fbb87a54fd45c144749949be3a82f",
+      "root:32685d1ab4c8012d67f9d614099d904b3f05b05df42333de54a5269a79e9edbc",
+      "root:343f8903eee73b1b8929fd2bd431885aecc66bf43cbbad8966e9357d86478778",
+      "root:37623c6418f8e1a3f72d6322512d5015d30cb930abd790cffb35bdcfee047259",
+      "root:379a9090d698dc8c6f2291c48143b59a8e8c1d896b9ef23339e6649ea4c1f80c",
+      "root:37b2c0dfffb58b5b1ecffb5dd5c68487249c334beb053e2ea36fb83141937868",
+      "root:3b03ca3588a5871f2d213b5aef9128162af0161f96e01638b8f5b4e1ec14445c",
+      "root:3fab49640637d5efe67b854523cb24e71f19b1e2db7d547e9442ad4d11b177d3",
+      "root:4002d32441958cfa398e90ae8b172dd4e42158fea0e568f825d394e8d89b2bd7",
+      "root:412c5c93aac3ac6d37524257135d801edf3775479451e6700b453f1e63071a4b",
+      "root:439fa400e9af6c65194c76c0a507ee8579fecb507744fad9b07cd13cc621feb6",
+      "root:43e2b325f83ffab554b4c74b16371fe3f8b91747bc0774409a9992222551f4c7",
+      "root:46ede76295421a730f66a32d5cad465da19c61157242891ab65ee616c9d81bbf",
+      "root:486b1a14dad9bfd5eacbb00e8db1fd47cf45b2cafdd11167f5e226c55662b692",
+      "root:49a4140c83e12a257ff0adb3294406b8ab2376ecd68173699d79a034bf41072a",
+      "root:4b24c45dea16e94010fbce205bf5a4ec08b0eabb34a946f1ec877abba9ec7a4d",
+      "root:4b33303dd0e151d06e61d7eeae30234b6b1a929a6891f94382b79c34c3fe9b63",
+      "root:4b47604217c69e5fbe328a9986468a811b6ab198e6b6f3cbaf5919f69b3a4603",
+      "root:4bd81083fb69ee29ff553452da7831907fe2529e340d112df52e8589c40ba3c7",
+      "root:4d23039cb7c41680672aff0fb1c1b4b99208844020111a0b6731fdfa9ae0058e",
+      "root:4f55a57c0f301bcc26271db541c8112dd9e3b55ce95a37260d672298f03f0588",
+      "root:5060ff02402a86708a7a1515fcb337e8a4242b1a12f3ca41f4f1756bc65c00aa",
+      "root:51e25740c5aa6f8a6279c20b5ede2b2bcd4551cf723d4e1a5c73e8a1f8c41d57",
+      "root:523c37fe3ebafb0804288ed605771f3f049ea72042f2f21f8b8f945143d9eb26",
+      "root:5365e32c2709f8cd2204a6b262a1db1e3e948c7f5c691077fc8bc615e5fa6f84",
+      "root:53bc7653f33255e8911fcd3340cbe076ad3bbe71d3d9328384f765373ffa16c2",
+      "root:55f85f594dd716a51d03c9da412294eaa8e75edc297b4441986167c57ad6b74f",
+      "root:596a9cd0b60115aa611b963534cff13225e5bf226ac42563478c8bc3f576c778",
+      "root:5b35380fedda88641853ceee90c48d76370f24eedcba51beb2429aef7579984e",
+      "root:5f2af41ef80f16d11ec6de772116efe4792b7258fbf34a95c0f56fe661a8b2fc",
+      "root:60d2b579e53b0c0f8fe7430b1ea2da24100231125b05faf0cb4040996bd1ad67",
+      "root:62257c1423f7be87a51751c4a2a04f8d1b6273047700b5caf3d4cb72b82ac5cc",
+      "root:630336a8f26267ae6c10aa6c5f7d1ed61a671e1d322ae243b62f6d531c775def",
+      "root:644f316baaa9ac91945e1e7b7f1d41b98d91502ba92cef3c788c365dc831bcb3",
+      "root:651da72b169a7bbdc068a9c57f9bc7670029899dc4ccb9093b42dcd094c046be",
+      "root:65512c7629e955219ed01a560d85dfa168950bfd21e1d52f5b1f7bd1cce7b6aa",
+      "root:66f46e7b9d9e78f291a26f6d0b64bcc393402742a314c538929babb17cc2a434",
+      "root:681c9dace89635cc0496ffb72634869c95cba0d1de3c2d767e8e7ba2fc4a25a5",
+      "root:6aab6c3399f44fca6639a0409dc29d4d440f89e6fbe82ea99a66304db51e3807",
+      "root:74577705d95e0dd6e1cf19f14900d42623aab268d2d9ff12d54686fcf641f0e0",
+      "root:76408eeb92ee6dd2ad1cede3e0b8aaed03633c0d8a513934756f5997ebd4b3fa",
+      "root:792ea7cc721c5048b7088b42973bda9e1ff3fd724eea057e0c567c5b91da71d8",
+      "root:795d8b4b42302d1104945ec02d0e8fd4827c5425c52d4c849c0f66cebc5e718c",
+      "root:79e84a2425d961c210d7f7c135545eb0f1462156fe63a36b78aaa45060d5a1fb",
+      "root:7aedb75b5e6b9e344c36276abb3cabfb9d4de62e8b6832966b33edbf7d30bcd5",
+      "root:7c3ff566afde1e96e2d625d91611cb8cf8634e224f554a19c94161a7b26659f5",
+      "root:7d97b0c67c87d8e89856552d8a92e06a419e956a2acace1e206d3f8e3465e9e4",
+      "root:7da38f60a625810ac99fafb843f26afa51fa0a4adb1723b2f21ac5eb22bfd439",
+      "root:806f9b2cb6f1e6371a460ab78e597a8b55e372aba4bd34d1b1853da2814e37c1",
+      "root:81b9668c9f6701d2196859eb25b6d41f6179a1c6b19f2b14f631a22e98d547ea",
+      "root:83c07f71f2862773614ccdac4aa7379e509e119631427b73c94312a165c4e767",
+      "root:85f20e056a155271532e971f3a7cfc00c07bc4f042de1d263a6bc66a2a845e07",
+      "root:86eb2c6f80e1ff05634f93dba73e926cbb5e7a1df66da23776577ee7585b5f7f",
+      "root:87dba76a9e5df9d5c1220ad944134138b7a6703ff9a09b236ec2991b255d03d3",
+      "root:8888b75b123a8f31c6c3eba0bcba8e1d2430a3bfccb650744a4d78c5325198c7",
+      "root:8afff3389aa7c31b078dff5ed1dd99e5d8b0d21fd067eee6a1a4470a5b455eea",
+      "root:8bdcc98d8f4e47cf9427a8f2faf4e50f7c2a5955b60072ccd8478200af438dd2",
+      "root:8da01f156bb618610c098847da4a4df56211ccd553adba11a2826b7521f05954",
+      "root:8e791eea069721a75d462d9d6e7defc7ca5b4f12a32a1ee2349a4e9a6a9d6770",
+      "root:8e9cf0d96c09de340fc62a9603a26e2b7c0ff816b362afb04e87d4bb4fe42954",
+      "root:921bb30f771252ecda29df8678b1e5a407cb2d9df7520be8cb4f1636956ac632",
+      "root:92d603eece679eb7d7e0154271dca0e10d27fd25e7a19df11c08078e38272f08",
+      "root:9443395aba83453e649e93d1080d73287646d67ba5aef65235469637988d1bc0",
+      "root:96b0bb62503e22a566b43abc96b1e38e15c6b7c18e5178b1e11561efe7cfc313",
+      "root:9814a5566f61c008c51c5e2e2a8fb2030e0de384400d2aadeb3ae77cbc0626f8",
+      "root:9857867af900824ea6feb328eb729d038b84956b54f26fc381d4b7f14bcb082e",
+      "root:9b3e6a46b81aefbd25c83bb60828b6a85e40b0bfd45854933c7364eb4a0b1b3a",
+      "root:9b57f98df7ca7b2e26c9213b53e86734ed60d15f9d06539e9bb7fdf28db589ba",
+      "root:9bacbbb330a958e67dcae1b77bed6136fb6b41abffefcfd91ca570405408526d",
+      "root:9bec503c9d1c123c5ed68f20bf3cf968e6fe695bfc789260fadd877a17da9639",
+      "root:9c055cc9f2fbe04cc82f60dd8e6aa1c3943d5ec498dabdac227fb6a4665d5a30",
+      "root:9c9fbfd9061e25c1ee0446014e1aa119f65c47f41cd3c551c2804e6a279b22fd",
+      "root:9d299a709ed5fad540a380985bbc10381b80cca99c7870147d12b3f7f0348a65",
+      "root:9d4e2da2fd2b5241dea81246388930e3d22b16a61a328510ce423dae87c6b9de",
+      "root:a1adf58ac67f26de0fb369b8cb12a69772691e77eecc9ab509ccda42b53cea8a",
+      "root:a207e56a81134f93898b4779f27e6a9fb2af8ee78cbd655eae031ef3caa9d62b",
+      "root:a5d1fb30b0c25e17d2fbb4513821c785551344e48e6548c47860514183733cc9",
+      "root:a74698116bbf325062f6d5a61e568175b9a1dbacf690185a0ecb40e2100158cf",
+      "root:a8d07f046826ecc6b3a545076e9f4af1ecf972e253a1642149289fabcc0cd284",
+      "root:a95bc822485b3c95a8568f8a1ebe3ebb20cdca55654e0783ee80cb5e83dbda9d",
+      "root:aa9041eb7216c6ec53e5dcd6694dfc7e6f3e29e1bebf4fc18e1473a522193493",
+      "root:abc5e8dca8672b03790caa455f8d55701847ca001491628733d0fa827868d1ed",
+      "root:acd857d6d26445600f54cf7edf4a2a4cae587daa8b4e87d181ef5a2058be3782",
+      "root:aceef79725c1847d0471a656a6c7e734427c567fe67af93f8f655fc136a04c27",
+      "root:aea4ab9ccd664cdd7b72bf3e28b104a2e12fde801b4348d8a85cb4b9ee6d509d",
+      "root:af025a9e1f0923c8f1b611bf50460a41a03539c6ae5a93219a2b0add78924a95",
+      "root:af0b2f521f428a60079702358375dcead898738a8c0e301f36eb35df676e6838",
+      "root:b12791f6709fae1e9cebe9770233580032a605f10ec54c2ce5c78c9024ee71b9",
+      "root:b12d2a962d6599d74b73158e691ab21f3728304890c9582337defd6aa760dd25",
+      "root:b1f5930061b4bc0e5f7fbafb34f65057690adfe39b5760cc86da4bb0a24e9a93",
+      "root:b2ea6a0a6c80552110d11f74b05e4fe754493e7cfddeb066856b7850700ef8a9",
+      "root:b43091b7066bdac114862f313fd510f0ba503cea63476c0f7ffb2df4b4c118a4",
+      "root:b63d4dbce0029e81d4fc0076db525634b5114b09111f4faf572bc7fc94a19fa6",
+      "root:b81571736fafe66a41a5bb76fd00bc7b6790eb6d1043b89c048714cc6a411a16",
+      "root:b90c77ec0f82855a06f6c12348fe0a55046ee45f99cc8f1d777a12c78c0b0fdc",
+      "root:baa11e3f317ccd92d974b427556492e8e9d513504367a02127e1a9cc2353faa3",
+      "root:bc914e3b081b86a16ef48ff00f666887232c998e74ad0ac4b30bb56f22f57f6d",
+      "root:be37c3c464cd7e7d4875963041956ba49dc85d2f6fa5f654245d0195023decca",
+      "root:bf7cab4b787899bcac980eb4cececaf512729be0d7681f49dcaa96346f244e23",
+      "root:c11d60e9532afc1a8a0c919c15adcef2b7546351259ff59e57d37f397708d67a",
+      "root:c1794e4cd1dabf825890498e76a1f74f057f5391b9ab77a221eae6cc6b1fbaac",
+      "root:c1d156cf0ea58e02e13932751fbd6c3965bf0fba7b7c9929f54c37340f3893e5",
+      "root:c433210e0bef9b447f3120c9663a59222ed1b7aa83a7cef7e4f7525e559bcc3b",
+      "root:c4a866585b3673650b931119e3c90e46b3a4f870d4e3ab1d57747a4a0f2c0b52",
+      "root:c71b0b921e541b1fbb2600edf32a7782f0c6e10720a9a1edeada2934e17f4fcc",
+      "root:c9671687b86dfa6366fa0a17182f8e43a1a6122b6f8dc03ba1c2a372b342adba",
+      "root:c99133b4e380b13845dd4d1a29f711ac048ed308b5e8632c99f02ae7549d9112",
+      "root:c9a91aa913778b334296b89ee0d8b6e9d7e9a5c4ed997d62e2b6dd16293aa46d",
+      "root:c9b40d9759f3e56d27337f333cd04439da54afd9c0a012262634770bd4a43f18",
+      "root:cc883fb12655b8019b4351f818aa067bbd21cf03ff6a0c0b4a7c088cd10ee746",
+      "root:cde9859e130dca69768de5cf76ef368525ba914412aa12cb120b4280601f4f18",
+      "root:d0123c90a1c43df5486b3bcb1f3bc0d88950a5a51fd0abc2e32990d581094d50",
+      "root:d034e50abcbfe185858c6398cb6d7a61f5c74a0fd895eb9165c57fd3b58888aa",
+      "root:d058309ffbd33e165a4f8cfa456883a685ef857a479a32fafa970b62ea5a5601",
+      "root:d2801b22dd5bf919483118c1d906ad78f3672398cad0034a8a2b138be5161ef3",
+      "root:d34a3135462a8fc5e18ea07ba06583eb40dccdf01dc7d9c41a9e9311b7a8cc23",
+      "root:d3d4326679e43ce1ba1bfa73c15b42946924a91d00b27c2723edd4dfc12138eb",
+      "root:d48deeec7e9126a53934cd4f20802c967f57681b5d2bffeecbcc956a3146b9f5",
+      "root:d5f0188dd7e1d4648827c14e371e03bc317f62a482b08195d237835c3bb125f4",
+      "root:d72621c82c4cdf8e9823db54a9793a6c0957ba30e1da4fa2fa43e9ca417cb85a",
+      "root:d7ae85e9fc7f16cba0fc4739cfc758d69047a6c3354a2415be469c74379e01b6",
+      "root:d8b1ea2f059a4a27aaeeec9758a23b61ad6805b739e5461726f6cd2e3f893b9e",
+      "root:d8e61447d75f6f8106610e75441d8f336b31b384573049a61b8c0531f37c049a",
+      "root:daafdcc4372c4ec1d01e95a69a98473f11d03aa2635451bd2b9fa7c1c3c9db8d",
+      "root:dd700652c21f3142303810570ef8f95d24e958db39e76a17b28972973e4664c8",
+      "root:dd97c0ac297b0b8916e4f76fd202d2841e4a9de81840f4dbfb55ced05fac34af",
+      "root:df36d9f7ac06a15b3835b970ad0cb638329403a2065be0b1129ae1edb122ab79",
+      "root:e088f8d28cc03b5c4844982d116d0870d7fc2f4b822aed44c376e5c67f216c9a",
+      "root:e3a814991d29662acfd53769d4bbc9b79282bda9eef18ceedfeb2428191fb097",
+      "root:e3e277998b393f9922917d4396de469f352ca169cc90d88aa4138ca869911883",
+      "root:e5797874d9bf5a910302e2c5467586a1f1715e751893f174a11e2c70e58682cb",
+      "root:e6850f6d6c221cdca4f0145737a78b4fc517c897e1ca1d2799d5a8d49099c12e",
+      "root:e7042bd07a1b1dbe5c3ed5d6af5180d2b31cc45907da5f237befd14a8e8b4cdc",
+      "root:e722ba6c097fbb01d8b12edcbf1833fd20c1881b4f055da2616587fb188dfb58",
+      "root:e86a529d58ac01c89b55e62e99d37ac581562c8dcbbc0e8bde75a5539cdecec5",
+      "root:e8ae44dbadd3bbd19fc3ff755df3eb98e388414ddbe53eeee0dc491110802451",
+      "root:e9412ae9e6ea60e0392da9807523f8fe94ebea995560eea24f656752b45e6f54",
+      "root:e99c417f443a5b8e3a460f99cc5559f7c77d9d3270dc1a297141bba6603ea030",
+      "root:e9ab3f29e13f47a4fa6865b992b0e9c8e6c6f67fc64756b481424bbff4571097",
+      "root:edec092136f70b01908690896d650c3dd2bbfd1ec6c67fb5a1d645d493d3a91d",
+      "root:ee0924a1721bce51339801b5563630405330b63f270214cbe478550f672b4f79",
+      "root:efd9e369aee56301586322a56d0c3681606256c1918602eaff06b4ddeeb172dc",
+      "root:f13c2488502dbfbbbabed6393d9b2af34758b67d337f23077322eb1b5e4b054f",
+      "root:f2778ea1b0ec845c66804ac70c99467a27c87b52742de351741a7f0e324698f8",
+      "root:f691c548085189743aa9e7307e7954dc0b95b97aaa8aa39cf59284126f9d75ce",
+      "root:f76f7571379989618f6bcd9221aba7d8a6e58ba974fd097e8b30589c10a464c6",
+      "root:fefc5ae47cd37f9f52d1e6432fe63e6680cd676fcedadae9777120a1aceca4f3",
+      "root:ff4c5c4432dd6bac9c6f0facc74506becd6d6b6e8728beef43b7de3418fe107e"
+    ],
+    "salt": "git-only-production-review-2026-09-05",
+    "selected_groups": 15,
+    "selected_physical_rows": 60,
+    "selected_roots": 15
+  },
+  "current_balance_function": {
+    "groups": 15,
+    "labels": {
+      "negative": 30,
+      "positive": 30
+    },
+    "projects": {
+      "mathlib": 60
+    },
+    "roots": 15,
+    "rows": 60
+  },
+  "current_release_selection_with_balance": {
+    "groups": 15,
+    "labels": {
+      "negative": 30,
+      "positive": 30
+    },
+    "projects": {
+      "mathlib": 60
+    },
+    "roots": 15,
+    "rows": 60
+  },
+  "current_release_selection_without_balance": {
+    "groups": 319,
+    "labels": {
+      "negative": 523,
+      "positive": 638
+    },
+    "projects": {
+      "cslib": 11,
+      "mathlib": 1123,
+      "physlib": 27
+    },
+    "roots": 202,
+    "rows": 1161
+  },
+  "diagnostic_whole_group_dedup": {
+    "dropped_groups": [
+      {
+        "conflicting_pair_ids": [
+          "pair:89dd7ab1a1cd59b3d147b546aca1f3e0437db88b5cbaca57a06cfba4109e7899"
+        ],
+        "group_id": "var:70268162dda06e8ed9baf2d43822dbf715acdf780199954f3beee84423389496"
+      },
+      {
+        "conflicting_pair_ids": [
+          "pair:828cf447b0a08889431f2d79d2e78b206245659d132c16a41de36898f357576a"
+        ],
+        "group_id": "var:8669e5cf99649621ed02e00b7e7fdd18fe7bf7a7dd0950d91bf053f2dced1a55"
+      },
+      {
+        "conflicting_pair_ids": [
+          "pair:514939e4a1bcedaf6560e2ce6b3051d301488b1a4a2016e2468806eedddc856b"
+        ],
+        "group_id": "var:a1fd68a8396f314685b5a654f8a40bb33d19e64ef76ed311637c430b2f66da96"
+      },
+      {
+        "conflicting_pair_ids": [
+          "pair:5833a24a7429190f7a50ec20f4897674fe072e917d1ddd480ee67fdbea00c68a"
+        ],
+        "group_id": "var:d10acff70371616fc5b619722a5ee9694e61f8eb3eb34080723b7fb58c1badc1"
+      },
+      {
+        "conflicting_pair_ids": [
+          "pair:493034706fdf4be6d686b41ea493ea2b451b175288b4be3c39764ee4c6bb6b65"
+        ],
+        "group_id": "var:e6dc50c02471f7bdbe285da65742d7c3d0850c3ffefa63152c41b379a19d1ec4"
+      },
+      {
+        "conflicting_pair_ids": [
+          "pair:a303458c5ef95530e4f01debda4efb95ff705863f171b70e32747c96bc31f24d"
+        ],
+        "group_id": "var:fa01b73ead637492200683fee1d0349e30a5867adebd7d96a9f801b212fc0afe"
+      }
+    ],
+    "policy": "ascending_group_id_greedy_keep_first_physical_pair_owner",
+    "result": {
+      "groups": 319,
+      "labels": {
+        "negative": 523,
+        "positive": 638
+      },
+      "projects": {
+        "cslib": 11,
+        "mathlib": 1123,
+        "physlib": 27
+      },
+      "roots": 202,
+      "rows": 1161
+    }
+  },
+  "duplicates": {
+    "class_members": [
+      [
+        {
+          "label": true,
+          "pair_id": "pair:514939e4a1bcedaf6560e2ce6b3051d301488b1a4a2016e2468806eedddc856b",
+          "root_id": "root:b63d4dbce0029e81d4fc0076db525634b5114b09111f4faf572bc7fc94a19fa6",
+          "source_run": "w4gate-bec8f12-mathlib-n31-346-v2"
+        },
+        {
+          "label": true,
+          "pair_id": "pair:b0317632cf6b11be48386778126189345add511c83392185a2d5baa3dbc9a9e6",
+          "root_id": "root:b63d4dbce0029e81d4fc0076db525634b5114b09111f4faf572bc7fc94a19fa6",
+          "source_run": "w4gate-bec8f12-mathlib-n32-80-v2"
+        }
+      ],
+      [
+        {
+          "label": true,
+          "pair_id": "pair:5833a24a7429190f7a50ec20f4897674fe072e917d1ddd480ee67fdbea00c68a",
+          "root_id": "root:d9b7a94991a0691cedae6349819045db7835d89531e1104543d44f9e232669aa",
+          "source_run": "w4gate-bec8f12-mathlib-n26-7-v2"
+        },
+        {
+          "label": true,
+          "pair_id": "pair:b9b18e051ceffdd4a2798787139d235d903f0f7c6fa1d161da3299682a59bf0a",
+          "root_id": "root:d9b7a94991a0691cedae6349819045db7835d89531e1104543d44f9e232669aa",
+          "source_run": "w4gate-bec8f12-mathlib-n25-21-v2"
+        }
+      ],
+      [
+        {
+          "label": true,
+          "pair_id": "pair:110ad12f2d4236920a3e73e46d239ddc5c30c458da25821d05b4da53b3947ed5",
+          "root_id": "root:d34a3135462a8fc5e18ea07ba06583eb40dccdf01dc7d9c41a9e9311b7a8cc23",
+          "source_run": "w4gate-bec8f12-mathlib-n31-346-v2"
+        },
+        {
+          "label": true,
+          "pair_id": "pair:828cf447b0a08889431f2d79d2e78b206245659d132c16a41de36898f357576a",
+          "root_id": "root:d34a3135462a8fc5e18ea07ba06583eb40dccdf01dc7d9c41a9e9311b7a8cc23",
+          "source_run": "w4gate-bec8f12-mathlib-n32-80-v2"
+        }
+      ],
+      [
+        {
+          "label": true,
+          "pair_id": "pair:493034706fdf4be6d686b41ea493ea2b451b175288b4be3c39764ee4c6bb6b65",
+          "root_id": "root:2244a4d498b2b1c3b86386a9bc70356fc4c056f56ea810f1b002be378926014e",
+          "source_run": "w4gate-bec8f12-mathlib-n31-346-v2"
+        },
+        {
+          "label": true,
+          "pair_id": "pair:09636ed4461a0fe8ef281de2b8c108dcd4f4991ad700882b0add191a02809703",
+          "root_id": "root:2244a4d498b2b1c3b86386a9bc70356fc4c056f56ea810f1b002be378926014e",
+          "source_run": "w4gate-bec8f12-mathlib-n32-80-v2"
+        }
+      ],
+      [
+        {
+          "label": true,
+          "pair_id": "pair:20c2a59b7e4732e3e2d10b6167e68856b9f0154f35489fb1144e8eda57860d7b",
+          "root_id": "root:96b0bb62503e22a566b43abc96b1e38e15c6b7c18e5178b1e11561efe7cfc313",
+          "source_run": "w4gate-bec8f12-mathlib-n31-346-v2"
+        },
+        {
+          "label": true,
+          "pair_id": "pair:89dd7ab1a1cd59b3d147b546aca1f3e0437db88b5cbaca57a06cfba4109e7899",
+          "root_id": "root:96b0bb62503e22a566b43abc96b1e38e15c6b7c18e5178b1e11561efe7cfc313",
+          "source_run": "w4gate-bec8f12-mathlib-n32-80-v2"
+        }
+      ],
+      [
+        {
+          "label": true,
+          "pair_id": "pair:e98c676a21ff99bd39b6eb17937bf4bcb2cd7d11f7d2dcfff87aed2c1a36d867",
+          "root_id": "root:7da38f60a625810ac99fafb843f26afa51fa0a4adb1723b2f21ac5eb22bfd439",
+          "source_run": "w4gate-bec8f12-mathlib-n31-346-v2"
+        },
+        {
+          "label": true,
+          "pair_id": "pair:a303458c5ef95530e4f01debda4efb95ff705863f171b70e32747c96bc31f24d",
+          "root_id": "root:7da38f60a625810ac99fafb843f26afa51fa0a4adb1723b2f21ac5eb22bfd439",
+          "source_run": "w4gate-bec8f12-mathlib-n32-80-v2"
+        }
+      ]
+    ],
+    "classes": 6,
+    "label_conflicts": 0,
+    "rows_in_classes": 12,
+    "unfiltered_production_materialize_error": "Wave 4 closure has duplicate pair across physical rows"
+  },
+  "input": {
+    "groups": 325,
+    "roots": 202,
+    "rows": 1183,
+    "runs": 13
+  },
+  "kind": "git_only_wave4_selection_replay_v1",
+  "root_imbalance_diagnostic": {
+    "equal_total_label_roots": 133,
+    "exact_zero_cell_vector_roots": 13,
+    "interpretation": "A base with n variants contributes 2n positive versus n+1 negative physical rows. Shared negatives therefore create positive excess for n>1. The current function retains only zero cell vectors or exact inverse-vector pairs; aggregate balance alone is insufficient.",
+    "negative_excess_roots": 0,
+    "positive_excess_roots": 69
+  },
+  "scope_limits": "All 202 roots are analyzed before an exact-200 selection. This replay does not execute that complete gate, gold screening, proof verification, manual inspection, publication, training, or Lean. Dedup is a diagnostic proposal, not production code."
+}

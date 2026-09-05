@@ -6,6 +6,15 @@
 > **Current scope:** prepare, validate, and publish the datasets and evaluation assets. Do not start
 > full training from this coordinator task.
 
+> **Git-only production review — 2026-09-05:** this branch adds a self-contained review packet at
+> `plans/reviews/2026-09-05-production/README.md`. Review owner: Codex coordinator `/root`;
+> packaging status: complete; next action: independent review of the published packet and proposal.
+> The Git-contained evidence replay, scoped Ruff checks, and relative file links pass.
+> Exact writable scope: this note and `plans/reviews/2026-09-05-production/` only.
+> The parent is the current SFT1 implementation/brief at `7498fbf4e78421012c1c729d05576c345c5f16f1`.
+> No generation code or frozen execution contract is changed. Lean is the bottleneck: this
+> packaging task uses existing artifacts and zero Lean/GPU/provider calls.
+
 LeanFaith is building a learned judge of whether two Lean theorem statements express the same
 mathematical claim. The immediate goal is to create high-value data quickly: very large, cheap
 automatic supervision first, followed by smaller and richer LLM-assisted supervision. CPT and SFT

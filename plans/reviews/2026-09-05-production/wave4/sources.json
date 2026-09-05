@@ -1,0 +1,538 @@
+{
+  "included_evidence_subobjects": [
+    "negative_family_evidence",
+    "negative_last_replay"
+  ],
+  "included_sidecar_fields": [
+    "pair_id",
+    "root_id",
+    "row_kind",
+    "operation_id",
+    "negative_operation",
+    "closure_group_ids",
+    "evidence_hash",
+    "project.project_id"
+  ],
+  "limits": "Original evidence_hash values are retained as opaque bindings. Only the two negative evidence subobjects consumed by materialize are included and hashed. The full sidecar hash and Lean proofs cannot be verified from this projection. Original file SHA256 values identify off-Git inputs; they do not make those inputs available to a Git-only reviewer. No release approval follows from replay.",
+  "not_sampled": true,
+  "omitted": [
+    "full proof/certificate sidecars",
+    "cache payloads",
+    "full journals",
+    "representation provenance",
+    "all compiler-source data"
+  ],
+  "original_files": [
+    {
+      "bytes": 6810,
+      "path": "control/gate-inputs-bec8f12-v2/run_summary.json",
+      "sha256": "56ac4145a50d031c94fc4c4279843500e62d45f6dcadb3cd637b3a81c09fdf8f"
+    },
+    {
+      "bytes": 2197,
+      "path": "control/supplement-bec8f12-v4/terminal.json",
+      "sha256": "78aae2be064e7460b27f9c4997ab627cba89754fe0a3698d08156e7a3b33d84b"
+    },
+    {
+      "bytes": 4532,
+      "path": "mathlib/runs/w4gate-bec8f12-mathlib-n31-346-v2/run.json",
+      "sha256": "9902d3c6f818fa3d7b2166add60f8527615cb675cdc76a502485bf7e15ef91ed"
+    },
+    {
+      "bytes": 627,
+      "path": "mathlib/runs/w4gate-bec8f12-mathlib-n31-346-v2/status.json",
+      "sha256": "af6f811e1fdc9f181ef9cc3757905f6ff67ebfb1eb11ab5c310f85fbf6c8ae18"
+    },
+    {
+      "bytes": 150,
+      "path": "mathlib/runs/w4gate-bec8f12-mathlib-n31-346-v2/replay_report.json",
+      "sha256": "b3560b1e39eef44cfe0dbe4df53a254916a790a5a575ee8fddb2f29e03fc0b43"
+    },
+    {
+      "bytes": 833250,
+      "path": "mathlib/runs/w4gate-bec8f12-mathlib-n31-346-v2/journal.jsonl",
+      "sha256": "7b8faa9678bda4bdc634d19385cdb54389c0416bc31973f6586bda7080e25e33"
+    },
+    {
+      "bytes": 8860741,
+      "path": "mathlib/runs/w4gate-bec8f12-mathlib-n31-346-v2/retained.jsonl",
+      "sha256": "b9aade4cc71977c452637563125d0b2dee1f97de0ea4dba7e60dd4fb2a3aaa13"
+    },
+    {
+      "bytes": 4529,
+      "path": "mathlib/runs/w4gate-bec8f12-mathlib-n32-80-v2/run.json",
+      "sha256": "81375a1657439f5ebf4cd83f54c4b6ecfad32790aedf369a44fac589912802dd"
+    },
+    {
+      "bytes": 615,
+      "path": "mathlib/runs/w4gate-bec8f12-mathlib-n32-80-v2/status.json",
+      "sha256": "9e936559f55ed788436154f7fdcbbbaf381153a711fa2069755423fa6d8a3d44"
+    },
+    {
+      "bytes": 148,
+      "path": "mathlib/runs/w4gate-bec8f12-mathlib-n32-80-v2/replay_report.json",
+      "sha256": "a4faeba3c6d9faed33664f8b992f4a31c3c078d14f38f5cef938a44d860da37e"
+    },
+    {
+      "bytes": 300363,
+      "path": "mathlib/runs/w4gate-bec8f12-mathlib-n32-80-v2/journal.jsonl",
+      "sha256": "2d748948bfe9b69a11c4432d27f56425e2ff3e7c49ddf82ce248316782504c57"
+    },
+    {
+      "bytes": 3184697,
+      "path": "mathlib/runs/w4gate-bec8f12-mathlib-n32-80-v2/retained.jsonl",
+      "sha256": "fa4a56a8cb6aa914d7f165de2c29e8d8fa2a200fcfb30fe016171ad7e86010c1"
+    },
+    {
+      "bytes": 4526,
+      "path": "mathlib/runs/w4gate-bec8f12-mathlib-n26-7-v2/run.json",
+      "sha256": "330cbb9707d37435560b824e6f9d450acf9da88995c6ae64986414d84e35fed3"
+    },
+    {
+      "bytes": 584,
+      "path": "mathlib/runs/w4gate-bec8f12-mathlib-n26-7-v2/status.json",
+      "sha256": "fd1398f4af43e9c99943bb67502df3a4ed16627019c5fbc9b9ec1d5c168eb978"
+    },
+    {
+      "bytes": 144,
+      "path": "mathlib/runs/w4gate-bec8f12-mathlib-n26-7-v2/replay_report.json",
+      "sha256": "fa68792dfac6ec282f23f935e9feae5f8056d0336b7bf6aa8f1a8bf0e05bfa47"
+    },
+    {
+      "bytes": 15643,
+      "path": "mathlib/runs/w4gate-bec8f12-mathlib-n26-7-v2/journal.jsonl",
+      "sha256": "130f03b4623b5a1b7ecdd20524fdba0e22cdd54289d59da21a2147eeab8f8d17"
+    },
+    {
+      "bytes": 156956,
+      "path": "mathlib/runs/w4gate-bec8f12-mathlib-n26-7-v2/retained.jsonl",
+      "sha256": "080b37fb9785d8c7a4a8a775e806c6aef56ae5dd9f17f62786611de5fae30f58"
+    },
+    {
+      "bytes": 4526,
+      "path": "mathlib/runs/w4gate-bec8f12-mathlib-n29-3-v2/run.json",
+      "sha256": "6914ed7ce7c939e753fa448765f4cdd3dd93bcefd32ee177bac65713f3477c6b"
+    },
+    {
+      "bytes": 575,
+      "path": "mathlib/runs/w4gate-bec8f12-mathlib-n29-3-v2/status.json",
+      "sha256": "9bd33240617030ef345d22478d876eb28e8b9eff5b15c6db0b22582d5e456fce"
+    },
+    {
+      "bytes": 142,
+      "path": "mathlib/runs/w4gate-bec8f12-mathlib-n29-3-v2/replay_report.json",
+      "sha256": "2db8b62495acdb9bcfd5163de8901839a84ad1d72898212468d03a9adb787951"
+    },
+    {
+      "bytes": 434,
+      "path": "mathlib/runs/w4gate-bec8f12-mathlib-n29-3-v2/journal.jsonl",
+      "sha256": "0fcbc353932fe013eccb3f38542be59092777878c5f5670c4a239495de08c850"
+    },
+    {
+      "absent": true,
+      "path": "mathlib/runs/w4gate-bec8f12-mathlib-n29-3-v2/retained.jsonl"
+    },
+    {
+      "bytes": 4526,
+      "path": "mathlib/runs/w4gate-bec8f12-mathlib-n30-6-v2/run.json",
+      "sha256": "d1a605ceb02baba862bc06f809f70212c931234c5df889eaf59349198020b968"
+    },
+    {
+      "bytes": 588,
+      "path": "mathlib/runs/w4gate-bec8f12-mathlib-n30-6-v2/status.json",
+      "sha256": "0f41a8fb9b8759236562a26d8ea5237b088d3423ef3d581f545c9694b3165ca3"
+    },
+    {
+      "bytes": 142,
+      "path": "mathlib/runs/w4gate-bec8f12-mathlib-n30-6-v2/replay_report.json",
+      "sha256": "6c15e2737ce1506306a8c25eb9cf5c0ab20ee9e6bc29d9d905e0385bac2c8b7b"
+    },
+    {
+      "bytes": 9845,
+      "path": "mathlib/runs/w4gate-bec8f12-mathlib-n30-6-v2/journal.jsonl",
+      "sha256": "501a6453e18565d14fff4bb4c9bdbea3ff914d3a5c5f67f7acfa9297cf0f2c40"
+    },
+    {
+      "bytes": 131634,
+      "path": "mathlib/runs/w4gate-bec8f12-mathlib-n30-6-v2/retained.jsonl",
+      "sha256": "1eded1ba45516b91675f11d6a9ed0b75e6699b9e84ef8962a28e42a4faf90b81"
+    },
+    {
+      "bytes": 4529,
+      "path": "mathlib/runs/w4gate-bec8f12-mathlib-n25-21-v2/run.json",
+      "sha256": "6fd4b124f75fc1c3381a4513f38b1f1e962a5c8488d56a1cb42b198b4cfa8b35"
+    },
+    {
+      "bytes": 595,
+      "path": "mathlib/runs/w4gate-bec8f12-mathlib-n25-21-v2/status.json",
+      "sha256": "d7425701c91e091cf0157addeb639ca4f297901b33890b4befb46b4d6d0ecadb"
+    },
+    {
+      "bytes": 148,
+      "path": "mathlib/runs/w4gate-bec8f12-mathlib-n25-21-v2/replay_report.json",
+      "sha256": "329e0726e093479c5082daf31bce47376cc8327587241d3808872f4bdb77f1d2"
+    },
+    {
+      "bytes": 160533,
+      "path": "mathlib/runs/w4gate-bec8f12-mathlib-n25-21-v2/journal.jsonl",
+      "sha256": "0d410ec72932c24a3461d2bcea9f97798296510734b20a6ac8725f801a0784c6"
+    },
+    {
+      "bytes": 2042698,
+      "path": "mathlib/runs/w4gate-bec8f12-mathlib-n25-21-v2/retained.jsonl",
+      "sha256": "c87d532d80b24669d2f2d8ecfbd57fa4186ef756148680d6f642e67841b696a2"
+    },
+    {
+      "bytes": 4581,
+      "path": "physlib/runs/w4gate-bec8f12-physlib-n25-2-v2/run.json",
+      "sha256": "76a4b6694ef00d829d33e62e8b5482b68aa525c1c3658407b9010156311f81fa"
+    },
+    {
+      "bytes": 571,
+      "path": "physlib/runs/w4gate-bec8f12-physlib-n25-2-v2/status.json",
+      "sha256": "932d411122d80f82d4956ed0637b00807e308a2492b1e8bbc0102c2f69452494"
+    },
+    {
+      "bytes": 144,
+      "path": "physlib/runs/w4gate-bec8f12-physlib-n25-2-v2/replay_report.json",
+      "sha256": "4c94c2dcfc18ee2674b925b0b74da6159d32ea428e470d1b8f3304e68504f5a7"
+    },
+    {
+      "bytes": 29545,
+      "path": "physlib/runs/w4gate-bec8f12-physlib-n25-2-v2/journal.jsonl",
+      "sha256": "8506b7641ce963fe3a9a39ab2371082e7a68d1a75285bc12c2bf0ce497191903"
+    },
+    {
+      "bytes": 323694,
+      "path": "physlib/runs/w4gate-bec8f12-physlib-n25-2-v2/retained.jsonl",
+      "sha256": "a9a2e30705ff12e30077e95c381653b168df1578bf8275da3d54beb57eaa4e6c"
+    },
+    {
+      "bytes": 4581,
+      "path": "physlib/runs/w4gate-bec8f12-physlib-n32-1-v2/run.json",
+      "sha256": "09cf00304b90ee43704fe0fadaa305f42577412eb9e8dda4b1d2ad57abf95b05"
+    },
+    {
+      "bytes": 569,
+      "path": "physlib/runs/w4gate-bec8f12-physlib-n32-1-v2/status.json",
+      "sha256": "dd85e14e28306d3c28c4d05952444c0c91bbf54b0422915809120c10e9e7e990"
+    },
+    {
+      "bytes": 142,
+      "path": "physlib/runs/w4gate-bec8f12-physlib-n32-1-v2/replay_report.json",
+      "sha256": "6b17070efef98ffc2f63ff75b42889111e74160e568b7996f4ae115194ad4e66"
+    },
+    {
+      "bytes": 4564,
+      "path": "physlib/runs/w4gate-bec8f12-physlib-n32-1-v2/journal.jsonl",
+      "sha256": "f4fb298e7ae4696beb2c42b52d647279a95ee9bd35586d05751570c6890dc51a"
+    },
+    {
+      "bytes": 48310,
+      "path": "physlib/runs/w4gate-bec8f12-physlib-n32-1-v2/retained.jsonl",
+      "sha256": "2df57da45a712df69abdd2bc78204215ca0288ff6109475a8e32e10c7af263fe"
+    },
+    {
+      "bytes": 4567,
+      "path": "cslib/runs/w4gate-bec8f12-cslib-n25-3-v2/run.json",
+      "sha256": "ba28482b89973c286b0b29236147b86ad70aede963a895166c57432d7a9e3a8c"
+    },
+    {
+      "bytes": 581,
+      "path": "cslib/runs/w4gate-bec8f12-cslib-n25-3-v2/status.json",
+      "sha256": "da66e911000857b958ff4845edf3567614319db2975a940989601973df47f738"
+    },
+    {
+      "bytes": 142,
+      "path": "cslib/runs/w4gate-bec8f12-cslib-n25-3-v2/replay_report.json",
+      "sha256": "5d8098d1eab708e582062fccc793fb647fb68063e7e11b3b189ec807f0deee59"
+    },
+    {
+      "bytes": 13538,
+      "path": "cslib/runs/w4gate-bec8f12-cslib-n25-3-v2/journal.jsonl",
+      "sha256": "81a9aaabfa4a4f321901f7b761fea5bb7cfce51a56aa3fafb157ff87b6267751"
+    },
+    {
+      "bytes": 145380,
+      "path": "cslib/runs/w4gate-bec8f12-cslib-n25-3-v2/retained.jsonl",
+      "sha256": "e764d950a6341f6db91ff3df14db4f28b95f5f9bc0fc1c0a2e2e9e0c20b00812"
+    },
+    {
+      "bytes": 4567,
+      "path": "cslib/runs/w4gate-bec8f12-cslib-n26-1-v2/run.json",
+      "sha256": "be44dc9d87636c8544e25b0db2656424c78364c34f9b28701f367669f5f05ed3"
+    },
+    {
+      "bytes": 567,
+      "path": "cslib/runs/w4gate-bec8f12-cslib-n26-1-v2/status.json",
+      "sha256": "fd910acd62f77900ab15ab7e1a060cde263a8882037bb4e6f5f3faa3fa47948d"
+    },
+    {
+      "bytes": 140,
+      "path": "cslib/runs/w4gate-bec8f12-cslib-n26-1-v2/replay_report.json",
+      "sha256": "36f8b2fd1a1b852c8514ec151598c2d6d1ac4b71a0b9d18599b788be1ec0006f"
+    },
+    {
+      "bytes": 395,
+      "path": "cslib/runs/w4gate-bec8f12-cslib-n26-1-v2/journal.jsonl",
+      "sha256": "3cdb500da3ebb81c3e8dd55d897bbcccf75ed10eec36f509532deca5552ca835"
+    },
+    {
+      "absent": true,
+      "path": "cslib/runs/w4gate-bec8f12-cslib-n26-1-v2/retained.jsonl"
+    },
+    {
+      "bytes": 4567,
+      "path": "cslib/runs/w4gate-bec8f12-cslib-n31-1-v2/run.json",
+      "sha256": "d4c31db1b3627765746fae390c2bc19c0f9142a93195e4cc483887577b58aec0"
+    },
+    {
+      "bytes": 573,
+      "path": "cslib/runs/w4gate-bec8f12-cslib-n31-1-v2/status.json",
+      "sha256": "29b4a9d6f5a583bbe546463e648975788771c6029dda7daae0254ec65ac13375"
+    },
+    {
+      "bytes": 140,
+      "path": "cslib/runs/w4gate-bec8f12-cslib-n31-1-v2/replay_report.json",
+      "sha256": "46303889a1a45c86cd791c2d9bb5af2aff0f525cbba5081031d04bfc0cac12ac"
+    },
+    {
+      "bytes": 156,
+      "path": "cslib/runs/w4gate-bec8f12-cslib-n31-1-v2/journal.jsonl",
+      "sha256": "2c48c27e8766cd0bc9484a079a84bafd349f5990272d0490acb3a43604ae81b6"
+    },
+    {
+      "absent": true,
+      "path": "cslib/runs/w4gate-bec8f12-cslib-n31-1-v2/retained.jsonl"
+    },
+    {
+      "bytes": 4552,
+      "path": "mathlib/runs/w4supp-bec8f12-mathlib-n32-23-v4/run.json",
+      "sha256": "254bc73fb69ec652a833ed0aebab82cdfa86e25c33c5dce3c79b39d0babc39b7"
+    },
+    {
+      "bytes": 599,
+      "path": "mathlib/runs/w4supp-bec8f12-mathlib-n32-23-v4/status.json",
+      "sha256": "ab4952cbd55c6d305c45ba946052ce08380cac47ecb018422870a7715f56e954"
+    },
+    {
+      "bytes": 146,
+      "path": "mathlib/runs/w4supp-bec8f12-mathlib-n32-23-v4/replay_report.json",
+      "sha256": "61275954ba6c9b3f62e1e3cf83f3a6e2a3972bbac6dc868cf14530d12be00800"
+    },
+    {
+      "bytes": 109399,
+      "path": "mathlib/runs/w4supp-bec8f12-mathlib-n32-23-v4/journal.jsonl",
+      "sha256": "6f6c1c9624c5afccef5158f2bb203028c820f39cb9893cdb3cb8e9e1994ccfe1"
+    },
+    {
+      "bytes": 1511168,
+      "path": "mathlib/runs/w4supp-bec8f12-mathlib-n32-23-v4/retained.jsonl",
+      "sha256": "4fee2ac6509b2f4acf6a92e4a1b48e3fdefb29ebf07a1b0312da17d82b3046c9"
+    },
+    {
+      "bytes": 4547,
+      "path": "mathlib/runs/w4supp-bec8f12-mathlib-n31-2-v4/run.json",
+      "sha256": "59404aa062c19d6710c2714aed6d4fde371dfc46893aada9a1564cf93ef37c57"
+    },
+    {
+      "bytes": 590,
+      "path": "mathlib/runs/w4supp-bec8f12-mathlib-n31-2-v4/status.json",
+      "sha256": "ee8ed184b12f45e391f66eacbe26005748f0aff420260882f862ef1d0f63bb4d"
+    },
+    {
+      "bytes": 144,
+      "path": "mathlib/runs/w4supp-bec8f12-mathlib-n31-2-v4/replay_report.json",
+      "sha256": "80f085022fb1f2ede9f8c37441e58859cd41d15b911b26dd54840901f0031f60"
+    },
+    {
+      "bytes": 12951,
+      "path": "mathlib/runs/w4supp-bec8f12-mathlib-n31-2-v4/journal.jsonl",
+      "sha256": "aac15b996deb9d653f7f340a84bee88b429c3fdc6df369f6d7a0d9729062befd"
+    },
+    {
+      "bytes": 148451,
+      "path": "mathlib/runs/w4supp-bec8f12-mathlib-n31-2-v4/retained.jsonl",
+      "sha256": "90d2bb0ce7edfbaa8cdabcab5c376f761f64a6c57ce16caa587377d4b90b4d5b"
+    }
+  ],
+  "projection_files": {
+    "evidence_objects.json": {
+      "bytes": 628641,
+      "sha256": "aee6d0018038aa7926e7420b704a1af928f5e252d736373de63350eb1a3db2f6"
+    },
+    "groups.jsonl": {
+      "bytes": 575637,
+      "sha256": "c5519e7503efc672ffc95ca6ad1d0abc504cc42ab0318c1f156e3346547a1b7b"
+    },
+    "rows.jsonl": {
+      "bytes": 1068648,
+      "sha256": "329f3f632261cbb1257ca1d7a5bf93a6cb83714637abf5e4100f7e7c228eac5d"
+    },
+    "texts.json": {
+      "bytes": 119235,
+      "sha256": "8632755e6abe098f11b61b4b3fd5f5635d8288e62296312fd538f4d378fd20fa"
+    }
+  },
+  "run_count": 13,
+  "runs": [
+    {
+      "final_status": true,
+      "groups": 177,
+      "implementation_commit": "bec8f120a204aecbcad04a69fd1c4984eacfc2a1",
+      "original_materialization_passed": true,
+      "project_id": "mathlib",
+      "project_revision": "d568c8c09630de097a046763c17b9ea99f95f950",
+      "reported_replay_lean_requests": 0,
+      "roots": 132,
+      "rows": 663,
+      "run_id": "w4gate-bec8f12-mathlib-n31-346-v2"
+    },
+    {
+      "final_status": true,
+      "groups": 67,
+      "implementation_commit": "bec8f120a204aecbcad04a69fd1c4984eacfc2a1",
+      "original_materialization_passed": true,
+      "project_id": "mathlib",
+      "project_revision": "d568c8c09630de097a046763c17b9ea99f95f950",
+      "reported_replay_lean_requests": 0,
+      "roots": 36,
+      "rows": 237,
+      "run_id": "w4gate-bec8f12-mathlib-n32-80-v2"
+    },
+    {
+      "final_status": true,
+      "groups": 3,
+      "implementation_commit": "bec8f120a204aecbcad04a69fd1c4984eacfc2a1",
+      "original_materialization_passed": true,
+      "project_id": "mathlib",
+      "project_revision": "d568c8c09630de097a046763c17b9ea99f95f950",
+      "reported_replay_lean_requests": 0,
+      "roots": 3,
+      "rows": 12,
+      "run_id": "w4gate-bec8f12-mathlib-n26-7-v2"
+    },
+    {
+      "final_status": true,
+      "groups": 0,
+      "implementation_commit": "bec8f120a204aecbcad04a69fd1c4984eacfc2a1",
+      "original_materialization_passed": true,
+      "project_id": "mathlib",
+      "project_revision": "d568c8c09630de097a046763c17b9ea99f95f950",
+      "reported_replay_lean_requests": 0,
+      "roots": 0,
+      "rows": 0,
+      "run_id": "w4gate-bec8f12-mathlib-n29-3-v2"
+    },
+    {
+      "final_status": true,
+      "groups": 2,
+      "implementation_commit": "bec8f120a204aecbcad04a69fd1c4984eacfc2a1",
+      "original_materialization_passed": true,
+      "project_id": "mathlib",
+      "project_revision": "d568c8c09630de097a046763c17b9ea99f95f950",
+      "reported_replay_lean_requests": 0,
+      "roots": 2,
+      "rows": 8,
+      "run_id": "w4gate-bec8f12-mathlib-n30-6-v2"
+    },
+    {
+      "final_status": true,
+      "groups": 37,
+      "implementation_commit": "bec8f120a204aecbcad04a69fd1c4984eacfc2a1",
+      "original_materialization_passed": true,
+      "project_id": "mathlib",
+      "project_revision": "d568c8c09630de097a046763c17b9ea99f95f950",
+      "reported_replay_lean_requests": 0,
+      "roots": 19,
+      "rows": 130,
+      "run_id": "w4gate-bec8f12-mathlib-n25-21-v2"
+    },
+    {
+      "final_status": true,
+      "groups": 7,
+      "implementation_commit": "bec8f120a204aecbcad04a69fd1c4984eacfc2a1",
+      "original_materialization_passed": true,
+      "project_id": "physlib",
+      "project_revision": "f5242c99d796b59a390d26cd7d1a8057e04c46b5",
+      "reported_replay_lean_requests": 0,
+      "roots": 2,
+      "rows": 23,
+      "run_id": "w4gate-bec8f12-physlib-n25-2-v2"
+    },
+    {
+      "final_status": true,
+      "groups": 1,
+      "implementation_commit": "bec8f120a204aecbcad04a69fd1c4984eacfc2a1",
+      "original_materialization_passed": true,
+      "project_id": "physlib",
+      "project_revision": "f5242c99d796b59a390d26cd7d1a8057e04c46b5",
+      "reported_replay_lean_requests": 0,
+      "roots": 1,
+      "rows": 4,
+      "run_id": "w4gate-bec8f12-physlib-n32-1-v2"
+    },
+    {
+      "final_status": true,
+      "groups": 3,
+      "implementation_commit": "bec8f120a204aecbcad04a69fd1c4984eacfc2a1",
+      "original_materialization_passed": true,
+      "project_id": "cslib",
+      "project_revision": "2f677bfc8ef76fa7a27feafc597c1e4a7eda3e42",
+      "reported_replay_lean_requests": 0,
+      "roots": 2,
+      "rows": 11,
+      "run_id": "w4gate-bec8f12-cslib-n25-3-v2"
+    },
+    {
+      "final_status": true,
+      "groups": 0,
+      "implementation_commit": "bec8f120a204aecbcad04a69fd1c4984eacfc2a1",
+      "original_materialization_passed": true,
+      "project_id": "cslib",
+      "project_revision": "2f677bfc8ef76fa7a27feafc597c1e4a7eda3e42",
+      "reported_replay_lean_requests": 0,
+      "roots": 0,
+      "rows": 0,
+      "run_id": "w4gate-bec8f12-cslib-n26-1-v2"
+    },
+    {
+      "final_status": true,
+      "groups": 0,
+      "implementation_commit": "bec8f120a204aecbcad04a69fd1c4984eacfc2a1",
+      "original_materialization_passed": true,
+      "project_id": "cslib",
+      "project_revision": "2f677bfc8ef76fa7a27feafc597c1e4a7eda3e42",
+      "reported_replay_lean_requests": 0,
+      "roots": 0,
+      "rows": 0,
+      "run_id": "w4gate-bec8f12-cslib-n31-1-v2"
+    },
+    {
+      "final_status": true,
+      "groups": 25,
+      "implementation_commit": "bec8f120a204aecbcad04a69fd1c4984eacfc2a1",
+      "original_materialization_passed": true,
+      "project_id": "mathlib",
+      "project_revision": "d568c8c09630de097a046763c17b9ea99f95f950",
+      "reported_replay_lean_requests": 0,
+      "roots": 10,
+      "rows": 85,
+      "run_id": "w4supp-bec8f12-mathlib-n32-23-v4"
+    },
+    {
+      "final_status": true,
+      "groups": 3,
+      "implementation_commit": "bec8f120a204aecbcad04a69fd1c4984eacfc2a1",
+      "original_materialization_passed": true,
+      "project_id": "mathlib",
+      "project_revision": "d568c8c09630de097a046763c17b9ea99f95f950",
+      "reported_replay_lean_requests": 0,
+      "roots": 1,
+      "rows": 10,
+      "run_id": "w4supp-bec8f12-mathlib-n31-2-v4"
+    }
+  ],
+  "schema": "wave4_selection_projection_v1",
+  "scope": "all terminal-authorized rows/groups from 11 base and 2 supplement runs"
+}

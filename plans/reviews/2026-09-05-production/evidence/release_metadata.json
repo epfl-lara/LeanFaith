@@ -1,0 +1,1174 @@
+{
+  "note": "Selected local metadata observed 2026-09-05. Original hashes establish identity; excluded corpus bytes are not in this packet. Publication records are historical receipts, not a new Hub check.",
+  "records": [
+    {
+      "capture": "selected_top_level_fields",
+      "content": {
+        "artifact_status": "square_release_high_confidence_curriculum_seed",
+        "conservation": {
+          "capacity_square_rows_dropped": 0,
+          "degenerate_square_rows_dropped": 0,
+          "duplicate_square_rows_dropped": 284,
+          "holds": true,
+          "kept_rows": 13984,
+          "screened_rows": 14268,
+          "superseded_square_rows_dropped": 0
+        },
+        "curriculum_only": false,
+        "finalized": true,
+        "gold_blocklist_sha256": "8e4af6a9e47fb06d281169cdaddb01c5c66c1b0d150f2df9c9283ecb587117f7",
+        "labels": {
+          "negative": 6992,
+          "positive": 6992
+        },
+        "negative_mechanisms": {
+          "N25_TOGGLE_EQ_NE_PROOF_V1": 13292,
+          "N26_INCREMENT_BOUND_PROOF_V1": 8,
+          "N32_SWAP_ROLE_ORDER_PROOF_V1": 684
+        },
+        "retained_rows": 13984,
+        "roots": 3496,
+        "row_fields": [
+          "reference",
+          "candidate",
+          "label"
+        ]
+      },
+      "name": "sft1_wave2_core_manifest",
+      "original_bytes": 19311,
+      "original_path": "/storage/milikic/leanfaith/value_first/sft1_deterministic_v1/wave2/combined/compacted/core_v1/manifest.json",
+      "original_sha256": "081a2e1ca15c82cd2102611cc0a2a8ba4be4fb286e3c15543bd4c0d03de7c1a9",
+      "selected_fields": [
+        "retained_rows",
+        "roots",
+        "labels",
+        "artifact_status",
+        "finalized",
+        "curriculum_only",
+        "negative_mechanisms",
+        "conservation",
+        "row_fields",
+        "gold_blocklist_sha256"
+      ]
+    },
+    {
+      "capture": "complete_json",
+      "content": {
+        "kind": "telemetry_not_a_gate",
+        "max_balanced_accuracy": 0.963,
+        "rows": 13984,
+        "rules": {
+          "binder_delta": {
+            "balanced_accuracy": 0.4324,
+            "mean_absolute_delta": 0.0676,
+            "rule": "equivalent iff both sides list the same number of hypotheses"
+          },
+          "negation_xor": {
+            "balanced_accuracy": 0.5,
+            "rows_with_negation_on_exactly_one_side": 0,
+            "rule": "equivalent iff both or neither goal target starts with a negation"
+          },
+          "relation_parity": {
+            "agreeing_rows": 7479,
+            "balanced_accuracy": 0.963,
+            "rule": "equivalent iff both targets share their top-level relation symbol"
+          },
+          "target_equality": {
+            "agreeing_rows": 4578,
+            "balanced_accuracy": 0.8274,
+            "rule": "equivalent iff the goal targets are textually identical"
+          }
+        }
+      },
+      "name": "sft1_wave2_core_diagnostics",
+      "original_bytes": 662,
+      "original_path": "/storage/milikic/leanfaith/value_first/sft1_deterministic_v1/wave2/combined/compacted/core_v1/pairwise_diagnostics.json",
+      "original_sha256": "9d9e1b2d1ee4a50fbbf5afda117782b5db01632cb7df21ebd1404faa4bd9b8cb",
+      "selected_fields": null
+    },
+    {
+      "capture": "selected_top_level_fields",
+      "content": {
+        "fresh_verification": true,
+        "private": true,
+        "published_at": "2026-09-03T08:09:39+00:00",
+        "remote_prefix": "wave2/core_v1",
+        "repo_id": "Lemmy00/leanfaith-sft1-deterministic-v1",
+        "retained_rows": 13984,
+        "revision": "a3b5c921a24f5dedd57f1b4fb3155c163a0a48bd"
+      },
+      "manifest_sha256_in_publication_receipt": "081a2e1ca15c82cd2102611cc0a2a8ba4be4fb286e3c15543bd4c0d03de7c1a9",
+      "name": "sft1_wave2_core_publication",
+      "original_bytes": 7646,
+      "original_path": "/storage/milikic/leanfaith/value_first/sft1_deterministic_v1/wave2/combined/compacted/core_v1/publication_receipt.json",
+      "original_sha256": "d319b17ab9de0c829adcde1f3a80d823f21ba22e36331b069088820348854734",
+      "selected_fields": [
+        "repo_id",
+        "revision",
+        "remote_prefix",
+        "retained_rows",
+        "private",
+        "published_at",
+        "fresh_verification",
+        "verification_method"
+      ]
+    },
+    {
+      "capture": "selected_top_level_fields",
+      "content": {
+        "checks": {
+          "all_rows_kernel_and_meta_checked_at_generation": true,
+          "alpha_reconciled_every_row": true,
+          "cache_records_verified": true,
+          "candidate_only_screen": true,
+          "conservation_holds": true,
+          "family_held_out_screen": true,
+          "finalized_shards_complete": true,
+          "four_rows_per_root": true,
+          "identical_marginals_across_labels": true,
+          "labels_balanced": true,
+          "reference_only_screen": true,
+          "rows_are_exactly_reference_candidate_label": true,
+          "rows_byte_identical_to_reference": true,
+          "square_nonempty": true,
+          "zero_conflicts": true,
+          "zero_duplicates": true,
+          "zero_incomplete_squares": true,
+          "zero_quarantined_roots": true
+        },
+        "coverage_statement": "high-confidence deterministic curriculum seed built from certificate-closure squares; not broad theorem-equivalence coverage",
+        "passed": true,
+        "screen_sample": {
+          "method": "full_view",
+          "rows_screened": 13984,
+          "rows_total": 13984
+        },
+        "shortcut": {
+          "families": {
+            "wave2_n25_p14": {
+              "negatives": 3664,
+              "positives": 3664,
+              "roots": 1832,
+              "rows": 7328
+            },
+            "wave2_n25_p21_zeta": {
+              "negatives": 4,
+              "positives": 4,
+              "roots": 2,
+              "rows": 8
+            },
+            "wave2_n25_p23": {
+              "negatives": 662,
+              "positives": 662,
+              "roots": 331,
+              "rows": 1324
+            },
+            "wave2_n25_p32_assoc": {
+              "negatives": 144,
+              "positives": 144,
+              "roots": 72,
+              "rows": 288
+            },
+            "wave2_n25_p32_comm": {
+              "negatives": 2172,
+              "positives": 2172,
+              "roots": 1086,
+              "rows": 4344
+            },
+            "wave2_n26_p15": {
+              "negatives": 4,
+              "positives": 4,
+              "roots": 2,
+              "rows": 8
+            },
+            "wave2_n32_p14": {
+              "negatives": 162,
+              "positives": 162,
+              "roots": 81,
+              "rows": 324
+            },
+            "wave2_n32_p23": {
+              "negatives": 114,
+              "positives": 114,
+              "roots": 57,
+              "rows": 228
+            },
+            "wave2_n32_p32_assoc": {
+              "negatives": 8,
+              "positives": 8,
+              "roots": 4,
+              "rows": 16
+            },
+            "wave2_n32_p32_comm": {
+              "negatives": 58,
+              "positives": 58,
+              "roots": 29,
+              "rows": 116
+            }
+          },
+          "method": {
+            "bootstrap": "family_stratified_root_resampling_400",
+            "classifier": "full_batch_class_weighted_l2_logistic_regression",
+            "features": "hashed_unigram_bigram; side_tagged_pairs_for_family_held_out",
+            "folds": "stable_sha256_root_folds",
+            "order_invariant": true,
+            "ordering": "canonical_by_pair_id"
+          },
+          "negatives": 6992,
+          "orientation": {
+            "original": 13984,
+            "swapped": 0
+          },
+          "passed": true,
+          "per_family": {
+            "candidate_only": {
+              "wave2_n25_p14": 0.5,
+              "wave2_n25_p21_zeta": 0.5,
+              "wave2_n25_p23": 0.5,
+              "wave2_n25_p32_assoc": 0.5,
+              "wave2_n25_p32_comm": 0.5,
+              "wave2_n26_p15": 0.5,
+              "wave2_n32_p14": 0.5,
+              "wave2_n32_p23": 0.5,
+              "wave2_n32_p32_assoc": 0.5,
+              "wave2_n32_p32_comm": 0.5
+            },
+            "family_held_out": {
+              "wave2_n25_p14": 0.557,
+              "wave2_n25_p21_zeta": 0.5,
+              "wave2_n25_p23": 0.5332,
+              "wave2_n25_p32_assoc": 0.4861,
+              "wave2_n25_p32_comm": 0.4454,
+              "wave2_n26_p15": 0.5,
+              "wave2_n32_p14": 0.5031,
+              "wave2_n32_p23": 0.3684,
+              "wave2_n32_p32_assoc": 0.5625,
+              "wave2_n32_p32_comm": 0.4655
+            },
+            "reference_only": {
+              "wave2_n25_p14": 0.5,
+              "wave2_n25_p21_zeta": 0.5,
+              "wave2_n25_p23": 0.5,
+              "wave2_n25_p32_assoc": 0.5,
+              "wave2_n25_p32_comm": 0.5,
+              "wave2_n26_p15": 0.5,
+              "wave2_n32_p14": 0.5,
+              "wave2_n32_p23": 0.5,
+              "wave2_n32_p32_assoc": 0.5,
+              "wave2_n32_p32_comm": 0.5
+            }
+          },
+          "positives": 6992,
+          "roots": 3496,
+          "rows": 13984,
+          "screens": [
+            {
+              "balanced_accuracy": 0.5,
+              "folds": 5,
+              "name": "candidate_only",
+              "passed": true,
+              "threshold": 0.6,
+              "upper_bound_95": 0.5
+            },
+            {
+              "balanced_accuracy": 0.5,
+              "folds": 5,
+              "name": "reference_only",
+              "passed": true,
+              "threshold": 0.6,
+              "upper_bound_95": 0.5
+            },
+            {
+              "balanced_accuracy": 0.5135,
+              "folds": 10,
+              "name": "family_held_out",
+              "passed": true,
+              "threshold": 0.65,
+              "upper_bound_95": 0.5203
+            }
+          ]
+        }
+      },
+      "name": "sft1_wave2_core_release_checks",
+      "original_bytes": 5858,
+      "original_path": "/storage/milikic/leanfaith/value_first/sft1_deterministic_v1/wave2/combined/compacted/core_v1/release_report.json",
+      "original_sha256": "1bbc6baba025c1522aef902c46ceb4df697fd21a33fb23f737fd63124accafa7",
+      "selected_fields": [
+        "passed",
+        "checks",
+        "shortcut",
+        "screen_sample",
+        "coverage_statement"
+      ]
+    },
+    {
+      "capture": "selected_top_level_fields",
+      "content": {
+        "artifact_status": "square_release_high_confidence_curriculum_seed",
+        "conservation": {
+          "degenerate_square_rows_dropped": 0,
+          "duplicate_square_rows_dropped": 148,
+          "holds": true,
+          "kept_rows": 6412,
+          "screened_rows": 8576,
+          "superseded_square_rows_dropped": 2016
+        },
+        "curriculum_only": false,
+        "finalized": true,
+        "gold_blocklist_sha256": "8e4af6a9e47fb06d281169cdaddb01c5c66c1b0d150f2df9c9283ecb587117f7",
+        "labels": {
+          "negative": 3206,
+          "positive": 3206
+        },
+        "negative_mechanisms": {
+          "N25_TOGGLE_EQ_NE_PROOF_V1": 6196,
+          "N32_SWAP_ROLE_ORDER_PROOF_V1": 216
+        },
+        "retained_rows": 6412,
+        "roots": 1603,
+        "row_fields": [
+          "reference",
+          "candidate",
+          "label"
+        ]
+      },
+      "name": "sft1_earlier_core_manifest",
+      "original_bytes": 10580,
+      "original_path": "/storage/milikic/leanfaith/value_first/sft1_deterministic_v1/sprint_v1/compacted/core_v5_combined_square/manifest.json",
+      "original_sha256": "f2a0171e8008d14c699fb0f9186558d23b6b64878b739e69f0ce70004e23b9d9",
+      "selected_fields": [
+        "retained_rows",
+        "roots",
+        "labels",
+        "artifact_status",
+        "finalized",
+        "curriculum_only",
+        "negative_mechanisms",
+        "conservation",
+        "row_fields",
+        "gold_blocklist_sha256"
+      ]
+    },
+    {
+      "capture": "complete_json",
+      "content": {
+        "kind": "telemetry_not_a_gate",
+        "max_balanced_accuracy": 0.9425,
+        "rows": 6412,
+        "rules": {
+          "binder_delta": {
+            "balanced_accuracy": 0.4451,
+            "mean_absolute_delta": 0.0549,
+            "rule": "equivalent iff both sides list the same number of hypotheses"
+          },
+          "negation_xor": {
+            "balanced_accuracy": 0.5,
+            "rows_with_negation_on_exactly_one_side": 0,
+            "rule": "equivalent iff both or neither goal target starts with a negation"
+          },
+          "relation_parity": {
+            "agreeing_rows": 3419,
+            "balanced_accuracy": 0.9425,
+            "rule": "equivalent iff both targets share their top-level relation symbol"
+          },
+          "target_equality": {
+            "agreeing_rows": 1100,
+            "balanced_accuracy": 0.6716,
+            "rule": "equivalent iff the goal targets are textually identical"
+          }
+        }
+      },
+      "name": "sft1_earlier_core_diagnostics",
+      "original_bytes": 663,
+      "original_path": "/storage/milikic/leanfaith/value_first/sft1_deterministic_v1/sprint_v1/compacted/core_v5_combined_square/pairwise_diagnostics.json",
+      "original_sha256": "1b23f089c051ec69f8dde4ecd64af152b6f112dfb0ee3f96afb7e24cb5051c82",
+      "selected_fields": null
+    },
+    {
+      "capture": "selected_top_level_fields",
+      "content": {
+        "fresh_verification": true,
+        "private": true,
+        "published_at": "2026-09-02T23:10:17+00:00",
+        "remote_prefix": "sprint_v1/core_v5_combined_square",
+        "repo_id": "Lemmy00/leanfaith-sft1-deterministic-v1",
+        "retained_rows": 6412,
+        "revision": "9bf48f3dbcf86e17e0c5965faa8055da1a1d633d"
+      },
+      "manifest_sha256_in_publication_receipt": "f2a0171e8008d14c699fb0f9186558d23b6b64878b739e69f0ce70004e23b9d9",
+      "name": "sft1_earlier_core_publication",
+      "original_bytes": 5409,
+      "original_path": "/storage/milikic/leanfaith/value_first/sft1_deterministic_v1/sprint_v1/compacted/core_v5_combined_square/publication_receipt.json",
+      "original_sha256": "0b22d3d9312c0c0aff397014c28c64ab339525cfbff478131f4874dc87ea53dd",
+      "selected_fields": [
+        "repo_id",
+        "revision",
+        "remote_prefix",
+        "retained_rows",
+        "private",
+        "published_at",
+        "fresh_verification",
+        "verification_method"
+      ]
+    },
+    {
+      "capture": "selected_top_level_fields",
+      "content": {
+        "checks": {
+          "all_rows_kernel_and_meta_checked_at_generation": true,
+          "alpha_reconciled_every_row": true,
+          "cache_records_verified": true,
+          "candidate_only_screen": true,
+          "conservation_holds": true,
+          "family_held_out_screen": true,
+          "finalized_shards_complete": true,
+          "four_rows_per_root": true,
+          "identical_marginals_across_labels": true,
+          "labels_balanced": true,
+          "reference_only_screen": true,
+          "rows_are_exactly_reference_candidate_label": true,
+          "rows_byte_identical_to_reference": true,
+          "square_nonempty": true,
+          "zero_conflicts": true,
+          "zero_duplicates": true,
+          "zero_incomplete_squares": true,
+          "zero_quarantined_roots": true
+        },
+        "coverage_statement": "high-confidence deterministic curriculum seed built from certificate-closure squares; not broad theorem-equivalence coverage",
+        "passed": true,
+        "screen_sample": {
+          "method": "full_view",
+          "rows_screened": 6412,
+          "rows_total": 6412
+        },
+        "shortcut": {
+          "families": {
+            "square_eq": {
+              "negatives": 1740,
+              "positives": 1740,
+              "roots": 870,
+              "rows": 3480
+            },
+            "square_n25_p14": {
+              "negatives": 750,
+              "positives": 750,
+              "roots": 375,
+              "rows": 1500
+            },
+            "square_n25_p23": {
+              "negatives": 258,
+              "positives": 258,
+              "roots": 129,
+              "rows": 516
+            },
+            "square_n32_p14": {
+              "negatives": 48,
+              "positives": 48,
+              "roots": 24,
+              "rows": 96
+            },
+            "square_n32_p23": {
+              "negatives": 60,
+              "positives": 60,
+              "roots": 30,
+              "rows": 120
+            },
+            "square_ne": {
+              "negatives": 350,
+              "positives": 350,
+              "roots": 175,
+              "rows": 700
+            }
+          },
+          "method": {
+            "bootstrap": "family_stratified_root_resampling_400",
+            "classifier": "full_batch_class_weighted_l2_logistic_regression",
+            "features": "hashed_unigram_bigram; side_tagged_pairs_for_family_held_out",
+            "folds": "stable_sha256_root_folds",
+            "order_invariant": true,
+            "ordering": "canonical_by_pair_id"
+          },
+          "negatives": 3206,
+          "orientation": {
+            "original": 6412,
+            "swapped": 0
+          },
+          "passed": true,
+          "per_family": {
+            "candidate_only": {
+              "square_eq": 0.5,
+              "square_n25_p14": 0.5,
+              "square_n25_p23": 0.5,
+              "square_n32_p14": 0.5,
+              "square_n32_p23": 0.5,
+              "square_ne": 0.5
+            },
+            "family_held_out": {
+              "square_eq": 0.4727,
+              "square_n25_p14": 0.4893,
+              "square_n25_p23": 0.4826,
+              "square_n32_p14": 0.5208,
+              "square_n32_p23": 0.4583,
+              "square_ne": 0.5057
+            },
+            "reference_only": {
+              "square_eq": 0.5,
+              "square_n25_p14": 0.5,
+              "square_n25_p23": 0.5,
+              "square_n32_p14": 0.5,
+              "square_n32_p23": 0.5,
+              "square_ne": 0.5
+            }
+          },
+          "positives": 3206,
+          "roots": 1603,
+          "rows": 6412,
+          "screens": [
+            {
+              "balanced_accuracy": 0.5,
+              "folds": 5,
+              "name": "candidate_only",
+              "passed": true,
+              "threshold": 0.6,
+              "upper_bound_95": 0.5
+            },
+            {
+              "balanced_accuracy": 0.5,
+              "folds": 5,
+              "name": "reference_only",
+              "passed": true,
+              "threshold": 0.6,
+              "upper_bound_95": 0.5
+            },
+            {
+              "balanced_accuracy": 0.4814,
+              "folds": 6,
+              "name": "family_held_out",
+              "passed": true,
+              "threshold": 0.65,
+              "upper_bound_95": 0.4875
+            }
+          ]
+        }
+      },
+      "name": "sft1_earlier_core_release_checks",
+      "original_bytes": 4748,
+      "original_path": "/storage/milikic/leanfaith/value_first/sft1_deterministic_v1/sprint_v1/compacted/core_v5_combined_square/release_report.json",
+      "original_sha256": "d53f0a32615b68a4d43a4166e3b90e95ebf7c097a1de02450143bd2af9114de2",
+      "selected_fields": [
+        "passed",
+        "checks",
+        "shortcut",
+        "screen_sample",
+        "coverage_statement"
+      ]
+    },
+    {
+      "capture": "selected_top_level_fields",
+      "content": {
+        "artifact_status": "curriculum_auxiliary_certified_easy_pattern",
+        "conservation": {
+          "degenerate_square_rows_dropped": 0,
+          "duplicate_square_rows_dropped": 3148,
+          "holds": true,
+          "kept_rows": 508600,
+          "screened_rows": 511748,
+          "superseded_square_rows_dropped": 0
+        },
+        "curriculum_only": true,
+        "finalized": true,
+        "gold_blocklist_sha256": "8e4af6a9e47fb06d281169cdaddb01c5c66c1b0d150f2df9c9283ecb587117f7",
+        "labels": {
+          "negative": 254300,
+          "positive": 254300
+        },
+        "negative_mechanisms": {
+          "N19_WHOLE_CLAIM_NEGATION_V1": 508600
+        },
+        "retained_rows": 508600,
+        "roots": 127150,
+        "row_fields": [
+          "reference",
+          "candidate",
+          "label"
+        ]
+      },
+      "name": "sft1_n19_auxiliary_manifest",
+      "original_bytes": 305069,
+      "original_path": "/storage/milikic/leanfaith/value_first/sft1_deterministic_v1/sprint_v1/compacted/aux_n19_square_curriculum/manifest.json",
+      "original_sha256": "c357e18b9a5788927c00736ffb6380f32bfee9affa5625868c888e868123d132",
+      "selected_fields": [
+        "retained_rows",
+        "roots",
+        "labels",
+        "artifact_status",
+        "finalized",
+        "curriculum_only",
+        "negative_mechanisms",
+        "conservation",
+        "row_fields",
+        "gold_blocklist_sha256"
+      ]
+    },
+    {
+      "capture": "complete_json",
+      "content": {
+        "kind": "telemetry_not_a_gate",
+        "max_balanced_accuracy": 0.9973,
+        "rows": 508600,
+        "rules": {
+          "binder_delta": {
+            "balanced_accuracy": 0.95,
+            "mean_absolute_delta": 3.5652,
+            "rule": "equivalent iff both sides list the same number of hypotheses"
+          },
+          "negation_xor": {
+            "balanced_accuracy": 0.9973,
+            "rows_with_negation_on_exactly_one_side": 253876,
+            "rule": "equivalent iff both or neither goal target starts with a negation"
+          },
+          "relation_parity": {
+            "agreeing_rows": 245912,
+            "balanced_accuracy": 0.98,
+            "rule": "equivalent iff both targets share their top-level relation symbol"
+          },
+          "target_equality": {
+            "agreeing_rows": 60162,
+            "balanced_accuracy": 0.6183,
+            "rule": "equivalent iff the goal targets are textually identical"
+          }
+        }
+      },
+      "name": "sft1_n19_auxiliary_diagnostics",
+      "original_bytes": 672,
+      "original_path": "/storage/milikic/leanfaith/value_first/sft1_deterministic_v1/sprint_v1/compacted/aux_n19_square_curriculum/pairwise_diagnostics.json",
+      "original_sha256": "ffe0a488b85cd154b8b5ab130beaf86d06a853efc2b1b2845e200aa79afc4a37",
+      "selected_fields": null
+    },
+    {
+      "capture": "selected_top_level_fields",
+      "content": {
+        "fresh_verification": false,
+        "private": true,
+        "published_at": "2026-09-02T23:10:59+00:00",
+        "remote_prefix": "sprint_v1/aux_n19_square_curriculum",
+        "repo_id": "Lemmy00/leanfaith-sft1-deterministic-v1",
+        "retained_rows": 508600,
+        "revision": "c0b1bed5003af836dcfbbd0595b92913fd7c6c28",
+        "verification_method": "immutable_hub_tree_git_blob_sha1_and_xet_lfs_sha256"
+      },
+      "manifest_sha256_in_publication_receipt": "c357e18b9a5788927c00736ffb6380f32bfee9affa5625868c888e868123d132",
+      "name": "sft1_n19_auxiliary_publication",
+      "original_bytes": 269415,
+      "original_path": "/storage/milikic/leanfaith/value_first/sft1_deterministic_v1/sprint_v1/compacted/aux_n19_square_curriculum/publication_receipt.json",
+      "original_sha256": "ab78540e8d3f3f6dc4cf0354b960d26c90ef320ff28d7a5fdc2d3baa8866a66d",
+      "selected_fields": [
+        "repo_id",
+        "revision",
+        "remote_prefix",
+        "retained_rows",
+        "private",
+        "published_at",
+        "fresh_verification",
+        "verification_method"
+      ]
+    },
+    {
+      "capture": "selected_top_level_fields",
+      "content": {
+        "checks": {
+          "all_rows_kernel_and_meta_checked_at_generation": true,
+          "alpha_reconciled_every_row": true,
+          "cache_records_verified": true,
+          "candidate_only_screen": true,
+          "conservation_holds": true,
+          "family_held_out_screen": true,
+          "finalized_shards_complete": true,
+          "four_rows_per_root": true,
+          "identical_marginals_across_labels": true,
+          "labels_balanced": true,
+          "reference_only_screen": true,
+          "rows_are_exactly_reference_candidate_label": true,
+          "rows_byte_identical_to_reference": true,
+          "square_nonempty": true,
+          "zero_conflicts": true,
+          "zero_duplicates": true,
+          "zero_incomplete_squares": true,
+          "zero_quarantined_roots": true
+        },
+        "coverage_statement": "high-confidence deterministic curriculum seed built from certificate-closure squares; not broad theorem-equivalence coverage",
+        "passed": true,
+        "screen_sample": {
+          "max_rows": 40000,
+          "method": "stable_salted_root_hash_prefix_whole_roots",
+          "roots_screened": 10000,
+          "rows_screened": 40000,
+          "rows_total": 508600,
+          "salt": "sft1_sprint_screen_sample_v1"
+        },
+        "shortcut": {
+          "families": {
+            "square_n19_eq": {
+              "negatives": 6554,
+              "positives": 6554,
+              "roots": 3277,
+              "rows": 13108
+            },
+            "square_n19_ne": {
+              "negatives": 142,
+              "positives": 142,
+              "roots": 71,
+              "rows": 284
+            },
+            "square_n19_p14": {
+              "negatives": 6416,
+              "positives": 6416,
+              "roots": 3208,
+              "rows": 12832
+            },
+            "square_n19_p15": {
+              "negatives": 3592,
+              "positives": 3592,
+              "roots": 1796,
+              "rows": 7184
+            },
+            "square_n19_p23": {
+              "negatives": 3296,
+              "positives": 3296,
+              "roots": 1648,
+              "rows": 6592
+            }
+          },
+          "method": {
+            "bootstrap": "family_stratified_root_resampling_400",
+            "classifier": "full_batch_class_weighted_l2_logistic_regression",
+            "features": "hashed_unigram_bigram; side_tagged_pairs_for_family_held_out",
+            "folds": "stable_sha256_root_folds",
+            "order_invariant": true,
+            "ordering": "canonical_by_pair_id"
+          },
+          "negatives": 20000,
+          "orientation": {
+            "original": 40000,
+            "swapped": 0
+          },
+          "passed": true,
+          "per_family": {
+            "candidate_only": {
+              "square_n19_eq": 0.5,
+              "square_n19_ne": 0.5,
+              "square_n19_p14": 0.5,
+              "square_n19_p15": 0.5,
+              "square_n19_p23": 0.5
+            },
+            "family_held_out": {
+              "square_n19_eq": 0.5549,
+              "square_n19_ne": 0.5915,
+              "square_n19_p14": 0.325,
+              "square_n19_p15": 0.6274,
+              "square_n19_p23": 0.515
+            },
+            "reference_only": {
+              "square_n19_eq": 0.5,
+              "square_n19_ne": 0.5,
+              "square_n19_p14": 0.5,
+              "square_n19_p15": 0.5,
+              "square_n19_p23": 0.5
+            }
+          },
+          "positives": 20000,
+          "roots": 10000,
+          "rows": 40000,
+          "screens": [
+            {
+              "balanced_accuracy": 0.5,
+              "folds": 5,
+              "name": "candidate_only",
+              "passed": true,
+              "threshold": 0.6,
+              "upper_bound_95": 0.5
+            },
+            {
+              "balanced_accuracy": 0.5,
+              "folds": 5,
+              "name": "reference_only",
+              "passed": true,
+              "threshold": 0.6,
+              "upper_bound_95": 0.5
+            },
+            {
+              "balanced_accuracy": 0.4879,
+              "folds": 5,
+              "name": "family_held_out",
+              "passed": true,
+              "threshold": 0.65,
+              "upper_bound_95": 0.4918
+            }
+          ]
+        }
+      },
+      "name": "sft1_n19_auxiliary_release_checks",
+      "original_bytes": 4711,
+      "original_path": "/storage/milikic/leanfaith/value_first/sft1_deterministic_v1/sprint_v1/compacted/aux_n19_square_curriculum/release_report.json",
+      "original_sha256": "7902c41437ac8c7388b9c2bebb67926d4c3a8d1612e006bfa35fc5c5dcee5775",
+      "selected_fields": [
+        "passed",
+        "checks",
+        "shortcut",
+        "screen_sample",
+        "coverage_statement"
+      ]
+    },
+    {
+      "capture": "selected_top_level_fields",
+      "content": {
+        "deduplication": {
+          "algorithm": "exact UTF-8 text keyed by SHA-256 with BLAKE2b-256 collision check",
+          "source_order": [
+            "lean_docs",
+            "feedback_training"
+          ]
+        },
+        "destination": {
+          "private": true,
+          "repo_id": "Lemmy00/leanfaith-cpt1-v1"
+        },
+        "gold_blocklist": {
+          "action": "exact hash matches excluded from default",
+          "algorithm": "sha256(whitespace-collapsed UTF-8 text)",
+          "path": "/localhome/milikic/LeanFaith/data/benchmarks/golden_blocklist_v1.json",
+          "sha256": "8e4af6a9e47fb06d281169cdaddb01c5c66c1b0d150f2df9c9283ecb587117f7"
+        },
+        "hub": {
+          "data_commit": "2b7344e670f10c0752f34addb2ab417f92a4e82d",
+          "release_commit_recorded_in": "plans/10_cpt1.md"
+        },
+        "schema_version": "cpt1_v1.0",
+        "source_counts": {
+          "feedback_training": {
+            "blank_rows": 0,
+            "contamination_rows": 0,
+            "duplicates": 0,
+            "kept": 2763895,
+            "raw": 2763895
+          },
+          "lean_docs": {
+            "blank_rows": 0,
+            "contamination_rows": 0,
+            "duplicates": 0,
+            "kept": 469585,
+            "raw": 469585
+          }
+        },
+        "validation": {
+          "duplicate_row_ids": 0,
+          "null_texts": 0,
+          "status": "passed",
+          "trainer_columns": [
+            "text"
+          ]
+        }
+      },
+      "name": "cpt1",
+      "original_bytes": 133282,
+      "original_path": "/storage/milikic/leanfaith/value_first/cpt1_v1/full/release/manifest.json",
+      "original_sha256": "08c10ef2df7cf747051890fc3521035901bcf6fb3acc62069fce920e8d58b63b",
+      "selected_fields": [
+        "schema_version",
+        "destination",
+        "source_counts",
+        "validation",
+        "gold_blocklist",
+        "hub",
+        "deduplication"
+      ]
+    },
+    {
+      "capture": "selected_top_level_fields",
+      "content": {
+        "artifact_kind": "cpt2_full_release",
+        "code_revision": "fab792d0f293549986fad9a117e9841ed9a55b7d",
+        "gold_screen": {
+          "action": "excluded",
+          "blocklist_sha256": "8e4af6a9e47fb06d281169cdaddb01c5c66c1b0d150f2df9c9283ecb587117f7",
+          "comparison": "sha256(exact theorem prefix)",
+          "hit_count": 0,
+          "hit_hashes": []
+        },
+        "grouping": {
+          "groups": 2543020,
+          "key": "sha256(exact theorem prefix)",
+          "prepared_tree_sha256": "b4247388728db9e51f8aca1c6d960e52efe9b6d390071aeabdee33cefcda42e4",
+          "selection": {
+            "absolute_label_target_error": 31,
+            "artifact_kind": "cpt2_validation_group_selection",
+            "prepared_tree_sha256": "b4247388728db9e51f8aca1c6d960e52efe9b6d390071aeabdee33cefcda42e4",
+            "run_id": "2905ac065e1f045698f34f6c007fce053712a89c0a081754366d76246b8da2ce",
+            "selected_false": 5031,
+            "selected_groups": 6178,
+            "selected_hashes_sha256": "363be2573206664b96843abe27befff2c3cfcd3e32c4d093279de18aa83acd73",
+            "selected_rows": 10031,
+            "selected_true": 5000,
+            "target_false": 5000,
+            "target_true": 5000,
+            "version": "cpt2_validation_balanced_group_greedy_v1"
+          },
+          "train_validation_disjoint": true
+        },
+        "output_labels": {
+          "false": 2265197,
+          "true": 2013342
+        },
+        "output_rows": 4278539,
+        "publication": {
+          "data_commit": "b6955dbf234d4ac294a6cf795c2e471126828d4c",
+          "data_commit_manifest_sha256": "be6799e914faf69619cf724e85e69631e9cc58dd6091dec1001063588e87aeee",
+          "data_files_release_tree_sha256": "943c28416fd6ed7e396981593fdc087b2a2c400bd351ef712d9443a9f7463514",
+          "destination": "Lemmy00/leanfaith-cpt2-proof-validity-v1",
+          "finalization_version": "cpt2_publication_finalization_v1",
+          "implementation_commit": "fab792d0f293549986fad9a117e9841ed9a55b7d",
+          "metadata_finalization": "manifest-only; all 80 Parquet LFS objects unchanged",
+          "provenance_commit_recorded_in": [
+            "plans/20_cpt2.md",
+            "/storage/milikic/leanfaith/value_first/cpt2_v1/scale_full_v1/_state/publication.json"
+          ],
+          "status": "published_private",
+          "visibility": "private"
+        },
+        "source": {
+          "parquet_bytes": 4237478992,
+          "parquet_path": "answer_data.parquet",
+          "parquet_sha256": "c45145de5b681efd5aa265fdc90b9dc68d542321dd931d139cdead693360a81a",
+          "repo_id": "formalmathatepfl/compiler_data",
+          "requested_revision": "ca37d4701b11022f183e72b7b96ff543a8a615d3",
+          "resolved_revision": "ca37d4701b11022f183e72b7b96ff543a8a615d3",
+          "row_count": 4361579,
+          "row_group_count": 318,
+          "schema": [
+            [
+              "source_code",
+              "large_string"
+            ],
+            [
+              "validation",
+              "large_string"
+            ],
+            [
+              "isValid",
+              "bool"
+            ]
+          ]
+        },
+        "source_labels": {
+          "false": 2340364,
+          "true": 2021215
+        }
+      },
+      "name": "cpt2",
+      "original_bytes": 44790,
+      "original_path": "/storage/milikic/leanfaith/value_first/cpt2_v1/scale_full_v1/release/manifest.json",
+      "original_sha256": "0c9896c40f94194a5cfb4cda58f8e083a3587d5b76937619b539de377d996f10",
+      "selected_fields": [
+        "artifact_kind",
+        "output_rows",
+        "output_labels",
+        "source_labels",
+        "source",
+        "publication",
+        "gold_screen",
+        "grouping",
+        "code_revision"
+      ]
+    },
+    {
+      "capture": "selected_top_level_fields",
+      "content": {
+        "data_commit": "b6955dbf234d4ac294a6cf795c2e471126828d4c",
+        "private": true,
+        "release_tree_sha256": "943c28416fd6ed7e396981593fdc087b2a2c400bd351ef712d9443a9f7463514",
+        "repo_id": "Lemmy00/leanfaith-cpt2-proof-validity-v1"
+      },
+      "name": "cpt2_publication",
+      "original_bytes": 1350,
+      "original_path": "/storage/milikic/leanfaith/value_first/cpt2_v1/scale_full_v1/_state/publication.json",
+      "original_sha256": "e31af5eef2efb23cf8c0a92e4c027c883322bd9f1b545b8f9690cf855a962a90",
+      "selected_fields": [
+        "repo_id",
+        "final_revision",
+        "data_commit",
+        "private",
+        "manifest_sha256",
+        "release_tree_sha256"
+      ]
+    },
+    {
+      "capture": "complete_json",
+      "content": {
+        "assignment_content_sha256": "13c392d1775d4f6df3e495644bada88730ac197015ca9e4cea31950d77917ec7",
+        "canonical_source_sha256": "5f26c9b1b126e8bc9fe714f3c17fe68ad1d9b3aac60b19d80fdb4993ac8ed4e1",
+        "dataset": {
+          "private": true,
+          "remote_file_count": 10,
+          "repo_id": "Lemmy00/leanfaith-eval-v2",
+          "repo_type": "dataset",
+          "revision": "14472a6047a17c4d9fdcbd91ed191694665d004b",
+          "test_rows": 2556,
+          "validation_rows": 2555,
+          "verification": "downloaded_exact_revision_and_passed_all_CHECKSUMS_sha256"
+        },
+        "published_utc_date": "2026-08-30",
+        "results": {
+          "baseline_run_count": 10,
+          "private": true,
+          "remote_file_count": 87,
+          "repo_id": "Lemmy00/leanfaith-eval-results-v2",
+          "repo_type": "dataset",
+          "revision": "158e4b5a9ff2254df20d99d159cf3416e4d21ac3",
+          "verification": "downloaded_exact_revision_and_passed_all_CHECKSUMS_sha256"
+        },
+        "training_view_exported": false,
+        "version": "leanfaith_eval_v2_hub_publication_receipt_v1"
+      },
+      "name": "eval_publication",
+      "original_bytes": 987,
+      "original_path": "/localhome/milikic/LeanFaith/reports/eval/value_first_v2/hub_publication_receipt_v1.json",
+      "original_sha256": "94d3287e18b8faf0dd7d2becb00311c87fabadce0fe444bdfe5f14bd6aee7cfa",
+      "selected_fields": null
+    },
+    {
+      "capture": "complete_json",
+      "content": {
+        "accepted_rows": 3242,
+        "candidate_duplicates": 0,
+        "core_sha256": "65f3c204277282b767457394587467e5b617b890d07342d993af922684b3fa99",
+        "planned_slots": 4000,
+        "provider_config_sha256": "b77af2bdb5b1c30e3af21c0764897d55837730003d5d79bce162327f29f8e077",
+        "roots": 1000,
+        "sample_sha256": "421e5e79d7a2c759a5525c89b52179e02f18ea9c30a0f9f75cea3c2f51a9fdbf",
+        "self_pairs": 0,
+        "sidecar_sha256": "50fd010bcfb3aa495c36bd00a55abb09283d66fe31e231ff38f6994a57fc7527",
+        "version": "leanfaith_sft2a_provider_compaction_v5_2_corrected_v1"
+      },
+      "name": "sft2a_shard1_manifest",
+      "original_bytes": 503,
+      "original_path": "/storage/milikic/leanfaith/value_first/sft2_llm_transforms_v1/runs/sprint_shards_1k_v1/shard_01/run/compacted/manifest.json",
+      "original_sha256": "39d8fc7b2ace67b01dc7aff46b7f80fbe6f9a19be8c919a589892139d022b529",
+      "selected_fields": null
+    },
+    {
+      "capture": "complete_json",
+      "content": {
+        "accepted_rows": 3489,
+        "candidate_duplicates": 0,
+        "core_sha256": "a97bdc854352c47869b50dd69e853bd699bb9993291b00888382104a0e22c4d1",
+        "planned_slots": 4000,
+        "provider_config_sha256": "831e3f0ee31cfde38b2702af8f7ed811abd2f30c46ec02c84a997593e6b6b4d7",
+        "roots": 1000,
+        "sample_sha256": "0f68f8036082e0f61511d21b12db15b0acaf3880771ec638f0b08adabb586c76",
+        "self_pairs": 0,
+        "sidecar_sha256": "e777d921c8e3e8cc5395b682547e8b1dd015b8f1048542b300bec9378dfab21a",
+        "version": "leanfaith_sft2a_provider_compaction_v5_2_corrected_v1"
+      },
+      "name": "sft2a_shard2_manifest",
+      "original_bytes": 503,
+      "original_path": "/storage/milikic/leanfaith/value_first/sft2_llm_transforms_v1/runs/sprint_shards_1k_v3/shard_02/run/compacted/manifest.json",
+      "original_sha256": "807e73af2e29471e83e46917dacda643f6d442dbe4e8ddb7497710051dc9ab83",
+      "selected_fields": null
+    },
+    {
+      "capture": "complete_json",
+      "content": {
+        "error_message": "only the active owner may complete a root",
+        "error_type": "ParallelRehearsalError",
+        "failed_at": "2026-09-03T02:24:46.412333+00:00",
+        "invocation": "31de3386aa7c",
+        "scale_10k_authorized": false,
+        "scale_50k_authorized": false,
+        "status": "failed",
+        "version": "leanfaith_sft2a_sprint_pilot_terminal_v1"
+      },
+      "name": "sft2a_shard3_failure",
+      "original_bytes": 304,
+      "original_path": "/storage/milikic/leanfaith/value_first/sft2_llm_transforms_v1/runs/sprint_shards_1k_v3/shard_03/run/detached/terminal_status.json",
+      "original_sha256": "f42ffec8dea1fa9d6ddb0d242da3680188a0c3491b4388a7749ee65f8dfa2d0b",
+      "selected_fields": null
+    },
+    {
+      "capture": "selected_top_level_fields",
+      "content": {
+        "artifacts": {
+          "core.jsonl": "75f35d8c1142969b84978bea99c3367129111be395d8cfe9bef2bfc90cc7983a",
+          "majority_outcomes.jsonl": "527c2536061735138dbb836eab498dc8b62cdd9404ebc8c4ab0ce60e0e8ee499",
+          "selected_candidates.jsonl": "cf2a04c3a72a809fc15fb83e0dbf4203727029d33de72d5db7e506826e891df2",
+          "unknown.jsonl": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "vote_terminal_ledger_sha256": "110a613190199196296a61a0dd72b757c85dda5f85e1084b60e0f75e79f1cb74",
+          "votes.jsonl": "467a31db416644e28293e240da139092e066fe9085e4387197becb4c83811fa8"
+        },
+        "counts": {
+          "equivalent": 1,
+          "labeled": 1,
+          "non_equivalent": 0,
+          "selected_candidates": 1,
+          "unknown": 0,
+          "votes": 3
+        },
+        "run_id": "sft2b_judge_pilot:99063f321e94779497bb38a8460e678f5e4f8f83d6d8c1ac9b835b4bc464df3e",
+        "schema_version": "sft2b_matched_pilot_judge_manifest_v1"
+      },
+      "name": "sft2b_judge_pilot",
+      "original_bytes": 1719,
+      "original_path": "/storage/milikic/leanfaith/value_first/sft2_autoformalizer_v1/matched_pilot_judge_pilot_v1/sft2b_judge_pilot_99063f321e94779497bb38a8460e678f5e4f8f83d6d8c1ac9b835b4bc464df3e/manifest.json",
+      "original_sha256": "4adc50d591347ec76cadcf62fa452e8a3180172a57fee7c4c18d2c00d18be61d",
+      "selected_fields": [
+        "run_id",
+        "rows",
+        "label_counts",
+        "counts",
+        "status",
+        "passed",
+        "schema_version",
+        "artifacts",
+        "output_files"
+      ]
+    },
+    {
+      "capture": "selected_top_level_fields",
+      "content": {
+        "artifacts": {
+          "core.jsonl": "91659fce291df1cfdf50fd1ae9a2324fda8482c06c5444ba079b5f488a0a647a",
+          "majority_outcomes.jsonl": "37ba6488ace7f15d802db0429ee0f1d1de0059be85f3828312bf2950c855659a",
+          "selected_candidates.jsonl": "53f73302e8853cd0b98fe68013920a11a590249649069dbc1581e220a72cf873",
+          "unknown.jsonl": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "vote_terminal_ledger_sha256": "fe79ced73daf24639c489652b8da6dbc8cef3ecaee5f6d6631ff7603410b9850",
+          "votes.jsonl": "c639bae9b8ce1b964ad43c1dfd3cfe6f8edbbc6cec6549ae3df9ada5e72db1bf"
+        },
+        "counts": {
+          "equivalent": 37,
+          "labeled": 100,
+          "non_equivalent": 63,
+          "selected_candidates": 100,
+          "unknown": 0,
+          "votes": 300
+        },
+        "run_id": "sft2b_judge_pilot:bef90f75aa1ec0b07a65914755434ddde2e21e52efc9f2159489bb03aeeda04c",
+        "schema_version": "sft2b_matched_pilot_judge_manifest_v1"
+      },
+      "name": "sft2b_judge_pilot",
+      "original_bytes": 9982,
+      "original_path": "/storage/milikic/leanfaith/value_first/sft2_autoformalizer_v1/matched_pilot_judge_pilot_v1/sft2b_judge_pilot_bef90f75aa1ec0b07a65914755434ddde2e21e52efc9f2159489bb03aeeda04c/manifest.json",
+      "original_sha256": "81f491b71caccb06e7689e31770e6fa79cbf1e0889f7cc2bb833d93f234707c4",
+      "selected_fields": [
+        "run_id",
+        "rows",
+        "label_counts",
+        "counts",
+        "status",
+        "passed",
+        "schema_version",
+        "artifacts",
+        "output_files"
+      ]
+    }
+  ],
+  "schema_version": 1
+}
