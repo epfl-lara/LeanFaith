@@ -3,7 +3,7 @@
 > **Task ID:** SFT1
 > **Status:** active
 > **Owner/session:** Codex `/root` on isolated worktree `/localhome/milikic/LeanFaith-sft1-wave3-full-scale`, branch `milikic/sft1-wave3-full-scale`, based at `92bcb1ef4e8ab6bb2a79004c1c386bf473d614ab`
-> **Last updated:** 2026-09-04
+> **Last updated:** 2026-09-05
 > **Active sprint:** additive Wave 3--5 full-scale deterministic execution. Wave 2 is closed at
 > private Hub revision `a3b5c921a24f5dedd57f1b4fb3155c163a0a48bd`; the closed 72-hour sprint,
 > all earlier releases, and their authorization/readiness history remain frozen evidence, not
@@ -28,18 +28,17 @@
 > **REPR predecessor:** `cbc933c3623d81ba649a1f9c5107ad404389d69f` was reviewed but is
 > superseded and not consumable by SFT1
 > **Next gate:** the Wave 3 mixed-source certificate gate passed after report-only recovery, with
-> release shortcut rebalancing still required. The first Wave 5 typed 1,000-root attempt is
-> preserved as an infrastructure failure caused by a deterministic descriptor-enumeration memory
-> spike; compiler transformation remains unauthorized until a repaired bounded audit passes. The
-> repaired Wave 4 controller completed every run/replay/inspection and retained 191 unique ancestry
-> roots, missing only the 200-root input threshold. Its failure is preserved. Run the additive
-> proof-certified N32/N31 supplement below; on a terminal pass, build and inspect the deterministic
-> exact-200 composition gate without rerunning the completed 191 roots.
-> **Compute class:** the failed Wave 5 audit and failed first Wave 4 controller released their host
-> reservations. The additive Wave 4 supplement uses one persistent Lean worker and at most 24 GiB,
-> sequentially across N32 and N31. The completed streamed Wave 5
-> inventory and all Wave 4 censuses use zero Lean calls. Long jobs use named detached tmux sessions
-> and durable finite status.
+> release shortcut rebalancing still required. The repaired Wave 4 controller plus its completed
+> proof-certified N32/N31 supplement now provide 202 unique ancestry roots and pass the bounded
+> input threshold. Build, replay, screen, and manually inspect the deterministic exact-200
+> composition gate without rerunning those completed roots. If that gate passes, proceed to the
+> authorized full-library Wave 4 run. The first Wave 5 typed 1,000-root attempt remains preserved as
+> an infrastructure failure caused by a deterministic descriptor-enumeration memory spike;
+> compiler transformation remains unauthorized until a repaired bounded audit passes.
+> **Compute class:** the failed Wave 5 audit, failed first Wave 4 controller, repaired Wave 4 base,
+> and completed supplement have released their host reservations. There is currently no active SFT1
+> tmux session or host reservation. The completed streamed Wave 5 inventory and all Wave 4 censuses
+> use zero Lean calls. Long jobs use named detached tmux sessions and durable finite status.
 > **Lean budget:** all string parsing, schema/provenance work, source filtering, joins,
 > deduplication, inventory construction, applicability selection, and deterministic sampling happen
 > before Lean. Retained rows receive exact proof/certificate checks in persistent context-grouped
@@ -3047,3 +3046,32 @@ resource use, output paths, and exact remaining ETA. Do not run training.
   task should use the finite status command above after a terminal event and then continue directly
   to the exact-200 build if `terminal.json` exists, or use the already enumerated N25 fallback only
   if the supplement remains below 200 unique ancestries.
+- 2026-09-05 — recorded the terminal result of the corrected Wave 4 supplement without starting any
+  further run. It completed at 2026-09-04T18:10:34.193116+00:00; its tmux session is absent and the
+  shared resource ledger is empty. The identical `terminal.json` and `run_summary.json` under
+  `wave4/control/supplement-bec8f12-v4/` have SHA-256
+  `78aae2be064e7460b27f9c4997ab627cba89754fe0a3698d08156e7a3b33d84b`. Every terminal assertion
+  passed: the immutable base is the expected near-pass, both supplement runs are final, both
+  replays make zero Lean calls, all three projects and all five negative families retain, N19 is
+  absent, and N25 is 13.8631% of physical rows, below the 25% cap. The combined evidence contains
+  202 unique ancestry roots (208 retained operation-root results), 325 preserving variants, 1,300
+  logical rows, and 1,183 physical rows. Its family distribution is N31 673, N32 326, N25 164, N26
+  12, and N30 8 physical rows. Combined certification cost is 287 Lean requests and 1,741,783 ms of
+  Lean time.
+
+  The 23-root N32 supplement retained 10 unique roots and 25 variants as 100 logical/85 physical
+  rows; 13 roots were ordinary `wave4_no_structural_chain` non-applicabilities. It used 12 Lean
+  requests, 82,200 ms Lean time, 84.598 seconds wall time, and 8,398,016,512 bytes peak RSS. Its
+  status/replay/inspection hashes are
+  `ab4952cbd55c6d305c45ba946052ce08380cac47ecb018422870a7715f56e954`,
+  `61275954ba6c9b3f62e1e3cf83f3a6e2a3972bbac6dc868cf14530d12be00800`, and
+  `473d2729900422a145fef368b4885549efc4396b71e8abdf322c651b3795528f`. The two-root N31 supplement
+  retained one unique root and three variants as 12 logical/10 physical rows; its other root was
+  the same ordinary non-applicability. It used two Lean requests, 23,027 ms Lean time, 23.827
+  seconds wall time, and 8,268,091,392 bytes peak RSS. Its status/replay/inspection hashes are
+  `ee8ed184b12f45e391f66eacbe26005748f0aff420260882f862ef1d0f63bb4d`,
+  `80f085022fb1f2ede9f8c37441e58859cd41d15b911b26dd54840901f0031f60`, and
+  `60057404083e89b8e02a1a5e0c358381b34bd10c7c8159106b43f0c31303905f`. There is no recorded
+  label/certificate, replay, conflict, duplicate-ID, resource, or infrastructure defect. The exact
+  200-root build, its screens, and manual every-pair verdict have not yet been run; no Wave 4 scale
+  job or publication has started.
